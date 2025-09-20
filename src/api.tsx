@@ -81,7 +81,7 @@ export const getVersesInEsvChapter = async (
 ): Promise<{ verse: number; text: string }[]> => {
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://tedisrozenfelds.vercel.app/bible/verses?passage=${passage}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
