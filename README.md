@@ -13,6 +13,9 @@ A Reactive Bible App developed with Reactjs & Mantine. Features include:
 - Verse tagging.
 - Book, Chapter & Verse Navigation.
 - Prev & Next Chapter navigation.
+- Available translations:
+    - KJV
+    - ESV
 - Detailed tests included using react testing library and vitest.
 - And lots more.
 
@@ -40,5 +43,25 @@ npm run dev
 # or
 yarn dev
 ```
+
+## Contribution
+1. Fork the repository
+2. Create a new branch
+3. Commit your changes
+4. Ensure all tests pass by running:
+    - `npm run test`
+    - `npm run build`
+4. Create a pull request
+
+### Keep your fork up to date with the main branch
+1. Add the original repository as a remote:
+    - `git remote add upstream https://github.com/realvincentuche/reactive-bible.git`
+2. Fetch the latest changes from the upstream repository:
+    - `git fetch upstream`
+3. Merge the latest changes into your local main branch:
+    - `git checkout main`
+    - `git merge upstream/main`
+4. Push the updated main branch to your fork:
+    - `git push origin main`
 
 Your feedback and contributions are welcome!
