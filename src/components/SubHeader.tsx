@@ -7,7 +7,13 @@ import { getPassage } from "../api";
 import AddTagNoteModal from "./AddTagNoteModal";
 import Audio from "./Audio";
 
-const SubHeader = ({ open }: { open: () => void }) => {
+interface SubHeaderProps {
+  open: () => void;
+  showNotes: boolean;
+  setShowNotes: (show: boolean) => void;
+}
+
+const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
@@ -79,14 +85,9 @@ const SubHeader = ({ open }: { open: () => void }) => {
       </Title>
       <Button
         variant="transparent"
-        onClick={() =>
-          window.open(
-            "https://bible-research.vercel.app/api/v1/notes/",
-            "_blank"
-          )
-        }
+        onClick={() => setShowNotes(!showNotes)}
       >
-        Notes
+        {showNotes ? "View Bible" : "View Notes"}
       </Button>
       <Button variant="transparent" onClick={() => setOpened(true)}>
         Add Note
