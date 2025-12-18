@@ -1,4 +1,4 @@
-import { Card, Title, Text, Button, Group } from "@mantine/core";
+import { Card, Title, Text, Button, Group, Box } from "@mantine/core";
 import { Note } from "../api";
 import Verse from "./Verse";
 
@@ -35,9 +35,21 @@ const NoteCard = ({ note, onViewInBible }: NoteCardProps) => {
         <Verse key={v.verse} verse={v.verse} text={v.text} />
       ))}
 
-      <Text ml={20} mt={10} fs="italic" c="dimmed">
-        {note.note_text}
-      </Text>
+      <Box
+        mt={10}
+        p={10}
+        sx={(theme) => ({
+          backgroundColor:
+            theme.colorScheme === "dark"
+              ? theme.colors.dark[4]
+              : theme.colors.gray[4],
+          borderRadius: theme.radius.sm,
+        })}
+      >
+        <Text fs="italic">
+          {note.note_text}
+        </Text>
+      </Box>
     </Card>
   );
 };
