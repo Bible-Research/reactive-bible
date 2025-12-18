@@ -60,7 +60,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
 
   return (
     <ScrollArea h="80vh">
-      <Box p="md">
+      <Box>
         {Object.entries(groupedNotes).map(([tagName, tagNotes]) => (
           <TagSection
             key={tagName}
