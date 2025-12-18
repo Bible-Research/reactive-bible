@@ -87,7 +87,7 @@ const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
         variant="transparent"
         onClick={() => setShowNotes(!showNotes)}
       >
-        {showNotes ? "View Bible" : "View Notes"}
+        {showNotes ? "Bible" : "Notes"}
       </Button>
       <Button variant="transparent" onClick={() => setOpened(true)}>
         Add Note
