@@ -19,7 +19,7 @@ const NoteCard = ({ note, onViewInBible }: NoteCardProps) => {
       : `${book} ${chapter}:${firstVerse}-${lastVerse}`;
 
   return (
-    <Card shadow="sm" padding="lg" radius="md" mb={15}>
+    <Card shadow="sm" padding={0} radius="md" mb={15}>
       <Group position="apart" mb={10}>
         <Title order={4}>{heading}</Title>
         <Button
