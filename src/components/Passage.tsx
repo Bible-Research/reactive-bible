@@ -1,26 +1,45 @@
+import { useState } from "react";
+import { Box } from "@mantine/core";
 import { useBibleStore } from "../store";
-import { getVersesInChapter } from "../api";
-import { Box, ScrollArea } from "@mantine/core";
-import { useState, useEffect, useRef } from "react";
+import { getBooks } from "../api";
 import SubHeader from "./SubHeader";
-import Verse from "./Verse";
+import PassageView from "./PassageView";
+import NotesView from "./NotesView";
 
-const Passage = ({ open }: { open: () => void  }) => {
-  const viewport = useRef<HTMLDivElement>(null);
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
-  const bibleVersion = useBibleStore((state) => state.bibleVersion);
-  const [verses, setVerses] = useState<{ verse: number; text: string }[]>([]);
+const Passage = ({ open }: { open: () => void }) => {
+  const [showNotes, setShowNotes] = useState(false);
+  const setActiveBook = useBibleStore((state) => state.setActiveBook);
+  const setActiveBookShort = useBibleStore(
+    (state) => state.setActiveBookShort
+  );
+  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
+  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
 
-  useEffect(() => {
-    getVersesInChapter(activeBook, activeChapter, bibleVersion)
-      .then((result) => setVerses(result))
-      .catch((error) => console.error(error));
-  }, [activeBook, activeChapter, bibleVersion]);
+  const handleViewInBible = (
+    book: string,
+    chapter: number,
+    verse: number
+  ) => {
+    // Find the book_id (short name) for the given book name
+    const books = getBooks();
+    const bookData = books.find((b) => b.book_name === book);
+    const bookShort = bookData?.book_id || book;
+
+    // Set context for note creation
+    setActiveBook(book);
+    setActiveBookShort(bookShort);
+    setActiveChapter(chapter);
+    setActiveVerses([verse]);
+    setShowNotes(false); // Switch to Bible view
+  };
 
   return (
     <Box style={{ flex: "1 0 100%" }}>
-      <SubHeader open={open} />
+      <SubHeader
+        open={open}
+        showNotes={showNotes}
+        setShowNotes={setShowNotes}
+      />
       <Box
         sx={{
           display: "flex",
@@ -29,11 +48,11 @@ const Passage = ({ open }: { open: () => void  }) => {
         }}
         h="80vh"
       >
-        <ScrollArea h="80vh" viewportRef={viewport}>
-          {verses.map((verse) => (
-            <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
-          ))}
-        </ScrollArea>
+        {showNotes ? (
+          <NotesView onViewInBible={handleViewInBible} />
+        ) : (
+          <PassageView />
+        )}
       </Box>
     </Box>
   );
