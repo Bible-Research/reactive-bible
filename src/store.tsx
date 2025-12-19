@@ -46,6 +46,15 @@ export const useBibleStore = create<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        activeBook: state.activeBook,
+        activeBookShort: state.activeBookShort,
+        activeChapter: state.activeChapter,
+        activeVerses: state.activeVerses,
+        selectedVerses: state.selectedVerses,
+        bibleVersion: state.bibleVersion,
+        // showAudioPlayer is NOT persisted
+      }),
     }
   )
 );
