@@ -3,7 +3,8 @@ import { Howl } from "howler";
 import { useBibleStore } from "../store";
 import { getKjvAudioUrl, getBibleAudioUrl, getPassage } from "../api";
 import { ActionIcon, rem, Loader } from "@mantine/core";
-import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
+import { IconPlayerPlay } from "@tabler/icons-react";
+import AudioPlayer from "./AudioPlayer";
 
 const Audio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -13,6 +14,8 @@ const Audio = () => {
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const bibleVersion = useBibleStore((state) => state.bibleVersion);
+  const showPlayer = useBibleStore((state) => state.showAudioPlayer);
+  const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
   const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort
@@ -150,21 +153,41 @@ const Audio = () => {
     };
   }, [activeBook, activeChapter, bibleVersion, isPlaying]);
 
+  const handleClose = () => {
+    setIsPlaying(false);
+    setShowPlayer(false);
+    audio?.stop();
+  };
+
+  const handlePlayPause = () => {
+    setIsPlaying((value) => !value);
+    setShowPlayer(true); // Show player when starting playback
+  };
+
   return (
-    <ActionIcon
-      variant="transparent"
-      onClick={() => setIsPlaying((value) => !value)}
-      disabled={loading}
-      title={error || (isPlaying ? "Stop audio" : "Play audio")}
-    >
-      {loading ? (
-        <Loader size={rem(20)} />
-      ) : isPlaying ? (
-        <IconPlayerStop size={rem(20)} />
-      ) : (
-        <IconPlayerPlay size={rem(20)} />
+    <>
+      <ActionIcon
+        variant="transparent"
+        onClick={handlePlayPause}
+        disabled={loading}
+        title={error || (isPlaying ? "Playing..." : "Play audio")}
+      >
+        {loading ? (
+          <Loader size={rem(20)} />
+        ) : (
+          <IconPlayerPlay size={rem(20)} />
+        )}
+      </ActionIcon>
+
+      {showPlayer && audio && (
+        <AudioPlayer
+          audio={audio}
+          isPlaying={isPlaying}
+          onPlayPause={() => setIsPlaying((value) => !value)}
+          onClose={handleClose}
+        />
       )}
-    </ActionIcon>
+    </>
   );
 };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ScrollArea, Center, Loader } from "@mantine/core";
+import { ScrollArea, Center, Loader, Box } from "@mantine/core";
 import { useBibleStore } from "../store";
 import { getVersesInChapter } from "../api";
 import Verse from "./Verse";
@@ -8,6 +8,7 @@ const PassageView = () => {
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const bibleVersion = useBibleStore((state) => state.bibleVersion);
+  const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const [verses, setVerses] = useState<{ verse: number; text: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,9 +35,11 @@ const PassageView = () => {
 
   return (
     <ScrollArea h="80vh">
-      {verses.map((verse) => (
-        <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
-      ))}
+      <Box pb={showAudioPlayer ? 120 : 0}>
+        {verses.map((verse) => (
+          <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
+        ))}
+      </Box>
     </ScrollArea>
   );
 };
