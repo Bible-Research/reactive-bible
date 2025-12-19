@@ -1,4 +1,10 @@
 import bibleJson from "./assets/kjv.json";
+import {
+  getCachedVerses,
+  cacheVerses,
+  getCachedAudioUrl,
+  cacheAudioUrl,
+} from './utils/cacheManager';
 /**
  * Interface for the locally stored KJV Bible data.
  * Note: ESV Bible data is not stored locally but fetched from an external API when needed.
@@ -79,6 +85,14 @@ export const getVersesInEsvChapter = async (
   thebook: string,
   thechapter: number
 ): Promise<{ verse: number; text: string }[]> => {
+  // Check cache first
+  const cached = getCachedVerses(thebook, thechapter, 'ESV');
+  if (cached) {
+    console.log('✅ ESV verses loaded from cache');
+    return cached;
+  }
+
+  // Fetch from API
   try {
     const passage = `${thebook} ${thechapter}`;
     const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}`;
@@ -91,10 +105,19 @@ export const getVersesInEsvChapter = async (
 
     const data = await response.json();
 
-    const verses = data.verses
-    return Promise.resolve(verses.map((verse: { verse: number; text: string }) => ({
-      verse: verse.verse, text: verse.text
-    })));  } catch (error) {
+    const verses = data.verses.map(
+      (verse: { verse: number; text: string }) => ({
+        verse: verse.verse,
+        text: verse.text,
+      })
+    );
+
+    // Cache the verses
+    cacheVerses(thebook, thechapter, 'ESV', verses);
+    console.log('💾 ESV verses cached');
+
+    return verses;
+  } catch (error) {
     console.error(error);
     throw error;
   }
@@ -176,6 +199,14 @@ export const getBibleAudioUrl = async (
   chapter: number,
   translation: string
 ): Promise<string> => {
+  // Check cache first
+  const cached = getCachedAudioUrl(book, chapter, translation);
+  if (cached) {
+    console.log('✅ Audio URL loaded from cache');
+    return cached;
+  }
+
+  // Fetch from API
   try {
     const passage = `${book} ${chapter}`;
     const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&response_format=audio`;
@@ -211,6 +242,17 @@ export const getBibleAudioUrl = async (
         `No audio URL in API response for ${translation} ${book} ${chapter}`
       );
     }
+    
+    // Cache the audio URL
+    cacheAudioUrl(
+      book,
+      chapter,
+      translation,
+      data.audio_url,
+      data.duration_seconds || 0,
+      data.file_size_bytes || 0
+    );
+    console.log('💾 Audio URL cached');
     
     return data.audio_url;
   } catch (error) {
