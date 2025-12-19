@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ScrollArea, Box, Loader, Text, Center, Select, Group } from "@mantine/core";
+import { ScrollArea, Box, Loader, Text, Center, Select, Group, Button, Stack } from "@mantine/core";
 import { Note } from "../api";
 import TagSection from "./TagSection";
 
@@ -37,10 +37,14 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
     }
   };
 
-  // Fetch notes by tag ID
+  // Fetch notes by tag ID with timeout and abort handling
   const fetchNotesByTag = async (tagId: string) => {
     setLoading(true);
     setError(null);
+    
+    // Create AbortController for request cancellation
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
     
     try {
       let url = 'https://bible-research.vercel.app/api/v1/notes';
@@ -51,15 +55,36 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
         url += `?tag_id=${tagId}`;
       }
       
-      const response = await fetch(url);
+      console.log(`Fetching notes from: ${url}`);
+      
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error(`Failed to fetch notes: ${response.statusText}`);
+        throw new Error(`Failed to fetch notes: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
+      console.log(`Fetched ${data.length} notes`);
       setNotes(data);
     } catch (err: any) {
-      setError(err.message);
+      clearTimeout(timeoutId);
+      
+      if (err.name === 'AbortError') {
+        setError('Request timed out after 30 seconds. The server may be slow or unavailable.');
+        console.error('Request timeout:', err);
+      } else {
+        setError(err.message || 'Failed to fetch notes');
+        console.error('Error fetching notes:', err);
+      }
+      
+      // Keep existing notes on error (don't clear them)
     } finally {
       setLoading(false);
     }
@@ -93,7 +118,11 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
   if (loading) {
     return (
       <Center h="80vh">
-        <Loader size="lg" />
+        <Stack align="center" spacing="md">
+          <Loader size="lg" />
+          <Text size="sm" c="dimmed">Loading notes...</Text>
+          <Text size="xs" c="dimmed">This may take up to 30 seconds</Text>
+        </Stack>
       </Center>
     );
   }
@@ -101,7 +130,22 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
   if (error) {
     return (
       <Center h="80vh">
-        <Text c="red">Error loading notes: {error}</Text>
+        <Stack align="center" spacing="md">
+          <Text c="red" weight={500}>Error loading notes</Text>
+          <Text size="sm" c="dimmed" ta="center" maw={400}>
+            {error}
+          </Text>
+          <Button 
+            onClick={() => fetchNotesByTag(selectedTagId)}
+            variant="light"
+          >
+            Retry
+          </Button>
+          <Text size="xs" c="dimmed" ta="center" maw={400}>
+            If the problem persists, the API server may be experiencing issues.
+            Try selecting a different tag or check back later.
+          </Text>
+        </Stack>
       </Center>
     );
   }
