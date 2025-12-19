@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
-import { getKjvAudioUrl, getBibleAudioUrl } from "../api";
+import { getKjvAudioUrl, getBibleAudioUrl, getPassage } from "../api";
 import { ActionIcon, rem, Loader } from "@mantine/core";
 import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 
@@ -13,6 +13,35 @@ const Audio = () => {
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const bibleVersion = useBibleStore((state) => state.bibleVersion);
+  const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
+  const setActiveBookShort = useBibleStore(
+    (state) => state.setActiveBookShort
+  );
+  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
+  const getPassageResult = getPassage();
+
+  // Function to navigate to next chapter
+  const goToNextChapter = () => {
+    const index = getPassageResult.findIndex(
+      (book) =>
+        book.book_name === activeBook && book.chapter === activeChapter
+    );
+
+    // Check if there's a next chapter
+    if (index === -1 || index === getPassageResult.length - 1) {
+      return false; // No next chapter
+    }
+
+    const next = getPassageResult[index + 1];
+    if (next !== null) {
+      setActiveBookOnly(next.book_name);
+      setActiveBookShort(next.book_id);
+      setActiveChapter(next.chapter);
+      return true; // Successfully moved to next chapter
+    }
+
+    return false;
+  };
 
   useEffect(() => {
     const loadAndPlayAudio = async () => {
@@ -59,7 +88,17 @@ const Audio = () => {
               setLoading(false);
             },
             onpause: () => setIsPlaying(false),
-            onend: () => setIsPlaying(false),
+            onend: () => {
+              // When audio ends, try to go to next chapter
+              const movedToNext = goToNextChapter();
+              if (movedToNext) {
+                // Keep playing on next chapter
+                // isPlaying stays true, useEffect will trigger new audio
+              } else {
+                // No next chapter, stop playing
+                setIsPlaying(false);
+              }
+            },
             onloaderror: (_id, err) => {
               console.error('Audio load error:', err);
               setError('Failed to load audio');
