@@ -17,24 +17,27 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
+  // Fetch tags function (reusable)
+  const fetchTags = async () => {
+    try {
+      const response = await fetch(
+        "https://bible-research.vercel.app/api/v1/tags/"
+      );
+      const data = await response.json();
+      setTags(
+        data.map((item: { id: any; name: any; }, index: any) => ({
+          id: item.id,
+          name: item.name,
+          key: index,
+        }))
+      );
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+    }
+  };
+
+  // Fetch tags on component mount (page load)
   useEffect(() => {
-    const fetchTags = async () => {
-      try {
-        const response = await fetch(
-          "https://bible-research.vercel.app/api/v1/tags/"
-        );
-        const data = await response.json();
-        setTags(
-          data.map((item: { id: any; name: any; }, index: any) => ({
-            id: item.id,
-            name: item.name,
-            key: index,
-          }))
-        );
-      } catch (error) {
-        console.error(error);
-      }
-    };
     fetchTags();
   }, []);
 
@@ -75,6 +78,10 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
             const tagId = tags.find((tag) => tag.name === item)?.id;
             setSelectedTagId(tagId ?? '');
             setSelectedTagName(item);
+          }}
+          onDropdownOpen={() => {
+            // Refresh tags when dropdown opens (don't clear existing)
+            fetchTags();
           }}
           data={tags.map((tag) => tag.name)}
         />
