@@ -196,6 +196,14 @@ export const getBibleAudioUrl = async (
     }
 
     const data: AudioResponse = await response.json();
+    
+    // Validate audio_url exists and is a string
+    if (!data.audio_url || typeof data.audio_url !== 'string') {
+      throw new Error(
+        `Invalid audio URL in API response for ${translation}: ${JSON.stringify(data)}`
+      );
+    }
+    
     return data.audio_url;
   } catch (error) {
     console.error(`Error fetching ${translation} audio:`, error);
