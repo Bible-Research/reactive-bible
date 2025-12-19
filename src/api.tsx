@@ -178,9 +178,7 @@ export const getBibleAudioUrl = async (
 ): Promise<string> => {
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bible-research.vercel.app/api/v1/bible?response_format=audio&passage=${encodeURIComponent(
-      passage
-    )}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&response_format=audio`;
 
     const response = await fetch(url, {
       method: 'GET',
