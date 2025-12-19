@@ -12,7 +12,28 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [tags, setTags] = useState<{ id: string; name: string; key: number }[]>([]);
 
+  // Fetch tags from API
+  const fetchTags = async () => {
+    try {
+      const response = await fetch(
+        "https://bible-research.vercel.app/api/v1/tags/"
+      );
+      const data = await response.json();
+      setTags(
+        data.map((item: { id: any; name: any; }, index: any) => ({
+          id: item.id,
+          name: item.name,
+          key: index,
+        }))
+      );
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+    }
+  };
+
+  // Fetch notes and tags on mount
   useEffect(() => {
     getNotes()
       .then((data) => {
@@ -23,12 +44,12 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
         setError(err.message);
         setLoading(false);
       });
+    
+    fetchTags();
   }, []);
 
-  // Extract unique tags and sort alphabetically
-  const uniqueTags = Array.from(
-    new Set(notes.map((note) => note.tag.name))
-  ).sort();
+  // Sort tags alphabetically
+  const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
 
   // Filter notes by selected tag
   const filteredNotes = selectedTag
@@ -81,9 +102,13 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
             <Select
               value={selectedTag}
               onChange={setSelectedTag}
+              onDropdownOpen={() => {
+                // Refresh tags when dropdown opens
+                fetchTags();
+              }}
               data={[
                 { value: '', label: 'All Tags' },
-                ...uniqueTags.map((tag) => ({ value: tag, label: tag })),
+                ...sortedTags.map((tag) => ({ value: tag.name, label: tag.name })),
               ]}
               placeholder="All Tags"
               size="sm"
