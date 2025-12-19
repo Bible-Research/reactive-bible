@@ -1,49 +1,105 @@
 import { useState, useEffect } from "react";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
-import { getBooks } from "../api";
-import { ActionIcon, rem } from "@mantine/core";
+import { getKjvAudioUrl, getBibleAudioUrl } from "../api";
+import { ActionIcon, rem, Loader } from "@mantine/core";
 import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 
 const Audio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audio, setAudio] = useState<Howl | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
+  const bibleVersion = useBibleStore((state) => state.bibleVersion);
 
   useEffect(() => {
-    if (isPlaying) {
-      if (audio !== null) audio.stop();
-      const index = getBooks().findIndex(
-        (book) => book.book_name === activeBook
-      );
-      const audioHowl = new Howl({
-        src: [
-          `https://wordpocket.org/bibles/app/audio/1/${
-            index + 1
-          }/${activeChapter}.mp3`,
-        ],
-        html5: true,
-        pool: 1,
-        onplay: () => setIsPlaying(true),
-        onpause: () => setIsPlaying(false),
-        onend: () => setIsPlaying(false),
-      });
-      setAudio(audioHowl);
-      audioHowl.play();
-    } else audio?.stop();
+    const loadAndPlayAudio = async () => {
+      if (isPlaying) {
+        // Stop any currently playing audio
+        if (audio !== null) {
+          audio.stop();
+          audio.unload();
+        }
 
+        setLoading(true);
+        setError(null);
+
+        try {
+          let audioUrl: string;
+
+          // KJV uses wordpocket.org (instant URL)
+          if (bibleVersion === 'KJV') {
+            audioUrl = getKjvAudioUrl(activeBook, activeChapter);
+          }
+          // All other translations use Bible Research API
+          else {
+            audioUrl = await getBibleAudioUrl(
+              activeBook,
+              activeChapter,
+              bibleVersion
+            );
+          }
+
+          // Create and play audio
+          const audioHowl = new Howl({
+            src: [audioUrl],
+            html5: true,
+            pool: 1,
+            onplay: () => {
+              setIsPlaying(true);
+              setLoading(false);
+            },
+            onpause: () => setIsPlaying(false),
+            onend: () => setIsPlaying(false),
+            onloaderror: (id, err) => {
+              console.error('Audio load error:', err);
+              setError('Failed to load audio');
+              setIsPlaying(false);
+              setLoading(false);
+            },
+            onplayerror: (id, err) => {
+              console.error('Audio play error:', err);
+              setError('Failed to play audio');
+              setIsPlaying(false);
+              setLoading(false);
+            },
+          });
+
+          setAudio(audioHowl);
+          audioHowl.play();
+        } catch (err) {
+          console.error('Error loading audio:', err);
+          setError(err instanceof Error ? err.message : 'Unknown error');
+          setIsPlaying(false);
+          setLoading(false);
+        }
+      } else {
+        // Stop audio
+        audio?.stop();
+        setLoading(false);
+      }
+    };
+
+    loadAndPlayAudio();
+
+    // Cleanup on unmount or when dependencies change
     return () => {
       audio?.unload();
     };
-  }, [activeBook, activeChapter, isPlaying]);
+  }, [activeBook, activeChapter, bibleVersion, isPlaying]);
 
   return (
     <ActionIcon
       variant="transparent"
       onClick={() => setIsPlaying((value) => !value)}
+      disabled={loading}
+      title={error || (isPlaying ? "Stop audio" : "Play audio")}
     >
-      {isPlaying ? (
+      {loading ? (
+        <Loader size={rem(20)} />
+      ) : isPlaying ? (
         <IconPlayerStop size={rem(20)} />
       ) : (
         <IconPlayerPlay size={rem(20)} />
