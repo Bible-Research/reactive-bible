@@ -121,20 +121,25 @@ const Audio = () => {
 
   useEffect(() => {
     const loadAndPlayAudio = async () => {
+      console.log('loadAndPlayAudio:', { isPlaying, hasAudio: audio !== null });
+      
       // If audio exists and we want to play, just resume it
       if (isPlaying && audio !== null) {
+        console.log('Resuming existing audio');
         audio.play();
         return;
       }
 
       // If we want to pause, just pause
       if (!isPlaying && audio !== null) {
+        console.log('Pausing audio');
         audio.pause();
         return;
       }
 
       // Only load new audio if we're playing and don't have audio yet
       if (isPlaying && audio === null) {
+        console.log('Loading new audio');
         setLoading(true);
         setError(null);
 
@@ -222,7 +227,7 @@ const Audio = () => {
     };
 
     loadAndPlayAudio();
-  }, [isPlaying, audio]);
+  }, [isPlaying, audio, activeBook, activeChapter, bibleVersion]);
 
   const handleClose = () => {
     setIsPlaying(false);
