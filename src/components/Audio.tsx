@@ -25,7 +25,7 @@ const Audio = () => {
 
   // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
   useEffect(() => {
-    if ('mediaSession' in navigator && audio && isPlaying) {
+    if ('mediaSession' in navigator && audio) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: `${activeBook} ${activeChapter}`,
         artist: bibleVersion,
