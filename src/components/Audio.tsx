@@ -23,6 +23,57 @@ const Audio = () => {
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const getPassageResult = getPassage();
 
+  // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
+  useEffect(() => {
+    if ('mediaSession' in navigator && audio && isPlaying) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: `${activeBook} ${activeChapter}`,
+        artist: bibleVersion,
+        album: 'Bible Audio',
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => {
+        audio.play();
+        setIsPlaying(true);
+      });
+
+      navigator.mediaSession.setActionHandler('pause', () => {
+        audio.pause();
+        setIsPlaying(false);
+      });
+
+      navigator.mediaSession.setActionHandler('stop', () => {
+        audio.stop();
+        setIsPlaying(false);
+      });
+
+      // Handle seek backward (5 seconds)
+      navigator.mediaSession.setActionHandler('seekbackward', () => {
+        const currentTime = audio.seek() as number;
+        const newTime = Math.max(0, currentTime - 5);
+        audio.seek(newTime);
+      });
+
+      // Handle seek forward (5 seconds)
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        const currentTime = audio.seek() as number;
+        const duration = audio.duration();
+        const newTime = Math.min(duration, currentTime + 5);
+        audio.seek(newTime);
+      });
+    }
+
+    return () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('stop', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+      }
+    };
+  }, [audio, isPlaying, activeBook, activeChapter, bibleVersion]);
+
   // Function to navigate to next chapter
   const goToNextChapter = () => {
     const index = getPassageResult.findIndex(
