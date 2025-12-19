@@ -11,6 +11,7 @@ const Audio = () => {
   const [audio, setAudio] = useState<Howl | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPlayer, setShowPlayer] = useState(false);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const bibleVersion = useBibleStore((state) => state.bibleVersion);
@@ -153,14 +154,20 @@ const Audio = () => {
 
   const handleClose = () => {
     setIsPlaying(false);
+    setShowPlayer(false);
     audio?.stop();
+  };
+
+  const handlePlayPause = () => {
+    setIsPlaying((value) => !value);
+    setShowPlayer(true); // Show player when starting playback
   };
 
   return (
     <>
       <ActionIcon
         variant="transparent"
-        onClick={() => setIsPlaying((value) => !value)}
+        onClick={handlePlayPause}
         disabled={loading}
         title={error || (isPlaying ? "Playing..." : "Play audio")}
       >
@@ -171,7 +178,7 @@ const Audio = () => {
         )}
       </ActionIcon>
 
-      {isPlaying && audio && (
+      {showPlayer && audio && (
         <AudioPlayer
           audio={audio}
           isPlaying={isPlaying}
