@@ -208,8 +208,8 @@ const Audio = () => {
           setLoading(false);
         }
       } else {
-        // Stop audio
-        audio?.stop();
+        // Pause audio (don't stop/destroy it)
+        audio?.pause();
         setLoading(false);
       }
     };
