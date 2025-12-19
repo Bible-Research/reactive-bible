@@ -53,13 +53,13 @@ const Audio = () => {
             },
             onpause: () => setIsPlaying(false),
             onend: () => setIsPlaying(false),
-            onloaderror: (id, err) => {
+            onloaderror: (_id, err) => {
               console.error('Audio load error:', err);
               setError('Failed to load audio');
               setIsPlaying(false);
               setLoading(false);
             },
-            onplayerror: (id, err) => {
+            onplayerror: (_id, err) => {
               console.error('Audio play error:', err);
               setError('Failed to play audio');
               setIsPlaying(false);
