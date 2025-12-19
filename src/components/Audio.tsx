@@ -41,10 +41,28 @@ const Audio = () => {
       });
 
       navigator.mediaSession.setActionHandler('play', () => {
+        console.log('Media Session: play button pressed');
+        // Update playback state for Android
+        if ('setPositionState' in navigator.mediaSession) {
+          try {
+            navigator.mediaSession.playbackState = 'playing';
+          } catch (e) {
+            console.log('Could not set playback state:', e);
+          }
+        }
         setIsPlaying(true);
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
+        console.log('Media Session: pause button pressed');
+        // Update playback state for Android
+        if ('setPositionState' in navigator.mediaSession) {
+          try {
+            navigator.mediaSession.playbackState = 'paused';
+          } catch (e) {
+            console.log('Could not set playback state:', e);
+          }
+        }
         setIsPlaying(false);
       });
 
@@ -126,7 +144,18 @@ const Audio = () => {
       // If audio exists and we want to play, just resume it
       if (isPlaying && audio !== null) {
         console.log('Resuming existing audio');
-        audio.play();
+        try {
+          // Resume audio context if suspended (Android fix)
+          const howlerAudio = (audio as any)._sounds[0]?._node;
+          if (howlerAudio?.context?.state === 'suspended') {
+            console.log('Resuming suspended audio context');
+            await howlerAudio.context.resume();
+          }
+          audio.play();
+        } catch (e) {
+          console.error('Error resuming audio:', e);
+          audio.play(); // Try anyway
+        }
         return;
       }
 
