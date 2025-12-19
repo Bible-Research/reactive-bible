@@ -43,7 +43,8 @@ const Audio = () => {
       });
 
       navigator.mediaSession.setActionHandler('stop', () => {
-        audio.stop();
+        // Use pause instead of stop so audio can be resumed
+        audio.pause();
         setIsPlaying(false);
       });
 
