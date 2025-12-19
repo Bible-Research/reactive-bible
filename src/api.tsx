@@ -150,6 +150,94 @@ export const addTagNote = async (
   }
 };
 
+// ============================================
+// AUDIO FUNCTIONS
+// ============================================
+
+export interface AudioResponse {
+  book: string;
+  book_name: string;
+  chapter: number;
+  audio_url: string;
+  duration_seconds: number;
+  file_size_bytes: number;
+  format: string;
+}
+
+/**
+ * Get audio URL for any Bible translation from Bible Research API
+ * @param book - Book name (e.g., "Genesis", "2 Chronicles")
+ * @param chapter - Chapter number
+ * @param translation - Translation code (e.g., "ESV", "NIV", "NASB")
+ * @returns Audio URL string
+ */
+export const getBibleAudioUrl = async (
+  book: string,
+  chapter: number,
+  translation: string
+): Promise<string> => {
+  try {
+    const passage = `${book} ${chapter}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&response_format=audio`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch audio for ${translation}: ${response.statusText}`
+      );
+    }
+
+    const data: any = await response.json();
+    
+    // Check if API returned an error
+    if (data.error) {
+      const errorMsg = typeof data.error === 'string' 
+        ? data.error 
+        : data.error.message || 'Unknown error';
+      throw new Error(
+        `Audio not available for ${translation} ${book} ${chapter}: ${errorMsg}`
+      );
+    }
+    
+    // Validate audio_url exists and is a string
+    if (!data.audio_url || typeof data.audio_url !== 'string') {
+      throw new Error(
+        `No audio URL in API response for ${translation} ${book} ${chapter}`
+      );
+    }
+    
+    return data.audio_url;
+  } catch (error) {
+    console.error(`Error fetching ${translation} audio:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Get KJV audio URL from wordpocket.org
+ * @param book - Book name
+ * @param chapter - Chapter number
+ * @returns Audio URL string
+ */
+export const getKjvAudioUrl = (book: string, chapter: number): string => {
+  const books = getBooks();
+  const index = books.findIndex((b) => b.book_name === book);
+
+  if (index === -1) {
+    throw new Error(`Book not found: ${book}`);
+  }
+
+  return `https://wordpocket.org/bibles/app/audio/1/${
+    index + 1
+  }/${chapter}.mp3`;
+};
+
 export interface NoteVerse {
   book: string;
   chapter: number;
