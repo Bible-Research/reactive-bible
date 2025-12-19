@@ -195,12 +195,22 @@ export const getBibleAudioUrl = async (
       );
     }
 
-    const data: AudioResponse = await response.json();
+    const data: any = await response.json();
+    
+    // Check if API returned an error
+    if (data.error) {
+      const errorMsg = typeof data.error === 'string' 
+        ? data.error 
+        : data.error.message || 'Unknown error';
+      throw new Error(
+        `Audio not available for ${translation} ${book} ${chapter}: ${errorMsg}`
+      );
+    }
     
     // Validate audio_url exists and is a string
     if (!data.audio_url || typeof data.audio_url !== 'string') {
       throw new Error(
-        `Invalid audio URL in API response for ${translation}: ${JSON.stringify(data)}`
+        `No audio URL in API response for ${translation} ${book} ${chapter}`
       );
     }
     

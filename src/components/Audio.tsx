@@ -83,7 +83,21 @@ const Audio = () => {
           audioHowl.play();
         } catch (err) {
           console.error('Error loading audio:', err);
-          setError(err instanceof Error ? err.message : 'Unknown error');
+          
+          // Extract user-friendly error message
+          let errorMsg = 'Audio unavailable';
+          if (err instanceof Error) {
+            // Extract just the key part of the error
+            if (err.message.includes('not available')) {
+              errorMsg = 'Audio not available';
+            } else if (err.message.includes('No Fileset')) {
+              errorMsg = 'Audio not available for this chapter';
+            } else {
+              errorMsg = err.message.split(':')[0]; // Get first part
+            }
+          }
+          
+          setError(errorMsg);
           setIsPlaying(false);
           setLoading(false);
         }
