@@ -3,7 +3,8 @@ import { Howl } from "howler";
 import { useBibleStore } from "../store";
 import { getKjvAudioUrl, getBibleAudioUrl, getPassage } from "../api";
 import { ActionIcon, rem, Loader } from "@mantine/core";
-import { IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
+import { IconPlayerPlay } from "@tabler/icons-react";
+import AudioPlayer from "./AudioPlayer";
 
 const Audio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -150,21 +151,35 @@ const Audio = () => {
     };
   }, [activeBook, activeChapter, bibleVersion, isPlaying]);
 
+  const handleClose = () => {
+    setIsPlaying(false);
+    audio?.stop();
+  };
+
   return (
-    <ActionIcon
-      variant="transparent"
-      onClick={() => setIsPlaying((value) => !value)}
-      disabled={loading}
-      title={error || (isPlaying ? "Stop audio" : "Play audio")}
-    >
-      {loading ? (
-        <Loader size={rem(20)} />
-      ) : isPlaying ? (
-        <IconPlayerStop size={rem(20)} />
-      ) : (
-        <IconPlayerPlay size={rem(20)} />
+    <>
+      <ActionIcon
+        variant="transparent"
+        onClick={() => setIsPlaying((value) => !value)}
+        disabled={loading}
+        title={error || (isPlaying ? "Playing..." : "Play audio")}
+      >
+        {loading ? (
+          <Loader size={rem(20)} />
+        ) : (
+          <IconPlayerPlay size={rem(20)} />
+        )}
+      </ActionIcon>
+
+      {isPlaying && audio && (
+        <AudioPlayer
+          audio={audio}
+          isPlaying={isPlaying}
+          onPlayPause={() => setIsPlaying((value) => !value)}
+          onClose={handleClose}
+        />
       )}
-    </ActionIcon>
+    </>
   );
 };
 
