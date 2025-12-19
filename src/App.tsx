@@ -7,9 +7,10 @@ import {
 import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
 import MyNavbar from "./components/MyNavbar";
 import MyHeader from "./components/MyHeader";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Passage from "./components/Passage";
 import { SearchModal } from "./components/SearchModal";
+import { clearExpiredAudioUrls } from "./utils/cacheManager";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -20,6 +21,11 @@ export default function App() {
     setColorScheme((current) => (current === "dark" ? "light" : "dark"));
   const [opened, setOpened] = useState(false);
   const [modalOpened, modalFn] = useDisclosure(false);
+
+  // Clean up expired audio URLs on app load
+  useEffect(() => {
+    clearExpiredAudioUrls();
+  }, []);
   useWindowEvent("keydown", (event) => {
     if (event.key === "/") {
       event.preventDefault();
