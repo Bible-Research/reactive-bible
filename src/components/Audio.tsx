@@ -219,10 +219,12 @@ const Audio = () => {
             html5: true,
             pool: 1,
             onplay: () => {
+              console.log('Howler onplay callback');
               setIsPlaying(true);
               setLoading(false);
             },
-            onpause: () => setIsPlaying(false),
+            // Don't use onpause - conflicts with Media Session handlers
+            // onpause: () => setIsPlaying(false),
             onend: () => {
               // When audio ends, try to go to next chapter
               const movedToNext = goToNextChapter();
