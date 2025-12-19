@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ScrollArea, Center, Loader } from "@mantine/core";
+import { ScrollArea, Center, Loader, Box } from "@mantine/core";
 import { useBibleStore } from "../store";
 import { getVersesInChapter } from "../api";
 import Verse from "./Verse";
@@ -34,9 +34,11 @@ const PassageView = () => {
 
   return (
     <ScrollArea h="80vh">
-      {verses.map((verse) => (
-        <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
-      ))}
+      <Box pb={120}>
+        {verses.map((verse) => (
+          <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
+        ))}
+      </Box>
     </ScrollArea>
   );
 };
