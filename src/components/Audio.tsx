@@ -49,11 +49,6 @@ const Audio = () => {
             );
           }
 
-          console.log(
-            `Playing audio: ${bibleVersion} ${activeBook} ${activeChapter}`
-          );
-          console.log(`Audio URL: ${audioUrl}`);
-
           // Create and play audio
           const audioHowl = new Howl({
             src: [audioUrl],

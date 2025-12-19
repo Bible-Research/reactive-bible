@@ -82,9 +82,6 @@ export const getVersesInEsvChapter = async (
   try {
     const passage = `${thebook} ${thechapter}`;
     const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}`;
-    
-    console.log(`Fetching verses from: ${url}`);
-    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -182,8 +179,6 @@ export const getBibleAudioUrl = async (
   try {
     const passage = `${book} ${chapter}`;
     const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&response_format=audio`;
-    
-    console.log(`Fetching audio from: ${url}`);
 
     const response = await fetch(url, {
       method: 'GET',
