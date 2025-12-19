@@ -40,30 +40,48 @@ const Audio = () => {
         album: 'Bible Audio',
       });
 
-      navigator.mediaSession.setActionHandler('play', () => {
+      navigator.mediaSession.setActionHandler('play', async () => {
         console.log('Media Session: play button pressed');
-        // Update playback state for Android
-        if ('setPositionState' in navigator.mediaSession) {
+        // Directly play audio (Android needs this)
+        if (audio) {
           try {
-            navigator.mediaSession.playbackState = 'playing';
+            // Resume audio context if suspended
+            const howlerAudio = (audio as any)._sounds[0]?._node;
+            if (howlerAudio?.context?.state === 'suspended') {
+              console.log('Resuming suspended audio context in handler');
+              await howlerAudio.context.resume();
+            }
+            audio.play();
+            console.log('Audio play() called directly from handler');
           } catch (e) {
-            console.log('Could not set playback state:', e);
+            console.error('Error in play handler:', e);
           }
         }
+        // Also update state
         setIsPlaying(true);
+        // Update playback state for Android
+        try {
+          navigator.mediaSession.playbackState = 'playing';
+        } catch (e) {
+          console.log('Could not set playback state:', e);
+        }
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
         console.log('Media Session: pause button pressed');
-        // Update playback state for Android
-        if ('setPositionState' in navigator.mediaSession) {
-          try {
-            navigator.mediaSession.playbackState = 'paused';
-          } catch (e) {
-            console.log('Could not set playback state:', e);
-          }
+        // Directly pause audio (Android needs this)
+        if (audio) {
+          audio.pause();
+          console.log('Audio pause() called directly from handler');
         }
+        // Also update state
         setIsPlaying(false);
+        // Update playback state for Android
+        try {
+          navigator.mediaSession.playbackState = 'paused';
+        } catch (e) {
+          console.log('Could not set playback state:', e);
+        }
       });
 
       navigator.mediaSession.setActionHandler('stop', () => {
