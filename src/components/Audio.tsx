@@ -23,6 +23,14 @@ const Audio = () => {
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const getPassageResult = getPassage();
 
+  // Reset audio when chapter/book/version changes
+  useEffect(() => {
+    if (audio) {
+      audio.unload();
+      setAudio(null);
+    }
+  }, [activeBook, activeChapter, bibleVersion]);
+
   // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
   useEffect(() => {
     if ('mediaSession' in navigator && audio) {
@@ -117,13 +125,20 @@ const Audio = () => {
 
   useEffect(() => {
     const loadAndPlayAudio = async () => {
-      if (isPlaying) {
-        // Stop any currently playing audio
-        if (audio !== null) {
-          audio.stop();
-          audio.unload();
-        }
+      // If audio exists and we want to play, just resume it
+      if (isPlaying && audio !== null) {
+        audio.play();
+        return;
+      }
 
+      // If we want to pause, just pause
+      if (!isPlaying && audio !== null) {
+        audio.pause();
+        return;
+      }
+
+      // Only load new audio if we're playing and don't have audio yet
+      if (isPlaying && audio === null) {
         setLoading(true);
         setError(null);
 
@@ -207,20 +222,11 @@ const Audio = () => {
           setIsPlaying(false);
           setLoading(false);
         }
-      } else {
-        // Pause audio (don't stop/destroy it)
-        audio?.pause();
-        setLoading(false);
       }
     };
 
     loadAndPlayAudio();
-
-    // Cleanup on unmount or when dependencies change
-    return () => {
-      audio?.unload();
-    };
-  }, [activeBook, activeChapter, bibleVersion, isPlaying]);
+  }, [isPlaying, audio]);
 
   const handleClose = () => {
     setIsPlaying(false);
