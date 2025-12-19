@@ -8,6 +8,7 @@ const PassageView = () => {
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const bibleVersion = useBibleStore((state) => state.bibleVersion);
+  const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const [verses, setVerses] = useState<{ verse: number; text: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +35,7 @@ const PassageView = () => {
 
   return (
     <ScrollArea h="80vh">
-      <Box pb={120}>
+      <Box pb={showAudioPlayer ? 120 : 0}>
         {verses.map((verse) => (
           <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
         ))}

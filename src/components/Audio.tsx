@@ -11,10 +11,11 @@ const Audio = () => {
   const [audio, setAudio] = useState<Howl | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPlayer, setShowPlayer] = useState(false);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const bibleVersion = useBibleStore((state) => state.bibleVersion);
+  const showPlayer = useBibleStore((state) => state.showAudioPlayer);
+  const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
   const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort

@@ -7,6 +7,7 @@ interface BibleState {
   activeChapter: number;
   activeVerses: number[];
   bibleVersion: string;
+  showAudioPlayer: boolean;
   setActiveBook: (activeBook: string) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
@@ -14,6 +15,7 @@ interface BibleState {
   setActiveVerses: (activeVerses: number[]) => void;
   selectedVerses: number[];
   setBibleVersion: (bibleVersion: string) => void;
+  setShowAudioPlayer: (show: boolean) => void;
 }
 
 export const useBibleStore = create<BibleState>()(
@@ -25,6 +27,7 @@ export const useBibleStore = create<BibleState>()(
       activeVerses: [1],
       selectedVerses: [],
       bibleVersion: "KJV",
+      showAudioPlayer: false,
       setActiveBook: (activeBook) => set({ activeBook, activeChapter: 1 }),
       setActiveBookOnly: (activeBook) => set({ activeBook }),
       setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
@@ -38,6 +41,7 @@ export const useBibleStore = create<BibleState>()(
         });
       },
       setBibleVersion: (bibleVersion) => set({ bibleVersion }),
+      setShowAudioPlayer: (showAudioPlayer) => set({ showAudioPlayer }),
     }),
     {
       name: "bible-storage",
