@@ -25,7 +25,7 @@ const Audio = () => {
 
   // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
   useEffect(() => {
-    if ('mediaSession' in navigator && audio && isPlaying) {
+    if ('mediaSession' in navigator && audio) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: `${activeBook} ${activeChapter}`,
         artist: bibleVersion,
@@ -61,6 +61,21 @@ const Audio = () => {
         const newTime = Math.min(duration, currentTime + 5);
         audio.seek(newTime);
       });
+
+      // Fallback: previoustrack also skips backward 5s
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        const currentTime = audio.seek() as number;
+        const newTime = Math.max(0, currentTime - 5);
+        audio.seek(newTime);
+      });
+
+      // Fallback: nexttrack also skips forward 5s
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        const currentTime = audio.seek() as number;
+        const duration = audio.duration();
+        const newTime = Math.min(duration, currentTime + 5);
+        audio.seek(newTime);
+      });
     }
 
     return () => {
@@ -70,6 +85,8 @@ const Audio = () => {
         navigator.mediaSession.setActionHandler('stop', null);
         navigator.mediaSession.setActionHandler('seekbackward', null);
         navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
       }
     };
   }, [audio, isPlaying, activeBook, activeChapter, bibleVersion]);
