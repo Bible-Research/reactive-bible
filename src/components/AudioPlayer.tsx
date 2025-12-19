@@ -13,6 +13,7 @@ import {
   IconPlayerPause,
   IconPlayerSkipBack,
   IconPlayerSkipForward,
+  IconRepeat,
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
@@ -33,6 +34,7 @@ const AudioPlayer = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seeking, setSeeking] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
@@ -71,6 +73,12 @@ const AudioPlayer = ({
       audio.off('load', updateDuration);
     };
   }, [audio]);
+
+  // Handle looping
+  useEffect(() => {
+    if (!audio) return;
+    audio.loop(isLooping);
+  }, [audio, isLooping]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -159,6 +167,16 @@ const AudioPlayer = ({
           title="Skip forward 5s"
         >
           <IconPlayerSkipForward size={20} />
+        </ActionIcon>
+
+        <ActionIcon
+          size="lg"
+          variant={isLooping ? 'filled' : 'outline'}
+          color={isLooping ? 'blue' : 'gray'}
+          onClick={() => setIsLooping((value) => !value)}
+          title={isLooping ? 'Loop enabled' : 'Loop disabled'}
+        >
+          <IconRepeat size={20} />
         </ActionIcon>
 
         <Box sx={{ flex: 1, mx: 'md' }}>
