@@ -21,7 +21,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
         "https://bible-research.vercel.app/api/v1/tags/"
       );
       const data = await response.json();
-      const fetchedTags = data.map((item: { id: any; name: any; }, index: any) => ({
+      const fetchedTags = data.map((item: { id: any; name: any; }, index: number) => ({
         id: item.id,
         name: item.name,
         key: index,
@@ -32,7 +32,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
       if (fetchedTags.length > 0 && !selectedTagId) {
         setSelectedTagId(fetchedTags[0].id);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching tags:', error);
     }
   };
@@ -107,7 +107,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
 
   // Group notes by tag name
   const groupedNotes = notes.reduce((acc, note) => {
-    const tagName = note.tag.name;
+    const tagName = note.tag?.name ?? 'Untagged';
     if (!acc[tagName]) {
       acc[tagName] = [];
     }
