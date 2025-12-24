@@ -7,11 +7,11 @@ interface NoteCardProps {
   onViewInBible: (book: string, chapter: number, verse: number) => void;
 }
 
-const NoteCard = ({ note, onViewInBible }: NoteCardProps) => {
-  const firstVerse = note.verses[0]?.verse || 1;
-  const lastVerse = note.verses[note.verses.length - 1]?.verse || 1;
-  const book = note.verses[0]?.book || "";
-  const chapter = note.verses[0]?.chapter || 1;
+const NoteCard = ({ note, onViewInBible }: NoteCardProps) => {  
+  const firstVerse = note?.verses?.[0]?.verse || 1;
+  const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
+  const book = note?.verses?.[0]?.book || "";
+  const chapter = note?.verses?.[0]?.chapter || 1;
 
   const heading =
     firstVerse === lastVerse
@@ -31,7 +31,7 @@ const NoteCard = ({ note, onViewInBible }: NoteCardProps) => {
         </Button>
       </Group>
 
-      {note.verses.map((v) => (
+      {note?.verses?.map(v => (
         <Verse key={v.verse} verse={v.verse} text={v.text} />
       ))}
 
