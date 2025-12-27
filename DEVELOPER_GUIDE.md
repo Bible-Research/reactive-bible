@@ -190,6 +190,18 @@ navigator.mediaSession.metadata = new MediaMetadata({
 3. New audio loads automatically via useEffect
 4. Playback continues seamlessly
 
+**Hardware Controls**:
+- **Play/Pause**: Works on all devices (headphones, car)
+- **Seek Forward/Backward**: Skips ±10 seconds (headphones)
+- **Next/Previous Track**: Skips ±10 seconds (car stereo)
+- **Seek To**: Direct time seeking (car stereo fallback)
+- **Lock Screen**: Shows chapter info and controls (mobile)
+
+**Note**: Different controls have different skip amounts:
+- Headphone seek buttons: ±10 seconds (fine control)
+- Car stereo next/prev: ±10 seconds (easier while driving)
+- To change chapters: Use auto-advance or navigate in app
+
 ### 5. Verse Selection & Highlighting
 
 **Location**: `src/components/Verse.tsx`

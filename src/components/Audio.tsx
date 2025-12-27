@@ -55,35 +55,57 @@ const Audio = () => {
         setIsPlaying(false);
       });
 
-      // Handle seek backward (5 seconds)
-      navigator.mediaSession.setActionHandler('seekbackward', () => {
-        const currentTime = audio.seek() as number;
-        const newTime = Math.max(0, currentTime - 5);
-        audio.seek(newTime);
-      });
+      // Seek backward: 10s (headphones with seek buttons)
+      navigator.mediaSession.setActionHandler(
+        'seekbackward', 
+        () => {
+          const currentTime = audio.seek() as number;
+          const newTime = Math.max(0, currentTime - 10);
+          audio.seek(newTime);
+        }
+      );
 
-      // Handle seek forward (5 seconds)
-      navigator.mediaSession.setActionHandler('seekforward', () => {
-        const currentTime = audio.seek() as number;
-        const duration = audio.duration();
-        const newTime = Math.min(duration, currentTime + 5);
-        audio.seek(newTime);
-      });
+      // Seek forward: 10s (headphones with seek buttons)
+      navigator.mediaSession.setActionHandler(
+        'seekforward', 
+        () => {
+          const currentTime = audio.seek() as number;
+          const duration = audio.duration();
+          const newTime = Math.min(duration, currentTime + 10);
+          audio.seek(newTime);
+        }
+      );
 
-      // Fallback: previoustrack also skips backward 5s
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
-        const currentTime = audio.seek() as number;
-        const newTime = Math.max(0, currentTime - 5);
-        audio.seek(newTime);
-      });
+      // Previous track: 10s (car stereo prev button)
+      navigator.mediaSession.setActionHandler(
+        'previoustrack', 
+        () => {
+          const currentTime = audio.seek() as number;
+          const newTime = Math.max(0, currentTime - 10);
+          audio.seek(newTime);
+        }
+      );
 
-      // Fallback: nexttrack also skips forward 5s
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
-        const currentTime = audio.seek() as number;
-        const duration = audio.duration();
-        const newTime = Math.min(duration, currentTime + 5);
-        audio.seek(newTime);
-      });
+      // Next track: 10s (car stereo next button)
+      navigator.mediaSession.setActionHandler(
+        'nexttrack', 
+        () => {
+          const currentTime = audio.seek() as number;
+          const duration = audio.duration();
+          const newTime = Math.min(duration, currentTime + 10);
+          audio.seek(newTime);
+        }
+      );
+
+      // Seek to specific time (additional car stereo fallback)
+      navigator.mediaSession.setActionHandler(
+        'seekto', 
+        (details) => {
+          if (details.seekTime !== undefined) {
+            audio.seek(details.seekTime);
+          }
+        }
+      );
     }
 
     return () => {
@@ -91,10 +113,20 @@ const Audio = () => {
         navigator.mediaSession.setActionHandler('play', null);
         navigator.mediaSession.setActionHandler('pause', null);
         navigator.mediaSession.setActionHandler('stop', null);
-        navigator.mediaSession.setActionHandler('seekbackward', null);
-        navigator.mediaSession.setActionHandler('seekforward', null);
-        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler(
+          'seekbackward', 
+          null
+        );
+        navigator.mediaSession.setActionHandler(
+          'seekforward', 
+          null
+        );
+        navigator.mediaSession.setActionHandler(
+          'previoustrack', 
+          null
+        );
         navigator.mediaSession.setActionHandler('nexttrack', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
       }
     };
   }, [audio, isPlaying, activeBook, activeChapter, bibleVersion]);
@@ -103,7 +135,8 @@ const Audio = () => {
   const goToNextChapter = () => {
     const index = getPassageResult.findIndex(
       (book) =>
-        book.book_name === activeBook && book.chapter === activeChapter
+        book.book_name === activeBook && 
+        book.chapter === activeChapter
     );
 
     // Check if there's a next chapter
