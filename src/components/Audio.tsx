@@ -11,6 +11,7 @@ const Audio = () => {
   const [audio, setAudio] = useState<Howl | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLooping, setIsLooping] = useState(false);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const bibleVersion = useBibleStore((state) => state.bibleVersion);
@@ -55,7 +56,7 @@ const Audio = () => {
         setIsPlaying(false);
       });
 
-      // Seek backward: 10s (headphones with seek buttons)
+      // Seek backward (headphones with seek buttons)
       navigator.mediaSession.setActionHandler(
         'seekbackward', 
         () => {
@@ -65,7 +66,7 @@ const Audio = () => {
         }
       );
 
-      // Seek forward: 10s (headphones with seek buttons)
+      // Seek forward (headphones with seek buttons)
       navigator.mediaSession.setActionHandler(
         'seekforward', 
         () => {
@@ -76,7 +77,7 @@ const Audio = () => {
         }
       );
 
-      // Previous track: 10s (car stereo prev button)
+      // Previous track (car stereo prev button)
       navigator.mediaSession.setActionHandler(
         'previoustrack', 
         () => {
@@ -202,17 +203,25 @@ const Audio = () => {
             src: [audioUrl],
             html5: true,
             pool: 1,
+            loop: isLooping,
             onplay: () => {
               setIsPlaying(true);
               setLoading(false);
             },
             onpause: () => setIsPlaying(false),
             onend: () => {
-              // When audio ends, try to go to next chapter
+              // Double-check: onend shouldn't fire when looping
+              // But add defensive check just in case
+              if (audioHowl.loop()) {
+                // Loop is enabled, don't advance
+                return;
+              }
+              
+              // Only advance to next chapter if not looping
               const movedToNext = goToNextChapter();
               if (movedToNext) {
                 // Keep playing on next chapter
-                // isPlaying stays true, useEffect will trigger new audio
+                // isPlaying stays true
               } else {
                 // No next chapter, stop playing
                 setIsPlaying(false);
@@ -290,7 +299,9 @@ const Audio = () => {
         <AudioPlayer
           audio={audio}
           isPlaying={isPlaying}
+          isLooping={isLooping}
           onPlayPause={() => setIsPlaying((value) => !value)}
+          onLoopToggle={() => setIsLooping((value) => !value)}
           onClose={handleClose}
         />
       )}

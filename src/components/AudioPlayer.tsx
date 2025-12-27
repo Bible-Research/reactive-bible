@@ -21,20 +21,23 @@ import { useBibleStore } from '../store';
 interface AudioPlayerProps {
   audio: Howl | null;
   isPlaying: boolean;
+  isLooping: boolean;
   onPlayPause: () => void;
+  onLoopToggle: () => void;
   onClose: () => void;
 }
 
 const AudioPlayer = ({
   audio,
   isPlaying,
+  isLooping,
   onPlayPause,
+  onLoopToggle,
   onClose,
 }: AudioPlayerProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seeking, setSeeking] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
@@ -173,7 +176,7 @@ const AudioPlayer = ({
           size="lg"
           variant={isLooping ? 'filled' : 'outline'}
           color={isLooping ? 'blue' : 'gray'}
-          onClick={() => setIsLooping((value) => !value)}
+          onClick={onLoopToggle}
           title={isLooping ? 'Loop enabled' : 'Loop disabled'}
         >
           <IconRepeat size={20} />
