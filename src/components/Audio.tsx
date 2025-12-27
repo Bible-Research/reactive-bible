@@ -41,18 +41,17 @@ const Audio = () => {
       });
 
       navigator.mediaSession.setActionHandler('play', () => {
-        audio.play();
+        // Only update state, let useEffect handle audio playback
         setIsPlaying(true);
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
-        audio.pause();
+        // Only update state, let useEffect handle audio pause
         setIsPlaying(false);
       });
 
       navigator.mediaSession.setActionHandler('stop', () => {
-        // Use pause instead of stop so audio can be resumed
-        audio.pause();
+        // Only update state, let useEffect handle audio pause
         setIsPlaying(false);
       });
 
