@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { ScrollArea, Center, Loader, Box } from "@mantine/core";
 import { useBibleStore } from "../store";
-import { getVersesInChapter } from "../api";
+import {
+  getVersesInChapter,
+  prefetchAudioUrl,
+  prefetchAdjacentChapters,
+} from "../api";
 import Verse from "./Verse";
 
 const PassageView = () => {
@@ -18,6 +22,20 @@ const PassageView = () => {
       .then((result) => {
         setVerses(result);
         setLoading(false);
+
+        // Prefetch current chapter audio (parallel)
+        prefetchAudioUrl(
+          activeBook,
+          activeChapter,
+          bibleVersion
+        );
+
+        // Prefetch adjacent chapters (parallel)
+        prefetchAdjacentChapters(
+          activeBook,
+          activeChapter,
+          bibleVersion
+        );
       })
       .catch((error) => {
         console.error(error);

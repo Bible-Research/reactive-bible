@@ -280,6 +280,157 @@ export const getKjvAudioUrl = (book: string, chapter: number): string => {
   }/${chapter}.mp3`;
 };
 
+/**
+ * Get adjacent chapter info (previous/next)
+ * @param book - Current book name
+ * @param chapter - Current chapter number
+ * @returns Object with previous and next chapter info
+ */
+export const getAdjacentChapters = (
+  book: string,
+  chapter: number
+): {
+  previous: { book: string; chapter: number } | null;
+  next: { book: string; chapter: number } | null;
+} => {
+  const passages = getPassage();
+  const currentIndex = passages.findIndex(
+    (p) => p.book_name === book && p.chapter === chapter
+  );
+
+  if (currentIndex === -1) {
+    return { previous: null, next: null };
+  }
+
+  const previous =
+    currentIndex > 0
+      ? {
+          book: passages[currentIndex - 1].book_name,
+          chapter: passages[currentIndex - 1].chapter,
+        }
+      : null;
+
+  const next =
+    currentIndex < passages.length - 1
+      ? {
+          book: passages[currentIndex + 1].book_name,
+          chapter: passages[currentIndex + 1].chapter,
+        }
+      : null;
+
+  return { previous, next };
+};
+
+/**
+ * Prefetch audio URL for a chapter (background caching)
+ * Silently fetches and caches audio URL without blocking UI
+ * @param book - Book name
+ * @param chapter - Chapter number
+ * @param bibleVersion - Bible version ("KJV", "ESV", etc.)
+ */
+export const prefetchAudioUrl = async (
+  book: string,
+  chapter: number,
+  bibleVersion: string
+): Promise<void> => {
+  try {
+    // Check if already cached
+    const cached = getCachedAudioUrl(book, chapter, bibleVersion);
+    if (cached) {
+      console.log(
+        `🎵 Audio URL already cached for ${book} ${chapter}`
+      );
+      return;
+    }
+
+    // KJV URLs are instant (no API call needed)
+    if (bibleVersion === 'KJV') {
+      const url = getKjvAudioUrl(book, chapter);
+      // Cache it for consistency
+      cacheAudioUrl(book, chapter, 'KJV', url, 0, 0);
+      console.log(`🎵 Prefetched KJV audio for ${book} ${chapter}`);
+      return;
+    }
+
+    // For other versions, fetch from API
+    await getBibleAudioUrl(book, chapter, bibleVersion);
+    console.log(
+      `🎵 Prefetched ${bibleVersion} audio for ${book} ${chapter}`
+    );
+  } catch (error) {
+    // Silent fail - prefetch errors shouldn't block the UI
+    console.warn(
+      `Failed to prefetch audio for ${book} ${chapter}:`,
+      error
+    );
+  }
+};
+
+/**
+ * Prefetch verses and audio for adjacent chapters
+ * (previous and next)
+ * @param book - Current book name
+ * @param chapter - Current chapter number
+ * @param bibleVersion - Bible version
+ */
+export const prefetchAdjacentChapters = async (
+  book: string,
+  chapter: number,
+  bibleVersion: string
+): Promise<void> => {
+  const { previous, next } = getAdjacentChapters(book, chapter);
+
+  // Prefetch previous chapter
+  if (previous) {
+    // Prefetch verses (silent background)
+    getVersesInChapter(
+      previous.book,
+      previous.chapter,
+      bibleVersion
+    ).catch(() => {
+      // Silent fail
+    });
+
+    // Prefetch audio
+    prefetchAudioUrl(
+      previous.book,
+      previous.chapter,
+      bibleVersion
+    ).catch(() => {
+      // Silent fail
+    });
+
+    console.log(
+      `⏮️ Prefetching previous: ${previous.book} ${previous.chapter}`
+    );
+  }
+
+  // Prefetch next chapter
+  if (next) {
+    // Prefetch verses (silent background)
+    getVersesInChapter(
+      next.book,
+      next.chapter,
+      bibleVersion
+    ).catch(() => {
+      // Silent fail
+    });
+
+    // Prefetch audio
+    prefetchAudioUrl(
+      next.book,
+      next.chapter,
+      bibleVersion
+    ).catch(() => {
+      // Silent fail
+    });
+
+    console.log(
+      `⏭️ Prefetching next: ${next.book} ${next.chapter}`
+    );
+  }
+};
+
 export interface NoteVerse {
   book: string;
   chapter: number;

@@ -153,7 +153,12 @@ Streams audio Bible chapters with full playback controls.
 **Features**:
 - Play/Pause controls
 - Progress bar with seek functionality
+- Skip forward/backward (±10 seconds)
 - Auto-advance to next chapter
+- Loop current chapter infinitely
+- Smart prefetching system:
+  - Current chapter audio URL
+  - Adjacent chapters (previous/next) verses + audio
 - Media Session API integration (hardware controls)
 - Loading states and error handling
 - Persistent audio player UI
@@ -184,11 +189,28 @@ navigator.mediaSession.metadata = new MediaMetadata({
 });
 ```
 
+**Smart Prefetching System**:
+When user navigates to a chapter, the app automatically prefetches:
+1. **Current chapter**: Audio URL
+2. **Previous chapter**: Verses + Audio URL
+3. **Next chapter**: Verses + Audio URL
+
+All prefetching happens silently in the background.
+
+**Benefits**:
+- ✅ Instant playback (no loading delay)
+- ✅ Seamless chapter navigation
+- ✅ Instant auto-advance to next chapter
+- ✅ Smooth backward navigation
+- ✅ Silent background operation
+
 **Auto-Advance Logic**:
-1. When chapter audio ends, find next chapter in passage list
-2. Update active book/chapter in state
-3. New audio loads automatically via useEffect
-4. Playback continues seamlessly
+1. When chapter audio ends, check if loop is enabled
+2. If looping: Howler.js restarts audio automatically
+3. If not looping: Find next chapter in passage list
+4. Update active book/chapter in state
+5. New audio loads automatically via useEffect
+6. Playback continues seamlessly
 
 **Hardware Controls**:
 - **Play/Pause**: Works on all devices (headphones, car)
