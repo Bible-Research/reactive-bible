@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import Passage from "./components/Passage";
 import { SearchModal } from "./components/SearchModal";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -71,6 +72,7 @@ export default function App() {
           <Passage open={modalFn.open} />
           <SearchModal opened={modalOpened} close={modalFn.close} />
         </AppShell>
+        <Analytics />
       </MantineProvider>
     </ColorSchemeProvider>
   );

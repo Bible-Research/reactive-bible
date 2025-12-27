@@ -29,6 +29,7 @@ audio playback, verse tagging, and advanced search capabilities.
 - **Audio**: Howler.js
 - **Testing**: Vitest + React Testing Library
 - **Icons**: Tabler Icons
+- **Analytics**: Vercel Analytics
 
 ---
 
@@ -284,6 +285,37 @@ const toggleColorScheme = () =>
     current === "dark" ? "light" : "dark"
   );
 ```
+
+### 8. Analytics
+
+**Location**: `src/App.tsx`
+
+Vercel Analytics integration for tracking page views and user 
+interactions.
+
+**Features**:
+- Automatic page view tracking
+- Privacy-friendly (no cookies)
+- Real-time visitor analytics
+- Performance metrics
+
+**Implementation**:
+```typescript
+import { Analytics } from "@vercel/analytics/react";
+
+export default function App() {
+  return (
+    <MantineProvider>
+      {/* App content */}
+      <Analytics />
+    </MantineProvider>
+  );
+}
+```
+
+**Note**: Analytics data is only collected in production 
+deployments on Vercel. No data is tracked during local 
+development.
 
 ---
 

@@ -197,13 +197,22 @@ Update these sections based on your changes:
 ## Git Workflow
 
 ### Commit Messages
-Follow conventional commits:
-- `feat: add new feature`
-- `fix: resolve bug`
-- `docs: update documentation`
-- `refactor: restructure code`
-- `test: add tests`
-- `chore: update dependencies`
+Follow conventional commits with **UPPERCASE type and capitalized message**:
+- `Feat: Add new feature`
+- `Fix: Resolve bug`
+- `Docs: Update documentation`
+- `Refactor: Restructure code`
+- `Test: Add tests`
+- `Chore: Update dependencies`
+
+**Format**: `Type: Capitalized message description`
+
+Examples:
+- ✅ `Feat: Add Vercel Analytics integration`
+- ✅ `Fix: Resolve audio playback issue on Safari`
+- ✅ `Docs: Update DEVELOPER_GUIDE with caching strategy`
+- ❌ `feat: add analytics` (lowercase - incorrect)
+- ❌ `Feat: add analytics` (message not capitalized - incorrect)
 
 ### Before Submitting PR
 1. Run tests: `npm run test`
