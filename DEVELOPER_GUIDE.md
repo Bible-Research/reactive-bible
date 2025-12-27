@@ -30,6 +30,7 @@ audio playback, verse tagging, and advanced search capabilities.
 - **Testing**: Vitest + React Testing Library
 - **Icons**: Tabler Icons
 - **Analytics**: Vercel Analytics
+- **Performance Monitoring**: Vercel Speed Insights
 
 ---
 
@@ -575,6 +576,21 @@ Notes display with tag filtering.
 **Example**: 
 `https://wordpocket.org/bibles/app/audio/1/1/1.mp3` 
 (Genesis Chapter 1)
+
+#### Vercel Services
+
+**Vercel Analytics**
+- Tracks page views and user interactions
+- Automatically enabled in production deployments
+- Component: `<Analytics />` in `App.tsx`
+- Package: `@vercel/analytics`
+
+**Vercel Speed Insights**
+- Monitors Core Web Vitals and performance metrics
+- Tracks: LCP, FID, CLS, TTFB, FCP
+- Component: `<SpeedInsights />` in `App.tsx`
+- Package: `@vercel/speed-insights`
+- Data visible in Vercel dashboard after deployment
 
 ---
 

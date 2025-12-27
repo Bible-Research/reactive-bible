@@ -12,6 +12,7 @@ import Passage from "./components/Passage";
 import { SearchModal } from "./components/SearchModal";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -73,6 +74,7 @@ export default function App() {
           <SearchModal opened={modalOpened} close={modalFn.close} />
         </AppShell>
         <Analytics />
+        <SpeedInsights />
       </MantineProvider>
     </ColorSchemeProvider>
   );
