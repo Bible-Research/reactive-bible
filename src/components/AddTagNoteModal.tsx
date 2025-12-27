@@ -15,7 +15,12 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   const [tagNoteText, setTagNoteText] = useState("");
   const activeVerses = useBibleStore((state) => state.activeVerses);
   const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
+  const activeChapter = useBibleStore(
+    (state) => state.activeChapter
+  );
+  const setActiveVerses = useBibleStore(
+    (state) => state.setActiveVerses
+  );
 
   // Fetch tags function (reusable)
   const fetchTags = async () => {
@@ -56,6 +61,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         verseReferences
       );
       console.log("Tag note added:", data);
+      setActiveVerses([]); // Clear selected verses
       onClose();
     } catch (error) {
       console.error(error);

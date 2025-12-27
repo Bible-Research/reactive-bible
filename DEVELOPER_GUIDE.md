@@ -239,6 +239,15 @@ Create and organize notes with tags for Bible verses.
 - View notes with verse references
 - Navigate to verse from note
 - API integration for persistence
+- Auto-clear selected verses after note creation
+
+**Workflow**:
+1. User selects one or more verses by clicking them
+2. User clicks "Add Note" button
+3. User selects a tag and enters note text
+4. On submit, note is saved to API
+5. Selected verses are automatically cleared
+6. Modal closes
 
 **API Functions**:
 ```typescript
@@ -251,6 +260,22 @@ addTagNote(
   noteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[]
 )
+```
+
+**Implementation Detail**:
+```typescript
+// In AddTagNoteModal.tsx
+const handleSubmit = async (event) => {
+  const verseReferences = activeVerses.map((verse) => ({
+    book: activeBook,
+    chapter: activeChapter,
+    verse,
+  }));
+  
+  await addTagNote(selectedTagId, tagNoteText, verseReferences);
+  setActiveVerses([]); // Clear selected verses
+  onClose();
+};
 ```
 
 **Note Structure**:
