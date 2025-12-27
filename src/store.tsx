@@ -24,14 +24,21 @@ export const useBibleStore = create<BibleState>()(
       activeBook: "Genesis",
       activeBookShort: "Gen",
       activeChapter: 1,
-      activeVerses: [1],
+      activeVerses: [],
       selectedVerses: [],
       bibleVersion: "KJV",
       showAudioPlayer: false,
-      setActiveBook: (activeBook) => set({ activeBook, activeChapter: 1 }),
+      setActiveBook: (activeBook) => set({ 
+        activeBook, 
+        activeChapter: 1, 
+        activeVerses: [] 
+      }),
       setActiveBookOnly: (activeBook) => set({ activeBook }),
       setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
-      setActiveChapter: (activeChapter) => set({ activeChapter }),
+      setActiveChapter: (activeChapter) => set({ 
+        activeChapter, 
+        activeVerses: [] 
+      }),
       setActiveVerses: (activeVerses) => {
         set({ activeVerses });
         activeVerses.forEach((verse) => {
