@@ -1,10 +1,14 @@
+import { Translation } from '../store';
+
 // Cache Manager for Bible Verses and Audio URLs
 // Verse cache: LRU with 500-verse limit (copyright compliance)
 // Audio cache: Unlimited with expiration handling
+// Translation cache: Simple key-value store by language
 
 const VERSE_CACHE_KEY = 'bible_verse_cache';
 const VERSE_CACHE_METADATA_KEY = 'bible_verse_cache_metadata';
 const AUDIO_CACHE_KEY = 'bible_audio_cache';
+const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
 const MAX_VERSES = 500;
 
 interface VerseData {
@@ -32,6 +36,10 @@ interface AudioData {
 
 interface AudioCache {
   [key: string]: AudioData;
+}
+
+interface TranslationCache {
+  [languageIso: string]: Translation[];
 }
 
 // ============================================
@@ -165,6 +173,39 @@ export const cacheVerses = (
 export const clearVerseCache = () => {
   localStorage.removeItem(VERSE_CACHE_KEY);
   localStorage.removeItem(VERSE_CACHE_METADATA_KEY);
+};
+
+// ============================================
+// TRANSLATION CACHE
+// ============================================
+
+export const getCachedTranslations = (
+  languageIso: string
+): Translation[] | null => {
+  try {
+    const cacheStr = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    if (!cacheStr) return null;
+
+    const cache: TranslationCache = JSON.parse(cacheStr);
+    return cache[languageIso] || null;
+  } catch (error) {
+    console.error('Error reading translation cache:', error);
+    return null;
+  }
+};
+
+export const cacheTranslations = (
+  languageIso: string,
+  translations: Translation[]
+) => {
+  try {
+    const cacheStr = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    const cache: TranslationCache = cacheStr ? JSON.parse(cacheStr) : {};
+    cache[languageIso] = translations;
+    localStorage.setItem(TRANSLATION_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error('Error writing translation cache:', error);
+  }
 };
 
 // ============================================
