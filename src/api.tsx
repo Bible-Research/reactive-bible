@@ -8,10 +8,6 @@ import {
   getCachedTranslations,
   cacheTranslations,
 } from './utils/cacheManager';
-import {
-  getTestament,
-  BOOK_NAME_TO_CODE,
-} from './utils/bibleUtils';
 /**
  * Interface for the locally stored KJV Bible data.
  * Note: Other Bible data is not stored locally but fetched from an external API when needed.
