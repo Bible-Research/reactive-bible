@@ -14,7 +14,10 @@ const Audio = () => {
   const [isLooping, setIsLooping] = useState(false);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
-  const bibleVersion = useBibleStore((state) => state.bibleVersion);
+  const { activeAudioFilesetId, translations } = useBibleStore((state) => ({
+    activeAudioFilesetId: state.activeAudioFilesetId,
+    translations: state.translations,
+  }));
   const showPlayer = useBibleStore((state) => state.showAudioPlayer);
   const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
   const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
@@ -30,14 +33,15 @@ const Audio = () => {
       audio.unload();
       setAudio(null);
     }
-  }, [activeBook, activeChapter, bibleVersion]);
+  }, [activeBook, activeChapter, activeAudioFilesetId]);
 
   // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
   useEffect(() => {
     if ('mediaSession' in navigator && audio) {
+      const translationName = translations.find(t => t.filesets.some(f => f.id === activeAudioFilesetId))?.name || 'Unknown Version';
       navigator.mediaSession.metadata = new MediaMetadata({
         title: `${activeBook} ${activeChapter}`,
-        artist: bibleVersion,
+        artist: translationName,
         album: 'Bible Audio',
       });
 
@@ -130,7 +134,7 @@ const Audio = () => {
         navigator.mediaSession.setActionHandler('seekto', null);
       }
     };
-  }, [audio, isPlaying, activeBook, activeChapter, bibleVersion]);
+  }, [audio, isPlaying, activeBook, activeChapter, activeAudioFilesetId, translations]);
 
   // Function to navigate to next chapter
   const goToNextChapter = () => {
@@ -176,25 +180,31 @@ const Audio = () => {
         setError(null);
 
         try {
+          // If no audio fileset is selected, do nothing.
+          if (!activeAudioFilesetId) {
+            setIsPlaying(false);
+            setLoading(false);
+            return;
+          }
+
           let audioUrl: string;
 
-          // KJV uses wordpocket.org (instant URL)
-          if (bibleVersion === 'KJV') {
+          // KJV has a special, locally-generated URL
+          if (activeAudioFilesetId === 'ENGKJV') {
             audioUrl = getKjvAudioUrl(activeBook, activeChapter);
-          }
-          // All other translations use Bible Research API
-          else {
+          } else {
+            // All other translations use the Bible Research API
             audioUrl = await getBibleAudioUrl(
               activeBook,
               activeChapter,
-              bibleVersion
+              activeAudioFilesetId
             );
           }
 
           // Validate audio URL
           if (!audioUrl || typeof audioUrl !== 'string') {
             throw new Error(
-              `Invalid audio URL: ${audioUrl} for ${bibleVersion}`
+              `Invalid audio URL: ${audioUrl} for ${activeAudioFilesetId}`
             );
           }
 

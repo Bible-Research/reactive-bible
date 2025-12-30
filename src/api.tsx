@@ -267,7 +267,6 @@ export const getBibleAudioUrl = async (
         `Audio not available for ${translation} ${book} ${chapter}: ${errorMsg}`
       );
     }
-    console.log(response)
     // Validate audio_url exists and is a string
     if (!data.audio_url || typeof data.audio_url !== 'string') {
       throw new Error(
