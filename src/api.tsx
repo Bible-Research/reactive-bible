@@ -245,9 +245,6 @@ export const getBibleAudioUrl = async (
   }
 
   try {
-    const bookCode = BOOK_NAME_TO_CODE[book.toLowerCase()];
-    const testament = getTestament(bookCode);
-
     const passage = `${book} ${chapter}`;
     const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
