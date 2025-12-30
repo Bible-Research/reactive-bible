@@ -8,7 +8,10 @@ import {
   getCachedTranslations,
   cacheTranslations,
 } from './utils/cacheManager';
-
+import {
+  getTestament,
+  BOOK_NAME_TO_CODE,
+} from './utils/bibleUtils';
 /**
  * Interface for the locally stored KJV Bible data.
  * Note: Other Bible data is not stored locally but fetched from an external API when needed.
@@ -245,9 +248,16 @@ export const getBibleAudioUrl = async (
 
   // Fetch from API
   try {
-    const passage = `${book} ${chapter}`;
-    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&response_format=audio`;
+    const bookCode = BOOK_NAME_TO_CODE[book.toLowerCase()];
+    const testament = getTestament(bookCode);
 
+    let fileset_id = 'ENGESVN1DA'; // Default to New Testament
+    if (testament === 'OT') {
+      fileset_id = 'ENGESVO1DA';
+    }
+
+    const passage = `${book} ${chapter}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${fileset_id}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
