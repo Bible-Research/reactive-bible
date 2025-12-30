@@ -194,7 +194,7 @@ export const getAvailableTranslations = async (
   }
 
   try {
-    const url = `https://bible-research.vercel.app/api/v1/translations/?language_iso=${languageIso}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible/translations/?language_iso=${languageIso}`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -237,27 +237,19 @@ export const getBibleAudioUrl = async (
   chapter: number,
   filesetId: string
 ): Promise<string> => {
-  // Use filesetId for a more specific audio source request
-  const translation = filesetId; // The API can derive from filesetId
-  // Check cache first
+  const translation = filesetId;
   const cached = getCachedAudioUrl(book, chapter, translation);
   if (cached) {
     console.log('✅ Audio URL loaded from cache');
     return cached;
   }
 
-  // Fetch from API
   try {
     const bookCode = BOOK_NAME_TO_CODE[book.toLowerCase()];
     const testament = getTestament(bookCode);
 
-    let fileset_id = 'ENGESVN1DA'; // Default to New Testament
-    if (testament === 'OT') {
-      fileset_id = 'ENGESVO1DA';
-    }
-
     const passage = `${book} ${chapter}`;
-    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${fileset_id}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -272,7 +264,7 @@ export const getBibleAudioUrl = async (
     }
 
     const data: any = await response.json();
-    
+
     // Check if API returned an error
     if (data.error) {
       const errorMsg = typeof data.error === 'string' 
@@ -282,7 +274,7 @@ export const getBibleAudioUrl = async (
         `Audio not available for ${translation} ${book} ${chapter}: ${errorMsg}`
       );
     }
-    
+    console.log(response)
     // Validate audio_url exists and is a string
     if (!data.audio_url || typeof data.audio_url !== 'string') {
       throw new Error(

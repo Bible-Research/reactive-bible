@@ -126,7 +126,7 @@ const TranslationSelector = () => {
                         <Radio
                           key={f.id}
                           value={f.id}
-                          label={`${f.type === 'audio_drama' ? 'Drama' : 'Audio'} (${f.bitrate})`}
+                          label={`${f.type === 'audio_drama' ? 'Drama' : 'Audio'} (testament: ${f.size})`}
                         />
                       ))}
                     </Stack>
