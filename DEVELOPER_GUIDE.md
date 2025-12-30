@@ -9,8 +9,9 @@
 6. [Component Structure](#component-structure)
 7. [API Integration](#api-integration)
 8. [Caching System](#caching-system)
-9. [Contributing Guidelines](#contributing-guidelines)
-10. [Keeping Documentation Updated](#keeping-documentation-updated)
+9. [Bible Utilities](#bible-utilities)
+10. [Contributing Guidelines](#contributing-guidelines)
+11. [Keeping Documentation Updated](#keeping-documentation-updated)
 
 ---
 
@@ -40,7 +41,7 @@ audio playback, verse tagging, and advanced search capabilities.
 ```
 src/
 ├── components/          # React components
-├── utils/              # Utility functions (caching)
+├── utils/              # Utility functions (caching, bible utils)
 ├── assets/             # Static assets (kjv.json)
 ├── api.tsx             # API functions and data access
 ├── store.tsx           # Zustand state management
@@ -56,6 +57,54 @@ src/
 - **Persistent State**: User preferences saved across sessions
 
 ---
+
+## Bible Utilities
+
+**Location**: `src/utils/bibleUtils.ts`
+
+This module provides constants and helper functions for working with Bible books, testaments, and their various identifiers.
+
+### Data Structures
+
+The file exports several pre-computed data structures for efficient lookups:
+
+- **`BIBLE_BOOKS`**: The source of truth. An array of all 66 Bible books, each with its full name, 3-letter code, and testament ('OT' or 'NT').
+  ```typescript
+  interface BibleBook {
+    name: string;
+    code: string;
+    testament: 'OT' | 'NT';
+  }
+  ```
+
+- **`BOOK_NAME_TO_CODE`**: A map from a book's full name to its 3-letter code.
+  - Example: `BOOK_NAME_TO_CODE['genesis']` returns `'GEN'`.
+
+- **`BOOK_CODE_TO_TESTAMENT`**: A map from a book's 3-letter code to its testament.
+  - Example: `BOOK_CODE_TO_TESTAMENT['MAT']` returns `'NT'`.
+
+- **`OLD_TESTAMENT_BOOKS`**: A `Set` containing the 3-letter codes of all Old Testament books for fast lookups.
+
+- **`NEW_TESTAMENT_BOOKS`**: A `Set` containing the 3-letter codes of all New Testament books.
+
+### Helper Functions
+
+#### `getTestament()`
+
+Determines the testament of a given Bible book code.
+
+```typescript
+/**
+ * @param bookCode - The 3-letter code for the Bible book (e.g., 'GEN').
+ * @returns The testament ('OT' or 'NT') or null if not found.
+ */
+export const getTestament = (bookCode: string): Testament | null => { ... };
+
+// Example Usage
+getTestament('JHN'); // 'NT'
+getTestament('EXO'); // 'OT'
+getTestament('XYZ'); // null
+```
 
 ## Core Functionalities
 
@@ -165,7 +214,7 @@ Streams audio Bible chapters with full playback controls.
 
 **Audio Sources**:
 - **KJV**: wordpocket.org (direct URL generation)
-- **Other translations**: Bible Research API (CloudFront URLs)
+- **ESV**: Bible Research API (CloudFront URLs) with dynamic `fileset_id` based on the testament (Old or New).
 
 **Implementation Details**:
 ```typescript
@@ -218,6 +267,14 @@ All prefetching happens silently in the background.
 - **Next/Previous Track**: Skips ±10 seconds (car stereo)
 - **Seek To**: Direct time seeking (car stereo fallback)
 - **Lock Screen**: Shows chapter info and controls (mobile)
+
+**ESV Audio `fileset_id`**:
+
+The `getBibleAudioUrl` function now dynamically determines the `fileset_id` for ESV audio requests based on the book's testament:
+- **Old Testament**: `ENGESVO1DA`
+- **New Testament**: `ENGESVN1DA`
+
+This logic is handled internally using the `getTestament` utility from `src/utils/bibleUtils.ts`.
 
 **Note**: Different controls have different skip amounts:
 - Headphone seek buttons: ±10 seconds (fine control)
@@ -597,7 +654,7 @@ Notes display with tag filtering.
 
 2. **Get Audio**
    ```
-   GET /bible?passage={book} {chapter}&response_format=audio
+   GET /bible?passage={book} {chapter}&fileset_id={fileset_id}
    Response: { 
      audio_url: string, 
      duration_seconds: number,

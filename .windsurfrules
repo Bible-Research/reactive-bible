@@ -88,34 +88,7 @@
 ---
 
 ## Testing Requirements
-
-### User-Specific Rules
-- **Don't run `bundle exec rspec`** (takes too long)
-- **Test only edited files** when possible
-- Run `npm run test` for unit tests
-- Run `npm run build` to verify build succeeds
-
-### Testing Patterns
-- Use Vitest for unit tests
-- Use React Testing Library for component tests
-- Test user interactions, not implementation details
-- Mock external API calls
-- Test error states and edge cases
-
-### Example Test Structure
-```typescript
-import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, test, expect } from 'vitest';
-
-describe('ComponentName', () => {
-  test('should handle user interaction', () => {
-    render(<ComponentName />);
-    const button = screen.getByRole('button');
-    fireEvent.click(button);
-    expect(/* assertion */);
-  });
-});
-```
+Don't run any tests.
 
 ---
 
@@ -173,7 +146,6 @@ Update these sections based on your changes:
 
 2. Update version toggle component
 3. Update DEVELOPER_GUIDE.md with new translation info
-4. Test thoroughly with different books/chapters
 
 ### Adding a New Component
 
@@ -215,12 +187,9 @@ Examples:
 - ❌ `Feat: add analytics` (message not capitalized - incorrect)
 
 ### Before Submitting PR
-1. Run tests: `npm run test`
-2. Build succeeds: `npm run build`
-3. Lint passes: `npm run lint`
-4. **Documentation updated**: DEVELOPER_GUIDE.md
-5. Code follows style guidelines (79 char limit!)
-6. All changes committed with clear messages
+1. **Documentation updated**: DEVELOPER_GUIDE.md
+2. Code follows style guidelines
+3. All changes committed with clear messages
 
 ---
 
@@ -262,12 +231,11 @@ When working on this project:
 2. **Follow the 79-character line limit strictly**
 3. **Update documentation immediately** after code changes
 4. **Use existing patterns** - don't introduce new patterns without discussion
-5. **Test incrementally** - don't run full test suite unnecessarily
-6. **Cache-first approach** - always check cache before fetching
-7. **Error handling** - provide user-friendly error messages
-8. **TypeScript strict** - no `any` types unless absolutely necessary
-9. **Functional components** - no class components
-10. **Zustand for global state** - don't use Context API or Redux
+5. **Cache-first approach** - always check cache before fetching
+6. **Error handling** - provide user-friendly error messages
+7. **TypeScript strict** - no `any` types unless absolutely necessary
+8. **Functional components** - no class components
+9. **Zustand for global state** - don't use Context API or Redux
 
 ---
 
