@@ -50,11 +50,30 @@ src/
 ```
 
 ### Design Patterns
-- **Component-Based Architecture**: Modular, reusable components
-- **Centralized State**: Zustand store for global state
-- **API Layer Separation**: All data fetching in `api.tsx`
-- **Cache-First Strategy**: LocalStorage caching for performance
-- **Persistent State**: User preferences saved across sessions
+- **Component-Based Architecture**: Modular, reusable components in `src/components`.
+- **Centralized State**: A single Zustand store (`src/store.tsx`) for global state, with persistence to `localStorage`.
+- **API Layer Separation**: All external data fetching and business logic is handled in `src/api.tsx`.
+- **Cache-First Strategy**: A multi-level caching system (`src/utils/cacheManager.ts`) minimizes API calls and improves speed.
+- **Persistent State**: User preferences (like theme and translation choice) are saved across sessions.
+
+---
+
+## State Management
+
+**Location**: `src/store.tsx`
+
+The application uses Zustand for lightweight, centralized state management. The state is persisted to `localStorage` to remember user selections across sessions.
+
+### State Shape (`BibleState`)
+- `activeBook`, `activeChapter`, `activeVerses`: For navigation.
+- `translations`: Holds the list of available Bible translations fetched from the API.
+- `activeTextFilesetId`: The fileset ID for the selected text version.
+- `activeAudioFilesetId`: The fileset ID for the selected audio version.
+- `showAudioPlayer`: Toggles the visibility of the audio player.
+
+### Actions
+- Setters for all state properties (e.g., `setActiveBook`, `setTranslations`).
+- Logic for smooth-scrolling to selected verses is included in `setActiveVerses`.
 
 ---
 
@@ -110,7 +129,7 @@ getTestament('XYZ'); // null
 
 ### 1. Bible Reading & Navigation
 
-**Location**: `src/components/MyNavbar.tsx`, `src/components/Passage.tsx`
+**Location**: `src/components/MyNavbar.tsx`, `src/components/Passage.tsx`, `src/components/PassageView.tsx`
 
 The app provides three-level navigation:
 - **Books**: 66 books of the Bible (Genesis to Revelation)
@@ -132,33 +151,37 @@ getVerses(book: string, chapter: number): number[]
 
 ### 2. Multi-Translation Support
 
-**Location**: `src/api.tsx`, `src/components/BibleVersionToggle.tsx`
+**Location**: `src/api.tsx`, `src/components/TranslationSelector.tsx`
 
-Supports multiple Bible translations:
-- **KJV (King James Version)**: Stored locally in `kjv.json`
-- **ESV (English Standard Version)**: Fetched from external API
+Provides dynamic, API-driven support for multiple Bible translations, including different text and audio formats for each.
+
+**Key Features**:
+- **Dynamic Translation Loading**: Fetches available translations from the backend API.
+- **Text & Audio Selection**: Users can select preferred text and audio filesets independently.
+- **Flexible Audio Options**: Supports multiple audio types (e.g., `audio`, `audio_drama`) and formats (e.g., `mp3`, `opus`).
+- **State-Driven**: Selections are stored in the global Zustand store and persisted in localStorage.
 
 **Implementation**:
+- A `TranslationSelector` modal allows users to browse and select versions.
+- All data fetching is now driven by a `filesetId` instead of a simple version string.
+
 ```typescript
-// Main function that routes to correct translation
+// Fetches available translations for a language
+getAvailableTranslations(languageIso: string): Promise<Translation[]>
+
+// Fetches verse content based on a specific fileset ID
 getVersesInChapter(
-  book: string, 
-  chapter: number, 
-  bibleVersion: string
+  thebook: string,
+  thechapter: number,
+  filesetId: string
 ): Promise<{ verse: number; text: string }[]>
-
-// KJV: Direct JSON access (instant)
-getVersesInKjvChapter(book: string, chapter: number)
-
-// ESV: API fetch with caching
-getVersesInEsvChapter(book: string, chapter: number)
 ```
 
 **Data Flow**:
-1. User selects translation via toggle
-2. State updates in Zustand store
-3. Component re-renders with new translation
-4. API fetches data (with cache check first)
+1. `TranslationSelector` fetches available translations and stores them in Zustand.
+2. User selects a translation, text fileset, and audio fileset in the modal.
+3. Selections are saved to the Zustand store (`activeTextFilesetId`, `activeAudioFilesetId`).
+4. Components like `PassageView` and `Audio` react to state changes, fetching content using the selected fileset IDs.
 
 ### 3. Advanced Search
 
@@ -232,9 +255,10 @@ const audioHowl = new Howl({
 });
 
 // Media Session API for hardware controls
+const translationName = translations.find(t => t.filesets.some(f => f.id === activeTextFilesetId))?.name || 'Unknown';
 navigator.mediaSession.metadata = new MediaMetadata({
   title: `${activeBook} ${activeChapter}`,
-  artist: bibleVersion,
+  artist: translationName,
 });
 ```
 
@@ -718,7 +742,7 @@ performance and reduce API calls.
 
 **Location**: `src/utils/cacheManager.ts`
 
-### Two-Tier Cache
+### Three-Tier Cache
 
 #### 1. Verse Cache (LRU with 500-verse limit)
 **Purpose**: Cache ESV verses to reduce API calls
@@ -760,6 +784,13 @@ if (newTotal > MAX_VERSES) {
 ```
 
 #### 2. Audio Cache (Unlimited with expiration)
+
+#### 3. Translation Cache (Session-based)
+
+- **Type**: Simple key-value store.
+- **Key**: Language ISO code (e.g., `"eng"`).
+- **Value**: The array of `Translation` objects for that language.
+- **Purpose**: Prevents refetching the list of available translations every time the selector is opened within the same session.
 **Purpose**: Cache audio URLs to avoid repeated API calls
 
 **Features**:

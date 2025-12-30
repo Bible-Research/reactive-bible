@@ -51,7 +51,8 @@ yarn dev
 4. Ensure all tests pass by running:
     - `npm run test`
     - `npm run build`
-4. Create a pull request
+    - `npx tsc --noEmit`
+5. Create a pull request
 
 ### Keep your fork up to date with the main branch
 1. Add the original repository as a remote:

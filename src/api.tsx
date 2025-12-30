@@ -1,17 +1,16 @@
 import bibleJson from "./assets/kjv.json";
+import { Translation } from "./store";
 import {
   getCachedVerses,
   cacheVerses,
   getCachedAudioUrl,
   cacheAudioUrl,
+  getCachedTranslations,
+  cacheTranslations,
 } from './utils/cacheManager';
-import {
-  getTestament,
-  BOOK_NAME_TO_CODE,
-} from './utils/bibleUtils';
 /**
  * Interface for the locally stored KJV Bible data.
- * Note: ESV Bible data is not stored locally but fetched from an external API when needed.
+ * Note: Other Bible data is not stored locally but fetched from an external API when needed.
  */
 export const data = bibleJson as KjvBook[];
 
@@ -63,15 +62,14 @@ export const getVerses = (thebook: string, thechapter: number): number[] => {
 export const getVersesInChapter = async (
   thebook: string,
   thechapter: number,
-  bibleVersion: string
+  filesetId: string
 ): Promise<{ verse: number; text: string }[]> => {
-  if (bibleVersion === 'KJV') {
+  // KJV is stored locally and has a special filesetId
+  if (filesetId === 'ENGKJV') {
     return getVersesInKjvChapter(thebook, thechapter);
-  } else if (bibleVersion === 'ESV') {
-    return await getVersesInEsvChapter(thebook, thechapter);
-  } else {
-    throw new Error(`Unsupported Bible version: ${bibleVersion}`);
   }
+  // All other translations are fetched from the API
+  return await getVersesFromApi(thebook, thechapter, filesetId);
 };
 
 export const getVersesInKjvChapter = (
@@ -85,21 +83,22 @@ export const getVersesInKjvChapter = (
     .map((book: KjvBook) => ({ verse: book.verse, text: book.text }));
 };
 
-export const getVersesInEsvChapter = async (
+export const getVersesFromApi = async (
   thebook: string,
-  thechapter: number
+  thechapter: number,
+  filesetId: string
 ): Promise<{ verse: number; text: string }[]> => {
   // Check cache first
-  const cached = getCachedVerses(thebook, thechapter, 'ESV');
+  const cached = getCachedVerses(thebook, thechapter, filesetId);
   if (cached) {
-    console.log('✅ ESV verses loaded from cache');
+    console.log(`✅ ${filesetId} verses loaded from cache`);
     return cached;
   }
 
   // Fetch from API
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -117,8 +116,8 @@ export const getVersesInEsvChapter = async (
     );
 
     // Cache the verses
-    cacheVerses(thebook, thechapter, 'ESV', verses);
-    console.log('💾 ESV verses cached');
+    cacheVerses(thebook, thechapter, filesetId, verses);
+    console.log(`💾 ${filesetId} verses cached`);
 
     return verses;
   } catch (error) {
@@ -178,6 +177,37 @@ export const addTagNote = async (
 };
 
 // ============================================
+// TRANSLATION FUNCTIONS
+// ============================================
+
+export const getAvailableTranslations = async (
+  languageIso = "eng"
+): Promise<Translation[]> => {
+  const cached = getCachedTranslations(languageIso);
+  if (cached) {
+    console.log(`✅ Translations for ${languageIso} loaded from cache`);
+    return cached;
+  }
+
+  try {
+    const url = `https://bible-research.vercel.app/api/v1/bible/translations/?language_iso=${languageIso}`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    // The actual translations are in the 'results' property
+    const translations: Translation[] = data.results;
+
+    cacheTranslations(languageIso, translations);
+    console.log(`💾 Translations for ${languageIso} cached`);
+
+    return translations;
+  } catch (error) {
+    console.error("Failed to fetch available translations:", error);
+    return []; // Return empty array on error
+  }
+};
+
+// ============================================
 // AUDIO FUNCTIONS
 // ============================================
 
@@ -201,27 +231,18 @@ export interface AudioResponse {
 export const getBibleAudioUrl = async (
   book: string,
   chapter: number,
-  translation: string
+  filesetId: string
 ): Promise<string> => {
-  // Check cache first
+  const translation = filesetId;
   const cached = getCachedAudioUrl(book, chapter, translation);
   if (cached) {
     console.log('✅ Audio URL loaded from cache');
     return cached;
   }
 
-  // Fetch from API
   try {
-    const bookCode = BOOK_NAME_TO_CODE[book.toLowerCase()];
-    const testament = getTestament(bookCode);
-
-    let fileset_id = 'ENGESVN1DA'; // Default to New Testament
-    if (testament === 'OT') {
-      fileset_id = 'ENGESVO1DA';
-    }
-
     const passage = `${book} ${chapter}`;
-    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${fileset_id}`;
+    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -236,7 +257,7 @@ export const getBibleAudioUrl = async (
     }
 
     const data: any = await response.json();
-    
+
     // Check if API returned an error
     if (data.error) {
       const errorMsg = typeof data.error === 'string' 
@@ -246,7 +267,6 @@ export const getBibleAudioUrl = async (
         `Audio not available for ${translation} ${book} ${chapter}: ${errorMsg}`
       );
     }
-    
     // Validate audio_url exists and is a string
     if (!data.audio_url || typeof data.audio_url !== 'string') {
       throw new Error(
@@ -342,11 +362,12 @@ export const getAdjacentChapters = (
 export const prefetchAudioUrl = async (
   book: string,
   chapter: number,
-  bibleVersion: string
+  filesetId: string | null
 ): Promise<void> => {
+  if (!filesetId) return; // Cannot prefetch without a filesetId
   try {
     // Check if already cached
-    const cached = getCachedAudioUrl(book, chapter, bibleVersion);
+    const cached = getCachedAudioUrl(book, chapter, filesetId);
     if (cached) {
       console.log(
         `🎵 Audio URL already cached for ${book} ${chapter}`
@@ -355,18 +376,18 @@ export const prefetchAudioUrl = async (
     }
 
     // KJV URLs are instant (no API call needed)
-    if (bibleVersion === 'KJV') {
+    if (filesetId === 'ENGKJV') {
       const url = getKjvAudioUrl(book, chapter);
       // Cache it for consistency
-      cacheAudioUrl(book, chapter, 'KJV', url, 0, 0);
+      cacheAudioUrl(book, chapter, 'ENGKJV', url, 0, 0);
       console.log(`🎵 Prefetched KJV audio for ${book} ${chapter}`);
       return;
     }
 
     // For other versions, fetch from API
-    await getBibleAudioUrl(book, chapter, bibleVersion);
+    await getBibleAudioUrl(book, chapter, filesetId);
     console.log(
-      `🎵 Prefetched ${bibleVersion} audio for ${book} ${chapter}`
+      `🎵 Prefetched ${filesetId} audio for ${book} ${chapter}`
     );
   } catch (error) {
     // Silent fail - prefetch errors shouldn't block the UI
@@ -377,68 +398,43 @@ export const prefetchAudioUrl = async (
   }
 };
 
+
+
 /**
  * Prefetch verses and audio for adjacent chapters
  * (previous and next)
  * @param book - Current book name
  * @param chapter - Current chapter number
- * @param bibleVersion - Bible version
+ * @param filesetId - The fileset ID for the translation to prefetch
  */
 export const prefetchAdjacentChapters = async (
   book: string,
   chapter: number,
-  bibleVersion: string
+  filesetId: string
 ): Promise<void> => {
   const { previous, next } = getAdjacentChapters(book, chapter);
 
-  // Prefetch previous chapter
+  const prefetch = async (
+    b: string,
+    c: number,
+    id: string,
+    label: string
+  ) => {
+    try {
+      // We don't need the result, just to trigger the fetch and cache
+      await getVersesInChapter(b, c, id);
+      console.log(`📚 Prefetched ${label} chapter: ${b} ${c}`);
+    } catch (error) {
+      // Silent fail
+      console.warn(`Failed to prefetch ${label} chapter ${b} ${c}:`, error);
+    }
+  };
+
   if (previous) {
-    // Prefetch verses (silent background)
-    getVersesInChapter(
-      previous.book,
-      previous.chapter,
-      bibleVersion
-    ).catch(() => {
-      // Silent fail
-    });
-
-    // Prefetch audio
-    prefetchAudioUrl(
-      previous.book,
-      previous.chapter,
-      bibleVersion
-    ).catch(() => {
-      // Silent fail
-    });
-
-    console.log(
-      `⏮️ Prefetching previous: ${previous.book} ${previous.chapter}`
-    );
+    prefetch(previous.book, previous.chapter, filesetId, 'previous');
   }
-
-  // Prefetch next chapter
   if (next) {
-    // Prefetch verses (silent background)
-    getVersesInChapter(
-      next.book,
-      next.chapter,
-      bibleVersion
-    ).catch(() => {
-      // Silent fail
-    });
-
-    // Prefetch audio
-    prefetchAudioUrl(
-      next.book,
-      next.chapter,
-      bibleVersion
-    ).catch(() => {
-      // Silent fail
-    });
-
-    console.log(
-      `⏭️ Prefetching next: ${next.book} ${next.chapter}`
-    );
+    prefetch(next.book, next.chapter, filesetId, 'next');
   }
 };
 

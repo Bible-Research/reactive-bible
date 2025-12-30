@@ -11,37 +11,41 @@ import Verse from "./Verse";
 const PassageView = () => {
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
-  const bibleVersion = useBibleStore((state) => state.bibleVersion);
+  const activeTextFilesetId = useBibleStore(
+    (state) => state.activeTextFilesetId
+  );
+  const activeAudioFilesetId = useBibleStore(
+    (state) => state.activeAudioFilesetId
+  );
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const [verses, setVerses] = useState<{ verse: number; text: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!activeTextFilesetId) return;
+
     setLoading(true);
-    getVersesInChapter(activeBook, activeChapter, bibleVersion)
+    getVersesInChapter(activeBook, activeChapter, activeTextFilesetId)
       .then((result) => {
         setVerses(result);
         setLoading(false);
 
         // Prefetch current chapter audio (parallel)
-        prefetchAudioUrl(
-          activeBook,
-          activeChapter,
-          bibleVersion
-        );
+        prefetchAudioUrl(activeBook, activeChapter, activeAudioFilesetId);
 
+        // Prefetch adjacent chapters (parallel)
         // Prefetch adjacent chapters (parallel)
         prefetchAdjacentChapters(
           activeBook,
           activeChapter,
-          bibleVersion
+          activeTextFilesetId
         );
       })
       .catch((error) => {
         console.error(error);
         setLoading(false);
       });
-  }, [activeBook, activeChapter, bibleVersion]);
+  }, [activeBook, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
 
   if (loading) {
     return (
