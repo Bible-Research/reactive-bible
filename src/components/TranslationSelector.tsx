@@ -145,7 +145,13 @@ const TranslationSelector = () => {
         </Stack>
       </Modal>
 
-      <Button onClick={() => setOpened(true)}>Translations</Button>
+      <Button
+        variant="subtle"
+        onClick={() => setOpened(true)}
+        color="gray"
+      >
+        Translations
+      </Button>
     </>
   );
 };
