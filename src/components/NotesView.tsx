@@ -18,7 +18,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
   const fetchTags = async () => {
     try {
       const response = await fetch(
-        "https://bible-research.vercel.app/api/v1/tags/"
+        "https://bibleresearchapi.vercel.app/api/v1/tags/"
       );
       const data = await response.json();
       const fetchedTags = data.map((item: { id: any; name: any; }, index: number) => ({
@@ -47,7 +47,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
     
     try {
-      let url = 'https://bible-research.vercel.app/api/v1/notes';
+      let url = 'https://bibleresearchapi.vercel.app/api/v1/notes';
       
       // If tagId is empty string, fetch all notes
       // Otherwise, fetch notes for specific tag

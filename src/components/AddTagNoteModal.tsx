@@ -26,7 +26,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   const fetchTags = async () => {
     try {
       const response = await fetch(
-        "https://bible-research.vercel.app/api/v1/tags/"
+        "https://bibleresearchapi.vercel.app/api/v1/tags/"
       );
       const data = await response.json();
       setTags(
@@ -102,7 +102,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         </Button>
         <Button
           variant="transparent"
-          onClick={() => window.open('https://bible-research.vercel.app/api/v1/tags/', '_blank')}
+          onClick={() => window.open('https://bibleresearchapi.vercel.app/api/v1/tags/', '_blank')}
           style={{ width: '100%' }}
         >
           Or create a new tag

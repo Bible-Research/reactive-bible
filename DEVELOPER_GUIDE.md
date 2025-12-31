@@ -666,7 +666,7 @@ Notes display with tag filtering.
 ### External APIs
 
 #### Bible Research API
-**Base URL**: `https://bible-research.vercel.app/api/v1`
+**Base URL**: `https://bibleresearchapi.vercel.app/api/v1`
 
 **Endpoints**:
 

@@ -98,7 +98,7 @@ export const getVersesFromApi = async (
   // Fetch from API
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
+    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -162,7 +162,7 @@ export const addTagNote = async (
   })
 
   try {
-    const response = await fetch('https://bible-research.vercel.app/api/v1/notes/', {
+    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/notes/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -190,7 +190,7 @@ export const getAvailableTranslations = async (
   }
 
   try {
-    const url = `https://bible-research.vercel.app/api/v1/bible/translations/?language_iso=${languageIso}`;
+    const url = `https://bibleresearchapi.vercel.app/api/v1/bible/translations/?language_iso=${languageIso}`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -242,7 +242,7 @@ export const getBibleAudioUrl = async (
 
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bible-research.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
+    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -465,7 +465,7 @@ export interface Note {
 
 export const getNotes = async (): Promise<Note[]> => {
   const response = await fetch(
-    'https://bible-research.vercel.app/api/v1/notes/'
+    'https://bibleresearchapi.vercel.app/api/v1/notes/'
   );
   if (!response.ok) throw new Error('Failed to fetch notes');
   return await response.json();

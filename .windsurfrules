@@ -211,7 +211,7 @@ Examples:
 ## External APIs
 
 ### Bible Research API
-- Base: `https://bible-research.vercel.app/api/v1`
+- Base: `https://bibleresearchapi.vercel.app/api/v1`
 - Verses: `/bible?passage={book} {chapter}`
 - Audio: `/bible?passage={book} {chapter}&response_format=audio`
 - Notes: `/notes?tag_id={tagId}`
