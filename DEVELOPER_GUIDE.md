@@ -717,6 +717,29 @@ Notes display with tag filtering.
 `https://wordpocket.org/bibles/app/audio/1/1/1.mp3` 
 (Genesis Chapter 1)
 
+#### DBT Audio API (Faith Comes By Hearing)
+
+When fetching audio for certain translations, the API may return a URL 
+pointing to `b4.dbt.io`. These URLs require an API key to function.
+
+**Local Development Setup**
+
+For security, the API key is not committed to the repository. To enable 
+audio playback from this source during local development, you must create a 
+`.env.local` file in the project root and add the key:
+
+```
+VITE_DBT_API_KEY='c02e7c81b8989f5f5a6cec3fb053876a'
+```
+
+If the key is missing while running in development mode, an aggressive 
+alert will appear as a reminder.
+
+**Production**
+
+In production environments (e.g., Vercel), this key must be set as an 
+environment variable named `VITE_DBT_API_KEY`.
+
 #### Vercel Services
 
 **Vercel Analytics**

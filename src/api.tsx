@@ -273,19 +273,50 @@ export const getBibleAudioUrl = async (
         `No audio URL in API response for ${translation} ${book} ${chapter}`
       );
     }
-    
+
+    let finalUrl = data.audio_url;
+
+    if (finalUrl.includes('b4.dbt.io')) {
+      
+      // For local development, create a .env.local file in the root and add:
+      // VITE_DBT_API_KEY='your_key'
+      const key = import.meta.env.VITE_DBT_API_KEY;
+
+      if (!key) {
+        if (import.meta.env.DEV) {
+          // This is an aggressive alert for developers to remind them to set up the key.
+          alert(
+            'CRITICAL: API key for dbt.io is not set!\n\n' +
+              'Please create a .env.local file in the project root and add the following line:\n\n' +
+              "VITE_DBT_API_KEY='your_key'"
+          );
+        }
+        throw new Error('API key for dbt.io is not configured.');
+      }
+
+      const params = new URLSearchParams();
+      params.set('v', '4');
+      params.set('key', key);
+
+      if (finalUrl.includes('?')) {
+        finalUrl = `${finalUrl}&${params.toString()}`;
+      } else {
+        finalUrl = `${finalUrl}?${params.toString()}`;
+      }
+    }
+
     // Cache the audio URL
     cacheAudioUrl(
       book,
       chapter,
       translation,
-      data.audio_url,
+      finalUrl,
       data.duration_seconds || 0,
       data.file_size_bytes || 0
     );
     console.log('💾 Audio URL cached');
     
-    return data.audio_url;
+    return finalUrl;
   } catch (error) {
     console.error(`Error fetching ${translation} audio:`, error);
     throw error;

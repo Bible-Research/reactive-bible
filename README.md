@@ -1,68 +1,21 @@
-# <img src="https://github.com/realvincentuche/reactive-bible/blob/e5236e18b12fced36c379a71dcf9597960986c68/public/icon.svg" alt="Logo" height="30" /> Reactive Bible
+# CURRENT BRANCH STATUS
 
-This is a [Reactjs](https://react.dev/) project bootstrapped with [`Vitejs`](https://vitejs.dev).
+When requesting HLS format audio (fileset_id "ENGESHN1SA" for example) the API returns this:
+{
+    "book": "LUK",
+    "book_name": "Luke",
+    "chapter": 18,
+    "audio_url": "https://b4.dbt.io/api/bible/filesets/ENGESHN1SA/LUK-18-1-/playlist.m3u8",
+    "duration_seconds": 318,
+    "file_size_bytes": 2554242,
+    "format": "audio"
+}
 
-A Reactive Bible App developed with Reactjs & Mantine. Features include:
+When requesting that audio_url by adding required headers the API returns this:
+#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-STREAM-INF:BANDWIDTH=64312,CODECS="mp4a.40.2"
+B03___18_Luke________ENGESHN1SA-64kbs.m3u8?verse_start=1
 
-- Light and Dark Mode.
-- Browser localstorage for saving app states and mode.
-- Robust autocomplete search with key stroke events.
-- Bible verse scroll-to-view feature.
-- Offline Bible passages.
-- Online Audio Bible.
-- Verse tagging.
-- Book, Chapter & Verse Navigation.
-- Prev & Next Chapter navigation.
-- Available translations:
-    - KJV
-    - ESV
-- Detailed tests included using react testing library and vitest.
-- And lots more.
+When trying to play it using HLS no audio is played.
 
-Libraries used include:
-
-- Mantinejs
-- Tabler icons for react
-- Howler js as audio player
-- Zustand for state management
-- And lots more
-
-Audio Bible streaming from [`Wordpocket`](https://wordpocket.org)
-
-Get a preview at:
-<a href="https://reactive-bible.vercel.app" target="_blank">reactive-bible.vercel.app</a>
-
-![alt text](https://github.com/realvincentuche/reactive-bible/blob/928ba523de0697e13a23030b2b9bd3295bbc0dc8/public/reactive-bible.png)
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-```
-
-## Contribution
-1. Fork the repository
-2. Create a new branch
-3. Commit your changes
-4. Ensure all tests pass by running:
-    - `npm run test`
-    - `npm run build`
-    - `npx tsc --noEmit`
-5. Create a pull request
-
-### Keep your fork up to date with the main branch
-1. Add the original repository as a remote:
-    - `git remote add upstream https://github.com/realvincentuche/reactive-bible.git`
-2. Fetch the latest changes from the upstream repository:
-    - `git fetch upstream`
-3. Merge the latest changes into your local main branch:
-    - `git checkout main`
-    - `git merge upstream/main`
-4. Push the updated main branch to your fork:
-    - `git push origin main`
-
-Your feedback and contributions are welcome!

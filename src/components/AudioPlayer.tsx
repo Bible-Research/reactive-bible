@@ -63,39 +63,45 @@ const AudioPlayer = ({
     },
   };
 
-  // Update current time
+  // Update current time and duration
   useEffect(() => {
-    if (!isPlaying) return;
+    const updateTime = () => {
+      if (seeking) return;
+      if (howler) setCurrentTime(howler.seek() as number);
+      if (html5Audio) setCurrentTime(html5Audio.currentTime);
+    };
 
-    const interval = setInterval(() => {
-      if (!seeking) {
-        const seek = player.seek() as number;
-        setCurrentTime(seek);
-      }
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [howler, html5Audio, isPlaying, seeking]);
-
-  // Get duration when audio loads
-  useEffect(() => {
     const updateDuration = () => {
-      const dur = player.duration();
-      if (dur && dur > 0 && isFinite(dur)) {
-        setDuration(dur);
+      if (howler) setDuration(howler.duration());
+      if (html5Audio && isFinite(html5Audio.duration)) {
+        setDuration(html5Audio.duration);
       }
     };
 
-    updateDuration();
+    // Howler-specific setup
+    if (howler) {
+      howler.on('load', updateDuration);
+      const interval = setInterval(updateTime, 100);
+      return () => {
+        howler.off('load', updateDuration);
+        clearInterval(interval);
+      };
+    }
 
-    if (howler) howler.on('load', updateDuration);
-    if (html5Audio) html5Audio.addEventListener('loadedmetadata', updateDuration);
+    // HTML5 Audio-specific setup
+    if (html5Audio) {
+      html5Audio.addEventListener('timeupdate', updateTime);
+      html5Audio.addEventListener('durationchange', updateDuration);
+      html5Audio.addEventListener('loadedmetadata', updateDuration);
+      updateDuration(); // Initial check
 
-    return () => {
-      if (howler) howler.off('load', updateDuration);
-      if (html5Audio) html5Audio.removeEventListener('loadedmetadata', updateDuration);
-    };
-  }, [howler, html5Audio]);
+      return () => {
+        html5Audio.removeEventListener('timeupdate', updateTime);
+        html5Audio.removeEventListener('durationchange', updateDuration);
+        html5Audio.removeEventListener('loadedmetadata', updateDuration);
+      };
+    }
+  }, [howler, html5Audio, isPlaying, seeking]);
 
   // Handle looping
   useEffect(() => {

@@ -83,9 +83,22 @@ const Audio = () => {
 
         if (audioUrl.endsWith('.m3u8')) {
           if (Hls.isSupported() && audioRef.current) {
+            const response = await fetch(audioUrl);
+            const manifestText = await response.text();
+            const lines = manifestText.split('\n');
+            const streamLine = lines.find(line => line.endsWith('.m3u8?verse_start=1'));
+
+            if (!streamLine) {
+              throw new Error('Could not find stream URL in HLS manifest.');
+            }
+
+            // Construct the full URL by combining the master playlist's base path with the relative stream path
+            const basePath = audioUrl.substring(0, audioUrl.lastIndexOf('/') + 1);
+            const streamUrl = `${basePath}${streamLine}`;
+
             const hls = new Hls();
             hlsRef.current = hls;
-            hls.loadSource(audioUrl);
+            hls.loadSource(streamUrl);
             hls.attachMedia(audioRef.current);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
               setLoading(false);
@@ -137,7 +150,7 @@ const Audio = () => {
     }
 
     return cleanup;
-  }, [isPlaying, activeBook, activeChapter, activeAudioFilesetId, isLooping, goToNextChapter]);
+  }, [isPlaying, activeBook, activeChapter, activeAudioFilesetId, isLooping]);
 
   // Media Session API
   useEffect(() => {
