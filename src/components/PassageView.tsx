@@ -33,7 +33,9 @@ const PassageView = () => {
         // Prefetch current chapter audio (parallel)
         prefetchAudioUrl(activeBook, activeChapter, activeAudioFilesetId);
 
-        // Prefetch adjacent chapters (parallel)
+        // Prefetch next chapter audio (parallel)
+        prefetchAudioUrl(activeBook, activeChapter + 1, activeAudioFilesetId);
+
         // Prefetch adjacent chapters (parallel)
         prefetchAdjacentChapters(
           activeBook,
