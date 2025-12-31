@@ -6,6 +6,7 @@ import {
   Radio,
   Group,
   Stack,
+  SegmentedControl,
   createStyles,
 } from '@mantine/core';
 import { useBibleStore } from '../store';
@@ -39,6 +40,7 @@ const TranslationSelector = () => {
 
   // Local state for selections within the modal
   const [selectedTranslationAbbr, setSelectedTranslationAbbr] = useState<string | null>(null);
+  const [languageIso, setLanguageIso] = useState('eng');
   const [selectedTextId, setSelectedTextId] = useState<string | null>(activeTextFilesetId);
   const [selectedAudioId, setSelectedAudioId] = useState<string | null>(activeAudioFilesetId);
 
@@ -48,13 +50,19 @@ const TranslationSelector = () => {
 
   useEffect(() => {
     const fetchTranslations = async () => {
-      if (translations.length === 0) {
-        const fetched = await getAvailableTranslations('eng');
-        setTranslations(fetched);
-      }
+      // Clear previous selections when language changes
+      setTranslations([]);
+      setSelectedTextId(null);
+      setSelectedAudioId(null);
+
+      const fetched = await getAvailableTranslations(languageIso);
+      setTranslations(fetched);
     };
+
     fetchTranslations();
-  }, [translations, setTranslations]);
+    // We only want this to run when the language changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [languageIso]);
 
   useEffect(() => {
     if (activeTextFilesetId) {
@@ -85,16 +93,27 @@ const TranslationSelector = () => {
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="Select Bible Translation"
+        title="Select Translation"
         size="lg"
       >
         <Stack>
+          <SegmentedControl
+            data={[
+              { label: 'English', value: 'eng' },
+              { label: 'Latvian (audio only)', value: 'lvs' },
+            ]}
+            value={languageIso}
+            onChange={setLanguageIso}
+            fullWidth
+          />
           <Select
             label="Bible Version"
             placeholder="Choose a version"
-            value={selectedTranslationAbbr ?? ''}
-            onChange={setSelectedTranslationAbbr}
             data={translations.map((t) => ({ value: t.abbr, label: t.name }))}
+            value={selectedTranslationAbbr}
+            onChange={setSelectedTranslationAbbr}
+            searchable
+            dropdownPosition="bottom"
           />
 
           {selectedTranslation && (
