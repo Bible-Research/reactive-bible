@@ -63,7 +63,6 @@ const MyHeader = ({
               src="./icon.svg"
               alt="Logo"
             />{" "}
-            Reactive Bible
           </Title>
         </Flex>
         <TranslationSelector />
