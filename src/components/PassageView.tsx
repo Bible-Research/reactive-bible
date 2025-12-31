@@ -30,8 +30,10 @@ const PassageView = () => {
         setVerses(result);
         setLoading(false);
 
-        // Prefetch current chapter audio (parallel)
-        prefetchAudioUrl(activeBook, activeChapter, activeAudioFilesetId);
+        // Prefetch current chapter audio if a fileset is selected
+        if (activeAudioFilesetId) {
+          prefetchAudioUrl(activeBook, activeChapter, activeAudioFilesetId);
+        }
 
         // Prefetch adjacent chapters (parallel)
         // Prefetch adjacent chapters (parallel)

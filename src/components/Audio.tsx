@@ -1,317 +1,182 @@
-import { useState, useEffect } from "react";
-import { Howl } from "howler";
-import { useBibleStore } from "../store";
-import { getKjvAudioUrl, getBibleAudioUrl, getPassage } from "../api";
-import { ActionIcon, rem, Loader } from "@mantine/core";
-import { IconPlayerPlay } from "@tabler/icons-react";
-import AudioPlayer from "./AudioPlayer";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Howl } from 'howler';
+import Hls from 'hls.js';
+import { useBibleStore } from '../store';
+import { getKjvAudioUrl, getBibleAudioUrl, getPassage } from '../api';
+import { ActionIcon, rem, Loader } from '@mantine/core';
+import { IconPlayerPlay } from '@tabler/icons-react';
+import AudioPlayer from './AudioPlayer';
 
 const Audio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audio, setAudio] = useState<Howl | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLooping, setIsLooping] = useState(false);
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
-  const { activeAudioFilesetId, translations } = useBibleStore((state) => ({
-    activeAudioFilesetId: state.activeAudioFilesetId,
-    translations: state.translations,
-  }));
-  const showPlayer = useBibleStore((state) => state.showAudioPlayer);
-  const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
-  const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
-  const setActiveBookShort = useBibleStore(
-    (state) => state.setActiveBookShort
-  );
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
+
+  const {
+    activeBook,
+    activeChapter,
+    activeAudioFilesetId,
+    translations,
+    showAudioPlayer,
+    setShowAudioPlayer,
+    setActiveBookOnly,
+    setActiveBookShort,
+    setActiveChapter,
+  } = useBibleStore();
+
   const getPassageResult = getPassage();
 
-  // Reset audio when chapter/book/version changes
-  useEffect(() => {
-    if (audio) {
-      audio.unload();
-      setAudio(null);
-    }
-  }, [activeBook, activeChapter, activeAudioFilesetId]);
-
-  // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
-  useEffect(() => {
-    if ('mediaSession' in navigator && audio) {
-      const translationName = translations.find(t => t.filesets.some(f => f.id === activeAudioFilesetId))?.name || 'Unknown Version';
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: `${activeBook} ${activeChapter}`,
-        artist: translationName,
-        album: 'Bible Audio',
-      });
-
-      navigator.mediaSession.setActionHandler('play', () => {
-        // Only update state, let useEffect handle audio playback
-        setIsPlaying(true);
-      });
-
-      navigator.mediaSession.setActionHandler('pause', () => {
-        // Only update state, let useEffect handle audio pause
-        setIsPlaying(false);
-      });
-
-      navigator.mediaSession.setActionHandler('stop', () => {
-        // Only update state, let useEffect handle audio pause
-        setIsPlaying(false);
-      });
-
-      // Seek backward (headphones with seek buttons)
-      navigator.mediaSession.setActionHandler(
-        'seekbackward', 
-        () => {
-          const currentTime = audio.seek() as number;
-          const newTime = Math.max(0, currentTime - 10);
-          audio.seek(newTime);
-        }
-      );
-
-      // Seek forward (headphones with seek buttons)
-      navigator.mediaSession.setActionHandler(
-        'seekforward', 
-        () => {
-          const currentTime = audio.seek() as number;
-          const duration = audio.duration();
-          const newTime = Math.min(duration, currentTime + 10);
-          audio.seek(newTime);
-        }
-      );
-
-      // Previous track (car stereo prev button)
-      navigator.mediaSession.setActionHandler(
-        'previoustrack', 
-        () => {
-          const currentTime = audio.seek() as number;
-          const newTime = Math.max(0, currentTime - 10);
-          audio.seek(newTime);
-        }
-      );
-
-      // Next track: 10s (car stereo next button)
-      navigator.mediaSession.setActionHandler(
-        'nexttrack', 
-        () => {
-          const currentTime = audio.seek() as number;
-          const duration = audio.duration();
-          const newTime = Math.min(duration, currentTime + 10);
-          audio.seek(newTime);
-        }
-      );
-
-      // Seek to specific time (additional car stereo fallback)
-      navigator.mediaSession.setActionHandler(
-        'seekto', 
-        (details) => {
-          if (details.seekTime !== undefined) {
-            audio.seek(details.seekTime);
-          }
-        }
-      );
-    }
-
-    return () => {
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.setActionHandler('play', null);
-        navigator.mediaSession.setActionHandler('pause', null);
-        navigator.mediaSession.setActionHandler('stop', null);
-        navigator.mediaSession.setActionHandler(
-          'seekbackward', 
-          null
-        );
-        navigator.mediaSession.setActionHandler(
-          'seekforward', 
-          null
-        );
-        navigator.mediaSession.setActionHandler(
-          'previoustrack', 
-          null
-        );
-        navigator.mediaSession.setActionHandler('nexttrack', null);
-        navigator.mediaSession.setActionHandler('seekto', null);
-      }
-    };
-  }, [audio, isPlaying, activeBook, activeChapter, activeAudioFilesetId, translations]);
-
-  // Function to navigate to next chapter
-  const goToNextChapter = () => {
+  const goToNextChapter = useCallback(() => {
     const index = getPassageResult.findIndex(
       (book) =>
-        book.book_name === activeBook && 
-        book.chapter === activeChapter
+        book.book_name === activeBook && book.chapter === activeChapter
     );
 
-    // Check if there's a next chapter
     if (index === -1 || index === getPassageResult.length - 1) {
-      return false; // No next chapter
+      return false;
     }
 
     const next = getPassageResult[index + 1];
-    if (next !== null) {
+    if (next) {
       setActiveBookOnly(next.book_name);
       setActiveBookShort(next.book_id);
       setActiveChapter(next.chapter);
-      return true; // Successfully moved to next chapter
+      return true;
     }
-
     return false;
-  };
+  }, [getPassageResult, activeBook, activeChapter, setActiveBookOnly, setActiveBookShort, setActiveChapter]);
 
+  // Main audio control effect
   useEffect(() => {
-    const loadAndPlayAudio = async () => {
-      // If audio exists and we want to play, just resume it
-      if (isPlaying && audio !== null) {
-        audio.play();
-        return;
+    const cleanup = () => {
+      audio?.unload();
+      setAudio(null);
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
-
-      // If we want to pause, just pause
-      if (!isPlaying && audio !== null) {
-        audio.pause();
-        return;
-      }
-
-      // Only load new audio if we're playing and don't have audio yet
-      if (isPlaying && audio === null) {
-        setLoading(true);
-        setError(null);
-
-        try {
-          // If no audio fileset is selected, do nothing.
-          if (!activeAudioFilesetId) {
-            setIsPlaying(false);
-            setLoading(false);
-            return;
-          }
-
-          let audioUrl: string;
-
-          // KJV has a special, locally-generated URL
-          if (activeAudioFilesetId === 'ENGKJV') {
-            audioUrl = getKjvAudioUrl(activeBook, activeChapter);
-          } else {
-            // All other translations use the Bible Research API
-            audioUrl = await getBibleAudioUrl(
-              activeBook,
-              activeChapter,
-              activeAudioFilesetId
-            );
-          }
-
-          // Validate audio URL
-          if (!audioUrl || typeof audioUrl !== 'string') {
-            throw new Error(
-              `Invalid audio URL: ${audioUrl} for ${activeAudioFilesetId}`
-            );
-          }
-
-          // Create and play audio
-          const audioHowl = new Howl({
-            src: [audioUrl],
-            html5: true,
-            pool: 1,
-            loop: isLooping,
-            onplay: () => {
-              setIsPlaying(true);
-              setLoading(false);
-            },
-            onpause: () => setIsPlaying(false),
-            onend: () => {
-              // Double-check: onend shouldn't fire when looping
-              // But add defensive check just in case
-              if (audioHowl.loop()) {
-                // Loop is enabled, don't advance
-                return;
-              }
-              
-              // Only advance to next chapter if not looping
-              const movedToNext = goToNextChapter();
-              if (movedToNext) {
-                // Keep playing on next chapter
-                // isPlaying stays true
-              } else {
-                // No next chapter, stop playing
-                setIsPlaying(false);
-              }
-            },
-            onloaderror: (_id, err) => {
-              console.error('Audio load error:', err);
-              setError('Failed to load audio');
-              setIsPlaying(false);
-              setLoading(false);
-            },
-            onplayerror: (_id, err) => {
-              console.error('Audio play error:', err);
-              setError('Failed to play audio');
-              setIsPlaying(false);
-              setLoading(false);
-            },
-          });
-
-          setAudio(audioHowl);
-          audioHowl.play();
-        } catch (err) {
-          console.error('Error loading audio:', err);
-          
-          // Extract user-friendly error message
-          let errorMsg = 'Audio unavailable';
-          if (err instanceof Error) {
-            // Extract just the key part of the error
-            if (err.message.includes('not available')) {
-              errorMsg = 'Audio not available';
-            } else if (err.message.includes('No Fileset')) {
-              errorMsg = 'Audio not available for this chapter';
-            } else {
-              errorMsg = err.message.split(':')[0]; // Get first part
-            }
-          }
-          
-          setError(errorMsg);
-          setIsPlaying(false);
-          setLoading(false);
-        }
+      if (audioRef.current) {
+        audioRef.current.src = '';
       }
     };
 
-    loadAndPlayAudio();
-  }, [isPlaying, audio]);
+    const loadAudio = async () => {
+      cleanup();
+      if (!activeAudioFilesetId) {
+        setIsPlaying(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const audioUrl = activeAudioFilesetId === 'ENGKJV'
+          ? getKjvAudioUrl(activeBook, activeChapter)
+          : await getBibleAudioUrl(activeBook, activeChapter, activeAudioFilesetId);
+
+        if (!audioUrl) throw new Error('No audio URL received.');
+
+        if (audioUrl.endsWith('.m3u8')) {
+          if (Hls.isSupported() && audioRef.current) {
+            const hls = new Hls();
+            hlsRef.current = hls;
+            hls.loadSource(audioUrl);
+            hls.attachMedia(audioRef.current);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              setLoading(false);
+              if (isPlaying) audioRef.current?.play();
+            });
+            hls.on(Hls.Events.ERROR, (_, data) => {
+              if (data.fatal) {
+                setError('HLS stream failed.');
+                setLoading(false);
+              }
+            });
+            audioRef.current.onended = () => {
+              if (!isLooping) {
+                const moved = goToNextChapter();
+                if (!moved) setIsPlaying(false);
+              }
+            };
+          } else {
+            throw new Error('HLS not supported.');
+          }
+        } else {
+          const newAudio = new Howl({
+            src: [audioUrl],
+            html5: true,
+            loop: isLooping,
+            onplay: () => setLoading(false),
+            onend: () => {
+              if (!isLooping) {
+                const moved = goToNextChapter();
+                if (!moved) setIsPlaying(false);
+              }
+            },
+            onloaderror: (_, err) => setError(`Load error: ${err}`),
+          });
+          setAudio(newAudio);
+          newAudio.play();
+        }
+      } catch (e: any) {
+        setError(e.message || 'Unknown audio error.');
+        setLoading(false);
+      }
+    };
+
+    if (isPlaying) {
+      loadAudio();
+    } else {
+      audio?.pause();
+      audioRef.current?.pause();
+    }
+
+    return cleanup;
+  }, [isPlaying, activeBook, activeChapter, activeAudioFilesetId, isLooping, goToNextChapter]);
+
+  // Media Session API
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      const translationName = translations.find(t => t.filesets.some(f => f.id === activeAudioFilesetId))?.name || 'Unknown';
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: `${activeBook} ${activeChapter}`,
+        artist: translationName,
+      });
+      // Action handlers would be set here
+    }
+  }, [activeBook, activeChapter, activeAudioFilesetId, translations]);
+
+  const handlePlayPause = () => {
+    setIsPlaying(v => !v);
+    if (!showAudioPlayer) setShowAudioPlayer(true);
+  };
 
   const handleClose = () => {
     setIsPlaying(false);
-    setShowPlayer(false);
-    audio?.stop();
-  };
-
-  const handlePlayPause = () => {
-    setIsPlaying((value) => !value);
-    setShowPlayer(true); // Show player when starting playback
+    setShowAudioPlayer(false);
   };
 
   return (
     <>
-      <ActionIcon
-        variant="transparent"
-        onClick={handlePlayPause}
-        disabled={loading}
-        title={error || (isPlaying ? "Playing..." : "Play audio")}
-      >
-        {loading ? (
-          <Loader size={rem(20)} />
-        ) : (
-          <IconPlayerPlay size={rem(20)} />
-        )}
+      <ActionIcon variant="transparent" onClick={handlePlayPause} disabled={loading} title={error || 'Play audio'}>
+        {loading ? <Loader size={rem(20)} /> : <IconPlayerPlay style={{ width: rem(20), height: rem(20) }} />}
       </ActionIcon>
 
-      {showPlayer && audio && (
+      <audio ref={audioRef} loop={isLooping} style={{ display: 'none' }} />
+
+      {showAudioPlayer && (
         <AudioPlayer
-          audio={audio}
+          howler={audio}
+          html5Audio={audioRef.current}
           isPlaying={isPlaying}
           isLooping={isLooping}
-          onPlayPause={() => setIsPlaying((value) => !value)}
-          onLoopToggle={() => setIsLooping((value) => !value)}
+          onPlayPause={handlePlayPause}
+          onLoopToggle={() => setIsLooping(v => !v)}
           onClose={handleClose}
         />
       )}

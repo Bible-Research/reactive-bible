@@ -19,7 +19,8 @@ import { Howl } from 'howler';
 import { useBibleStore } from '../store';
 
 interface AudioPlayerProps {
-  audio: Howl | null;
+  howler?: Howl | null;
+  html5Audio?: HTMLAudioElement | null;
   isPlaying: boolean;
   isLooping: boolean;
   onPlayPause: () => void;
@@ -28,7 +29,8 @@ interface AudioPlayerProps {
 }
 
 const AudioPlayer = ({
-  audio,
+  howler,
+  html5Audio,
   isPlaying,
   isLooping,
   onPlayPause,
@@ -41,47 +43,64 @@ const AudioPlayer = ({
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
+  const player = {
+    seek: (time?: number) => {
+      if (howler) return howler.seek(time);
+      if (html5Audio) {
+        if (time !== undefined) html5Audio.currentTime = time;
+        return html5Audio.currentTime;
+      }
+      return 0;
+    },
+    duration: () => {
+      if (howler) return howler.duration();
+      if (html5Audio) return html5Audio.duration;
+      return 0;
+    },
+    loop: (shouldLoop: boolean) => {
+      if (howler) howler.loop(shouldLoop);
+      if (html5Audio) html5Audio.loop = shouldLoop;
+    },
+  };
+
   // Update current time
   useEffect(() => {
-    if (!audio || !isPlaying) return;
+    if (!isPlaying) return;
 
     const interval = setInterval(() => {
       if (!seeking) {
-        const seek = audio.seek() as number;
+        const seek = player.seek() as number;
         setCurrentTime(seek);
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [audio, isPlaying, seeking]);
+  }, [howler, html5Audio, isPlaying, seeking]);
 
   // Get duration when audio loads
   useEffect(() => {
-    if (!audio) return;
-
     const updateDuration = () => {
-      const dur = audio.duration();
-      if (dur && dur > 0) {
+      const dur = player.duration();
+      if (dur && dur > 0 && isFinite(dur)) {
         setDuration(dur);
       }
     };
 
-    // Try to get duration immediately
     updateDuration();
 
-    // Also listen for load event
-    audio.on('load', updateDuration);
+    if (howler) howler.on('load', updateDuration);
+    if (html5Audio) html5Audio.addEventListener('loadedmetadata', updateDuration);
 
     return () => {
-      audio.off('load', updateDuration);
+      if (howler) howler.off('load', updateDuration);
+      if (html5Audio) html5Audio.removeEventListener('loadedmetadata', updateDuration);
     };
-  }, [audio]);
+  }, [howler, html5Audio]);
 
   // Handle looping
   useEffect(() => {
-    if (!audio) return;
-    audio.loop(isLooping);
-  }, [audio, isLooping]);
+    player.loop(isLooping);
+  }, [howler, html5Audio, isLooping]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -90,26 +109,23 @@ const AudioPlayer = ({
   };
 
   const handleSeek = (value: number) => {
-    if (!audio) return;
-    audio.seek(value);
+    player.seek(value);
     setCurrentTime(value);
   };
 
   const handleSkipBackward = () => {
-    if (!audio) return;
     const newTime = Math.max(0, currentTime - 5);
-    audio.seek(newTime);
+    player.seek(newTime);
     setCurrentTime(newTime);
   };
 
   const handleSkipForward = () => {
-    if (!audio) return;
     const newTime = Math.min(duration, currentTime + 5);
-    audio.seek(newTime);
+    player.seek(newTime);
     setCurrentTime(newTime);
   };
 
-  if (!audio) return null;
+  if (!howler && !html5Audio) return null;
 
   return (
     <Paper
