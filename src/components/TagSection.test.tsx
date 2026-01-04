@@ -5,7 +5,7 @@ import { Note, Tag } from '../types';
 
 // Mock the NoteCard component
 vi.mock('./NoteCard', () => ({
-  default: ({ note, onViewInBible, onEdit }) => (
+  default: ({ note, onViewInBible, onEdit }: { note: Note; onViewInBible: (book: string, chapter: number, verse: number) => void; onEdit: (note: Note) => void }) => (
     <div data-testid="note-card">
       <p>{note.note_text}</p>
       <button onClick={() => onViewInBible('Genesis', 1, 1)}>View</button>
