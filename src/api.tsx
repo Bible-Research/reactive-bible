@@ -1,5 +1,6 @@
 import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
+
 import {
   getCachedVerses,
   cacheVerses,
@@ -173,6 +174,40 @@ export const addTagNote = async (
     return data;
   } catch (error) {
     console.error(error);
+  }
+};
+
+export const editNote = async (noteId: string, tagId: string, noteText: string) => {
+  const body = JSON.stringify({ tag: tagId, note_text: noteText });
+  try {
+    const response = await fetch(`https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: body,
+    });
+    return await response.json();
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+export const getNotes = async (): Promise<Note[]> => {
+  try {
+    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/notes/');
+    return await response.json();
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
+export const getTags = async (): Promise<Tag[]> => {
+  try {
+    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/tags/');
+    return await response.json();
+  } catch (error) {
+    console.error(error);
+    return [];
   }
 };
 
