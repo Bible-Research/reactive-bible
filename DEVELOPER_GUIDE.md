@@ -614,6 +614,7 @@ Create and organize notes with tags for Bible verses.
 **Features**:
 - Tag-based organization
 - Filter notes by tag
+- Lazy loading: notes fetched per-tag (not all at once)
 - View notes with verse references
 - Navigate to verse from note
 - API integration for persistence
@@ -627,10 +628,16 @@ Create and organize notes with tags for Bible verses.
 5. Selected verses are automatically cleared
 6. Modal closes
 
+**Note Loading Optimization**:
+- On initial load, only notes for the first tag (alphabetically) are fetched
+- When user selects a different tag, notes for that tag are fetched
+- This prevents loading all notes at once, improving performance
+- Refresh button re-fetches notes for the currently selected tag
+
 **API Functions**:
 ```typescript
-// Fetch all notes
-getNotes(): Promise<Note[]>
+// Fetch notes (optionally filtered by tag)
+getNotes(tagId?: string): Promise<Note[]>
 
 // Create new note with tag
 addTagNote(
@@ -640,9 +647,9 @@ addTagNote(
 )
 ```
 
-**Implementation Detail**:
+**Implementation Details**:
 ```typescript
-// In AddTagNoteModal.tsx
+// In AddTagNoteModal.tsx - Auto-clear verses after note creation
 const handleSubmit = async (event) => {
   const verseReferences = activeVerses.map((verse) => ({
     book: activeBook,
@@ -653,6 +660,31 @@ const handleSubmit = async (event) => {
   await addTagNote(selectedTagId, tagNoteText, verseReferences);
   setActiveVerses([]); // Clear selected verses
   onClose();
+};
+
+// In NotesView.tsx - Lazy load notes per tag
+useEffect(() => {
+  const loadData = async () => {
+    const fetchedTags = await getTags();
+    if (fetchedTags.length > 0) {
+      const sorted = [...fetchedTags].sort((a, b) => 
+        a.name.localeCompare(b.name)
+      );
+      const firstTagId = sorted[0].id;
+      setSelectedTagId(firstTagId);
+      // Fetch notes only for the first tag
+      await fetchNotes(firstTagId);
+    }
+  };
+  loadData();
+}, []);
+
+// Handle tag selection change
+const handleTagChange = async (value: string | null) => {
+  if (value) {
+    setSelectedTagId(value);
+    await fetchNotes(value); // Fetch notes for selected tag
+  }
 };
 ```
 
@@ -1264,6 +1296,7 @@ Contains the complete King James Version Bible text stored locally for offline a
 4. **Get Notes**
    ```
    GET /notes/
+   GET /notes/?tag_id={tag_id}  // Filter by tag
    Response: Note[]
    ```
 

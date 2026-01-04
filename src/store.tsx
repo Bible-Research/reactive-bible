@@ -30,6 +30,7 @@ interface BibleState {
   activeTextFilesetId: string | null;
   activeAudioFilesetId: string | null;
   notes: Note[];
+  allNotesFetched: boolean;
   setActiveBook: (activeBook: string) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
@@ -41,7 +42,7 @@ interface BibleState {
   setTranslations: (translations: Translation[]) => void;
   setActiveTextFilesetId: (id: string | null) => void;
   setActiveAudioFilesetId: (id: string | null) => void;
-  fetchNotes: () => void;
+  fetchNotes: (tagId?: string) => Promise<void>;
 }
 
 export const useBibleStore = create<BibleState>()(
@@ -58,6 +59,7 @@ export const useBibleStore = create<BibleState>()(
       activeTextFilesetId: "ENGKJV", // Default to KJV text
       activeAudioFilesetId: null,
       notes: [],
+      allNotesFetched: false,
       setActiveBook: (activeBook) => set({ 
         activeBook, 
         activeChapter: 1, 
@@ -84,9 +86,9 @@ export const useBibleStore = create<BibleState>()(
         set({ activeTextFilesetId }),
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
-      fetchNotes: async () => {
-        const notes = await getNotes();
-        set({ notes });
+      fetchNotes: async (tagId?: string) => {
+        const notes = await getNotes(tagId);
+        set({ notes, allNotesFetched: !tagId });
       },
     }),
     {

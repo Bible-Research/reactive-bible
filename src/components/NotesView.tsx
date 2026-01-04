@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ScrollArea, Select, Group, Button, Stack, Center, Text, Loader } from "@mantine/core";
 import { Note, Tag } from "../types";
 import TagSection from "./TagSection";
@@ -17,8 +17,12 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
   const [selectedTagId, setSelectedTagId] = useState<string>('');
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
+    // Prevent double-fetch in React Strict Mode
+    if (hasLoadedRef.current) return;
+    
     const loadData = async () => {
       setLoading(true);
       try {
@@ -26,39 +30,63 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
         setTags(fetchedTags);
         if (fetchedTags.length > 0) {
           const sorted = [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name));
-          setSelectedTagId(sorted[0].id);
+          const firstTagId = sorted[0].id;
+          setSelectedTagId(firstTagId);
+          // Fetch notes only for the first tag
+          await fetchNotes(firstTagId);
         }
-        await fetchNotes();
+        hasLoadedRef.current = true;
       } catch (error) {
         console.error('Error loading data:', error);
       }
       setLoading(false);
     };
     loadData();
-  }, [fetchNotes]);
+  }, []); // Empty dependency - only load on mount
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
     setIsEditModalOpen(true);
   };
 
+  // Handle tag selection change
+  const handleTagChange = async (value: string | null) => {
+    if (value) {
+      setSelectedTagId(value);
+      setLoading(true);
+      try {
+        await fetchNotes(value);
+      } catch (error) {
+        console.error('Error fetching notes for tag:', error);
+      }
+      setLoading(false);
+    }
+  };
+
+  // Handle refresh button
+  const handleRefresh = async () => {
+    if (selectedTagId) {
+      setLoading(true);
+      try {
+        await fetchNotes(selectedTagId);
+      } catch (error) {
+        console.error('Error refreshing notes:', error);
+      }
+      setLoading(false);
+    }
+  };
+
   // Sort tags alphabetically
   const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
 
-    const filteredNotes = selectedTagId
-    ? notes.filter(note => note.tag.id === selectedTagId)
-    : notes;
+  // Notes are already filtered by the API, so we just need to group them
+  const notesByTag = selectedTagId && notes.length > 0
+    ? [{
+        tag: sortedTags.find(t => t.id === selectedTagId)!,
+        notes: notes
+      }]
+    : [];
 
-  const notesByTag = sortedTags.map(tag => ({
-    tag,
-    notes: filteredNotes.filter(note => note.tag.id === tag.id)
-  })).filter(group => group.notes.length > 0);
-
-  
-
-  
-
-  
 
     return (
     <>
@@ -69,11 +97,11 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
               label="Filter by tag"
               placeholder="Select a tag"
               value={selectedTagId}
-              onChange={(value) => setSelectedTagId(value || '')}
+              onChange={handleTagChange}
               data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
               searchable
             />
-            <Button onClick={fetchNotes}>Refresh Notes</Button>
+            <Button onClick={handleRefresh}>Refresh Notes</Button>
           </Group>
 
           {loading ? (

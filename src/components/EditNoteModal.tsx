@@ -35,7 +35,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
 
     try {
       await editNote(note.id, tagId, text);
-      fetchNotes(); // Refresh notes list
+      fetchNotes(tagId); // Refresh notes list
       onClose();
     } catch (error) {
       console.error(error);

@@ -448,10 +448,11 @@ export interface Note {
   verses: NoteVerse[];
 }
 
-export const getNotes = async (): Promise<Note[]> => {
-  const response = await fetch(
-    'https://bibleresearchapi.vercel.app/api/v1/notes/'
-  );
+export const getNotes = async (tagId?: string): Promise<Note[]> => {
+  const url = tagId
+    ? `https://bibleresearchapi.vercel.app/api/v1/notes/?tag_id=${tagId}`
+    : 'https://bibleresearchapi.vercel.app/api/v1/notes/';
+  const response = await fetch(url);
   if (!response.ok) throw new Error('Failed to fetch notes');
   return await response.json();
 };
