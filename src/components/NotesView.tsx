@@ -18,22 +18,20 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
 
-    const fetchTags = async () => {
-    try {
-      const fetchedTags = await getTags();
-      setTags(fetchedTags);
-    } catch (error) {
-      console.error('Error fetching tags:', error);
-    }
-  };
-
-  
-
-    useEffect(() => {
+  useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await fetchNotes();
-      await fetchTags();
+      try {
+        const fetchedTags = await getTags();
+        setTags(fetchedTags);
+        if (fetchedTags.length > 0) {
+          const sorted = [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name));
+          setSelectedTagId(sorted[0].id);
+        }
+        await fetchNotes();
+      } catch (error) {
+        console.error('Error loading data:', error);
+      }
       setLoading(false);
     };
     loadData();
@@ -72,10 +70,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
               placeholder="Select a tag"
               value={selectedTagId}
               onChange={(value) => setSelectedTagId(value || '')}
-              data={[
-                { value: '', label: 'All Tags' },
-                ...sortedTags.map(tag => ({ value: tag.id, label: tag.name }))
-              ]}
+              data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
               searchable
             />
             <Button onClick={fetchNotes}>Refresh Notes</Button>
