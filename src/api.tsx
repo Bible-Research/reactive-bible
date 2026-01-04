@@ -90,7 +90,7 @@ export const getVersesFromApi = async (
   }
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
+    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const data = await response.json();
     const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
@@ -227,7 +227,7 @@ export const getBibleAudioUrl = async (
 
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
+    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
