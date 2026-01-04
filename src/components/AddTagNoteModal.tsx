@@ -1,7 +1,9 @@
-import { Modal, Button, Select, TextInput } from "@mantine/core";
-import { addTagNote } from "../api";
+import { Modal } from "@mantine/core";
+import { addTagNote, getTags } from "../api";
 import { useBibleStore } from "../store";
 import { useState, useEffect } from "react";
+import NoteForm from "./NoteForm";
+import { Tag } from "../types";
 
 interface AddTagNoteModalProps {
   opened: boolean;
@@ -9,58 +11,36 @@ interface AddTagNoteModalProps {
 }
 
 const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
-  const [tags, setTags] = useState<{ id: string; name: string; key: number }[]>([]);
-  const [selectedTagId, setSelectedTagId] = useState("");
-  const [selectedTagName, setSelectedTagName] = useState("");
-  const [tagNoteText, setTagNoteText] = useState("");
+  const [tags, setTags] = useState<Tag[]>([]);
   const activeVerses = useBibleStore((state) => state.activeVerses);
   const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore(
-    (state) => state.activeChapter
-  );
-  const setActiveVerses = useBibleStore(
-    (state) => state.setActiveVerses
-  );
+  const activeChapter = useBibleStore((state) => state.activeChapter);
+  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
 
-  // Fetch tags function (reusable)
-  const fetchTags = async () => {
+    const fetchTags = async () => {
     try {
-      const response = await fetch(
-        "https://bibleresearchapi.vercel.app/api/v1/tags/"
-      );
-      const data = await response.json();
-      setTags(
-        data.map((item: { id: any; name: any; }, index: any) => ({
-          id: item.id,
-          name: item.name,
-          key: index,
-        }))
-      );
+      const fetchedTags = await getTags();
+      setTags(fetchedTags);
     } catch (error) {
       console.error('Error fetching tags:', error);
     }
   };
 
-  // Fetch tags on component mount (page load)
   useEffect(() => {
-    fetchTags();
-  }, []);
+    if (opened) {
+      fetchTags();
+    }
+  }, [opened]);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSubmit = async (tagId: string, text: string) => {
     const verseReferences = activeVerses.map((verse) => ({
       book: activeBook,
       chapter: activeChapter,
       verse,
     }));
+
     try {
-      const data = await addTagNote(
-        selectedTagId,
-        tagNoteText,
-        verseReferences
-      );
-      console.log("Tag note added:", data);
+      await addTagNote(tagId, text, verseReferences);
       setActiveVerses([]); // Clear selected verses
       onClose();
     } catch (error) {
@@ -69,45 +49,13 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   };
 
   return (
-    <Modal
-      variant="transparent"
-      opened={opened}
-      onClose={onClose}
-      title="Add note"
-    >
-      <form onSubmit={handleSubmit}>
-        <Select
-          variant="transparent"
-          label="Tag"
-          value={selectedTagName}
-          onChange={(item: string) => {
-            const tagId = tags.find((tag) => tag.name === item)?.id;
-            setSelectedTagId(tagId ?? '');
-            setSelectedTagName(item);
-          }}
-          onDropdownOpen={() => {
-            // Refresh tags when dropdown opens (don't clear existing)
-            fetchTags();
-          }}
-          data={tags.map((tag) => tag.name)}
-        />
-        <TextInput
-          variant="transparent"
-          label="Note"
-          value={tagNoteText}
-          onChange={(event) => setTagNoteText(event.currentTarget.value)}
-        />
-        <Button variant="transparent" type="submit">
-          Submit
-        </Button>
-        <Button
-          variant="transparent"
-          onClick={() => window.open('https://bibleresearchapi.vercel.app/api/v1/tags/', '_blank')}
-          style={{ width: '100%' }}
-        >
-          Or create a new tag
-        </Button>
-      </form>
+    <Modal opened={opened} onClose={onClose} title="Add note">
+      <NoteForm
+        tags={tags}
+        onSubmit={handleSubmit}
+        submitText="Submit"
+        onTagDropdownOpen={fetchTags}
+      />
     </Modal>
   );
 };
