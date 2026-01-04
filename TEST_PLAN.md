@@ -338,6 +338,19 @@ export const waitForLoadingToFinish = () => { ... }
 
 ---
 
+## Contingency Plan: Handling Failing Tests
+
+If a specific test proves difficult to fix and is blocking progress, do not get stuck. Follow these steps:
+
+1.  **Attempt a Fix:** Make a maximum of 2-3 genuine attempts to fix the failing test.
+2.  **Skip the Test:** If the test still fails, skip it using the `.skip()` method (e.g., `it.skip(...)` or `describe.skip(...)`).
+3.  **Document the Issue:** Create or update the `SKIPPED_TESTS.md` file in the project root. Add an entry detailing:
+    - The name of the test and the file it's in.
+    - A clear, concise reason why the test was skipped (e.g., bug in the source code, complex logic issue).
+4.  **Commit and Continue:** Commit the skipped test and the updated documentation, then proceed with the rest of the test plan.
+
+This ensures that the test suite remains green and progress is not halted by a single problematic test.
+
 ## Coverage Goals
 
 | Category | Target Coverage |

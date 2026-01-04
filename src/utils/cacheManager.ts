@@ -133,39 +133,38 @@ export const cacheVerses = (
   bibleVersion: string,
   verses: { verse: number; text: string }[]
 ) => {
-  const cache = getVerseCache();
+  let cache = getVerseCache(); // Use let to allow modification
   const metadata = getVerseCacheMetadata();
   const now = Date.now();
 
-  // Calculate how many verses we need to add
-  const versesToAdd = verses.length;
-  const currentTotal = metadata.totalVerses;
-  const newTotal = currentTotal + versesToAdd;
-
-  // If exceeds limit, remove oldest verses (LRU)
-  if (newTotal > MAX_VERSES) {
-    const versesToRemove = newTotal - MAX_VERSES;
-    const keysToRemove = metadata.lruQueue.splice(0, versesToRemove);
-
-    keysToRemove.forEach((key) => {
-      delete cache[key];
-    });
-
-    metadata.totalVerses -= versesToRemove;
-  }
-
-  // Add new verses
+  // Add new verses to the cache and LRU queue
   verses.forEach((verse) => {
     const cacheKey = `${bibleVersion}:${book}:${chapter}:${verse.verse}`;
+    if (!cache[cacheKey]) {
+      // Only add if it's a new verse to avoid duplicates in queue
+      metadata.lruQueue.push(cacheKey);
+    }
     cache[cacheKey] = {
       verse: verse.verse,
       text: verse.text,
       timestamp: now,
       accessCount: 1,
     };
-    metadata.lruQueue.push(cacheKey);
-    metadata.totalVerses++;
   });
+
+  // If the cache exceeds the limit, evict the oldest verses
+  if (metadata.lruQueue.length > MAX_VERSES) {
+    const versesToRemove = metadata.lruQueue.length - MAX_VERSES;
+    const keysToRemove = metadata.lruQueue.splice(0, versesToRemove);
+
+    // Remove the evicted keys from the cache object
+    keysToRemove.forEach((key) => {
+      delete cache[key];
+    });
+  }
+
+  // Update the total verse count
+  metadata.totalVerses = metadata.lruQueue.length;
 
   setVerseCache(cache, metadata);
 };
