@@ -2,17 +2,21 @@
 
 ## Table of Contents
 1. [Project Overview](#project-overview)
-2. [Architecture](#architecture)
-3. [Core Functionalities](#core-functionalities)
-4. [State Management](#state-management)
-5. [Data Flow](#data-flow)
-6. [Component Structure](#component-structure)
-7. [API Integration](#api-integration)
-8. [Caching System](#caching-system)
-9. [Bible Utilities](#bible-utilities)
-10. [Testing](#testing)
-11. [Contributing Guidelines](#contributing-guidelines)
-12. [Keeping Documentation Updated](#keeping-documentation-updated)
+2. [Development Setup](#development-setup)
+3. [Architecture](#architecture)
+4. [Core Functionalities](#core-functionalities)
+5. [State Management](#state-management)
+6. [Types & Interfaces](#types--interfaces)
+7. [Data Flow](#data-flow)
+8. [Component Structure](#component-structure)
+9. [API Integration](#api-integration)
+10. [Caching System](#caching-system)
+11. [Bible Utilities](#bible-utilities)
+12. [Testing](#testing)
+13. [Browser Compatibility](#browser-compatibility)
+14. [Performance Considerations](#performance-considerations)
+15. [Contributing Guidelines](#contributing-guidelines)
+16. [Keeping Documentation Updated](#keeping-documentation-updated)
 
 ---
 
@@ -33,6 +37,86 @@ audio playback, verse tagging, and advanced search capabilities.
 - **Icons**: Tabler Icons
 - **Analytics**: Vercel Analytics
 - **Performance Monitoring**: Vercel Speed Insights
+
+---
+
+## Development Setup
+
+### Prerequisites
+- **Node.js**: v16 or higher
+- **npm**: v7 or higher (comes with Node.js)
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd reactive-bible
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Start development server**:
+   ```bash
+   npm run dev
+   ```
+   The app will be available at `http://localhost:5173`
+
+### Available Scripts
+
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Build for production (TypeScript compilation + Vite build)
+- `npm run preview` - Preview production build locally
+- `npm run lint` - Run ESLint to check code quality
+- `npm test` - Run tests with Vitest UI
+- `npm run coverage` - Generate test coverage report
+
+### Project Structure
+
+```
+reactive-bible/
+├── src/
+│   ├── components/      # React components (18 files)
+│   ├── utils/          # Utility functions
+│   │   ├── bibleUtils.ts    # Bible book/testament helpers
+│   │   └── cacheManager.ts  # Caching logic
+│   ├── assets/         # Static assets
+│   │   └── kjv.json    # KJV Bible text (local)
+│   ├── api.tsx         # API functions
+│   ├── store.tsx       # Zustand state management
+│   ├── types.ts        # TypeScript interfaces
+│   ├── App.tsx         # Main app component
+│   ├── main.tsx        # Entry point
+│   └── setupTests.ts   # Test configuration
+├── public/             # Public assets
+├── dist/               # Build output (generated)
+├── vite.config.ts      # Vite configuration
+├── tsconfig.json       # TypeScript configuration
+└── package.json        # Dependencies and scripts
+```
+
+### Environment Variables
+
+No environment variables are required for local development. The app uses:
+- **Local KJV data**: Bundled in `src/assets/kjv.json`
+- **Public APIs**: Bible Research API (no auth required)
+
+### Deployment
+
+The app is configured for deployment on **Vercel**:
+
+1. **Connect repository** to Vercel
+2. **Build settings** (auto-detected):
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+3. **Deploy** - Vercel will automatically deploy on push to main branch
+
+**Analytics & Monitoring**:
+- Vercel Analytics and Speed Insights are automatically enabled in production
+- No configuration needed - data appears in Vercel dashboard
 
 ---
 
@@ -66,15 +150,193 @@ src/
 The application uses Zustand for lightweight, centralized state management. The state is persisted to `localStorage` to remember user selections across sessions.
 
 ### State Shape (`BibleState`)
-- `activeBook`, `activeChapter`, `activeVerses`: For navigation.
-- `translations`: Holds the list of available Bible translations fetched from the API.
-- `activeTextFilesetId`: The fileset ID for the selected text version.
-- `activeAudioFilesetId`: The fileset ID for the selected audio version.
-- `showAudioPlayer`: Toggles the visibility of the audio player.
 
-### Actions
-- Setters for all state properties (e.g., `setActiveBook`, `setTranslations`).
-- Logic for smooth-scrolling to selected verses is included in `setActiveVerses`.
+**Navigation State**:
+- `activeBook: string` - Current book name (e.g., "Genesis")
+- `activeBookShort: string` - 3-letter book code (e.g., "Gen")
+- `activeChapter: number` - Current chapter number
+- `activeVerses: number[]` - Currently selected verse numbers
+- `selectedVerses: number[]` - Verses selected for note creation (separate from activeVerses)
+
+**Translation State**:
+- `bibleVersion: string` - Bible version identifier (e.g., "KJV", "ESV")
+- `translations: Translation[]` - List of available Bible translations from API
+- `activeTextFilesetId: string | null` - Fileset ID for selected text version (e.g., "ENGKJV")
+- `activeAudioFilesetId: string | null` - Fileset ID for selected audio version
+
+**UI State**:
+- `showAudioPlayer: boolean` - Controls audio player visibility (NOT persisted)
+
+**Notes State**:
+- `notes: Note[]` - Array of user notes with tags and verse references
+
+### Actions (Setters)
+
+**Navigation Actions**:
+- `setActiveBook(activeBook: string)` - Sets book and resets chapter to 1, verses to []
+- `setActiveBookOnly(activeBook: string)` - Sets book without resetting chapter
+- `setActiveBookShort(activeBookShort: string)` - Sets 3-letter book code
+- `setActiveChapter(activeChapter: number)` - Sets chapter and resets verses to []
+- `setActiveVerses(activeVerses: number[])` - Sets verses and auto-scrolls to them
+
+**Translation Actions**:
+- `setBibleVersion(bibleVersion: string)` - Sets Bible version identifier
+- `setTranslations(translations: Translation[])` - Updates available translations list
+- `setActiveTextFilesetId(id: string | null)` - Sets text fileset ID
+- `setActiveAudioFilesetId(id: string | null)` - Sets audio fileset ID
+
+**UI Actions**:
+- `setShowAudioPlayer(show: boolean)` - Toggles audio player visibility
+
+**Notes Actions**:
+- `fetchNotes()` - Async function to fetch notes from API and update state
+
+### Auto-Scroll Behavior
+
+When `setActiveVerses` is called, it automatically scrolls to the selected verses:
+
+```typescript
+setActiveVerses: (activeVerses) => {
+  set({ activeVerses });
+  activeVerses.forEach((verse) => {
+    document
+      .getElementById("verse-" + verse)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
+}
+```
+
+---
+
+## Types & Interfaces
+
+**Location**: `src/types.ts`, `src/store.tsx`, `src/api.tsx`
+
+### Core Types (`src/types.ts`)
+
+#### `Tag`
+Represents a tag for organizing notes.
+
+```typescript
+export interface Tag {
+  id: string;
+  name: string;
+  parent_tag: string | null;  // For hierarchical tags
+  created_at: string;
+  updated_at: string;
+}
+```
+
+#### `Note`
+Represents a user note with associated verses.
+
+```typescript
+export interface Note {
+  id: string;
+  note_text: string;
+  public: boolean;
+  created_at: string;
+  updated_at: string;
+  tag: Tag;
+  verses: {
+    book: string;
+    chapter: number;
+    verse: number;
+    text: string;
+  }[];
+}
+```
+
+### Translation Types (`src/store.tsx`)
+
+#### `Fileset`
+Represents a specific Bible translation format.
+
+```typescript
+export interface Fileset {
+  id: string;  // e.g., "ENGKJV", "ENGESV"
+  type: "text_plain" | "audio" | "audio_drama";
+  size: string;  // e.g., "NT", "OT", "C" (complete)
+  codec: "mp3" | "opus" | null;
+  bitrate: string | null;
+}
+```
+
+#### `Translation`
+Represents a Bible translation with multiple filesets.
+
+```typescript
+export interface Translation {
+  abbr: string;        // e.g., "KJV", "ESV"
+  name: string;        // e.g., "King James Version"
+  language: string;    // e.g., "English"
+  language_iso: string; // e.g., "eng"
+  filesets: Fileset[];
+}
+```
+
+### API Types (`src/api.tsx`)
+
+#### `KjvBook`
+Represents a verse from the local KJV JSON file.
+
+```typescript
+export interface KjvBook {
+  chapter: number;
+  verse: number;
+  text: string;
+  translation_id: string;
+  book_id: string;    // 3-letter code
+  book_name: string;  // Full name
+}
+```
+
+#### `AudioResponse`
+Response from Bible Research API for audio.
+
+```typescript
+interface AudioResponse {
+  book: string;
+  book_name: string;
+  chapter: number;
+  audio_url: string;
+  duration_seconds: number;
+  file_size_bytes: number;
+  format: string;
+}
+```
+
+#### `NoteVerse`
+Verse reference for notes.
+
+```typescript
+export interface NoteVerse {
+  book: string;
+  chapter: number;
+  verse: number;
+  text: string;
+}
+```
+
+### Bible Utility Types (`src/utils/bibleUtils.ts`)
+
+#### `Testament`
+Old or New Testament identifier.
+
+```typescript
+export type Testament = 'OT' | 'NT';
+```
+
+#### `BibleBook`
+Represents a Bible book with metadata.
+
+```typescript
+export interface BibleBook {
+  name: string;      // Lowercase full name (e.g., "genesis")
+  code: string;      // 3-letter uppercase code (e.g., "GEN")
+  testament: Testament;
+}
+```
 
 ---
 
@@ -569,9 +831,9 @@ On end → Auto-advance to next chapter
 ```
 User Types in Search
     ↓
-Autocomplete filters searchData
+Autocomplete filters searchData (KJV verses)
     ↓
-Display matching verses
+Display matching verses (limit 7)
     ↓
 User selects result
     ↓
@@ -579,90 +841,395 @@ Update Zustand store (book, chapter, verse)
     ↓
 Navigate to verse
     ↓
+Auto-scroll to verse
+    ↓
 Close modal
+```
+
+### Note Creation Flow
+```
+User Selects Verses (click on verses)
+    ↓
+Verses added to activeVerses array
+    ↓
+User Clicks "Add Note" button
+    ↓
+AddTagNoteModal opens
+    ↓
+User enters note text (TipTap editor)
+    ↓
+User selects tag
+    ↓
+User submits form
+    ↓
+API Call: addTagNote(tagId, text, verseReferences)
+    ↓
+Note created in backend
+    ↓
+Clear activeVerses (auto-clear)
+    ↓
+Close modal
+    ↓
+Refresh notes list (optional)
+```
+
+### Translation Switching Flow
+```
+User Opens TranslationSelector
+    ↓
+Fetch available translations (cached)
+    ↓
+User selects language (eng/lvs)
+    ↓
+Fetch translations for language
+    ↓
+User selects translation (e.g., ESV)
+    ↓
+User selects text fileset
+    ↓
+User selects audio fileset (or None)
+    ↓
+User clicks Save
+    ↓
+Update Zustand store:
+  - setActiveTextFilesetId
+  - setActiveAudioFilesetId
+    ↓
+Components re-render
+    ↓
+PassageView fetches verses with new filesetId
+    ↓
+Audio component resets (unload old audio)
+    ↓
+New translation displayed
+```
+
+### Prefetching Flow
+```
+User Navigates to Chapter
+    ↓
+PassageView renders
+    ↓
+Trigger: prefetchAdjacentChapters(book, chapter, filesetId)
+    ↓
+Get adjacent chapters (previous/next)
+    ↓
+Background Tasks (parallel):
+  ├─ Prefetch previous chapter verses
+  ├─ Prefetch next chapter verses
+  ├─ Prefetch previous chapter audio
+  └─ Prefetch next chapter audio
+    ↓
+Cache results in localStorage
+    ↓
+User navigates to next/previous chapter
+    ↓
+Instant load (from cache)
 ```
 
 ---
 
 ## Component Structure
 
-### Core Components
+**Total Components**: 18 files in `src/components/`
+
+### Main Application Components
 
 #### `App.tsx`
 Main application shell with theme provider and layout.
 
 **Responsibilities**:
-- Theme management (light/dark mode)
-- Keyboard shortcuts (`/` for search, `Escape` to close)
-- Layout structure (AppShell with navbar and header)
-- Cache cleanup on mount
+- Theme management (light/dark mode) with localStorage persistence
+- Keyboard shortcuts (`/` for search, `Escape` to close modals)
+- Layout structure using Mantine AppShell (navbar + header + main)
+- Cache cleanup on mount (expired audio URLs)
+- Vercel Analytics and Speed Insights integration
+
+**Key Features**:
+- ColorSchemeProvider for theme switching
+- Global keyboard event listeners
+- AppShell layout with responsive navbar
+
+---
+
+### Navigation Components
 
 #### `MyNavbar.tsx`
-Three-column navigation sidebar.
+Three-column navigation sidebar for Books → Chapters → Verses.
 
 **Responsibilities**:
-- Display books, chapters, verses
-- Handle navigation clicks
+- Display all 66 Bible books in first column
+- Display chapters for selected book in second column
+- Display verses for selected chapter in third column
+- Handle navigation clicks and update Zustand store
 - Highlight active selections
-- Responsive collapse on mobile
+- Responsive collapse on mobile (`hiddenBreakpoint="sm"`)
+
+**Layout**:
+- Fixed width: 320px (sm and lg breakpoints)
+- Three ScrollArea columns with borders
+- Column widths: 185px (books) | 60px (chapters) | 60px (verses)
+
+#### `MyHeader.tsx`
+Top header bar with controls.
+
+**Responsibilities**:
+- Display burger menu for mobile navbar toggle
+- Show current book and chapter
+- Theme toggle button
+- Search button
+- Translation selector button
+
+---
+
+### Content Display Components
 
 #### `Passage.tsx`
-Main content area displaying Bible verses.
+Main content container that switches between Bible view and Notes view.
 
 **Responsibilities**:
-- Fetch and display verses for current chapter
+- Toggle between PassageView and NotesView
+- Manage showNotes state
+- Handle "View in Bible" navigation from notes
+- Render SubHeader component
+
+**Layout**: Centered flex container with 80vh height
+
+#### `PassageView.tsx`
+Displays Bible verses for the current chapter.
+
+**Responsibilities**:
+- Fetch verses using `getVersesInChapter()`
 - Handle loading and error states
-- Render individual Verse components
+- Render Verse components in a list
+- Display translation name
 
 #### `Verse.tsx`
-Individual verse component with selection.
+Individual verse component with click-to-select.
 
 **Responsibilities**:
-- Display verse number and text
-- Handle click for selection
+- Display verse number (bold) and text
+- Handle click to toggle selection
 - Visual highlighting for active verses
-- Auto-scroll to view
+- Auto-scroll to view when selected
+- Prevent text selection on long-press (mobile)
+- Prevent context menu
+
+**Styling**:
+- Hover effect with background color change
+- Active state with persistent background
+- User-select disabled for better mobile UX
+
+#### `SubHeader.tsx`
+Sub-header with view toggle and action buttons.
+
+**Responsibilities**:
+- Toggle between Bible and Notes view
+- Display Audio component
+- Show "Add Note" button when verses are selected
+- Display TranslationSelector
+
+---
+
+### Audio Components
 
 #### `Audio.tsx`
-Audio playback button and logic.
+Audio playback logic and play button.
 
 **Responsibilities**:
-- Fetch audio URLs
-- Create Howl audio instance
+- Fetch audio URLs (KJV from Wordpocket, others from Bible Research API)
+- Create and manage Howler.js audio instance
 - Handle play/pause state
-- Auto-advance to next chapter
-- Media Session API integration
+- Auto-advance to next chapter on audio end
+- Loop functionality
+- Media Session API integration for hardware controls
+- Error handling with user-friendly messages
+- Loading states
+
+**Hardware Controls Support**:
+- Play/Pause (all devices)
+- Seek Forward/Backward ±10s (headphones)
+- Next/Previous Track ±10s (car stereo)
+- Lock screen controls (mobile)
 
 #### `AudioPlayer.tsx`
-Floating audio player UI.
+Floating audio player UI at bottom of screen.
 
 **Responsibilities**:
-- Display playback controls
-- Show progress bar
-- Handle seek functionality
-- Display current time and duration
+- Display playback controls (play/pause, skip ±5s, loop)
+- Show progress slider with seek functionality
+- Display current time / total duration
+- Show current book and chapter
+- Close button to hide player
+- Fixed position at bottom of viewport
+
+**UI Elements**:
+- Skip backward 5s button
+- Play/Pause button (large, blue)
+- Skip forward 5s button
+- Loop toggle button
+- Progress slider
+- Time display
+
+---
+
+### Search Components
 
 #### `SearchModal.tsx`
 Full-screen search modal with autocomplete.
 
 **Responsibilities**:
-- Display search input
-- Filter and show results
+- Display search input with icon
+- Filter KJV verses in real-time
+- Show up to 7 results with verse references
 - Navigate to selected verse
-- Keyboard shortcuts
+- Close on selection or Escape key
+
+**Features**:
+- Custom autocomplete item component showing verse text and reference
+- Blur overlay background
+- Keyboard accessible
+
+#### `SearchControl.tsx`
+Search button/control in header.
+
+**Responsibilities**:
+- Trigger search modal open
+- Display search icon
+
+---
+
+### Notes Components
 
 #### `NotesView.tsx`
 Notes display with tag filtering.
 
 **Responsibilities**:
-- Fetch notes from API
+- Fetch notes from API using `getNotes()`
 - Group notes by tag
-- Filter by selected tag
-- Handle loading and error states
+- Display tag selector
+- Filter notes by selected tag
+- Render NoteCard components
+- Handle "View in Bible" callback
+- Loading and error states
+
+#### `NoteCard.tsx`
+Individual note display card.
+
+**Responsibilities**:
+- Display note text
+- Show associated verses with references
+- Display tag name
+- Show created/updated timestamps
+- Edit and delete buttons
+- "View in Bible" button
+
+#### `NoteForm.tsx`
+Form for creating/editing notes.
+
+**Responsibilities**:
+- Rich text editor (TipTap)
+- Tag selection
+- Verse reference display
+- Form validation
+- Submit handler
+
+#### `AddTagNoteModal.tsx`
+Modal for creating new notes.
+
+**Responsibilities**:
+- Display NoteForm in modal
+- Handle note submission to API
+- Auto-clear selected verses after successful creation
+- Close modal on success or cancel
+
+**Workflow**:
+1. User selects verses
+2. Clicks "Add Note" button
+3. Modal opens with NoteForm
+4. User enters note text and selects tag
+5. Submits form
+6. Note created via API
+7. Selected verses cleared automatically
+8. Modal closes
+
+#### `EditNoteModal.tsx`
+Modal for editing existing notes.
+
+**Responsibilities**:
+- Display NoteForm pre-filled with note data
+- Handle note update to API
+- Close modal on success or cancel
+
+#### `TagSection.tsx`
+Tag management UI.
+
+**Responsibilities**:
+- Display available tags
+- Tag selection for filtering
+- Create new tags
+- Hierarchical tag display (parent/child)
+
+---
+
+### Translation Components
+
+#### `TranslationSelector.tsx`
+Modal for selecting Bible translations.
+
+**Responsibilities**:
+- Fetch available translations from API
+- Language selector (English, Latvian)
+- Translation dropdown (searchable)
+- Text fileset selection (radio buttons)
+- Audio fileset selection (radio buttons, including "None")
+- Save selections to Zustand store
+- Display fileset details (type, size, codec)
+
+**Features**:
+- Segmented control for language switching
+- Separate text and audio fileset selection
+- Shows audio type (Audio vs Drama) and quality
+- Cancel and Save buttons
+
+---
+
+### Utility Components
+
+#### `MyLoader.tsx`
+Loading spinner component.
+
+**Responsibilities**:
+- Display Mantine Loader
+- Consistent loading indicator across app
+
+**Usage**: Used in PassageView, NotesView, Audio, etc.
 
 ---
 
 ## API Integration
+
+### Local Data
+
+#### KJV Bible JSON
+**Location**: `src/assets/kjv.json`
+
+Contains the complete King James Version Bible text stored locally for offline access.
+
+**Structure**:
+```typescript
+[
+  {
+    "chapter": 1,
+    "verse": 1,
+    "text": "In the beginning...",
+    "translation_id": "kjv",
+    "book_id": "Gen",
+    "book_name": "Genesis"
+  },
+  // ... 31,102 verses total
+]
+```
 
 ### External APIs
 
@@ -673,37 +1240,57 @@ Notes display with tag filtering.
 
 1. **Get Bible Verses**
    ```
-   GET /bible?passage={book} {chapter}
+   GET /bible?passage={book} {chapter}&fileset_id={fileset_id}
    Response: { verses: [{ verse: number, text: string }] }
    ```
 
 2. **Get Audio**
    ```
-   GET /bible?passage={book} {chapter}&fileset_id={fileset_id}
+   GET /bible/audio?passage={book} {chapter}&fileset_id={fileset_id}
    Response: { 
      audio_url: string, 
      duration_seconds: number,
-     file_size_bytes: number 
+     file_size_bytes: number,
+     format: string
    }
    ```
 
-3. **Get Notes**
+3. **Get Available Translations**
    ```
-   GET /notes?tag_id={tagId}
+   GET /bibles?language_iso={language_iso}
+   Response: Translation[]
+   ```
+
+4. **Get Notes**
+   ```
+   GET /notes/
    Response: Note[]
    ```
 
-4. **Create Note**
+5. **Create Note**
    ```
    POST /notes/
    Body: { 
      tag: string, 
      note_text: string, 
-     verse_references: [] 
+     verse_references: [
+       { book: string, chapter: number, verse: number }
+     ]
    }
+   Response: Note
    ```
 
-5. **Get Tags**
+6. **Edit Note**
+   ```
+   PATCH /notes/{noteId}/
+   Body: { 
+     tag: string, 
+     note_text: string 
+   }
+   Response: Note
+   ```
+
+7. **Get Tags**
    ```
    GET /tags/
    Response: Tag[]
@@ -732,6 +1319,221 @@ Notes display with tag filtering.
 - Component: `<SpeedInsights />` in `App.tsx`
 - Package: `@vercel/speed-insights`
 - Data visible in Vercel dashboard after deployment
+
+---
+
+### API Functions (`src/api.tsx`)
+
+#### Bible Data Functions
+
+**`getBooks()`**
+
+Returns list of all Bible books from local KJV data.
+
+```typescript
+getBooks(): { book_name: string; book_id: string }[]
+```
+
+**`getChapters(thebook: string)`**
+
+Returns chapter numbers for a given book.
+
+```typescript
+getChapters(thebook: string): number[]
+```
+
+**`getVerses(thebook: string, thechapter: number)`**
+
+Returns verse numbers for a given chapter.
+
+```typescript
+getVerses(thebook: string, thechapter: number): number[]
+```
+
+**`getVersesInChapter(thebook, thechapter, filesetId)`**
+
+Fetches verse text for a chapter. Routes to KJV local data or API based on filesetId.
+
+```typescript
+getVersesInChapter(
+  thebook: string,
+  thechapter: number,
+  filesetId: string
+): Promise<{ verse: number; text: string }[]>
+```
+
+- If `filesetId === 'ENGKJV'`: Uses local KJV JSON
+- Otherwise: Fetches from Bible Research API with caching
+
+**`getVersesInKjvChapter(thebook, thechapter)`**
+
+Returns KJV verses from local JSON file.
+
+```typescript
+getVersesInKjvChapter(
+  thebook: string,
+  thechapter: number
+): { verse: number; text: string }[]
+```
+
+**`getVersesFromApi(thebook, thechapter, filesetId)`**
+
+Fetches verses from Bible Research API with cache-first strategy.
+
+```typescript
+getVersesFromApi(
+  thebook: string,
+  thechapter: number,
+  filesetId: string
+): Promise<{ verse: number; text: string }[]>
+```
+
+**`getPassage()`**
+
+Returns all book/chapter combinations for navigation.
+
+```typescript
+getPassage(): {
+  book_name: string;
+  book_id: string;
+  chapter: number;
+}[]
+```
+
+#### Translation Functions
+
+**`getAvailableTranslations(languageIso)`**
+
+Fetches available Bible translations from API with caching.
+
+```typescript
+getAvailableTranslations(
+  languageIso = "eng"
+): Promise<Translation[]>
+```
+
+- Checks cache first
+- Falls back to API if not cached
+- Caches result for future use
+
+#### Audio Functions
+
+**`getBibleAudioUrl(book, chapter, filesetId)`**
+
+Fetches audio URL from Bible Research API with caching.
+
+```typescript
+getBibleAudioUrl(
+  book: string,
+  chapter: number,
+  filesetId: string
+): Promise<string>
+```
+
+- Cache-first strategy
+- Parses CloudFront URL expiration
+- Caches with expiration timestamp
+
+**`getKjvAudioUrl(book, chapter)`**
+
+Generates KJV audio URL from Wordpocket (no API call needed).
+
+```typescript
+getKjvAudioUrl(book: string, chapter: number): string
+```
+
+**`getAdjacentChapters(book, chapter)`**
+
+Returns previous and next chapter info for navigation.
+
+```typescript
+getAdjacentChapters(
+  book: string,
+  chapter: number
+): {
+  previous: { book: string; chapter: number } | null;
+  next: { book: string; chapter: number } | null;
+}
+```
+
+**`prefetchAudioUrl(book, chapter, filesetId)`**
+
+Background prefetch of audio URL (silent, non-blocking).
+
+```typescript
+prefetchAudioUrl(
+  book: string,
+  chapter: number,
+  filesetId: string | null
+): Promise<void>
+```
+
+- Checks cache first
+- KJV URLs are instant (no API call)
+- Other versions fetch from API
+- Silent failure (logs warning, doesn't throw)
+
+**`prefetchAdjacentChapters(book, chapter, filesetId)`**
+
+Prefetches verses and audio for previous/next chapters.
+
+```typescript
+prefetchAdjacentChapters(
+  book: string,
+  chapter: number,
+  filesetId: string
+): Promise<void>
+```
+
+- Improves navigation performance
+- Runs in background
+- Silent failure
+
+#### Notes Functions
+
+**`addTagNote(tagId, tagNoteText, verseReferences)`**
+
+Creates a new note with tag and verse references.
+
+```typescript
+addTagNote(
+  tagId: string,
+  tagNoteText: string,
+  verseReferences: {
+    book: string;
+    chapter: number;
+    verse: number;
+  }[]
+): Promise<Note>
+```
+
+**`editNote(noteId, tagId, noteText)`**
+
+Updates an existing note.
+
+```typescript
+editNote(
+  noteId: string,
+  tagId: string,
+  noteText: string
+): Promise<Note>
+```
+
+**`getNotes()`**
+
+Fetches all user notes from API.
+
+```typescript
+getNotes(): Promise<Note[]>
+```
+
+**`getTags()`**
+
+Fetches all available tags from API.
+
+```typescript
+getTags(): Promise<Tag[]>
+```
 
 ---
 
@@ -1080,6 +1882,200 @@ If you see warnings about updates not wrapped in `act()`:
 5. **Mock External Services**: Mock APIs, analytics, and third-party services
 6. **Keep Tests Isolated**: Each test should be independent
 7. **Clean Up**: Tests should not affect each other
+
+---
+
+## Browser Compatibility
+
+### Supported Browsers
+
+The app is tested and works on:
+
+- **Chrome/Edge**: v90+ (recommended)
+- **Firefox**: v88+
+- **Safari**: v14+
+- **Mobile Safari (iOS)**: v14+
+- **Chrome Mobile (Android)**: v90+
+
+### Required Browser Features
+
+#### Core Features (Required)
+- **ES6+ JavaScript**: Arrow functions, async/await, modules
+- **localStorage**: For state persistence and caching
+- **Fetch API**: For API calls
+- **CSS Flexbox/Grid**: For layout
+
+#### Enhanced Features (Optional)
+- **Media Session API**: For hardware audio controls
+  - Supported: Chrome, Edge, Safari, Firefox
+  - Fallback: Basic audio controls still work
+- **Service Workers**: Not currently used, but could be added for PWA
+
+### Media Session API Support
+
+The app uses the Media Session API for hardware audio controls:
+
+```typescript
+if ('mediaSession' in navigator) {
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: `${activeBook} ${activeChapter}`,
+    artist: translationName,
+    album: 'Bible Audio',
+  });
+  
+  // Hardware control handlers
+  navigator.mediaSession.setActionHandler('play', ...);
+  navigator.mediaSession.setActionHandler('pause', ...);
+  navigator.mediaSession.setActionHandler('seekforward', ...);
+  // etc.
+}
+```
+
+**Supported Controls**:
+- ✅ Play/Pause (all platforms)
+- ✅ Seek Forward/Backward (headphones, car stereo)
+- ✅ Lock screen controls (mobile)
+- ✅ Notification controls (desktop)
+
+**Fallback**: If Media Session API is not available, audio still works with on-screen controls.
+
+### Mobile Considerations
+
+#### Touch Interactions
+- Verse selection optimized for touch (no text selection on long-press)
+- Context menu disabled on verses
+- Tap highlight removed for cleaner UX
+
+#### Responsive Design
+- Navbar collapses on mobile (`hiddenBreakpoint="sm"`)
+- Burger menu for navigation
+- Audio player fixed at bottom (mobile-friendly)
+
+#### iOS Safari Specific
+- Audio autoplay restrictions: User must initiate playback
+- localStorage works correctly
+- Smooth scrolling supported
+
+### Known Limitations
+
+1. **Audio Autoplay**: Most browsers block autoplay. User must click play button.
+2. **localStorage Limits**: ~5-10MB per domain (sufficient for our caching needs)
+3. **Offline Mode**: Only KJV is available offline. Other translations require internet.
+
+---
+
+## Performance Considerations
+
+### Caching Strategy
+
+#### Why 500 Verse Limit?
+
+The verse cache is limited to 500 verses for **copyright compliance**:
+
+- Most Bible translations have copyright restrictions
+- Caching entire translations could violate terms of service
+- 500 verses ≈ 10-15 chapters (reasonable for recent reading)
+- LRU eviction ensures most-used content stays cached
+
+#### Cache Breakdown
+
+**Verse Cache** (`localStorage`):
+- **Limit**: 500 verses (LRU eviction)
+- **Key**: `{filesetId}:{book}:{chapter}:{verse}`
+- **Metadata**: Access count, timestamp, LRU queue
+- **Purpose**: Reduce API calls, faster navigation
+
+**Audio Cache** (`localStorage`):
+- **Limit**: Unlimited (with expiration)
+- **Key**: `{filesetId}:{book}:{chapter}`
+- **Expiration**: Parsed from CloudFront URL (typically 24h)
+- **Purpose**: Instant audio playback on revisit
+
+**Translation Cache** (`localStorage`):
+- **Limit**: Unlimited
+- **Key**: `{languageIso}`
+- **Purpose**: Avoid refetching translation list
+
+### Prefetching Strategy
+
+The app prefetches adjacent chapters for seamless navigation:
+
+```typescript
+// When user navigates to a chapter
+prefetchAdjacentChapters(book, chapter, filesetId);
+
+// Prefetches:
+// - Previous chapter verses
+// - Next chapter verses
+// - Previous chapter audio (background)
+// - Next chapter audio (background)
+```
+
+**Benefits**:
+- Instant navigation to next/previous chapter
+- No loading spinner for common navigation patterns
+- Background prefetch doesn't block UI
+
+**Trade-offs**:
+- Extra API calls (minimal, cached)
+- Slightly more localStorage usage
+
+### Bundle Size Optimization
+
+**Current Bundle** (approximate):
+- **Main bundle**: ~500KB (gzipped)
+- **KJV JSON**: ~4.5MB (loaded separately)
+- **Mantine UI**: ~200KB (tree-shaken)
+- **Howler.js**: ~20KB
+
+**Optimizations**:
+- Tree-shaking enabled (Vite)
+- Code splitting (React.lazy could be added)
+- KJV JSON loaded as separate chunk
+- Production builds minified and compressed
+
+### Performance Metrics
+
+**Target Metrics** (Lighthouse):
+- **Performance**: 90+
+- **Accessibility**: 95+
+- **Best Practices**: 90+
+- **SEO**: 90+
+
+**Core Web Vitals** (tracked by Speed Insights):
+- **LCP** (Largest Contentful Paint): < 2.5s
+- **FID** (First Input Delay): < 100ms
+- **CLS** (Cumulative Layout Shift): < 0.1
+
+### Memory Management
+
+**Audio Cleanup**:
+```typescript
+// Audio instances are unloaded when chapter changes
+useEffect(() => {
+  if (audio) {
+    audio.unload();
+    setAudio(null);
+  }
+}, [activeBook, activeChapter, activeAudioFilesetId]);
+```
+
+**Cache Cleanup**:
+```typescript
+// Expired audio URLs cleaned on app mount
+useEffect(() => {
+  clearExpiredAudioUrls();
+}, []);
+```
+
+### Optimization Opportunities
+
+**Future Improvements**:
+1. **Code Splitting**: Lazy load Notes components
+2. **Virtual Scrolling**: For long chapters (e.g., Psalms 119)
+3. **Service Worker**: For true offline support
+4. **Image Optimization**: If images are added
+5. **Debounced Search**: Already implemented in SearchModal
 
 ---
 
