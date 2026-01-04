@@ -199,27 +199,6 @@ Examples:
 - `src/store.tsx` - Zustand state management
 - `src/api.tsx` - All API functions and data access
 - `src/utils/cacheManager.ts` - Caching logic (verse & audio)
-- `src/components/MyNavbar.tsx` - Book/Chapter/Verse navigation
-- `src/components/Audio.tsx` - Audio playback logic
-- `src/components/SearchModal.tsx` - Full-text search
-- `src/components/Passage.tsx` - Main verse display
-- `src/components/Verse.tsx` - Individual verse component
-- `DEVELOPER_GUIDE.md` - Complete developer documentation
-
----
-
-## External APIs
-
-### Bible Research API
-- Base: `https://bibleresearchapi.vercel.app/api/v1`
-- Verses: `/bible?passage={book} {chapter}`
-- Audio: `/bible?passage={book} {chapter}&response_format=audio`
-- Notes: `/notes?tag_id={tagId}`
-- Tags: `/tags/`
-
-### Wordpocket Audio (KJV only)
-- Base: `https://wordpocket.org/bibles/app/audio/1`
-- Pattern: `/{bookIndex}/{chapter}.mp3`
 
 ---
 
@@ -236,15 +215,4 @@ When working on this project:
 7. **TypeScript strict** - no `any` types unless absolutely necessary
 8. **Functional components** - no class components
 9. **Zustand for global state** - don't use Context API or Redux
-
----
-
-## Questions?
-
-Refer to:
-- `DEVELOPER_GUIDE.md` for detailed architecture
-- Existing code for patterns and examples
-- Mantine docs for UI components
-- Zustand docs for state management
-
-**Remember: Documentation is code. Keep it updated!**
+10. **At the end of a plan, prepare a PR description in `PR_DESCRIPTION.md`. This file should not be committed.**
