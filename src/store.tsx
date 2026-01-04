@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { getNotes } from "./api";
+import { Note } from "./types";
 
 export interface Fileset {
   id: string;
@@ -27,6 +29,7 @@ interface BibleState {
   translations: Translation[];
   activeTextFilesetId: string | null;
   activeAudioFilesetId: string | null;
+  notes: Note[];
   setActiveBook: (activeBook: string) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
@@ -38,6 +41,7 @@ interface BibleState {
   setTranslations: (translations: Translation[]) => void;
   setActiveTextFilesetId: (id: string | null) => void;
   setActiveAudioFilesetId: (id: string | null) => void;
+  fetchNotes: () => void;
 }
 
 export const useBibleStore = create<BibleState>()(
@@ -53,6 +57,7 @@ export const useBibleStore = create<BibleState>()(
       translations: [],
       activeTextFilesetId: "ENGKJV", // Default to KJV text
       activeAudioFilesetId: null,
+      notes: [],
       setActiveBook: (activeBook) => set({ 
         activeBook, 
         activeChapter: 1, 
@@ -79,6 +84,10 @@ export const useBibleStore = create<BibleState>()(
         set({ activeTextFilesetId }),
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
+      fetchNotes: async () => {
+        const notes = await getNotes();
+        set({ notes });
+      },
     }),
     {
       name: "bible-storage",

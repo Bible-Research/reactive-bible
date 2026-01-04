@@ -1,5 +1,6 @@
 import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
+
 import {
   getCachedVerses,
   cacheVerses,
@@ -8,10 +9,7 @@ import {
   getCachedTranslations,
   cacheTranslations,
 } from './utils/cacheManager';
-/**
- * Interface for the locally stored KJV Bible data.
- * Note: Other Bible data is not stored locally but fetched from an external API when needed.
- */
+
 export const data = bibleJson as KjvBook[];
 
 export interface KjvBook {
@@ -64,11 +62,9 @@ export const getVersesInChapter = async (
   thechapter: number,
   filesetId: string
 ): Promise<{ verse: number; text: string }[]> => {
-  // KJV is stored locally and has a special filesetId
   if (filesetId === 'ENGKJV') {
     return getVersesInKjvChapter(thebook, thechapter);
   }
-  // All other translations are fetched from the API
   return await getVersesFromApi(thebook, thechapter, filesetId);
 };
 
@@ -88,37 +84,17 @@ export const getVersesFromApi = async (
   thechapter: number,
   filesetId: string
 ): Promise<{ verse: number; text: string }[]> => {
-  // Check cache first
   const cached = getCachedVerses(thebook, thechapter, filesetId);
   if (cached) {
-    console.log(`✅ ${filesetId} verses loaded from cache`);
     return cached;
   }
-
-  // Fetch from API
   try {
     const passage = `${thebook} ${thechapter}`;
     const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${passage}&fileset_id=${filesetId}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await fetch(url);
     const data = await response.json();
-
-    const verses = data.verses.map(
-      (verse: { verse: number; text: string }) => ({
-        verse: verse.verse,
-        text: verse.text,
-      })
-    );
-
-    // Cache the verses
+    const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
     cacheVerses(thebook, thechapter, filesetId, verses);
-    console.log(`💾 ${filesetId} verses cached`);
-
     return verses;
   } catch (error) {
     console.error(error);
@@ -126,11 +102,7 @@ export const getVersesFromApi = async (
   }
 };
 
-export const getPassage = (): {
-  book_name: string;
-  book_id: string;
-  chapter: number;
-}[] => {
+export const getPassage = (): { book_name: string; book_id: string; chapter: number }[] => {
   const set = new Set<string>();
   data.map((book: KjvBook) => {
     const obj = {
@@ -143,11 +115,7 @@ export const getPassage = (): {
   return [...set].map((item) => {
     if (typeof item === "string") return JSON.parse(item);
     else if (typeof item === "object") return item;
-  }) as {
-    book_name: string;
-    book_id: string;
-    chapter: number;
-  }[];
+  }) as { book_name: string; book_id: string; chapter: number }[];
 };
 
 export const addTagNote = async (
@@ -155,24 +123,41 @@ export const addTagNote = async (
   tagNoteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[]
 ) => {
-  const body = JSON.stringify({
-    tag: tagId,
-    note_text: tagNoteText,
-    verse_references: verseReferences,
-  })
-
+  const body = JSON.stringify({ tag: tagId, note_text: tagNoteText, verse_references: verseReferences });
   try {
     const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/notes/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: body,
     });
-    const data = await response.json();
-    return data;
+    return await response.json();
   } catch (error) {
     console.error(error);
+  }
+};
+
+export const editNote = async (noteId: string, tagId: string, noteText: string) => {
+  const body = JSON.stringify({ tag: tagId, note_text: noteText });
+  try {
+    const response = await fetch(`https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: body,
+    });
+    return await response.json();
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
+export const getTags = async (): Promise<Tag[]> => {
+  try {
+    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/tags/');
+    return await response.json();
+  } catch (error) {
+    console.error(error);
+    return [];
   }
 };
 
