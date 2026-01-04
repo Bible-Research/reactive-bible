@@ -619,6 +619,8 @@ Create and organize notes with tags for Bible verses.
 - Navigate to verse from note
 - API integration for persistence
 - Auto-clear selected verses after note creation
+- Large modal UI (80% screen width/height) for comfortable note editing
+- Multi-line textarea with word wrapping for note input
 
 **Workflow**:
 1. User selects one or more verses by clicking them

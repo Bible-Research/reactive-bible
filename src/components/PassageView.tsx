@@ -51,14 +51,14 @@ const PassageView = () => {
 
   if (loading) {
     return (
-      <Center h="80vh">
+      <Center style={{ height: 'calc(100vh - 180px)' }}>
         <Loader size="lg" />
       </Center>
     );
   }
 
   return (
-    <ScrollArea h="80vh">
+    <ScrollArea style={{ height: 'calc(100vh - 180px)' }}>
       <Box pb={showAudioPlayer ? 120 : 0}>
         {verses.map((verse) => (
           <Verse verse={verse.verse} key={verse.verse} text={verse.text} />

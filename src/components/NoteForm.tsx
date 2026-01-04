@@ -1,4 +1,4 @@
-import { Button, Select, TextInput } from "@mantine/core";
+import { Button, Select, Textarea } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { Tag } from "../types";
 
@@ -44,11 +44,21 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
         creatable
         getCreateLabel={(query) => `+ Create ${query}`}
       />
-      <TextInput
+      <Textarea
         variant="transparent"
         label="Note"
         value={noteText}
         onChange={(event) => setNoteText(event.currentTarget.value)}
+        minRows={15}
+        autosize
+        styles={{
+          input: {
+            fontSize: '16px',
+            lineHeight: '1.6',
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word'
+          }
+        }}
       />
       <Button variant="transparent" type="submit">
         {submitText}

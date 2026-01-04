@@ -43,7 +43,16 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit note">
+    <Modal 
+      opened={opened} 
+      onClose={onClose} 
+      title="Edit note"
+      size="80%"
+      styles={{
+        body: { height: '70vh' },
+        content: { height: '80vh' }
+      }}
+    >
       {note && (
         <NoteForm
           tags={tags}

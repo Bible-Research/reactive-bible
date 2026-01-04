@@ -46,7 +46,7 @@ const Passage = ({ open }: { open: () => void }) => {
           justifyContent: "center",
           alignItems: "center",
         }}
-        h="80vh"
+        style={{ height: 'calc(100vh - 180px)' }}
       >
         {showNotes ? (
           <NotesView onViewInBible={handleViewInBible} />

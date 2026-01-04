@@ -49,7 +49,16 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Add note">
+    <Modal 
+      opened={opened} 
+      onClose={onClose} 
+      title="Add note"
+      size="80%"
+      styles={{
+        body: { height: '70vh' },
+        content: { height: '80vh' }
+      }}
+    >
       <NoteForm
         tags={tags}
         onSubmit={handleSubmit}
