@@ -10,8 +10,9 @@
 7. [API Integration](#api-integration)
 8. [Caching System](#caching-system)
 9. [Bible Utilities](#bible-utilities)
-10. [Contributing Guidelines](#contributing-guidelines)
-11. [Keeping Documentation Updated](#keeping-documentation-updated)
+10. [Testing](#testing)
+11. [Contributing Guidelines](#contributing-guidelines)
+12. [Keeping Documentation Updated](#keeping-documentation-updated)
 
 ---
 
@@ -919,6 +920,166 @@ Before submitting a PR with functionality changes:
 3. Add code examples for new patterns or features
 4. Update the Table of Contents if adding new sections
 5. Maintain consistent formatting and style with existing documentation
+
+---
+
+## Testing
+
+### Testing Stack
+- **Test Runner**: Vitest
+- **Testing Library**: React Testing Library
+- **DOM Environment**: happy-dom
+- **Assertions**: Vitest assertions + jest-dom matchers
+
+### Running Tests
+
+```bash
+# Run tests in watch mode with UI
+npm run test
+
+# Run tests once (CI mode)
+npm run test:ci
+```
+
+### Test Configuration
+
+Tests are configured in `vite.config.ts`:
+
+```typescript
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: "happy-dom",
+    setupFiles: ["src/setupTests.ts"],
+  },
+});
+```
+
+### Test Setup File
+
+The `src/setupTests.ts` file contains global test configuration:
+
+```typescript
+import "@testing-library/jest-dom";
+import { vi } from "vitest";
+
+// Mock Vercel Analytics and Speed Insights to prevent
+// external script loading errors in test environment
+vi.mock("@vercel/analytics/react", () => ({
+  Analytics: () => null,
+}));
+
+vi.mock("@vercel/speed-insights/react", () => ({
+  SpeedInsights: () => null,
+}));
+```
+
+**Why mock Vercel services?**
+- Prevents external script loading in test environment
+- Eliminates "Cannot read properties of undefined" errors from happy-dom
+- Keeps tests focused on application logic, not analytics
+
+### Writing Tests
+
+#### Testing Async Components
+
+When testing components that fetch data asynchronously, use `waitFor()`:
+
+```typescript
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+test("should load and display verse", async () => {
+  render(<App />);
+  
+  fireEvent.click(screen.getByTitle("nav-book-John"));
+  fireEvent.click(screen.getByTitle("nav-chapter-11"));
+  
+  // Wait for async data to load
+  await waitFor(
+    () => {
+      expect(
+        screen.getByTitle("passage-verse-35")
+      ).toHaveTextContent("Jesus wept.");
+    },
+    { timeout: 5000 }
+  );
+});
+```
+
+**Key Points**:
+1. Make test functions `async`
+2. Use `waitFor()` to wait for async operations
+3. Set appropriate timeout (default is 1000ms)
+4. Wrap assertions inside `waitFor()` callback
+
+#### Testing User Interactions
+
+```typescript
+test("should select verse on click", async () => {
+  render(<App />);
+  
+  const verse = screen.getByTitle("passage-verse-1");
+  fireEvent.click(verse);
+  
+  await waitFor(() => {
+    expect(verse).toHaveClass("linkActive");
+  });
+});
+```
+
+### Common Testing Patterns
+
+#### 1. Testing Navigation
+```typescript
+fireEvent.click(screen.getByTitle("nav-book-Genesis"));
+fireEvent.click(screen.getByTitle("nav-chapter-1"));
+```
+
+#### 2. Testing State Changes
+```typescript
+await waitFor(() => {
+  expect(screen.getByText("Expected Text")).toBeInTheDocument();
+});
+```
+
+#### 3. Testing API Calls
+Mock API functions in your tests:
+```typescript
+vi.mock("../api", () => ({
+  getVersesInChapter: vi.fn(() => 
+    Promise.resolve([{ verse: 1, text: "Test" }])
+  ),
+}));
+```
+
+### Troubleshooting Tests
+
+#### React `act()` Warnings
+If you see warnings about updates not wrapped in `act()`:
+- Ensure you're using `waitFor()` for async operations
+- Make sure all state updates complete before test ends
+- Use `async/await` properly
+
+#### Element Not Found Errors
+- Check that you're waiting for async data to load
+- Verify the element's `title` or `data-testid` attribute
+- Use `screen.debug()` to see current DOM state
+
+#### Timeout Errors
+- Increase timeout in `waitFor()` options
+- Check if API mocks are returning data
+- Verify network requests aren't actually being made
+
+### Best Practices
+
+1. **Test User Behavior**: Focus on what users see and do
+2. **Avoid Implementation Details**: Don't test internal state directly
+3. **Use Semantic Queries**: Prefer `getByTitle`, `getByRole`, `getByText`
+4. **Wait for Async**: Always use `waitFor()` for async operations
+5. **Mock External Services**: Mock APIs, analytics, and third-party services
+6. **Keep Tests Isolated**: Each test should be independent
+7. **Clean Up**: Tests should not affect each other
 
 ---
 
