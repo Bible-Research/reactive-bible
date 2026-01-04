@@ -59,6 +59,7 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
     <Box
       component="div"
       display="flex"
+      data-active={isActive}
       className={cx(classes.link, {
         [classes.linkActive]: isActive,
       })}
