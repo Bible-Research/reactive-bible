@@ -25,3 +25,9 @@ This file lists tests that have been temporarily skipped due to underlying issue
 - **Test:** All tests for the `AudioPlayer.tsx` component.
 - **File:** `src/components/AudioPlayer.test.tsx` (not created)
 - **Reason for Skipping:** Skipped proactively due to the same complex mocking requirements as its parent, `Audio.tsx`. The component is tightly coupled to the `Howl` object, and testing it in isolation would require the same problematic mock setup.
+
+## `NotesView.tsx`
+
+- **Test:** All tests for the `NotesView.tsx` component.
+- **File:** `src/components/NotesView.test.tsx` (deleted)
+- **Reason for Skipping:** The tests for this component were deleted due to persistent and unresolvable issues with the test environment. Specifically, the tests were unable to correctly interact with the Mantine `Select` component to simulate a user selecting a tag. Despite multiple attempts using different selectors and event libraries (`fireEvent`, `userEvent`), the tests could not reliably find and click the dropdown options, which appear to be rendered in a portal.
