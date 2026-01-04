@@ -1,13 +1,14 @@
 import { Card, Title, Text, Button, Group, Box } from "@mantine/core";
-import { Note } from "../api";
+import { Note } from "../types";
 import Verse from "./Verse";
 
 interface NoteCardProps {
   note: Note;
   onViewInBible: (book: string, chapter: number, verse: number) => void;
+  onEdit: (note: Note) => void;
 }
 
-const NoteCard = ({ note, onViewInBible }: NoteCardProps) => {  
+const NoteCard = ({ note, onViewInBible, onEdit }: NoteCardProps) => {  
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
   const book = note?.verses?.[0]?.book || "";
@@ -28,6 +29,13 @@ const NoteCard = ({ note, onViewInBible }: NoteCardProps) => {
           onClick={() => onViewInBible(book, chapter, firstVerse)}
         >
           View in Bible
+        </Button>
+        <Button
+          variant="subtle"
+          size="xs"
+          onClick={() => onEdit(note)}
+        >
+          Edit
         </Button>
       </Group>
 
