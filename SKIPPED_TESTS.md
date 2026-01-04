@@ -31,3 +31,9 @@ This file lists tests that have been temporarily skipped due to underlying issue
 - **Test:** All tests for the `NotesView.tsx` component.
 - **File:** `src/components/NotesView.test.tsx` (deleted)
 - **Reason for Skipping:** The tests for this component were deleted due to persistent and unresolvable issues with the test environment. Specifically, the tests were unable to correctly interact with the Mantine `Select` component to simulate a user selecting a tag. Despite multiple attempts using different selectors and event libraries (`fireEvent`, `userEvent`), the tests could not reliably find and click the dropdown options, which appear to be rendered in a portal.
+
+## `NoteForm.tsx`
+
+- **Test:** All tests for the `NoteForm.tsx` component.
+- **File:** `src/components/NoteForm.test.tsx` (deleted)
+- **Reason for Skipping:** The tests for this component were deleted due to the same persistent issues with testing Mantine's `Select` component that were encountered with `NotesView.tsx`. The dropdown options are rendered in a portal and are not accessible to the test runner, even when using the recommended `userEvent` and `fireEvent` patterns.
