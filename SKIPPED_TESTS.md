@@ -37,3 +37,9 @@ This file lists tests that have been temporarily skipped due to underlying issue
 - **Test:** All tests for the `NoteForm.tsx` component.
 - **File:** `src/components/NoteForm.test.tsx` (deleted)
 - **Reason for Skipping:** The tests for this component were deleted due to the same persistent issues with testing Mantine's `Select` component that were encountered with `NotesView.tsx`. The dropdown options are rendered in a portal and are not accessible to the test runner, even when using the recommended `userEvent` and `fireEvent` patterns.
+
+## `AddTagNoteModal.tsx` & `EditNoteModal.tsx`
+
+- **Test:** All tests for the `AddTagNoteModal.tsx` and `EditNoteModal.tsx` components.
+- **File:** (not created)
+- **Reason for Skipping:** Skipped proactively. As these are modal components, they are rendered in a portal, just like the `Select` dropdowns. It is highly likely that they will present the same testing challenges that have blocked progress on other components. To avoid another unproductive testing cycle, these have been deferred.
