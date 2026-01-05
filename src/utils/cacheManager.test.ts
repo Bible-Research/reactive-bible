@@ -4,7 +4,13 @@ import {
   getCachedVerses,
   clearVerseCache,
   getVerseCacheMetadata,
+  cacheTranslations,
+  getCachedTranslations,
+  cacheAudioUrl,
+  getCachedAudioUrl,
+  clearExpiredAudioUrls,
 } from './cacheManager';
+import { Translation } from '../store';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -86,5 +92,74 @@ describe('Verse Cache Manager', () => {
     clearVerseCache();
     const cached = getCachedVerses('GEN', 1, 'KJV');
     expect(cached).toBeNull();
+  });
+});
+
+describe('Translation Cache Manager', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+  });
+
+  it('should cache and retrieve translations', () => {
+    const translations: Translation[] = [
+      {
+        abbr: 'KJV',
+        name: 'King James Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [],
+      },
+    ];
+    cacheTranslations('eng', translations);
+
+    const cached = getCachedTranslations('eng');
+    expect(cached).toEqual(translations);
+  });
+
+  it('should return null for non-cached translations', () => {
+    const cached = getCachedTranslations('spa');
+    expect(cached).toBeNull();
+  });
+});
+
+describe('Audio Cache Manager', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.useFakeTimers();
+  });
+
+  it('should cache and retrieve an audio URL', () => {
+    const now = Date.now();
+    const audioUrl = `http://audio.url/1?Expires=${Math.floor((now + 3600 * 1000) / 1000)}`;
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    const cached = getCachedAudioUrl('GEN', 1, 'KJV');
+    expect(cached).toBe(audioUrl);
+  });
+
+  it('should not return an expired audio URL', () => {
+    const now = Date.now();
+    const audioUrl = `http://audio.url/1?Expires=${Math.floor((now - 1000) / 1000)}`;
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    const cached = getCachedAudioUrl('GEN', 1, 'KJV');
+    expect(cached).toBeNull();
+  });
+
+  it('should clear expired audio URLs', () => {
+    const now = Date.now();
+    const expiredUrl = `http://audio.url/1?Expires=${Math.floor((now - 1000) / 1000)}`;
+    const validUrl = `http://audio.url/2?Expires=${Math.floor((now + 3600 * 1000) / 1000)}`;
+
+    cacheAudioUrl('GEN', 1, 'KJV', expiredUrl, 60, 1024); // Expired
+    cacheAudioUrl('EXO', 2, 'ESV', validUrl, 120, 2048); // Not expired
+
+    clearExpiredAudioUrls();
+
+    const expiredCached = getCachedAudioUrl('GEN', 1, 'KJV');
+    const validCached = getCachedAudioUrl('EXO', 2, 'ESV');
+
+    expect(expiredCached).toBeNull();
+    expect(validCached).toBe(validUrl);
   });
 });
