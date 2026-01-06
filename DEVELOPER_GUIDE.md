@@ -1815,6 +1815,28 @@ vi.mock("@vercel/speed-insights/react", () => ({
 - Eliminates "Cannot read properties of undefined" errors from happy-dom
 - Keeps tests focused on application logic, not analytics
 
+### Build Configuration for Tests
+
+To prevent TypeScript from trying to compile test files during production builds (e.g., on Vercel), the test files are explicitly excluded in `tsconfig.json`. The build process (`npm run build`) runs `tsc`, which would otherwise fail because it doesn't recognize Vitest globals like `vi` and `describe`.
+
+The `exclude` array in `tsconfig.json` ensures these files are ignored by the TypeScript compiler during the build, but they are still included by Vitest for testing.
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": { ... },
+  "include": ["src"],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/__tests__",
+    "setupTests.ts"
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+- Keeps tests focused on application logic, not analytics
+
 ### Writing Tests
 
 #### Testing Async Components
