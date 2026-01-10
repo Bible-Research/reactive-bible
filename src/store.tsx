@@ -45,21 +45,26 @@ interface BibleState {
   fetchNotes: (tagId?: string) => Promise<void>;
 }
 
+// Define and export the initial state for reusability and testing
+export const initialState = {
+  activeBook: "John",
+  activeBookShort: "Joh",
+  activeChapter: 1,
+  activeVerses: [],
+  selectedVerses: [],
+  bibleVersion: "KJV",
+  showAudioPlayer: false,
+  translations: [],
+  activeTextFilesetId: "ENGESH",
+  activeAudioFilesetId: "ENGESHN1DA-opus16",
+  notes: [],
+  allNotesFetched: false,
+};
+
 export const useBibleStore = create<BibleState>()(
   persist(
     (set) => ({
-      activeBook: "John",
-      activeBookShort: "Joh",
-      activeChapter: 1,
-      activeVerses: [],
-      selectedVerses: [],
-      bibleVersion: "KJV",
-      showAudioPlayer: false,
-      translations: [],
-      activeTextFilesetId: "ENGESH",
-      activeAudioFilesetId: "ENGESHN1DA-opus16",
-      notes: [],
-      allNotesFetched: false,
+      ...initialState,
       setActiveBook: (activeBook) => set({ 
         activeBook, 
         activeChapter: 1, 

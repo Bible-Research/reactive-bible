@@ -105,7 +105,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
           </Group>
 
           {loading ? (
-            <Center style={{ height: 200 }}><Loader /></Center>
+            <Center style={{ height: 200 }}><Loader aria-label="loading" /></Center>
           ) : notesByTag.length > 0 ? (
             notesByTag.map(({ tag, notes }) => (
               <TagSection
