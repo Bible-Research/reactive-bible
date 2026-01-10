@@ -8,11 +8,23 @@ import {
 } from "@testing-library/react";
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import App from "./App";
+import { useBibleStore } from "./store";
 
 // Store the cleanup function
 let cleanup: (() => void) | undefined;
 
 beforeEach(async () => {
+  // Reset store to Genesis chapter 1 with KJV for consistent test behavior
+  useBibleStore.setState({
+    activeBook: "Genesis",
+    activeBookShort: "Gen",
+    activeChapter: 1,
+    activeVerses: [],
+    bibleVersion: "KJV",
+    activeTextFilesetId: "ENGKJV",
+    activeAudioFilesetId: null,
+  });
+
   // Render inside act to handle initial state updates
   await act(async () => {
     const result = render(

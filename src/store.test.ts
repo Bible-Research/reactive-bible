@@ -24,7 +24,7 @@ describe('Zustand Store (useBibleStore)', () => {
 
   it('should have the correct initial state', () => {
     const state = useBibleStore.getState();
-    expect(state.activeBook).toBe('Genesis');
+    expect(state.activeBook).toBe('John');
     expect(state.activeChapter).toBe(1);
     expect(state.bibleVersion).toBe('KJV');
     expect(state.notes).toEqual([]);
