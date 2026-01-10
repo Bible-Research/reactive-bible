@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useBibleStore, initialState } from '../store';
-import * as api from '../api';
+import { useBibleStore, initialState } from './store';
+import * as api from './api';
 
 // Mock the API module
-vi.mock('../api', () => ({
+vi.mock('./api', () => ({
   getNotes: vi.fn(),
 }));
 

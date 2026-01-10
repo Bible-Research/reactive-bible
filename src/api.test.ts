@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as api from '../api';
-import * as cacheManager from '../utils/cacheManager';
+import * as api from './api';
+import * as cacheManager from './utils/cacheManager';
 
 // Mock the global fetch API
 global.fetch = vi.fn();

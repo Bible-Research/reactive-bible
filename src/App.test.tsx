@@ -4,22 +4,45 @@ import {
   render,
   screen,
   waitFor,
+  act,
 } from "@testing-library/react";
-import { describe, test, expect, beforeEach } from "vitest";
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import App from "./App";
 
-beforeEach(() => {
-  render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
+// Store the cleanup function
+let cleanup: (() => void) | undefined;
+
+beforeEach(async () => {
+  // Render inside act to handle initial state updates
+  await act(async () => {
+    const result = render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+    cleanup = result.unmount;
+  });
+});
+
+afterEach(async () => {
+  // Clean up and wait for any pending updates
+  if (cleanup) {
+    await act(async () => {
+      cleanup!();
+    });
+  }
+  vi.clearAllMocks();
 });
 
 describe("check for bible verse", () => {
   test("should contain exodus 2: 18", async () => {
-    fireEvent.click(screen.getByTitle("nav-book-Exod"));
-    fireEvent.click(screen.getByTitle("nav-chapter-2"));
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("nav-book-Exod"));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("nav-chapter-2"));
+    });
 
     // Wait for the verse to appear after async data loading
     await waitFor(
@@ -27,7 +50,8 @@ describe("check for bible verse", () => {
         expect(
           screen.getByTitle("passage-verse-18")
         ).toHaveTextContent(
-          "And when they came to Reuel their father, he said, How is it that ye are come so soon to day?"
+          "And when they came to Reuel their father, " +
+          "he said, How is it that ye are come so soon to day?"
         );
       },
       { timeout: 5000 }
@@ -35,10 +59,21 @@ describe("check for bible verse", () => {
   });
 
   test("should contain john 11: 35", async () => {
-    fireEvent.click(screen.getByTitle("nav-book-John"));
-    fireEvent.click(screen.getByTitle("nav-chapter-9"));
-    fireEvent.click(screen.getByTitle("next-passage-button"));
-    fireEvent.click(screen.getByTitle("next-passage-button"));
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("nav-book-John"));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("nav-chapter-9"));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("next-passage-button"));
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("next-passage-button"));
+    });
 
     // Wait for the verse to appear after async data loading
     await waitFor(
