@@ -48,16 +48,16 @@ interface BibleState {
 export const useBibleStore = create<BibleState>()(
   persist(
     (set) => ({
-      activeBook: "Genesis",
-      activeBookShort: "Gen",
+      activeBook: "John",
+      activeBookShort: "Joh",
       activeChapter: 1,
       activeVerses: [],
       selectedVerses: [],
       bibleVersion: "KJV",
       showAudioPlayer: false,
       translations: [],
-      activeTextFilesetId: "ENGKJV", // Default to KJV text
-      activeAudioFilesetId: null,
+      activeTextFilesetId: "ENGESH",
+      activeAudioFilesetId: "ENGESHN1DA-opus16",
       notes: [],
       allNotesFetched: false,
       setActiveBook: (activeBook) => set({ 
