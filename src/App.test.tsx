@@ -14,10 +14,10 @@ import { useBibleStore } from "./store";
 let cleanup: (() => void) | undefined;
 
 beforeEach(async () => {
-  // Reset store to Genesis chapter 1 with KJV for consistent test behavior
+  // Reset store to John 1 with KJV (tests expect KJV verse text)
   useBibleStore.setState({
-    activeBook: "Genesis",
-    activeBookShort: "Gen",
+    activeBook: "John",
+    activeBookShort: "Joh",
     activeChapter: 1,
     activeVerses: [],
     bibleVersion: "KJV",
@@ -47,6 +47,7 @@ afterEach(async () => {
 });
 
 describe("check for bible verse", () => {
+  // App starts at John 1, navigate to Exodus 2
   test("should contain exodus 2: 18", async () => {
     await act(async () => {
       fireEvent.click(screen.getByTitle("nav-book-Exod"));
@@ -70,21 +71,11 @@ describe("check for bible verse", () => {
     );
   });
 
+  // App starts at John 1, navigate to John 11
   test("should contain john 11: 35", async () => {
+    // Already at John, just navigate to chapter 11
     await act(async () => {
-      fireEvent.click(screen.getByTitle("nav-book-John"));
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("nav-chapter-9"));
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("next-passage-button"));
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("next-passage-button"));
+      fireEvent.click(screen.getByTitle("nav-chapter-11"));
     });
 
     // Wait for the verse to appear after async data loading
