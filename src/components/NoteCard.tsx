@@ -26,6 +26,8 @@ const NoteCard = ({ note, onViewInBible, onEdit }: NoteCardProps) => {
   const handleDelete = async (evt: MouseEvent<HTMLButtonElement>) => {
     evt.preventDefault();
     if(note.id) {
+      if(window.confirm('Are you sure you want to delete this note?')) 
+        return;  
       await deleteNote(note.id);
       fetchNotes()
     }
