@@ -101,6 +101,23 @@ describe('API Functions', () => {
       });
     });
 
+    it('should make a "DELETE" request with note id', async () => {
+      (fetch as vi.Mock).mockResolvedValue({ ok: true, json: () => 'OK' });
+      const removeNote = await api.deleteNote('abc-123');
+
+      expect(removeNote).toEqual({
+        json: expect.any(Function),
+        ok: true
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/notes/abc-123'),
+        {
+          method: 'DELETE'
+        }
+      );
+    })
+
     it.skip('should throw an error if the fetch response is not ok', async () => {
       // Provide a specific failing mock for this test
       (fetch as vi.Mock).mockResolvedValueOnce({ ok: false, statusText: 'Not Found' });
