@@ -467,8 +467,3 @@ export const getNotes = async (tagId?: string): Promise<Note[]> => {
   if (!response.ok) throw new Error('Failed to fetch notes');
   return await response.json();
 };
-
-export const getNote = async (tagId?: string): Promise<Note> => {
-
-  return {}
-}
