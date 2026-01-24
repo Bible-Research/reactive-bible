@@ -14,6 +14,7 @@ vi.mock('./Verse', () => ({
   ),
 }));
 
+window.confirm = vi.fn()
 vi.mock('../api', () => ({
   deleteNote: vi.fn()
 }))
