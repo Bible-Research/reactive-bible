@@ -14,15 +14,11 @@ describe('Notes Workflow Integration Test', () => {
     renderWithProviders(<App />);
 
     // Navigate to John 3
-    const bookSelector = await screen.findByRole('button', { name: /Genesis/i });
-    await user.click(bookSelector);
-    const johnButton = await screen.findByRole('menuitem', { name: /John/i });
-    await user.click(johnButton);
+    const johnLink = await screen.findByRole('link', { name: /John/i });
+    await user.click(johnLink);
 
-    const chapterSelector = await screen.findByRole('button', { name: /1/i });
-    await user.click(chapterSelector);
-    const chapter3Button = await screen.findByRole('menuitem', { name: /3/i });
-    await user.click(chapter3Button);
+    const chapter3Link = await screen.findByRole('link', { name: /3/i });
+    await user.click(chapter3Link);
 
     // 2. Click a verse to select it (John 3:16)
     const verse = await screen.findByText(/For God so loved the world/i);

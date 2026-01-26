@@ -41,14 +41,14 @@ export const handlers = [
 
 // --- Special Handlers for Specific Test Cases ---
 export const audioSuccessHandler = http.get(
-  `${API_URL}/bible/filesets/ESV/Genesis/1`,
+  `${API_URL}/bible/filesets/ESV/GEN/1`,
   () => {
     return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
   }
 );
 
 export const audioErrorHandler = http.get(
-  `${API_URL}/bible/filesets/ESV/Genesis/1`,
+  `${API_URL}/bible/filesets/ESV/GEN/1`,
   () => {
     return new HttpResponse(null, {
       status: 404,
