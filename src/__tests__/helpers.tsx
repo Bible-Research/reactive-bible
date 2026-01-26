@@ -12,6 +12,8 @@ export * from './mocks/data';
  * Creates a mock store state with optional overrides.
  * Use this to set up specific test scenarios.
  */
+import { Translation } from '../store';
+
 export function createMockStore(overrides: Partial<typeof initialState> = {}) {
   const mockFunctions = {
     setActiveBook: vi.fn(),
@@ -29,6 +31,7 @@ export function createMockStore(overrides: Partial<typeof initialState> = {}) {
 
   return {
     ...initialState,
+    translations: [] as Translation[],
     ...mockFunctions,
     ...overrides,
   };
