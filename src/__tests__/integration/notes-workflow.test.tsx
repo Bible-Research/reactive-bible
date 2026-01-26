@@ -13,6 +13,10 @@ describe('Notes Workflow Integration Test', () => {
     const user = userEvent.setup();
     renderWithProviders(<App />);
 
+    // Open the navigation menu
+    const burgerButton = screen.getByRole('button', { name: /open navigation/i });
+    await user.click(burgerButton);
+
     // Navigate to John 3
     const johnLink = await screen.findByRole('link', { name: /John/i });
     await user.click(johnLink);
