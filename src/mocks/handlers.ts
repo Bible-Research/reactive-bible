@@ -1,38 +1,40 @@
 import { http, HttpResponse } from 'msw';
 
 // Define your request handlers
+const API_URL = 'https://bibleresearchapi.vercel.app/api/v1';
+
 export const handlers = [
-  // --- Verses --- 
-  http.get('*/api/verses', () => {
+  // --- Verses ---
+  http.get(`${API_URL}/bible`, () => {
     return HttpResponse.json({
       verses: [{ verse: 1, text: 'In the beginning...' }]
     });
   }),
 
-  // --- Audio --- 
-  http.get('*/api/audio', () => {
+  // --- Audio ---
+  http.get(`${API_URL}/bible/filesets/ENGESV/Genesis/1`, () => {
     return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
   }),
 
-  // --- Notes --- 
-  http.post('*/api/notes', () => {
+  // --- Notes ---
+  http.post(`${API_URL}/notes/`, () => {
     return HttpResponse.json({ success: true });
   }),
 
   // --- Get Notes ---
-  http.get('*/api/notes', () => {
+  http.get(`${API_URL}/notes`, () => {
     return HttpResponse.json([]);
   }),
 
   // --- Delete Note ---
-  http.delete('*/api/notes/:id', () => {
+  http.delete(`${API_URL}/notes/:id`, () => {
     return HttpResponse.text('Deleted');
   }),
 ];
 
 // --- Special Handlers for Error Cases ---
 export const serverErrorHandlers = [
-  http.get('*/api/audio', () => {
+  http.get(`${API_URL}/bible/filesets/ENGESV/Genesis/1`, () => {
     return new HttpResponse(null, {
       status: 404,
       statusText: 'Not Found',

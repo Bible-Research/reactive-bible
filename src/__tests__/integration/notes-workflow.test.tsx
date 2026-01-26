@@ -8,11 +8,18 @@ import App from '../../App';
 describe('Notes Workflow Integration Test', () => {
   it('should allow a user to add a note to a verse', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<App />, {
-      storeOverrides: { activeBook: 'John', activeChapter: 3 },
-    });
+    renderWithProviders(<App />);
 
-    await waitForLoadingToFinish();
+    // Navigate to John 3
+    const bookSelector = screen.getByRole('button', { name: /Genesis/i });
+    await user.click(bookSelector);
+    const johnButton = await screen.findByRole('menuitem', { name: /John/i });
+    await user.click(johnButton);
+
+    const chapterSelector = await screen.findByRole('button', { name: /1/i });
+    await user.click(chapterSelector);
+    const chapter3Button = await screen.findByRole('menuitem', { name: /3/i });
+    await user.click(chapter3Button);
 
     // 2. Click a verse to select it (John 3:16)
     const verse = await screen.findByText(/For God so loved the world/i);
