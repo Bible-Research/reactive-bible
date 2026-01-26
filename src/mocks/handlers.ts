@@ -11,8 +11,13 @@ export const handlers = [
     });
   }),
 
+  // --- Translations ---
+  http.get(`${API_URL}/bible/translations`, () => {
+    return HttpResponse.json({ results: [] });
+  }),
+
   // --- Audio ---
-  http.get(`${API_URL}/bible/filesets/ENGESV/Genesis/1`, () => {
+  http.get(`${API_URL}/bible/filesets/:filesetId/:book/:chapter`, () => {
     return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
   }),
 
