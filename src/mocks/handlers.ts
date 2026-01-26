@@ -26,7 +26,7 @@ export const handlers = [
 
   // --- Delete Note ---
   http.delete('*/api/notes/:id', () => {
-    return HttpResponse.json({ detail: 'Deleted' });
+    return HttpResponse.text('Deleted');
   }),
 ];
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect } from 'vitest';
-import { renderWithProviders } from '../helpers';
+import { renderWithProviders, waitForLoadingToFinish } from '../helpers';
 import App from '../../App';
 
 describe('Notes Workflow Integration Test', () => {
@@ -11,6 +11,8 @@ describe('Notes Workflow Integration Test', () => {
     renderWithProviders(<App />, {
       storeOverrides: { activeBook: 'John', activeChapter: 3 },
     });
+
+    await waitForLoadingToFinish();
 
     // 2. Click a verse to select it (John 3:16)
     const verse = await screen.findByText(/For God so loved the world/i);
