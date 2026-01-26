@@ -53,6 +53,7 @@ This is the most important rule. The developer guide must always be the single s
 - After making code changes, run tests relevant to the modified files to ensure your changes are safe.
 - For example, if you edit a component, run its corresponding test file.
 - Before submitting a pull request, run the full test suite (`npm test`) to catch any unintended side effects.
+- **Run tests in CI mode**: When running the test suite, ensure it executes once and exits without watching for changes. Use `npm test -- --run` to prevent the terminal from hanging.
 
 ---
 
