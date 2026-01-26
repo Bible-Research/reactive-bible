@@ -54,6 +54,7 @@ This is the most important rule. The developer guide must always be the single s
 - For example, if you edit a component, run its corresponding test file.
 - Before submitting a pull request, run the full test suite (`npm test`) to catch any unintended side effects.
 - **Run tests in CI mode**: When running the test suite, ensure it executes once and exits without watching for changes. Use `npm test -- --run` to prevent the terminal from hanging.
+- **Use headless mode**: Ensure tests run in a headless environment where no UI is rendered.
 
 ---
 
