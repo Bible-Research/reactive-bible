@@ -59,7 +59,29 @@ improve maintainability.
 
 **Priority:** HIGH  
 **Estimated Time:** 2-3 days  
-**Impact:** Improved test reliability and maintainability
+**Impact:** Improved test reliability and maintainability  
+**Status:** Initial audit complete, refactoring in progress
+
+### Progress Update (2026-01-26)
+
+**Completed:**
+- ✅ Audit of all `vi.mock()` usage across test files
+- ✅ Categorization of mocks (API, Component, Library)
+- ✅ Enhanced MSW handlers with default `/tags` endpoint
+
+**In Progress:**
+- 🔄 Refactoring `NotesView.test.tsx` (paused - too complex for first attempt)
+
+**Lessons Learned:**
+1. Start with simpler test files that have fewer dependencies
+2. Component tests with complex child components and multiple API calls are harder to refactor
+3. Tests that rely on Zustand store state need careful handling
+4. MSW handlers need to be comprehensive before refactoring tests
+
+**Next Steps:**
+1. Start with simpler files like `NoteCard.test.tsx` or `Verse.test.tsx`
+2. Build confidence with easier refactorings before tackling complex ones
+3. Document patterns that work well for future refactorings
 
 ### Current Problem
 
