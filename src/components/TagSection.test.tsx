@@ -2,37 +2,44 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import TagSection from './TagSection';
-import { Note, Tag } from '../types';
-import { renderWithProviders } from '../__tests__/helpers';
+import {
+  renderWithProviders,
+  createMockNote,
+  createMockTag,
+  createMockVerse,
+} from '../__tests__/helpers';
 
 describe('TagSection Component', () => {
-  const mockTag: Tag = {
-    id: '1',
-    name: 'Faith',
-    parent_tag: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  // Use factory functions for cleaner, more maintainable test data
+  const mockTag = createMockTag({ id: '1', name: 'Faith' });
 
-  const mockNotes: Note[] = [
-    {
+  const mockNotes = [
+    createMockNote({
       id: 'n1',
       note_text: 'This is note 1',
       tag: mockTag,
-      public: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      verses: [{ book: 'Genesis', chapter: 1, verse: 1, text: 'In the beginning...' }],
-    },
-    {
+      verses: [
+        createMockVerse({
+          book: 'Genesis',
+          chapter: 1,
+          verse: 1,
+          text: 'In the beginning...',
+        }),
+      ],
+    }),
+    createMockNote({
       id: 'n2',
       note_text: 'This is note 2',
       tag: mockTag,
-      public: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      verses: [{ book: 'Genesis', chapter: 1, verse: 2, text: 'The earth was without form...' }],
-    },
+      verses: [
+        createMockVerse({
+          book: 'Genesis',
+          chapter: 1,
+          verse: 2,
+          text: 'The earth was without form...',
+        }),
+      ],
+    }),
   ];
 
   const mockOnViewInBible = vi.fn();
