@@ -14,7 +14,7 @@ describe('Notes Workflow Integration Test', () => {
     renderWithProviders(<App />);
 
     // Navigate to John 3
-    const bookSelector = screen.getByRole('button', { name: /Genesis/i });
+    const bookSelector = await screen.findByRole('button', { name: /Genesis/i });
     await user.click(bookSelector);
     const johnButton = await screen.findByRole('menuitem', { name: /John/i });
     await user.click(johnButton);

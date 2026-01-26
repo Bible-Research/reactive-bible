@@ -5,7 +5,12 @@ const API_URL = 'https://bibleresearchapi.vercel.app/api/v1';
 
 export const handlers = [
   // --- Verses ---
-  http.get(`${API_URL}/bible`, () => {
+  http.get(`${API_URL}/bible`, ({ request }) => {
+    const url = new URL(request.url);
+    if (!url.searchParams.has('passage')) {
+      // Fall through to the next handler if it's not a passage request
+      return;
+    }
     return HttpResponse.json({
       verses: [{ verse: 1, text: 'In the beginning...' }]
     });
