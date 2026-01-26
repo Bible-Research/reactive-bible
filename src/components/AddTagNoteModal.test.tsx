@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import AddTagNoteModal from './AddTagNoteModal';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -35,24 +35,43 @@ describe('AddTagNoteModal Component', () => {
     });
 
     (api.getTags as vi.Mock).mockResolvedValue([
-      { id: '1', name: 'Faith', parent_tag: null, 
+      { id: '1', name: 'Faith', parent_tag: null,
         created_at: '', updated_at: '' },
     ]);
   });
 
-  it('should not render when closed', () => {
-    render(<AddTagNoteModal opened={false} onClose={vi.fn()} />);
+  afterEach(async () => {
+    // Wait for any pending state updates to complete
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  });
+
+  it('should not render when closed', async () => {
+    await act(async () => {
+      render(<AddTagNoteModal opened={false} onClose={vi.fn()} />);
+    });
     expect(screen.queryByText('Add note')).not.toBeInTheDocument();
   });
 
-  it('should render when opened', () => {
-    render(<AddTagNoteModal opened={true} onClose={vi.fn()} />);
-    expect(screen.getByText('Add note')).toBeInTheDocument();
+  it('should render when opened', async () => {
+    await act(async () => {
+      render(<AddTagNoteModal opened={true} onClose={vi.fn()} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Add note')).toBeInTheDocument();
+    });
   });
 
-  it('should render NoteForm when opened', () => {
-    render(<AddTagNoteModal opened={true} onClose={vi.fn()} />);
-    expect(screen.getByTestId('note-form')).toBeInTheDocument();
+  it('should render NoteForm when opened', async () => {
+    await act(async () => {
+      render(<AddTagNoteModal opened={true} onClose={vi.fn()} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('note-form')).toBeInTheDocument();
+    });
   });
 
   // Note: Full modal interaction testing is problematic

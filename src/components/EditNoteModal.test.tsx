@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import EditNoteModal from './EditNoteModal';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -29,7 +29,7 @@ describe('EditNoteModal Component', () => {
   const mockNote: Note = {
     id: 'n1',
     note_text: 'Original note text',
-    tag: { id: '1', name: 'Faith', parent_tag: null, 
+    tag: { id: '1', name: 'Faith', parent_tag: null,
       created_at: '', updated_at: '' },
     public: false,
     created_at: '',
@@ -45,42 +45,56 @@ describe('EditNoteModal Component', () => {
     });
 
     (api.getTags as vi.Mock).mockResolvedValue([
-      { id: '1', name: 'Faith', parent_tag: null, 
+      { id: '1', name: 'Faith', parent_tag: null,
         created_at: '', updated_at: '' },
     ]);
   });
 
-  it('should not render when closed', () => {
+  afterEach(async () => {
+    // Wait for any pending state updates to complete
+    await waitFor(() => {}, { timeout: 100 });
+  });
+
+  it('should not render when closed', async () => {
     render(
-      <EditNoteModal 
-        opened={false} 
-        onClose={vi.fn()} 
-        note={mockNote} 
+      <EditNoteModal
+        opened={false}
+        onClose={vi.fn()}
+        note={mockNote}
       />
     );
     expect(screen.queryByText('Edit note')).not.toBeInTheDocument();
   });
 
-  it('should render when opened', () => {
+  it('should render when opened', async () => {
     render(
-      <EditNoteModal 
-        opened={true} 
-        onClose={vi.fn()} 
-        note={mockNote} 
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={mockNote}
       />
     );
-    expect(screen.getByText('Edit note')).toBeInTheDocument();
+
+    // Wait for any async effects to settle
+    await waitFor(() => {
+      expect(screen.getByText('Edit note')).toBeInTheDocument();
+    });
   });
 
-  it('should render NoteForm with initial text', () => {
+  it('should render NoteForm with initial text', async () => {
     render(
-      <EditNoteModal 
-        opened={true} 
-        onClose={vi.fn()} 
-        note={mockNote} 
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={mockNote}
       />
     );
-    expect(screen.getByTestId('note-form')).toBeInTheDocument();
+
+    // Wait for component to fully render
+    await waitFor(() => {
+      expect(screen.getByTestId('note-form')).toBeInTheDocument();
+    });
+
     expect(
       screen.getByTestId('note-text')
     ).toHaveTextContent('Original note text');

@@ -47,16 +47,16 @@ interface BibleState {
 
 // Define and export the initial state for reusability and testing
 export const initialState = {
-  activeBook: "Genesis",
-  activeBookShort: "Gen",
+  activeBook: "John",
+  activeBookShort: "Joh",
   activeChapter: 1,
   activeVerses: [],
   selectedVerses: [],
   bibleVersion: "KJV",
   showAudioPlayer: false,
   translations: [],
-  activeTextFilesetId: "ENGKJV", // Default to KJV text
-  activeAudioFilesetId: null,
+  activeTextFilesetId: "ENGESH",
+  activeAudioFilesetId: "ENGESHN1DA-opus16",
   notes: [],
   allNotesFetched: false,
 };
