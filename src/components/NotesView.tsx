@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from "react";
-import { ScrollArea, Select, Group, Button, Stack, Center, Text, Loader } from "@mantine/core";
+import type { MouseEvent } from "react";
+import { ScrollArea, Select, Group, Stack, Center, Text, Loader } from "@mantine/core";
 import { Note, Tag } from "../types";
 import TagSection from "./TagSection";
 import EditNoteModal from "./EditNoteModal";
 import { useBibleStore } from "../store";
-import { getTags } from "../api";
-
+import { getTags, deleteNote } from "../api";
+import Button from "./Button";
 interface NotesViewProps {
   onViewInBible: (book: string, chapter: number, verse: number) => void;
 }
@@ -76,6 +77,16 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
     }
   };
 
+  const handleDeleteNote = async (evt: MouseEvent<HTMLButtonElement>, note: Note) => {
+    evt.preventDefault();
+    if(note.id) {   
+      if(window.confirm('Are you sure you want to delete this note?'))    
+        await deleteNote(note.id);
+      else false;
+      fetchNotes();
+    }
+  }
+
   // Sort tags alphabetically
   const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -114,6 +125,7 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
                 notes={notes}
                 onViewInBible={onViewInBible}
                 onEditNote={handleEditNote}
+                onDeleteNote={handleDeleteNote}
               />
             ))
           ) : (

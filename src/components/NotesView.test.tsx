@@ -5,9 +5,12 @@ import NotesView from './NotesView';
 import { useBibleStore } from '../store';
 import * as api from '../api';
 
+// Mock window.confirm prompt
+window.confirm = vi.fn()
 // Mock API
 vi.mock('../api', () => ({
   getTags: vi.fn(),
+  deleteNote: vi.fn(),
 }));
 
 // Mock child components
@@ -44,6 +47,7 @@ describe('NotesView Component', () => {
       { id: '2', name: 'Hope', parent_tag: null,
         created_at: '', updated_at: '' },
     ]);
+    (api.deleteNote as vi.Mock).mockResolvedValueOnce({ detail: 'Deleted' })
   });
 
   afterEach(async () => {
