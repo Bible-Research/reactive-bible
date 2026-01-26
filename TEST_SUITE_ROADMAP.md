@@ -242,11 +242,26 @@ it('should not re-render when unrelated state changes', () => {
 
 ---
 
-## 📅 Phase 3: Improve Async Handling (FUTURE)
+## 🚧 Phase 3: Improve Async Handling (IN PROGRESS)
 
 **Priority:** MEDIUM  
 **Estimated Time:** 1 day  
-**Status:** Not Started
+**Status:** Partially Complete
+
+### Progress Update (2026-01-26)
+
+**Completed:**
+- ✅ Refactored `App.test.tsx` to remove redundant `act()` wrappers
+  - Removed `act()` around `render()` (RTL handles this automatically)
+  - Removed `act()` around `fireEvent` (already wrapped)
+  - Removed `act()` around `cleanup()`
+  - Simplified beforeEach/afterEach to be synchronous
+  - Reduced file size by 10 lines, improved readability
+
+**Remaining:**
+- ⏳ Refactor `NotesView.test.tsx` (7 redundant `act()` wrappers)
+- ⏳ Review other test files for async improvements
+- ⏳ Document async testing best practices
 
 ### Current Issues
 
