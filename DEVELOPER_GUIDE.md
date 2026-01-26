@@ -425,6 +425,375 @@ it('should show disabled state', () => {
 });
 ```
 
+### Async Testing Best Practices
+
+When testing asynchronous behavior in React components, follow these guidelines to write clean, reliable tests:
+
+#### 1. Use `findBy*` Queries for Async Elements
+
+**✅ CORRECT** - `findBy*` queries wait for elements to appear:
+```typescript
+it('should display loaded data', async () => {
+  renderWithProviders(<MyComponent />);
+  
+  // findBy* automatically waits (up to 1000ms by default)
+  const element = await screen.findByText('Loaded content');
+  expect(element).toBeInTheDocument();
+});
+```
+
+**❌ INCORRECT** - Don't use `getBy*` for async content:
+```typescript
+it('should display loaded data', () => {
+  renderWithProviders(<MyComponent />);
+  
+  // This will fail - element doesn't exist yet!
+  const element = screen.getByText('Loaded content');
+  expect(element).toBeInTheDocument();
+});
+```
+
+#### 2. Avoid Redundant `waitFor()` Wrappers
+
+**✅ CORRECT** - Use `findBy*` directly:
+```typescript
+it('should show error message', async () => {
+  renderWithProviders(<MyComponent />);
+  
+  const error = await screen.findByText('Error occurred');
+  expect(error).toBeInTheDocument();
+});
+```
+
+**❌ INCORRECT** - Unnecessary `waitFor()` wrapper:
+```typescript
+it('should show error message', async () => {
+  renderWithProviders(<MyComponent />);
+  
+  await waitFor(() => {
+    expect(screen.getByText('Error occurred')).toBeInTheDocument();
+  });
+});
+```
+
+#### 3. Don't Wrap `userEvent` in `act()`
+
+**✅ CORRECT** - `userEvent` already wraps actions in `act()`:
+```typescript
+it('should handle button click', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<MyComponent />);
+  
+  await user.click(screen.getByRole('button'));
+  expect(screen.getByText('Clicked')).toBeInTheDocument();
+});
+```
+
+**❌ INCORRECT** - Redundant `act()` wrapper:
+```typescript
+it('should handle button click', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<MyComponent />);
+  
+  await act(async () => {
+    await user.click(screen.getByRole('button'));
+  });
+  expect(screen.getByText('Clicked')).toBeInTheDocument();
+});
+```
+
+#### 4. Use `waitFor()` Only When Necessary
+
+Use `waitFor()` when you need to wait for a condition that isn't a DOM query:
+
+**✅ CORRECT** - Waiting for a callback to be called:
+```typescript
+it('should call callback after delay', async () => {
+  const callback = vi.fn();
+  renderWithProviders(<MyComponent onComplete={callback} />);
+  
+  await waitFor(() => {
+    expect(callback).toHaveBeenCalled();
+  });
+});
+```
+
+**✅ CORRECT** - Waiting for element to disappear:
+```typescript
+it('should hide loading spinner', async () => {
+  renderWithProviders(<MyComponent />);
+  
+  await waitFor(() => {
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+});
+```
+
+#### 5. Testing Loading States
+
+**✅ CORRECT** - Test both loading and loaded states:
+```typescript
+it('should show loading then content', async () => {
+  renderWithProviders(<MyComponent />);
+  
+  // Check loading state appears immediately
+  expect(screen.getByRole('progressbar')).toBeInTheDocument();
+  
+  // Wait for content to load
+  const content = await screen.findByText('Loaded content');
+  expect(content).toBeInTheDocument();
+  
+  // Verify loading state is gone
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+});
+```
+
+#### 6. Handling API Mocks
+
+Use MSW (Mock Service Worker) for API mocking instead of `vi.mock()`:
+
+**✅ CORRECT** - Use MSW handlers:
+```typescript
+import { server } from '../__tests__/setup';
+import { http, HttpResponse } from 'msw';
+
+it('should fetch and display data', async () => {
+  server.use(
+    http.get('/api/data', () => {
+      return HttpResponse.json({ message: 'Hello' });
+    })
+  );
+  
+  renderWithProviders(<MyComponent />);
+  
+  const message = await screen.findByText('Hello');
+  expect(message).toBeInTheDocument();
+});
+```
+
+**❌ INCORRECT** - Module-level mocking:
+```typescript
+vi.mock('../api', () => ({
+  fetchData: vi.fn().mockResolvedValue({ message: 'Hello' }),
+}));
+
+it('should fetch and display data', async () => {
+  renderWithProviders(<MyComponent />);
+  // ...
+});
+```
+
+#### 7. Common Async Patterns
+
+**Pattern: Wait for multiple elements**
+```typescript
+it('should display all items', async () => {
+  renderWithProviders(<ItemList />);
+  
+  const items = await screen.findAllByRole('listitem');
+  expect(items).toHaveLength(3);
+});
+```
+
+**Pattern: Wait with custom timeout**
+```typescript
+it('should handle slow operation', async () => {
+  renderWithProviders(<MyComponent />);
+  
+  const result = await screen.findByText(
+    'Completed',
+    {},
+    { timeout: 5000 } // Wait up to 5 seconds
+  );
+  expect(result).toBeInTheDocument();
+});
+```
+
+**Pattern: Test error handling**
+```typescript
+it('should display error on API failure', async () => {
+  server.use(
+    http.get('/api/data', () => {
+      return new HttpResponse(null, { status: 500 });
+    })
+  );
+  
+  renderWithProviders(<MyComponent />);
+  
+  const error = await screen.findByText('Failed to load');
+  expect(error).toBeInTheDocument();
+});
+```
+
+### Performance Testing
+
+Performance tests ensure that components render efficiently and don't cause performance regressions. We use custom performance testing utilities located in `src/__tests__/helpers/performance.tsx`.
+
+#### When to Add Performance Tests
+
+Add performance tests for:
+- Components that render large lists or datasets
+- Components with complex rendering logic
+- Components that re-render frequently
+- Critical user-facing components (e.g., PassageView)
+- Components with memoization or optimization
+
+#### Performance Testing Utilities
+
+**Available Utilities**:
+```typescript
+import {
+  measureRenderTime,
+  createLargeVerseData,
+  CacheMetrics,
+  useRenderCount,
+  RenderCounter,
+  waitForNextFrame,
+} from '../__tests__/helpers/performance';
+```
+
+#### Performance Test Examples
+
+**1. Measure Render Time**
+```typescript
+import { measureRenderTime } from '../__tests__/helpers/performance';
+
+it('should render quickly', () => {
+  const renderFn = () => {
+    render(<MyComponent />);
+  };
+  
+  const avgTime = measureRenderTime(renderFn, 100);
+  
+  // Should render in less than 10ms on average
+  expect(avgTime).toBeLessThan(10);
+  
+  console.log(`Avg render time: ${avgTime.toFixed(2)}ms`);
+});
+```
+
+**2. Test Large Data Handling**
+```typescript
+import { createLargeVerseData } from '../__tests__/helpers/performance';
+
+it('should handle 200 verses efficiently', async () => {
+  const verses = createLargeVerseData(200);
+  mockGetVersesInChapter.mockResolvedValue(verses);
+  
+  const start = performance.now();
+  
+  const { container } = render(<PassageView />);
+  
+  await waitFor(() => {
+    expect(container.querySelector('[data-testid="verse-1"]'))
+      .toBeInTheDocument();
+  });
+  
+  const duration = performance.now() - start;
+  
+  // Should render in less than 1 second
+  expect(duration).toBeLessThan(1000);
+  
+  console.log(`Rendered 200 verses in ${duration.toFixed(2)}ms`);
+});
+```
+
+**3. Test Re-render Performance**
+```typescript
+it('should minimize re-renders', () => {
+  const { rerender } = render(<MyComponent />);
+  
+  const start = performance.now();
+  
+  // Simulate 50 re-renders
+  for (let i = 0; i < 50; i++) {
+    rerender(<MyComponent />);
+  }
+  
+  const duration = performance.now() - start;
+  
+  // Should complete quickly
+  expect(duration).toBeLessThan(200);
+  
+  console.log(`50 re-renders in ${duration.toFixed(2)}ms`);
+});
+```
+
+**4. Test Cache Performance**
+```typescript
+import { CacheMetrics } from '../__tests__/helpers/performance';
+
+it('should achieve high cache hit rate', () => {
+  const metrics = new CacheMetrics();
+  
+  // Populate cache
+  for (let i = 1; i <= 10; i++) {
+    cacheVerses('Genesis', i, 'KJV', verses);
+  }
+  
+  // Access cached items
+  for (let i = 1; i <= 10; i++) {
+    const result = getCachedVerses('Genesis', i, 'KJV');
+    if (result) {
+      metrics.recordHit();
+    } else {
+      metrics.recordMiss();
+    }
+  }
+  
+  const stats = metrics.getStats();
+  expect(stats.hitRate).toBeGreaterThan(0.95); // 95%+ hit rate
+});
+```
+
+**5. Test Memory Efficiency**
+```typescript
+it('should not leak memory with repeated renders', () => {
+  const iterations = 100;
+  
+  for (let i = 0; i < iterations; i++) {
+    const { unmount } = render(<MyComponent />);
+    unmount();
+  }
+  
+  // Test should complete without hanging or crashing
+  expect(true).toBe(true);
+});
+```
+
+#### Performance Test File Naming
+
+Performance tests should be named with the `.performance.test.tsx` suffix:
+```
+src/components/
+├── PassageView.tsx
+├── PassageView.test.tsx              # Unit tests
+└── PassageView.performance.test.tsx  # Performance tests
+```
+
+#### Performance Benchmarks
+
+**Target Metrics**:
+- **Small components** (< 10 elements): < 10ms render time
+- **Medium components** (10-50 elements): < 50ms render time
+- **Large components** (50-200 elements): < 500ms render time
+- **Re-renders**: < 5ms per re-render
+- **Cache hit rate**: > 95% for repeated access
+- **Memory**: No leaks with 100+ mount/unmount cycles
+
+#### Running Performance Tests
+
+```bash
+# Run all performance tests
+npm test -- --run **/*.performance.test.tsx
+
+# Run specific performance test
+npm test -- --run src/components/PassageView.performance.test.tsx
+
+# Run with performance logging
+npm test -- --run --reporter=verbose **/*.performance.test.tsx
+```
+
 ---
 
 ## Bible Utilities
