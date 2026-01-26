@@ -52,9 +52,9 @@ This is the most important rule. The developer guide must always be the single s
 
 - After making code changes, run tests relevant to the modified files to ensure your changes are safe.
 - For example, if you edit a component, run its corresponding test file.
-- Before submitting a pull request, run the full test suite (`npm test`) to catch any unintended side effects.
-- **Run tests in CI mode**: When running the test suite, ensure it executes once and exits without watching for changes. Use `npm test -- --run` to prevent the terminal from hanging.
-- **Use headless mode**: Ensure tests run in a headless environment where no UI is rendered.
+- Before submitting a pull request, run the full test suite to catch any unintended side effects.
+- **ALWAYS run tests in headless CI mode**: Use `npm test -- --run` to ensure tests execute once and exit without watching for changes. This prevents the terminal from hanging and ensures tests run in a headless environment where no UI is rendered.
+- **Never use `npm test` alone**: Always include the `-- --run` flag to run tests in CI mode.
 
 ---
 
