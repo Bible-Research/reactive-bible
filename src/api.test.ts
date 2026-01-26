@@ -4,7 +4,7 @@ import * as cacheManager from './utils/cacheManager';
 import { server } from './mocks/server';
 import { audioSuccessHandler, audioErrorHandler } from './mocks/handlers';
 
-describe.skip('API Functions', () => {
+describe('API Functions', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     // Spy on cache functions to track their calls
