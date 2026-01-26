@@ -1,4 +1,5 @@
-import { render, screen, waitFor, fireEvent, act } from
+import React from 'react';
+import { render, screen, waitFor, fireEvent } from
   '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import NotesView from './NotesView';
@@ -46,19 +47,16 @@ describe('NotesView Component', () => {
     ]);
   });
 
-  afterEach(async () => {
-    // Wait for any pending state updates to complete
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+  afterEach(() => {
+    // No need for act() or async waiting in afterEach
+    vi.clearAllMocks();
   });
 
-  it('should display loading state initially', async () => {
+  it('should display loading state initially', () => {
     mockFetchNotes.mockImplementation(() => new Promise(() => {}));
 
-    await act(async () => {
-      render(<NotesView onViewInBible={mockOnViewInBible} />);
-    });
+    // render() already wraps in act()
+    render(<NotesView onViewInBible={mockOnViewInBible} />);
 
     expect(screen.getByLabelText('loading')).toBeInTheDocument();
   });
@@ -66,9 +64,8 @@ describe('NotesView Component', () => {
   it('should fetch tags and notes on mount', async () => {
     mockFetchNotes.mockResolvedValue([]);
 
-    await act(async () => {
-      render(<NotesView onViewInBible={mockOnViewInBible} />);
-    });
+    // render() already wraps in act()
+    render(<NotesView onViewInBible={mockOnViewInBible} />);
 
     await waitFor(() => {
       expect(api.getTags).toHaveBeenCalled();
@@ -82,9 +79,8 @@ describe('NotesView Component', () => {
   it('should display "No notes found" when no notes', async () => {
     mockFetchNotes.mockResolvedValue([]);
 
-    await act(async () => {
-      render(<NotesView onViewInBible={mockOnViewInBible} />);
-    });
+    // render() already wraps in act()
+    render(<NotesView onViewInBible={mockOnViewInBible} />);
 
     await waitFor(() => {
       expect(screen.getByText('No notes found.')).toBeInTheDocument();
@@ -108,9 +104,8 @@ describe('NotesView Component', () => {
     mockFetchNotes.mockResolvedValue(mockNotes);
     useBibleStore.setState({ notes: mockNotes });
 
-    await act(async () => {
-      render(<NotesView onViewInBible={mockOnViewInBible} />);
-    });
+    // render() already wraps in act()
+    render(<NotesView onViewInBible={mockOnViewInBible} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('tag-section')).toBeInTheDocument();
@@ -120,17 +115,15 @@ describe('NotesView Component', () => {
   it('should call fetchNotes when refresh button clicked', async () => {
     mockFetchNotes.mockResolvedValue([]);
 
-    await act(async () => {
-      render(<NotesView onViewInBible={mockOnViewInBible} />);
-    });
+    // render() already wraps in act()
+    render(<NotesView onViewInBible={mockOnViewInBible} />);
 
     await waitFor(() => {
       expect(screen.getByText('Refresh Notes')).toBeInTheDocument();
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByText('Refresh Notes'));
-    });
+    // fireEvent already wraps in act()
+    fireEvent.click(screen.getByText('Refresh Notes'));
 
     // Should be called twice: once on mount, once on refresh
     await waitFor(() => {
