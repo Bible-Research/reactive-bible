@@ -340,6 +340,93 @@ export interface BibleBook {
 
 ---
 
+## Testing Guidelines
+
+This project uses **Vitest** and **React Testing Library** for unit and integration testing. We follow React community best practices for test organization and implementation.
+
+### Test Organization
+
+We follow a **co-location** strategy for our tests. This means that test files are placed directly next to the source code they are testing. This makes it easier to find and maintain tests.
+
+**Example Structure**:
+```
+src/
+├── components/
+│   ├── Button.tsx
+│   └── Button.test.tsx      ✅ Co-located
+├── utils/
+│   ├── format.ts
+│   └── format.test.ts       ✅ Co-located
+├── api.tsx
+├── api.test.ts              ✅ Co-located
+├── store.ts
+└── store.test.ts            ✅ Co-located
+```
+
+**Integration Tests**:
+
+Tests that cover the interaction of multiple components (user workflows) are placed in a dedicated directory:
+
+```
+src/__tests__/integration/
+└── notes-workflow.test.tsx
+```
+
+### Running Tests
+
+**ALWAYS run tests in headless CI mode**. This ensures that tests execute once and exit without watching for changes, which is critical for both local development and CI environments.
+
+```bash
+# Run the full test suite in headless CI mode
+npm test -- --run
+
+# Run a specific test file
+npm test -- src/components/Button.test.tsx --run
+
+# Run tests with a coverage report
+npm test -- --run --coverage
+```
+
+**⚠️ IMPORTANT**: Never use `npm test` alone without the `-- --run` flag, as this will start the test runner in watch mode and may not use the correct headless environment settings.
+
+### Test Configuration
+
+Test configuration is managed in `vite.config.ts`:
+
+```typescript
+test: {
+  globals: true,
+  environment: 'happy-dom', // Fast, but less complete than jsdom
+  setupFiles: 'src/__tests__/setup.ts',
+  include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+  exclude: ['node_modules', 'dist'],
+}
+```
+
+### Test Helpers
+
+A comprehensive set of test helpers is available in `src/__tests__/helpers.tsx`. The most important helper is `renderWithProviders`, which wraps components with the necessary providers (Zustand store, etc.) for testing.
+
+**Example Usage**:
+```typescript
+import { renderWithProviders } from '../__tests__/helpers';
+
+it('should render correctly', () => {
+  renderWithProviders(<MyComponent />);
+  // ... assertions
+});
+
+// With store overrides
+it('should show disabled state', () => {
+  renderWithProviders(<MyComponent />, {
+    storeOverrides: { someValue: false },
+  });
+  // ... assertions
+});
+```
+
+---
+
 ## Bible Utilities
 
 **Location**: `src/utils/bibleUtils.ts`
