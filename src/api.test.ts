@@ -67,10 +67,10 @@ describe('API Functions', () => {
 
     it('getBibleAudioUrl should fetch from API when not cached', async () => {
       const mockUrl = 'http://audio.url/test.mp3';
-      const url = await api.getBibleAudioUrl('Genesis', 1, 'ESV');
+      const url = await api.getBibleAudioUrl('Genesis', 1, 'ESVDA');
 
-      expect(cacheManager.getCachedAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESV');
-      expect(cacheManager.cacheAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESV', mockUrl, 0, 0);
+      expect(cacheManager.getCachedAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESVDA');
+      expect(cacheManager.cacheAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESVDA', mockUrl, 0, 0);
       expect(url).toBe(mockUrl);
     });
 
@@ -83,8 +83,8 @@ describe('API Functions', () => {
     it('should throw an error if the fetch response is not ok', async () => {
       server.use(audioErrorHandler);
 
-      await expect(api.getBibleAudioUrl('Genesis', 1, 'ESV')).rejects.toThrow(
-        'Failed to fetch audio for ESV: Not Found'
+      await expect(api.getBibleAudioUrl('Genesis', 1, 'ESVDA')).rejects.toThrow(
+        'Failed to fetch audio for ESVDA: Not Found'
       );
     });
   });
