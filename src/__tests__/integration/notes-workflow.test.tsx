@@ -8,7 +8,9 @@ import App from '../../App';
 describe('Notes Workflow Integration Test', () => {
   it('should allow a user to add a note to a verse', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<App />);
+    renderWithProviders(<App />, {
+      storeOverrides: { activeBook: 'John', activeChapter: 3 },
+    });
 
     // 2. Click a verse to select it (John 3:16)
     const verse = await screen.findByText(/For God so loved the world/i);

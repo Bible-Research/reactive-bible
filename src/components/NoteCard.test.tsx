@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import NoteCard from './NoteCard';
@@ -15,9 +16,6 @@ vi.mock('./Verse', () => ({
 }));
 
 window.confirm = vi.fn()
-vi.mock('../api', () => ({
-  deleteNote: vi.fn()
-}))
 
 describe('NoteCard Component', () => {
   const mockTag: Tag = {
@@ -89,7 +87,6 @@ describe('NoteCard Component', () => {
   });
 
   it('should call handleDeleteNode when the remove button is clicked', async () => {
-    (deleteNote as vi.Mock).mockResolvedValueOnce({ detail: 'Deleted' })
     render(<NoteCard note={singleVerseNote} onViewInBible={mockOnViewInBible} onEdit={mockOnEdit} />)
 
     const removeButton = screen.getByRole('button', { name: /Remove/i  });
