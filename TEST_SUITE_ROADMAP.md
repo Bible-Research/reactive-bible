@@ -352,6 +352,24 @@ renderWithProviders(<MyComponent />, {
 await waitForLoadingToFinish();
 ```
 
+### Skipped Tests
+
+Some tests are intentionally skipped due to known issues (e.g., Mantine 
+portal rendering). These are documented in `src/__tests__/SKIPPED_TESTS.md`.
+
+**When to update SKIPPED_TESTS.md:**
+- ✅ When adding a new `.skip()` to a test
+- ✅ When fixing a skipped test (remove from the document)
+- ✅ When discovering a new pattern that causes test failures
+
+**Format:**
+```markdown
+## Test Name
+**File:** path/to/test.tsx
+**Reason:** Brief explanation
+**Workaround:** How to test manually or alternative approach
+```
+
 ---
 
 ## Files to Remove
