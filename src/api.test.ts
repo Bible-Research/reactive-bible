@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { server } from './mocks/server';
-import { serverErrorHandlers } from './mocks/handlers';
+import { audioSuccessHandler, audioErrorHandler } from './mocks/handlers';
 
 describe('API Functions', () => {
   beforeEach(() => {
@@ -66,6 +66,7 @@ describe('API Functions', () => {
     });
 
     it('getBibleAudioUrl should fetch from API when not cached', async () => {
+      server.use(audioSuccessHandler);
       const mockUrl = 'http://audio.url/test.mp3';
       const url = await api.getBibleAudioUrl('Genesis', 1, 'ESV');
 
@@ -81,7 +82,7 @@ describe('API Functions', () => {
     });
 
     it('should throw an error if the fetch response is not ok', async () => {
-      server.use(...serverErrorHandlers);
+      server.use(audioErrorHandler);
 
       await expect(api.getBibleAudioUrl('Genesis', 1, 'ESV')).rejects.toThrow(
         'Failed to fetch audio for ESV: Not Found'

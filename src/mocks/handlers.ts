@@ -16,10 +16,7 @@ export const handlers = [
     return HttpResponse.json({ results: [] });
   }),
 
-  // --- Audio ---
-  http.get(`${API_URL}/bible/filesets/:filesetId/:book/:chapter`, () => {
-    return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
-  }),
+
 
   // --- Notes ---
   http.post(`${API_URL}/notes/`, () => {
@@ -37,12 +34,20 @@ export const handlers = [
   }),
 ];
 
-// --- Special Handlers for Error Cases ---
-export const serverErrorHandlers = [
-  http.get(`${API_URL}/bible/filesets/ENGESV/Genesis/1`, () => {
+// --- Special Handlers for Specific Test Cases ---
+export const audioSuccessHandler = http.get(
+  `${API_URL}/bible/filesets/ESV/Genesis/1`,
+  () => {
+    return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
+  }
+);
+
+export const audioErrorHandler = http.get(
+  `${API_URL}/bible/filesets/ESV/Genesis/1`,
+  () => {
     return new HttpResponse(null, {
       status: 404,
       statusText: 'Not Found',
     });
-  }),
-];
+  }
+);
