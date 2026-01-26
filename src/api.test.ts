@@ -102,13 +102,10 @@ describe('API Functions', () => {
     });
 
     it('should make a "DELETE" request with note id', async () => {
-      (fetch as vi.Mock).mockResolvedValue({ ok: true, json: () => 'OK' });
+      (fetch as vi.Mock).mockResolvedValue({ ok: true, text: () => ({ details: 'OK'}) });
       const removeNote = await api.deleteNote('abc-123');
 
-      expect(removeNote).toEqual({
-        json: expect.any(Function),
-        ok: true
-      });
+      expect(removeNote).toEqual({ details: 'OK' });
       expect(fetch).toHaveBeenCalledTimes(1);
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining('/notes/abc-123'),
