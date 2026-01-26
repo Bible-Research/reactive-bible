@@ -2,43 +2,51 @@ import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import NoteCard from './NoteCard';
-import { Note, Tag } from '../types';
 import { deleteNote } from "../api";
-import { renderWithProviders } from '../__tests__/helpers';
+import {
+  renderWithProviders,
+  createMockNote,
+  createMockVerse,
+  createMockTag,
+} from '../__tests__/helpers';
 
 window.confirm = vi.fn()
 
 describe('NoteCard Component', () => {
-  const mockTag: Tag = {
-    id: '1',
-    name: 'Faith',
-    parent_tag: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const singleVerseNote: Note = {
+  // Use factory functions instead of inline mock data
+  const singleVerseNote = createMockNote({
     id: 'n1',
     note_text: 'This is a single verse note.',
-    tag: mockTag,
-    public: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    verses: [{ book: 'Genesis', chapter: 1, verse: 1, text: 'In the beginning...' }],
-  };
+    tag: createMockTag({ id: '1', name: 'Faith' }),
+    verses: [
+      createMockVerse({
+        book: 'Genesis',
+        chapter: 1,
+        verse: 1,
+        text: 'In the beginning...',
+      }),
+    ],
+  });
 
-  const multiVerseNote: Note = {
+  const multiVerseNote = createMockNote({
     id: 'n2',
     note_text: 'This is a multi-verse note.',
-    tag: mockTag,
-    public: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    tag: createMockTag({ id: '1', name: 'Faith' }),
     verses: [
-      { book: 'Genesis', chapter: 1, verse: 1, text: 'In the beginning...' },
-      { book: 'Genesis', chapter: 1, verse: 2, text: 'The earth was without form...' },
+      createMockVerse({
+        book: 'Genesis',
+        chapter: 1,
+        verse: 1,
+        text: 'In the beginning...',
+      }),
+      createMockVerse({
+        book: 'Genesis',
+        chapter: 1,
+        verse: 2,
+        text: 'The earth was without form...',
+      }),
     ],
-  };
+  });
 
   const mockOnViewInBible = vi.fn();
   const mockOnEdit = vi.fn();
