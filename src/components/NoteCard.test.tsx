@@ -1,7 +1,8 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import NoteCard from './NoteCard';
 import { Note, Tag } from '../types';
+import { deleteNote } from "../api";
 
 // Mock the Verse component
 vi.mock('./Verse', () => ({
@@ -12,6 +13,11 @@ vi.mock('./Verse', () => ({
     </div>
   ),
 }));
+
+window.confirm = vi.fn()
+vi.mock('../api', () => ({
+  deleteNote: vi.fn()
+}))
 
 describe('NoteCard Component', () => {
   const mockTag: Tag = {
@@ -81,4 +87,18 @@ describe('NoteCard Component', () => {
 
     expect(mockOnViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);
   });
+
+  it('should call handleDeleteNode when the remove button is clicked', async () => {
+    (deleteNote as vi.Mock).mockResolvedValueOnce({ detail: 'Deleted' })
+    render(<NoteCard note={singleVerseNote} onViewInBible={mockOnViewInBible} onEdit={mockOnEdit} />)
+
+    const removeButton = screen.getByRole('button', { name: /Remove/i  });
+    fireEvent.click(removeButton);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Genesis 1:1-2' })).not.toBeInTheDocument();
+    });
+
+    expect(deleteNote).toBeCalledTimes(1);
+  })
 });

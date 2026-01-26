@@ -151,6 +151,17 @@ export const editNote = async (noteId: string, tagId: string, noteText: string) 
   }
 };
 
+export const deleteNote = async (noteId: string) => {
+  try {
+    const response = await fetch(`https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}`, {
+      method: 'DELETE',
+    });
+    return await response.text() // due to the response being a text had to pull out .text instead of .json
+  } catch(err: any | Error) {
+    throw new Error('Failed to delete your note, please try again');
+  }
+}
+
 export const getTags = async (): Promise<Tag[]> => {
   try {
     const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/tags/');
