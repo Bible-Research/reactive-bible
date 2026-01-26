@@ -7,13 +7,11 @@ export const handlers = [
   // --- Verses ---
   http.get(`${API_URL}/bible`, ({ request }) => {
     const url = new URL(request.url);
-    if (!url.searchParams.has('passage')) {
-      // Fall through to the next handler if it's not a passage request
-      return;
+    if (url.searchParams.has('passage')) {
+      return HttpResponse.json({
+        verses: [{ verse: 1, text: 'In the beginning...' }]
+      });
     }
-    return HttpResponse.json({
-      verses: [{ verse: 1, text: 'In the beginning...' }]
-    });
   }),
 
   // --- Translations ---
