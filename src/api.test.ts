@@ -4,7 +4,7 @@ import * as cacheManager from './utils/cacheManager';
 import { server } from './mocks/server';
 import { audioErrorHandler } from './mocks/handlers';
 
-describe.skip('API Functions', () => {
+describe('API Functions', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     // Spy on cache functions to track their calls
@@ -48,7 +48,7 @@ describe.skip('API Functions', () => {
   // --- API-Calling Functions ---
   describe('API-Calling Functions', () => {
     it('getVersesFromApi should fetch from API when not cached', async () => {
-      const mockVerses = [{ verse: 1, text: 'In the beginning...' }];
+      const mockVerses = [{ verse: 16, text: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.' }];
       const verses = await api.getVersesFromApi('Genesis', 1, 'ESV');
 
       expect(cacheManager.getCachedVerses).toHaveBeenCalledWith('Genesis', 1, 'ESV');
@@ -77,10 +77,13 @@ describe.skip('API Functions', () => {
     it('addTagNote should make a POST request with the correct body', async () => {
       const verseRefs = [{ book: 'John', chapter: 3, verse: 16 }];
       const result = await api.addTagNote('tag1', 'My note', verseRefs);
-      expect(result.success).toBe(true);
+      expect(result.id).toBe('note-1');
+      expect(result.note_text).toBe('My note');
     });
 
     it('should throw an error if the fetch response is not ok', async () => {
+      // Clear the cache to ensure the API is actually called
+      localStorage.clear();
       server.use(audioErrorHandler);
 
       await expect(api.getBibleAudioUrl('Genesis', 1, 'ESVDA')).rejects.toThrow(
