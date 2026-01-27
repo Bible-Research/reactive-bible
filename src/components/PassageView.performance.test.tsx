@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, act } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import PassageView from './PassageView';
 import { useBibleStore } from '../store';
@@ -121,7 +121,9 @@ describe('PassageView Component Performance Tests', () => {
 
       // Simulate chapter navigation (10 times)
       for (let chapter = 2; chapter <= 11; chapter++) {
-        useBibleStore.setState({ activeChapter: chapter });
+        act(() => {
+          useBibleStore.setState({ activeChapter: chapter });
+        });
         rerender(
           <MantineProvider>
             <PassageView />
@@ -157,7 +159,9 @@ describe('PassageView Component Performance Tests', () => {
       const initialCallCount = mockGetVersesInChapter.mock.calls.length;
 
       // Change unrelated store state
-      useBibleStore.setState({ activeVerses: [1, 2, 3] });
+      act(() => {
+        useBibleStore.setState({ activeVerses: [1, 2, 3] });
+      });
 
       rerender(
         <MantineProvider>
@@ -294,7 +298,9 @@ describe('PassageView Component Performance Tests', () => {
         );
 
         // Change chapter
-        useBibleStore.setState({ activeChapter: (i % 50) + 1 });
+        act(() => {
+          useBibleStore.setState({ activeChapter: (i % 50) + 1 });
+        });
 
         // Cleanup
         unmount();
@@ -325,7 +331,9 @@ describe('PassageView Component Performance Tests', () => {
       unmount();
 
       // Change chapter after unmount
-      useBibleStore.setState({ activeChapter: 2 });
+      act(() => {
+        useBibleStore.setState({ activeChapter: 2 });
+      });
 
       // Should not trigger new API calls after unmount
       expect(mockGetVersesInChapter).toHaveBeenCalledTimes(

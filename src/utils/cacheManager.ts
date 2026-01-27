@@ -4,12 +4,83 @@ import { Translation } from '../store';
 // Verse cache: LRU with 500-verse limit (copyright compliance)
 // Audio cache: Unlimited with expiration handling
 // Translation cache: Simple key-value store by language
+//
+// Performance: Uses in-memory Map cache for localStorage reads
+// (Vercel best practice: js-cache-storage)
 
 const VERSE_CACHE_KEY = 'bible_verse_cache';
 const VERSE_CACHE_METADATA_KEY = 'bible_verse_cache_metadata';
 const AUDIO_CACHE_KEY = 'bible_audio_cache';
 const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
 const MAX_VERSES = 500;
+
+// ============================================
+// IN-MEMORY CACHE FOR LOCALSTORAGE READS
+// ============================================
+// Vercel best practice: Cache localStorage reads in memory
+// to avoid expensive synchronous I/O operations
+
+const storageCache = new Map<string, string | null>();
+
+// Invalidate cache on external changes (other tabs)
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key) {
+      storageCache.delete(e.key);
+    }
+  });
+
+  // Clear cache when tab becomes visible (in case storage changed)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      storageCache.clear();
+    }
+  });
+}
+
+/**
+ * Get item from localStorage with in-memory caching
+ * @param key - localStorage key
+ * @returns cached value or null
+ */
+function getCachedLocalStorage(key: string): string | null {
+  if (!storageCache.has(key)) {
+    try {
+      storageCache.set(key, localStorage.getItem(key));
+    } catch (error) {
+      console.error('Error reading from localStorage:', error);
+      return null;
+    }
+  }
+  return storageCache.get(key) ?? null;
+}
+
+/**
+ * Set item in localStorage and update cache
+ * @param key - localStorage key
+ * @param value - value to store
+ */
+function setCachedLocalStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+    storageCache.set(key, value); // Keep cache in sync
+  } catch (error) {
+    console.error('Error writing to localStorage:', error);
+  }
+}
+
+/**
+ * Remove item from localStorage and cache
+ * @param key - localStorage key
+ */
+function removeCachedLocalStorage(key: string): void {
+  try {
+    localStorage.removeItem(key);
+    storageCache.delete(key);
+  } catch (error) {
+    console.error('Error removing from localStorage:', error);
+  }
+}
 
 interface VerseData {
   verse: number;
@@ -48,7 +119,7 @@ interface TranslationCache {
 
 export const getVerseCache = (): VerseCache => {
   try {
-    const cache = localStorage.getItem(VERSE_CACHE_KEY);
+    const cache = getCachedLocalStorage(VERSE_CACHE_KEY);
     return cache ? JSON.parse(cache) : {};
   } catch (error) {
     console.error('Error reading verse cache:', error);
@@ -58,7 +129,7 @@ export const getVerseCache = (): VerseCache => {
 
 export const getVerseCacheMetadata = (): VerseCacheMetadata => {
   try {
-    const metadata = localStorage.getItem(VERSE_CACHE_METADATA_KEY);
+    const metadata = getCachedLocalStorage(VERSE_CACHE_METADATA_KEY);
     return metadata
       ? JSON.parse(metadata)
       : { totalVerses: 0, lruQueue: [] };
@@ -73,8 +144,8 @@ export const setVerseCache = (
   metadata: VerseCacheMetadata
 ) => {
   try {
-    localStorage.setItem(VERSE_CACHE_KEY, JSON.stringify(cache));
-    localStorage.setItem(
+    setCachedLocalStorage(VERSE_CACHE_KEY, JSON.stringify(cache));
+    setCachedLocalStorage(
       VERSE_CACHE_METADATA_KEY,
       JSON.stringify(metadata)
     );
@@ -170,8 +241,8 @@ export const cacheVerses = (
 };
 
 export const clearVerseCache = () => {
-  localStorage.removeItem(VERSE_CACHE_KEY);
-  localStorage.removeItem(VERSE_CACHE_METADATA_KEY);
+  removeCachedLocalStorage(VERSE_CACHE_KEY);
+  removeCachedLocalStorage(VERSE_CACHE_METADATA_KEY);
 };
 
 // ============================================
@@ -182,7 +253,7 @@ export const getCachedTranslations = (
   languageIso: string
 ): Translation[] | null => {
   try {
-    const cacheStr = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    const cacheStr = getCachedLocalStorage(TRANSLATION_CACHE_KEY);
     if (!cacheStr) return null;
 
     const cache: TranslationCache = JSON.parse(cacheStr);
@@ -198,10 +269,10 @@ export const cacheTranslations = (
   translations: Translation[]
 ) => {
   try {
-    const cacheStr = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    const cacheStr = getCachedLocalStorage(TRANSLATION_CACHE_KEY);
     const cache: TranslationCache = cacheStr ? JSON.parse(cacheStr) : {};
     cache[languageIso] = translations;
-    localStorage.setItem(TRANSLATION_CACHE_KEY, JSON.stringify(cache));
+    setCachedLocalStorage(TRANSLATION_CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
     console.error('Error writing translation cache:', error);
   }
@@ -213,7 +284,7 @@ export const cacheTranslations = (
 
 export const getAudioCache = (): AudioCache => {
   try {
-    const cache = localStorage.getItem(AUDIO_CACHE_KEY);
+    const cache = getCachedLocalStorage(AUDIO_CACHE_KEY);
     return cache ? JSON.parse(cache) : {};
   } catch (error) {
     console.error('Error reading audio cache:', error);
@@ -223,7 +294,7 @@ export const getAudioCache = (): AudioCache => {
 
 export const setAudioCache = (cache: AudioCache) => {
   try {
-    localStorage.setItem(AUDIO_CACHE_KEY, JSON.stringify(cache));
+    setCachedLocalStorage(AUDIO_CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
     console.error('Error writing audio cache:', error);
   }
@@ -285,7 +356,7 @@ export const cacheAudioUrl = (
 };
 
 export const clearAudioCache = () => {
-  localStorage.removeItem(AUDIO_CACHE_KEY);
+  removeCachedLocalStorage(AUDIO_CACHE_KEY);
 };
 
 export const clearExpiredAudioUrls = () => {
