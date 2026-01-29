@@ -11,15 +11,19 @@ export const handlers = [
 
     // Check if it's an audio request (audio filesets are suffixed with 'DA')
     if (filesetId && filesetId.endsWith('DA')) {
+      // This is the success case for audio URLs
       return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
-    } 
+    }
 
     // Otherwise, assume it's a verse request
-    // Return John 3:16 for integration tests
-    return HttpResponse.json({ 
+    // This is the success case for verses
+    return HttpResponse.json({
       verses: [
-        { verse: 16, text: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.' }
-      ] 
+        {
+          verse: 16,
+          text: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.',
+        },
+      ],
     });
   }),
 
@@ -70,17 +74,4 @@ export const handlers = [
   }),
 ];
 
-// --- Special Handlers for Specific Test Cases ---
-// This handler is for the error case only - it checks for audio filesets
-export const audioErrorHandler = http.get(`${API_URL}/bible`, ({ request }) => {
-  const url = new URL(request.url);
-  const filesetId = url.searchParams.get('fileset_id');
-  
-  // Only match audio requests (ending with 'DA')
-  if (filesetId && filesetId.endsWith('DA')) {
-    return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
-  }
-  
-  // Pass through to default handler for non-audio requests
-  return HttpResponse.json({ verses: [{ verse: 1, text: 'In the beginning...' }] });
-});
+

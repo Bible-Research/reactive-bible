@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
+import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
-import { audioErrorHandler } from './mocks/handlers';
+
+const API_URL = 'https://bibleresearchapi.vercel.app/api/v1';
 
 describe('API Functions', () => {
   beforeEach(() => {
@@ -82,12 +84,27 @@ describe('API Functions', () => {
     });
 
     it('should throw an error if the fetch response is not ok', async () => {
+      // Use a specific handler that returns 404 for a specific fileset
+      server.use(
+        http.get(`${API_URL}/bible`, ({ request }) => {
+          const url = new URL(request.url);
+          const filesetId = url.searchParams.get('fileset_id');
+          
+          // Only return 404 for this specific test case
+          if (filesetId === 'ERRORTEST') {
+            return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
+          }
+          
+          // Let other requests pass through to default handler
+          return;
+        })
+      );
+
       // Clear the cache to ensure the API is actually called
       localStorage.clear();
-      server.use(audioErrorHandler);
 
-      await expect(api.getBibleAudioUrl('Genesis', 1, 'ESVDA')).rejects.toThrow(
-        'Failed to fetch audio for ESVDA: Not Found'
+      await expect(api.getBibleAudioUrl('Genesis', 1, 'ERRORTEST')).rejects.toThrow(
+        'Failed to fetch audio for ERRORTEST: Not Found'
       );
     });
   });
