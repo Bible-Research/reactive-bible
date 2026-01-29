@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { ScrollArea, Center, Loader, Box } from "@mantine/core";
 import { useBibleStore } from "../store";
 import {
@@ -7,17 +7,25 @@ import {
   prefetchAdjacentChapters,
 } from "../api";
 import Verse from "./Verse";
+import { shallow } from 'zustand/shallow';
 
 const PassageView = () => {
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
-  const activeTextFilesetId = useBibleStore(
-    (state) => state.activeTextFilesetId
+  const {
+    activeBook,
+    activeChapter,
+    activeTextFilesetId,
+    activeAudioFilesetId,
+    showAudioPlayer,
+  } = useBibleStore(
+    (state) => ({
+      activeBook: state.activeBook,
+      activeChapter: state.activeChapter,
+      activeTextFilesetId: state.activeTextFilesetId,
+      activeAudioFilesetId: state.activeAudioFilesetId,
+      showAudioPlayer: state.showAudioPlayer,
+    }),
+    shallow
   );
-  const activeAudioFilesetId = useBibleStore(
-    (state) => state.activeAudioFilesetId
-  );
-  const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const [verses, setVerses] = useState<{ verse: number; text: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -68,4 +76,4 @@ const PassageView = () => {
   );
 };
 
-export default PassageView;
+export default React.memo(PassageView);
