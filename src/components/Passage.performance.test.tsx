@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import Passage from './Passage';
 import { useBibleStore } from '../store';
@@ -103,8 +103,10 @@ describe('Passage Component Performance Tests', () => {
 
       // Simulate rapid navigation (100 chapter changes)
       for (let i = 1; i <= 100; i++) {
-        useBibleStore.setState({
-          activeChapter: i % 50 + 1,
+        act(() => {
+          useBibleStore.setState({
+            activeChapter: i % 50 + 1,
+          });
         });
       }
 
@@ -130,11 +132,13 @@ describe('Passage Component Performance Tests', () => {
       // Simulate multiple verse navigation calls
       const iterations = 50;
       for (let i = 0; i < iterations; i++) {
-        useBibleStore.setState({
-          activeBook: 'Genesis',
-          activeBookShort: 'GEN',
-          activeChapter: (i % 50) + 1,
-          activeVerses: [i % 31 + 1],
+        act(() => {
+          useBibleStore.setState({
+            activeBook: 'Genesis',
+            activeBookShort: 'GEN',
+            activeChapter: (i % 50) + 1,
+            activeVerses: [i % 31 + 1],
+          });
         });
       }
 
