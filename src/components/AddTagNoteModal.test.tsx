@@ -1,38 +1,19 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import React from 'react';
+import { screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import AddTagNoteModal from './AddTagNoteModal';
-import { useBibleStore } from '../store';
+import { renderWithProviders } from '../__tests__/helpers';
 import * as api from '../api';
 
-// Mock API
+// Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
   getTags: vi.fn(),
   addTagNote: vi.fn(),
 }));
 
-// Mock NoteForm component
-vi.mock('./NoteForm', () => ({
-  default: ({ onSubmit }: any) => (
-    <div data-testid="note-form">
-      <button onClick={() => onSubmit('tag1', 'Test note')}>
-        Submit
-      </button>
-    </div>
-  ),
-}));
-
-const initialStoreState = useBibleStore.getState();
-
 describe('AddTagNoteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useBibleStore.setState({
-      ...initialStoreState,
-      activeVerses: [1, 2],
-      activeBook: 'Genesis',
-      activeChapter: 1,
-      setActiveVerses: vi.fn(),
-    });
 
     (api.getTags as vi.Mock).mockResolvedValue([
       { id: '1', name: 'Faith', parent_tag: null,
@@ -40,24 +21,19 @@ describe('AddTagNoteModal Component', () => {
     ]);
   });
 
-  afterEach(async () => {
-    // Wait for any pending state updates to complete
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-  });
-
-  it('should not render when closed', async () => {
-    await act(async () => {
-      render(<AddTagNoteModal opened={false} onClose={vi.fn()} />);
-    });
+  it('should not render when closed', () => {
+    renderWithProviders(
+      <AddTagNoteModal opened={false} onClose={vi.fn()} />,
+      { storeOverrides: { activeVerses: [1, 2], activeBook: 'Genesis', activeChapter: 1 } }
+    );
     expect(screen.queryByText('Add note')).not.toBeInTheDocument();
   });
 
   it('should render when opened', async () => {
-    await act(async () => {
-      render(<AddTagNoteModal opened={true} onClose={vi.fn()} />);
-    });
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      { storeOverrides: { activeVerses: [1, 2], activeBook: 'Genesis', activeChapter: 1 } }
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Add note')).toBeInTheDocument();
@@ -65,12 +41,14 @@ describe('AddTagNoteModal Component', () => {
   });
 
   it('should render NoteForm when opened', async () => {
-    await act(async () => {
-      render(<AddTagNoteModal opened={true} onClose={vi.fn()} />);
-    });
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      { storeOverrides: { activeVerses: [1, 2], activeBook: 'Genesis', activeChapter: 1 } }
+    );
 
     await waitFor(() => {
-      expect(screen.getByTestId('note-form')).toBeInTheDocument();
+      // Check for NoteForm elements instead of test-id
+      expect(screen.getByLabelText('Note')).toBeInTheDocument();
     });
   });
 

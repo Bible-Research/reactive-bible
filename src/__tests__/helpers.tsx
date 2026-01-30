@@ -6,6 +6,12 @@ import { useBibleStore, initialState } from '../store';
 // Re-export mock data for convenience
 export * from './mocks/data';
 
+// Re-export factories for easy access
+export * from './helpers/factories';
+
+// Re-export performance helpers
+export * from './helpers/performance';
+
 // --- Store Helpers ---
 
 /**
