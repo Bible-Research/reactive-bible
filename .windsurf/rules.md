@@ -33,7 +33,14 @@ Follow the conventional commit format with an **UPPERCASE type and a capitalized
 
 ---
 
-## 3. Documentation (CRITICAL)
+## 3. Git Workflow
+
+- **Commit frequently**: After completing a logical unit of work (e.g., a single step in a plan), create a git commit. This keeps the project history clean and easy to follow.
+- **Never commit to `main`**: All changes must be made on a feature branch. The `main` branch should only be updated through pull requests.
+
+---
+
+## 4. Documentation (CRITICAL)
 
 **After ANY functionality change, you MUST update `DEVELOPER_GUIDE.md`**.
 
@@ -41,11 +48,13 @@ This is the most important rule. The developer guide must always be the single s
 
 ---
 
-## 4. Testing
+## 5. Testing
 
 - After making code changes, run tests relevant to the modified files to ensure your changes are safe.
 - For example, if you edit a component, run its corresponding test file.
-- Before submitting a pull request, run the full test suite (`npm test`) to catch any unintended side effects.
+- Before submitting a pull request, run the full test suite to catch any unintended side effects.
+- **ALWAYS run tests in headless CI mode**: Use `npm test -- --run` to ensure tests execute once and exit without watching for changes. This prevents the terminal from hanging and ensures tests run in a headless environment where no UI is rendered.
+- **Never use `npm test` alone**: Always include the `-- --run` flag to run tests in CI mode.
 
 ---
 

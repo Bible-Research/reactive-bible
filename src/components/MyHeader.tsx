@@ -45,6 +45,7 @@ const MyHeader = ({
               size="sm"
               color={theme.colors.gray[6]}
               mr="xs"
+              title={opened ? 'Close navigation' : 'Open navigation'}
             />
           </MediaQuery>
           <Title
