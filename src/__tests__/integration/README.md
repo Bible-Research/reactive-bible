@@ -13,3 +13,4 @@ working together.
 ## Examples
 
 - `notes-workflow.test.tsx` - Complete notes CRUD workflow
+- `parallel-async.test.tsx` - Parallel data fetching and Vercel best practices
