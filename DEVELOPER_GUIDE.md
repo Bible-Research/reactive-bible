@@ -71,8 +71,9 @@ audio playback, verse tagging, and advanced search capabilities.
 - `npm run build` - Build for production (TypeScript compilation + Vite build)
 - `npm run preview` - Preview production build locally
 - `npm run lint` - Run ESLint to check code quality
-- `npm test` - Run tests with Vitest UI
-- `npm run coverage` - Generate test coverage report
+- `npm test` - Run tests in headless mode
+- `npm run test:ui` - Run tests with the interactive Vitest UI
+- `npm run coverage` - Generate a test coverage report
 
 ### Project Structure
 
@@ -378,7 +379,7 @@ src/__tests__/integration/
 
 ```bash
 # Run the full test suite in headless CI mode
-npm test -- --run
+npm test
 
 # Run a specific test file
 npm test -- src/components/Button.test.tsx --run
@@ -387,7 +388,7 @@ npm test -- src/components/Button.test.tsx --run
 npm test -- --run --coverage
 ```
 
-**⚠️ IMPORTANT**: Never use `npm test` alone without the `-- --run` flag, as this will start the test runner in watch mode and may not use the correct headless environment settings.
+**⚠️ IMPORTANT**: Use `npm run test:ui` to run tests in watch mode with the interactive UI. Use `npm test` for a single, headless run, which is suitable for CI environments.
 
 ### Test Configuration
 
@@ -2492,7 +2493,7 @@ The verse cache is limited to 500 verses for **copyright compliance**:
 
 **Verse Cache** (`localStorage`):
 - **Limit**: 500 verses (LRU eviction)
-- **Key**: `{filesetId}:{book}:{chapter}:{verse}`
+- **Key**: `{filesetId}:{book}:{chapter}`
 - **Metadata**: Access count, timestamp, LRU queue
 - **Purpose**: Reduce API calls, faster navigation
 
