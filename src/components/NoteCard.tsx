@@ -33,7 +33,7 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
         >
           View in Bible
         </Button>
-        <span>
+        <Group>
           <Button
             variant="subtle"
             size="xs"
@@ -51,7 +51,7 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
           >
             Remove
           </Button>
-        </span>
+        </Group>
       </Group>
 
       {note?.verses?.map(v => (

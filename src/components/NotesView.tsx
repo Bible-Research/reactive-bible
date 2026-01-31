@@ -82,7 +82,6 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
     if(note.id) {   
       if(window.confirm('Are you sure you want to delete this note?'))    
         await deleteNote(note.id);
-      else false;
       fetchNotes();
     }
   }
