@@ -1,5 +1,6 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import { useBibleStore, initialState } from '../store';
 
@@ -124,6 +125,7 @@ export function createMockLocalStorage() {
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   storeOverrides?: Partial<typeof initialState>;
+  initialRoutes?: string[];
 }
 
 /**
@@ -134,7 +136,7 @@ export function renderWithProviders(
   ui: ReactElement,
   options: ExtendedRenderOptions = {}
 ) {
-  const { storeOverrides, ...renderOptions } = options;
+  const { storeOverrides, initialRoutes, ...renderOptions } = options;
 
   // Reset store with any overrides
   const mockStore = resetStore(storeOverrides);
@@ -142,7 +144,14 @@ export function renderWithProviders(
   // Mock DOM APIs
   mockDomApis();
 
-  const result = render(ui, renderOptions);
+  // Wrap in MemoryRouter if routes are provided
+  const wrapped = initialRoutes ? (
+    <MemoryRouter initialEntries={initialRoutes}>
+      {ui}
+    </MemoryRouter>
+  ) : ui;
+
+  const result = render(wrapped, renderOptions);
 
   return {
     ...result,
