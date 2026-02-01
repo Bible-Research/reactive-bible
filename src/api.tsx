@@ -172,6 +172,53 @@ export const getTags = async (): Promise<Tag[]> => {
   }
 };
 
+export const getTag = async (tagId: string): Promise<Tag> => {
+  const url = `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('Tag not found');
+    }
+    throw new Error('Failed to fetch tag');
+  }
+  return await response.json();
+};
+
+export const createTag = async (
+  name: string,
+  parentTagId?: string | null
+): Promise<Tag> => {
+  const url = 'https://bibleresearchapi.vercel.app/api/v1/tags/';
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parent_tag: parentTagId || null }),
+  });
+  if (!response.ok) throw new Error('Failed to create tag');
+  return await response.json();
+};
+
+export const updateTag = async (
+  tagId: string,
+  name: string,
+  parentTagId?: string | null
+): Promise<Tag> => {
+  const url = `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`;
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parent_tag: parentTagId || null }),
+  });
+  if (!response.ok) throw new Error('Failed to update tag');
+  return await response.json();
+};
+
+export const deleteTag = async (tagId: string): Promise<void> => {
+  const url = `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`;
+  const response = await fetch(url, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Failed to delete tag');
+};
+
 // ============================================
 // TRANSLATION FUNCTIONS
 // ============================================

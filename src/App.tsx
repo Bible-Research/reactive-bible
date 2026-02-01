@@ -15,6 +15,10 @@ import NotesListRoute from "./routes/NotesListRoute";
 import NoteDetailRoute from "./routes/NoteDetailRoute";
 import NoteEditRoute from "./routes/NoteEditRoute";
 import NoteCreateRoute from "./routes/NoteCreateRoute";
+import TagsListRoute from "./routes/TagsListRoute";
+import TagDetailRoute from "./routes/TagDetailRoute";
+import TagEditRoute from "./routes/TagEditRoute";
+import TagCreateRoute from "./routes/TagCreateRoute";
 import ErrorPage from "./routes/ErrorPage";
 
 // Define routes
@@ -55,6 +59,22 @@ const router = createBrowserRouter([
       {
         path: "notes/:noteId/edit",
         element: <NoteEditRoute />,
+      },
+      {
+        path: "tags",
+        element: <TagsListRoute />,
+      },
+      {
+        path: "tags/new",
+        element: <TagCreateRoute />,
+      },
+      {
+        path: "tags/:tagId",
+        element: <TagDetailRoute />,
+      },
+      {
+        path: "tags/:tagId/edit",
+        element: <TagEditRoute />,
       },
     ],
   },
