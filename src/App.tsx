@@ -11,6 +11,8 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import RootLayout from "./routes/RootLayout";
 import BibleRoute from "./routes/BibleRoute";
+import NotesListRoute from "./routes/NotesListRoute";
+import NoteDetailRoute from "./routes/NoteDetailRoute";
 import ErrorPage from "./routes/ErrorPage";
 
 // Define routes
@@ -35,6 +37,14 @@ const router = createBrowserRouter([
       {
         path: "bible/:book/:chapter/:verse",
         element: <BibleRoute />,
+      },
+      {
+        path: "notes",
+        element: <NotesListRoute />,
+      },
+      {
+        path: "notes/:noteId",
+        element: <NoteDetailRoute />,
       },
     ],
   },

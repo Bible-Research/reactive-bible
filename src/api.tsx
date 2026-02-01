@@ -467,3 +467,15 @@ export const getNotes = async (tagId?: string): Promise<Note[]> => {
   if (!response.ok) throw new Error('Failed to fetch notes');
   return await response.json();
 };
+
+export const getNote = async (noteId: string): Promise<Note> => {
+  const url = `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error('Note not found');
+    }
+    throw new Error('Failed to fetch note');
+  }
+  return await response.json();
+};
