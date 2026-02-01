@@ -479,3 +479,32 @@ export const getNote = async (noteId: string): Promise<Note> => {
   }
   return await response.json();
 };
+
+export const updateNote = async (
+  noteId: string,
+  tagId: string,
+  noteText: string,
+  verseReferences?: { book: string; chapter: number; verse: number }[]
+): Promise<Note> => {
+  const body: {
+    tag: string;
+    note_text: string;
+    verse_references?: { book: string; chapter: number; verse: number }[];
+  } = {
+    tag: tagId,
+    note_text: noteText,
+  };
+  
+  if (verseReferences && verseReferences.length > 0) {
+    body.verse_references = verseReferences;
+  }
+  
+  const url = `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`;
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error('Failed to update note');
+  return await response.json();
+};

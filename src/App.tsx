@@ -13,6 +13,8 @@ import RootLayout from "./routes/RootLayout";
 import BibleRoute from "./routes/BibleRoute";
 import NotesListRoute from "./routes/NotesListRoute";
 import NoteDetailRoute from "./routes/NoteDetailRoute";
+import NoteEditRoute from "./routes/NoteEditRoute";
+import NoteCreateRoute from "./routes/NoteCreateRoute";
 import ErrorPage from "./routes/ErrorPage";
 
 // Define routes
@@ -43,8 +45,16 @@ const router = createBrowserRouter([
         element: <NotesListRoute />,
       },
       {
+        path: "notes/new",
+        element: <NoteCreateRoute />,
+      },
+      {
         path: "notes/:noteId",
         element: <NoteDetailRoute />,
+      },
+      {
+        path: "notes/:noteId/edit",
+        element: <NoteEditRoute />,
       },
     ],
   },
