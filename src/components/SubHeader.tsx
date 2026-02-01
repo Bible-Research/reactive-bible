@@ -3,23 +3,21 @@ import { IconArrowLeft, IconArrowRight, IconSearch } from "@tabler/icons-react";
 import { Button } from "@mantine/core";
 import { useBibleStore } from "../store";
 import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { getPassage } from "../api";
 import AddTagNoteModal from "./AddTagNoteModal";
 import Audio from "./Audio";
 
 interface SubHeaderProps {
-  open: () => void;
-  showNotes: boolean;
-  setShowNotes: (show: boolean) => void;
+  open?: () => void;
 }
 
-const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
+const SubHeader = ({ open }: SubHeaderProps) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
-  const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
-  const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const getPassageResult = getPassage();
   const [opened, setOpened] = useState(false);
   const checkNext = (): number | null => {
@@ -40,9 +38,7 @@ const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
     if (getPassageResult) {
       const next = getPassageResult[index + 1];
       if (next !== null) {
-        setActiveBookOnly(next.book_name);
-        setActiveBookShort(next.book_id);
-        setActiveChapter(next.chapter);
+        navigate(`/bible/${next.book_id}/${next.chapter}`);
       }
     }
   };
@@ -52,9 +48,7 @@ const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
     if (getPassageResult) {
       const prev = getPassageResult[index - 1];
       if (prev !== null) {
-        setActiveBookOnly(prev.book_name);
-        setActiveBookShort(prev.book_id);
-        setActiveChapter(prev.chapter);
+        navigate(`/bible/${prev.book_id}/${prev.chapter}`);
       }
     }
   };
@@ -77,17 +71,22 @@ const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
       >
         <IconArrowLeft size={rem(20)} />
       </ActionIcon>
-      <ActionIcon variant="transparent" onClick={open}>
-        <IconSearch size={rem(20)} />
-      </ActionIcon>
+      {open && (
+        <ActionIcon variant="transparent" onClick={open}>
+          <IconSearch size={rem(20)} />
+        </ActionIcon>
+      )}
       <Title order={4}>
         {activeBookShort} {activeChapter}
       </Title>
       <Button
         variant="transparent"
-        onClick={() => setShowNotes(!showNotes)}
+        onClick={() => {
+          const isNotesView = location.pathname.startsWith("/notes");
+          navigate(isNotesView ? `/bible/${activeBookShort}/${activeChapter}` : "/notes");
+        }}
       >
-        {showNotes ? "Bible" : "Notes"}
+        {location.pathname.startsWith("/notes") ? "Bible" : "Notes"}
       </Button>
       <Button variant="transparent" onClick={() => setOpened(true)}>
         Add Note

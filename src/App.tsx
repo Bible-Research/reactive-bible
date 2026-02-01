@@ -1,78 +1,66 @@
+import { MantineProvider, ColorSchemeProvider } from "@mantine/core";
+import { useLocalStorage } from "@mantine/hooks";
+import { useEffect } from "react";
 import {
-  AppShell,
-  MantineProvider,
-  ColorSchemeProvider,
-  ColorScheme,
-} from "@mantine/core";
-import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
-import MyNavbar from "./components/MyNavbar";
-import MyHeader from "./components/MyHeader";
-import { useState, useEffect } from "react";
-import Passage from "./components/Passage";
-import { SearchModal } from "./components/SearchModal";
-import { clearExpiredAudioUrls } from "./utils/cacheManager";
+  createBrowserRouter,
+  RouterProvider,
+  Navigate,
+} from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { clearExpiredAudioUrls } from "./utils/cacheManager";
+import RootLayout from "./routes/RootLayout";
+import BibleRoute from "./routes/BibleRoute";
+import ErrorPage from "./routes/ErrorPage";
+
+// Define routes
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <RootLayout />,
+    errorElement: <ErrorPage />,
+    children: [
+      {
+        index: true,
+        element: <Navigate to="/bible" replace />,
+      },
+      {
+        path: "bible",
+        element: <BibleRoute />,
+      },
+      {
+        path: "bible/:book/:chapter",
+        element: <BibleRoute />,
+      },
+      {
+        path: "bible/:book/:chapter/:verse",
+        element: <BibleRoute />,
+      },
+    ],
+  },
+]);
 
 export default function App() {
-  const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
-    key: "color-scheme",
-    defaultValue: "dark",
-  });
-  const toggleColorScheme = () =>
-    setColorScheme((current) => (current === "dark" ? "light" : "dark"));
-  const [opened, setOpened] = useState(false);
-  const [modalOpened, modalFn] = useDisclosure(false);
-
   // Clean up expired audio URLs on app load
   useEffect(() => {
     clearExpiredAudioUrls();
   }, []);
-  useWindowEvent("keydown", (event) => {
-    if (event.key === "/") {
-      event.preventDefault();
-      modalFn.open();
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      modalFn.close();
-    }
+
+  // Color scheme is now managed in RootLayout, but we need
+  // MantineProvider at the top level
+  const [colorScheme] = useLocalStorage({
+    key: "color-scheme",
+    defaultValue: "dark" as const,
   });
+
   return (
-    <ColorSchemeProvider
-      colorScheme={colorScheme}
-      toggleColorScheme={toggleColorScheme}
-    >
+    <ColorSchemeProvider colorScheme={colorScheme} toggleColorScheme={() => {}}>
       <MantineProvider
         theme={{ colorScheme }}
         withGlobalStyles
         withNormalizeCSS
       >
-        <AppShell
-          padding="md"
-          navbar={<MyNavbar opened={opened} setOpened={setOpened} />}
-          header={
-            <MyHeader
-              colorScheme={colorScheme}
-              toggleColorScheme={toggleColorScheme}
-              opened={opened}
-              setOpened={setOpened}
-              open={modalFn.open}
-            />
-          }
-          styles={(theme) => ({
-            main: {
-              backgroundColor:
-                theme.colorScheme === "dark"
-                  ? theme.colors.dark[8]
-                  : theme.colors.gray[0],
-              height: "100vh",
-            },
-          })}
-        >
-          <Passage open={modalFn.open} />
-          <SearchModal opened={modalOpened} close={modalFn.close} />
-        </AppShell>
+        <RouterProvider router={router} />
         <Analytics />
         <SpeedInsights />
       </MantineProvider>

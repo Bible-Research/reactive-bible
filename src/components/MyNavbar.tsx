@@ -1,4 +1,5 @@
 import { Box, Navbar, ScrollArea, createStyles, rem } from "@mantine/core";
+import { Link } from "react-router-dom";
 import { getBooks, getChapters, getVerses } from "../api";
 import { useBibleStore } from "../store";
 
@@ -54,12 +55,9 @@ const MyNavbar = ({
 }) => {
   const { classes, cx } = useStyles();
   const activeBook = useBibleStore((state) => state.activeBook);
+  const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeVerses = useBibleStore((state) => state.activeVerses);
-  const setActiveBook = useBibleStore((state) => state.setActiveBook);
-  const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
 
   return (
     <Navbar
@@ -76,62 +74,49 @@ const MyNavbar = ({
         <Box style={{ flex: "0 0 185px" }}>
           <ScrollArea h="88vh" className={classes.border}>
             {getBooks().map((book) => (
-              <a
+              <Link
                 className={cx(classes.link, {
                   [classes.linkActive]: activeBook === book.book_name,
                 })}
-                href="/"
-                onClick={(event) => {
-                  event.preventDefault();
-                  setActiveBook(book.book_name);
-                  setActiveBookShort(book.book_id);
-                }}
+                to={`/bible/${book.book_id}/${activeChapter}`}
                 key={book.book_id}
                 title={"nav-book-" + book.book_id}
               >
                 {book.book_name}
-              </a>
+              </Link>
             ))}
           </ScrollArea>
         </Box>
         <Box style={{ flex: "1 0 60px" }}>
           <ScrollArea h="88vh" className={classes.border}>
             {getChapters(activeBook).map((chapter) => (
-              <a
+              <Link
                 className={cx(classes.link, {
                   [classes.linkActive]: activeChapter === chapter,
                 })}
-                href="/"
-                onClick={(event) => {
-                  event.preventDefault();
-                  setActiveChapter(chapter);
-                }}
+                to={`/bible/${activeBookShort}/${chapter}`}
                 key={chapter}
                 title={"nav-chapter-" + chapter}
               >
                 {chapter}
-              </a>
+              </Link>
             ))}
           </ScrollArea>
         </Box>
         <Box style={{ flex: "1 0 60px" }}>
           <ScrollArea h="88vh">
             {getVerses(activeBook, activeChapter).map((verse) => (
-              <a
+              <Link
                 className={cx(classes.link, {
                   [classes.linkActive]: activeVerses.includes(verse),
                 })}
-                href="/"
-                onClick={(event) => {
-                  event.preventDefault();
-                  setActiveVerses([verse]);
-                  setOpened(false);
-                }}
+                to={`/bible/${activeBookShort}/${activeChapter}/${verse}`}
+                onClick={() => setOpened(false)}
                 key={verse}
                 title={"nav-verse-" + verse}
               >
                 {verse}
-              </a>
+              </Link>
             ))}
           </ScrollArea>
         </Box>
