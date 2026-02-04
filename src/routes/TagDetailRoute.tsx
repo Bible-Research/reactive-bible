@@ -13,6 +13,8 @@ import {
   ActionIcon,
   Divider,
   Badge,
+  Breadcrumbs,
+  Anchor,
 } from "@mantine/core";
 import {
   IconEdit,
@@ -30,6 +32,26 @@ export default function TagDetailRoute() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [breadcrumbs, setBreadcrumbs] = useState<Tag[]>([]);
+
+  // Function to build tag hierarchy
+  const buildBreadcrumbs = async (currentTag: Tag) => {
+    const crumbs: Tag[] = [currentTag];
+    let parent = currentTag.parent_tag;
+
+    while (parent) {
+      try {
+        const parentTag = await getTag(parent);
+        crumbs.unshift(parentTag);
+        parent = parentTag.parent_tag;
+      } catch (err) {
+        console.error('Failed to fetch parent tag:', err);
+        break;
+      }
+    }
+
+    setBreadcrumbs(crumbs);
+  };
 
   useEffect(() => {
     if (!tagId) return;
@@ -44,6 +66,7 @@ export default function TagDetailRoute() {
         ]);
         setTag(fetchedTag);
         setNotes(fetchedNotes);
+        await buildBreadcrumbs(fetchedTag);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load tag"
@@ -98,7 +121,23 @@ export default function TagDetailRoute() {
             <ActionIcon onClick={() => navigate("/tags")}>
               <IconArrowLeft size={18} />
             </ActionIcon>
-            <Title order={2}>{tag.name}</Title>
+            <Box>
+              <Breadcrumbs separator="→" mb="xs">
+                {breadcrumbs.map((t, index) => (
+                  <Anchor
+                    key={t.id}
+                    onClick={() => navigate(`/tags/${t.id}`)}
+                    style={{
+                      cursor: 'pointer',
+                      fontWeight: index === breadcrumbs.length - 1 ? 'bold' : 'normal',
+                    }}
+                  >
+                    {t.name}
+                  </Anchor>
+                ))}
+              </Breadcrumbs>
+              <Title order={2}>{tag.name}</Title>
+            </Box>
           </Group>
           <Group>
             <ActionIcon
