@@ -555,3 +555,24 @@ export const updateNote = async (
   if (!response.ok) throw new Error('Failed to update note');
   return await response.json();
 };
+
+export const getPublicNotes = async (): Promise<Note[]> => {
+  const url = 'https://bibleresearchapi.vercel.app/api/v1/notes/public/';
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to fetch public notes');
+  return await response.json();
+};
+
+export const searchNotes = async (
+  query: string,
+  tagId?: string
+): Promise<Note[]> => {
+  const params = new URLSearchParams({ q: query });
+  if (tagId) {
+    params.append('tag_id', tagId);
+  }
+  const url = `https://bibleresearchapi.vercel.app/api/v1/notes/search/?${params.toString()}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to search notes');
+  return await response.json();
+};

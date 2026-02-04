@@ -73,6 +73,9 @@ const MyNavbar = ({
       <Navbar.Section style={{ display: "flex" }}>
         <Box style={{ flex: "0 0 185px" }}>
           <ScrollArea h="88vh" className={classes.border}>
+            <Link to="/notes/public" className={classes.link}>
+              Public Notes
+            </Link>
             {getBooks().map((book) => (
               <Link
                 className={cx(classes.link, {

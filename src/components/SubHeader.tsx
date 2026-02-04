@@ -88,6 +88,9 @@ const SubHeader = ({ open }: SubHeaderProps) => {
       >
         {location.pathname.startsWith("/notes") ? "Bible" : "Notes"}
       </Button>
+      <Button variant="transparent" onClick={() => navigate("/notes/search")}>
+        Search
+      </Button>
       <Button variant="transparent" onClick={() => setOpened(true)}>
         Add Note
       </Button>
