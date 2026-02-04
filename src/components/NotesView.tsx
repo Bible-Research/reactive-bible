@@ -77,12 +77,14 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
     }
   };
 
+  // Handle delete note
   const handleDeleteNote = async (evt: MouseEvent<HTMLButtonElement>, note: Note) => {
     evt.preventDefault();
     if(note.id) {   
-      if(window.confirm('Are you sure you want to delete this note?'))    
+      if(window.confirm('Are you sure you want to delete this note?')) {
         await deleteNote(note.id);
-      fetchNotes();
+        fetchNotes();
+      }
     }
   }
 
