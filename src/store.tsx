@@ -30,6 +30,7 @@ interface BibleState {
   activeTextFilesetId: string | null;
   activeAudioFilesetId: string | null;
   notes: Note[];
+  allNotes: Note[];
   allNotesFetched: boolean;
   showNotes: boolean;
   setActiveBook: (activeBook: string) => void;
@@ -44,6 +45,7 @@ interface BibleState {
   setActiveTextFilesetId: (id: string | null) => void;
   setActiveAudioFilesetId: (id: string | null) => void;
   fetchNotes: (tagId?: string) => Promise<void>;
+  fetchAllNotes: () => Promise<void>;
   setShowNotes: (show: boolean) => void;
 }
 
@@ -60,6 +62,7 @@ export const initialState = {
   activeTextFilesetId: "ENGESH",
   activeAudioFilesetId: "ENGESHN1DA-opus16",
   notes: [],
+  allNotes: [],
   allNotesFetched: false,
   showNotes: false,
 };
@@ -97,6 +100,10 @@ export const useBibleStore = create<BibleState>()(
       fetchNotes: async (tagId?: string) => {
         const notes = await getNotes(tagId);
         set({ notes, allNotesFetched: !tagId });
+      },
+      fetchAllNotes: async () => {
+        const allNotes = await getNotes();
+        set({ allNotes });
       },
       setShowNotes: (showNotes) => set({ showNotes }),
     }),

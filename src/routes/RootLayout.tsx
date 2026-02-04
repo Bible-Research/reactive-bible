@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { AppShell, ColorScheme } from "@mantine/core";
 import { useDisclosure, useWindowEvent, useLocalStorage } from "@mantine/hooks";
 import MyNavbar from "../components/MyNavbar";
 import MyHeader from "../components/MyHeader";
 import { SearchModal } from "../components/SearchModal";
+import { useBibleStore } from "../store";
 
 export default function RootLayout() {
   const [opened, setOpened] = useState(false);
@@ -18,6 +19,12 @@ export default function RootLayout() {
   
   const toggleColorScheme = () =>
     setColorScheme((current) => (current === "dark" ? "light" : "dark"));
+
+  const fetchAllNotes = useBibleStore((state) => state.fetchAllNotes);
+
+  useEffect(() => {
+    fetchAllNotes();
+  }, [fetchAllNotes]);
 
   // Global keyboard shortcuts
   useWindowEvent("keydown", (event) => {

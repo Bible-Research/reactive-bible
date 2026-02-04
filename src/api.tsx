@@ -557,7 +557,7 @@ export const updateNote = async (
 };
 
 export const getPublicNotes = async (): Promise<Note[]> => {
-  const url = 'https://bibleresearchapi.vercel.app/api/v1/notes/public/';
+  const url = 'https://bibleresearchapi.vercel.app/api/v1/notes/?public=true';
   const response = await fetch(url);
   if (!response.ok) throw new Error('Failed to fetch public notes');
   return await response.json();
