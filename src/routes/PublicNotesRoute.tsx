@@ -40,7 +40,7 @@ export default function PublicNotesRoute() {
   if (loading) {
     return (
       <Center h="80vh">
-        <Loader size="lg" />
+        <Loader size="lg" data-testid="loader" />
       </Center>
     );
   }
