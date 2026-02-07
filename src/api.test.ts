@@ -110,7 +110,7 @@ describe('API Functions', () => {
 
     it('should make a DELETE request with note id', async () => {
       const removeNote = await api.deleteNote('abc-123');
-      expect(removeNote).toEqual({ details: 'OK' });
+      expect(removeNote).toBe('Deleted');
     });
   });
 });
