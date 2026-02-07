@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { getNotes } from "./api";
-import { Note } from "./types";
+import * as api from './api';
+import { Note, Tag } from './types';
 
 export interface Fileset {
   id: string;
@@ -29,6 +29,7 @@ interface BibleState {
   translations: Translation[];
   activeTextFilesetId: string | null;
   activeAudioFilesetId: string | null;
+  tags: Tag[];
   notes: Note[];
   allNotesFetched: boolean;
   showNotes: boolean;
@@ -44,6 +45,8 @@ interface BibleState {
   setActiveTextFilesetId: (id: string | null) => void;
   setActiveAudioFilesetId: (id: string | null) => void;
   fetchNotes: (tagId?: string) => Promise<void>;
+  getTags: () => Promise<void>;
+  deleteNote: (noteId: string) => Promise<void>;
   setShowNotes: (show: boolean) => void;
 }
 
@@ -59,7 +62,8 @@ export const initialState = {
   translations: [],
   activeTextFilesetId: "ENGESH",
   activeAudioFilesetId: "ENGESHN1DA-opus16",
-  notes: [],
+  tags: [] as Tag[],
+  notes: [] as Note[],
   allNotesFetched: false,
   showNotes: false,
 };
@@ -95,8 +99,16 @@ export const useBibleStore = create<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string) => {
-        const notes = await getNotes(tagId);
+        const notes = await api.getNotes(tagId);
         set({ notes, allNotesFetched: !tagId });
+      },
+      getTags: async () => {
+        const tags = await api.getTags();
+        set({ tags });
+      },
+      deleteNote: async (noteId: string) => {
+        await api.deleteNote(noteId);
+        set((state) => ({ notes: state.notes.filter((n) => n.id !== noteId) }));
       },
       setShowNotes: (showNotes) => set({ showNotes }),
     }),

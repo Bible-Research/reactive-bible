@@ -89,12 +89,12 @@ describe('API Functions', () => {
         http.get(`${API_URL}/bible`, ({ request }) => {
           const url = new URL(request.url);
           const filesetId = url.searchParams.get('fileset_id');
-          
+
           // Only return 404 for this specific test case
           if (filesetId === 'ERRORTEST') {
             return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
           }
-          
+
           // Let other requests pass through to default handler
           return;
         })
@@ -106,6 +106,11 @@ describe('API Functions', () => {
       await expect(api.getBibleAudioUrl('Genesis', 1, 'ERRORTEST')).rejects.toThrow(
         'Failed to fetch audio for ERRORTEST: Not Found'
       );
+    });
+
+    it('should make a DELETE request with note id', async () => {
+      const removeNote = await api.deleteNote('abc-123');
+      expect(removeNote).toEqual({ details: 'OK' });
     });
   });
 });
