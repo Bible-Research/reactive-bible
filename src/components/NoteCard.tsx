@@ -1,14 +1,17 @@
-import { Card, Title, Text, Button, Group, Box } from "@mantine/core";
+import type { MouseEvent } from "react";
+import { Card, Title, Text, Group, Box } from "@mantine/core";
 import { Note } from "../types";
 import Verse from "./Verse";
+import Button from "./Button";
 
 interface NoteCardProps {
   note: Note;
   onViewInBible: (book: string, chapter: number, verse: number) => void;
   onEdit: (note: Note) => void;
+  onDelete: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
 }
 
-const NoteCard = ({ note, onViewInBible, onEdit }: NoteCardProps) => {  
+const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {  
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
   const book = note?.verses?.[0]?.book || "";
@@ -30,13 +33,25 @@ const NoteCard = ({ note, onViewInBible, onEdit }: NoteCardProps) => {
         >
           View in Bible
         </Button>
-        <Button
-          variant="subtle"
-          size="xs"
-          onClick={() => onEdit(note)}
-        >
-          Edit
-        </Button>
+        <Group>
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={() => onEdit(note)}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={
+              (evt: MouseEvent<HTMLButtonElement>) => 
+                onDelete(evt, note)
+            }
+          >
+            Remove
+          </Button>
+        </Group>
       </Group>
 
       {note?.verses?.map(v => (
