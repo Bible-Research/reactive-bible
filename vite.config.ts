@@ -10,5 +10,9 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: ["src/setupTests.ts"],
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    // Run tests sequentially to prevent memory leaks from compounding
+    maxConcurrency: 1,
+    // Increase timeout to prevent premature termination
+    testTimeout: 30000,
   },
 });
