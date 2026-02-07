@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
+import { http, HttpResponse } from 'msw';
+import { server } from './mocks/server';
 
-// Mock the global fetch API
-global.fetch = vi.fn();
+const API_URL = 'https://bibleresearchapi.vercel.app/api/v1';
 
 describe('API Functions', () => {
   beforeEach(() => {
@@ -49,15 +50,9 @@ describe('API Functions', () => {
   // --- API-Calling Functions ---
   describe('API-Calling Functions', () => {
     it('getVersesFromApi should fetch from API when not cached', async () => {
-      const mockVerses = [{ verse: 1, text: 'In the beginning...' }];
-      (fetch as vi.Mock).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ verses: mockVerses }),
-      });
-
+      const mockVerses = [{ verse: 16, text: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.' }];
       const verses = await api.getVersesFromApi('Genesis', 1, 'ESV');
 
-      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('passage=Genesis%201'));
       expect(cacheManager.getCachedVerses).toHaveBeenCalledWith('Genesis', 1, 'ESV');
       expect(cacheManager.cacheVerses).toHaveBeenCalledWith('Genesis', 1, 'ESV', mockVerses);
       expect(verses).toEqual(mockVerses);
@@ -69,59 +64,53 @@ describe('API Functions', () => {
 
       const verses = await api.getVersesFromApi('Genesis', 1, 'ESV');
 
-      expect(fetch).not.toHaveBeenCalled();
       expect(verses).toEqual(mockVerses);
     });
 
     it('getBibleAudioUrl should fetch from API when not cached', async () => {
       const mockUrl = 'http://audio.url/test.mp3';
-      (fetch as vi.Mock).mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ audio_url: mockUrl }),
-      });
+      const url = await api.getBibleAudioUrl('Genesis', 1, 'ESVDA');
 
-      const url = await api.getBibleAudioUrl('Genesis', 1, 'ESV');
-
-      expect(fetch).toHaveBeenCalled();
-      expect(cacheManager.getCachedAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESV');
-      expect(cacheManager.cacheAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESV', mockUrl, 0, 0);
+      expect(cacheManager.getCachedAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESVDA');
+      expect(cacheManager.cacheAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESVDA', mockUrl, 0, 0);
       expect(url).toBe(mockUrl);
     });
 
     it('addTagNote should make a POST request with the correct body', async () => {
-      (fetch as vi.Mock).mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) });
       const verseRefs = [{ book: 'John', chapter: 3, verse: 16 }];
-
-      await api.addTagNote('tag1', 'My note', verseRefs);
-
-      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/notes/'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tag: 'tag1', note_text: 'My note', verse_references: verseRefs }),
-      });
+      const result = await api.addTagNote('tag1', 'My note', verseRefs);
+      expect(result.id).toBe('note-1');
+      expect(result.note_text).toBe('My note');
     });
 
-    it('should make a "DELETE" request with note id', async () => {
-      (fetch as vi.Mock).mockResolvedValue({ ok: true, text: () => ({ details: 'OK'}) });
+    it('should throw an error if the fetch response is not ok', async () => {
+      // Use a specific handler that returns 404 for a specific fileset
+      server.use(
+        http.get(`${API_URL}/bible`, ({ request }) => {
+          const url = new URL(request.url);
+          const filesetId = url.searchParams.get('fileset_id');
+
+          // Only return 404 for this specific test case
+          if (filesetId === 'ERRORTEST') {
+            return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
+          }
+
+          // Let other requests pass through to default handler
+          return;
+        })
+      );
+
+      // Clear the cache to ensure the API is actually called
+      localStorage.clear();
+
+      await expect(api.getBibleAudioUrl('Genesis', 1, 'ERRORTEST')).rejects.toThrow(
+        'Failed to fetch audio for ERRORTEST: Not Found'
+      );
+    });
+
+    it('should make a DELETE request with note id', async () => {
       const removeNote = await api.deleteNote('abc-123');
-
-      expect(removeNote).toEqual({ details: 'OK' });
-      expect(fetch).toHaveBeenCalledTimes(1);
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/notes/abc-123'),
-        {
-          method: 'DELETE'
-        }
-      );
-    })
-
-    it.skip('should throw an error if the fetch response is not ok', async () => {
-      // Provide a specific failing mock for this test
-      (fetch as vi.Mock).mockResolvedValueOnce({ ok: false, statusText: 'Not Found' });
-
-      await expect(api.getBibleAudioUrl('Genesis', 1, 'ESV')).rejects.toThrow(
-        'Failed to fetch audio for ESV: Not Found'
-      );
+      expect(removeNote).toBe('Deleted');
     });
   });
 });

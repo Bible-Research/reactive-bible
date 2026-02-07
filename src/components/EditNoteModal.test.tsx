@@ -1,62 +1,39 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import React from 'react';
+import { screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import EditNoteModal from './EditNoteModal';
-import { useBibleStore } from '../store';
+import {
+  renderWithProviders,
+  createMockNote,
+  createMockTag,
+} from '../__tests__/helpers';
 import * as api from '../api';
-import { Note } from '../types';
 
-// Mock API
+// Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
   getTags: vi.fn(),
   editNote: vi.fn(),
 }));
 
-// Mock NoteForm component
-vi.mock('./NoteForm', () => ({
-  default: ({ onSubmit, note }: any) => (
-    <div data-testid="note-form">
-      <div data-testid="note-text">{note?.text || ''}</div>
-      <button onClick={() => onSubmit('tag1', 'Updated note')}>
-        Save
-      </button>
-    </div>
-  ),
-}));
-
-const initialStoreState = useBibleStore.getState();
-
 describe('EditNoteModal Component', () => {
-  const mockNote: Note = {
+  // Use factory function for cleaner test data
+  const mockNote = createMockNote({
     id: 'n1',
     note_text: 'Original note text',
-    tag: { id: '1', name: 'Faith', parent_tag: null,
-      created_at: '', updated_at: '' },
-    public: false,
-    created_at: '',
-    updated_at: '',
+    tag: createMockTag({ id: '1', name: 'Faith' }),
     verses: [],
-  };
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    useBibleStore.setState({
-      ...initialStoreState,
-      fetchNotes: vi.fn(),
-    });
 
     (api.getTags as vi.Mock).mockResolvedValue([
-      { id: '1', name: 'Faith', parent_tag: null,
-        created_at: '', updated_at: '' },
+      createMockTag({ id: '1', name: 'Faith' }),
     ]);
   });
 
-  afterEach(async () => {
-    // Wait for any pending state updates to complete
-    await waitFor(() => {}, { timeout: 100 });
-  });
-
-  it('should not render when closed', async () => {
-    render(
+  it('should not render when closed', () => {
+    renderWithProviders(
       <EditNoteModal
         opened={false}
         onClose={vi.fn()}
@@ -67,7 +44,7 @@ describe('EditNoteModal Component', () => {
   });
 
   it('should render when opened', async () => {
-    render(
+    renderWithProviders(
       <EditNoteModal
         opened={true}
         onClose={vi.fn()}
@@ -75,14 +52,13 @@ describe('EditNoteModal Component', () => {
       />
     );
 
-    // Wait for any async effects to settle
     await waitFor(() => {
       expect(screen.getByText('Edit note')).toBeInTheDocument();
     });
   });
 
   it('should render NoteForm with initial text', async () => {
-    render(
+    renderWithProviders(
       <EditNoteModal
         opened={true}
         onClose={vi.fn()}
@@ -90,14 +66,13 @@ describe('EditNoteModal Component', () => {
       />
     );
 
-    // Wait for component to fully render
     await waitFor(() => {
-      expect(screen.getByTestId('note-form')).toBeInTheDocument();
+      // Check for NoteForm elements instead of test-id
+      expect(screen.getByLabelText('Note')).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByTestId('note-text')
-    ).toHaveTextContent('Original note text');
+    // Verify the note text is pre-filled
+    expect(screen.getByDisplayValue('Original note text')).toBeInTheDocument();
   });
 
   // Note: Full modal interaction testing is problematic

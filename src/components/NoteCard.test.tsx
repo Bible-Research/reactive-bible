@@ -1,91 +1,92 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import NoteCard from './NoteCard';
-import { Note, Tag } from '../types';
-
-// Mock the Verse component
-vi.mock('./Verse', () => ({
-  default: ({ verse, text }: { verse: number; text: string }) => (
-    <div data-testid="verse">
-      <span>{verse}</span>
-      <span>{text}</span>
-    </div>
-  ),
-}));
+import {
+  renderWithProviders,
+  createMockNote,
+  createMockVerse,
+  createMockTag,
+} from '../__tests__/helpers';
 
 describe('NoteCard Component', () => {
-  const mockTag: Tag = {
-    id: '1',
-    name: 'Faith',
-    parent_tag: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const singleVerseNote: Note = {
+  const singleVerseNote = createMockNote({
     id: 'n1',
     note_text: 'This is a single verse note.',
-    tag: mockTag,
-    public: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    verses: [{ book: 'Genesis', chapter: 1, verse: 1, text: 'In the beginning...' }],
-  };
+    tag: createMockTag({ id: '1', name: 'Faith' }),
+    verses: [
+      createMockVerse({
+        book: 'Genesis',
+        chapter: 1,
+        verse: 1,
+        text: 'In the beginning...',
+      }),
+    ],
+  });
 
-  const multiVerseNote: Note = {
+  const multiVerseNote = createMockNote({
     id: 'n2',
     note_text: 'This is a multi-verse note.',
-    tag: mockTag,
-    public: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    tag: createMockTag({ id: '1', name: 'Faith' }),
     verses: [
-      { book: 'Genesis', chapter: 1, verse: 1, text: 'In the beginning...' },
-      { book: 'Genesis', chapter: 1, verse: 2, text: 'The earth was without form...' },
+      createMockVerse({
+        book: 'Genesis',
+        chapter: 1,
+        verse: 1,
+        text: 'In the beginning...',
+      }),
+      createMockVerse({
+        book: 'Genesis',
+        chapter: 1,
+        verse: 2,
+        text: 'The earth was without form...',
+      }),
     ],
-  };
+  });
 
   const mockOnViewInBible = vi.fn();
   const mockOnEdit = vi.fn();
   const mockOnDelete = vi.fn();
 
   it('should render correctly for a single verse note', () => {
-    render(
-      <NoteCard 
-        note={singleVerseNote} 
-        onViewInBible={mockOnViewInBible} 
-        onEdit={mockOnEdit} 
-        onDelete={mockOnDelete} 
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
       />
     );
 
     expect(screen.getByRole('heading', { name: 'Genesis 1:1' })).toBeInTheDocument();
     expect(screen.getByText('This is a single verse note.')).toBeInTheDocument();
-    expect(screen.getAllByTestId('verse')).toHaveLength(1);
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('In the beginning...')).toBeInTheDocument();
   });
 
   it('should render correctly for a multi-verse note', () => {
-    render(
-      <NoteCard 
-        note={multiVerseNote} 
-        onViewInBible={mockOnViewInBible} 
-        onEdit={mockOnEdit} 
-        onDelete={mockOnDelete} 
+    renderWithProviders(
+      <NoteCard
+        note={multiVerseNote}
+        onViewInBible={mockOnViewInBible}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
       />
     );
 
     expect(screen.getByRole('heading', { name: 'Genesis 1:1-2' })).toBeInTheDocument();
     expect(screen.getByText('This is a multi-verse note.')).toBeInTheDocument();
-    expect(screen.getAllByTestId('verse')).toHaveLength(2);
+    expect(screen.getByText('In the beginning...')).toBeInTheDocument();
+    expect(screen.getByText('The earth was without form...')).toBeInTheDocument();
   });
 
   it('should call onEdit when the edit button is clicked', async () => {
-    render(
-      <NoteCard 
-        note={singleVerseNote} 
-        onViewInBible={mockOnViewInBible} 
-        onEdit={mockOnEdit} 
-        onDelete={mockOnDelete} 
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
       />
     );
 
@@ -96,12 +97,12 @@ describe('NoteCard Component', () => {
   });
 
   it('should call onViewInBible when the view button is clicked', async () => {
-    render(
-      <NoteCard 
-        note={singleVerseNote} 
-        onViewInBible={mockOnViewInBible} 
-        onEdit={mockOnEdit} 
-        onDelete={mockOnDelete} 
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
       />
     );
 
@@ -112,22 +113,22 @@ describe('NoteCard Component', () => {
   });
 
   it('should call handleDeleteNode when the remove button is clicked', async () => {
-    render(
-    <NoteCard 
-      note={singleVerseNote} 
-      onViewInBible={mockOnViewInBible} 
-      onEdit={mockOnEdit} 
-      onDelete={mockOnDelete} 
-    />
-    )
+    window.confirm = vi.fn(() => true);
 
-    const removeButton = screen.getByRole('button', { name: /Remove/i  });
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
+      />
+    );
+
+    const removeButton = screen.getByRole('button', { name: /Remove/i });
     fireEvent.click(removeButton);
 
     await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Genesis 1:1-2' })).not.toBeInTheDocument();
+      expect(mockOnDelete).toHaveBeenCalledWith(singleVerseNote.id);
     });
-
-    expect(mockOnDelete).toBeCalledTimes(1);
-  })
+  });
 });

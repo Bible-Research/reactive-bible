@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import React from 'react';
+import { screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Audio from './Audio';
-import { useBibleStore } from '../store';
+import { renderWithProviders } from '../__tests__/helpers';
 
 // Mock Howler
 vi.mock('howler', () => ({
@@ -27,32 +28,22 @@ vi.mock('../api', () => ({
   }),
 }));
 
-// Mock AudioPlayer component
-vi.mock('./AudioPlayer', () => ({
-  default: () => <div data-testid="audio-player">Audio Player</div>,
-}));
-
-const initialStoreState = useBibleStore.getState();
+// Note: AudioPlayer component is now used as-is (no mock)
 
 describe('Audio Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useBibleStore.setState({
-      ...initialStoreState,
-      activeBook: 'Genesis',
-      activeChapter: 1,
-      activeAudioFilesetId: 'ENGKJV',
-      showAudioPlayer: false,
-      translations: [],
-      setShowAudioPlayer: vi.fn(),
-      setActiveBookOnly: vi.fn(),
-      setActiveBookShort: vi.fn(),
-      setActiveChapter: vi.fn(),
-    });
   });
 
   it('should render the play button', () => {
-    render(<Audio />);
+    renderWithProviders(<Audio />, {
+      storeOverrides: {
+        activeBook: 'Genesis',
+        activeChapter: 1,
+        activeAudioFilesetId: 'ENGKJV',
+        showAudioPlayer: false,
+      },
+    });
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
   });

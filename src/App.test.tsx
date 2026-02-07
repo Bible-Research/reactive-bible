@@ -4,7 +4,6 @@ import {
   render,
   screen,
   waitFor,
-  act,
 } from "@testing-library/react";
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import App from "./App";
@@ -13,7 +12,7 @@ import { useBibleStore } from "./store";
 // Store the cleanup function
 let cleanup: (() => void) | undefined;
 
-beforeEach(async () => {
+beforeEach(() => {
   // Reset store to John 1 with KJV (tests expect KJV verse text)
   useBibleStore.setState({
     activeBook: "John",
@@ -25,23 +24,19 @@ beforeEach(async () => {
     activeAudioFilesetId: null,
   });
 
-  // Render inside act to handle initial state updates
-  await act(async () => {
-    const result = render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>
-    );
-    cleanup = result.unmount;
-  });
+  // render() already wraps in act(), no need for explicit act()
+  const result = render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+  cleanup = result.unmount;
 });
 
-afterEach(async () => {
-  // Clean up and wait for any pending updates
+afterEach(() => {
+  // cleanup() is already wrapped in act() by RTL
   if (cleanup) {
-    await act(async () => {
-      cleanup!();
-    });
+    cleanup();
   }
   vi.clearAllMocks();
 });
@@ -49,13 +44,9 @@ afterEach(async () => {
 describe("check for bible verse", () => {
   // App starts at John 1, navigate to Exodus 2
   test("should contain exodus 2: 18", async () => {
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("nav-book-Exod"));
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("nav-chapter-2"));
-    });
+    // fireEvent already wraps in act(), no need for explicit act()
+    fireEvent.click(screen.getByTitle("nav-book-Exod"));
+    fireEvent.click(screen.getByTitle("nav-chapter-2"));
 
     // Wait for the verse to appear after async data loading
     await waitFor(
@@ -74,9 +65,8 @@ describe("check for bible verse", () => {
   // App starts at John 1, navigate to John 11
   test("should contain john 11: 35", async () => {
     // Already at John, just navigate to chapter 11
-    await act(async () => {
-      fireEvent.click(screen.getByTitle("nav-chapter-11"));
-    });
+    // fireEvent already wraps in act()
+    fireEvent.click(screen.getByTitle("nav-chapter-11"));
 
     // Wait for the verse to appear after async data loading
     await waitFor(
