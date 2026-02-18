@@ -1,36 +1,19 @@
 import { Box, Text, Title, createStyles } from "@mantine/core";
 import { useBibleStore } from "../store";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const useStyles = createStyles((theme) => ({
   link: {
-    userSelect: "none", // Prevent text selection on long-press
-    WebkitUserSelect: "none", // Safari
-    MozUserSelect: "none", // Firefox
-    msUserSelect: "none", // IE/Edge
-    WebkitTouchCallout: "none", // iOS Safari
     WebkitTapHighlightColor: "transparent", // Remove tap highlight
     cursor: "pointer",
-    "&:hover": {
-      backgroundColor:
-        theme.colorScheme === "dark"
-          ? theme.colors.dark[5]
-          : theme.colors.gray[2],
-      color: theme.colorScheme === "dark" ? theme.white : theme.black,
-    },
-    "&:active": {
-      // Prevent highlight when pressing (not releasing)
-      backgroundColor: "transparent",
-    },
+    transition: "background-color 150ms ease",
   },
   linkActive: {
-    "&, &:hover": {
-      backgroundColor:
-        theme.colorScheme === "dark"
-          ? theme.colors.dark[5]
-          : theme.colors.gray[2],
-      color: theme.colorScheme === "dark" ? theme.white : theme.black,
-    },
+    backgroundColor:
+      theme.colorScheme === "dark"
+        ? theme.colors.dark[5]
+        : theme.colors.gray[2],
+    color: theme.colorScheme === "dark" ? theme.white : theme.black,
   },
 }));
 
@@ -40,6 +23,12 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
   const activeVerses = useBibleStore((state) => state.activeVerses);
   const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
   const isActive = activeVerses.includes(verse);
+  
+  // Track touch state to differentiate tap from scroll
+  const [touchStartPos, setTouchStartPos] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const handleVerseClick = () => {
     if (isActive) {
@@ -47,6 +36,31 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
     } else {
       setActiveVerses([...activeVerses, verse]);
     }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    setTouchStartPos({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartPos) return;
+
+    const touch = e.changedTouches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPos.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPos.y);
+    
+    // Only trigger click if movement is minimal (< 10px)
+    // This prevents selection during scroll
+    if (deltaX < 10 && deltaY < 10) {
+      // Check if user was selecting text
+      const selection = window.getSelection();
+      if (!selection || selection.toString().length === 0) {
+        handleVerseClick();
+      }
+    }
+    
+    setTouchStartPos(null);
   };
 
   useEffect(() => {
@@ -65,23 +79,20 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
       })}
       py={7}
       px={10}
-      onClick={handleVerseClick}
+      onClick={() => {
+        // Only handle click if no text is selected
+        const selection = window.getSelection();
+        if (!selection || selection.toString().length === 0) {
+          handleVerseClick();
+        }
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu
       id={"verse-" + verse}
       ref={isActive ? ref : null}
       sx={{
-        touchAction: "manipulation",
-        userSelect: "none",
-        WebkitUserSelect: "none",
-        MozUserSelect: "none",
-        msUserSelect: "none",
-        WebkitTouchCallout: "none",
-        WebkitTapHighlightColor: "transparent",
-        // Override any parent or default styles
-        "& *": {
-          userSelect: "none",
-          WebkitUserSelect: "none",
-        },
+        touchAction: "pan-y", // Allow vertical scrolling
       }}
     >
       <Text 
@@ -89,9 +100,8 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
         fw="bold" 
         mr={3}
         sx={{
-          userSelect: "none",
+          userSelect: "none", // Keep verse number non-selectable
           WebkitUserSelect: "none",
-          pointerEvents: "none", // Prevent text from being target
         }}
       >
         {verse}
@@ -100,11 +110,6 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
         order={3} 
         weight={400} 
         title={"passage-verse-" + verse}
-        sx={{
-          userSelect: "none",
-          WebkitUserSelect: "none",
-          pointerEvents: "none", // Prevent text from being target
-        }}
       >
         {text}
       </Title>
