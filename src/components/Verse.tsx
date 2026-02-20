@@ -29,8 +29,12 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
     x: number;
     y: number;
   } | null>(null);
+  
+  // Track if verse was just clicked to prevent scroll jump
+  const userClickedRef = useRef(false);
 
   const handleVerseClick = () => {
+    userClickedRef.current = true;
     if (isActive) {
       setActiveVerses(activeVerses.filter((v) => v !== verse));
     } else {
@@ -66,9 +70,13 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
   };
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && !userClickedRef.current) {
+      // Only scroll if verse was selected programmatically
+      // (e.g., from notes view), not by user click
       ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
     }
+    // Reset the flag after effect runs
+    userClickedRef.current = false;
   }, [isActive]);
 
   return (
