@@ -1,4 +1,4 @@
-import { useState } from "react";
+
 import { Box } from "@mantine/core";
 import { useBibleStore } from "../store";
 import { getBooks } from "../api";
@@ -6,8 +6,21 @@ import SubHeader from "./SubHeader";
 import PassageView from "./PassageView";
 import NotesView from "./NotesView";
 
-const Passage = ({ open }: { open: () => void }) => {
-  const [showNotes, setShowNotes] = useState(false);
+interface PassageProps {
+  open: () => void;
+  showNotes: boolean;
+  setShowNotes: (show: boolean) => void;
+  bibleSelectorOpened: boolean;
+  setBibleSelectorOpened: (opened: boolean) => void;
+}
+
+const Passage = ({
+  open,
+  showNotes,
+  setShowNotes,
+  bibleSelectorOpened,
+  setBibleSelectorOpened,
+}: PassageProps) => {
   const setActiveBook = useBibleStore((state) => state.setActiveBook);
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort
@@ -37,8 +50,8 @@ const Passage = ({ open }: { open: () => void }) => {
     <Box style={{ flex: "1 0 100%" }}>
       <SubHeader
         open={open}
-        showNotes={showNotes}
-        setShowNotes={setShowNotes}
+        bibleSelectorOpened={bibleSelectorOpened}
+        setBibleSelectorOpened={setBibleSelectorOpened}
       />
       <Box h="80vh">
         {showNotes ? (
