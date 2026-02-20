@@ -53,11 +53,13 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
     // Only trigger click if movement is minimal (< 10px)
     // This prevents selection during scroll
     if (deltaX < 10 && deltaY < 10) {
-      // Check if user was selecting text
-      const selection = window.getSelection();
-      if (!selection || selection.toString().length === 0) {
-        handleVerseClick();
-      }
+      // Use setTimeout to allow text selection to register
+      setTimeout(() => {
+        const selection = window.getSelection();
+        if (!selection || selection.toString().length === 0) {
+          handleVerseClick();
+        }
+      }, 50);
     }
     
     setTouchStartPos(null);
