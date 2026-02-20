@@ -23,12 +23,6 @@ const MainMenu = ({
       size="100%"
       withCloseButton={false}
       padding="xl"
-      styles={{
-        drawer: {
-          display: "flex",
-          flexDirection: "column",
-        },
-      }}
     >
       <ActionIcon
         onClick={onClose}

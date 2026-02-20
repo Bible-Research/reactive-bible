@@ -2,31 +2,23 @@ import {
   Burger,
   Center,
   ColorScheme,
-  Flex,
   Group,
   Header,
-  Image,
-  MediaQuery,
   Switch,
-  Title,
   useMantineTheme,
 } from "@mantine/core";
 import { IconMoonStars, IconSun } from "@tabler/icons-react";
-import TranslationSelector from './TranslationSelector';
-import { SearchControl } from "./SearchControl";
 
 const MyHeader = ({
   colorScheme,
   toggleColorScheme,
-  opened,
-  setOpened,
-  open,
+  menuOpened,
+  setMenuOpened,
 }: {
   colorScheme: ColorScheme;
   toggleColorScheme: () => void;
-  opened: boolean;
-  setOpened: (opened: boolean) => void;
-  open: () => void;
+  menuOpened: boolean;
+  setMenuOpened: (opened: boolean) => void;
 }) => {
   const theme = useMantineTheme();
   return (
@@ -37,40 +29,15 @@ const MyHeader = ({
         mx="auto"
         sx={{ display: "flex", justifyContent: "space-between" }}
       >
-        <Flex sx={{ justifyContent: "start", alignItems: "center" }}>
-          <MediaQuery largerThan="sm" styles={{ display: "none" }}>
-            <Burger
-              opened={opened}
-              onClick={() => setOpened(!opened)}
-              size="sm"
-              color={theme.colors.gray[6]}
-              mr="xs"
-              title={opened ? 'Close navigation' : 'Open navigation'}
-            />
-          </MediaQuery>
-          <Title
-            order={3}
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Image
-              height={30}
-              width="auto"
-              fit="contain"
-              radius="md"
-              src="./icon.svg"
-              alt="Logo"
-            />{" "}
-          </Title>
-        </Flex>
-        <TranslationSelector />
-        <MediaQuery smallerThan="sm" styles={{ display: "none" }}>
-          <SearchControl onClick={open} />
-        </MediaQuery>
-        <Group position="center" my={30}>
+        <Burger
+          opened={menuOpened}
+          onClick={() => setMenuOpened(!menuOpened)}
+          size="sm"
+          color={theme.colors.gray[6]}
+          title={menuOpened ? "Close menu" : "Open menu"}
+        />
+
+        <Group position="center">
           <Switch
             checked={colorScheme === "dark"}
             onChange={toggleColorScheme}
