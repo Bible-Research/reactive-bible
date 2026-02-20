@@ -7,6 +7,7 @@ import {
 import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
+import MainMenu from "./components/MainMenu";
 import { useState, useEffect } from "react";
 import Passage from "./components/Passage";
 import { SearchModal } from "./components/SearchModal";
@@ -21,7 +22,16 @@ export default function App() {
   });
   const toggleColorScheme = () =>
     setColorScheme((current) => (current === "dark" ? "light" : "dark"));
-  const [opened, setOpened] = useState(false);
+  
+  // BibleSelector state
+  const [bibleSelectorOpened, setBibleSelectorOpened] = useState(false);
+  
+  // MainMenu state
+  const [mainMenuOpened, setMainMenuOpened] = useState(false);
+  
+  // Notes view state (lifted from Passage)
+  const [showNotes, setShowNotes] = useState(false);
+  
   const [modalOpened, modalFn] = useDisclosure(false);
 
   // Clean up expired audio URLs on app load
@@ -50,14 +60,18 @@ export default function App() {
       >
         <AppShell
           padding="md"
-          navbar={<BibleSelector opened={opened} setOpened={setOpened} />}
+          navbar={
+            <BibleSelector
+              opened={bibleSelectorOpened}
+              setOpened={setBibleSelectorOpened}
+            />
+          }
           header={
             <MyHeader
               colorScheme={colorScheme}
               toggleColorScheme={toggleColorScheme}
-              opened={opened}
-              setOpened={setOpened}
-              open={modalFn.open}
+              menuOpened={mainMenuOpened}
+              setMenuOpened={setMainMenuOpened}
             />
           }
           styles={(theme) => ({
@@ -70,8 +84,20 @@ export default function App() {
             },
           })}
         >
-          <Passage open={modalFn.open} />
+          <Passage
+            open={modalFn.open}
+            showNotes={showNotes}
+            setShowNotes={setShowNotes}
+            bibleSelectorOpened={bibleSelectorOpened}
+            setBibleSelectorOpened={setBibleSelectorOpened}
+          />
           <SearchModal opened={modalOpened} close={modalFn.close} />
+          <MainMenu
+            opened={mainMenuOpened}
+            onClose={() => setMainMenuOpened(false)}
+            showNotes={showNotes}
+            setShowNotes={setShowNotes}
+          />
         </AppShell>
         <Analytics />
         <SpeedInsights />
