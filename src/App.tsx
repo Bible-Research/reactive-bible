@@ -88,7 +88,6 @@ export default function App() {
             open={modalFn.open}
             showNotes={showNotes}
             setShowNotes={setShowNotes}
-            bibleSelectorOpened={bibleSelectorOpened}
             setBibleSelectorOpened={setBibleSelectorOpened}
           />
           <SearchModal opened={modalOpened} close={modalFn.close} />

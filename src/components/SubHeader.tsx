@@ -9,13 +9,11 @@ import Audio from "./Audio";
 
 interface SubHeaderProps {
   open: () => void;
-  bibleSelectorOpened: boolean;
   setBibleSelectorOpened: (opened: boolean) => void;
 }
 
 const SubHeader = ({
   open,
-  bibleSelectorOpened,
   setBibleSelectorOpened,
 }: SubHeaderProps) => {
   const activeChapter = useBibleStore((state) => state.activeChapter);

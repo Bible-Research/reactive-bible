@@ -10,7 +10,6 @@ interface PassageProps {
   open: () => void;
   showNotes: boolean;
   setShowNotes: (show: boolean) => void;
-  bibleSelectorOpened: boolean;
   setBibleSelectorOpened: (opened: boolean) => void;
 }
 
@@ -18,7 +17,6 @@ const Passage = ({
   open,
   showNotes,
   setShowNotes,
-  bibleSelectorOpened,
   setBibleSelectorOpened,
 }: PassageProps) => {
   const setActiveBook = useBibleStore((state) => state.setActiveBook);
@@ -50,7 +48,6 @@ const Passage = ({
     <Box style={{ flex: "1 0 100%" }}>
       <SubHeader
         open={open}
-        bibleSelectorOpened={bibleSelectorOpened}
         setBibleSelectorOpened={setBibleSelectorOpened}
       />
       <Box h="80vh">
