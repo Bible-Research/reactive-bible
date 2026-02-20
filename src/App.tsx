@@ -68,8 +68,6 @@ export default function App() {
           }
           header={
             <MyHeader
-              colorScheme={colorScheme}
-              toggleColorScheme={toggleColorScheme}
               menuOpened={mainMenuOpened}
               setMenuOpened={setMainMenuOpened}
             />
@@ -89,6 +87,8 @@ export default function App() {
             showNotes={showNotes}
             setShowNotes={setShowNotes}
             setBibleSelectorOpened={setBibleSelectorOpened}
+            colorScheme={colorScheme}
+            toggleColorScheme={toggleColorScheme}
           />
           <SearchModal opened={modalOpened} close={modalFn.close} />
           <MainMenu

@@ -1,22 +1,9 @@
-import {
-  Burger,
-  Center,
-  ColorScheme,
-  Group,
-  Header,
-  Switch,
-  useMantineTheme,
-} from "@mantine/core";
-import { IconMoonStars, IconSun } from "@tabler/icons-react";
+import { Burger, Center, Header, useMantineTheme } from "@mantine/core";
 
 const MyHeader = ({
-  colorScheme,
-  toggleColorScheme,
   menuOpened,
   setMenuOpened,
 }: {
-  colorScheme: ColorScheme;
-  toggleColorScheme: () => void;
   menuOpened: boolean;
   setMenuOpened: (opened: boolean) => void;
 }) => {
@@ -36,24 +23,6 @@ const MyHeader = ({
           color={theme.colors.gray[6]}
           title={menuOpened ? "Close menu" : "Open menu"}
         />
-
-        <Group position="center">
-          <Switch
-            checked={colorScheme === "dark"}
-            onChange={toggleColorScheme}
-            size="lg"
-            onLabel={
-              <IconSun color={theme.white} size="1.25rem" stroke={1.5} />
-            }
-            offLabel={
-              <IconMoonStars
-                color={theme.colors.gray[6]}
-                size="1.25rem"
-                stroke={1.5}
-              />
-            }
-          />
-        </Group>
       </Center>
     </Header>
   );

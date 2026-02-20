@@ -1,5 +1,5 @@
 
-import { Box } from "@mantine/core";
+import { Box, ColorScheme } from "@mantine/core";
 import { useBibleStore } from "../store";
 import { getBooks } from "../api";
 import SubHeader from "./SubHeader";
@@ -11,6 +11,8 @@ interface PassageProps {
   showNotes: boolean;
   setShowNotes: (show: boolean) => void;
   setBibleSelectorOpened: (opened: boolean) => void;
+  colorScheme: ColorScheme;
+  toggleColorScheme: () => void;
 }
 
 const Passage = ({
@@ -18,6 +20,8 @@ const Passage = ({
   showNotes,
   setShowNotes,
   setBibleSelectorOpened,
+  colorScheme,
+  toggleColorScheme,
 }: PassageProps) => {
   const setActiveBook = useBibleStore((state) => state.setActiveBook);
   const setActiveBookShort = useBibleStore(
@@ -49,6 +53,8 @@ const Passage = ({
       <SubHeader
         open={open}
         setBibleSelectorOpened={setBibleSelectorOpened}
+        colorScheme={colorScheme}
+        toggleColorScheme={toggleColorScheme}
       />
       <Box h="80vh">
         {showNotes ? (
