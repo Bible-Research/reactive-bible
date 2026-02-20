@@ -40,14 +40,7 @@ const Passage = ({ open }: { open: () => void }) => {
         showNotes={showNotes}
         setShowNotes={setShowNotes}
       />
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-        h="80vh"
-      >
+      <Box h="80vh">
         {showNotes ? (
           <NotesView onViewInBible={handleViewInBible} />
         ) : (

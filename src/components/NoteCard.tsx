@@ -23,17 +23,17 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
       : `${book} ${chapter}:${firstVerse}-${lastVerse}`;
 
   return (
-    <Card shadow="sm" padding={0} radius="md" mb={15}>
-      <Group position="apart" mb={10}>
+    <Card shadow="sm" padding="sm" radius="md" mb={15}>
+      <Group position="apart" mb={0}>
         <Title order={4}>{heading}</Title>
-        <Button
-          variant="subtle"
-          size="xs"
-          onClick={() => onViewInBible(book, chapter, firstVerse)}
-        >
-          View in Bible
-        </Button>
-        <Group>
+        <Group spacing="xs">
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={() => onViewInBible(book, chapter, firstVerse)}
+          >
+            View in Bible
+          </Button>
           <Button
             variant="subtle"
             size="xs"
@@ -54,9 +54,11 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
         </Group>
       </Group>
 
-      {note?.verses?.map(v => (
-        <Verse key={v.verse} verse={v.verse} text={v.text} />
-      ))}
+      <Box mt={-10}>
+        {note?.verses?.map(v => (
+          <Verse key={v.verse} verse={v.verse} text={v.text} />
+        ))}
+      </Box>
 
       <Box
         mt={10}

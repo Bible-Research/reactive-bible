@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { MouseEvent } from "react";
-import { ScrollArea, Select, Group, Stack, Center, Text, Loader } from "@mantine/core";
+import { ScrollArea, Select, Group, Stack, Center, Text, Loader, Box } from "@mantine/core";
 import { Note, Tag } from "../types";
 import TagSection from "./TagSection";
 import EditNoteModal from "./EditNoteModal";
@@ -102,24 +102,28 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
 
     return (
     <>
-      <ScrollArea style={{ height: 'calc(100vh - 220px)' }}>
-        <Stack spacing="md" p="md">
-          <Group>
-            <Select
-              label="Filter by tag"
-              placeholder="Select a tag"
-              value={selectedTagId}
-              onChange={handleTagChange}
-              data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
-              searchable
-            />
-            <Button onClick={handleRefresh}>Refresh Notes</Button>
-          </Group>
-
-          {loading ? (
-            <Center style={{ height: 200 }}><Loader aria-label="loading" /></Center>
-          ) : notesByTag.length > 0 ? (
-            notesByTag.map(({ tag, notes }) => (
+      <Box mb="md">
+        <Group align="flex-end" spacing="xs">
+          <Select
+            label="Filter by tag"
+            placeholder="Select a tag"
+            value={selectedTagId}
+            onChange={handleTagChange}
+            data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
+            searchable
+            style={{ flex: 1, minWidth: 200 }}
+          />
+          <Button onClick={handleRefresh} size="xs">
+            Refresh
+          </Button>
+        </Group>
+      </Box>
+      <ScrollArea style={{ height: 'calc(100vh - 280px)' }}>
+        {loading ? (
+          <Center style={{ height: 200 }}><Loader aria-label="loading" /></Center>
+        ) : notesByTag.length > 0 ? (
+          <Stack spacing="md">
+            {notesByTag.map(({ tag, notes }) => (
               <TagSection
                 key={tag.id}
                 tagName={tag.name}
@@ -128,11 +132,11 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
                 onEditNote={handleEditNote}
                 onDeleteNote={handleDeleteNote}
               />
-            ))
-          ) : (
-            <Center style={{ height: 200 }}><Text>No notes found.</Text></Center>
-          )}
-        </Stack>
+            ))}
+          </Stack>
+        ) : (
+          <Center style={{ height: 200 }}><Text>No notes found.</Text></Center>
+        )}
       </ScrollArea>
       <EditNoteModal
         opened={isEditModalOpen}
