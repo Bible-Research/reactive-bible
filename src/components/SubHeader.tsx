@@ -9,11 +9,15 @@ import Audio from "./Audio";
 
 interface SubHeaderProps {
   open: () => void;
-  showNotes: boolean;
-  setShowNotes: (show: boolean) => void;
+  bibleSelectorOpened: boolean;
+  setBibleSelectorOpened: (opened: boolean) => void;
 }
 
-const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
+const SubHeader = ({
+  open,
+  bibleSelectorOpened,
+  setBibleSelectorOpened,
+}: SubHeaderProps) => {
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
@@ -80,15 +84,18 @@ const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
       <ActionIcon variant="transparent" onClick={open}>
         <IconSearch size={rem(20)} />
       </ActionIcon>
-      <Title order={4}>
+      <Title
+        order={4}
+        onClick={() => setBibleSelectorOpened(true)}
+        sx={{
+          cursor: "pointer",
+          "&:hover": {
+            textDecoration: "underline",
+          },
+        }}
+      >
         {activeBookShort} {activeChapter}
       </Title>
-      <Button
-        variant="transparent"
-        onClick={() => setShowNotes(!showNotes)}
-      >
-        {showNotes ? "Bible" : "Notes"}
-      </Button>
       <Button variant="transparent" onClick={() => setOpened(true)}>
         Add Note
       </Button>
