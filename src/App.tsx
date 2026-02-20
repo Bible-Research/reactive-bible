@@ -5,7 +5,7 @@ import {
   ColorScheme,
 } from "@mantine/core";
 import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
-import MyNavbar from "./components/MyNavbar";
+import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
 import { useState, useEffect } from "react";
 import Passage from "./components/Passage";
@@ -50,7 +50,7 @@ export default function App() {
       >
         <AppShell
           padding="md"
-          navbar={<MyNavbar opened={opened} setOpened={setOpened} />}
+          navbar={<BibleSelector opened={opened} setOpened={setOpened} />}
           header={
             <MyHeader
               colorScheme={colorScheme}
