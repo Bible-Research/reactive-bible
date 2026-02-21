@@ -73,7 +73,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
     <Footer
       height={56}
       sx={{
-        bottom: showAudioPlayer ? '100px' : '0',
+        bottom: showAudioPlayer ? '120px' : '0',
         transition: 'bottom 0.3s ease-in-out',
       }}
     >
