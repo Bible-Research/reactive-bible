@@ -1,5 +1,19 @@
-import { ActionIcon, Box, Title, rem } from "@mantine/core";
-import { IconArrowLeft, IconArrowRight, IconSearch } from "@tabler/icons-react";
+import {
+  ActionIcon,
+  Box,
+  ColorScheme,
+  Switch,
+  Title,
+  rem,
+  useMantineTheme,
+} from "@mantine/core";
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconMoonStars,
+  IconSearch,
+  IconSun,
+} from "@tabler/icons-react";
 import { Button } from "@mantine/core";
 import { useBibleStore } from "../store";
 import { useState } from "react";
@@ -9,11 +23,18 @@ import Audio from "./Audio";
 
 interface SubHeaderProps {
   open: () => void;
-  showNotes: boolean;
-  setShowNotes: (show: boolean) => void;
+  setBibleSelectorOpened: (opened: boolean) => void;
+  colorScheme: ColorScheme;
+  toggleColorScheme: () => void;
 }
 
-const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
+const SubHeader = ({
+  open,
+  setBibleSelectorOpened,
+  colorScheme,
+  toggleColorScheme,
+}: SubHeaderProps) => {
+  const theme = useMantineTheme();
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
@@ -80,15 +101,18 @@ const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
       <ActionIcon variant="transparent" onClick={open}>
         <IconSearch size={rem(20)} />
       </ActionIcon>
-      <Title order={4}>
+      <Title
+        order={4}
+        onClick={() => setBibleSelectorOpened(true)}
+        sx={{
+          cursor: "pointer",
+          "&:hover": {
+            textDecoration: "underline",
+          },
+        }}
+      >
         {activeBookShort} {activeChapter}
       </Title>
-      <Button
-        variant="transparent"
-        onClick={() => setShowNotes(!showNotes)}
-      >
-        {showNotes ? "Bible" : "Notes"}
-      </Button>
       <Button variant="transparent" onClick={() => setOpened(true)}>
         Add Note
       </Button>
@@ -96,6 +120,21 @@ const SubHeader = ({ open, showNotes, setShowNotes }: SubHeaderProps) => {
         <AddTagNoteModal opened={opened} onClose={() => setOpened(false)} />
       )}
       <Audio />
+      <Switch
+        checked={colorScheme === "dark"}
+        onChange={toggleColorScheme}
+        size="lg"
+        onLabel={
+          <IconSun color={theme.white} size="1.25rem" stroke={1.5} />
+        }
+        offLabel={
+          <IconMoonStars
+            color={theme.colors.gray[6]}
+            size="1.25rem"
+            stroke={1.5}
+          />
+        }
+      />
       <ActionIcon
         variant="transparent"
         onClick={nextHandler}
