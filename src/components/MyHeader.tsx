@@ -62,7 +62,7 @@ const MyHeader = ({
         <Box
           sx={{
             display: "flex",
-            gap: "0.5rem",
+            gap: "1rem",
             alignItems: "center",
             position: "absolute",
             left: "50%",
