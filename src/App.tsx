@@ -70,6 +70,10 @@ export default function App() {
             <MyHeader
               menuOpened={mainMenuOpened}
               setMenuOpened={setMainMenuOpened}
+              open={modalFn.open}
+              setBibleSelectorOpened={setBibleSelectorOpened}
+              colorScheme={colorScheme}
+              toggleColorScheme={toggleColorScheme}
             />
           }
           styles={(theme) => ({
@@ -82,14 +86,7 @@ export default function App() {
             },
           })}
         >
-          <Passage
-            open={modalFn.open}
-            showNotes={showNotes}
-            setShowNotes={setShowNotes}
-            setBibleSelectorOpened={setBibleSelectorOpened}
-            colorScheme={colorScheme}
-            toggleColorScheme={toggleColorScheme}
-          />
+          <Passage showNotes={showNotes} setShowNotes={setShowNotes} />
           <SearchModal opened={modalOpened} close={modalFn.close} />
           <MainMenu
             opened={mainMenuOpened}
