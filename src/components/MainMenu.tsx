@@ -9,7 +9,6 @@ import {
   ColorScheme,
 } from "@mantine/core";
 import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
-import TranslationSelector from "./TranslationSelector";
 
 interface MainMenuProps {
   opened: boolean;
@@ -49,11 +48,6 @@ const MainMenu = ({
       </ActionIcon>
 
       <Stack spacing="xl">
-        <Group position="apart" spacing="xs">
-          <Text weight={500} size="lg">Translations</Text>
-          <TranslationSelector />
-        </Group>
-
         <Group position="apart" spacing="xs">
           <Text
             weight={500}

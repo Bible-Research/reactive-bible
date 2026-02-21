@@ -11,6 +11,7 @@ import { IconSearch } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
 import AddTagNoteModal from "./AddTagNoteModal";
 import Audio from "./Audio";
+import TranslationSelector from "./TranslationSelector";
 
 const MyHeader = ({
   menuOpened,
@@ -87,6 +88,7 @@ const MyHeader = ({
             />
           )}
           <Audio />
+          <TranslationSelector />
         </Box>
         <Box sx={{ position: "absolute", right: "10px" }}>
           <Burger
