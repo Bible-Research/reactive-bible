@@ -101,9 +101,18 @@ const MyHeader = ({
         h={56}
         px={10}
         mx="auto"
-        sx={{ display: "flex", justifyContent: "space-between" }}
+        sx={{ display: "flex", justifyContent: "center", position: "relative" }}
       >
-        <Box sx={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: "0.5rem",
+            alignItems: "center",
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+          }}
+        >
           <ActionIcon
             variant="transparent"
             onClick={prevHandler}
@@ -161,13 +170,15 @@ const MyHeader = ({
             <IconArrowRight size={rem(20)} />
           </ActionIcon>
         </Box>
-        <Burger
-          opened={menuOpened}
-          onClick={() => setMenuOpened(!menuOpened)}
-          size="sm"
-          color={theme.colors.gray[6]}
-          title={menuOpened ? "Close menu" : "Open menu"}
-        />
+        <Box sx={{ position: "absolute", right: "10px" }}>
+          <Burger
+            opened={menuOpened}
+            onClick={() => setMenuOpened(!menuOpened)}
+            size="sm"
+            color={theme.colors.gray[6]}
+            title={menuOpened ? "Close menu" : "Open menu"}
+          />
+        </Box>
       </Center>
     </Header>
   );
