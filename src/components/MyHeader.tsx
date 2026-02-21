@@ -2,9 +2,9 @@ import {
   ActionIcon,
   Box,
   Burger,
-  Button,
   Center,
   Header,
+  Text,
   useMantineTheme,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
@@ -45,9 +45,14 @@ const MyHeader = ({
           <ActionIcon variant="transparent" onClick={open}>
             <IconSearch />
           </ActionIcon>
-          <Button variant="transparent" onClick={() => setNoteModalOpened(true)}>
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => setNoteModalOpened(true)}
+            sx={{ cursor: "pointer" }}
+          >
             Add Note
-          </Button>
+          </Text>
           {noteModalOpened && (
             <AddTagNoteModal
               opened={noteModalOpened}
