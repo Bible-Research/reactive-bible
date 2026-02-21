@@ -64,8 +64,8 @@ const MainMenu = ({
           {showNotes ? "View Bible" : "View Notes"}
         </Button>
 
-        <Group position="apart">
-          <Text weight={500}>Theme</Text>
+        <Group position="apart" spacing="xs">
+          <Text weight={500} size="lg">Theme</Text>
           <Switch
             checked={colorScheme === "dark"}
             onChange={toggleColorScheme}
