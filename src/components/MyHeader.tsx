@@ -8,7 +8,7 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AddTagNoteModal from "./AddTagNoteModal";
 import Audio from "./Audio";
 
@@ -23,9 +23,36 @@ const MyHeader = ({
 }) => {
   const theme = useMantineTheme();
   const [noteModalOpened, setNoteModalOpened] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY > lastScrollY && currentScrollY > 50) {
+        // Scrolling down and past threshold
+        setVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up
+        setVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
 
   return (
-    <Header height={56}>
+    <Header
+      height={56}
+      sx={{
+        transform: visible ? 'translateY(0)' : 'translateY(-100%)',
+        transition: 'transform 0.3s ease-in-out',
+      }}
+    >
       <Center
         h={56}
         px={10}
