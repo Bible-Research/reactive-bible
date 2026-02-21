@@ -101,7 +101,7 @@ const MyHeader = ({
         h={56}
         px={10}
         mx="auto"
-        sx={{ display: "flex", justifyContent: "space-between" }}
+        sx={{ display: "flex", justifyContent: "center" }}
       >
         <Box sx={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <Burger
