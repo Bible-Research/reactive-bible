@@ -8,6 +8,7 @@ import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
+import BottomNav from "./components/BottomNav";
 import { useState, useEffect } from "react";
 import Passage from "./components/Passage";
 import { SearchModal } from "./components/SearchModal";
@@ -71,8 +72,10 @@ export default function App() {
               menuOpened={mainMenuOpened}
               setMenuOpened={setMainMenuOpened}
               open={modalFn.open}
-              setBibleSelectorOpened={setBibleSelectorOpened}
             />
+          }
+          footer={
+            <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
           }
           styles={(theme) => ({
             main: {
