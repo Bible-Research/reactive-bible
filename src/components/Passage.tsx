@@ -37,8 +37,8 @@ const Passage = ({ showNotes, setShowNotes }: PassageProps) => {
   };
 
   return (
-    <Box style={{ flex: "1 0 100%" }}>
-      <Box h="88vh">
+    <Box style={{ flex: "1 0 100%", height: "100%" }}>
+      <Box style={{ height: "100%", overflow: "auto" }}>
         {showNotes ? (
           <NotesView onViewInBible={handleViewInBible} />
         ) : (
