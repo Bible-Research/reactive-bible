@@ -68,6 +68,8 @@ const MyHeader = ({
             position: "absolute",
             left: "50%",
             transform: "translateX(-50%)",
+            maxWidth: "62.5%",
+            width: "100%",
           }}
         >
           <ActionIcon variant="transparent" onClick={open}>
