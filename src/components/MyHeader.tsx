@@ -121,6 +121,8 @@ const MyHeader = ({
             onClick={() => setBibleSelectorOpened(true)}
             sx={{
               cursor: "pointer",
+              minWidth: "120px",
+              textAlign: "center",
               "&:hover": {
                 textDecoration: "underline",
               },
