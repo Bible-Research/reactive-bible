@@ -1,5 +1,15 @@
-import { Drawer, Stack, ActionIcon, Button } from "@mantine/core";
-import { IconX } from "@tabler/icons-react";
+import {
+  Drawer,
+  Stack,
+  ActionIcon,
+  Button,
+  Switch,
+  Group,
+  Text,
+  useMantineTheme,
+  ColorScheme,
+} from "@mantine/core";
+import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
 import TranslationSelector from "./TranslationSelector";
 
 interface MainMenuProps {
@@ -7,6 +17,8 @@ interface MainMenuProps {
   onClose: () => void;
   showNotes: boolean;
   setShowNotes: (show: boolean) => void;
+  colorScheme: ColorScheme;
+  toggleColorScheme: () => void;
 }
 
 const MainMenu = ({
@@ -14,7 +26,10 @@ const MainMenu = ({
   onClose,
   showNotes,
   setShowNotes,
+  colorScheme,
+  toggleColorScheme,
 }: MainMenuProps) => {
+  const theme = useMantineTheme();
   return (
     <Drawer
       opened={opened}
@@ -48,6 +63,25 @@ const MainMenu = ({
         >
           {showNotes ? "View Bible" : "View Notes"}
         </Button>
+
+        <Group position="apart">
+          <Text weight={500}>Theme</Text>
+          <Switch
+            checked={colorScheme === "dark"}
+            onChange={toggleColorScheme}
+            size="lg"
+            onLabel={
+              <IconSun color={theme.white} size="1.25rem" stroke={1.5} />
+            }
+            offLabel={
+              <IconMoonStars
+                color={theme.colors.gray[6]}
+                size="1.25rem"
+                stroke={1.5}
+              />
+            }
+          />
+        </Group>
       </Stack>
     </Drawer>
   );

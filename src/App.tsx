@@ -72,8 +72,6 @@ export default function App() {
               setMenuOpened={setMainMenuOpened}
               open={modalFn.open}
               setBibleSelectorOpened={setBibleSelectorOpened}
-              colorScheme={colorScheme}
-              toggleColorScheme={toggleColorScheme}
             />
           }
           styles={(theme) => ({
@@ -93,6 +91,8 @@ export default function App() {
             onClose={() => setMainMenuOpened(false)}
             showNotes={showNotes}
             setShowNotes={setShowNotes}
+            colorScheme={colorScheme}
+            toggleColorScheme={toggleColorScheme}
           />
         </AppShell>
         <Analytics />

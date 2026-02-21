@@ -4,9 +4,7 @@ import {
   Burger,
   Button,
   Center,
-  ColorScheme,
   Header,
-  Switch,
   Title,
   rem,
   useMantineTheme,
@@ -14,9 +12,7 @@ import {
 import {
   IconArrowLeft,
   IconArrowRight,
-  IconMoonStars,
   IconSearch,
-  IconSun,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useBibleStore } from "../store";
@@ -29,15 +25,11 @@ const MyHeader = ({
   setMenuOpened,
   open,
   setBibleSelectorOpened,
-  colorScheme,
-  toggleColorScheme,
 }: {
   menuOpened: boolean;
   setMenuOpened: (opened: boolean) => void;
   open: () => void;
   setBibleSelectorOpened: (opened: boolean) => void;
-  colorScheme: ColorScheme;
-  toggleColorScheme: () => void;
 }) => {
   const theme = useMantineTheme();
   const activeChapter = useBibleStore((state) => state.activeChapter);
@@ -146,21 +138,6 @@ const MyHeader = ({
             />
           )}
           <Audio />
-          <Switch
-            checked={colorScheme === "dark"}
-            onChange={toggleColorScheme}
-            size="lg"
-            onLabel={
-              <IconSun color={theme.white} size="1.25rem" stroke={1.5} />
-            }
-            offLabel={
-              <IconMoonStars
-                color={theme.colors.gray[6]}
-                size="1.25rem"
-                stroke={1.5}
-              />
-            }
-          />
           <ActionIcon
             variant="transparent"
             onClick={nextHandler}
