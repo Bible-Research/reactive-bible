@@ -9,6 +9,7 @@ import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
 import BottomNav from "./components/BottomNav";
+import Audio from "./components/Audio";
 import { useState, useEffect } from "react";
 import Passage from "./components/Passage";
 import { SearchModal } from "./components/SearchModal";
@@ -98,6 +99,7 @@ export default function App() {
             toggleColorScheme={toggleColorScheme}
           />
         </AppShell>
+        <Audio />
         <Analytics />
         <SpeedInsights />
       </MantineProvider>

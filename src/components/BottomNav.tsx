@@ -14,6 +14,7 @@ interface BottomNavProps {
 }
 
 const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
+  const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
@@ -69,7 +70,13 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   };
 
   return (
-    <Footer height={56}>
+    <Footer
+      height={56}
+      sx={{
+        bottom: showAudioPlayer ? '100px' : '0',
+        transition: 'bottom 0.3s ease-in-out',
+      }}
+    >
       <Box
         sx={{
           display: "flex",

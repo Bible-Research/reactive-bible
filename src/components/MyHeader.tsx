@@ -10,7 +10,6 @@ import {
 import { IconSearch } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
 import AddTagNoteModal from "./AddTagNoteModal";
-import Audio from "./Audio";
 
 const MyHeader = ({
   menuOpened,
@@ -86,7 +85,6 @@ const MyHeader = ({
               onClose={() => setNoteModalOpened(false)}
             />
           )}
-          <Audio />
         </Box>
         <Box sx={{ position: "absolute", right: "10px" }}>
           <Burger
