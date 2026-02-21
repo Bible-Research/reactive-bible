@@ -68,7 +68,7 @@ const MyHeader = ({
             position: "absolute",
             left: "50%",
             transform: "translateX(-50%)",
-            maxWidth: "62.5%",
+            maxWidth: "78.125%",
             width: "100%",
           }}
         >
