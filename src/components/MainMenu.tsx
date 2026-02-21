@@ -34,7 +34,7 @@ const MainMenu = ({
     <Drawer
       opened={opened}
       onClose={onClose}
-      position="left"
+      position="right"
       size="100%"
       withCloseButton={false}
       padding="xl"
