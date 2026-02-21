@@ -2,7 +2,6 @@ import {
   Drawer,
   Stack,
   ActionIcon,
-  Button,
   Switch,
   Group,
   Text,
@@ -50,19 +49,24 @@ const MainMenu = ({
       </ActionIcon>
 
       <Stack spacing="xl">
-        <TranslationSelector />
+        <Group position="apart" spacing="xs">
+          <Text weight={500} size="lg">Translations</Text>
+          <TranslationSelector />
+        </Group>
 
-        <Button
-          variant="subtle"
-          size="lg"
-          fullWidth
-          onClick={() => {
-            setShowNotes(!showNotes);
-            onClose();
-          }}
-        >
-          {showNotes ? "View Bible" : "View Notes"}
-        </Button>
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => {
+              setShowNotes(!showNotes);
+              onClose();
+            }}
+            sx={{ cursor: "pointer" }}
+          >
+            {showNotes ? "View Bible" : "View Notes"}
+          </Text>
+        </Group>
 
         <Group position="apart" spacing="xs">
           <Text weight={500} size="lg">Theme</Text>
