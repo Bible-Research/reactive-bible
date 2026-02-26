@@ -1,10 +1,19 @@
 import { useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Box } from "@mantine/core";
+import { useParams, useNavigate, useOutletContext } from "react-router-dom";
+import { Box, ColorScheme } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { useBibleStore } from "../store";
 import { getBooks } from "../api";
 import SubHeader from "../components/SubHeader";
 import PassageView from "../components/PassageView";
+
+interface OutletContext {
+  showNotes: boolean;
+  setShowNotes: (show: boolean) => void;
+  setBibleSelectorOpened: (opened: boolean) => void;
+  colorScheme: ColorScheme;
+  toggleColorScheme: () => void;
+}
 
 export default function BibleRoute() {
   const { book, chapter, verse } = useParams<{
@@ -13,6 +22,8 @@ export default function BibleRoute() {
     verse?: string;
   }>();
   const navigate = useNavigate();
+  const { setBibleSelectorOpened, colorScheme, toggleColorScheme } = useOutletContext<OutletContext>();
+  const [, modalFn] = useDisclosure(false);
 
   const {
     activeBook,
@@ -85,7 +96,12 @@ export default function BibleRoute() {
 
   return (
     <Box style={{ flex: "1 0 100%" }}>
-      <SubHeader />
+      <SubHeader 
+        open={modalFn.open}
+        setBibleSelectorOpened={setBibleSelectorOpened}
+        colorScheme={colorScheme}
+        toggleColorScheme={toggleColorScheme}
+      />
       <Box
         sx={{
           display: "flex",

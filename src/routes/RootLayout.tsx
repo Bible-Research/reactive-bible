@@ -2,13 +2,23 @@ import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { AppShell, ColorScheme } from "@mantine/core";
 import { useDisclosure, useWindowEvent, useLocalStorage } from "@mantine/hooks";
-import MyNavbar from "../components/MyNavbar";
+import BibleSelector from "../components/BibleSelector";
 import MyHeader from "../components/MyHeader";
+import MainMenu from "../components/MainMenu";
+import BottomNav from "../components/BottomNav";
 import { SearchModal } from "../components/SearchModal";
 import { useBibleStore } from "../store";
 
 export default function RootLayout() {
-  const [opened, setOpened] = useState(false);
+  // BibleSelector state
+  const [bibleSelectorOpened, setBibleSelectorOpened] = useState(false);
+  
+  // MainMenu state
+  const [mainMenuOpened, setMainMenuOpened] = useState(false);
+  
+  // Notes view state
+  const [showNotes, setShowNotes] = useState(false);
+  
   const [modalOpened, modalFn] = useDisclosure(false);
   
   // Color scheme management (moved from App.tsx)
@@ -42,15 +52,21 @@ export default function RootLayout() {
     <>
       <AppShell
         padding="md"
-        navbar={<MyNavbar opened={opened} setOpened={setOpened} />}
+        navbar={
+          <BibleSelector
+            opened={bibleSelectorOpened}
+            setOpened={setBibleSelectorOpened}
+          />
+        }
         header={
           <MyHeader
-            colorScheme={colorScheme}
-            toggleColorScheme={toggleColorScheme}
-            opened={opened}
-            setOpened={setOpened}
+            menuOpened={mainMenuOpened}
+            setMenuOpened={setMainMenuOpened}
             open={modalFn.open}
           />
+        }
+        footer={
+          <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
         }
         styles={(theme) => ({
           main: {
@@ -62,9 +78,17 @@ export default function RootLayout() {
           },
         })}
       >
-        <Outlet />
+        <Outlet context={{ showNotes, setShowNotes, setBibleSelectorOpened, colorScheme, toggleColorScheme }} />
       </AppShell>
       <SearchModal opened={modalOpened} close={modalFn.close} />
+      <MainMenu
+        opened={mainMenuOpened}
+        onClose={() => setMainMenuOpened(false)}
+        showNotes={showNotes}
+        setShowNotes={setShowNotes}
+        colorScheme={colorScheme}
+        toggleColorScheme={toggleColorScheme}
+      />
     </>
   );
 }
