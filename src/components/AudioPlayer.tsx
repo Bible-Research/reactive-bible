@@ -7,6 +7,7 @@ import {
   Text,
   Paper,
   CloseButton,
+  Portal,
 } from '@mantine/core';
 import {
   IconPlayerPlay,
@@ -112,7 +113,8 @@ const AudioPlayer = ({
   if (!audio) return null;
 
   return (
-    <Paper
+    <Portal>
+      <Paper
       shadow="lg"
       p="md"
       sx={(theme) => ({
@@ -204,7 +206,8 @@ const AudioPlayer = ({
           {formatTime(currentTime)} / {formatTime(duration)}
         </Text>
       </Group>
-    </Paper>
+      </Paper>
+    </Portal>
   );
 };
 

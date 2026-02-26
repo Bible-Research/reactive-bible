@@ -1,92 +1,106 @@
 import {
+  ActionIcon,
+  Box,
   Burger,
   Center,
-  ColorScheme,
-  Flex,
-  Group,
   Header,
-  Image,
-  MediaQuery,
-  Switch,
-  Title,
+  Text,
   useMantineTheme,
 } from "@mantine/core";
-import { IconMoonStars, IconSun } from "@tabler/icons-react";
-import TranslationSelector from './TranslationSelector';
-import { SearchControl } from "./SearchControl";
+import { IconSearch } from "@tabler/icons-react";
+import { useState, useEffect } from "react";
+import AddTagNoteModal from "./AddTagNoteModal";
+import Audio from "./Audio";
+import TranslationSelector from "./TranslationSelector";
 
 const MyHeader = ({
-  colorScheme,
-  toggleColorScheme,
-  opened,
-  setOpened,
+  menuOpened,
+  setMenuOpened,
   open,
 }: {
-  colorScheme: ColorScheme;
-  toggleColorScheme: () => void;
-  opened: boolean;
-  setOpened: (opened: boolean) => void;
+  menuOpened: boolean;
+  setMenuOpened: (opened: boolean) => void;
   open: () => void;
 }) => {
   const theme = useMantineTheme();
+  const [noteModalOpened, setNoteModalOpened] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY > lastScrollY && currentScrollY > 50) {
+        // Scrolling down and past threshold
+        setVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up
+        setVisible(true);
+      }
+      
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
+
   return (
-    <Header height={56}>
+    <Header
+      height={56}
+      sx={{
+        transform: visible ? 'translateY(0)' : 'translateY(-100%)',
+        transition: 'transform 0.3s ease-in-out',
+      }}
+    >
       <Center
         h={56}
         px={10}
         mx="auto"
-        sx={{ display: "flex", justifyContent: "space-between" }}
+        sx={{ display: "flex", justifyContent: "center", position: "relative" }}
       >
-        <Flex sx={{ justifyContent: "start", alignItems: "center" }}>
-          <MediaQuery largerThan="sm" styles={{ display: "none" }}>
-            <Burger
-              opened={opened}
-              onClick={() => setOpened(!opened)}
-              size="sm"
-              color={theme.colors.gray[6]}
-              mr="xs"
-              title={opened ? 'Close navigation' : 'Open navigation'}
-            />
-          </MediaQuery>
-          <Title
-            order={3}
-            sx={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <Image
-              height={30}
-              width="auto"
-              fit="contain"
-              radius="md"
-              src="./icon.svg"
-              alt="Logo"
-            />{" "}
-          </Title>
-        </Flex>
-        <TranslationSelector />
-        <MediaQuery smallerThan="sm" styles={{ display: "none" }}>
-          <SearchControl onClick={open} />
-        </MediaQuery>
-        <Group position="center" my={30}>
-          <Switch
-            checked={colorScheme === "dark"}
-            onChange={toggleColorScheme}
+        <Box
+          sx={{
+            display: "flex",
+            gap: "1rem",
+            alignItems: "center",
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            maxWidth: "78.125%",
+            width: "100%",
+          }}
+        >
+          <ActionIcon variant="transparent" onClick={open}>
+            <IconSearch />
+          </ActionIcon>
+          <Text
+            weight={500}
             size="lg"
-            onLabel={
-              <IconSun color={theme.white} size="1.25rem" stroke={1.5} />
-            }
-            offLabel={
-              <IconMoonStars
-                color={theme.colors.gray[6]}
-                size="1.25rem"
-                stroke={1.5}
-              />
-            }
+            onClick={() => setNoteModalOpened(true)}
+            sx={{ cursor: "pointer" }}
+          >
+            Add Note
+          </Text>
+          {noteModalOpened && (
+            <AddTagNoteModal
+              opened={noteModalOpened}
+              onClose={() => setNoteModalOpened(false)}
+            />
+          )}
+          <Audio />
+          <TranslationSelector />
+        </Box>
+        <Box sx={{ position: "absolute", right: "10px" }}>
+          <Burger
+            opened={menuOpened}
+            onClick={() => setMenuOpened(!menuOpened)}
+            size="sm"
+            color={theme.colors.gray[6]}
+            title={menuOpened ? "Close menu" : "Open menu"}
           />
-        </Group>
+        </Box>
       </Center>
     </Header>
   );

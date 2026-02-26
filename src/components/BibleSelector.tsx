@@ -46,7 +46,7 @@ const useStyles = createStyles((theme) => ({
   },
 }));
 
-const MyNavbar = ({
+const BibleSelector = ({
   opened,
   setOpened,
 }: {
@@ -128,4 +128,4 @@ const MyNavbar = ({
   );
 };
 
-export default MyNavbar;
+export default BibleSelector;

@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from "react";
-import { ScrollArea, Select, Group, Button, Stack, Center, Text, Loader } from "@mantine/core";
+import type { MouseEvent } from "react";
+import { ScrollArea, Select, Group, Stack, Center, Text, Loader, Box } from "@mantine/core";
 import { Note, Tag } from "../types";
 import TagSection from "./TagSection";
 import EditNoteModal from "./EditNoteModal";
 import { useBibleStore } from "../store";
-import { getTags } from "../api";
-
+import { getTags, deleteNote } from "../api";
+import Button from "./Button";
 interface NotesViewProps {
   onViewInBible: (book: string, chapter: number, verse: number) => void;
 }
@@ -76,6 +77,17 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
     }
   };
 
+  // Handle delete note
+  const handleDeleteNote = async (evt: MouseEvent<HTMLButtonElement>, note: Note) => {
+    evt.preventDefault();
+    if(note.id) {   
+      if(window.confirm('Are you sure you want to delete this note?')) {
+        await deleteNote(note.id);
+        fetchNotes();
+      }
+    }
+  }
+
   // Sort tags alphabetically
   const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -90,36 +102,41 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
 
     return (
     <>
-      <ScrollArea style={{ height: 'calc(100vh - 220px)' }}>
-        <Stack spacing="md" p="md">
-          <Group>
-            <Select
-              label="Filter by tag"
-              placeholder="Select a tag"
-              value={selectedTagId}
-              onChange={handleTagChange}
-              data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
-              searchable
-            />
-            <Button onClick={handleRefresh}>Refresh Notes</Button>
-          </Group>
-
-          {loading ? (
-            <Center style={{ height: 200 }}><Loader aria-label="loading" /></Center>
-          ) : notesByTag.length > 0 ? (
-            notesByTag.map(({ tag, notes }) => (
+      <Box mb="md">
+        <Group align="flex-end" spacing="xs">
+          <Select
+            label="Filter by tag"
+            placeholder="Select a tag"
+            value={selectedTagId}
+            onChange={handleTagChange}
+            data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
+            searchable
+            style={{ flex: 1, minWidth: 200 }}
+          />
+          <Button onClick={handleRefresh} size="xs">
+            Refresh
+          </Button>
+        </Group>
+      </Box>
+      <ScrollArea style={{ height: 'calc(100vh - 280px)' }}>
+        {loading ? (
+          <Center style={{ height: 200 }}><Loader aria-label="loading" /></Center>
+        ) : notesByTag.length > 0 ? (
+          <Stack spacing="md">
+            {notesByTag.map(({ tag, notes }) => (
               <TagSection
                 key={tag.id}
                 tagName={tag.name}
                 notes={notes}
                 onViewInBible={onViewInBible}
                 onEditNote={handleEditNote}
+                onDeleteNote={handleDeleteNote}
               />
-            ))
-          ) : (
-            <Center style={{ height: 200 }}><Text>No notes found.</Text></Center>
-          )}
-        </Stack>
+            ))}
+          </Stack>
+        ) : (
+          <Center style={{ height: 200 }}><Text>No notes found.</Text></Center>
+        )}
       </ScrollArea>
       <EditNoteModal
         opened={isEditModalOpen}

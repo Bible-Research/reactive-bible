@@ -1,50 +1,39 @@
 import type { MouseEvent } from "react";
-import { Card, Title, Text, Button, Group, Box } from "@mantine/core";
+import { Card, Title, Text, Group, Box } from "@mantine/core";
 import { Note } from "../types";
 import Verse from "./Verse";
-import { deleteNote } from "../api";
-import { useBibleStore } from "../store";
+import Button from "./Button";
 
 interface NoteCardProps {
   note: Note;
   onViewInBible: (book: string, chapter: number, verse: number) => void;
   onEdit: (note: Note) => void;
+  onDelete: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
 }
 
-const NoteCard = ({ note, onViewInBible, onEdit }: NoteCardProps) => {  
+const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {  
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
   const book = note?.verses?.[0]?.book || "";
   const chapter = note?.verses?.[0]?.chapter || 1;
-  const { fetchNotes } = useBibleStore((state) => ({ notes: state.notes, fetchNotes: state.fetchNotes }));
 
   const heading =
     firstVerse === lastVerse
       ? `${book} ${chapter}:${firstVerse}`
       : `${book} ${chapter}:${firstVerse}-${lastVerse}`;
-  
-  const handleDelete = async (evt: MouseEvent<HTMLButtonElement>) => {
-    evt.preventDefault();
-    if(note.id) {
-      if(window.confirm('Are you sure you want to delete this note?')) 
-        return;  
-      await deleteNote(note.id);
-      fetchNotes()
-    }
-  }
 
   return (
-    <Card shadow="sm" padding={0} radius="md" mb={15}>
-      <Group position="apart" mb={10}>
+    <Card shadow="sm" padding="sm" radius="md" mb={15}>
+      <Group position="apart" mb={0}>
         <Title order={4}>{heading}</Title>
-        <Button
-          variant="subtle"
-          size="xs"
-          onClick={() => onViewInBible(book, chapter, firstVerse)}
-        >
-          View in Bible
-        </Button>
-        <span>
+        <Group spacing="xs">
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={() => onViewInBible(book, chapter, firstVerse)}
+          >
+            View in Bible
+          </Button>
           <Button
             variant="subtle"
             size="xs"
@@ -55,16 +44,21 @@ const NoteCard = ({ note, onViewInBible, onEdit }: NoteCardProps) => {
           <Button
             variant="subtle"
             size="xs"
-            onClick={handleDelete}
+            onClick={
+              (evt: MouseEvent<HTMLButtonElement>) => 
+                onDelete(evt, note)
+            }
           >
             Remove
           </Button>
-        </span>
+        </Group>
       </Group>
 
-      {note?.verses?.map(v => (
-        <Verse key={v.verse} verse={v.verse} text={v.text} />
-      ))}
+      <Box mt={-10}>
+        {note?.verses?.map(v => (
+          <Verse key={v.verse} verse={v.verse} text={v.text} />
+        ))}
+      </Box>
 
       <Box
         mt={10}
