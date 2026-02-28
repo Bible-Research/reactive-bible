@@ -3,17 +3,28 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Select, Center, Loader, Box } from "@mantine/core";
 import { Tag } from "../types";
 import { getTags } from "../api";
+import { useBibleStore } from "../store";
 
 const NotesView = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [loading, setLoading] = useState(true);
+  const lastSelectedTagId = useBibleStore((state) => state.lastSelectedTagId);
+  const storedTags = useBibleStore((state) => state.tags);
+  const [tags, setTags] = useState<Tag[]>(storedTags);
+  const [loading, setLoading] = useState(!storedTags.length);
   const hasNavigatedRef = useRef(false);
 
   useEffect(() => {
     // Reset navigation flag when component mounts
     hasNavigatedRef.current = false;
+    
+    // If we have cached tags and lastSelectedTagId, navigate immediately
+    if (storedTags.length > 0 && lastSelectedTagId && location.pathname === '/notes') {
+      console.log(`🔗 NotesView: Navigate to last selected tag /notes/tag/${lastSelectedTagId}`);
+      hasNavigatedRef.current = true;
+      navigate(`/notes/tag/${lastSelectedTagId}`, { replace: true });
+      return;
+    }
     
     const loadData = async () => {
       setLoading(true);
@@ -25,11 +36,12 @@ const NotesView = () => {
         if (fetchedTags.length > 0 && 
             location.pathname === '/notes' && 
             !hasNavigatedRef.current) {
-          const sorted = [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name));
-          const firstTagId = sorted[0].id;
-          console.log(`🔗 NotesView: Auto-navigate to first tag /notes/tag/${firstTagId}`);
+          // Use lastSelectedTagId if available, otherwise use first tag
+          const tagId = lastSelectedTagId || 
+            [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name))[0].id;
+          console.log(`🔗 NotesView: Auto-navigate to tag /notes/tag/${tagId}`);
           hasNavigatedRef.current = true;
-          navigate(`/notes/tag/${firstTagId}`, { replace: true });
+          navigate(`/notes/tag/${tagId}`, { replace: true });
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -37,13 +49,16 @@ const NotesView = () => {
       setLoading(false);
     };
     
-    loadData();
+    // Only fetch if we don't have cached data
+    if (!storedTags.length) {
+      loadData();
+    }
     
     // Cleanup: reset flag on unmount
     return () => {
       hasNavigatedRef.current = false;
     };
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, lastSelectedTagId, storedTags]);
 
 
 

@@ -28,17 +28,21 @@ export default function TagNotesRoute() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { notes, fetchNotes, setActiveBook, 
-          setActiveChapter, setActiveVerses, setShowNotes } = 
+          setActiveChapter, setActiveVerses, setShowNotes, 
+          setLastSelectedTagId, tags: storedTags } = 
     useBibleStore();
   const [tag, setTag] = useState<Tag | null>(null);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>(storedTags);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Set showNotes to true when on notes route
+  // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
     setShowNotes(true);
-  }, [setShowNotes]);
+    if (tagId) {
+      setLastSelectedTagId(tagId);
+    }
+  }, [setShowNotes, setLastSelectedTagId, tagId]);
 
   useEffect(() => {
     const loadTagAndNotes = async () => {
@@ -52,10 +56,10 @@ export default function TagNotesRoute() {
       setError(null);
 
       try {
-        // Fetch all tags to find the current one
-        const fetchedTags = await getTags();
-        setAllTags(fetchedTags);
-        const currentTag = fetchedTags.find(t => t.id === tagId);
+        // Use cached tags if available, otherwise fetch
+        const tagsToUse = storedTags.length > 0 ? storedTags : await getTags();
+        setAllTags(tagsToUse);
+        const currentTag = tagsToUse.find(t => t.id === tagId);
         
         if (!currentTag) {
           setError(`Tag not found: ${tagId}`);

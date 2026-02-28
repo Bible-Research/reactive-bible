@@ -33,6 +33,7 @@ interface BibleState {
   notes: Note[];
   allNotesFetched: boolean;
   showNotes: boolean;
+  lastSelectedTagId: string | null;
   setActiveBook: (activeBook: string) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
@@ -48,6 +49,7 @@ interface BibleState {
   getTags: () => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
   setShowNotes: (show: boolean) => void;
+  setLastSelectedTagId: (tagId: string | null) => void;
 }
 
 // Define and export the initial state for reusability and testing
@@ -66,6 +68,7 @@ export const initialState = {
   notes: [] as Note[],
   allNotesFetched: false,
   showNotes: false,
+  lastSelectedTagId: null,
 };
 
 export const useBibleStore = create<BibleState>()(
@@ -111,6 +114,7 @@ export const useBibleStore = create<BibleState>()(
         set((state) => ({ notes: state.notes.filter((n) => n.id !== noteId) }));
       },
       setShowNotes: (showNotes) => set({ showNotes }),
+      setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),
     }),
     {
       name: "bible-storage",
@@ -125,6 +129,9 @@ export const useBibleStore = create<BibleState>()(
         translations: state.translations,
         activeTextFilesetId: state.activeTextFilesetId,
         activeAudioFilesetId: state.activeAudioFilesetId,
+        lastSelectedTagId: state.lastSelectedTagId,
+        notes: state.notes,
+        tags: state.tags,
         // showAudioPlayer is NOT persisted
       }),
     }
