@@ -9,6 +9,7 @@ import {
   ColorScheme,
 } from "@mantine/core";
 import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 
 interface MainMenuProps {
@@ -25,10 +26,12 @@ const MainMenu = ({
   toggleColorScheme,
 }: MainMenuProps) => {
   const theme = useMantineTheme();
+  const navigate = useNavigate();
   
-  // Get showNotes from Zustand store
+  // Get state from Zustand store
   const showNotes = useBibleStore((state) => state.showNotes);
-  const setShowNotes = useBibleStore((state) => state.setShowNotes);
+  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeChapter = useBibleStore((state) => state.activeChapter);
   return (
     <Drawer
       opened={opened}
@@ -54,7 +57,15 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              setShowNotes(!showNotes);
+              if (showNotes) {
+                // Navigate back to Bible
+                console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
+                navigate(`/bible/${activeBook}/${activeChapter}`);
+              } else {
+                // Navigate to Notes
+                console.log('🔗 MainMenu: Navigate to /notes');
+                navigate('/notes');
+              }
               onClose();
             }}
             sx={{ cursor: "pointer" }}

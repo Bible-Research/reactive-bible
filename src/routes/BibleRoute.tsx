@@ -15,6 +15,7 @@ export default function BibleRoute() {
     activeChapter,
     setActiveBook,
     setActiveChapter,
+    setShowNotes,
   } = useBibleStore();
 
   console.log('📖 BibleRoute render:', { 
@@ -26,6 +27,9 @@ export default function BibleRoute() {
 
   // Sync URL params to store (one-way: URL is source of truth)
   useEffect(() => {
+    // Ensure we're showing Bible view, not notes
+    setShowNotes(false);
+    
     if (book && chapter) {
       const chapterNum = parseInt(chapter, 10);
       

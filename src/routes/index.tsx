@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import BibleRoute from './BibleRoute';
+import NotesRoute from './NotesRoute';
+import TagNotesRoute from './TagNotesRoute';
 
 export function AppRoutes() {
   return (
@@ -10,6 +12,10 @@ export function AppRoutes() {
       {/* Bible routes */}
       <Route path="/bible" element={<BibleRoute />} />
       <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+      
+      {/* Notes routes */}
+      <Route path="/notes" element={<NotesRoute />} />
+      <Route path="/notes/tag/:tagId" element={<TagNotesRoute />} />
       
       {/* Catch-all: redirect to bible */}
       <Route path="*" element={<Navigate to="/bible" replace />} />
