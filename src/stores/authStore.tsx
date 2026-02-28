@@ -38,21 +38,41 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
+          const requestBody = { username, password };
+          console.log('🔐 Login attempt:', { 
+            url: `${API_BASE_URL}/api/token/`,
+            body: requestBody 
+          });
+          
           const response = await fetch(`${API_BASE_URL}/api/token/`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ username, password }),
+            body: JSON.stringify(requestBody),
           });
+          
+          console.log('🔐 Login response status:', response.status);
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(
-              errorData.detail || 
-              errorData.non_field_errors?.[0] || 
-              'Invalid username or password'
-            );
+            console.error('🔐 Login error response:', errorData);
+            
+            let errorMessage = 'Invalid username or password';
+            
+            if (response.status === 400) {
+              errorMessage = errorData.non_field_errors?.[0] ||
+                errorData.detail ||
+                'Invalid credentials. Please ensure you have a valid account with a password set via Django admin.';
+            } else if (response.status === 401) {
+              errorMessage = 'Invalid username or password';
+            } else {
+              errorMessage = errorData.detail || 
+                errorData.non_field_errors?.[0] || 
+                'Login failed. Please try again.';
+            }
+            
+            throw new Error(errorMessage);
           }
           
           const data = await response.json();

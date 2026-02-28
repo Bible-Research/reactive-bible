@@ -106,7 +106,12 @@ export function LoginPage() {
         </form>
         
         <Text color="dimmed" size="xs" align="center" mt="xl">
-          Don't have an account? Contact your administrator.
+          Don't have an account? You need a user account with a password
+          created via Django admin panel.
+        </Text>
+        <Text color="dimmed" size="xs" align="center" mt="xs">
+          Note: Auto-created accounts (from browsing without login) do not
+          have passwords and cannot be used for login.
         </Text>
       </Paper>
     </Container>
