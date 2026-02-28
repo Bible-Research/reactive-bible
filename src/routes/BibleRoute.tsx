@@ -35,18 +35,22 @@ export default function BibleRoute() {
       );
       navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
     }
-  }, [book, chapter]);
+  }, [book, chapter, activeBook, activeChapter, setActiveBook, setActiveChapter, navigate]);
 
   // Sync store changes back to URL (when user navigates via UI)
   useEffect(() => {
-    const expectedUrl = `/bible/${activeBook}/${activeChapter}`;
-    const currentPath = window.location.pathname;
+    // Skip if we don't have URL params yet (handled by first effect)
+    if (!book || !chapter) return;
     
-    if (currentPath !== expectedUrl && !currentPath.includes('/bible/')) {
+    const expectedUrl = `/bible/${activeBook}/${activeChapter}`;
+    const currentUrl = `/bible/${book}/${chapter}`;
+    
+    // Only update URL if store state differs from URL params
+    if (expectedUrl !== currentUrl) {
       console.log(`📖 Store changed, updating URL to: ${expectedUrl}`);
       navigate(expectedUrl, { replace: true });
     }
-  }, [activeBook, activeChapter]);
+  }, [activeBook, activeChapter, book, chapter, navigate]);
 
   return <Passage />;
 }
