@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Select, Loader, Box } from "@mantine/core";
-import { Tag } from "../types";
-import { getTags } from "../api";
 import { useBibleStore } from "../store";
 
 const NotesView = () => {
@@ -10,7 +8,7 @@ const NotesView = () => {
   const location = useLocation();
   const lastSelectedTagId = useBibleStore((state) => state.lastSelectedTagId);
   const storedTags = useBibleStore((state) => state.tags);
-  const [tags, setTags] = useState<Tag[]>(storedTags);
+  const getTags = useBibleStore((state) => state.getTags);
   const [loading, setLoading] = useState(!storedTags.length);
   const hasNavigatedRef = useRef(false);
 
@@ -37,8 +35,10 @@ const NotesView = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const fetchedTags = await getTags();
-        setTags(fetchedTags);
+        // Call store's getTags which saves to store
+        await getTags();
+        // Tags are now in store, get them from there
+        const fetchedTags = useBibleStore.getState().tags;
         
         // Only navigate if we're still on /notes route and haven't navigated yet
         if (fetchedTags.length > 0 && 
@@ -78,7 +78,7 @@ const NotesView = () => {
 
 
   // Sort tags alphabetically for the dropdown
-  const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...storedTags].sort((a, b) => a.name.localeCompare(b.name));
 
   // Always show tag selector, even while loading or redirecting
   // This allows users to change tags immediately
