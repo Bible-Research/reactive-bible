@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Select, Center, Loader, Box } from "@mantine/core";
+import { Select, Loader, Box } from "@mantine/core";
 import { Tag } from "../types";
 import { getTags } from "../api";
 import { useBibleStore } from "../store";
@@ -76,25 +76,20 @@ const NotesView = () => {
   // Sort tags alphabetically for the dropdown
   const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
 
-  // Show loading while redirecting to first tag
-  if (loading) {
-    return (
-      <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
-      </Center>
-    );
-  }
-
-  // Show tag selector (will redirect when tag is selected)
+  // Always show tag selector, even while loading or redirecting
+  // This allows users to change tags immediately
   return (
     <Box p="md">
       <Select
         label="Select a tag to view notes"
-        placeholder="Select a tag"
+        placeholder={loading ? "Loading tags..." : "Select a tag"}
+        value={lastSelectedTagId || undefined}
         onChange={handleTagChange}
         data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
         searchable
+        disabled={loading}
         style={{ maxWidth: 400 }}
+        rightSection={loading ? <Loader size="xs" /> : undefined}
       />
     </Box>
   );
