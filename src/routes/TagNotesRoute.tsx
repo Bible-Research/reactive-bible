@@ -36,6 +36,7 @@ export default function TagNotesRoute() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const previousTagIdRef = useRef<string | null>(null);
+  const hasLoggedWaitingRef = useRef(false);
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -57,11 +58,17 @@ export default function TagNotesRoute() {
       // If waiting for tags, loading should already be true
       if (storedTags.length === 0) {
         // Tags not loaded yet, keep showing loading state
-        console.log('⏳ Waiting for tags to load...');
+        if (!hasLoggedWaitingRef.current) {
+          console.log('⏳ Waiting for tags to load...');
+          hasLoggedWaitingRef.current = true;
+        }
         setLoading(true);
         setError(null);
         return;
       }
+      
+      // Reset the flag once tags are loaded
+      hasLoggedWaitingRef.current = false;
       
       setLoading(true);
       setError(null);
