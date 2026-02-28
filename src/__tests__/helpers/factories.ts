@@ -116,7 +116,7 @@ export const createMockTranslations = (): Translation[] => [
  * Create a mock Note with verses
  */
 export const createMockNoteWithVerses = (
-  verseCount: number = 1,
+  verseCount = 1,
   overrides: Partial<Note> = {}
 ): Note => {
   const verses = Array.from({ length: verseCount }, (_, i) =>
@@ -136,7 +136,7 @@ export const createMockNoteWithVerses = (
  * Create a mock Tag with hierarchy
  */
 export const createMockTagWithParent = (
-  parentName: string = 'Theology'
+  parentName = 'Theology'
 ): Tag => {
   const parent = createMockTag({
     id: 'parent-1',

@@ -274,7 +274,7 @@ describe('PassageView Component Performance Tests', () => {
   describe('Loading State Performance', () => {
     it('should render initial state quickly', () => {
       mockGetVersesInChapter.mockImplementation(
-        () => new Promise(() => {}) // Never resolves
+        () => new Promise(() => { /* Never resolves */ })
       );
 
       const start = performance.now();

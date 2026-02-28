@@ -23,8 +23,10 @@ describe('BibleSelector Component', () => {
     (useNavigate as any).mockReturnValue(mockNavigate);
   });
 
+  const noop = () => { /* noop */ };
+
   it('should render books, chapters, and verses', () => {
-    renderWithProviders(<BibleSelector opened={true} setOpened={() => {}} />);
+    renderWithProviders(<BibleSelector opened={true} setOpened={noop} />);
     expect(screen.getByText('Genesis')).toBeInTheDocument();
     expect(screen.getByText('Exodus')).toBeInTheDocument();
     expect(screen.getByTitle('nav-chapter-2')).toBeInTheDocument();
@@ -33,7 +35,7 @@ describe('BibleSelector Component', () => {
 
   it('should navigate when a book is clicked', async () => {
     renderWithProviders(
-      <BibleSelector opened={true} setOpened={() => {}} />
+      <BibleSelector opened={true} setOpened={noop} />
     );
     const bookLink = screen.getByText('Exodus');
     await userEvent.click(bookLink);
@@ -43,7 +45,7 @@ describe('BibleSelector Component', () => {
 
   it('should navigate when a chapter is clicked', async () => {
     renderWithProviders(
-      <BibleSelector opened={true} setOpened={() => {}} />
+      <BibleSelector opened={true} setOpened={noop} />
     );
     const chapterLink = screen.getByTitle('nav-chapter-3');
     await userEvent.click(chapterLink);
@@ -53,7 +55,7 @@ describe('BibleSelector Component', () => {
 
   it('should navigate when a verse is clicked', async () => {
     renderWithProviders(
-      <BibleSelector opened={true} setOpened={() => {}} />
+      <BibleSelector opened={true} setOpened={noop} />
     );
     const verseLink = screen.getByTitle('nav-verse-5');
     await userEvent.click(verseLink);
