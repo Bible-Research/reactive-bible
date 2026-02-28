@@ -57,6 +57,14 @@ export default function TagNotesRoute() {
       setError(null);
 
       try {
+        // Wait for tags to be loaded
+        if (storedTags.length === 0) {
+          // Tags not loaded yet, keep showing loading state
+          console.log('⏳ Waiting for tags to load...');
+          // Don't set error, just wait
+          return;
+        }
+        
         // Always use cached tags - they should be loaded by NotesView
         // Never fetch tags here to avoid unnecessary re-renders
         setAllTags(storedTags);
@@ -93,7 +101,7 @@ export default function TagNotesRoute() {
     };
 
     loadTagAndNotes();
-  }, [tagId, fetchNotes, notes.length]);
+  }, [tagId, fetchNotes, notes.length, storedTags.length]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
