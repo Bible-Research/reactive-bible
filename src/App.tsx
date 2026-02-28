@@ -10,7 +10,7 @@ import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
 import BottomNav from "./components/BottomNav";
 import { useState, useEffect } from "react";
-import Passage from "./components/Passage";
+import { AppRoutes } from "./routes";
 import { SearchModal } from "./components/SearchModal";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
@@ -29,9 +29,6 @@ export default function App() {
   
   // MainMenu state
   const [mainMenuOpened, setMainMenuOpened] = useState(false);
-  
-  // Notes view state (lifted from Passage)
-  const [showNotes, setShowNotes] = useState(false);
   
   const [modalOpened, modalFn] = useDisclosure(false);
 
@@ -87,13 +84,11 @@ export default function App() {
             },
           })}
         >
-          <Passage showNotes={showNotes} setShowNotes={setShowNotes} />
+          <AppRoutes />
           <SearchModal opened={modalOpened} close={modalFn.close} />
           <MainMenu
             opened={mainMenuOpened}
             onClose={() => setMainMenuOpened(false)}
-            showNotes={showNotes}
-            setShowNotes={setShowNotes}
             colorScheme={colorScheme}
             toggleColorScheme={toggleColorScheme}
           />

@@ -9,12 +9,11 @@ import {
   ColorScheme,
 } from "@mantine/core";
 import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
+import { useBibleStore } from "../store";
 
 interface MainMenuProps {
   opened: boolean;
   onClose: () => void;
-  showNotes: boolean;
-  setShowNotes: (show: boolean) => void;
   colorScheme: ColorScheme;
   toggleColorScheme: () => void;
 }
@@ -22,12 +21,14 @@ interface MainMenuProps {
 const MainMenu = ({
   opened,
   onClose,
-  showNotes,
-  setShowNotes,
   colorScheme,
   toggleColorScheme,
 }: MainMenuProps) => {
   const theme = useMantineTheme();
+  
+  // Get showNotes from Zustand store
+  const showNotes = useBibleStore((state) => state.showNotes);
+  const setShowNotes = useBibleStore((state) => state.setShowNotes);
   return (
     <Drawer
       opened={opened}

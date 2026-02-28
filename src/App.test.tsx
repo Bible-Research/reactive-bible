@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import App from "./App";
 import { useBibleStore } from "./store";
@@ -27,7 +28,9 @@ beforeEach(() => {
   // render() already wraps in act(), no need for explicit act()
   const result = render(
     <React.StrictMode>
-      <App />
+      <MemoryRouter initialEntries={['/bible/John/1']}>
+        <App />
+      </MemoryRouter>
     </React.StrictMode>
   );
   cleanup = result.unmount;

@@ -1,4 +1,5 @@
 import { Box, Navbar, ScrollArea, createStyles, rem } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
 import { getBooks, getChapters, getVerses } from "../api";
 import { useBibleStore } from "../store";
 
@@ -53,13 +54,11 @@ const BibleSelector = ({
   setOpened: (opened: boolean) => void;
 }) => {
   const { classes, cx } = useStyles();
+  const navigate = useNavigate();
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeVerses = useBibleStore((state) => state.activeVerses);
-  const setActiveBook = useBibleStore((state) => state.setActiveBook);
   const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
 
   return (
     <Navbar
@@ -83,8 +82,9 @@ const BibleSelector = ({
                 href="/"
                 onClick={(event) => {
                   event.preventDefault();
-                  setActiveBook(book.book_name);
+                  console.log(`🔗 Navigating to: /bible/${book.book_name}/1`);
                   setActiveBookShort(book.book_id);
+                  navigate(`/bible/${book.book_name}/1`);
                 }}
                 key={book.book_id}
                 title={"nav-book-" + book.book_id}
@@ -104,7 +104,8 @@ const BibleSelector = ({
                 href="/"
                 onClick={(event) => {
                   event.preventDefault();
-                  setActiveChapter(chapter);
+                  console.log(`🔗 Navigating to: /bible/${activeBook}/${chapter}`);
+                  navigate(`/bible/${activeBook}/${chapter}`);
                 }}
                 key={chapter}
                 title={"nav-chapter-" + chapter}
@@ -124,7 +125,9 @@ const BibleSelector = ({
                 href="/"
                 onClick={(event) => {
                   event.preventDefault();
-                  setActiveVerses([verse]);
+                  console.log(`🔗 Navigating to: /bible/${activeBook}/${activeChapter}`);
+                  // For now, just navigate to chapter (verse highlighting will come later)
+                  navigate(`/bible/${activeBook}/${activeChapter}`);
                   setOpened(false);
                 }}
                 key={verse}

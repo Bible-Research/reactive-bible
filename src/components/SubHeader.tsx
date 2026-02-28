@@ -15,6 +15,7 @@ import {
   IconSun,
 } from "@tabler/icons-react";
 import { Button } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useState } from "react";
 import { getPassage } from "../api";
@@ -35,12 +36,11 @@ const SubHeader = ({
   toggleColorScheme,
 }: SubHeaderProps) => {
   const theme = useMantineTheme();
+  const navigate = useNavigate();
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
-  const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
   const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const getPassageResult = getPassage();
   const [opened, setOpened] = useState(false);
   const checkNext = (): number | null => {
@@ -56,14 +56,18 @@ const SubHeader = ({
     return index === -1 || index === 0 ? null : index;
   };
   const nextHandler = () => {
+    console.log('🔗 nextHandler called');
     const index = checkNext();
+    console.log('🔗 checkNext index:', index);
     if (index === null) return null;
     if (getPassageResult) {
       const next = getPassageResult[index + 1];
+      console.log('🔗 next passage:', next);
       if (next !== null) {
-        setActiveBookOnly(next.book_name);
+        console.log(`🔗 Navigating to: /bible/${next.book_name}/${next.chapter}`);
         setActiveBookShort(next.book_id);
-        setActiveChapter(next.chapter);
+        navigate(`/bible/${next.book_name}/${next.chapter}`);
+        console.log('🔗 navigate() called');
       }
     }
   };
@@ -73,9 +77,9 @@ const SubHeader = ({
     if (getPassageResult) {
       const prev = getPassageResult[index - 1];
       if (prev !== null) {
-        setActiveBookOnly(prev.book_name);
+        console.log(`🔗 Prev: /bible/${prev.book_name}/${prev.chapter}`);
         setActiveBookShort(prev.book_id);
-        setActiveChapter(prev.chapter);
+        navigate(`/bible/${prev.book_name}/${prev.chapter}`);
       }
     }
   };
