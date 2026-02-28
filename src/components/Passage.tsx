@@ -5,12 +5,10 @@ import { getBooks } from "../api";
 import PassageView from "./PassageView";
 import NotesView from "./NotesView";
 
-interface PassageProps {
-  showNotes: boolean;
-  setShowNotes: (show: boolean) => void;
-}
-
-const Passage = ({ showNotes, setShowNotes }: PassageProps) => {
+const Passage = () => {
+  // Get showNotes from store instead of props
+  const showNotes = useBibleStore((state) => state.showNotes);
+  const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setActiveBook = useBibleStore((state) => state.setActiveBook);
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort

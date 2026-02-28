@@ -15,6 +15,7 @@ import {
   IconSun,
 } from "@tabler/icons-react";
 import { Button } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useState } from "react";
 import { getPassage } from "../api";
@@ -35,12 +36,11 @@ const SubHeader = ({
   toggleColorScheme,
 }: SubHeaderProps) => {
   const theme = useMantineTheme();
+  const navigate = useNavigate();
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
-  const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
   const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const getPassageResult = getPassage();
   const [opened, setOpened] = useState(false);
   const checkNext = (): number | null => {
@@ -61,9 +61,9 @@ const SubHeader = ({
     if (getPassageResult) {
       const next = getPassageResult[index + 1];
       if (next !== null) {
-        setActiveBookOnly(next.book_name);
+        console.log(`🔗 Next: /bible/${next.book_name}/${next.chapter}`);
         setActiveBookShort(next.book_id);
-        setActiveChapter(next.chapter);
+        navigate(`/bible/${next.book_name}/${next.chapter}`);
       }
     }
   };
@@ -73,9 +73,9 @@ const SubHeader = ({
     if (getPassageResult) {
       const prev = getPassageResult[index - 1];
       if (prev !== null) {
-        setActiveBookOnly(prev.book_name);
+        console.log(`🔗 Prev: /bible/${prev.book_name}/${prev.chapter}`);
         setActiveBookShort(prev.book_id);
-        setActiveChapter(prev.chapter);
+        navigate(`/bible/${prev.book_name}/${prev.chapter}`);
       }
     }
   };
