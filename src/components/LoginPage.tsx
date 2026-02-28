@@ -12,6 +12,7 @@ import {
   Stack,
 } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { showNotification } from '@mantine/notifications';
 import { useAuthStore } from '../stores/authStore';
 
 export function LoginPage() {
@@ -27,6 +28,13 @@ export function LoginPage() {
     
     try {
       await login(username, password);
+      
+      // Show success notification
+      showNotification({
+        title: 'Welcome!',
+        message: 'You have successfully logged in',
+        color: 'green',
+      });
       
       // Redirect to the page they tried to visit or to notes
       const from = (location.state as any)?.from?.pathname || '/notes';

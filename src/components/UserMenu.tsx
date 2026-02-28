@@ -1,5 +1,10 @@
 import { Menu, Button, Avatar, Text, Group } from '@mantine/core';
-import { IconUser, IconLogout, IconLogin } from '@tabler/icons-react';
+import { 
+  IconUser, 
+  IconLogout, 
+  IconLogin 
+} from '@tabler/icons-react';
+import { showNotification } from '@mantine/notifications';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +14,11 @@ export function UserMenu() {
 
   const handleLogout = () => {
     logout();
+    showNotification({
+      title: 'Logged out',
+      message: 'You have been successfully logged out',
+      color: 'blue',
+    });
     navigate('/login');
   };
 

@@ -1,4 +1,5 @@
 import { useAuthStore } from '../stores/authStore';
+import { showNotification } from '@mantine/notifications';
 
 /**
  * Helper function to get authentication headers
@@ -47,6 +48,15 @@ export const authenticatedFetch = async (
     if (response.status === 401) {
       console.warn('401 Unauthorized - logging out user');
       useAuthStore.getState().logout();
+      
+      // Show notification to user
+      showNotification({
+        title: 'Session Expired',
+        message: 'Your session has expired. Please log in again.',
+        color: 'orange',
+        autoClose: 5000,
+      });
+      
       throw new Error('Session expired. Please log in again.');
     }
     

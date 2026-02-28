@@ -4,6 +4,7 @@ import {
   ColorSchemeProvider,
   ColorScheme,
 } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
 import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
@@ -16,6 +17,7 @@ import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useAuthStore } from "./stores/authStore";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -62,6 +64,7 @@ export default function App() {
         withGlobalStyles
         withNormalizeCSS
       >
+        <Notifications position="top-right" zIndex={2077} />
         <AppShell
           padding="md"
           navbar={
@@ -90,7 +93,9 @@ export default function App() {
             },
           })}
         >
-          <AppRoutes />
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
           <SearchModal opened={modalOpened} close={modalFn.close} />
           <MainMenu
             opened={mainMenuOpened}

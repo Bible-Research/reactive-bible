@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { showNotification } from "@mantine/notifications";
 import * as api from './api';
 import { Note, Tag } from './types';
 
@@ -99,16 +100,53 @@ export const useBibleStore = create<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string) => {
-        const notes = await api.getNotes(tagId);
-        set({ notes, allNotesFetched: !tagId });
+        try {
+          const notes = await api.getNotes(tagId);
+          set({ notes, allNotesFetched: !tagId });
+        } catch (error) {
+          console.error('Error fetching notes:', error);
+          showNotification({
+            title: 'Error',
+            message: 'Failed to load notes. Please try again.',
+            color: 'red',
+          });
+          throw error;
+        }
       },
       getTags: async () => {
-        const tags = await api.getTags();
-        set({ tags });
+        try {
+          const tags = await api.getTags();
+          set({ tags });
+        } catch (error) {
+          console.error('Error fetching tags:', error);
+          showNotification({
+            title: 'Error',
+            message: 'Failed to load tags. Please try again.',
+            color: 'red',
+          });
+          throw error;
+        }
       },
       deleteNote: async (noteId: string) => {
-        await api.deleteNote(noteId);
-        set((state) => ({ notes: state.notes.filter((n) => n.id !== noteId) }));
+        try {
+          await api.deleteNote(noteId);
+          set((state) => ({
+            notes: state.notes.filter((n) => n.id !== noteId)
+          }));
+          showNotification({
+            title: 'Success',
+            message: 'Note deleted successfully',
+            color: 'green',
+          });
+        } catch (error) {
+          console.error('Error deleting note:', error);
+          showNotification({
+            title: 'Error',
+            message: 'Failed to delete note. Please try again.',
+            color: 'red',
+          });
+          throw error;
+        }
       },
       setShowNotes: (showNotes) => set({ showNotes }),
     }),
