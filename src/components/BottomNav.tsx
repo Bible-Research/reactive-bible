@@ -6,6 +6,7 @@ import {
   rem,
 } from "@mantine/core";
 import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { getPassage } from "../api";
 
@@ -14,15 +15,14 @@ interface BottomNavProps {
 }
 
 const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
+  const navigate = useNavigate();
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
-  const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort
   );
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const getPassageResult = getPassage();
 
   const checkNext = (): number | null => {
@@ -49,9 +49,9 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
     if (getPassageResult) {
       const next = getPassageResult[index + 1];
       if (next !== null) {
-        setActiveBookOnly(next.book_name);
+        console.log(`🔗 BottomNav Next: /bible/${next.book_name}/${next.chapter}`);
         setActiveBookShort(next.book_id);
-        setActiveChapter(next.chapter);
+        navigate(`/bible/${next.book_name}/${next.chapter}`);
       }
     }
   };
@@ -62,9 +62,9 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
     if (getPassageResult) {
       const prev = getPassageResult[index - 1];
       if (prev !== null) {
-        setActiveBookOnly(prev.book_name);
+        console.log(`🔗 BottomNav Prev: /bible/${prev.book_name}/${prev.chapter}`);
         setActiveBookShort(prev.book_id);
-        setActiveChapter(prev.chapter);
+        navigate(`/bible/${prev.book_name}/${prev.chapter}`);
       }
     }
   };

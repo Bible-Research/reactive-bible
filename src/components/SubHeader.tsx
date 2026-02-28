@@ -56,14 +56,18 @@ const SubHeader = ({
     return index === -1 || index === 0 ? null : index;
   };
   const nextHandler = () => {
+    console.log('🔗 nextHandler called');
     const index = checkNext();
+    console.log('🔗 checkNext index:', index);
     if (index === null) return null;
     if (getPassageResult) {
       const next = getPassageResult[index + 1];
+      console.log('🔗 next passage:', next);
       if (next !== null) {
-        console.log(`🔗 Next: /bible/${next.book_name}/${next.chapter}`);
+        console.log(`🔗 Navigating to: /bible/${next.book_name}/${next.chapter}`);
         setActiveBookShort(next.book_id);
         navigate(`/bible/${next.book_name}/${next.chapter}`);
+        console.log('🔗 navigate() called');
       }
     }
   };

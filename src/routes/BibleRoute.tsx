@@ -17,6 +17,13 @@ export default function BibleRoute() {
     setActiveChapter,
   } = useBibleStore();
 
+  console.log('📖 BibleRoute render:', { 
+    urlBook: book, 
+    urlChapter: chapter, 
+    storeBook: activeBook, 
+    storeChapter: activeChapter 
+  });
+
   // Sync URL params to store (one-way: URL is source of truth)
   useEffect(() => {
     if (book && chapter) {
@@ -33,7 +40,8 @@ export default function BibleRoute() {
       console.log(`📖 No URL params, redirecting to: ${activeBook} ${activeChapter}`);
       navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
     }
-  }, [book, chapter]); // Only depend on URL params
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book, chapter]); // Only depend on URL params to prevent loops
 
   return <Passage />;
 }
