@@ -36,7 +36,7 @@ export function RenderCounter({ children }: RenderCounterProps) {
  */
 export function measureRenderTime(
   renderFn: () => void,
-  iterations: number = 100
+  iterations = 100
 ): number {
   const start = performance.now();
   

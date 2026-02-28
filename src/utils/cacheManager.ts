@@ -204,7 +204,7 @@ export const cacheVerses = (
   bibleVersion: string,
   verses: { verse: number; text: string }[]
 ) => {
-  let cache = getVerseCache(); // Use let to allow modification
+  const cache = getVerseCache(); // Use let to allow modification
   const metadata = getVerseCacheMetadata();
   const now = Date.now();
 
@@ -326,8 +326,8 @@ export const cacheAudioUrl = (
   chapter: number,
   bibleVersion: string,
   audioUrl: string,
-  duration: number = 0,
-  fileSize: number = 0
+  duration = 0,
+  fileSize = 0
 ) => {
   const cache = getAudioCache();
   const cacheKey = `${bibleVersion}:${book}:${chapter}`;
