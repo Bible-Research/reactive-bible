@@ -7,11 +7,9 @@ import {
   Text,
   Loader,
   Box,
-  Title,
   Group,
-  ActionIcon,
+  Select,
 } from '@mantine/core';
-import { IconArrowLeft } from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
 import { Note, Tag } from '../types';
 import TagSection from '../components/TagSection';
@@ -29,6 +27,7 @@ export default function TagNotesRoute() {
           setActiveChapter, setActiveVerses, setShowNotes } = 
     useBibleStore();
   const [tag, setTag] = useState<Tag | null>(null);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,8 +44,9 @@ export default function TagNotesRoute() {
 
       try {
         // Fetch all tags to find the current one
-        const allTags = await getTags();
-        const currentTag = allTags.find(t => t.id === tagId);
+        const fetchedTags = await getTags();
+        setAllTags(fetchedTags);
+        const currentTag = fetchedTags.find(t => t.id === tagId);
         
         if (!currentTag) {
           setError(`Tag not found: ${tagId}`);
@@ -108,8 +108,11 @@ export default function TagNotesRoute() {
     setShowNotes(false);
   };
 
-  const handleBack = () => {
-    navigate('/notes');
+  const handleTagChange = (value: string | null) => {
+    if (value && value !== tagId) {
+      console.log(`🔗 TagNotesRoute: Navigate to /notes/tag/${value}`);
+      navigate(`/notes/tag/${value}`);
+    }
   };
 
   if (loading) {
@@ -123,32 +126,28 @@ export default function TagNotesRoute() {
   if (error || !tag) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Stack align="center">
-          <Text color="red" size="lg">
-            {error || 'Tag not found'}
-          </Text>
-          <ActionIcon onClick={handleBack} size="lg" variant="subtle">
-            <IconArrowLeft />
-          </ActionIcon>
-        </Stack>
+        <Text color="red" size="lg">
+          {error || 'Tag not found'}
+        </Text>
       </Center>
     );
   }
 
+  // Sort tags alphabetically
+  const sortedTags = [...allTags].sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <Box p="md">
       <Group mb="md" position="apart">
-        <Group>
-          <ActionIcon 
-            onClick={handleBack} 
-            size="lg" 
-            variant="subtle"
-            title="Back to all notes"
-          >
-            <IconArrowLeft />
-          </ActionIcon>
-          <Title order={2}>{tag.name}</Title>
-        </Group>
+        <Select
+          label="Filter by tag"
+          placeholder="Select a tag"
+          value={tagId}
+          onChange={handleTagChange}
+          data={sortedTags.map(t => ({ value: t.id, label: t.name }))}
+          searchable
+          style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+        />
         <Text color="dimmed" size="sm">
           {notes.length} {notes.length === 1 ? 'note' : 'notes'}
         </Text>
