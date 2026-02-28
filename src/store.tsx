@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
 import * as api from './api';
 import { Note, Tag } from './types';
@@ -71,7 +71,7 @@ export const initialState = {
   lastSelectedTagId: null,
 };
 
-export const useBibleStore = create<BibleState>()(
+export const useBibleStore = createWithEqualityFn<BibleState>()(
   persist(
     (set) => ({
       ...initialState,
