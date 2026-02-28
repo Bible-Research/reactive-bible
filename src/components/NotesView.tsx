@@ -15,8 +15,10 @@ const NotesView = () => {
   const hasNavigatedRef = useRef(false);
 
   useEffect(() => {
-    // Reset navigation flag when component mounts
-    hasNavigatedRef.current = false;
+    // Skip if already navigated
+    if (hasNavigatedRef.current) {
+      return;
+    }
     
     // If we have cached tags and lastSelectedTagId, navigate immediately
     if (storedTags.length > 0 && lastSelectedTagId && location.pathname === '/notes') {
@@ -49,15 +51,10 @@ const NotesView = () => {
       setLoading(false);
     };
     
-    // Only fetch if we don't have cached data
-    if (!storedTags.length) {
+    // Only fetch if we don't have cached data and haven't navigated
+    if (!storedTags.length && !hasNavigatedRef.current) {
       loadData();
     }
-    
-    // Cleanup: reset flag on unmount
-    return () => {
-      hasNavigatedRef.current = false;
-    };
   }, [location.pathname, navigate, lastSelectedTagId, storedTags]);
 
 
