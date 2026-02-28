@@ -47,6 +47,13 @@ export default function TagNotesRoute() {
   }, [setShowNotes, setLastSelectedTagId, tagId]);
 
   useEffect(() => {
+    console.log(`🔄 TagNotesRoute useEffect triggered:`, {
+      tagId,
+      storedTagsLength: storedTags.length,
+      notesLength: notes.length,
+      previousTagId: previousTagIdRef.current
+    });
+    
     const loadTagAndNotes = async () => {
       if (!tagId) {
         setError('No tag ID provided');
