@@ -35,6 +35,11 @@ export default function TagNotesRoute() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Set showNotes to true when on notes route
+  useEffect(() => {
+    setShowNotes(true);
+  }, [setShowNotes]);
+
   useEffect(() => {
     const loadTagAndNotes = async () => {
       if (!tagId) {
