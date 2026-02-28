@@ -17,40 +17,23 @@ export default function BibleRoute() {
     setActiveChapter,
   } = useBibleStore();
 
-  // Sync URL params to store when URL changes
+  // Sync URL params to store (one-way: URL is source of truth)
   useEffect(() => {
     if (book && chapter) {
       const chapterNum = parseInt(chapter, 10);
       
-      // Only update if different from current state
+      // Update store to match URL
       if (book !== activeBook || chapterNum !== activeChapter) {
-        console.log(`📖 URL changed: ${book} ${chapterNum}`);
+        console.log(`📖 Syncing URL to store: ${book} ${chapterNum}`);
         setActiveBook(book);
         setActiveChapter(chapterNum);
       }
     } else {
       // No URL params - redirect to current store state
-      console.log(
-        `📖 No URL params, redirecting to: ${activeBook} ${activeChapter}`
-      );
+      console.log(`📖 No URL params, redirecting to: ${activeBook} ${activeChapter}`);
       navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
     }
-  }, [book, chapter, activeBook, activeChapter, setActiveBook, setActiveChapter, navigate]);
-
-  // Sync store changes back to URL (when user navigates via UI)
-  useEffect(() => {
-    // Skip if we don't have URL params yet (handled by first effect)
-    if (!book || !chapter) return;
-    
-    const expectedUrl = `/bible/${activeBook}/${activeChapter}`;
-    const currentUrl = `/bible/${book}/${chapter}`;
-    
-    // Only update URL if store state differs from URL params
-    if (expectedUrl !== currentUrl) {
-      console.log(`📖 Store changed, updating URL to: ${expectedUrl}`);
-      navigate(expectedUrl, { replace: true });
-    }
-  }, [activeBook, activeChapter, book, chapter, navigate]);
+  }, [book, chapter]); // Only depend on URL params
 
   return <Passage />;
 }
