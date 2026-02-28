@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ScrollArea,
@@ -35,6 +35,7 @@ export default function TagNotesRoute() {
   const [allTags, setAllTags] = useState<Tag[]>(storedTags);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const previousTagIdRef = useRef<string | null>(null);
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -69,8 +70,20 @@ export default function TagNotesRoute() {
 
         setTag(currentTag);
         
-        // Fetch notes for this tag
-        await fetchNotes(tagId);
+        // Only fetch notes if:
+        // 1. We don't have cached notes, OR
+        // 2. The tagId changed from previous load
+        const shouldFetchNotes = 
+          notes.length === 0 || 
+          previousTagIdRef.current !== tagId;
+        
+        if (shouldFetchNotes) {
+          console.log(`📝 Fetching notes for tag: ${tagId}`);
+          await fetchNotes(tagId);
+          previousTagIdRef.current = tagId;
+        } else {
+          console.log(`✅ Using cached notes for tag: ${tagId} (${notes.length} notes)`);
+        }
       } catch (err) {
         console.error('Error loading tag notes:', err);
         setError('Failed to load notes');
@@ -80,7 +93,7 @@ export default function TagNotesRoute() {
     };
 
     loadTagAndNotes();
-  }, [tagId, fetchNotes]);
+  }, [tagId, fetchNotes, notes.length]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
