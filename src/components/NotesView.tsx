@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import type { MouseEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { ScrollArea, Select, Group, Stack, Center, Text, Loader, Box } from "@mantine/core";
 import { Note, Tag } from "../types";
 import TagSection from "./TagSection";
@@ -12,6 +13,7 @@ interface NotesViewProps {
 }
 
 const NotesView = ({ onViewInBible }: NotesViewProps) => {
+  const navigate = useNavigate();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { notes, fetchNotes } = useBibleStore((state) => ({ notes: state.notes, fetchNotes: state.fetchNotes }));
@@ -53,14 +55,9 @@ const NotesView = ({ onViewInBible }: NotesViewProps) => {
   // Handle tag selection change
   const handleTagChange = async (value: string | null) => {
     if (value) {
-      setSelectedTagId(value);
-      setLoading(true);
-      try {
-        await fetchNotes(value);
-      } catch (error) {
-        console.error('Error fetching notes for tag:', error);
-      }
-      setLoading(false);
+      console.log(`🔗 NotesView: Navigate to /notes/tag/${value}`);
+      // Navigate to tag-specific route
+      navigate(`/notes/tag/${value}`);
     }
   };
 
