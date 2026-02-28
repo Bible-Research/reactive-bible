@@ -1,11 +1,28 @@
 import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { useNavigate } from 'react-router-dom';
 import BibleSelector from './BibleSelector';
 import { renderWithProviders } from '../__tests__/helpers';
 
+// Mock useNavigate
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: vi.fn(),
+  };
+});
+
 describe('BibleSelector Component', () => {
+  const mockNavigate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (useNavigate as any).mockReturnValue(mockNavigate);
+  });
+
   it('should render books, chapters, and verses', () => {
     renderWithProviders(<BibleSelector opened={true} setOpened={() => {}} />);
     expect(screen.getByText('Genesis')).toBeInTheDocument();
@@ -14,30 +31,33 @@ describe('BibleSelector Component', () => {
     expect(screen.getByTitle('nav-verse-4')).toBeInTheDocument();
   });
 
-  it('should call setActiveBook when a book is clicked', async () => {
-    const { mockStore } = renderWithProviders(
+  it('should navigate when a book is clicked', async () => {
+    renderWithProviders(
       <BibleSelector opened={true} setOpened={() => {}} />
     );
     const bookLink = screen.getByText('Exodus');
     await userEvent.click(bookLink);
-    expect(mockStore.setActiveBook).toHaveBeenCalledWith('Exodus');
+    // Should navigate to Exodus chapter 1
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/Exodus/1');
   });
 
-  it('should call setActiveChapter when a chapter is clicked', async () => {
-    const { mockStore } = renderWithProviders(
+  it('should navigate when a chapter is clicked', async () => {
+    renderWithProviders(
       <BibleSelector opened={true} setOpened={() => {}} />
     );
     const chapterLink = screen.getByTitle('nav-chapter-3');
     await userEvent.click(chapterLink);
-    expect(mockStore.setActiveChapter).toHaveBeenCalledWith(3);
+    // Should navigate to current book (John) chapter 3
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/John/3');
   });
 
-  it('should call setActiveVerses when a verse is clicked', async () => {
-    const { mockStore } = renderWithProviders(
+  it('should navigate when a verse is clicked', async () => {
+    renderWithProviders(
       <BibleSelector opened={true} setOpened={() => {}} />
     );
     const verseLink = screen.getByTitle('nav-verse-5');
     await userEvent.click(verseLink);
-    expect(mockStore.setActiveVerses).toHaveBeenCalledWith([5]);
+    // Verse clicking now navigates to the chapter (verse highlighting comes later)
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/John/1');
   });
 });

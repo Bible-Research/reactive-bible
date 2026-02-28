@@ -1,5 +1,6 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import { useBibleStore, initialState } from '../store';
 
@@ -129,6 +130,7 @@ interface ExtendedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
 /**
  * Renders a component with common providers and store setup.
  * Automatically resets the store before rendering.
+ * Wraps component in MemoryRouter for routing context.
  */
 export function renderWithProviders(
   ui: ReactElement,
@@ -142,7 +144,12 @@ export function renderWithProviders(
   // Mock DOM APIs
   mockDomApis();
 
-  const result = render(ui, renderOptions);
+  // Wrap in MemoryRouter for routing context
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
+    <MemoryRouter>{children}</MemoryRouter>
+  );
+
+  const result = render(ui, { wrapper: Wrapper, ...renderOptions });
 
   return {
     ...result,
