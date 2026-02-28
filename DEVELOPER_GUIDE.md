@@ -262,26 +262,67 @@ render(
 npm test -- src/routes/__tests__/BibleRoute.test.tsx
 ```
 
+### Implemented Routes
+
+**Bible Routes** (✅ Implemented):
+- `/` - Redirects to `/bible`
+- `/bible` - Redirects to current book/chapter from store
+- `/bible/:book/:chapter` - Displays specific Bible chapter
+- `*` (catch-all) - Redirects to `/bible`
+
+**Notes Routes** (✅ Implemented):
+- `/notes` - Auto-redirects to first tag
+- `/notes/tag/:tagId` - Displays notes filtered by specific tag
+
+**Components**:
+- `BibleRoute` - Handles Bible navigation, syncs URL params to store
+- `NotesRoute` - Loads tags and redirects to first tag
+- `TagNotesRoute` - Displays notes for specific tag with CRUD operations
+
+### Route Implementation Details
+
+**NotesRoute** (`src/routes/NotesRoute.tsx`):
+- Fetches all tags from API
+- Automatically redirects to `/notes/tag/:firstTagId`
+- Provides tag selector dropdown
+- Minimal component - main logic in TagNotesRoute
+
+**TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
+- Fetches notes for specific tag via API
+- Displays tag selector dropdown (searchable)
+- Shows note count
+- Provides full CRUD operations:
+  - View note in Bible passage
+  - Edit note (opens modal)
+  - Delete note (with confirmation)
+- Handles "View in Bible" navigation
+- Updates URL when switching tags
+
+**Navigation Pattern**:
+```typescript
+// User clicks "View Notes" in menu
+navigate('/notes');
+// → NotesRoute loads tags
+// → Auto-redirects to /notes/tag/:firstTagId
+// → TagNotesRoute displays notes for that tag
+
+// User selects different tag
+navigate('/notes/tag/:newTagId');
+// → TagNotesRoute fetches and displays new notes
+```
+
 ### Future Routes (Planned)
 
-**Phase 2**:
-- `/bible/:book/:chapter/:verse` - Verse highlighting
-- `/notes` - All notes list
-- `/notes/tag/:tagId` - Notes by tag
-- `/notes/:noteId` - Single note detail
-
 **Phase 3**:
+- `/bible/:book/:chapter/:verse` - Verse highlighting
+- `/notes/:noteId` - Single note detail view
+- `/notes/new` - Create new note
+- `/notes/:noteId/edit` - Edit note
+
+**Phase 4**:
 - `/tags` - Tags list
 - `/tags/:tagId` - Tag detail
 - `/search` - Search results
-
-### Documentation
-
-For detailed implementation guides, see:
-- `ROUTING_POC_GUIDE.md` - Step-by-step POC guide
-- `ROUTING_POC_STATUS.md` - Implementation status
-- `ROUTING_IMPLEMENTATION_COMPLETE.md` - Complete documentation
-- `ROUTING_IMPLEMENTATION_GUIDE.md` - Full implementation plan
 
 ---
 
