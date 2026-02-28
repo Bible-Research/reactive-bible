@@ -28,6 +28,12 @@ const NotesView = () => {
       return;
     }
     
+    // If tags not cached, we MUST load them before navigating
+    // Even if we have lastSelectedTagId, we need tags in the store
+    if (storedTags.length === 0) {
+      console.log('📝 Loading tags before navigation...');
+    }
+    
     const loadData = async () => {
       setLoading(true);
       try {
@@ -51,8 +57,9 @@ const NotesView = () => {
       setLoading(false);
     };
     
-    // Only fetch if we don't have cached data and haven't navigated
-    if (!storedTags.length && !hasNavigatedRef.current) {
+    // Always fetch if we don't have cached tags
+    // We need tags in the store for TagNotesRoute to work
+    if (!storedTags.length) {
       loadData();
     }
   }, [location.pathname, navigate, lastSelectedTagId, storedTags]);
