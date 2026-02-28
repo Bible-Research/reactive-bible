@@ -15,6 +15,7 @@ import { SearchModal } from "./components/SearchModal";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { useAuthStore } from "./stores/authStore";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -32,10 +33,15 @@ export default function App() {
   
   const [modalOpened, modalFn] = useDisclosure(false);
 
-  // Clean up expired audio URLs on app load
+  // Check authentication on app load
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  
   useEffect(() => {
+    // Check if user is authenticated from localStorage
+    checkAuth();
+    // Clean up expired audio URLs
     clearExpiredAudioUrls();
-  }, []);
+  }, [checkAuth]);
   useWindowEvent("keydown", (event) => {
     if (event.key === "/") {
       event.preventDefault();

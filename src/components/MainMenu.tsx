@@ -7,10 +7,12 @@ import {
   Text,
   useMantineTheme,
   ColorScheme,
+  Divider,
 } from "@mantine/core";
 import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { UserMenu } from "./UserMenu";
 
 interface MainMenuProps {
   opened: boolean;
@@ -52,6 +54,14 @@ const MainMenu = ({
       </ActionIcon>
 
       <Stack spacing="xl">
+        {/* User Account Section */}
+        <Group position="apart" spacing="xs">
+          <Text weight={500} size="lg">Account</Text>
+          <UserMenu />
+        </Group>
+        
+        <Divider />
+        
         <Group position="apart" spacing="xs">
           <Text
             weight={500}

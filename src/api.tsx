@@ -9,6 +9,7 @@ import {
   getCachedTranslations,
   cacheTranslations,
 } from './utils/cacheManager';
+import { authenticatedFetch } from './utils/apiClient';
 
 export const data = bibleJson as KjvBook[];
 
@@ -123,52 +124,84 @@ export const addTagNote = async (
   tagNoteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[]
 ) => {
-  const body = JSON.stringify({ tag: tagId, note_text: tagNoteText, verse_references: verseReferences });
+  const body = JSON.stringify({ 
+    tag: tagId, 
+    note_text: tagNoteText, 
+    verse_references: verseReferences 
+  });
   try {
-    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/notes/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: body,
-    });
+    const response = await authenticatedFetch(
+      'https://bibleresearchapi.vercel.app/api/v1/notes/', 
+      {
+        method: 'POST',
+        body: body,
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to create note');
+    }
     return await response.json();
   } catch (error) {
-    console.error(error);
+    console.error('Error creating note:', error);
+    throw error;
   }
 };
 
-export const editNote = async (noteId: string, tagId: string, noteText: string) => {
+export const editNote = async (
+  noteId: string, 
+  tagId: string, 
+  noteText: string
+) => {
   const body = JSON.stringify({ tag: tagId, note_text: noteText });
   try {
-    const response = await fetch(`https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: body,
-    });
+    const response = await authenticatedFetch(
+      `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`, 
+      {
+        method: 'PATCH',
+        body: body,
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to update note');
+    }
     return await response.json();
   } catch (error) {
-    console.error(error);
-    return [];
+    console.error('Error updating note:', error);
+    throw error;
   }
 };
 
 export const deleteNote = async (noteId: string) => {
   try {
-    const response = await fetch(`https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}`, {
-      method: 'DELETE',
-    });
-    return await response.text() // due to the response being a text had to pull out .text instead of .json
+    const response = await authenticatedFetch(
+      `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}`, 
+      {
+        method: 'DELETE',
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to delete note');
+    }
+    // 204 No Content response
+    return response.status === 204 ? '' : await response.text();
   } catch(err: any | Error) {
+    console.error('Error deleting note:', err);
     throw new Error('Failed to delete your note, please try again');
   }
 }
 
 export const getTags = async (): Promise<Tag[]> => {
   try {
-    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/tags/');
+    const response = await authenticatedFetch(
+      'https://bibleresearchapi.vercel.app/api/v1/tags/'
+    );
+    if (!response.ok) {
+      throw new Error('Failed to fetch tags');
+    }
     return await response.json();
   } catch (error) {
-    console.error(error);
-    return [];
+    console.error('Error fetching tags:', error);
+    throw error;
   }
 };
 
@@ -463,7 +496,14 @@ export const getNotes = async (tagId?: string): Promise<Note[]> => {
   const url = tagId
     ? `https://bibleresearchapi.vercel.app/api/v1/notes/?tag_id=${tagId}`
     : 'https://bibleresearchapi.vercel.app/api/v1/notes/';
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch notes');
-  return await response.json();
+  try {
+    const response = await authenticatedFetch(url);
+    if (!response.ok) {
+      throw new Error('Failed to fetch notes');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching notes:', error);
+    throw error;
+  }
 };
