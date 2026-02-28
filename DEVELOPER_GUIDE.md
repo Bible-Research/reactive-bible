@@ -4,19 +4,20 @@
 1. [Project Overview](#project-overview)
 2. [Development Setup](#development-setup)
 3. [Architecture](#architecture)
-4. [Core Functionalities](#core-functionalities)
+4. [Client-Side Routing](#client-side-routing)
 5. [State Management](#state-management)
-6. [Types & Interfaces](#types--interfaces)
-7. [Data Flow](#data-flow)
-8. [Component Structure](#component-structure)
-9. [API Integration](#api-integration)
-10. [Caching System](#caching-system)
-11. [Bible Utilities](#bible-utilities)
-12. [Testing](#testing)
-13. [Browser Compatibility](#browser-compatibility)
-14. [Performance Considerations](#performance-considerations)
-15. [Contributing Guidelines](#contributing-guidelines)
-16. [Keeping Documentation Updated](#keeping-documentation-updated)
+6. [Core Functionalities](#core-functionalities)
+7. [Types & Interfaces](#types--interfaces)
+8. [Data Flow](#data-flow)
+9. [Component Structure](#component-structure)
+10. [API Integration](#api-integration)
+11. [Caching System](#caching-system)
+12. [Bible Utilities](#bible-utilities)
+13. [Testing](#testing)
+14. [Browser Compatibility](#browser-compatibility)
+15. [Performance Considerations](#performance-considerations)
+16. [Contributing Guidelines](#contributing-guidelines)
+17. [Keeping Documentation Updated](#keeping-documentation-updated)
 
 ---
 
@@ -141,6 +142,146 @@ src/
 - **API Layer Separation**: All external data fetching and business logic is handled in `src/api.tsx`.
 - **Cache-First Strategy**: A multi-level caching system (`src/utils/cacheManager.ts`) minimizes API calls and improves speed.
 - **Persistent State**: User preferences (like theme and translation choice) are saved across sessions.
+- **URL-Based Routing**: React Router v6 for client-side navigation with URL/store synchronization.
+
+---
+
+## Client-Side Routing
+
+**Status**: ✅ Implemented (POC Complete)  
+**Library**: React Router v6.28.1  
+**Branch**: `feature/bible-routing-poc`
+
+The application uses React Router for client-side navigation, enabling shareable URLs, browser history support, and deep linking.
+
+### Routes
+
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/` | Redirect | Redirects to `/bible` |
+| `/bible` | `BibleRoute` | Redirects to current book/chapter from store |
+| `/bible/:book/:chapter` | `BibleRoute` | Displays specific Bible chapter |
+| `*` (catch-all) | Redirect | Redirects to `/bible` |
+
+### Route Components
+
+**Location**: `src/routes/`
+
+```
+src/routes/
+├── BibleRoute.tsx    # Main Bible reading route
+├── index.tsx         # Route configuration
+└── __tests__/
+    └── BibleRoute.test.tsx  # Route tests
+```
+
+### URL/Store Synchronization
+
+The routing system maintains bidirectional sync between URL parameters and Zustand store:
+
+**URL → Store** (One-way sync):
+```typescript
+// BibleRoute.tsx
+useEffect(() => {
+  if (book && chapter) {
+    const chapterNum = parseInt(chapter, 10);
+    if (book !== activeBook || chapterNum !== activeChapter) {
+      setActiveBook(book);
+      setActiveChapter(chapterNum);
+    }
+  } else {
+    navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
+  }
+}, [book, chapter]); // Only depend on URL params
+```
+
+**Key Principle**: URL is the single source of truth. Navigation components use `navigate()` to update the URL, which triggers the store update.
+
+### Navigation Pattern
+
+**All navigation components use `useNavigate()` hook:**
+
+```typescript
+import { useNavigate } from 'react-router-dom';
+
+const navigate = useNavigate();
+
+// Navigate to a chapter
+navigate(`/bible/${book}/${chapter}`);
+```
+
+**Updated Components**:
+- `BibleSelector.tsx` - Book/chapter selection
+- `SubHeader.tsx` - Previous/next chapter buttons
+- `BottomNav.tsx` - Footer navigation arrows
+
+**Pattern**:
+```typescript
+// ❌ OLD: Direct store updates
+setActiveBook('Matthew');
+setActiveChapter(5);
+
+// ✅ NEW: URL-based navigation
+navigate('/bible/Matthew/5');
+// BibleRoute automatically syncs to store
+```
+
+### Features
+
+✅ **Direct URL Access**: Type `/bible/John/3` in browser  
+✅ **Browser Navigation**: Back/forward buttons work  
+✅ **Page Refresh**: Maintains current location  
+✅ **Shareable URLs**: Share links to specific passages  
+✅ **Deep Linking**: Bookmark any passage  
+
+### Testing
+
+**Test Setup**: Tests use `MemoryRouter` for better control
+
+```typescript
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+
+render(
+  <MemoryRouter initialEntries={['/bible/John/1']}>
+    <Routes>
+      <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+    </Routes>
+  </MemoryRouter>
+);
+```
+
+**Test Coverage**:
+- ✅ URL param syncing
+- ✅ Store updates
+- ✅ Redirects
+- ✅ Error handling
+- ✅ No infinite loops
+
+**Run Tests**:
+```bash
+npm test -- src/routes/__tests__/BibleRoute.test.tsx
+```
+
+### Future Routes (Planned)
+
+**Phase 2**:
+- `/bible/:book/:chapter/:verse` - Verse highlighting
+- `/notes` - All notes list
+- `/notes/tag/:tagId` - Notes by tag
+- `/notes/:noteId` - Single note detail
+
+**Phase 3**:
+- `/tags` - Tags list
+- `/tags/:tagId` - Tag detail
+- `/search` - Search results
+
+### Documentation
+
+For detailed implementation guides, see:
+- `ROUTING_POC_GUIDE.md` - Step-by-step POC guide
+- `ROUTING_POC_STATUS.md` - Implementation status
+- `ROUTING_IMPLEMENTATION_COMPLETE.md` - Complete documentation
+- `ROUTING_IMPLEMENTATION_GUIDE.md` - Full implementation plan
 
 ---
 
