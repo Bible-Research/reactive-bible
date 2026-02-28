@@ -57,7 +57,9 @@ describe('TagNotesRoute', () => {
       activeChapter: 3,
       activeVerses: [],
       // Mock fetchNotes to not clear notes
-      fetchNotes: vi.fn(async () => {}),
+      fetchNotes: vi.fn(async () => {
+        // Mock implementation
+      }),
     });
   });
 
