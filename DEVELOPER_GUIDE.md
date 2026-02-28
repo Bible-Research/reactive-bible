@@ -308,6 +308,7 @@ The application uses Zustand for lightweight, centralized state management. The 
 
 **UI State**:
 - `showAudioPlayer: boolean` - Controls audio player visibility (NOT persisted)
+- `showNotes: boolean` - Toggles between Bible view and Notes view
 
 **Notes State**:
 - `notes: Note[]` - Array of user notes with tags and verse references
@@ -329,6 +330,7 @@ The application uses Zustand for lightweight, centralized state management. The 
 
 **UI Actions**:
 - `setShowAudioPlayer(show: boolean)` - Toggles audio player visibility
+- `setShowNotes(show: boolean)` - Toggles between Bible view and Notes view
 
 **Notes Actions**:
 - `fetchNotes()` - Async function to fetch notes from API and update state
@@ -1619,7 +1621,7 @@ Main content container that switches between Bible view and Notes view.
 
 **Responsibilities**:
 - Toggle between PassageView and NotesView
-- Manage showNotes state
+- Read showNotes state from Zustand store
 - Handle "View in Bible" navigation from notes
 - Render SubHeader component
 
