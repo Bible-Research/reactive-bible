@@ -9,7 +9,11 @@ import {
   Box,
   Group,
   Select,
+  ActionIcon,
+  Tooltip,
 } from '@mantine/core';
+import { IconShare } from '@tabler/icons-react';
+import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
 import { Note, Tag } from '../types';
 import TagSection from '../components/TagSection';
@@ -115,6 +119,50 @@ export default function TagNotesRoute() {
     }
   };
 
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = `Notes: ${tag?.name || 'Tag'}`;
+    const text = `Check out these ${notes.length} note(s) tagged with "${tag?.name}"`;
+
+    // Try Web Share API first (mobile-friendly)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title,
+          text,
+          url,
+        });
+        showNotification({
+          title: 'Shared!',
+          message: 'Link shared successfully',
+          color: 'green',
+        });
+      } catch (err) {
+        // User cancelled or error occurred
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Error sharing:', err);
+        }
+      }
+    } else {
+      // Fallback: Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(url);
+        showNotification({
+          title: 'Link Copied!',
+          message: 'Tag link copied to clipboard',
+          color: 'blue',
+        });
+      } catch (err) {
+        console.error('Error copying to clipboard:', err);
+        showNotification({
+          title: 'Error',
+          message: 'Failed to copy link',
+          color: 'red',
+        });
+      }
+    }
+  };
+
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
@@ -148,9 +196,21 @@ export default function TagNotesRoute() {
           searchable
           style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
         />
-        <Text color="dimmed" size="sm">
-          {notes.length} {notes.length === 1 ? 'note' : 'notes'}
-        </Text>
+        <Group spacing="xs">
+          <Text color="dimmed" size="sm">
+            {notes.length} {notes.length === 1 ? 'note' : 'notes'}
+          </Text>
+          <Tooltip label="Share tag link" position="left">
+            <ActionIcon
+              onClick={handleShare}
+              variant="subtle"
+              color="blue"
+              size="lg"
+            >
+              <IconShare size={20} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
       </Group>
 
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
