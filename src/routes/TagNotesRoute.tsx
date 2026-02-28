@@ -19,7 +19,7 @@ import { Note, Tag } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
-import { getTags, deleteNote } from '../api';
+import { deleteNote } from '../api';
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -57,10 +57,10 @@ export default function TagNotesRoute() {
       setError(null);
 
       try {
-        // Use cached tags if available, otherwise fetch
-        const tagsToUse = storedTags.length > 0 ? storedTags : await getTags();
-        setAllTags(tagsToUse);
-        const currentTag = tagsToUse.find(t => t.id === tagId);
+        // Always use cached tags - they should be loaded by NotesView
+        // Never fetch tags here to avoid unnecessary re-renders
+        setAllTags(storedTags);
+        const currentTag = storedTags.find(t => t.id === tagId);
         
         if (!currentTag) {
           setError(`Tag not found: ${tagId}`);
