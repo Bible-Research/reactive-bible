@@ -2,6 +2,7 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
 import * as api from './api';
 import { Note, Tag } from './types';
+import { getCachedNotes, cacheNotes, clearNotesCache } from './utils/cacheManager';
 
 export interface Fileset {
   id: string;
@@ -102,7 +103,25 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string) => {
+        // Check cache first
+        if (tagId) {
+          const cachedNotes = getCachedNotes(tagId);
+          if (cachedNotes) {
+            console.log(`✅ Using cached notes for tag: ${tagId} (${cachedNotes.length} notes)`);
+            set({ notes: cachedNotes, allNotesFetched: false });
+            return;
+          }
+        }
+        
+        // Fetch from API
+        console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
         const notes = await api.getNotes(tagId);
+        
+        // Cache the results
+        if (tagId) {
+          cacheNotes(tagId, notes);
+        }
+        
         set({ notes, allNotesFetched: !tagId });
       },
       getTags: async () => {
@@ -111,6 +130,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       },
       deleteNote: async (noteId: string) => {
         await api.deleteNote(noteId);
+        // Clear all notes cache since we don't know which tag this note belonged to
+        clearNotesCache();
         set((state) => ({ notes: state.notes.filter((n) => n.id !== noteId) }));
       },
       setShowNotes: (showNotes) => set({ showNotes }),

@@ -95,20 +95,9 @@ export default function TagNotesRoute() {
 
         setTag(currentTag);
         
-        // Only fetch notes if:
-        // 1. We don't have cached notes, OR
-        // 2. The tagId changed from previous load
-        const shouldFetchNotes = 
-          notes.length === 0 || 
-          previousTagIdRef.current !== tagId;
-        
-        if (shouldFetchNotes) {
-          console.log(`📝 Fetching notes for tag: ${tagId}`);
-          await fetchNotes(tagId);
-          previousTagIdRef.current = tagId;
-        } else {
-          console.log(`✅ Using cached notes for tag: ${tagId} (${notes.length} notes)`);
-        }
+        // Always fetch notes - the store will handle caching
+        await fetchNotes(tagId);
+        previousTagIdRef.current = tagId;
         
         // Successfully loaded, clear loading state
         setLoading(false);
