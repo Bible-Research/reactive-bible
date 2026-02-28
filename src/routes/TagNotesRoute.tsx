@@ -12,7 +12,7 @@ import {
   ActionIcon,
   Tooltip,
 } from '@mantine/core';
-import { IconShare } from '@tabler/icons-react';
+import { IconShare, IconRefresh } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
 import { Note, Tag } from '../types';
@@ -20,6 +20,7 @@ import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
 import { deleteNote } from '../api';
+import { clearNotesCache } from '../utils/cacheManager';
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -157,6 +158,31 @@ export default function TagNotesRoute() {
     }
   };
 
+  const handleRefresh = async () => {
+    if (!tagId) return;
+    
+    try {
+      // Clear cache for this tag
+      clearNotesCache(tagId);
+      
+      // Refetch notes from API
+      await fetchNotes(tagId);
+      
+      showNotification({
+        title: 'Refreshed!',
+        message: 'Notes updated from server',
+        color: 'green',
+      });
+    } catch (err) {
+      console.error('Error refreshing notes:', err);
+      showNotification({
+        title: 'Error',
+        message: 'Failed to refresh notes',
+        color: 'red',
+      });
+    }
+  };
+
   const handleShare = async () => {
     const url = window.location.href;
     const title = `Notes: ${tag?.name || 'Tag'}`;
@@ -238,6 +264,16 @@ export default function TagNotesRoute() {
           <Text color="dimmed" size="sm">
             {notes.length} {notes.length === 1 ? 'note' : 'notes'}
           </Text>
+          <Tooltip label="Refresh notes" position="left">
+            <ActionIcon
+              onClick={handleRefresh}
+              variant="subtle"
+              color="gray"
+              size="lg"
+            >
+              <IconRefresh size={20} />
+            </ActionIcon>
+          </Tooltip>
           <Tooltip label="Share tag link" position="left">
             <ActionIcon
               onClick={handleShare}
