@@ -1,14 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Select, Center, Loader, Box } from "@mantine/core";
 import { Tag } from "../types";
 import { getTags } from "../api";
 
-interface NotesViewProps {
-  onViewInBible: (book: string, chapter: number, verse: number) => void;
-}
-
-const NotesView = ({ onViewInBible }: NotesViewProps) => {
+const NotesView = () => {
   const navigate = useNavigate();
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
