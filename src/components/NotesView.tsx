@@ -1,39 +1,49 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Select, Center, Loader, Box } from "@mantine/core";
 import { Tag } from "../types";
 import { getTags } from "../api";
 
 const NotesView = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
-  const hasLoadedRef = useRef(false);
+  const hasNavigatedRef = useRef(false);
 
   useEffect(() => {
-    // Prevent double-fetch in React Strict Mode
-    if (hasLoadedRef.current) return;
+    // Reset navigation flag when component mounts
+    hasNavigatedRef.current = false;
     
     const loadData = async () => {
       setLoading(true);
       try {
         const fetchedTags = await getTags();
         setTags(fetchedTags);
-        if (fetchedTags.length > 0) {
+        
+        // Only navigate if we're still on /notes route and haven't navigated yet
+        if (fetchedTags.length > 0 && 
+            location.pathname === '/notes' && 
+            !hasNavigatedRef.current) {
           const sorted = [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name));
           const firstTagId = sorted[0].id;
-          // Navigate to first tag instead of fetching directly
           console.log(`🔗 NotesView: Auto-navigate to first tag /notes/tag/${firstTagId}`);
+          hasNavigatedRef.current = true;
           navigate(`/notes/tag/${firstTagId}`, { replace: true });
         }
-        hasLoadedRef.current = true;
       } catch (error) {
         console.error('Error loading data:', error);
       }
       setLoading(false);
     };
+    
     loadData();
-  }, []); // Empty dependency - only load on mount
+    
+    // Cleanup: reset flag on unmount
+    return () => {
+      hasNavigatedRef.current = false;
+    };
+  }, [location.pathname, navigate]);
 
 
 
