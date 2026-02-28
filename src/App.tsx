@@ -30,9 +30,6 @@ export default function App() {
   // MainMenu state
   const [mainMenuOpened, setMainMenuOpened] = useState(false);
   
-  // Notes view state (lifted from Passage)
-  const [showNotes, setShowNotes] = useState(false);
-  
   const [modalOpened, modalFn] = useDisclosure(false);
 
   // Clean up expired audio URLs on app load
@@ -92,8 +89,6 @@ export default function App() {
           <MainMenu
             opened={mainMenuOpened}
             onClose={() => setMainMenuOpened(false)}
-            showNotes={showNotes}
-            setShowNotes={setShowNotes}
             colorScheme={colorScheme}
             toggleColorScheme={toggleColorScheme}
           />
