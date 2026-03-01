@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   TextInput,
   PasswordInput,
@@ -10,6 +10,7 @@ import {
   Container,
   Alert,
   Stack,
+  Anchor,
 } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
@@ -105,13 +106,11 @@ export function LoginPage() {
           </Stack>
         </form>
         
-        <Text color="dimmed" size="xs" align="center" mt="xl">
-          Don't have an account? You need a user account with a password
-          created via Django admin panel.
-        </Text>
-        <Text color="dimmed" size="xs" align="center" mt="xs">
-          Note: Auto-created accounts (from browsing without login) do not
-          have passwords and cannot be used for login.
+        <Text color="dimmed" size="sm" align="center" mt="xl">
+          Don't have an account?{' '}
+          <Anchor component={Link} to="/register" size="sm">
+            Create one now
+          </Anchor>
         </Text>
       </Paper>
     </Container>
