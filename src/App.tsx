@@ -11,6 +11,7 @@ import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
 import BottomNav from "./components/BottomNav";
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { AppRoutes } from "./routes";
 import { SearchModal } from "./components/SearchModal";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
@@ -44,6 +45,11 @@ export default function App() {
     // Clean up expired audio URLs
     clearExpiredAudioUrls();
   }, [checkAuth]);
+  
+  // Check if we're on an auth page (login/register)
+  const location = useLocation();
+  const isAuthPage = location.pathname === '/login' || 
+                     location.pathname === '/register';
   useWindowEvent("keydown", (event) => {
     if (event.key === "/") {
       event.preventDefault();
@@ -68,20 +74,26 @@ export default function App() {
         <AppShell
           padding="md"
           navbar={
-            <BibleSelector
-              opened={bibleSelectorOpened}
-              setOpened={setBibleSelectorOpened}
-            />
+            !isAuthPage ? (
+              <BibleSelector
+                opened={bibleSelectorOpened}
+                setOpened={setBibleSelectorOpened}
+              />
+            ) : undefined
           }
           header={
-            <MyHeader
-              menuOpened={mainMenuOpened}
-              setMenuOpened={setMainMenuOpened}
-              open={modalFn.open}
-            />
+            !isAuthPage ? (
+              <MyHeader
+                menuOpened={mainMenuOpened}
+                setMenuOpened={setMainMenuOpened}
+                open={modalFn.open}
+              />
+            ) : undefined
           }
           footer={
-            <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
+            !isAuthPage ? (
+              <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
+            ) : undefined
           }
           styles={(theme) => ({
             main: {
@@ -90,6 +102,8 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
+              // Allow scrolling on auth pages
+              overflow: isAuthPage ? "auto" : "hidden",
             },
           })}
         >
