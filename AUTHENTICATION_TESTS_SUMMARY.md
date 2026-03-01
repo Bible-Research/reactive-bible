@@ -5,8 +5,8 @@
 Comprehensive test suite for the authentication functionality in the reactive-bible application.
 
 **Status:** ✅ Tests Created (Phase 6 Complete)  
-**Total Test Files:** 5  
-**Total Test Cases:** 50+  
+**Total Test Files:** 6  
+**Total Test Cases:** 72+  
 **Coverage Areas:** Store, Utils, Components  
 
 ---
@@ -26,6 +26,13 @@ Comprehensive test suite for the authentication functionality in the reactive-bi
   - 401 error handling
   - Network error handling
   - Request format validation
+- ✅ **Registration functionality** (NEW)
+  - Successful registration with/without email
+  - Username already exists error
+  - Password validation errors
+  - Password mismatch error
+  - Email validation error
+  - Loading state during registration
 - ✅ Logout functionality
   - State clearing on logout
 - ✅ Error management
@@ -37,7 +44,7 @@ Comprehensive test suite for the authentication functionality in the reactive-bi
   - localStorage persistence
   - Loading from localStorage on init
 
-**Test Count:** 13 tests
+**Test Count:** 20 tests (7 new registration tests)
 
 ---
 
@@ -120,6 +127,41 @@ Comprehensive test suite for the authentication functionality in the reactive-bi
   - Location state preservation
 
 **Test Count:** 6 tests
+
+---
+
+### 6. `src/components/__tests__/RegisterPage.test.tsx` (NEW)
+
+**Purpose:** Tests the RegisterPage component
+
+**Test Coverage:**
+- ✅ Rendering
+  - Form elements display
+  - Email optional indicator
+  - Link to login page
+- ✅ User interaction
+  - Input handling
+  - Form submission
+  - Registration with/without email
+- ✅ Client-side validation
+  - Password mismatch detection
+  - Password length validation
+- ✅ Server-side error handling
+  - Username already exists
+  - Error message display
+  - Error clearing
+- ✅ Success flow
+  - Success notification
+  - Navigation to /notes after registration
+- ✅ Loading states
+  - Button loading state
+  - Input disabled state
+- ✅ Form validation
+  - Required fields (username, passwords)
+  - Optional field (email)
+  - Autofocus behavior
+
+**Test Count:** 15 tests
 
 ---
 
@@ -248,9 +290,10 @@ global.fetch = vi.fn().mockResolvedValueOnce({
 
 ### Current Coverage (Estimated)
 
-- **authStore:** ~85% coverage
+- **authStore:** ~90% coverage (includes registration)
 - **apiClient:** ~90% coverage
 - **LoginPage:** ~80% coverage
+- **RegisterPage:** ~85% coverage (NEW)
 - **UserMenu:** ~75% coverage
 - **ProtectedRoute:** ~90% coverage
 
