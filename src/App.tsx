@@ -82,13 +82,11 @@ export default function App() {
             ) : undefined
           }
           header={
-            !isAuthPage ? (
-              <MyHeader
-                menuOpened={mainMenuOpened}
-                setMenuOpened={setMainMenuOpened}
-                open={modalFn.open}
-              />
-            ) : undefined
+            <MyHeader
+              menuOpened={mainMenuOpened}
+              setMenuOpened={setMainMenuOpened}
+              open={modalFn.open}
+            />
           }
           footer={
             !isAuthPage ? (
