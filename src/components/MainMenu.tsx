@@ -10,7 +10,7 @@ import {
   Divider,
 } from "@mantine/core";
 import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { UserMenu } from "./UserMenu";
 
@@ -29,9 +29,12 @@ const MainMenu = ({
 }: MainMenuProps) => {
   const theme = useMantineTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   
-  // Get state from Zustand store
-  const showNotes = useBibleStore((state) => state.showNotes);
+  // Determine if we're on notes page based on route
+  const isOnNotesPage = location.pathname.startsWith('/notes');
+  
+  // Get Bible state for navigation
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   return (
@@ -67,12 +70,12 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              if (showNotes) {
+              if (isOnNotesPage) {
                 // Navigate back to Bible
                 console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
                 navigate(`/bible/${activeBook}/${activeChapter}`);
               } else {
-                // Navigate to Notes
+                // Navigate to Notes (will redirect to login if not authenticated)
                 console.log('🔗 MainMenu: Navigate to /notes');
                 navigate('/notes');
               }
@@ -80,7 +83,7 @@ const MainMenu = ({
             }}
             sx={{ cursor: "pointer" }}
           >
-            {showNotes ? "View Bible" : "View Notes"}
+            {isOnNotesPage ? "View Bible" : "View Notes"}
           </Text>
         </Group>
 
