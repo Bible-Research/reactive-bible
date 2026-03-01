@@ -185,6 +185,219 @@ describe('authStore', () => {
     });
   });
 
+  describe('register', () => {
+    it('should successfully register with valid data', async () => {
+      const mockEmail = 'test@example.com';
+      const mockResponse = {
+        user: {
+          id: 1,
+          username: mockUsername,
+          email: mockEmail,
+          date_joined: '2026-03-01T05:18:57.243006Z',
+        },
+        token: mockToken,
+        message: 'User registered successfully',
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => mockResponse,
+      });
+
+      const { result } = renderHook(() => useAuthStore());
+
+      await act(async () => {
+        await result.current.register(
+          mockUsername,
+          mockPassword,
+          mockPassword,
+          mockEmail
+        );
+      });
+
+      expect(result.current.token).toBe(mockToken);
+      expect(result.current.user).toEqual({ username: mockUsername });
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(result.current.error).toBeNull();
+    });
+
+    it('should register without email', async () => {
+      const mockResponse = {
+        user: {
+          id: 1,
+          username: mockUsername,
+          date_joined: '2026-03-01T05:18:57.243006Z',
+        },
+        token: mockToken,
+        message: 'User registered successfully',
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => mockResponse,
+      });
+
+      const { result } = renderHook(() => useAuthStore());
+
+      await act(async () => {
+        await result.current.register(
+          mockUsername,
+          mockPassword,
+          mockPassword
+        );
+      });
+
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/users/register/'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            username: mockUsername,
+            password: mockPassword,
+            password_confirm: mockPassword,
+          }),
+        })
+      );
+    });
+
+    it('should handle username already exists error', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          username: ['A user with that username already exists.'],
+        }),
+      });
+
+      const { result } = renderHook(() => useAuthStore());
+
+      await expect(
+        act(async () => {
+          await result.current.register(
+            mockUsername,
+            mockPassword,
+            mockPassword
+          );
+        })
+      ).rejects.toThrow('A user with that username already exists.');
+
+      expect(result.current.isAuthenticated).toBe(false);
+      expect(result.current.error).toBe(
+        'A user with that username already exists.'
+      );
+    });
+
+    it('should handle password validation errors', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          password: ['This password is too short.'],
+        }),
+      });
+
+      const { result } = renderHook(() => useAuthStore());
+
+      await expect(
+        act(async () => {
+          await result.current.register(
+            mockUsername,
+            'short',
+            'short'
+          );
+        })
+      ).rejects.toThrow('This password is too short.');
+    });
+
+    it('should handle password mismatch error', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          password_confirm: ['Passwords do not match.'],
+        }),
+      });
+
+      const { result } = renderHook(() => useAuthStore());
+
+      await expect(
+        act(async () => {
+          await result.current.register(
+            mockUsername,
+            mockPassword,
+            'differentpassword'
+          );
+        })
+      ).rejects.toThrow('Passwords do not match.');
+    });
+
+    it('should handle email validation errors', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          email: ['Enter a valid email address.'],
+        }),
+      });
+
+      const { result } = renderHook(() => useAuthStore());
+
+      await expect(
+        act(async () => {
+          await result.current.register(
+            mockUsername,
+            mockPassword,
+            mockPassword,
+            'invalid-email'
+          );
+        })
+      ).rejects.toThrow('Enter a valid email address.');
+    });
+
+    it('should set loading state during registration', async () => {
+      global.fetch = vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  ok: true,
+                  status: 201,
+                  json: async () => ({
+                    user: { username: mockUsername },
+                    token: mockToken,
+                  }),
+                }),
+              100
+            )
+          )
+      );
+
+      const { result } = renderHook(() => useAuthStore());
+
+      const registerPromise = act(async () => {
+        await result.current.register(
+          mockUsername,
+          mockPassword,
+          mockPassword
+        );
+      });
+
+      // Should be loading
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(true);
+      });
+
+      await registerPromise;
+
+      // Should not be loading after completion
+      expect(result.current.isLoading).toBe(false);
+    });
+  });
+
   describe('logout', () => {
     it('should clear auth state on logout', () => {
       const { result } = renderHook(() => useAuthStore());
