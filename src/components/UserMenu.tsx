@@ -8,7 +8,11 @@ import { showNotification } from '@mantine/notifications';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 
-export function UserMenu() {
+interface UserMenuProps {
+  onNavigate?: () => void;
+}
+
+export function UserMenu({ onNavigate }: UserMenuProps = {}) {
   const { user, isAuthenticated, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -19,6 +23,7 @@ export function UserMenu() {
       message: 'You have been successfully logged out',
       color: 'blue',
     });
+    onNavigate?.(); // Close menu if callback provided
     navigate('/login');
   };
 
@@ -27,7 +32,10 @@ export function UserMenu() {
       <Button 
         variant="subtle"
         leftIcon={<IconLogin size={16} />}
-        onClick={() => navigate('/login')}
+        onClick={() => {
+          onNavigate?.(); // Close menu if callback provided
+          navigate('/login');
+        }}
       >
         Sign In
       </Button>

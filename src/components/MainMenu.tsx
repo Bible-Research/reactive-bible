@@ -57,7 +57,7 @@ const MainMenu = ({
         {/* User Account Section */}
         <Group position="apart" spacing="xs">
           <Text weight={500} size="lg">Account</Text>
-          <UserMenu />
+          <UserMenu onNavigate={onClose} />
         </Group>
         
         <Divider />
