@@ -42,7 +42,7 @@ This app uses token-based authentication with the Bible Research API.
 
 ### First-Time Setup
 
-1. **Create a user account** via the Django admin panel (no self-registration yet)
+1. **Create an account** at `/register` (or login if you already have one)
 2. **Login** at `/login` with your credentials
 3. **Access protected features** like notes and tags
 

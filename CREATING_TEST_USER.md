@@ -1,6 +1,21 @@
-# Creating a Test User for Authentication
+# Creating a User Account
 
-## Problem
+## Quick Start (Recommended)
+
+**You can now register directly in the app!**
+
+1. Go to http://localhost:5174/register
+2. Fill in:
+   - Username (required)
+   - Email (optional - used for password recovery)
+   - Password (required, min 8 characters)
+   - Confirm Password (required)
+3. Click "Create Account"
+4. You'll be automatically logged in and redirected to your notes
+
+---
+
+## Background
 
 The Bible Research API has **auto-authentication middleware** that creates users automatically based on device and browser language. However, these auto-created users **do not have passwords** and cannot be used for login.
 
@@ -11,13 +26,66 @@ fil Macintosh; Intel Mac OS X 10_15_7
 
 When you try to login with an auto-created account, you'll get a **400 Bad Request** error because the user has no password set.
 
-## Solution
+## Alternative Methods
 
-You need to create a **real user account with a password** via the Django admin panel.
+If you need to create users via other methods:
 
 ---
 
-## Option 1: Create User via Django Admin (Recommended)
+## Option 1: Self-Registration (Recommended)
+
+### Via the Web App
+
+1. **Navigate to registration page:**
+   ```
+   http://localhost:5174/register
+   ```
+   Or click "Create one now" link on the login page
+
+2. **Fill in the form:**
+   - **Username:** Choose a unique username
+   - **Email (optional):** For password recovery
+   - **Password:** At least 8 characters
+   - **Confirm Password:** Must match password
+
+3. **Submit:**
+   - Click "Create Account"
+   - You'll receive a success notification
+   - Automatically logged in
+   - Redirected to /notes
+
+### API Endpoint
+
+If you want to register via API:
+
+```bash
+curl -X POST https://bibleresearchapi.vercel.app/api/v1/users/register/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "myusername",
+    "email": "optional@example.com",
+    "password": "securepassword123",
+    "password_confirm": "securepassword123"
+  }'
+```
+
+Response:
+```json
+{
+  "user": {
+    "id": 134,
+    "username": "myusername",
+    "email": "optional@example.com",
+    "date_joined": "2026-03-01T05:18:57.243006Z"
+  },
+  "token": "a41121710d19c7ef07aa6dca9eb6ff1cf9fa7e5a",
+  "message": "User registered successfully"
+}
+```
+
+---
+
+## Option 2: Create User via Django Admin
 
 ### Step 1: Access Django Admin
 Navigate to the Django admin panel:
@@ -57,7 +125,7 @@ Now you can login to the React app with:
 
 ---
 
-## Option 2: Create Superuser via Command Line
+## Option 3: Create Superuser via Command Line
 
 If you have access to the backend server, you can create a superuser:
 
@@ -81,7 +149,7 @@ Then use this superuser to:
 
 ---
 
-## Option 3: Create User via Django Shell
+## Option 4: Create User via Django Shell
 
 If you have backend access but prefer the shell:
 
@@ -155,11 +223,16 @@ For actual authentication, you must create users with passwords.
 
 ## Quick Test User
 
-For quick testing, create a user with:
+For quick testing, register a new account at:
+```
+http://localhost:5174/register
+```
+
+Or use these test credentials if you created a user manually:
 - **Username:** `testuser`
 - **Password:** `Test123!@#`
 
-Then login to the React app at:
+Then login at:
 ```
 http://localhost:5174/login
 ```

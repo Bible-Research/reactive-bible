@@ -35,12 +35,16 @@ Successfully implemented user authentication for the reactive-bible React applic
 ### Phase 2: UI Components ✅
 **Files Created:**
 - `src/components/LoginPage.tsx` - Login form with Mantine UI
+- `src/components/RegisterPage.tsx` - Registration form with Mantine UI
 - `src/components/UserMenu.tsx` - User dropdown menu
 - `src/components/ProtectedRoute.tsx` - Route guard component
 
 **Features:**
 - ✅ Beautiful login page with username/password inputs
-- ✅ Error display for failed login attempts
+- ✅ **Registration page with self-service account creation**
+- ✅ Email field (optional) for password recovery
+- ✅ Password confirmation validation
+- ✅ Error display for failed login/registration attempts
 - ✅ Loading states during authentication
 - ✅ User menu showing username and logout option
 - ✅ "Sign In" button when not authenticated
@@ -55,6 +59,7 @@ Successfully implemented user authentication for the reactive-bible React applic
 
 **Features:**
 - ✅ `/login` route for authentication
+- ✅ `/register` route for self-service registration
 - ✅ Protected `/notes` and `/notes/tag/:tagId` routes
 - ✅ Bible routes remain public (no auth required)
 - ✅ Redirect to intended page after login
@@ -152,7 +157,14 @@ Successfully implemented user authentication for the reactive-bible React applic
    - Should be auto-logged out
 
 ### Creating Test User
-Since there's no registration endpoint, create a user via Django admin:
+You can now register directly in the app:
+
+1. Visit `http://localhost:5174/register`
+2. Fill in username, password, and optionally email
+3. Click "Create Account"
+4. You'll be automatically logged in
+
+Alternatively, create a user via Django admin:
 
 ```bash
 # On the backend
@@ -223,8 +235,9 @@ python manage.py createsuperuser
 - [ ] Document API authentication requirements
 
 ### Future Enhancements
-- [ ] User registration endpoint (backend required)
+- [x] **User registration** - Self-service account creation ✅
 - [ ] Password reset functionality
+- [ ] Email verification
 - [ ] Social authentication (Google, GitHub)
 - [ ] Remember me checkbox
 - [ ] Token refresh mechanism
@@ -235,11 +248,12 @@ python manage.py createsuperuser
 
 ## 🐛 Known Issues & Limitations
 
-1. **No user registration** - Users must be created via Django admin
-2. **No password reset** - Backend endpoint not available
-3. **No token refresh** - Token doesn't expire by default in Django
-4. **localStorage XSS risk** - Acceptable for MVP, consider httpOnly cookies later
-5. **No offline support** - Requires network connection for auth
+1. ~~**No user registration**~~ - ✅ **RESOLVED:** Self-service registration now available
+2. **No password reset** - Backend endpoint not available (email field ready)
+3. **No email verification** - Accounts are immediately active
+4. **No token refresh** - Token doesn't expire by default in Django
+5. **localStorage XSS risk** - Acceptable for MVP, consider httpOnly cookies later
+6. **No offline support** - Requires network connection for auth
 
 ---
 
