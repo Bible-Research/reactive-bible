@@ -31,8 +31,10 @@ const MainMenu = ({
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Determine if we're on notes page based on route
+  // Determine current page based on route
   const isOnNotesPage = location.pathname.startsWith('/notes');
+  const isOnAuthPage = location.pathname === '/login' || 
+                       location.pathname === '/register';
   
   // Get Bible state for navigation
   const activeBook = useBibleStore((state) => state.activeBook);
@@ -71,11 +73,15 @@ const MainMenu = ({
             size="lg"
             onClick={() => {
               if (isOnNotesPage) {
-                // Navigate back to Bible
+                // Navigate back to Bible from notes
+                console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
+                navigate(`/bible/${activeBook}/${activeChapter}`);
+              } else if (isOnAuthPage) {
+                // Navigate to Bible from login/register pages
                 console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
                 navigate(`/bible/${activeBook}/${activeChapter}`);
               } else {
-                // Navigate to Notes (will redirect to login if not authenticated)
+                // Navigate to Notes from Bible (will redirect to login if not authenticated)
                 console.log('🔗 MainMenu: Navigate to /notes');
                 navigate('/notes');
               }
@@ -83,7 +89,7 @@ const MainMenu = ({
             }}
             sx={{ cursor: "pointer" }}
           >
-            {isOnNotesPage ? "View Bible" : "View Notes"}
+            {isOnNotesPage ? "View Bible" : isOnAuthPage ? "View Bible" : "View Notes"}
           </Text>
         </Group>
 
