@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ScrollArea,
@@ -28,15 +28,23 @@ export default function TagNotesRoute() {
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
-  const { notes, fetchNotes, setActiveBook, 
-          setActiveChapter, setActiveVerses, setShowNotes, 
-          setLastSelectedTagId, tags: storedTags } = 
-    useBibleStore();
+  
+  // Use individual selectors to avoid unnecessary re-renders
+  const notes = useBibleStore((state) => state.notes);
+  const storedTags = useBibleStore((state) => state.tags);
+  const fetchNotes = useBibleStore((state) => state.fetchNotes);
+  const setActiveBook = useBibleStore((state) => state.setActiveBook);
+  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
+  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const setShowNotes = useBibleStore((state) => state.setShowNotes);
+  const setLastSelectedTagId = useBibleStore(
+    (state) => state.setLastSelectedTagId
+  );
+  
   const [tag, setTag] = useState<Tag | null>(null);
-  const [allTags, setAllTags] = useState<Tag[]>(storedTags);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const previousTagIdRef = useRef<string | null>(null);
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -47,19 +55,12 @@ export default function TagNotesRoute() {
   }, [setShowNotes, setLastSelectedTagId, tagId]);
 
   useEffect(() => {
+    let cancelled = false;
+    
     const loadTagAndNotes = async () => {
       if (!tagId) {
         setError('No tag ID provided');
         setLoading(false);
-        return;
-      }
-
-      // Only set loading if we're actually going to do something
-      // If waiting for tags, loading should already be true
-      if (storedTags.length === 0) {
-        // Tags not loaded yet, keep showing loading state
-        setLoading(true);
-        setError(null);
         return;
       }
       
@@ -67,13 +68,12 @@ export default function TagNotesRoute() {
       setError(null);
 
       try {
-        
-        // Always use cached tags - they should be loaded by NotesView
-        // Never fetch tags here to avoid unnecessary re-renders
+        // Use stored tags
         setAllTags(storedTags);
         const currentTag = storedTags.find(t => t.id === tagId);
         
         if (!currentTag) {
+          if (cancelled) return;
           setError(`Tag not found: ${tagId}`);
           setLoading(false);
           return;
@@ -83,11 +83,12 @@ export default function TagNotesRoute() {
         
         // Always fetch notes - the store will handle caching
         await fetchNotes(tagId);
-        previousTagIdRef.current = tagId;
         
+        if (cancelled) return;
         // Successfully loaded, clear loading state
         setLoading(false);
       } catch (err) {
+        if (cancelled) return;
         console.error('Error loading tag notes:', err);
         setError('Failed to load notes');
         setLoading(false);
@@ -95,7 +96,11 @@ export default function TagNotesRoute() {
     };
 
     loadTagAndNotes();
-  }, [tagId, fetchNotes, notes.length, storedTags.length]);
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [tagId, storedTags, fetchNotes]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
