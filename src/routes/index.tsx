@@ -4,7 +4,6 @@ import NotesRoute from './NotesRoute';
 import TagNotesRoute from './TagNotesRoute';
 import { LoginPage } from '../components/LoginPage';
 import { RegisterPage } from '../components/RegisterPage';
-import { ProtectedRoute } from '../components/ProtectedRoute';
 
 export function AppRoutes() {
   return (
@@ -18,23 +17,9 @@ export function AppRoutes() {
       <Route path="/bible" element={<BibleRoute />} />
       <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
       
-      {/* Protected Notes routes - require authentication */}
-      <Route 
-        path="/notes" 
-        element={
-          <ProtectedRoute>
-            <NotesRoute />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/notes/tag/:tagId" 
-        element={
-          <ProtectedRoute>
-            <TagNotesRoute />
-          </ProtectedRoute>
-        } 
-      />
+      {/* Notes routes - public for viewing, protected for private notes */}
+      <Route path="/notes" element={<NotesRoute />} />
+      <Route path="/notes/tag/:tagId" element={<TagNotesRoute />} />
       
       {/* Catch-all: redirect to bible */}
       <Route path="*" element={<Navigate to="/bible" replace />} />

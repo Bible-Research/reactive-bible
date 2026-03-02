@@ -39,6 +39,7 @@ const MainMenu = ({
   // Get Bible state for navigation
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
+
   return (
     <Drawer
       opened={opened}
