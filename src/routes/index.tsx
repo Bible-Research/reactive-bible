@@ -12,15 +12,15 @@ export function AppRoutes() {
       <Route path="/" element={<Navigate to="/bible" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      
+
       {/* Bible routes - public (can view Bible without auth) */}
       <Route path="/bible" element={<BibleRoute />} />
       <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
-      
+
       {/* Notes routes - public for viewing, protected for private notes */}
       <Route path="/notes" element={<NotesRoute />} />
       <Route path="/notes/tag/:tagId" element={<TagNotesRoute />} />
-      
+
       {/* Catch-all: redirect to bible */}
       <Route path="*" element={<Navigate to="/bible" replace />} />
     </Routes>
