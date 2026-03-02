@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../__tests__/helpers';
 import TagNotesRoute from '../TagNotesRoute';
 import { useBibleStore } from '../../store';
+import * as cacheManager from '../../utils/cacheManager';
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
@@ -21,69 +22,70 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-// Mock API
-vi.mock('../../api', () => ({
-  getTags: vi.fn(() =>
-    Promise.resolve([
-      {
-        id: 'tag-123',
-        name: 'Bible Study',
-        parent_tag: null,
-        created_at: '2024-01-01',
-        updated_at: '2024-01-01',
-      },
-      {
-        id: 'tag-456',
-        name: 'Prayer',
-        parent_tag: null,
-        created_at: '2024-01-01',
-        updated_at: '2024-01-01',
-      },
-    ])
-  ),
-  deleteNote: vi.fn(() => Promise.resolve()),
-}));
+// Mock API and cacheManager
+vi.mock('../../api');
+vi.mock('../../utils/cacheManager');
+
+const mockCacheManager = vi.mocked(cacheManager);
 
 describe('TagNotesRoute', () => {
+  const mockSetLastSelectedTagId = vi.fn();
+  const mockFetchNotes = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ tagId: 'tag-123' });
-    
+
     // Reset store state
     useBibleStore.setState({
       showNotes: false,
       notes: [],
-      activeBook: 'John',
-      activeChapter: 3,
-      activeVerses: [],
-      // Mock fetchNotes to not clear notes
-      fetchNotes: vi.fn(async () => {}),
+      tags: [
+        { id: 'tag-123', name: 'Bible Study', parent_tag: null, created_at: '', updated_at: '' },
+        { id: 'tag-456', name: 'Prayer', parent_tag: null, created_at: '', updated_at: '' },
+      ],
+      lastSelectedTagId: null,
+      setLastSelectedTagId: mockSetLastSelectedTagId,
+      fetchNotes: mockFetchNotes,
     });
   });
 
-  it('should set showNotes to true when component mounts', async () => {
+  it('should set showNotes to true and lastSelectedTagId on mount', async () => {
     renderWithProviders(<TagNotesRoute />);
+    await waitFor(() => {
+      expect(useBibleStore.getState().showNotes).toBe(true);
+      expect(mockSetLastSelectedTagId).toHaveBeenCalledWith('tag-123');
+    });
+  });
 
-    // Wait for component to load
+  it('should render loading state, then content', async () => {
+    renderWithProviders(<TagNotesRoute />);
+    expect(screen.getByLabelText('loading')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByLabelText('loading')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Filter by tag')).toBeInTheDocument();
+      expect(screen.getByText('0 notes')).toBeInTheDocument();
     });
-
-    // Check that showNotes was set to true
-    const state = useBibleStore.getState();
-    expect(state.showNotes).toBe(true);
   });
 
-  it('should display tag selector with correct tag selected', async () => {
+  it('should call fetchNotes on mount', async () => {
     renderWithProviders(<TagNotesRoute />);
-
     await waitFor(() => {
-      expect(screen.getByLabelText('Filter by tag')).toBeInTheDocument();
+      expect(mockFetchNotes).toHaveBeenCalledWith('tag-123');
+    });
+  });
+
+  it('should handle refresh by clearing cache and refetching notes', async () => {
+    renderWithProviders(<TagNotesRoute />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Refresh notes')).toBeInTheDocument();
     });
 
-    // The select should have the current tag value
-    const select = screen.getByLabelText('Filter by tag');
-    expect(select).toBeInTheDocument();
+    const refreshButton = screen.getByLabelText('Refresh notes');
+    await userEvent.click(refreshButton);
+
+    expect(mockCacheManager.clearNotesCache).toHaveBeenCalledWith('tag-123');
+    expect(mockFetchNotes).toHaveBeenCalledWith('tag-123');
   });
 
   it('should render component with tag selector', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ScrollArea,
@@ -12,14 +12,15 @@ import {
   ActionIcon,
   Tooltip,
 } from '@mantine/core';
-import { IconShare } from '@tabler/icons-react';
+import { IconShare, IconRefresh } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
 import { Note, Tag } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
-import { getTags, deleteNote } from '../api';
+import { deleteNote } from '../api';
+import { clearNotesCache } from '../utils/cacheManager';
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -28,17 +29,22 @@ export default function TagNotesRoute() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { notes, fetchNotes, setActiveBook, 
-          setActiveChapter, setActiveVerses, setShowNotes } = 
+          setActiveChapter, setActiveVerses, setShowNotes, 
+          setLastSelectedTagId, tags: storedTags } = 
     useBibleStore();
   const [tag, setTag] = useState<Tag | null>(null);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>(storedTags);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const previousTagIdRef = useRef<string | null>(null);
 
-  // Set showNotes to true when on notes route
+  // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
     setShowNotes(true);
-  }, [setShowNotes]);
+    if (tagId) {
+      setLastSelectedTagId(tagId);
+    }
+  }, [setShowNotes, setLastSelectedTagId, tagId]);
 
   useEffect(() => {
     const loadTagAndNotes = async () => {
@@ -48,14 +54,24 @@ export default function TagNotesRoute() {
         return;
       }
 
+      // Only set loading if we're actually going to do something
+      // If waiting for tags, loading should already be true
+      if (storedTags.length === 0) {
+        // Tags not loaded yet, keep showing loading state
+        setLoading(true);
+        setError(null);
+        return;
+      }
+      
       setLoading(true);
       setError(null);
 
       try {
-        // Fetch all tags to find the current one
-        const fetchedTags = await getTags();
-        setAllTags(fetchedTags);
-        const currentTag = fetchedTags.find(t => t.id === tagId);
+        
+        // Always use cached tags - they should be loaded by NotesView
+        // Never fetch tags here to avoid unnecessary re-renders
+        setAllTags(storedTags);
+        const currentTag = storedTags.find(t => t.id === tagId);
         
         if (!currentTag) {
           setError(`Tag not found: ${tagId}`);
@@ -65,18 +81,21 @@ export default function TagNotesRoute() {
 
         setTag(currentTag);
         
-        // Fetch notes for this tag
+        // Always fetch notes - the store will handle caching
         await fetchNotes(tagId);
+        previousTagIdRef.current = tagId;
+        
+        // Successfully loaded, clear loading state
+        setLoading(false);
       } catch (err) {
         console.error('Error loading tag notes:', err);
         setError('Failed to load notes');
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     loadTagAndNotes();
-  }, [tagId, fetchNotes]);
+  }, [tagId, fetchNotes, notes.length, storedTags.length]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -103,8 +122,6 @@ export default function TagNotesRoute() {
     chapter: number, 
     verse: number
   ) => {
-    console.log(`🔗 Navigating to Bible: ${book} ${chapter}:${verse}`);
-    
     // Set the Bible context
     setActiveBook(book);
     setActiveChapter(chapter);
@@ -119,8 +136,32 @@ export default function TagNotesRoute() {
 
   const handleTagChange = (value: string | null) => {
     if (value && value !== tagId) {
-      console.log(`🔗 TagNotesRoute: Navigate to /notes/tag/${value}`);
       navigate(`/notes/tag/${value}`);
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!tagId) return;
+    
+    try {
+      // Clear cache for this tag
+      clearNotesCache(tagId);
+      
+      // Refetch notes from API
+      await fetchNotes(tagId);
+      
+      showNotification({
+        title: 'Refreshed!',
+        message: 'Notes updated from server',
+        color: 'green',
+      });
+    } catch (err) {
+      console.error('Error refreshing notes:', err);
+      showNotification({
+        title: 'Error',
+        message: 'Failed to refresh notes',
+        color: 'red',
+      });
     }
   };
 
@@ -205,6 +246,16 @@ export default function TagNotesRoute() {
           <Text color="dimmed" size="sm">
             {notes.length} {notes.length === 1 ? 'note' : 'notes'}
           </Text>
+          <Tooltip label="Refresh notes" position="left">
+            <ActionIcon
+              onClick={handleRefresh}
+              variant="subtle"
+              color="gray"
+              size="lg"
+            >
+              <IconRefresh size={20} />
+            </ActionIcon>
+          </Tooltip>
           <Tooltip label="Share tag link" position="left">
             <ActionIcon
               onClick={handleShare}

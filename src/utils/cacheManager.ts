@@ -1,4 +1,5 @@
 import { Translation } from '../store';
+import { Note } from '../types';
 
 // Cache Manager for Bible Verses and Audio URLs
 // Verse cache: LRU with 500-verse limit (copyright compliance)
@@ -12,6 +13,7 @@ const VERSE_CACHE_KEY = 'bible_verse_cache';
 const VERSE_CACHE_METADATA_KEY = 'bible_verse_cache_metadata';
 const AUDIO_CACHE_KEY = 'bible_audio_cache';
 const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
+const NOTES_CACHE_KEY = 'bible_notes_cache';
 const MAX_VERSES = 500;
 
 // ============================================
@@ -111,6 +113,15 @@ interface AudioCache {
 
 interface TranslationCache {
   [languageIso: string]: Translation[];
+}
+
+interface NotesData {
+  notes: Note[];
+  timestamp: number;
+}
+
+interface NotesCache {
+  [tagId: string]: NotesData;
 }
 
 // ============================================
@@ -243,6 +254,59 @@ export const cacheVerses = (
 export const clearVerseCache = () => {
   removeCachedLocalStorage(VERSE_CACHE_KEY);
   removeCachedLocalStorage(VERSE_CACHE_METADATA_KEY);
+};
+
+// ============================================
+// NOTES CACHE (by tag ID)
+// ============================================
+
+export const getNotesCache = (): NotesCache => {
+  try {
+    const cache = getCachedLocalStorage(NOTES_CACHE_KEY);
+    return cache ? JSON.parse(cache) : {};
+  } catch (error) {
+    console.error('Error reading notes cache:', error);
+    return {};
+  }
+};
+
+export const setNotesCache = (cache: NotesCache) => {
+  try {
+    setCachedLocalStorage(NOTES_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error('Error writing notes cache:', error);
+  }
+};
+
+export const getCachedNotes = (tagId: string): Note[] | null => {
+  const cache = getNotesCache();
+  const notesData = cache[tagId];
+
+  if (!notesData) return null;
+
+  // Notes don't expire, return cached data
+  return notesData.notes;
+};
+
+export const cacheNotes = (tagId: string, notes: Note[]) => {
+  const cache = getNotesCache();
+  cache[tagId] = {
+    notes,
+    timestamp: Date.now(),
+  };
+  setNotesCache(cache);
+};
+
+export const clearNotesCache = (tagId?: string) => {
+  if (tagId) {
+    // Clear specific tag's notes
+    const cache = getNotesCache();
+    delete cache[tagId];
+    setNotesCache(cache);
+  } else {
+    // Clear all notes
+    removeCachedLocalStorage(NOTES_CACHE_KEY);
+  }
 };
 
 // ============================================
