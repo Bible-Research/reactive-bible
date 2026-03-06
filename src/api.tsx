@@ -90,7 +90,7 @@ export const getVersesFromApi = async (
   }
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const data = await response.json();
     const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
@@ -125,7 +125,7 @@ export const addTagNote = async (
 ) => {
   const body = JSON.stringify({ tag: tagId, note_text: tagNoteText, verse_references: verseReferences });
   try {
-    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/notes/', {
+    const response = await fetch('https://bible-research-489314.ey.r.appspot.com/api/v1/notes/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: body,
@@ -139,7 +139,7 @@ export const addTagNote = async (
 export const editNote = async (noteId: string, tagId: string, noteText: string) => {
   const body = JSON.stringify({ tag: tagId, note_text: noteText });
   try {
-    const response = await fetch(`https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`, {
+    const response = await fetch(`https://bible-research-489314.ey.r.appspot.com/api/v1/notes/${noteId}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: body,
@@ -153,7 +153,7 @@ export const editNote = async (noteId: string, tagId: string, noteText: string) 
 
 export const deleteNote = async (noteId: string) => {
   try {
-    const response = await fetch(`https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}`, {
+    const response = await fetch(`https://bible-research-489314.ey.r.appspot.com/api/v1/notes/${noteId}`, {
       method: 'DELETE',
     });
     return await response.text() // due to the response being a text had to pull out .text instead of .json
@@ -164,7 +164,7 @@ export const deleteNote = async (noteId: string) => {
 
 export const getTags = async (): Promise<Tag[]> => {
   try {
-    const response = await fetch('https://bibleresearchapi.vercel.app/api/v1/tags/');
+    const response = await fetch('https://bible-research-489314.ey.r.appspot.com/api/v1/tags/');
     return await response.json();
   } catch (error) {
     console.error(error);
@@ -186,7 +186,7 @@ export const getAvailableTranslations = async (
   }
 
   try {
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible/translations/?language_iso=${languageIso}`;
+    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible/translations/?language_iso=${languageIso}`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -238,7 +238,7 @@ export const getBibleAudioUrl = async (
 
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -461,8 +461,8 @@ export interface Note {
 
 export const getNotes = async (tagId?: string): Promise<Note[]> => {
   const url = tagId
-    ? `https://bibleresearchapi.vercel.app/api/v1/notes/?tag_id=${tagId}`
-    : 'https://bibleresearchapi.vercel.app/api/v1/notes/';
+    ? `https://bible-research-489314.ey.r.appspot.com/api/v1/notes/?tag_id=${tagId}`
+    : 'https://bible-research-489314.ey.r.appspot.com/api/v1/notes/';
   const response = await fetch(url);
   if (!response.ok) throw new Error('Failed to fetch notes');
   return await response.json();

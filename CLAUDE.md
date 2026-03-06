@@ -111,7 +111,7 @@ Three-tier localStorage cache:
 ## External APIs
 
 ### Bible Research API
-Base: `https://bibleresearchapi.vercel.app/api/v1`
+Base: `https://bible-research-489314.ey.r.appspot.com/api/v1`
 
 | Endpoint | Purpose |
 |----------|---------|

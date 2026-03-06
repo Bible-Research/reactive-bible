@@ -1907,7 +1907,7 @@ Contains the complete King James Version Bible text stored locally for offline a
 ### External APIs
 
 #### Bible Research API
-**Base URL**: `https://bibleresearchapi.vercel.app/api/v1`
+**Base URL**: `https://bible-research-489314.ey.r.appspot.com/api/v1`
 
 **Endpoints**:
 

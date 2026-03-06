@@ -55,7 +55,7 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
       </Button>
       <Button
         variant="transparent"
-        onClick={() => window.open('https://bibleresearchapi.vercel.app/api/v1/tags/', '_blank')}
+        onClick={() => window.open('https://bible-research-489314.ey.r.appspot.com/api/v1/tags/', '_blank')}
         style={{ width: '100%' }}
       >
         Or create a new tag
