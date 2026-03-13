@@ -33,6 +33,7 @@ export default function TagNotesRoute() {
   const notes = useBibleStore((state) => state.notes);
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
+  const getTags = useBibleStore((state) => state.getTags);
   const setActiveBook = useBibleStore((state) => state.setActiveBook);
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
@@ -154,6 +155,8 @@ export default function TagNotesRoute() {
       
       // Refetch notes from API
       await fetchNotes(tagId);
+
+      await getTags();
       
       showNotification({
         title: 'Refreshed!',
