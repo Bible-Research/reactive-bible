@@ -17,6 +17,7 @@ import { Tag } from '../types';
 import { getTags, deleteTag as deleteTagApi } from '../api';
 import { TagTree } from '../components/TagTree';
 import { CreateTagModal } from '../components/CreateTagModal';
+import { EditTagModal } from '../components/EditTagModal';
 
 export default function TagManagementRoute() {
   const navigate = useNavigate();
@@ -152,6 +153,14 @@ export default function TagManagementRoute() {
         opened={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onSuccess={loadTags}
+        existingTags={tags}
+      />
+
+      <EditTagModal
+        opened={!!editingTag}
+        onClose={() => setEditingTag(null)}
+        onSuccess={loadTags}
+        tag={editingTag}
         existingTags={tags}
       />
     </Box>
