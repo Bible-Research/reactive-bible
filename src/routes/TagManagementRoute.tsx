@@ -16,6 +16,7 @@ import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { getTags, deleteTag as deleteTagApi } from '../api';
 import { TagTree } from '../components/TagTree';
+import { CreateTagModal } from '../components/CreateTagModal';
 
 export default function TagManagementRoute() {
   const navigate = useNavigate();
@@ -145,6 +146,13 @@ export default function TagManagementRoute() {
         onEdit={handleEditTag}
         onDelete={handleDeleteTag}
         onViewNotes={handleViewNotes}
+      />
+
+      <CreateTagModal
+        opened={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={loadTags}
+        existingTags={tags}
       />
     </Box>
   );
