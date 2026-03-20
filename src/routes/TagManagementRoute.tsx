@@ -15,6 +15,7 @@ import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { getTags, deleteTag as deleteTagApi } from '../api';
+import { TagTree } from '../components/TagTree';
 
 export default function TagManagementRoute() {
   const navigate = useNavigate();
@@ -139,12 +140,12 @@ export default function TagManagementRoute() {
         </Text>
       )}
 
-      <Stack spacing="md">
-        {/* TagTree component will be rendered here */}
-        <Text color="dimmed" ta="center" mt="xl">
-          Tag tree component coming next...
-        </Text>
-      </Stack>
+      <TagTree
+        tags={filteredTags}
+        onEdit={handleEditTag}
+        onDelete={handleDeleteTag}
+        onViewNotes={handleViewNotes}
+      />
     </Box>
   );
 }
