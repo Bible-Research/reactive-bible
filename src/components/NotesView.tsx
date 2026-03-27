@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Select, Center, Loader, Box } from "@mantine/core";
+import { Select, Center, Loader, Box, Text } from "@mantine/core";
 import { Tag } from "../types";
 import { getTags } from "../api";
 
@@ -19,13 +19,6 @@ const NotesView = () => {
       try {
         const fetchedTags = await getTags();
         setTags(fetchedTags);
-        if (fetchedTags.length > 0) {
-          const sorted = [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name));
-          const firstTagId = sorted[0].id;
-          // Navigate to first tag instead of fetching directly
-          console.log(`🔗 NotesView: Auto-navigate to first tag /notes/tag/${firstTagId}`);
-          navigate(`/notes/tag/${firstTagId}`, { replace: true });
-        }
         hasLoadedRef.current = true;
       } catch (error) {
         console.error('Error loading data:', error);
@@ -60,7 +53,23 @@ const NotesView = () => {
     );
   }
 
-  // Show tag selector (will redirect when tag is selected)
+  // Show empty state if no tags
+  if (tags.length === 0) {
+    return (
+      <Center style={{ height: '50vh' }}>
+        <Box ta="center">
+          <Text size="lg" color="dimmed" mb="md">
+            No tags found. Create tags to organize your notes.
+          </Text>
+          <Text size="sm" color="dimmed">
+            Go to Tag Management to create your first tag.
+          </Text>
+        </Box>
+      </Center>
+    );
+  }
+
+  // Show tag selector
   return (
     <Box p="md">
       <Select
