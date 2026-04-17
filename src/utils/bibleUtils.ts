@@ -54,7 +54,7 @@ const BIBLE_BOOKS: BibleBook[] = [
   { name: 'mark', code: 'MRK', testament: 'NT' },
   { name: 'luke', code: 'LUK', testament: 'NT' },
   { name: 'john', code: 'JHN', testament: 'NT' },
-  { name: 'acts of the apostles', code: 'ACT', testament: 'NT' },
+  { name: 'acts', code: 'ACT', testament: 'NT' },
   { name: 'romans', code: 'ROM', testament: 'NT' },
   { name: '1 corinthians', code: '1CO', testament: 'NT' },
   { name: '2 corinthians', code: '2CO', testament: 'NT' },
