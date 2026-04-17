@@ -1,8 +1,8 @@
 import { renderHook, RenderHookResult } from '@testing-library/react';
-import { useAuthStore } from '../authStore';
+import { useAuthStore, AuthState } from '../authStore';
 
 // Custom hook renderer that uses the singleton store and cleans up properly
-export const renderWithAuthStore = (): RenderHookResult<ReturnType<typeof useAuthStore>, unknown> => {
+export const renderWithAuthStore = (): RenderHookResult<AuthState, unknown> => {
   // Reset store to initial state before rendering
   useAuthStore.setState({
     token: null,
