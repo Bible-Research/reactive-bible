@@ -14,8 +14,6 @@ describe('authStore', () => {
   });
 
   afterEach(() => {
-    act(() => {
-    });
     localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
@@ -41,8 +39,12 @@ describe('authStore', () => {
 
       // Set error
       act(() => {
-        const useTestAuthStore = createTestAuthStore();
-      useTestAuthStore.setState({ error: 'Test error' });
+        result.current.setToken(mockToken, mockUsername);
+      });
+      
+      // Manually set error for testing
+      act(() => {
+        useTestAuthStore.setState({ error: 'Test error' });
       });
 
       expect(result.current.error).toBe('Test error');
@@ -79,8 +81,7 @@ describe('authStore', () => {
 
       // Set token
       act(() => {
-        const useTestAuthStore = createTestAuthStore();
-      useTestAuthStore.setState({ token: mockToken });
+        useTestAuthStore.setState({ token: mockToken });
       });
 
       // Check auth

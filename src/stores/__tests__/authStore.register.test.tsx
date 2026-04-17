@@ -14,8 +14,6 @@ describe('authStore - Register', () => {
   });
 
   afterEach(() => {
-    act(() => {
-    });
     localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });

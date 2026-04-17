@@ -14,15 +14,6 @@ describe('authStore - Persistence', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      useAuthStore.setState({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-    });
     localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
@@ -34,7 +25,8 @@ describe('authStore - Persistence', () => {
         json: async () => ({ token: mockToken }),
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.login(mockUsername, mockPassword);
