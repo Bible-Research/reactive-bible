@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, waitFor } from '@testing-library/react';
-import { renderWithAuthStore } from './helpers';
-import { useAuthStore } from '../authStore';
+import { act, waitFor, renderHook } from '@testing-library/react';
+import { createTestAuthStore } from '../authStore';
 
 describe('authStore - Register', () => {
   const mockToken = 'test-token-123';
@@ -14,21 +13,12 @@ describe('authStore - Register', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      useAuthStore.setState({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-    });
-    localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
 
   describe('register', () => {
     it('should successfully register with valid data', async () => {
+      const useTestAuthStore = createTestAuthStore();
       const mockEmail = 'test@example.com';
       const mockResponse = {
         user: {
@@ -47,7 +37,7 @@ describe('authStore - Register', () => {
         json: async () => mockResponse,
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.register(
@@ -65,6 +55,7 @@ describe('authStore - Register', () => {
     });
 
     it('should register without email', async () => {
+      const useTestAuthStore = createTestAuthStore();
       const mockResponse = {
         user: {
           id: 1,
@@ -81,7 +72,7 @@ describe('authStore - Register', () => {
         json: async () => mockResponse,
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.register(
@@ -106,6 +97,7 @@ describe('authStore - Register', () => {
     });
 
     it('should handle username already exists error', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -114,7 +106,7 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -133,6 +125,7 @@ describe('authStore - Register', () => {
     });
 
     it('should handle password validation errors', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -141,7 +134,7 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -155,6 +148,7 @@ describe('authStore - Register', () => {
     });
 
     it('should handle password mismatch error', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -163,7 +157,7 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -177,6 +171,7 @@ describe('authStore - Register', () => {
     });
 
     it('should handle email validation errors', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -185,7 +180,7 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -200,6 +195,7 @@ describe('authStore - Register', () => {
     });
 
     it('should set loading state during registration', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockImplementation(
         () =>
           new Promise((resolve) =>
@@ -218,7 +214,7 @@ describe('authStore - Register', () => {
           )
       );
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       const registerPromise = act(async () => {
         await result.current.register(

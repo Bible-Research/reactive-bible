@@ -25,7 +25,11 @@ const Audio = () => {
     (state) => state.setActiveBookShort
   );
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const getPassageResult = getPassage();
+  const [passages, setPassages] = useState<{ book_name: string; book_id: string; chapter: number }[]>([]);
+
+  useEffect(() => {
+    getPassage().then(setPassages);
+  }, []);
 
   // Reset audio when chapter/book/version changes
   useEffect(() => {
@@ -138,18 +142,18 @@ const Audio = () => {
 
   // Function to navigate to next chapter
   const goToNextChapter = () => {
-    const index = getPassageResult.findIndex(
+    const index = passages.findIndex(
       (book) =>
         book.book_name === activeBook && 
         book.chapter === activeChapter
     );
 
     // Check if there's a next chapter
-    if (index === -1 || index === getPassageResult.length - 1) {
+    if (index === -1 || index === passages.length - 1) {
       return false; // No next chapter
     }
 
-    const next = getPassageResult[index + 1];
+    const next = passages[index + 1];
     if (next !== null) {
       setActiveBookOnly(next.book_name);
       setActiveBookShort(next.book_id);
@@ -191,7 +195,7 @@ const Audio = () => {
 
           // KJV has a special, locally-generated URL
           if (activeAudioFilesetId === 'ENGKJV') {
-            audioUrl = getKjvAudioUrl(activeBook, activeChapter);
+            audioUrl = await getKjvAudioUrl(activeBook, activeChapter);
           } else {
             // All other translations use the Bible Research API
             audioUrl = await getBibleAudioUrl(

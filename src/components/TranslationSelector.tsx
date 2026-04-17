@@ -9,6 +9,8 @@ import {
   SegmentedControl,
   createStyles,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { loadKjvData, isKjvDataLoaded } from '../utils/kjvDataLoader';
 import { useBibleStore } from '../store';
 import { getAvailableTranslations } from '../api';
 
@@ -46,6 +48,43 @@ const TranslationSelector = () => {
 
   const handleAudioChange = (value: string) => {
     setSelectedAudioId(value === 'none' ? null : value);
+  };
+
+  const handleTextChange = async (filesetId: string) => {
+    // Preload KJV data if selecting KJV translation and it's not already loaded
+    if (filesetId === 'ENGKJV' && !isKjvDataLoaded()) {
+      notifications.show({
+        id: 'kjv-loading',
+        loading: true,
+        title: 'Loading KJV Bible',
+        message: 'Downloading King James Version data (6.8MB)...',
+        autoClose: false,
+        withCloseButton: false,
+      });
+
+      try {
+        await loadKjvData();
+        notifications.update({
+          id: 'kjv-loading',
+          color: 'green',
+          title: 'KJV Bible Loaded',
+          message: 'King James Version is ready to use.',
+          loading: false,
+          autoClose: 3000,
+        });
+      } catch (error) {
+        notifications.update({
+          id: 'kjv-loading',
+          color: 'red',
+          title: 'Failed to Load KJV Bible',
+          message: 'Please check your connection and try again.',
+          loading: false,
+          autoClose: 5000,
+        });
+        return; // Prevent switching to KJV if the data fails to load
+      }
+    }
+    setSelectedTextId(filesetId);
   };
 
   useEffect(() => {
@@ -122,7 +161,7 @@ const TranslationSelector = () => {
                 <div className={classes.groupWrapper}>
                   <Radio.Group
                     value={selectedTextId ?? ''}
-                    onChange={setSelectedTextId}
+                    onChange={handleTextChange}
                     label="Text Version"
                   >
                     {textFilesets.map((f) => (

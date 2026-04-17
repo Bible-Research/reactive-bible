@@ -1,5 +1,5 @@
-import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
+import { loadKjvData } from './utils/kjvDataLoader';
 
 import {
   getCachedVerses,
@@ -11,7 +11,7 @@ import {
 } from './utils/cacheManager';
 import { authenticatedFetch } from './utils/apiClient';
 
-export const data = bibleJson as KjvBook[];
+let passageCache: { book_name: string; book_id: string; chapter: number }[] | null = null;
 
 export interface KjvBook {
   chapter: number;
@@ -22,40 +22,74 @@ export interface KjvBook {
   book_name: string;
 }
 
-export const getBooks = (): { book_name: string; book_id: string }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
-  });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as {
-    book_name: string;
-    book_id: string;
-  }[];
+let booksCache: { book_name: string; book_id: string }[] | null = null;
+
+/**
+ * Get list of all Bible books from API
+ * Falls back to KJV data if API fails
+ */
+export const getBooks = async (): Promise<{ book_name: string; book_id: string }[]> => {
+  // Return cached data if available
+  if (booksCache) {
+    return booksCache;
+  }
+
+  try {
+    // Try API first
+    const response = await fetch('https://bible-research-489314.ey.r.appspot.com/api/v1/bible/books/');
+    const data = await response.json();
+    booksCache = data.results || data || [];
+    console.log('✅ Books loaded from API');
+    return booksCache;
+  } catch (error) {
+    console.warn('⚠️ Failed to fetch books from API, falling back to KJV data');
+    // Fallback to KJV data
+    const kjvData = await loadKjvData();
+    const bookMap = new Map<string, { book_name: string; book_id: string }>();
+    kjvData.forEach((book: KjvBook) => {
+        if (!bookMap.has(book.book_id)) {
+            bookMap.set(book.book_id, { book_name: book.book_name, book_id: book.book_id });
+        }
+    });
+    booksCache = Array.from(bookMap.values());
+    return booksCache;
+  }
 };
 
-export const getChapters = (thebook: string): number[] => {
-  return [
-    ...new Set<number>(
-      data
-        .filter((book: KjvBook) => book.book_name === thebook)
-        .map((book: KjvBook) => book.chapter)
-    ),
-  ];
+export const getChapters = async (thebook: string): Promise<number[]> => {
+  try {
+    const response = await fetch(
+      `https://bible-research-489314.ey.r.appspot.com/api/v1/bible/books/${thebook}/chapters/`
+    );
+    const data = await response.json();
+    return data.chapters || [];
+  } catch (error) {
+    console.warn('⚠️ Failed to fetch chapters from API, falling back to KJV data');
+    const kjvData = await loadKjvData();
+    return [
+      ...new Set<number>(
+        kjvData
+          .filter((book: KjvBook) => book.book_name === thebook)
+          .map((book: KjvBook) => book.chapter)
+      ),
+    ];
+  }
 };
 
-export const getVerses = (thebook: string, thechapter: number): number[] => {
-  return data
-    .filter(
-      (book: KjvBook) => book.book_name === thebook && book.chapter === thechapter
-    )
-    .map((book: KjvBook) => book.verse);
+export const getVerses = async (thebook: string, thechapter: number): Promise<number[]> => {
+  try {
+    const response = await fetch(
+      `https://bible-research-489314.ey.r.appspot.com/api/v1/bible/${thebook}/${thechapter}/verses/`
+    );
+    const data = await response.json();
+    return data.verses || [];
+  } catch (error) {
+    console.warn('⚠️ Failed to fetch verses from API, falling back to KJV data');
+    const kjvData = await loadKjvData();
+    return kjvData
+      .filter((book: KjvBook) => book.book_name === thebook && book.chapter === thechapter)
+      .map((book: KjvBook) => book.verse);
+  }
 };
 
 export const getVersesInChapter = async (
@@ -69,11 +103,12 @@ export const getVersesInChapter = async (
   return await getVersesFromApi(thebook, thechapter, filesetId);
 };
 
-export const getVersesInKjvChapter = (
+export const getVersesInKjvChapter = async (
   thebook: string,
   thechapter: number
-): { verse: number; text: string }[] => {
-  return data
+): Promise<{ verse: number; text: string }[]> => {
+  const kjvData = await loadKjvData();
+  return kjvData
     .filter(
       (book: KjvBook) => book.book_name === thebook && book.chapter === thechapter
     )
@@ -103,20 +138,29 @@ export const getVersesFromApi = async (
   }
 };
 
-export const getPassage = (): { book_name: string; book_id: string; chapter: number }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-      chapter: book.chapter,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
-  });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as { book_name: string; book_id: string; chapter: number }[];
+export const getPassage = async (): Promise<{ book_name: string; book_id: string; chapter: number }[]> => {
+  if (passageCache) {
+    return passageCache;
+  }
+
+  try {
+    const response = await fetch('https://bible-research-489314.ey.r.appspot.com/api/v1/bible/passages/');
+    const data = await response.json();
+    passageCache = data.results || data || [];
+    return passageCache;
+  } catch (error) {
+    console.warn('⚠️ Failed to fetch passages from API, falling back to KJV data');
+    const kjvData = await loadKjvData();
+    const passageMap = new Map<string, { book_name: string; book_id: string; chapter: number }>();
+    kjvData.forEach((book: KjvBook) => {
+        const key = `${book.book_id}-${book.chapter}`;
+        if (!passageMap.has(key)) {
+            passageMap.set(key, { book_name: book.book_name, book_id: book.book_id, chapter: book.chapter });
+        }
+    });
+    passageCache = Array.from(passageMap.values());
+    return passageCache;
+  }
 };
 
 export const addTagNote = async (
@@ -412,17 +456,16 @@ export const getBibleAudioUrl = async (
  * @param chapter - Chapter number
  * @returns Audio URL string
  */
-export const getKjvAudioUrl = (book: string, chapter: number): string => {
-  const books = getBooks();
+export const getKjvAudioUrl = async (book: string, chapter: number): Promise<string> => {
+  await loadKjvData(); // Ensure KJV data is loaded for the fallback in getBooks
+  const books = await getBooks();
   const index = books.findIndex((b) => b.book_name === book);
 
   if (index === -1) {
     throw new Error(`Book not found: ${book}`);
   }
 
-  return `https://wordpocket.org/bibles/app/audio/1/${
-    index + 1
-  }/${chapter}.mp3`;
+  return `https://wordpocket.org/bibles/app/audio/1/${index + 1}/${chapter}.mp3`;
 };
 
 /**
@@ -431,14 +474,14 @@ export const getKjvAudioUrl = (book: string, chapter: number): string => {
  * @param chapter - Current chapter number
  * @returns Object with previous and next chapter info
  */
-export const getAdjacentChapters = (
+export const getAdjacentChapters = async (
   book: string,
   chapter: number
-): {
+): Promise<{
   previous: { book: string; chapter: number } | null;
   next: { book: string; chapter: number } | null;
-} => {
-  const passages = getPassage();
+}> => {
+  const passages = await getPassage();
   const currentIndex = passages.findIndex(
     (p) => p.book_name === book && p.chapter === chapter
   );
@@ -489,9 +532,9 @@ export const prefetchAudioUrl = async (
       return;
     }
 
-    // KJV URLs are instant (no API call needed)
+    // KJV URLs are now async
     if (filesetId === 'ENGKJV') {
-      const url = getKjvAudioUrl(book, chapter);
+      const url = await getKjvAudioUrl(book, chapter);
       // Cache it for consistency
       cacheAudioUrl(book, chapter, 'ENGKJV', url, 0, 0);
       console.log(`🎵 Prefetched KJV audio for ${book} ${chapter}`);
@@ -526,7 +569,7 @@ export const prefetchAdjacentChapters = async (
   chapter: number,
   filesetId: string
 ): Promise<void> => {
-  const { previous, next } = getAdjacentChapters(book, chapter);
+  const { previous, next } = await getAdjacentChapters(book, chapter);
 
   const prefetch = async (
     b: string,

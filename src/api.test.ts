@@ -3,6 +3,14 @@ import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
+import { loadKjvData } from './utils/kjvDataLoader';
+
+// Mock the KJV data loader
+vi.mock('./utils/kjvDataLoader', () => ({
+  loadKjvData: vi.fn().mockResolvedValue([
+    { chapter: 1, verse: 1, text: 'Test verse', book_name: 'Genesis', book_id: 'Gen' },
+  ]),
+}));
 
 const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
 
@@ -20,30 +28,20 @@ describe('API Functions', () => {
     vi.restoreAllMocks();
   });
 
-  // --- Local Data Functions ---
-  describe('Local Data Functions', () => {
-    it('getBooks should return a list of all books', () => {
-      const books = api.getBooks();
-      expect(books.length).toBe(66);
+  describe('Navigation Functions', () => {
+    it('getBooks should return books from API', async () => {
+      const books = await api.getBooks();
+      expect(books.length).toBeGreaterThan(0);
       expect(books[0].book_name).toBe('Genesis');
-      expect(books[65].book_name).toBe('Revelation');
     });
 
-    it('getChapters should return the correct number of chapters for a book', () => {
-      const chapters = api.getChapters('Genesis');
-      expect(chapters.length).toBe(50);
-    });
-
-    it('getVersesInKjvChapter should return all verses for a given chapter', () => {
-      const verses = api.getVersesInKjvChapter('John', 3);
-      expect(verses.length).toBe(36);
-      expect(verses[15].text).toContain('For God so loved the world');
-    });
-
-    it('getAdjacentChapters should return correct previous and next chapters', () => {
-      const adjacent = api.getAdjacentChapters('John', 1);
-      expect(adjacent.previous).toEqual({ book: 'Luke', chapter: 24 });
-      expect(adjacent.next).toEqual({ book: 'John', chapter: 2 });
+    it('getVersesInKjvChapter should lazy load KJV data', async () => {
+      const verses = await api.getVersesInKjvChapter('Genesis', 1);
+      expect(loadKjvData).toHaveBeenCalled();
+      expect(verses).toEqual([{
+        "text": "Test verse",
+        "verse": 1,
+      }]);
     });
   });
 

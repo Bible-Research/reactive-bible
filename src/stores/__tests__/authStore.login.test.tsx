@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, waitFor } from '@testing-library/react';
-import { renderHook } from '@testing-library/react';
+import { act, waitFor, renderHook } from '@testing-library/react';
 import { createTestAuthStore } from '../authStore';
 
 describe('authStore - Login', () => {
@@ -84,11 +83,11 @@ describe('authStore - Login', () => {
     });
 
     it('should handle 400 error (invalid credentials)', async () => {
+      const useTestAuthStore = createTestAuthStore();
       const errorResponse = {
         non_field_errors: ['Unable to log in with provided credentials.'],
       };
 
-      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -147,13 +146,13 @@ describe('authStore - Login', () => {
     });
 
     it('should send correct request format', async () => {
+      const useTestAuthStore = createTestAuthStore();
       const mockFetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         json: async () => ({ token: mockToken }),
       });
       global.fetch = mockFetch;
 
-      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
