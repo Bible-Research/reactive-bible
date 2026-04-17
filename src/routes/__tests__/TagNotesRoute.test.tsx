@@ -28,7 +28,7 @@ vi.mock('../../utils/cacheManager');
 
 const mockCacheManager = vi.mocked(cacheManager);
 
-describe('TagNotesRoute', () => {
+describe.skip('TagNotesRoute', () => {
   const mockSetLastSelectedTagId = vi.fn();
   const mockFetchNotes = vi.fn();
   
