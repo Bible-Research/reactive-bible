@@ -1,9 +1,8 @@
 import { Modal } from "@mantine/core";
-import { addTagNote, getTags } from "../api";
+import { addTagNote } from "../api";
 import { useBibleStore } from "../store";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import NoteForm from "./NoteForm";
-import { Tag } from "../types";
 
 interface AddTagNoteModalProps {
   opened: boolean;
@@ -11,26 +10,21 @@ interface AddTagNoteModalProps {
 }
 
 const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
-  const [tags, setTags] = useState<Tag[]>([]);
-  const activeVerses = useBibleStore((state) => state.activeVerses);
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
-
-    const fetchTags = async () => {
-    try {
-      const fetchedTags = await getTags();
-      setTags(fetchedTags);
-    } catch (error) {
-      console.error('Error fetching tags:', error);
-    }
-  };
+  const { tags, getTags, activeVerses, activeBook, activeChapter, setActiveVerses } = useBibleStore((state) => ({
+    tags: state.tags,
+    getTags: state.getTags,
+    activeVerses: state.activeVerses,
+    activeBook: state.activeBook,
+    activeChapter: state.activeChapter,
+    setActiveVerses: state.setActiveVerses,
+  }));
 
   useEffect(() => {
     if (opened) {
-      fetchTags();
+      // Ensure tags are loaded (uses cache if available)
+      getTags();
     }
-  }, [opened]);
+  }, [opened, getTags]);
 
   const handleSubmit = async (tagId: string, text: string) => {
     const verseReferences = activeVerses.map((verse) => ({
@@ -54,7 +48,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         tags={tags}
         onSubmit={handleSubmit}
         submitText="Submit"
-        onTagDropdownOpen={fetchTags}
+        onTagDropdownOpen={() => getTags()}
       />
     </Modal>
   );
