@@ -31,7 +31,7 @@ let booksCache: { book_name: string; book_id: string }[] | null = null;
 export const getBooks = async (): Promise<{ book_name: string; book_id: string }[]> => {
   // Return cached data if available
   if (booksCache) {
-    return booksCache;
+    return booksCache || [];
   }
 
   try {
@@ -40,7 +40,7 @@ export const getBooks = async (): Promise<{ book_name: string; book_id: string }
     const data = await response.json();
     booksCache = data.results || data || [];
     console.log('✅ Books loaded from API');
-    return booksCache;
+    return booksCache || [];
   } catch (error) {
     console.warn('⚠️ Failed to fetch books from API, falling back to KJV data');
     // Fallback to KJV data
@@ -140,14 +140,14 @@ export const getVersesFromApi = async (
 
 export const getPassage = async (): Promise<{ book_name: string; book_id: string; chapter: number }[]> => {
   if (passageCache) {
-    return passageCache;
+    return passageCache || [];
   }
 
   try {
     const response = await fetch('https://bible-research-489314.ey.r.appspot.com/api/v1/bible/passages/');
     const data = await response.json();
     passageCache = data.results || data || [];
-    return passageCache;
+    return passageCache || [];
   } catch (error) {
     console.warn('⚠️ Failed to fetch passages from API, falling back to KJV data');
     const kjvData = await loadKjvData();
