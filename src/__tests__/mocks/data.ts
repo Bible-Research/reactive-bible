@@ -118,6 +118,13 @@ export const mockBooks = [
   { book_id: 'Rev', book_name: 'Revelation' },
 ];
 
+// --- Passages (simplified) ---
+export const mockPassages = [
+  { book_name: 'Genesis', book_id: 'Gen', chapter: 1 },
+  { book_name: 'Genesis', book_id: 'Gen', chapter: 2 },
+  { book_name: 'Exodus', book_id: 'Exod', chapter: 1 },
+];
+
 // --- API Response Mocks ---
 export const mockApiResponses = {
   verses: {

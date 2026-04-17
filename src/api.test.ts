@@ -3,29 +3,46 @@ import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
-import { loadKjvData } from './utils/kjvDataLoader';
+import * as kjvDataLoader from './utils/kjvDataLoader';
 
 // Mock the KJV data loader
-vi.mock('./utils/kjvDataLoader', () => ({
-  loadKjvData: vi.fn().mockResolvedValue([
-    { chapter: 1, verse: 1, text: 'Test verse', book_name: 'Genesis', book_id: 'Gen' },
-  ]),
-}));
 
 const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
 
 describe('API Functions', () => {
   beforeEach(() => {
+    // Reset mocks and clear API module caches before each test
     vi.resetAllMocks();
-    // Spy on cache functions to track their calls
-    vi.spyOn(cacheManager, 'getCachedVerses');
+    api.clearBooksCache();
+    api.clearPassageCache();
+
+    // Mock dependencies
+    vi.spyOn(kjvDataLoader, 'loadKjvData').mockResolvedValue([
+      { chapter: 1, verse: 1, text: 'Test verse', book_name: 'Genesis', book_id: 'Gen', translation_id: 'KJV' },
+    ]);
+    vi.spyOn(cacheManager, 'getCachedVerses').mockReturnValue(null);
     vi.spyOn(cacheManager, 'cacheVerses');
-    vi.spyOn(cacheManager, 'getCachedAudioUrl');
+    vi.spyOn(cacheManager, 'getCachedAudioUrl').mockReturnValue(null);
     vi.spyOn(cacheManager, 'cacheAudioUrl');
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('Lazy Loading', () => {
+    it('getBooks should NOT load KJV data if API succeeds', async () => {
+      await api.getBooks();
+      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
+    });
+
+    it('getBooks SHOULD load KJV data if API fails', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/books/`, () => new HttpResponse(null, { status: 500 }))
+      );
+      await api.getBooks();
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
+    });
   });
 
   describe('Navigation Functions', () => {
@@ -37,7 +54,7 @@ describe('API Functions', () => {
 
     it('getVersesInKjvChapter should lazy load KJV data', async () => {
       const verses = await api.getVersesInKjvChapter('Genesis', 1);
-      expect(loadKjvData).toHaveBeenCalled();
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
       expect(verses).toEqual([{
         "text": "Test verse",
         "verse": 1,
@@ -82,25 +99,17 @@ describe('API Functions', () => {
     });
 
     it('should throw an error if the fetch response is not ok', async () => {
-      // Use a specific handler that returns 404 for a specific fileset
       server.use(
         http.get(`${API_URL}/bible`, ({ request }) => {
           const url = new URL(request.url);
           const filesetId = url.searchParams.get('fileset_id');
-
-          // Only return 404 for this specific test case
           if (filesetId === 'ERRORTEST') {
             return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
           }
-
-          // Let other requests pass through to default handler
           return;
         })
       );
-
-      // Clear the cache to ensure the API is actually called
       localStorage.clear();
-
       await expect(api.getBibleAudioUrl('Genesis', 1, 'ERRORTEST')).rejects.toThrow(
         'Failed to fetch audio for ERRORTEST: Not Found'
       );

@@ -11,7 +11,13 @@ import {
 } from './utils/cacheManager';
 import { authenticatedFetch } from './utils/apiClient';
 
+const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+
 let passageCache: { book_name: string; book_id: string; chapter: number }[] | null = null;
+
+// Exported for testing purposes
+export const clearBooksCache = () => (booksCache = null);
+export const clearPassageCache = () => (passageCache = null);
 
 export interface KjvBook {
   chapter: number;
@@ -36,7 +42,7 @@ export const getBooks = async (): Promise<{ book_name: string; book_id: string }
 
   try {
     // Try API first
-    const response = await fetch('https://bible-research-489314.ey.r.appspot.com/api/v1/bible/books/');
+    const response = await fetch(`${API_URL}/bible/books/`);
     const data = await response.json();
     booksCache = data.results || data || [];
     console.log('✅ Books loaded from API');
@@ -58,9 +64,7 @@ export const getBooks = async (): Promise<{ book_name: string; book_id: string }
 
 export const getChapters = async (thebook: string): Promise<number[]> => {
   try {
-    const response = await fetch(
-      `https://bible-research-489314.ey.r.appspot.com/api/v1/bible/books/${thebook}/chapters/`
-    );
+    const response = await fetch(`${API_URL}/bible/books/${thebook}/chapters/`);
     const data = await response.json();
     return data.chapters || [];
   } catch (error) {
@@ -78,9 +82,7 @@ export const getChapters = async (thebook: string): Promise<number[]> => {
 
 export const getVerses = async (thebook: string, thechapter: number): Promise<number[]> => {
   try {
-    const response = await fetch(
-      `https://bible-research-489314.ey.r.appspot.com/api/v1/bible/${thebook}/${thechapter}/verses/`
-    );
+    const response = await fetch(`${API_URL}/bible/${thebook}/${thechapter}/verses/`);
     const data = await response.json();
     return data.verses || [];
   } catch (error) {
@@ -126,7 +128,7 @@ export const getVersesFromApi = async (
   }
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `${API_URL}/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const data = await response.json();
     const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
@@ -144,7 +146,7 @@ export const getPassage = async (): Promise<{ book_name: string; book_id: string
   }
 
   try {
-    const response = await fetch('https://bible-research-489314.ey.r.appspot.com/api/v1/bible/passages/');
+    const response = await fetch(`${API_URL}/bible/passages/`);
     const data = await response.json();
     passageCache = data.results || data || [];
     return passageCache || [];
@@ -175,7 +177,7 @@ export const addTagNote = async (
   });
   try {
     const response = await authenticatedFetch(
-      'https://bibleresearchapi.vercel.app/api/v1/notes/', 
+      `${API_URL}/notes/`, 
       {
         method: 'POST',
         body: body,
@@ -199,7 +201,7 @@ export const editNote = async (
   const body = JSON.stringify({ tag: tagId, note_text: noteText });
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`, 
+      `${API_URL}/notes/${noteId}/`, 
       {
         method: 'PATCH',
         body: body,
@@ -218,7 +220,7 @@ export const editNote = async (
 export const deleteNote = async (noteId: string) => {
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}`, 
+      `${API_URL}/notes/${noteId}`, 
       {
         method: 'DELETE',
       }
@@ -400,7 +402,7 @@ export const getBibleAudioUrl = async (
 
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `${API_URL}/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
