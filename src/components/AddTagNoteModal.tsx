@@ -20,12 +20,12 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   }));
 
   useEffect(() => {
+    // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
-      // Ensure tags are loaded (uses cache if available)
       getTags();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened]); // Only run when modal opens
+  }, [opened]); // Only run when opened changes
 
   const handleSubmit = async (tagId: string, text: string) => {
     const verseReferences = activeVerses.map((verse) => ({

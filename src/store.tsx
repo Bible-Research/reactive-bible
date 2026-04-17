@@ -139,15 +139,16 @@ export const useBibleStore = create<BibleState>()(
         // Use cached tags unless force refresh
         const currentTags = useBibleStore.getState().tags;
         if (!forceRefresh && currentTags.length > 0) {
-          console.log(`✅ Using cached tags (${currentTags.length} tags)`);
+          console.log(`✅ Using cached tags (${currentTags.length} tags) - no API call`);
           return;
         }
 
         // Fetch from API
-        console.log('📝 Fetching tags from API');
+        console.log('📝 Fetching tags from API', new Error().stack);
         try {
           const tags = await api.getTags();
           set({ tags });
+          console.log(`✅ Tags fetched successfully (${tags.length} tags)`);
         } catch (error) {
           console.error('Error fetching tags:', error);
           showNotification({
