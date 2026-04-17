@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
-import { renderWithAuthStore } from './helpers';
-import { useAuthStore } from '../authStore';
+import { renderHook } from '@testing-library/react';
+import { createTestAuthStore } from '../authStore';
 
 describe('authStore', () => {
   const mockToken = 'test-token-123';
@@ -14,22 +14,14 @@ describe('authStore', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      useAuthStore.setState({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-    });
     localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
 
   describe('Initial State', () => {
     it('should have correct initial state', () => {
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
       
       expect(result.current.token).toBeNull();
       expect(result.current.user).toBeNull();
@@ -42,11 +34,17 @@ describe('authStore', () => {
 
   describe('clearError', () => {
     it('should clear error message', () => {
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       // Set error
       act(() => {
-        useAuthStore.setState({ error: 'Test error' });
+        result.current.setToken(mockToken, mockUsername);
+      });
+      
+      // Manually set error for testing
+      act(() => {
+        useTestAuthStore.setState({ error: 'Test error' });
       });
 
       expect(result.current.error).toBe('Test error');
@@ -62,7 +60,8 @@ describe('authStore', () => {
 
   describe('setToken', () => {
     it('should set token and user manually', () => {
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       act(() => {
         result.current.setToken(mockToken, mockUsername);
@@ -77,11 +76,12 @@ describe('authStore', () => {
 
   describe('checkAuth', () => {
     it('should set isAuthenticated to true if token exists', () => {
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       // Set token
       act(() => {
-        useAuthStore.setState({ token: mockToken });
+        useTestAuthStore.setState({ token: mockToken });
       });
 
       // Check auth
@@ -93,7 +93,8 @@ describe('authStore', () => {
     });
 
     it('should set isAuthenticated to false if no token', () => {
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       act(() => {
         result.current.checkAuth();

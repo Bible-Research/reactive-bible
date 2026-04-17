@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act } from '@testing-library/react';
-import { renderWithAuthStore } from './helpers';
-import { useAuthStore } from '../authStore';
+import { act, renderHook } from '@testing-library/react';
+import { createTestAuthStore } from '../authStore';
 
 describe('authStore - Persistence', () => {
   const mockToken = 'test-token-123';
@@ -14,15 +13,6 @@ describe('authStore - Persistence', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      useAuthStore.setState({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-    });
     localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
@@ -34,7 +24,8 @@ describe('authStore - Persistence', () => {
         json: async () => ({ token: mockToken }),
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.login(mockUsername, mockPassword);
@@ -61,7 +52,8 @@ describe('authStore - Persistence', () => {
       localStorage.setItem('auth-storage', JSON.stringify(authData));
 
       // Create new hook instance
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       expect(result.current.token).toBe(mockToken);
       expect(result.current.user).toEqual({ username: mockUsername });
