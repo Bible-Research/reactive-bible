@@ -19,7 +19,7 @@ import { Note, Tag } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
-import { getTags, deleteNote } from '../api';
+import { deleteNote } from '../api';
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -28,10 +28,9 @@ export default function TagNotesRoute() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   const { notes, fetchNotes, setActiveBook, 
-          setActiveChapter, setActiveVerses, setShowNotes } = 
+          setActiveChapter, setActiveVerses, setShowNotes, tags, getTags } = 
     useBibleStore();
   const [tag, setTag] = useState<Tag | null>(null);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,10 +51,12 @@ export default function TagNotesRoute() {
       setError(null);
 
       try {
-        // Fetch all tags to find the current one
-        const fetchedTags = await getTags();
-        setAllTags(fetchedTags);
-        const currentTag = fetchedTags.find(t => t.id === tagId);
+        // Ensure tags are loaded (uses cache if available)
+        await getTags();
+        
+        // Get tags from store
+        const storeTags = useBibleStore.getState().tags;
+        const currentTag = storeTags.find((t: Tag) => t.id === tagId);
         
         if (!currentTag) {
           setError(`Tag not found: ${tagId}`);
@@ -65,7 +66,7 @@ export default function TagNotesRoute() {
 
         setTag(currentTag);
         
-        // Fetch notes for this tag
+        // Fetch notes for this tag (uses cache if available)
         await fetchNotes(tagId);
       } catch (err) {
         console.error('Error loading tag notes:', err);
@@ -76,7 +77,7 @@ export default function TagNotesRoute() {
     };
 
     loadTagAndNotes();
-  }, [tagId, fetchNotes]);
+  }, [tagId, fetchNotes, getTags]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -212,7 +213,7 @@ export default function TagNotesRoute() {
   }
 
   // Sort tags alphabetically
-  const sortedTags = [...allTags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <Box p="md">

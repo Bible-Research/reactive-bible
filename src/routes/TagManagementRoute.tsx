@@ -14,14 +14,18 @@ import {
 import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
-import { getTags, deleteTag as deleteTagApi } from '../api';
+import { deleteTag as deleteTagApi } from '../api';
 import { TagTree } from '../components/TagTree';
 import { CreateTagModal } from '../components/CreateTagModal';
 import { EditTagModal } from '../components/EditTagModal';
+import { useBibleStore } from '../store';
 
 export default function TagManagementRoute() {
   const navigate = useNavigate();
-  const [tags, setTags] = useState<Tag[]>([]);
+  const { tags, getTags } = useBibleStore((state) => ({
+    tags: state.tags,
+    getTags: state.getTags,
+  }));
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -29,13 +33,13 @@ export default function TagManagementRoute() {
 
   useEffect(() => {
     loadTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadTags = async () => {
+  const loadTags = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const fetchedTags = await getTags();
-      setTags(fetchedTags);
+      await getTags(forceRefresh);
     } catch (error) {
       console.error('Error loading tags:', error);
       showNotification({
@@ -60,7 +64,7 @@ export default function TagManagementRoute() {
           message: 'Tag deleted successfully',
           color: 'green',
         });
-        await loadTags();
+        await loadTags(true); // Force refresh
       } catch (error) {
         console.error('Error deleting tag:', error);
         showNotification({
@@ -152,14 +156,14 @@ export default function TagManagementRoute() {
       <CreateTagModal
         opened={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        onSuccess={loadTags}
+        onSuccess={() => loadTags(true)}
         existingTags={tags}
       />
 
       <EditTagModal
         opened={!!editingTag}
         onClose={() => setEditingTag(null)}
-        onSuccess={loadTags}
+        onSuccess={() => loadTags(true)}
         tag={editingTag}
         existingTags={tags}
       />
