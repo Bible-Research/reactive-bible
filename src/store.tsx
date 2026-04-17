@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { showNotification } from "@mantine/notifications";
 import * as api from './api';
 import { Note, Tag } from './types';
+import { getCachedNotes, cacheNotes, clearNotesCache } from './utils/cacheManager';
 
 export interface Fileset {
   id: string;
@@ -34,6 +35,7 @@ interface BibleState {
   notes: Note[];
   allNotesFetched: boolean;
   showNotes: boolean;
+  lastSelectedTagId: string | null;
   setActiveBook: (activeBook: string) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
@@ -49,6 +51,7 @@ interface BibleState {
   getTags: () => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
   setShowNotes: (show: boolean) => void;
+  setLastSelectedTagId: (tagId: string | null) => void;
 }
 
 // Define and export the initial state for reusability and testing
@@ -67,6 +70,7 @@ export const initialState = {
   notes: [] as Note[],
   allNotesFetched: false,
   showNotes: false,
+  lastSelectedTagId: null,
 };
 
 export const useBibleStore = create<BibleState>()(
@@ -100,9 +104,27 @@ export const useBibleStore = create<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string) => {
+        // Check cache first
+        if (tagId) {
+          const cachedNotes = getCachedNotes(tagId);
+          if (cachedNotes) {
+            console.log(`✅ Using cached notes for tag: ${tagId} (${cachedNotes.length} notes)`);
+            set({ notes: cachedNotes, allNotesFetched: false, lastSelectedTagId: tagId });
+            return;
+          }
+        }
+
+        // Fetch from API
+        console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
         try {
           const notes = await api.getNotes(tagId);
-          set({ notes, allNotesFetched: !tagId });
+
+          // Cache the results
+          if (tagId) {
+            cacheNotes(tagId, notes);
+          }
+
+          set({ notes, allNotesFetched: !tagId, lastSelectedTagId: tagId || null });
         } catch (error) {
           console.error('Error fetching notes:', error);
           showNotification({
@@ -130,6 +152,8 @@ export const useBibleStore = create<BibleState>()(
       deleteNote: async (noteId: string) => {
         try {
           await api.deleteNote(noteId);
+          // Clear all notes cache since we don't know which tag this note belonged to
+          clearNotesCache();
           set((state) => ({
             notes: state.notes.filter((n) => n.id !== noteId)
           }));
@@ -149,6 +173,7 @@ export const useBibleStore = create<BibleState>()(
         }
       },
       setShowNotes: (showNotes) => set({ showNotes }),
+      setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),
     }),
     {
       name: "bible-storage",
@@ -163,6 +188,9 @@ export const useBibleStore = create<BibleState>()(
         translations: state.translations,
         activeTextFilesetId: state.activeTextFilesetId,
         activeAudioFilesetId: state.activeAudioFilesetId,
+        lastSelectedTagId: state.lastSelectedTagId,
+        notes: state.notes,
+        tags: state.tags,
         // showAudioPlayer is NOT persisted
       }),
     }
