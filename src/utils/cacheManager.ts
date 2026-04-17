@@ -257,39 +257,6 @@ export const clearVerseCache = () => {
 };
 
 // ============================================
-// TRANSLATION CACHE
-// ============================================
-
-export const getCachedTranslations = (
-  languageIso: string
-): Translation[] | null => {
-  try {
-    const cacheStr = getCachedLocalStorage(TRANSLATION_CACHE_KEY);
-    if (!cacheStr) return null;
-
-    const cache: TranslationCache = JSON.parse(cacheStr);
-    return cache[languageIso] || null;
-  } catch (error) {
-    console.error('Error reading translation cache:', error);
-    return null;
-  }
-};
-
-export const cacheTranslations = (
-  languageIso: string,
-  translations: Translation[]
-) => {
-  try {
-    const cacheStr = getCachedLocalStorage(TRANSLATION_CACHE_KEY);
-    const cache: TranslationCache = cacheStr ? JSON.parse(cacheStr) : {};
-    cache[languageIso] = translations;
-    setCachedLocalStorage(TRANSLATION_CACHE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    console.error('Error writing translation cache:', error);
-  }
-};
-
-// ============================================
 // NOTES CACHE (by tag ID)
 // ============================================
 
@@ -339,6 +306,39 @@ export const clearNotesCache = (tagId?: string) => {
   } else {
     // Clear all notes
     removeCachedLocalStorage(NOTES_CACHE_KEY);
+  }
+};
+
+// ============================================
+// TRANSLATION CACHE
+// ============================================
+
+export const getCachedTranslations = (
+  languageIso: string
+): Translation[] | null => {
+  try {
+    const cacheStr = getCachedLocalStorage(TRANSLATION_CACHE_KEY);
+    if (!cacheStr) return null;
+
+    const cache: TranslationCache = JSON.parse(cacheStr);
+    return cache[languageIso] || null;
+  } catch (error) {
+    console.error('Error reading translation cache:', error);
+    return null;
+  }
+};
+
+export const cacheTranslations = (
+  languageIso: string,
+  translations: Translation[]
+) => {
+  try {
+    const cacheStr = getCachedLocalStorage(TRANSLATION_CACHE_KEY);
+    const cache: TranslationCache = cacheStr ? JSON.parse(cacheStr) : {};
+    cache[languageIso] = translations;
+    setCachedLocalStorage(TRANSLATION_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error('Error writing translation cache:', error);
   }
 };
 

@@ -4,7 +4,7 @@ import * as cacheManager from './utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 
-const API_URL = 'https://bibleresearchapi.vercel.app/api/v1';
+const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
 
 describe('API Functions', () => {
   beforeEach(() => {

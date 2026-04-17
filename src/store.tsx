@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
 import { showNotification } from "@mantine/notifications";
 import * as api from './api';
@@ -73,7 +73,7 @@ export const initialState = {
   lastSelectedTagId: null,
 };
 
-export const useBibleStore = create<BibleState>()(
+export const useBibleStore = createWithEqualityFn<BibleState>()(
   persist(
     (set) => ({
       ...initialState,
@@ -104,7 +104,6 @@ export const useBibleStore = create<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string) => {
-        // Check cache first
         if (tagId) {
           const cachedNotes = getCachedNotes(tagId);
           if (cachedNotes) {
@@ -114,16 +113,14 @@ export const useBibleStore = create<BibleState>()(
           }
         }
 
-        // Fetch from API
         console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
         try {
           const notes = await api.getNotes(tagId);
-
-          // Cache the results
+          
           if (tagId) {
             cacheNotes(tagId, notes);
           }
-
+          
           set({ notes, allNotesFetched: !tagId, lastSelectedTagId: tagId || null });
         } catch (error) {
           console.error('Error fetching notes:', error);

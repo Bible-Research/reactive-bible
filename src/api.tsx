@@ -91,7 +91,7 @@ export const getVersesFromApi = async (
   }
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const data = await response.json();
     const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
@@ -304,7 +304,7 @@ export const getAvailableTranslations = async (
   }
 
   try {
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible/translations/?language_iso=${languageIso}`;
+    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible/translations/?language_iso=${languageIso}`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -356,7 +356,7 @@ export const getBibleAudioUrl = async (
 
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bibleresearchapi.vercel.app/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {

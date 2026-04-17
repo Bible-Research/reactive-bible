@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 
 // Define your request handlers
-const API_URL = 'https://bibleresearchapi.vercel.app/api/v1';
+const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
 
 export const handlers = [
   // --- Single /bible Endpoint Handler ---
