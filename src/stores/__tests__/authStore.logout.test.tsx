@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act } from '@testing-library/react';
-import { renderWithAuthStore } from './helpers';
-import { useAuthStore } from '../authStore';
+import { renderHook } from '@testing-library/react';
+import { createTestAuthStore } from '../authStore';
 
 describe('authStore - Logout', () => {
   const mockToken = 'test-token-123';
@@ -13,22 +13,14 @@ describe('authStore - Logout', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      useAuthStore.setState({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-    });
     localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
 
   describe('logout', () => {
     it('should clear auth state on logout', () => {
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       // Set authenticated state
       act(() => {

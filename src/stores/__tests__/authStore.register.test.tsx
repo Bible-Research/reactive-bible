@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
-import { renderWithAuthStore } from './helpers';
-import { useAuthStore } from '../authStore';
+import { renderHook } from '@testing-library/react';
+import { createTestAuthStore } from '../authStore';
 
 describe('authStore - Register', () => {
   const mockToken = 'test-token-123';
@@ -15,13 +15,6 @@ describe('authStore - Register', () => {
 
   afterEach(() => {
     act(() => {
-      useAuthStore.setState({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
     });
     localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
@@ -47,7 +40,8 @@ describe('authStore - Register', () => {
         json: async () => mockResponse,
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.register(
@@ -81,7 +75,8 @@ describe('authStore - Register', () => {
         json: async () => mockResponse,
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.register(
@@ -114,7 +109,8 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -141,7 +137,8 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -163,7 +160,8 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -185,7 +183,8 @@ describe('authStore - Register', () => {
         }),
       });
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -218,7 +217,8 @@ describe('authStore - Register', () => {
           )
       );
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       const registerPromise = act(async () => {
         await result.current.register(
