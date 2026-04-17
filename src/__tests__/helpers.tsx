@@ -1,5 +1,6 @@
 import React, { ReactElement } from 'react';
-import { render, RenderOptions, waitFor } from '@testing-library/react';
+import { render, RenderOptions, waitFor, act } from '@testing-library/react';
+import { useAuthStore } from '../stores/authStore';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import { useBibleStore, initialState } from '../store';

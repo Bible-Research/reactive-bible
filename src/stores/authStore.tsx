@@ -5,7 +5,7 @@ interface User {
   username: string;
 }
 
-interface AuthState {
+export interface AuthState {
   // State
   token: string | null;
   user: User | null;
@@ -37,7 +37,7 @@ export const initialState = {
   error: null,
 };
 
-export const createAuthStore = () => create<AuthState>()(
+const createAuthStore = () => create<AuthState>()(
   persist(
     (set, get) => ({
       // Initial state
@@ -261,3 +261,6 @@ export const createAuthStore = () => create<AuthState>()(
 );
 
 export const useAuthStore = createAuthStore();
+
+// Export the factory function for testing purposes
+export { createAuthStore as createTestAuthStore };

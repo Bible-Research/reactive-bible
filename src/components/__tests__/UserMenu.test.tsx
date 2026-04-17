@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserMenu } from '../UserMenu';
-import { renderWithProviders } from '../../__tests__/helpers';
+import { renderWithProviders, renderWithAuth, createMockFetch } from '../../__tests__/helpers';
 import { useAuthStore } from '../../stores/authStore';
 
 // Mock useNavigate
