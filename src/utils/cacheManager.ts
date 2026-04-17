@@ -1,5 +1,5 @@
-import { Translation } from '../store';
 import { Note } from '../types';
+import { Translation } from '../store';
 
 // Cache Manager for Bible Verses and Audio URLs
 // Verse cache: LRU with 500-verse limit (copyright compliance)
@@ -12,8 +12,8 @@ import { Note } from '../types';
 const VERSE_CACHE_KEY = 'bible_verse_cache';
 const VERSE_CACHE_METADATA_KEY = 'bible_verse_cache_metadata';
 const AUDIO_CACHE_KEY = 'bible_audio_cache';
-const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
 const NOTES_CACHE_KEY = 'bible_notes_cache';
+const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
 const MAX_VERSES = 500;
 
 // ============================================

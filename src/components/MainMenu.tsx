@@ -95,6 +95,23 @@ const MainMenu = ({
         </Group>
 
         <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => {
+              console.log('🔗 MainMenu: Navigate to /tags');
+              navigate('/tags');
+              onClose();
+            }}
+            sx={{ cursor: "pointer" }}
+          >
+            Tag Management
+          </Text>
+        </Group>
+
+        <Divider />
+
+        <Group position="apart" spacing="xs">
           <Text weight={500} size="lg">Theme</Text>
           <Switch
             checked={colorScheme === "dark"}

@@ -48,7 +48,7 @@ interface BibleState {
   setActiveTextFilesetId: (id: string | null) => void;
   setActiveAudioFilesetId: (id: string | null) => void;
   fetchNotes: (tagId?: string) => Promise<void>;
-  getTags: () => Promise<void>;
+  getTags: (forceRefresh?: boolean) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
   setShowNotes: (show: boolean) => void;
   setLastSelectedTagId: (tagId: string | null) => void;
@@ -110,21 +110,21 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             const cachedNotes = getCachedNotes(tagId);
             if (cachedNotes) {
               console.log(`✅ Using cached notes for tag: ${tagId} (${cachedNotes.length} notes)`);
-              set({ notes: cachedNotes, allNotesFetched: false });
+              set({ notes: cachedNotes, allNotesFetched: false, lastSelectedTagId: tagId });
               return;
             }
           }
-          
+
           // Fetch from API
           console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
           const notes = await api.getNotes(tagId);
-          
+
           // Cache the results
           if (tagId) {
             cacheNotes(tagId, notes);
           }
-          
-          set({ notes, allNotesFetched: !tagId });
+
+          set({ notes, allNotesFetched: !tagId, lastSelectedTagId: tagId || null });
         } catch (error) {
           console.error('Error fetching notes:', error);
           showNotification({
@@ -135,10 +135,20 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           throw error;
         }
       },
-      getTags: async () => {
+      getTags: async (forceRefresh = false) => {
+        // Use cached tags unless force refresh
+        const currentTags = useBibleStore.getState().tags;
+        if (!forceRefresh && currentTags.length > 0) {
+          console.log(`✅ Using cached tags (${currentTags.length} tags) - no API call`);
+          return;
+        }
+
+        // Fetch from API
+        console.log('📝 Fetching tags from API', new Error().stack);
         try {
           const tags = await api.getTags();
           set({ tags });
+          console.log(`✅ Tags fetched successfully (${tags.length} tags)`);
         } catch (error) {
           console.error('Error fetching tags:', error);
           showNotification({

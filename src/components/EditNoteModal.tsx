@@ -1,9 +1,9 @@
 import { Modal } from "@mantine/core";
-import { editNote, getTags } from "../api";
+import { editNote } from "../api";
 import { useBibleStore } from "../store";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import NoteForm from "./NoteForm";
-import { Note, Tag } from "../types";
+import { Note } from "../types";
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -12,23 +12,19 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
-  const [tags, setTags] = useState<Tag[]>([]);
-  const fetchNotes = useBibleStore((state) => state.fetchNotes);
-
-  const fetchTags = async () => {
-    try {
-      const data = await getTags();
-      setTags(data);
-    } catch (error) {
-      console.error('Error fetching tags:', error);
-    }
-  };
+  const { tags, getTags, fetchNotes } = useBibleStore((state) => ({
+    tags: state.tags,
+    getTags: state.getTags,
+    fetchNotes: state.fetchNotes,
+  }));
 
   useEffect(() => {
     if (opened) {
-      fetchTags();
+      // Ensure tags are loaded (uses cache if available)
+      getTags();
     }
-  }, [opened]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]); // Only run when modal opens
 
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
@@ -49,7 +45,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           tags={tags}
           onSubmit={handleSubmit}
           submitText="Submit changes"
-          onTagDropdownOpen={fetchTags}
+          onTagDropdownOpen={() => getTags()}
           note={{ tagId: note.tag.id, text: note.note_text }}
         />
       )}

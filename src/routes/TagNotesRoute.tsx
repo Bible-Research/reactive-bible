@@ -29,7 +29,6 @@ export default function TagNotesRoute() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   
-  // Use individual selectors to avoid unnecessary re-renders
   const notes = useBibleStore((state) => state.notes);
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
@@ -43,7 +42,6 @@ export default function TagNotesRoute() {
   );
   
   const [tag, setTag] = useState<Tag | null>(null);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,8 +67,8 @@ export default function TagNotesRoute() {
       setError(null);
 
       try {
-        // Use stored tags
-        setAllTags(storedTags);
+        await getTags();
+        
         const currentTag = storedTags.find(t => t.id === tagId);
         
         if (!currentTag) {
@@ -82,7 +80,6 @@ export default function TagNotesRoute() {
 
         setTag(currentTag);
         
-        // Always fetch notes - the store will handle caching
         await fetchNotes(tagId);
         
         if (cancelled) return;
@@ -101,7 +98,7 @@ export default function TagNotesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [tagId, storedTags, fetchNotes]);
+  }, [tagId, storedTags, fetchNotes, getTags]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -235,8 +232,7 @@ export default function TagNotesRoute() {
     );
   }
 
-  // Sort tags alphabetically
-  const sortedTags = [...allTags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...storedTags].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <Box p="md">
