@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, waitFor } from '@testing-library/react';
-import { renderWithAuthStore } from './helpers';
-import { useAuthStore } from '../authStore';
+import { renderHook } from '@testing-library/react';
+import { createTestAuthStore } from '../authStore';
 
 describe('authStore - Login', () => {
   const mockToken = 'test-token-123';
@@ -14,22 +14,13 @@ describe('authStore - Login', () => {
   });
 
   afterEach(() => {
-    act(() => {
-      useAuthStore.setState({
-        token: null,
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-    });
-    localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
 
   describe('Initial State', () => {
     it('should have correct initial state', () => {
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
       
       expect(result.current.token).toBeNull();
       expect(result.current.user).toBeNull();
@@ -41,13 +32,14 @@ describe('authStore - Login', () => {
 
   describe('login', () => {
     it('should successfully login with valid credentials', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({ token: mockToken }),
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.login(mockUsername, mockPassword);
@@ -61,6 +53,7 @@ describe('authStore - Login', () => {
     });
 
     it('should set loading state during login', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockImplementation(
         () =>
           new Promise((resolve) =>
@@ -75,7 +68,7 @@ describe('authStore - Login', () => {
           )
       );
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       const loginPromise = act(async () => {
         await result.current.login(mockUsername, mockPassword);
@@ -95,13 +88,14 @@ describe('authStore - Login', () => {
         non_field_errors: ['Unable to log in with provided credentials.'],
       };
 
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
         json: async () => errorResponse,
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -116,13 +110,14 @@ describe('authStore - Login', () => {
     });
 
     it('should handle 401 error', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 401,
         json: async () => ({}),
       });
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -134,11 +129,12 @@ describe('authStore - Login', () => {
     });
 
     it('should handle network errors', async () => {
+      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockRejectedValueOnce(
         new Error('Network error')
       );
 
-      const { result } = renderWithAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
         act(async () => {
@@ -157,7 +153,8 @@ describe('authStore - Login', () => {
       });
       global.fetch = mockFetch;
 
-      const { result } = renderWithAuthStore();
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
         await result.current.login(mockUsername, mockPassword);

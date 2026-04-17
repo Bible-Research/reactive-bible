@@ -1,9 +1,9 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, waitFor, act } from '@testing-library/react';
-import { useAuthStore } from '../stores/authStore';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import { useBibleStore, initialState } from '../store';
+import { useAuthStore, AuthState, initialState as authInitialState } from '../stores/authStore';
 
 // Re-export mock data for convenience
 export * from './mocks/data';
@@ -125,7 +125,10 @@ export function createMockLocalStorage() {
 // --- Render Helpers ---
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
-  storeOverrides?: Partial<typeof initialState>;
+  stores?: {
+    bible?: Partial<typeof initialState>;
+    auth?: Partial<AuthState>;
+  };
 }
 
 /**
@@ -137,25 +140,29 @@ export function renderWithProviders(
   ui: ReactElement,
   options: ExtendedRenderOptions = {}
 ) {
-  const { storeOverrides, ...renderOptions } = options;
+  const { stores, ...renderOptions } = options;
 
-  // Reset store with any overrides
-  const mockStore = resetStore(storeOverrides);
+  // Reset stores to their initial states plus any overrides
+  if (stores?.bible) {
+    useBibleStore.setState({ ...initialState, ...stores.bible });
+  } else {
+    useBibleStore.setState(initialState);
+  }
+
+  if (stores?.auth) {
+    useAuthStore.setState({ ...authInitialState, ...stores.auth });
+  } else {
+    useAuthStore.setState(authInitialState);
+  }
 
   // Mock DOM APIs
   mockDomApis();
 
-  // Wrap in MemoryRouter for routing context
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <MemoryRouter>{children}</MemoryRouter>
   );
 
-  const result = render(ui, { wrapper: Wrapper, ...renderOptions });
-
-  return {
-    ...result,
-    mockStore,
-  };
+  return render(ui, { wrapper: Wrapper, ...renderOptions });
 }
 
 // --- Async Helpers ---

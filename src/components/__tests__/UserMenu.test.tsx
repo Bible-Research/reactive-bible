@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { UserMenu } from '../UserMenu';
-import { renderWithProviders, renderWithAuth, createMockFetch } from '../../__tests__/helpers';
+import { renderWithProviders, createMockFetch } from '../../__tests__/helpers';
 import { useAuthStore } from '../../stores/authStore';
 
 // Mock useNavigate
@@ -28,21 +28,14 @@ describe('UserMenu', () => {
   });
 
   describe('When not authenticated', () => {
-    beforeEach(() => {
-      useAuthStore.setState({
-        isAuthenticated: false,
-        user: null,
-      });
-    });
-
     it('should show Sign In button', () => {
-      renderWithProviders(<UserMenu />);
+      renderWithProviders(<UserMenu />, { authStoreState: { isAuthenticated: false, user: null } });
       expect(screen.getByText('Sign In')).toBeInTheDocument();
     });
 
     it('should navigate to /login when Sign In clicked', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<UserMenu />);
+      renderWithProviders(<UserMenu />, { authStoreState: { isAuthenticated: false, user: null } });
 
       await user.click(screen.getByText('Sign In'));
 
@@ -51,28 +44,21 @@ describe('UserMenu', () => {
   });
 
   describe('When authenticated', () => {
-    const mockUser = { username: 'testuser' };
-
-    beforeEach(() => {
-      useAuthStore.setState({
-        isAuthenticated: true,
-        user: mockUser,
-      });
-    });
+    const authState = { isAuthenticated: true, user: { username: 'testuser' } };
 
     it('should show username', () => {
-      renderWithProviders(<UserMenu />);
+      renderWithProviders(<UserMenu />, { authStoreState: authState });
       expect(screen.getByText('testuser')).toBeInTheDocument();
     });
 
     it('should show user avatar with first letter', () => {
-      renderWithProviders(<UserMenu />);
+      renderWithProviders(<UserMenu />, { authStoreState: authState });
       expect(screen.getByText('T')).toBeInTheDocument(); // First letter
     });
 
     it('should show dropdown menu when clicked', async () => {
       const user = userEvent.setup();
-      renderWithProviders(<UserMenu />);
+      renderWithProviders(<UserMenu />, { authStoreState: authState });
 
       await user.click(screen.getByText('testuser'));
 
@@ -83,12 +69,10 @@ describe('UserMenu', () => {
     it('should call logout when Logout clicked', async () => {
       const user = userEvent.setup();
       const mockLogout = vi.fn();
-      
-      useAuthStore.setState({
-        logout: mockLogout,
-      });
 
-      renderWithProviders(<UserMenu />);
+      renderWithProviders(<UserMenu />, { 
+        authStoreState: { ...authState, logout: mockLogout }
+      });
 
       await user.click(screen.getByText('testuser'));
       await user.click(screen.getByText('Logout'));
@@ -98,13 +82,14 @@ describe('UserMenu', () => {
 
     it('should navigate to /login after logout', async () => {
       const user = userEvent.setup();
-      const mockLogout = vi.fn();
-      
-      useAuthStore.setState({
-        logout: mockLogout,
+      const mockLogout = vi.fn(() => {
+        // Simulate logout behavior
+        useAuthStore.setState({ isAuthenticated: false, user: null, token: null });
       });
 
-      renderWithProviders(<UserMenu />);
+      renderWithProviders(<UserMenu />, {
+        authStoreState: { ...authState, logout: mockLogout },
+      });
 
       await user.click(screen.getByText('testuser'));
       await user.click(screen.getByText('Logout'));
