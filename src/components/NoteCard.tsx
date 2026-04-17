@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import { Card, Title, Text, Group, Box } from "@mantine/core";
+import { showNotification } from "@mantine/notifications";
 import { Note } from "../types";
 import Verse from "./Verse";
 import Button from "./Button";
@@ -24,6 +25,38 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
 
   const canEdit = note.is_owner && !!onEdit;
   const canDelete = note.is_owner && !!onDelete;
+  const canShare = note.public;
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/notes/${note.id}`;
+    const title = note.tag?.name
+      ? `Note: ${note.tag.name}`
+      : 'Shared note';
+    const text = note.note_text
+      ? note.note_text.slice(0, 140)
+      : 'Shared Bible note';
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        console.error('Error sharing:', err);
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      showNotification({
+        title: 'Link Copied!',
+        message: 'Note link copied to clipboard',
+        color: 'blue',
+      });
+    } catch (err) {
+      console.error('Error copying to clipboard:', err);
+    }
+  };
 
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
@@ -37,6 +70,15 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
           >
             View in Bible
           </Button>
+          {canShare && (
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={handleShare}
+            >
+              Share
+            </Button>
+          )}
           {canEdit && (
             <Button
               variant="subtle"
