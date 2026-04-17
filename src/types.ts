@@ -17,6 +17,7 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  is_owner: boolean;
   created_at: string;
   updated_at: string;
   tag: Tag;
