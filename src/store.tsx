@@ -1,5 +1,6 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
+import { showNotification } from "@mantine/notifications";
 import * as api from './api';
 import { Note, Tag } from './types';
 import { getCachedNotes, cacheNotes, clearNotesCache } from './utils/cacheManager';
@@ -103,36 +104,73 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string) => {
-        // Check cache first
-        if (tagId) {
-          const cachedNotes = getCachedNotes(tagId);
-          if (cachedNotes) {
-            console.log(`✅ Using cached notes for tag: ${tagId} (${cachedNotes.length} notes)`);
-            set({ notes: cachedNotes, allNotesFetched: false });
-            return;
+        try {
+          // Check cache first
+          if (tagId) {
+            const cachedNotes = getCachedNotes(tagId);
+            if (cachedNotes) {
+              console.log(`✅ Using cached notes for tag: ${tagId} (${cachedNotes.length} notes)`);
+              set({ notes: cachedNotes, allNotesFetched: false });
+              return;
+            }
           }
+          
+          // Fetch from API
+          console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
+          const notes = await api.getNotes(tagId);
+          
+          // Cache the results
+          if (tagId) {
+            cacheNotes(tagId, notes);
+          }
+          
+          set({ notes, allNotesFetched: !tagId });
+        } catch (error) {
+          console.error('Error fetching notes:', error);
+          showNotification({
+            title: 'Error',
+            message: 'Failed to load notes. Please try again.',
+            color: 'red',
+          });
+          throw error;
         }
-        
-        // Fetch from API
-        console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
-        const notes = await api.getNotes(tagId);
-        
-        // Cache the results
-        if (tagId) {
-          cacheNotes(tagId, notes);
-        }
-        
-        set({ notes, allNotesFetched: !tagId });
       },
       getTags: async () => {
-        const tags = await api.getTags();
-        set({ tags });
+        try {
+          const tags = await api.getTags();
+          set({ tags });
+        } catch (error) {
+          console.error('Error fetching tags:', error);
+          showNotification({
+            title: 'Error',
+            message: 'Failed to load tags. Please try again.',
+            color: 'red',
+          });
+          throw error;
+        }
       },
       deleteNote: async (noteId: string) => {
-        await api.deleteNote(noteId);
-        // Clear all notes cache since we don't know which tag this note belonged to
-        clearNotesCache();
-        set((state) => ({ notes: state.notes.filter((n) => n.id !== noteId) }));
+        try {
+          await api.deleteNote(noteId);
+          // Clear all notes cache since we don't know which tag this note belonged to
+          clearNotesCache();
+          set((state) => ({
+            notes: state.notes.filter((n) => n.id !== noteId)
+          }));
+          showNotification({
+            title: 'Success',
+            message: 'Note deleted successfully',
+            color: 'green',
+          });
+        } catch (error) {
+          console.error('Error deleting note:', error);
+          showNotification({
+            title: 'Error',
+            message: 'Failed to delete note. Please try again.',
+            color: 'red',
+          });
+          throw error;
+        }
       },
       setShowNotes: (showNotes) => set({ showNotes }),
       setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),

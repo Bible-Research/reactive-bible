@@ -62,7 +62,7 @@ const NotesView = () => {
     if (!storedTags.length) {
       loadData();
     }
-  }, [location.pathname, navigate, lastSelectedTagId, storedTags]);
+  }, [location.pathname, navigate, lastSelectedTagId, storedTags, getTags]);
 
 
 

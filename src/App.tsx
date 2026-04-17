@@ -4,17 +4,21 @@ import {
   ColorSchemeProvider,
   ColorScheme,
 } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
 import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
 import BottomNav from "./components/BottomNav";
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { AppRoutes } from "./routes";
 import { SearchModal } from "./components/SearchModal";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { useAuthStore } from "./stores/authStore";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -32,10 +36,20 @@ export default function App() {
   
   const [modalOpened, modalFn] = useDisclosure(false);
 
-  // Clean up expired audio URLs on app load
+  // Check authentication on app load
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  
   useEffect(() => {
+    // Check if user is authenticated from localStorage
+    checkAuth();
+    // Clean up expired audio URLs
     clearExpiredAudioUrls();
-  }, []);
+  }, [checkAuth]);
+  
+  // Check if we're on an auth page (login/register)
+  const location = useLocation();
+  const isAuthPage = location.pathname === '/login' || 
+                     location.pathname === '/register';
   useWindowEvent("keydown", (event) => {
     if (event.key === "/") {
       event.preventDefault();
@@ -56,13 +70,16 @@ export default function App() {
         withGlobalStyles
         withNormalizeCSS
       >
+        <Notifications position="top-right" zIndex={2077} />
         <AppShell
           padding="md"
           navbar={
-            <BibleSelector
-              opened={bibleSelectorOpened}
-              setOpened={setBibleSelectorOpened}
-            />
+            !isAuthPage ? (
+              <BibleSelector
+                opened={bibleSelectorOpened}
+                setOpened={setBibleSelectorOpened}
+              />
+            ) : undefined
           }
           header={
             <MyHeader
@@ -72,7 +89,9 @@ export default function App() {
             />
           }
           footer={
-            <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
+            !isAuthPage ? (
+              <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
+            ) : undefined
           }
           styles={(theme) => ({
             main: {
@@ -81,10 +100,14 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
+              // Allow scrolling on auth pages
+              overflow: isAuthPage ? "auto" : "hidden",
             },
           })}
         >
-          <AppRoutes />
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
           <SearchModal opened={modalOpened} close={modalFn.close} />
           <MainMenu
             opened={mainMenuOpened}
