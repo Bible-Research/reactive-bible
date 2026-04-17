@@ -23,7 +23,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
       // Ensure tags are loaded (uses cache if available)
       getTags();
     }
-  }, [opened, getTags]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]); // Only run when modal opens
 
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
