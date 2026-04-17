@@ -7,8 +7,8 @@ import Button from "./Button";
 interface NoteCardProps {
   note: Note;
   onViewInBible: (book: string, chapter: number, verse: number) => void;
-  onEdit: (note: Note) => void;
-  onDelete: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
+  onEdit?: (note: Note) => void;
+  onDelete?: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
 }
 
 const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {  
@@ -22,6 +22,9 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
       ? `${book} ${chapter}:${firstVerse}`
       : `${book} ${chapter}:${firstVerse}-${lastVerse}`;
 
+  const canEdit = note.is_owner && !!onEdit;
+  const canDelete = note.is_owner && !!onDelete;
+
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
       <Group position="apart" mb={0}>
@@ -34,23 +37,27 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
           >
             View in Bible
           </Button>
-          <Button
-            variant="subtle"
-            size="xs"
-            onClick={() => onEdit(note)}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="subtle"
-            size="xs"
-            onClick={
-              (evt: MouseEvent<HTMLButtonElement>) => 
-                onDelete(evt, note)
-            }
-          >
-            Remove
-          </Button>
+          {canEdit && (
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={() => onEdit!(note)}
+            >
+              Edit
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={
+                (evt: MouseEvent<HTMLButtonElement>) =>
+                  onDelete!(evt, note)
+              }
+            >
+              Remove
+            </Button>
+          )}
         </Group>
       </Group>
 
