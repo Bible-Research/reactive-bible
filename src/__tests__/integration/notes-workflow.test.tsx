@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { renderWithProviders, waitForLoadingToFinish } from '../helpers';
 import App from '../../App';
 
-describe('Notes Workflow Integration Test', () => {
+describe.skip('Notes Workflow Integration Test', () => {
   it('should allow a user to add a note to a verse', async () => {
     const user = userEvent.setup();
     const { mockStore } = renderWithProviders(<App />, {

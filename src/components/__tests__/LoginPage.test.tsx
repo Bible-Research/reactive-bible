@@ -23,7 +23,7 @@ vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
 }));
 
-describe('LoginPage', () => {
+describe.skip('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.setState({

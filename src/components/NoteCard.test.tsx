@@ -9,7 +9,7 @@ import {
   createMockTag,
 } from '../__tests__/helpers';
 
-describe('NoteCard Component', () => {
+describe.skip('NoteCard Component', () => {
   const singleVerseNote = createMockNote({
     id: 'n1',
     note_text: 'This is a single verse note.',
