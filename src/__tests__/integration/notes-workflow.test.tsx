@@ -28,9 +28,9 @@ describe('Notes Workflow Integration Test', () => {
     const verseContainer = verseText.closest('[id^="verse-"]') || verseText;
     await user.click(verseContainer);
 
-    // 3. Click the 'Add Note' button
-    const addNoteButton = screen.getByRole('button', { name: /add note/i });
-    await user.click(addNoteButton);
+    // 3. Click the 'Add Note' text (it's clickable text, not a button)
+    const addNoteText = screen.getByText(/add note/i);
+    await user.click(addNoteText);
 
     // 4. Fill out and submit the note form
     // Get all inputs with label 'Note' and use the last one (in the modal)

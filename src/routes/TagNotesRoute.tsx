@@ -19,7 +19,8 @@ import { Note, Tag } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
-import { getTags, deleteNote } from '../api';
+import { deleteNote } from '../api';
+import { clearNotesCache } from '../utils/cacheManager';
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -27,37 +28,53 @@ export default function TagNotesRoute() {
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
-  const { notes, fetchNotes, setActiveBook, 
-          setActiveChapter, setActiveVerses, setShowNotes } = 
-    useBibleStore();
+  
+  // Use individual selectors to avoid unnecessary re-renders
+  const notes = useBibleStore((state) => state.notes);
+  const storedTags = useBibleStore((state) => state.tags);
+  const fetchNotes = useBibleStore((state) => state.fetchNotes);
+  const getTags = useBibleStore((state) => state.getTags);
+  const setActiveBook = useBibleStore((state) => state.setActiveBook);
+  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
+  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const setShowNotes = useBibleStore((state) => state.setShowNotes);
+  const setLastSelectedTagId = useBibleStore(
+    (state) => state.setLastSelectedTagId
+  );
+  
   const [tag, setTag] = useState<Tag | null>(null);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Set showNotes to true when on notes route
+  // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
     setShowNotes(true);
-  }, [setShowNotes]);
+    if (tagId) {
+      setLastSelectedTagId(tagId);
+    }
+  }, [setShowNotes, setLastSelectedTagId, tagId]);
 
   useEffect(() => {
+    let cancelled = false;
+    
     const loadTagAndNotes = async () => {
       if (!tagId) {
         setError('No tag ID provided');
         setLoading(false);
         return;
       }
-
+      
       setLoading(true);
       setError(null);
 
       try {
-        // Fetch all tags to find the current one
-        const fetchedTags = await getTags();
-        setAllTags(fetchedTags);
-        const currentTag = fetchedTags.find(t => t.id === tagId);
+        // Use stored tags
+        setAllTags(storedTags);
+        const currentTag = storedTags.find(t => t.id === tagId);
         
         if (!currentTag) {
+          if (cancelled) return;
           setError(`Tag not found: ${tagId}`);
           setLoading(false);
           return;
@@ -65,18 +82,26 @@ export default function TagNotesRoute() {
 
         setTag(currentTag);
         
-        // Fetch notes for this tag
+        // Always fetch notes - the store will handle caching
         await fetchNotes(tagId);
+        
+        if (cancelled) return;
+        // Successfully loaded, clear loading state
+        setLoading(false);
       } catch (err) {
+        if (cancelled) return;
         console.error('Error loading tag notes:', err);
         setError('Failed to load notes');
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     loadTagAndNotes();
-  }, [tagId, fetchNotes]);
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [tagId, storedTags, fetchNotes]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -103,8 +128,6 @@ export default function TagNotesRoute() {
     chapter: number, 
     verse: number
   ) => {
-    console.log(`🔗 Navigating to Bible: ${book} ${chapter}:${verse}`);
-    
     // Set the Bible context
     setActiveBook(book);
     setActiveChapter(chapter);
@@ -119,20 +142,22 @@ export default function TagNotesRoute() {
 
   const handleTagChange = (value: string | null) => {
     if (value && value !== tagId) {
-      console.log(`🔗 TagNotesRoute: Navigate to /notes/tag/${value}`);
       navigate(`/notes/tag/${value}`);
     }
   };
 
   const handleRefresh = async () => {
     if (!tagId) return;
-
+    
     try {
-      setLoading(true);
+      // Clear cache for this tag
+      clearNotesCache(tagId);
+      
       // Refetch notes from API
       await fetchNotes(tagId);
-      setLoading(false);
 
+      await getTags();
+      
       showNotification({
         title: 'Refreshed!',
         message: 'Notes updated from server',
@@ -140,7 +165,6 @@ export default function TagNotesRoute() {
       });
     } catch (err) {
       console.error('Error refreshing notes:', err);
-      setLoading(false);
       showNotification({
         title: 'Error',
         message: 'Failed to refresh notes',

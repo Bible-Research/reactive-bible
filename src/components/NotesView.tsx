@@ -1,43 +1,68 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { Select, Center, Loader, Box, Text } from "@mantine/core";
-import { Tag } from "../types";
-import { getTags } from "../api";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Select, Loader, Box } from "@mantine/core";
+import { useBibleStore } from "../store";
 
 const NotesView = () => {
   const navigate = useNavigate();
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [loading, setLoading] = useState(true);
-  const hasLoadedRef = useRef(false);
-  const hasAutoNavigatedRef = useRef(false);
+  const location = useLocation();
+  const lastSelectedTagId = useBibleStore((state) => state.lastSelectedTagId);
+  const storedTags = useBibleStore((state) => state.tags);
+  const getTags = useBibleStore((state) => state.getTags);
+  const [loading, setLoading] = useState(!storedTags.length);
+  const hasNavigatedRef = useRef(false);
 
   useEffect(() => {
-    // Prevent double-fetch in React Strict Mode
-    if (hasLoadedRef.current) return;
+    // Skip if already navigated
+    if (hasNavigatedRef.current) {
+      return;
+    }
+    
+    // If we have cached tags and lastSelectedTagId, navigate immediately
+    if (storedTags.length > 0 && lastSelectedTagId && location.pathname === '/notes') {
+      console.log(`🔗 NotesView: Navigate to last selected tag /notes/tag/${lastSelectedTagId}`);
+      hasNavigatedRef.current = true;
+      navigate(`/notes/tag/${lastSelectedTagId}`, { replace: true });
+      return;
+    }
+    
+    // If tags not cached, we MUST load them before navigating
+    // Even if we have lastSelectedTagId, we need tags in the store
+    if (storedTags.length === 0) {
+      console.log('📝 Loading tags before navigation...');
+    }
     
     const loadData = async () => {
       setLoading(true);
       try {
-        const fetchedTags = await getTags();
-        setTags(fetchedTags);
+        // Call store's getTags which saves to store
+        await getTags();
+        // Tags are now in store, get them from there
+        const fetchedTags = useBibleStore.getState().tags;
         
-        // Auto-navigate to first tag only once on initial mount
-        if (fetchedTags.length > 0 && !hasAutoNavigatedRef.current) {
-          const sorted = [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name));
-          const firstTagId = sorted[0].id;
-          console.log(`🔗 NotesView: Auto-navigate to first tag /notes/tag/${firstTagId}`);
-          hasAutoNavigatedRef.current = true;
-          navigate(`/notes/tag/${firstTagId}`, { replace: true });
+        // Only navigate if we're still on /notes route and haven't navigated yet
+        if (fetchedTags.length > 0 && 
+            location.pathname === '/notes' && 
+            !hasNavigatedRef.current) {
+          // Use lastSelectedTagId if available, otherwise use first tag
+          const tagId = lastSelectedTagId || 
+            [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name))[0].id;
+          console.log(`🔗 NotesView: Auto-navigate to tag /notes/tag/${tagId}`);
+          hasNavigatedRef.current = true;
+          navigate(`/notes/tag/${tagId}`, { replace: true });
         }
-        
-        hasLoadedRef.current = true;
       } catch (error) {
         console.error('Error loading data:', error);
       }
       setLoading(false);
     };
-    loadData();
-  }, []); // Empty dependency - only load on mount
+    
+    // Always fetch if we don't have cached tags
+    // We need tags in the store for TagNotesRoute to work
+    if (!storedTags.length) {
+      loadData();
+    }
+  }, [location.pathname, navigate, lastSelectedTagId, storedTags, getTags]);
 
 
 
@@ -53,43 +78,22 @@ const NotesView = () => {
 
 
   // Sort tags alphabetically for the dropdown
-  const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...storedTags].sort((a, b) => a.name.localeCompare(b.name));
 
-  // Show loading while redirecting to first tag
-  if (loading) {
-    return (
-      <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
-      </Center>
-    );
-  }
-
-  // Show empty state if no tags
-  if (tags.length === 0) {
-    return (
-      <Center style={{ height: '50vh' }}>
-        <Box ta="center">
-          <Text size="lg" color="dimmed" mb="md">
-            No tags found. Create tags to organize your notes.
-          </Text>
-          <Text size="sm" color="dimmed">
-            Go to Tag Management to create your first tag.
-          </Text>
-        </Box>
-      </Center>
-    );
-  }
-
-  // Show tag selector
+  // Always show tag selector, even while loading or redirecting
+  // This allows users to change tags immediately
   return (
     <Box p="md">
       <Select
         label="Select a tag to view notes"
-        placeholder="Select a tag"
+        placeholder={loading ? "Loading tags..." : "Select a tag"}
+        value={lastSelectedTagId || undefined}
         onChange={handleTagChange}
         data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
         searchable
+        disabled={loading}
         style={{ maxWidth: 400 }}
+        rightSection={loading ? <Loader size="xs" /> : undefined}
       />
     </Box>
   );
