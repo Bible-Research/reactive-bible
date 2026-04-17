@@ -9,6 +9,7 @@ const NotesView = () => {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedRef = useRef(false);
+  const hasAutoNavigatedRef = useRef(false);
 
   useEffect(() => {
     // Prevent double-fetch in React Strict Mode
@@ -19,6 +20,16 @@ const NotesView = () => {
       try {
         const fetchedTags = await getTags();
         setTags(fetchedTags);
+        
+        // Auto-navigate to first tag only once on initial mount
+        if (fetchedTags.length > 0 && !hasAutoNavigatedRef.current) {
+          const sorted = [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name));
+          const firstTagId = sorted[0].id;
+          console.log(`🔗 NotesView: Auto-navigate to first tag /notes/tag/${firstTagId}`);
+          hasAutoNavigatedRef.current = true;
+          navigate(`/notes/tag/${firstTagId}`, { replace: true });
+        }
+        
         hasLoadedRef.current = true;
       } catch (error) {
         console.error('Error loading data:', error);
