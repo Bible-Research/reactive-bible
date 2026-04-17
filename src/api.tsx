@@ -288,7 +288,6 @@ export const deleteTag = async (tagId: string): Promise<void> => {
     console.error('Error deleting tag:', error);
     throw error;
   }
-  }
 };
 
 // ============================================

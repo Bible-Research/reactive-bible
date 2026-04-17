@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderWithAuthStore } from './helpers';
 import { useAuthStore } from '../authStore';
 
 describe('authStore', () => {
@@ -8,22 +9,7 @@ describe('authStore', () => {
   const mockPassword = 'testpass123';
 
   beforeEach(() => {
-    // Clear localStorage
     localStorage.clear();
-    
-    // Get the initial state from the store
-    const initialState = useAuthStore.getState();
-    
-    // Reset store to initial state with all actions
-    useAuthStore.setState({
-      token: null,
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-    });
-    
-    // Clear all mocks
     vi.clearAllMocks();
   });
 
@@ -33,7 +19,7 @@ describe('authStore', () => {
 
   describe('Initial State', () => {
     it('should have correct initial state', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
       
       expect(result.current.token).toBeNull();
       expect(result.current.user).toBeNull();
@@ -52,7 +38,7 @@ describe('authStore', () => {
         json: async () => ({ token: mockToken }),
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await act(async () => {
         await result.current.login(mockUsername, mockPassword);
@@ -80,7 +66,7 @@ describe('authStore', () => {
           )
       );
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       const loginPromise = act(async () => {
         await result.current.login(mockUsername, mockPassword);
@@ -107,7 +93,7 @@ describe('authStore', () => {
         json: async () => errorResponse,
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await expect(
         act(async () => {
@@ -128,7 +114,7 @@ describe('authStore', () => {
         json: async () => ({}),
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await expect(
         act(async () => {
@@ -144,7 +130,7 @@ describe('authStore', () => {
         new Error('Network error')
       );
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await expect(
         act(async () => {
@@ -163,7 +149,7 @@ describe('authStore', () => {
       });
       global.fetch = mockFetch;
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await act(async () => {
         await result.current.login(mockUsername, mockPassword);
@@ -205,7 +191,7 @@ describe('authStore', () => {
         json: async () => mockResponse,
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await act(async () => {
         await result.current.register(
@@ -239,7 +225,7 @@ describe('authStore', () => {
         json: async () => mockResponse,
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await act(async () => {
         await result.current.register(
@@ -272,7 +258,7 @@ describe('authStore', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await expect(
         act(async () => {
@@ -299,7 +285,7 @@ describe('authStore', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await expect(
         act(async () => {
@@ -321,7 +307,7 @@ describe('authStore', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await expect(
         act(async () => {
@@ -343,7 +329,7 @@ describe('authStore', () => {
         }),
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await expect(
         act(async () => {
@@ -376,7 +362,7 @@ describe('authStore', () => {
           )
       );
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       const registerPromise = act(async () => {
         await result.current.register(
@@ -400,15 +386,11 @@ describe('authStore', () => {
 
   describe('logout', () => {
     it('should clear auth state on logout', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       // Set authenticated state
       act(() => {
-        useAuthStore.setState({
-          token: mockToken,
-          user: { username: mockUsername },
-          isAuthenticated: true,
-        });
+        result.current.setToken(mockToken, mockUsername);
       });
 
       expect(result.current.isAuthenticated).toBe(true);
@@ -427,7 +409,7 @@ describe('authStore', () => {
 
   describe('clearError', () => {
     it('should clear error message', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       // Set error
       act(() => {
@@ -447,7 +429,7 @@ describe('authStore', () => {
 
   describe('setToken', () => {
     it('should set token and user manually', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       act(() => {
         result.current.setToken(mockToken, mockUsername);
@@ -462,7 +444,7 @@ describe('authStore', () => {
 
   describe('checkAuth', () => {
     it('should set isAuthenticated to true if token exists', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       // Set token
       act(() => {
@@ -478,7 +460,7 @@ describe('authStore', () => {
     });
 
     it('should set isAuthenticated to false if no token', () => {
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       act(() => {
         result.current.checkAuth();
@@ -495,7 +477,7 @@ describe('authStore', () => {
         json: async () => ({ token: mockToken }),
       });
 
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       await act(async () => {
         await result.current.login(mockUsername, mockPassword);
@@ -522,7 +504,7 @@ describe('authStore', () => {
       localStorage.setItem('auth-storage', JSON.stringify(authData));
 
       // Create new hook instance
-      const { result } = renderHook(() => useAuthStore());
+      const { result } = renderWithAuthStore();
 
       expect(result.current.token).toBe(mockToken);
       expect(result.current.user).toEqual({ username: mockUsername });

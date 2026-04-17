@@ -29,7 +29,15 @@ interface AuthState {
 
 const API_BASE_URL = 'https://bibleresearchapi.vercel.app';
 
-export const useAuthStore = create<AuthState>()(
+export const initialState = {
+  token: null,
+  user: null,
+  isAuthenticated: false,
+  isLoading: false,
+  error: null,
+};
+
+export const createAuthStore = () => create<AuthState>()(
   persist(
     (set, get) => ({
       // Initial state
@@ -251,3 +259,5 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+export const useAuthStore = createAuthStore();
