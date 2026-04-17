@@ -39,7 +39,8 @@ export default function NotesRoute() {
     };
 
     navigateToTag();
-  }, [navigate, lastSelectedTagId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Show loading while redirecting
   return (
