@@ -104,23 +104,26 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string) => {
-        if (tagId) {
-          const cachedNotes = getCachedNotes(tagId);
-          if (cachedNotes) {
-            console.log(`✅ Using cached notes for tag: ${tagId} (${cachedNotes.length} notes)`);
-            set({ notes: cachedNotes, allNotesFetched: false, lastSelectedTagId: tagId });
-            return;
-          }
-        }
-
-        console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
         try {
+          // Check cache first
+          if (tagId) {
+            const cachedNotes = getCachedNotes(tagId);
+            if (cachedNotes) {
+              console.log(`✅ Using cached notes for tag: ${tagId} (${cachedNotes.length} notes)`);
+              set({ notes: cachedNotes, allNotesFetched: false, lastSelectedTagId: tagId });
+              return;
+            }
+          }
+
+          // Fetch from API
+          console.log(`📝 Fetching notes from API for tag: ${tagId || 'all'}`);
           const notes = await api.getNotes(tagId);
-          
+
+          // Cache the results
           if (tagId) {
             cacheNotes(tagId, notes);
           }
-          
+
           set({ notes, allNotesFetched: !tagId, lastSelectedTagId: tagId || null });
         } catch (error) {
           console.error('Error fetching notes:', error);

@@ -24,7 +24,6 @@ export function AppRoutes() {
 
       {/* Tag management route */}
       <Route path="/tags" element={<TagManagementRoute />} />
-
       {/* Catch-all: redirect to bible */}
       <Route path="*" element={<Navigate to="/bible" replace />} />
     </Routes>
