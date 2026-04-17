@@ -20,6 +20,41 @@ const getAuthHeaders = (): HeadersInit => {
 };
 
 /**
+ * Public fetch wrapper
+ * Sends the auth token if one is present but never logs the user out on
+ * 401. Use for public-read endpoints (notes/tags list, detail, single
+ * note share page) where a stray 401 should never destroy an existing
+ * session.
+ *
+ * @param url - The URL to fetch
+ * @param options - Fetch options
+ * @param retries - Number of retries for network errors (default: 1)
+ */
+export const publicFetch = async (
+  url: string,
+  options: RequestInit = {},
+  retries = 1
+): Promise<Response> => {
+  const headers = getAuthHeaders();
+
+  try {
+    return await fetch(url, {
+      ...options,
+      headers: {
+        ...headers,
+        ...options.headers,
+      },
+    });
+  } catch (error) {
+    if (retries > 0 && error instanceof TypeError) {
+      console.warn('Network error (publicFetch), retrying...', error);
+      return publicFetch(url, options, retries - 1);
+    }
+    throw error;
+  }
+};
+
+/**
  * Authenticated fetch wrapper
  * Automatically adds auth token to requests and handles 401 responses
  * 

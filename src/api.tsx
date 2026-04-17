@@ -9,7 +9,8 @@ import {
   getCachedTranslations,
   cacheTranslations,
 } from './utils/cacheManager';
-import { authenticatedFetch } from './utils/apiClient';
+import { authenticatedFetch, publicFetch } from './utils/apiClient';
+import { API_BASE_URL } from './config';
 
 export const data = bibleJson as KjvBook[];
 
@@ -131,7 +132,7 @@ export const addTagNote = async (
   });
   try {
     const response = await authenticatedFetch(
-      'https://bibleresearchapi.vercel.app/api/v1/notes/', 
+      `${API_BASE_URL}/api/v1/notes/`,
       {
         method: 'POST',
         body: body,
@@ -155,7 +156,7 @@ export const editNote = async (
   const body = JSON.stringify({ tag: tagId, note_text: noteText });
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}/`, 
+      `${API_BASE_URL}/api/v1/notes/${noteId}/`,
       {
         method: 'PATCH',
         body: body,
@@ -174,7 +175,7 @@ export const editNote = async (
 export const deleteNote = async (noteId: string) => {
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/notes/${noteId}`, 
+      `${API_BASE_URL}/api/v1/notes/${noteId}/`,
       {
         method: 'DELETE',
       }
@@ -193,7 +194,7 @@ export const deleteNote = async (noteId: string) => {
 export const getTags = async (): Promise<Tag[]> => {
   try {
     const response = await authenticatedFetch(
-      'https://bibleresearchapi.vercel.app/api/v1/tags/'
+      `${API_BASE_URL}/api/v1/tags/`
     );
     if (!response.ok) {
       throw new Error('Failed to fetch tags');
@@ -207,8 +208,8 @@ export const getTags = async (): Promise<Tag[]> => {
 
 export const getTag = async (tagId: string): Promise<Tag> => {
   try {
-    const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`
+    const response = await publicFetch(
+      `${API_BASE_URL}/api/v1/tags/${tagId}/`
     );
     if (!response.ok) {
       throw new Error('Failed to fetch tag');
@@ -230,7 +231,7 @@ export const createTag = async (
   });
   try {
     const response = await authenticatedFetch(
-      'https://bibleresearchapi.vercel.app/api/v1/tags/',
+      `${API_BASE_URL}/api/v1/tags/`,
       {
         method: 'POST',
         body: body,
@@ -257,7 +258,7 @@ export const updateTag = async (
   });
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`,
+      `${API_BASE_URL}/api/v1/tags/${tagId}/`,
       {
         method: 'PATCH',
         body: body,
@@ -276,7 +277,7 @@ export const updateTag = async (
 export const deleteTag = async (tagId: string): Promise<void> => {
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`,
+      `${API_BASE_URL}/api/v1/tags/${tagId}/`,
       {
         method: 'DELETE',
       }
@@ -571,6 +572,7 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  is_owner: boolean;
   created_at: string;
   updated_at: string;
   tag: Tag;
@@ -579,16 +581,31 @@ export interface Note {
 
 export const getNotes = async (tagId?: string): Promise<Note[]> => {
   const url = tagId
-    ? `https://bibleresearchapi.vercel.app/api/v1/notes/?tag_id=${tagId}`
-    : 'https://bibleresearchapi.vercel.app/api/v1/notes/';
+    ? `${API_BASE_URL}/api/v1/notes/?tag_id=${tagId}`
+    : `${API_BASE_URL}/api/v1/notes/`;
   try {
-    const response = await authenticatedFetch(url);
+    const response = await publicFetch(url);
     if (!response.ok) {
       throw new Error('Failed to fetch notes');
     }
     return await response.json();
   } catch (error) {
     console.error('Error fetching notes:', error);
+    throw error;
+  }
+};
+
+export const getNote = async (noteId: string): Promise<Note> => {
+  try {
+    const response = await publicFetch(
+      `${API_BASE_URL}/api/v1/notes/${noteId}/`
+    );
+    if (!response.ok) {
+      throw new Error('Failed to fetch note');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching note:', error);
     throw error;
   }
 };
