@@ -27,20 +27,24 @@ describe('BibleSelector Component', () => {
     (useNavigate as any).mockReturnValue(mockNavigate);
 
     // Provide mock implementations for API calls
-    vi.spyOn(api, 'getBooks').mockResolvedValue([
-      { book_name: 'Genesis', book_id: 'Gen' },
-      { book_name: 'Exodus', book_id: 'Exo' },
-      { book_name: 'John', book_id: 'Jhn' },
-    ]);
+    vi.spyOn(api, 'getBooks').mockImplementation(() =>
+      new Promise((resolve) =>
+        setTimeout(() => resolve([
+          { book_name: 'Genesis', book_id: 'Gen' },
+          { book_name: 'Exodus', book_id: 'Exo' },
+          { book_name: 'John', book_id: 'Jhn' },
+        ]), 10)
+      )
+    );
     vi.spyOn(api, 'getChapters').mockResolvedValue([1, 2, 3, 4, 5]);
     vi.spyOn(api, 'getVerses').mockResolvedValue([1, 2, 3, 4, 5]);
   });
 
   const noop = () => { /* noop */ };
 
-  it('should show a loader initially', () => {
+  it('should show a loader initially', async () => {
     renderWithProviders(<BibleSelector opened={true} setOpened={noop} />);
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(await screen.findByRole('progressbar')).toBeInTheDocument();
   });
 
   it('should render books, chapters, and verses after loading', async () => {

@@ -101,7 +101,7 @@ const BibleSelector = ({
     >
       <Navbar.Section style={{ display: "flex" }}>
         {loading ? (
-          <Loader />
+          <Loader role="progressbar" />
         ) : (
           <>
             <Box style={{ flex: "0 0 185px" }}>
