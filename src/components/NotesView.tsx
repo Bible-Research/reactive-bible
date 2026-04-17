@@ -3,17 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Select, Center, Loader, Box, Text } from "@mantine/core";
 import { Tag } from "../types";
 import { getTags } from "../api";
-import { useBibleStore } from "../store";
 
 const NotesView = () => {
   const navigate = useNavigate();
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const hasLoadedRef = useRef(false);
-  const hasAutoNavigatedRef = useRef(false);
-  const lastSelectedTagId = useBibleStore(
-    (state) => state.lastSelectedTagId
-  );
 
   useEffect(() => {
     // Prevent double-fetch in React Strict Mode
@@ -24,27 +19,6 @@ const NotesView = () => {
       try {
         const fetchedTags = await getTags();
         setTags(fetchedTags);
-
-        // Auto-navigate to last selected tag or first tag
-        if (
-          fetchedTags.length > 0 &&
-          !hasAutoNavigatedRef.current
-        ) {
-          const sorted = [...fetchedTags].sort((a, b) =>
-            a.name.localeCompare(b.name)
-          );
-          const targetTagId =
-            lastSelectedTagId &&
-            fetchedTags.some((t) => t.id === lastSelectedTagId)
-              ? lastSelectedTagId
-              : sorted[0].id;
-          console.log(
-            `🔗 NotesView: Navigate to /notes/tag/${targetTagId}`
-          );
-          hasAutoNavigatedRef.current = true;
-          navigate(`/notes/tag/${targetTagId}`, { replace: true });
-        }
-
         hasLoadedRef.current = true;
       } catch (error) {
         console.error('Error loading data:', error);
