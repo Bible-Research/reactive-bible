@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import BibleRoute from './BibleRoute';
 import NotesRoute from './NotesRoute';
 import TagNotesRoute from './TagNotesRoute';
+import TagManagementRoute from './TagManagementRoute';
 import { LoginPage } from '../components/LoginPage';
 import { RegisterPage } from '../components/RegisterPage';
 
@@ -20,6 +21,9 @@ export function AppRoutes() {
       {/* Notes routes - public for viewing, protected for private notes */}
       <Route path="/notes" element={<NotesRoute />} />
       <Route path="/notes/tag/:tagId" element={<TagNotesRoute />} />
+
+      {/* Tag management route */}
+      <Route path="/tags" element={<TagManagementRoute />} />
 
       {/* Catch-all: redirect to bible */}
       <Route path="*" element={<Navigate to="/bible" replace />} />
