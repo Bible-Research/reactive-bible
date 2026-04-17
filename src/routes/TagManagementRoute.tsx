@@ -6,6 +6,7 @@ import {
   Center,
   Group,
   Loader,
+  ScrollArea,
   Stack,
   Text,
   TextInput,
@@ -101,7 +102,15 @@ export default function TagManagementRoute() {
   }
 
   return (
-    <Box p="md">
+    <Box
+      p="md"
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+      }}
+    >
       <Group position="apart" mb="lg">
         <Title order={2}>Tag Management</Title>
         <Button
@@ -122,7 +131,7 @@ export default function TagManagementRoute() {
       />
 
       {filteredTags.length === 0 ? (
-        <Center style={{ height: 200 }}>
+        <Center style={{ flex: 1, minHeight: 0 }}>
           <Stack align="center" spacing="xs">
             <Text color="dimmed">
               {searchQuery
@@ -141,17 +150,20 @@ export default function TagManagementRoute() {
           </Stack>
         </Center>
       ) : (
-        <Text color="dimmed" size="sm" mb="md">
-          {filteredTags.length} {filteredTags.length === 1 ? 'tag' : 'tags'}
-        </Text>
+        <>
+          <Text color="dimmed" size="sm" mb="md">
+            {filteredTags.length} {filteredTags.length === 1 ? 'tag' : 'tags'}
+          </Text>
+          <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto">
+            <TagTree
+              tags={filteredTags}
+              onEdit={handleEditTag}
+              onDelete={handleDeleteTag}
+              onViewNotes={handleViewNotes}
+            />
+          </ScrollArea>
+        </>
       )}
-
-      <TagTree
-        tags={filteredTags}
-        onEdit={handleEditTag}
-        onDelete={handleDeleteTag}
-        onViewNotes={handleViewNotes}
-      />
 
       <CreateTagModal
         opened={createModalOpen}
