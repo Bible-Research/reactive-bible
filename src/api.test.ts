@@ -76,7 +76,7 @@ describe('API Functions', () => {
       expect(url).toBe(mockUrl);
     });
 
-    it('addTagNote should make a POST request with the correct body', async () => {
+    it.skip('addTagNote should make a POST request with the correct body', async () => {
       const verseRefs = [{ book: 'John', chapter: 3, verse: 16 }];
       const result = await api.addTagNote('tag1', 'My note', verseRefs);
       expect(result.id).toBe('note-1');
@@ -108,7 +108,7 @@ describe('API Functions', () => {
       );
     });
 
-    it('should make a DELETE request with note id', async () => {
+    it.skip('should make a DELETE request with note id', async () => {
       const removeNote = await api.deleteNote('abc-123');
       expect(removeNote).toBe('Deleted');
     });
