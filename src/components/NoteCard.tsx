@@ -23,8 +23,8 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
       ? `${book} ${chapter}:${firstVerse}`
       : `${book} ${chapter}:${firstVerse}-${lastVerse}`;
 
-  const canEdit = note.is_owner && !!onEdit;
-  const canDelete = note.is_owner && !!onDelete;
+  const canEdit = (note.is_owner !== false) && !!onEdit;
+  const canDelete = (note.is_owner !== false) && !!onDelete;
   const canShare = note.public;
 
   const handleShare = async () => {
