@@ -1,5 +1,6 @@
 import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
+import { VerseTimestamp } from './types';
 
 import {
   getCachedVerses,
@@ -8,6 +9,8 @@ import {
   cacheAudioUrl,
   getCachedTranslations,
   cacheTranslations,
+  getCachedTimestamps,
+  cacheTimestamps,
 } from './utils/cacheManager';
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
@@ -550,6 +553,42 @@ export const prefetchAdjacentChapters = async (
   }
   if (next) {
     prefetch(next.book, next.chapter, filesetId, 'next');
+  }
+};
+
+// ============================================
+// AUDIO TIMESTAMP FUNCTIONS
+// ============================================
+
+export const getAudioTimestamps = async (
+  book: string,
+  chapter: number,
+  filesetId: string
+): Promise<VerseTimestamp[]> => {
+  const cached = getCachedTimestamps(filesetId, book, chapter);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const url =
+      `${API_BASE_URL}/api/v1/bible/timestamps/` +
+      `?fileset_id=${encodeURIComponent(filesetId)}` +
+      `&book=${encodeURIComponent(book)}` +
+      `&chapter=${chapter}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(
+        `Timestamps fetch failed: ${response.statusText}`
+      );
+    }
+    const data = await response.json();
+    const timestamps: VerseTimestamp[] = data.data || [];
+    cacheTimestamps(filesetId, book, chapter, timestamps);
+    return timestamps;
+  } catch (error) {
+    console.warn('Failed to fetch audio timestamps:', error);
+    return []; // Graceful degradation: no highlighting
   }
 };
 

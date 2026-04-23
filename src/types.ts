@@ -23,3 +23,8 @@ export interface Note {
   tag: Tag;
   verses: Verse[];
 }
+
+export interface VerseTimestamp {
+  verse_start: number;
+  timestamp: number;
+}
