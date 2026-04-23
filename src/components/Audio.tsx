@@ -46,10 +46,12 @@ const Audio = () => {
   // Fetch timestamps when audio fileset changes
   useEffect(() => {
     if (!activeAudioFilesetId) return;
+    // Strip codec suffix (e.g. "ENGESHN1DA-opus16" -> "ENGESHN1DA")
+    const baseFilesetId = activeAudioFilesetId.split('-')[0];
     getAudioTimestamps(
       activeBook,
       activeChapter,
-      activeAudioFilesetId
+      baseFilesetId
     ).then(setTimestamps);
   }, [activeBook, activeChapter, activeAudioFilesetId]);
 
