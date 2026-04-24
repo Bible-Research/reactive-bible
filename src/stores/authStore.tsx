@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { API_BASE_URL } from '../config';
 
 interface User {
   username: string;
@@ -26,8 +27,6 @@ export interface AuthState {
   setToken: (token: string, username: string) => void;
   checkAuth: () => void;
 }
-
-const API_BASE_URL = 'https://bibleresearchapi.vercel.app';
 
 export const initialState = {
   token: null,

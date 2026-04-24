@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Center, Loader } from '@mantine/core';
 import { useBibleStore } from '../store';
+import { useAuthStore } from '../stores/authStore';
 
 export default function NotesRoute() {
   const navigate = useNavigate();
@@ -10,10 +11,20 @@ export default function NotesRoute() {
     lastSelectedTagId: state.lastSelectedTagId,
     getTags: state.getTags,
   }));
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   useEffect(() => {
     // Prevent double-navigation in React Strict Mode
     if (hasNavigatedRef.current) return;
+
+    // Anonymous visitors have no "default tag" to land on and no way to
+    // browse tags. Send them to the bible page; direct share links to
+    // /notes/:noteId or /notes/tag/:tagId still work for them.
+    if (!isAuthenticated) {
+      hasNavigatedRef.current = true;
+      navigate('/bible', { replace: true });
+      return;
+    }
 
     const navigateToTag = async () => {
       try {

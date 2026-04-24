@@ -19,7 +19,8 @@ import { Note, Tag } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
-import { deleteNote } from '../api';
+import { deleteNote, getTag } from '../api';
+import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 
 export default function TagNotesRoute() {
@@ -40,6 +41,7 @@ export default function TagNotesRoute() {
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
   );
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,35 +57,48 @@ export default function TagNotesRoute() {
 
   useEffect(() => {
     let cancelled = false;
-    
+
     const loadTagAndNotes = async () => {
       if (!tagId) {
         setError('No tag ID provided');
         setLoading(false);
         return;
       }
-      
+
       setLoading(true);
       setError(null);
 
       try {
-        await getTags();
-        
-        const currentTag = storedTags.find(t => t.id === tagId);
-        
-        if (!currentTag) {
-          if (cancelled) return;
-          setError(`Tag not found: ${tagId}`);
-          setLoading(false);
-          return;
+        // Preload the caller's own tags when authenticated so the tag
+        // switcher works. Failures are non-fatal for shared pages.
+        if (isAuthenticated) {
+          try { await getTags(); } catch { /* ignore */ }
         }
 
-        setTag(currentTag);
-        
         await fetchNotes(tagId);
-        
         if (cancelled) return;
-        // Successfully loaded, clear loading state
+
+        const fetchedNotes = useBibleStore.getState().notes;
+        let resolvedTag: Tag | null =
+          useBibleStore.getState().tags.find((t) => t.id === tagId) ||
+          fetchedNotes[0]?.tag ||
+          null;
+
+        if (!resolvedTag) {
+          try {
+            resolvedTag = await getTag(tagId);
+          } catch {
+            resolvedTag = null;
+          }
+        }
+
+        if (cancelled) return;
+
+        if (!resolvedTag) {
+          setError('No public notes available for this tag.');
+        } else {
+          setTag(resolvedTag);
+        }
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
@@ -94,11 +109,11 @@ export default function TagNotesRoute() {
     };
 
     loadTagAndNotes();
-    
+
     return () => {
       cancelled = true;
     };
-  }, [tagId, storedTags, fetchNotes, getTags]);
+  }, [tagId, fetchNotes, getTags, isAuthenticated]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -237,15 +252,19 @@ export default function TagNotesRoute() {
   return (
     <Box p="md">
       <Group mb="md" position="apart">
-        <Select
-          label="Filter by tag"
-          placeholder="Select a tag"
-          value={tagId}
-          onChange={handleTagChange}
-          data={sortedTags.map(t => ({ value: t.id, label: t.name }))}
-          searchable
-          style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
-        />
+        {isAuthenticated && sortedTags.length > 0 ? (
+          <Select
+            label="Filter by tag"
+            placeholder="Select a tag"
+            value={tagId}
+            onChange={handleTagChange}
+            data={sortedTags.map(t => ({ value: t.id, label: t.name }))}
+            searchable
+            style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+          />
+        ) : (
+          <Text fw={500} size="lg">{tag.name}</Text>
+        )}
         <Group spacing="xs">
           <Text color="dimmed" size="sm">
             {notes.length} {notes.length === 1 ? 'note' : 'notes'}
@@ -280,8 +299,8 @@ export default function TagNotesRoute() {
               tagName={tag.name}
               notes={notes}
               onViewInBible={handleViewInBible}
-              onEditNote={handleEditNote}
-              onDeleteNote={handleDeleteNote}
+              onEditNote={isAuthenticated ? handleEditNote : undefined}
+              onDeleteNote={isAuthenticated ? handleDeleteNote : undefined}
             />
           </Stack>
         ) : (

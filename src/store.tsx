@@ -36,6 +36,8 @@ interface BibleState {
   allNotesFetched: boolean;
   showNotes: boolean;
   lastSelectedTagId: string | null;
+  audioActiveVerse: number | null;
+  setAudioActiveVerse: (verse: number | null) => void;
   setActiveBook: (activeBook: string) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
@@ -71,6 +73,7 @@ export const initialState = {
   allNotesFetched: false,
   showNotes: false,
   lastSelectedTagId: null,
+  audioActiveVerse: null as number | null,
 };
 
 export const useBibleStore = createWithEqualityFn<BibleState>()(
@@ -80,13 +83,15 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setActiveBook: (activeBook) => set({ 
         activeBook, 
         activeChapter: 1, 
-        activeVerses: [] 
+        activeVerses: [],
+        audioActiveVerse: null
       }),
       setActiveBookOnly: (activeBook) => set({ activeBook }),
       setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
       setActiveChapter: (activeChapter) => set({ 
         activeChapter, 
-        activeVerses: [] 
+        activeVerses: [],
+        audioActiveVerse: null
       }),
       setActiveVerses: (activeVerses) => {
         set({ activeVerses });
@@ -184,6 +189,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       },
       setShowNotes: (showNotes) => set({ showNotes }),
       setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),
+      setAudioActiveVerse: (audioActiveVerse) =>
+        set({ audioActiveVerse }),
     }),
     {
       name: "bible-storage",
@@ -199,6 +206,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         activeTextFilesetId: state.activeTextFilesetId,
         activeAudioFilesetId: state.activeAudioFilesetId,
         lastSelectedTagId: state.lastSelectedTagId,
+        audioActiveVerse: state.audioActiveVerse,
         notes: state.notes,
         tags: state.tags,
         // showAudioPlayer is NOT persisted

@@ -46,6 +46,7 @@ export const createMockNote = (overrides: Partial<Note> = {}): Note => ({
   note_text: 'Test note',
   tag: createMockTag(),
   public: false,
+  is_owner: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   verses: [],

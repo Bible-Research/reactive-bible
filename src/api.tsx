@@ -1,5 +1,6 @@
 import { Translation } from "./store";
 import { loadKjvData } from './utils/kjvDataLoader';
+import { VerseTimestamp } from './types';
 
 import {
   getCachedVerses,
@@ -8,8 +9,11 @@ import {
   cacheAudioUrl,
   getCachedTranslations,
   cacheTranslations,
+  getCachedTimestamps,
+  cacheTimestamps,
 } from './utils/cacheManager';
-import { authenticatedFetch } from './utils/apiClient';
+import { authenticatedFetch, publicFetch } from './utils/apiClient';
+import { API_BASE_URL } from './config';
 
 const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
 
@@ -177,7 +181,7 @@ export const addTagNote = async (
   });
   try {
     const response = await authenticatedFetch(
-      `${API_URL}/notes/`, 
+      `${API_BASE_URL}/api/v1/notes/`,
       {
         method: 'POST',
         body: body,
@@ -201,7 +205,7 @@ export const editNote = async (
   const body = JSON.stringify({ tag: tagId, note_text: noteText });
   try {
     const response = await authenticatedFetch(
-      `${API_URL}/notes/${noteId}/`, 
+      `${API_BASE_URL}/api/v1/notes/${noteId}/`,
       {
         method: 'PATCH',
         body: body,
@@ -220,7 +224,7 @@ export const editNote = async (
 export const deleteNote = async (noteId: string) => {
   try {
     const response = await authenticatedFetch(
-      `${API_URL}/notes/${noteId}`, 
+      `${API_BASE_URL}/api/v1/notes/${noteId}/`,
       {
         method: 'DELETE',
       }
@@ -239,7 +243,7 @@ export const deleteNote = async (noteId: string) => {
 export const getTags = async (): Promise<Tag[]> => {
   try {
     const response = await authenticatedFetch(
-      'https://bibleresearchapi.vercel.app/api/v1/tags/'
+      `${API_BASE_URL}/api/v1/tags/`
     );
     if (!response.ok) {
       throw new Error('Failed to fetch tags');
@@ -253,8 +257,8 @@ export const getTags = async (): Promise<Tag[]> => {
 
 export const getTag = async (tagId: string): Promise<Tag> => {
   try {
-    const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`
+    const response = await publicFetch(
+      `${API_BASE_URL}/api/v1/tags/${tagId}/`
     );
     if (!response.ok) {
       throw new Error('Failed to fetch tag');
@@ -276,7 +280,7 @@ export const createTag = async (
   });
   try {
     const response = await authenticatedFetch(
-      'https://bibleresearchapi.vercel.app/api/v1/tags/',
+      `${API_BASE_URL}/api/v1/tags/`,
       {
         method: 'POST',
         body: body,
@@ -303,7 +307,7 @@ export const updateTag = async (
   });
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`,
+      `${API_BASE_URL}/api/v1/tags/${tagId}/`,
       {
         method: 'PATCH',
         body: body,
@@ -322,7 +326,7 @@ export const updateTag = async (
 export const deleteTag = async (tagId: string): Promise<void> => {
   try {
     const response = await authenticatedFetch(
-      `https://bibleresearchapi.vercel.app/api/v1/tags/${tagId}/`,
+      `${API_BASE_URL}/api/v1/tags/${tagId}/`,
       {
         method: 'DELETE',
       }
@@ -597,6 +601,47 @@ export const prefetchAdjacentChapters = async (
   }
 };
 
+// ============================================
+// AUDIO TIMESTAMP FUNCTIONS
+// ============================================
+
+export const getAudioTimestamps = async (
+  book: string,
+  chapter: number,
+  filesetId: string
+): Promise<VerseTimestamp[]> => {
+  const cached = getCachedTimestamps(filesetId, book, chapter);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const url =
+      `${API_BASE_URL}/api/v1/bible/timestamps/` +
+      `?fileset_id=${encodeURIComponent(filesetId)}` +
+      `&book=${encodeURIComponent(book)}` +
+      `&chapter=${chapter}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(
+        `Timestamps fetch failed: ${response.statusText}`
+      );
+    }
+    const data = await response.json();
+    const timestamps: VerseTimestamp[] = (data.data || []).map(
+      (item: { verse_start: string | number; timestamp: number }) => ({
+        verse_start: Number(item.verse_start),
+        timestamp: item.timestamp,
+      })
+    );
+    cacheTimestamps(filesetId, book, chapter, timestamps);
+    return timestamps;
+  } catch (error) {
+    console.warn('Failed to fetch audio timestamps:', error);
+    return []; // Graceful degradation: no highlighting
+  }
+};
+
 export interface NoteVerse {
   book: string;
   chapter: number;
@@ -616,6 +661,7 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  is_owner: boolean;
   created_at: string;
   updated_at: string;
   tag: Tag;
@@ -624,16 +670,31 @@ export interface Note {
 
 export const getNotes = async (tagId?: string): Promise<Note[]> => {
   const url = tagId
-    ? `https://bibleresearchapi.vercel.app/api/v1/notes/?tag_id=${tagId}`
-    : 'https://bibleresearchapi.vercel.app/api/v1/notes/';
+    ? `${API_BASE_URL}/api/v1/notes/?tag_id=${tagId}`
+    : `${API_BASE_URL}/api/v1/notes/`;
   try {
-    const response = await authenticatedFetch(url);
+    const response = await publicFetch(url);
     if (!response.ok) {
       throw new Error('Failed to fetch notes');
     }
     return await response.json();
   } catch (error) {
     console.error('Error fetching notes:', error);
+    throw error;
+  }
+};
+
+export const getNote = async (noteId: string): Promise<Note> => {
+  try {
+    const response = await publicFetch(
+      `${API_BASE_URL}/api/v1/notes/${noteId}/`
+    );
+    if (!response.ok) {
+      throw new Error('Failed to fetch note');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching note:', error);
     throw error;
   }
 };

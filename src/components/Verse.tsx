@@ -15,6 +15,13 @@ const useStyles = createStyles((theme) => ({
         : theme.colors.gray[2],
     color: theme.colorScheme === "dark" ? theme.white : theme.black,
   },
+  linkAudioActive: {
+    borderLeft: `3px solid ${theme.colors.blue[5]}`,
+    backgroundColor:
+      theme.colorScheme === 'dark'
+        ? theme.fn.rgba(theme.colors.blue[9], 0.15)
+        : theme.fn.rgba(theme.colors.blue[1], 0.5),
+  },
 }));
 
 const Verse = ({ verse, text }: { verse: number; text: string }) => {
@@ -22,7 +29,11 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
   const { classes, cx } = useStyles();
   const activeVerses = useBibleStore((state) => state.activeVerses);
   const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const audioActiveVerse = useBibleStore(
+    (state) => state.audioActiveVerse
+  );
   const isActive = activeVerses.includes(verse);
+  const isAudioActive = audioActiveVerse === verse;
   
   // Track touch state to differentiate tap from scroll
   const [touchStartPos, setTouchStartPos] = useState<{
@@ -79,6 +90,15 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
     userClickedRef.current = false;
   }, [isActive]);
 
+  useEffect(() => {
+    if (isAudioActive) {
+      ref.current?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth',
+      });
+    }
+  }, [isAudioActive]);
+
   return (
     <Box
       component="div"
@@ -86,6 +106,7 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
       data-active={isActive}
       className={cx(classes.link, {
         [classes.linkActive]: isActive,
+        [classes.linkAudioActive]: isAudioActive,
       })}
       py={7}
       px={10}
@@ -100,7 +121,7 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
       onTouchEnd={handleTouchEnd}
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu
       id={"verse-" + verse}
-      ref={isActive ? ref : null}
+      ref={ref}
       sx={{
         touchAction: "pan-y", // Allow vertical scrolling
       }}

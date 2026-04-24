@@ -7,8 +7,8 @@ interface TagSectionProps {
   tagName: string;
   notes: Note[];
   onViewInBible: (book: string, chapter: number, verse: number) => void;
-  onEditNote: (note: Note) => void;
-  onDeleteNote: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
+  onEditNote?: (note: Note) => void;
+  onDeleteNote?: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
 }
 
 const TagSection = ({ tagName, notes, onViewInBible, onEditNote, onDeleteNote }: TagSectionProps) => {

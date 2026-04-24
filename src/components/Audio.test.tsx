@@ -29,6 +29,7 @@ vi.mock('../api', async () => {
       { book_name: 'Genesis', book_id: 'Gen', chapter: 2 },
       { book_name: 'Exodus', book_id: 'Exo', chapter: 1 },
     ]),
+    getAudioTimestamps: vi.fn().mockResolvedValue([]),
   };
 });
 
