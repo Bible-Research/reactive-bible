@@ -26,6 +26,7 @@ vi.mock('../api', () => ({
     book: 'Genesis',
     chapter: 1,
   }),
+  getAudioTimestamps: vi.fn().mockResolvedValue([]),
 }));
 
 // Note: AudioPlayer component is now used as-is (no mock)

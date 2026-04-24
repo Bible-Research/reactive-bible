@@ -1,4 +1,4 @@
-import { Note } from '../types';
+import { Note, VerseTimestamp } from '../types';
 import { Translation } from '../store';
 
 // Cache Manager for Bible Verses and Audio URLs
@@ -462,4 +462,53 @@ export const getCacheStats = () => {
       ).length,
     },
   };
+};
+
+// ============================================
+// TIMESTAMP CACHE (No expiration — immutable)
+// ============================================
+
+const TIMESTAMP_CACHE_KEY = 'bible_timestamp_cache';
+
+interface TimestampCache {
+  [key: string]: VerseTimestamp[];
+}
+
+export const getCachedTimestamps = (
+  filesetId: string,
+  book: string,
+  chapter: number
+): VerseTimestamp[] | null => {
+  try {
+    const cacheStr = getCachedLocalStorage(TIMESTAMP_CACHE_KEY);
+    if (!cacheStr) return null;
+
+    const cache: TimestampCache = JSON.parse(cacheStr);
+    const cacheKey = `${filesetId}:${book}:${chapter}`;
+    return cache[cacheKey] || null;
+  } catch (error) {
+    console.error('Error reading timestamp cache:', error);
+    return null;
+  }
+};
+
+export const cacheTimestamps = (
+  filesetId: string,
+  book: string,
+  chapter: number,
+  timestamps: VerseTimestamp[]
+) => {
+  try {
+    const cacheStr = getCachedLocalStorage(TIMESTAMP_CACHE_KEY);
+    const cache: TimestampCache = cacheStr ? JSON.parse(cacheStr) : {};
+    const cacheKey = `${filesetId}:${book}:${chapter}`;
+    cache[cacheKey] = timestamps;
+    setCachedLocalStorage(TIMESTAMP_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error('Error writing timestamp cache:', error);
+  }
+};
+
+export const clearTimestampCache = () => {
+  removeCachedLocalStorage(TIMESTAMP_CACHE_KEY);
 };

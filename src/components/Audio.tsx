@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
-import { getKjvAudioUrl, getBibleAudioUrl, getPassage } from "../api";
+import { getKjvAudioUrl, getBibleAudioUrl, getAudioTimestamps, getPassage } from "../api";
 import { ActionIcon, rem, Loader } from "@mantine/core";
 import { IconPlayerPlay } from "@tabler/icons-react";
 import AudioPlayer from "./AudioPlayer";
+import { useVerseHighlighter } from "../hooks/useVerseHighlighter";
+import { VerseTimestamp } from "../types";
 
 const Audio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -12,8 +14,12 @@ const Audio = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLooping, setIsLooping] = useState(false);
+  const [timestamps, setTimestamps] = useState<VerseTimestamp[]>([]);
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
+  const setAudioActiveVerse = useBibleStore(
+    (s) => s.setAudioActiveVerse
+  );
   const { activeAudioFilesetId, translations } = useBibleStore((state) => ({
     activeAudioFilesetId: state.activeAudioFilesetId,
     translations: state.translations,
@@ -33,7 +39,24 @@ const Audio = () => {
       audio.unload();
       setAudio(null);
     }
+    setTimestamps([]);
+    setAudioActiveVerse(null);
   }, [activeBook, activeChapter, activeAudioFilesetId]);
+
+  // Fetch timestamps when audio fileset changes
+  useEffect(() => {
+    if (!activeAudioFilesetId) return;
+    // Strip codec suffix (e.g. "ENGESHN1DA-opus16" -> "ENGESHN1DA")
+    const baseFilesetId = activeAudioFilesetId.split('-')[0];
+    getAudioTimestamps(
+      activeBook,
+      activeChapter,
+      baseFilesetId
+    ).then(setTimestamps);
+  }, [activeBook, activeChapter, activeAudioFilesetId]);
+
+  // Hook: highlight active verse during playback
+  useVerseHighlighter(audio, isPlaying, timestamps);
 
   // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
   useEffect(() => {
