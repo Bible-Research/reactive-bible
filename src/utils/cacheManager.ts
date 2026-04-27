@@ -1,4 +1,4 @@
-import { Note, VerseTimestamp } from '../types';
+import { Note, VerseTimestamp, FilesetCopyright } from '../types';
 import { Translation } from '../store';
 
 // Cache Manager for Bible Verses and Audio URLs
@@ -511,4 +511,60 @@ export const cacheTimestamps = (
 
 export const clearTimestampCache = () => {
   removeCachedLocalStorage(TIMESTAMP_CACHE_KEY);
+};
+
+// ============================================
+// COPYRIGHT CACHE (No expiration — immutable)
+// ============================================
+
+const COPYRIGHT_CACHE_KEY = 'bible_copyright_cache';
+
+interface CopyrightCache {
+  [bibleId: string]: FilesetCopyright[];
+}
+
+export const getCachedCopyright = (
+  bibleId: string
+): FilesetCopyright[] | null => {
+  try {
+    const cacheStr = getCachedLocalStorage(
+      COPYRIGHT_CACHE_KEY
+    );
+    if (!cacheStr) return null;
+
+    const cache: CopyrightCache = JSON.parse(cacheStr);
+    return cache[bibleId] || null;
+  } catch (error) {
+    console.error(
+      'Error reading copyright cache:', error
+    );
+    return null;
+  }
+};
+
+export const cacheCopyright = (
+  bibleId: string,
+  data: FilesetCopyright[]
+) => {
+  try {
+    const cacheStr = getCachedLocalStorage(
+      COPYRIGHT_CACHE_KEY
+    );
+    const cache: CopyrightCache = cacheStr
+      ? JSON.parse(cacheStr)
+      : {};
+    cache[bibleId] = data;
+    setCachedLocalStorage(
+      COPYRIGHT_CACHE_KEY,
+      JSON.stringify(cache)
+    );
+  } catch (error) {
+    console.error(
+      'Error writing copyright cache:', error
+    );
+  }
+};
+
+export const clearCopyrightCache = () => {
+  removeCachedLocalStorage(COPYRIGHT_CACHE_KEY);
 };
