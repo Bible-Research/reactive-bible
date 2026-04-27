@@ -28,3 +28,12 @@ export interface VerseTimestamp {
   verse_start: number;
   timestamp: number;
 }
+
+export interface FilesetCopyright {
+  id: string;
+  type: string;
+  size: string;
+  copyright: string;
+  copyright_date: string;
+  copyright_description: string;
+}
