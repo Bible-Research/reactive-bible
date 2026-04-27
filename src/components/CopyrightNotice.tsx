@@ -48,6 +48,8 @@ const CopyrightNotice = () => {
       if (cr) {
         setCopyright(
           cr.copyright_description || cr.copyright || ''
+            ? `Copyright: ${cr.copyright_description || cr.copyright}`
+            : ''
         );
       } else {
         setCopyright('');

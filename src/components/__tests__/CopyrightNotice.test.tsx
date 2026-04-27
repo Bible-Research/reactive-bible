@@ -72,7 +72,7 @@ describe('CopyrightNotice', () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          'The Holy Bible, English Standard Version'
+          'Copyright: The Holy Bible, English Standard Version'
         )
       ).toBeInTheDocument();
     });
