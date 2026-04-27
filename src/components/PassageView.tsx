@@ -7,6 +7,7 @@ import {
   prefetchAdjacentChapters,
 } from "../api";
 import Verse from "./Verse";
+import CopyrightNotice from "./CopyrightNotice";
 import { shallow } from 'zustand/shallow';
 
 const PassageView = () => {
@@ -71,6 +72,7 @@ const PassageView = () => {
         {verses.map((verse) => (
           <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
         ))}
+        <CopyrightNotice />
       </Box>
     </ScrollArea>
   );
