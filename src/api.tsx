@@ -1,6 +1,6 @@
 import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
-import { VerseTimestamp } from './types';
+import { VerseTimestamp, FilesetCopyright } from './types';
 
 import {
   getCachedVerses,
@@ -11,6 +11,8 @@ import {
   cacheTranslations,
   getCachedTimestamps,
   cacheTimestamps,
+  getCachedCopyright,
+  cacheCopyright,
 } from './utils/cacheManager';
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
@@ -559,6 +561,42 @@ export const prefetchAdjacentChapters = async (
 // ============================================
 // AUDIO TIMESTAMP FUNCTIONS
 // ============================================
+
+/**
+ * Fetch copyright info for a Bible translation.
+ * @param bibleId - The Bible abbreviation (e.g. "ENGESV")
+ * @returns Array of fileset copyright objects
+ */
+export const getCopyrightInfo = async (
+  bibleId: string
+): Promise<FilesetCopyright[]> => {
+  const cached = getCachedCopyright(bibleId);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const url =
+      `${API_BASE_URL}/api/v1/bible/copyright/` +
+      `?bible_id=${encodeURIComponent(bibleId)}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(
+        `Copyright fetch failed: ${response.statusText}`
+      );
+    }
+    const data = await response.json();
+    const copyrights: FilesetCopyright[] =
+      data.data || [];
+    cacheCopyright(bibleId, copyrights);
+    return copyrights;
+  } catch (error) {
+    console.warn(
+      'Failed to fetch copyright info:', error
+    );
+    return [];
+  }
+};
 
 export const getAudioTimestamps = async (
   book: string,
