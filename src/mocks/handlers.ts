@@ -72,6 +72,30 @@ export const handlers = [
   http.delete(`${API_URL}/notes/:id`, () => {
     return HttpResponse.text('Deleted');
   }),
+
+  // --- Copyright ---
+  http.get(
+    `${API_URL}/bible/copyright/`,
+    ({ request }) => {
+      const url = new URL(request.url);
+      const bibleId = url.searchParams.get(
+        'bible_id'
+      );
+      return HttpResponse.json({
+        data: [
+          {
+            id: bibleId || 'ENGESV',
+            type: 'text_plain',
+            size: 'C',
+            copyright: `© 2001 Test Copyright`,
+            copyright_date: '2001',
+            copyright_description:
+              'The Holy Bible, Test Version',
+          },
+        ],
+      });
+    }
+  ),
 ];
 
 

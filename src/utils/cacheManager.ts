@@ -1,4 +1,4 @@
-import { Note, VerseTimestamp } from '../types';
+import { Note, VerseTimestamp, FilesetCopyright } from '../types';
 import { Translation } from '../store';
 
 // Cache Manager for Bible Verses and Audio URLs
@@ -511,4 +511,81 @@ export const cacheTimestamps = (
 
 export const clearTimestampCache = () => {
   removeCachedLocalStorage(TIMESTAMP_CACHE_KEY);
+};
+
+// ============================================
+// COPYRIGHT CACHE (24h TTL)
+// ============================================
+
+const COPYRIGHT_CACHE_KEY = 'bible_copyright_cache';
+const COPYRIGHT_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CopyrightCacheEntry {
+  data: FilesetCopyright[];
+  cachedAt: number;
+}
+
+interface CopyrightCache {
+  [bibleId: string]: CopyrightCacheEntry;
+}
+
+export const getCachedCopyright = (
+  bibleId: string
+): FilesetCopyright[] | null => {
+  try {
+    const cacheStr = getCachedLocalStorage(
+      COPYRIGHT_CACHE_KEY
+    );
+    if (!cacheStr) return null;
+
+    const cache: CopyrightCache = JSON.parse(cacheStr);
+    const entry = cache[bibleId];
+    if (!entry) return null;
+
+    if (Date.now() - entry.cachedAt > COPYRIGHT_CACHE_TTL) {
+      delete cache[bibleId];
+      setCachedLocalStorage(
+        COPYRIGHT_CACHE_KEY,
+        JSON.stringify(cache)
+      );
+      return null;
+    }
+
+    return entry.data;
+  } catch (error) {
+    console.error(
+      'Error reading copyright cache:', error
+    );
+    return null;
+  }
+};
+
+export const cacheCopyright = (
+  bibleId: string,
+  data: FilesetCopyright[]
+) => {
+  try {
+    const cacheStr = getCachedLocalStorage(
+      COPYRIGHT_CACHE_KEY
+    );
+    const cache: CopyrightCache = cacheStr
+      ? JSON.parse(cacheStr)
+      : {};
+    cache[bibleId] = {
+      data,
+      cachedAt: Date.now(),
+    };
+    setCachedLocalStorage(
+      COPYRIGHT_CACHE_KEY,
+      JSON.stringify(cache)
+    );
+  } catch (error) {
+    console.error(
+      'Error writing copyright cache:', error
+    );
+  }
+};
+
+export const clearCopyrightCache = () => {
+  removeCachedLocalStorage(COPYRIGHT_CACHE_KEY);
 };
