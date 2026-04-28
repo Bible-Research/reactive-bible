@@ -32,15 +32,19 @@ describe('API Functions', () => {
   });
 
   describe('Lazy Loading', () => {
-    it('getBooks should load KJV data on first call', async () => {
+    it('getBooks should NOT load KJV data (uses lightweight structure)', async () => {
       await api.getBooks();
-      expect(kjvDataLoader.loadKjvData).toHaveBeenCalledTimes(1);
+      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
     });
 
-    it('getBooks should use cache on subsequent calls', async () => {
-      await api.getBooks();
-      await api.getBooks();
-      expect(kjvDataLoader.loadKjvData).toHaveBeenCalledTimes(1);
+    it('getPassage should NOT load KJV data (uses lightweight structure)', async () => {
+      await api.getPassage();
+      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
+    });
+
+    it('getVersesInKjvChapter SHOULD load KJV data', async () => {
+      await api.getVersesInKjvChapter('Genesis', 1);
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
     });
   });
 

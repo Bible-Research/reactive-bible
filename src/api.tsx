@@ -1,7 +1,7 @@
 import { Translation } from "./store";
 import { loadKjvData } from './utils/kjvDataLoader';
+import bibleStructure from './assets/bibleStructure.json';
 import { VerseTimestamp, FilesetCopyright } from './types';
-
 import {
   getCachedVerses,
   cacheVerses,
@@ -16,6 +16,15 @@ import {
 } from './utils/cacheManager';
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
+
+interface BibleStructureEntry {
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  max_verse: number;
+}
+
+const structure = bibleStructure as BibleStructureEntry[];
 
 const API_URL = `${API_BASE_URL}/api/v1`;
 
@@ -37,20 +46,19 @@ export interface KjvBook {
 let booksCache: { book_name: string; book_id: string }[] | null = null;
 
 /**
- * Get list of all Bible books from KJV data (lazy-loaded)
+ * Get list of all Bible books from lightweight structure data
  */
 export const getBooks = async (): Promise<{ book_name: string; book_id: string }[]> => {
   if (booksCache) {
     return booksCache;
   }
 
-  const kjvData = await loadKjvData();
   const bookMap = new Map<string, { book_name: string; book_id: string }>();
-  kjvData.forEach((book: KjvBook) => {
-    if (!bookMap.has(book.book_id)) {
-      bookMap.set(book.book_id, {
-        book_name: book.book_name,
-        book_id: book.book_id,
+  structure.forEach((entry) => {
+    if (!bookMap.has(entry.book_id)) {
+      bookMap.set(entry.book_id, {
+        book_name: entry.book_name,
+        book_id: entry.book_id,
       });
     }
   });
@@ -59,27 +67,20 @@ export const getBooks = async (): Promise<{ book_name: string; book_id: string }
 };
 
 export const getChapters = async (thebook: string): Promise<number[]> => {
-  const kjvData = await loadKjvData();
-  return [
-    ...new Set<number>(
-      kjvData
-        .filter((book: KjvBook) => book.book_name === thebook)
-        .map((book: KjvBook) => book.chapter)
-    ),
-  ];
+  return structure
+    .filter((entry) => entry.book_name === thebook)
+    .map((entry) => entry.chapter);
 };
 
 export const getVerses = async (
   thebook: string,
   thechapter: number
 ): Promise<number[]> => {
-  const kjvData = await loadKjvData();
-  return kjvData
-    .filter(
-      (book: KjvBook) =>
-        book.book_name === thebook && book.chapter === thechapter
-    )
-    .map((book: KjvBook) => book.verse);
+  const entry = structure.find(
+    (e) => e.book_name === thebook && e.chapter === thechapter
+  );
+  if (!entry) return [];
+  return Array.from({ length: entry.max_verse }, (_, i) => i + 1);
 };
 
 export const getVersesInChapter = async (
@@ -135,22 +136,11 @@ export const getPassage = async (): Promise<
     return passageCache;
   }
 
-  const kjvData = await loadKjvData();
-  const passageMap = new Map<
-    string,
-    { book_name: string; book_id: string; chapter: number }
-  >();
-  kjvData.forEach((book: KjvBook) => {
-    const key = `${book.book_id}-${book.chapter}`;
-    if (!passageMap.has(key)) {
-      passageMap.set(key, {
-        book_name: book.book_name,
-        book_id: book.book_id,
-        chapter: book.chapter,
-      });
-    }
-  });
-  passageCache = Array.from(passageMap.values());
+  passageCache = structure.map((entry) => ({
+    book_name: entry.book_name,
+    book_id: entry.book_id,
+    chapter: entry.chapter,
+  }));
   return passageCache;
 };
 
@@ -451,15 +441,17 @@ export const getKjvAudioUrl = async (
   book: string,
   chapter: number
 ): Promise<string> => {
-  const kjvData = await loadKjvData();
-  const bookEntry = kjvData.find(
-    (b: KjvBook) => b.book_name === book
-  );
+  const bookEntry = structure.find((e) => e.book_name === book);
   if (!bookEntry) {
     throw new Error(`Book not found: ${book}`);
   }
-  const bookIndex = [...new Set(kjvData.map((b: KjvBook) => b.book_id))]
-    .indexOf(bookEntry.book_id);
+  const uniqueBookIds: string[] = [];
+  for (const e of structure) {
+    if (!uniqueBookIds.includes(e.book_id)) {
+      uniqueBookIds.push(e.book_id);
+    }
+  }
+  const bookIndex = uniqueBookIds.indexOf(bookEntry.book_id);
 
   return `https://wordpocket.org/bibles/app/audio/1/${bookIndex + 1}/${chapter}.mp3`;
 };
