@@ -514,13 +514,19 @@ export const clearTimestampCache = () => {
 };
 
 // ============================================
-// COPYRIGHT CACHE (No expiration — immutable)
+// COPYRIGHT CACHE (24h TTL)
 // ============================================
 
 const COPYRIGHT_CACHE_KEY = 'bible_copyright_cache';
+const COPYRIGHT_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CopyrightCacheEntry {
+  data: FilesetCopyright[];
+  cachedAt: number;
+}
 
 interface CopyrightCache {
-  [bibleId: string]: FilesetCopyright[];
+  [bibleId: string]: CopyrightCacheEntry;
 }
 
 export const getCachedCopyright = (
@@ -533,7 +539,19 @@ export const getCachedCopyright = (
     if (!cacheStr) return null;
 
     const cache: CopyrightCache = JSON.parse(cacheStr);
-    return cache[bibleId] || null;
+    const entry = cache[bibleId];
+    if (!entry) return null;
+
+    if (Date.now() - entry.cachedAt > COPYRIGHT_CACHE_TTL) {
+      delete cache[bibleId];
+      setCachedLocalStorage(
+        COPYRIGHT_CACHE_KEY,
+        JSON.stringify(cache)
+      );
+      return null;
+    }
+
+    return entry.data;
   } catch (error) {
     console.error(
       'Error reading copyright cache:', error
@@ -553,7 +571,10 @@ export const cacheCopyright = (
     const cache: CopyrightCache = cacheStr
       ? JSON.parse(cacheStr)
       : {};
-    cache[bibleId] = data;
+    cache[bibleId] = {
+      data,
+      cachedAt: Date.now(),
+    };
     setCachedLocalStorage(
       COPYRIGHT_CACHE_KEY,
       JSON.stringify(cache)

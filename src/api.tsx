@@ -579,7 +579,7 @@ export const getCopyrightInfo = async (
     const url =
       `${API_BASE_URL}/api/v1/bible/copyright/` +
       `?bible_id=${encodeURIComponent(bibleId)}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
     if (!response.ok) {
       throw new Error(
         `Copyright fetch failed: ${response.statusText}`
@@ -614,7 +614,7 @@ export const getAudioTimestamps = async (
       `?fileset_id=${encodeURIComponent(filesetId)}` +
       `&book=${encodeURIComponent(book)}` +
       `&chapter=${chapter}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
     if (!response.ok) {
       throw new Error(
         `Timestamps fetch failed: ${response.statusText}`

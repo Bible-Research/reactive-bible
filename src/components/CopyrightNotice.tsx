@@ -33,8 +33,11 @@ const CopyrightNotice = () => {
     }
 
     const bibleId = translation.abbr;
+    let stale = false;
 
     getCopyrightInfo(bibleId).then((data) => {
+      if (stale) return;
+
       // Find the text fileset's copyright
       const textCr = data.find(
         (c) => c.id === activeTextFilesetId
@@ -46,15 +49,15 @@ const CopyrightNotice = () => {
         data[0];
 
       if (cr) {
-        setCopyright(
-          cr.copyright_description || cr.copyright || ''
-            ? `Copyright: ${cr.copyright_description || cr.copyright}`
-            : ''
-        );
+        const text =
+          cr.copyright_description || cr.copyright || '';
+        setCopyright(text ? `Copyright: ${text}` : '');
       } else {
         setCopyright('');
       }
     });
+
+    return () => { stale = true; };
   }, [activeTextFilesetId, translations]);
 
   if (!copyright) return null;

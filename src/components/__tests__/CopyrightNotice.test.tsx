@@ -98,6 +98,44 @@ describe('CopyrightNotice', () => {
     });
   });
 
+  it('renders nothing when activeTextFilesetId is null', async () => {
+    mockedGetCopyrightInfo.mockResolvedValue(
+      mockCopyrightData
+    );
+
+    const { container } = renderWithProviders(
+      <CopyrightNotice />,
+      {
+        stores: {
+          bible: {
+            activeTextFilesetId: null,
+            translations: [
+              {
+                abbr: 'ENGESV',
+                name: 'ESV',
+                language: 'English',
+                language_iso: 'eng',
+                filesets: [
+                  {
+                    id: 'ENGESV',
+                    type: 'text_plain',
+                    size: 'C',
+                    codec: null,
+                    bitrate: null,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(container.innerHTML).toBe('');
+    });
+  });
+
   it('renders nothing when API returns empty array', async () => {
     mockedGetCopyrightInfo.mockResolvedValue([]);
 

@@ -3,6 +3,7 @@ import {
   it,
   expect,
   beforeEach,
+  afterEach,
   vi,
 } from 'vitest';
 import {
@@ -11,6 +12,19 @@ import {
   clearCopyrightCache,
 } from '../cacheManager';
 import { FilesetCopyright } from '../../types';
+
+// Mock Date.now for TTL tests
+const REAL_NOW = Date.now;
+let mockNow: number;
+
+beforeEach(() => {
+  mockNow = 1000000000000;
+  Date.now = () => mockNow;
+});
+
+afterEach(() => {
+  Date.now = REAL_NOW;
+});
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -70,6 +84,26 @@ describe('Copyright Cache', () => {
     cacheCopyright('ENGESV', sampleCopyright);
     const result = getCachedCopyright('ENGESV');
 
+    expect(result).toEqual(sampleCopyright);
+  });
+
+  it('returns null when cache entry is expired', () => {
+    cacheCopyright('ENGESV', sampleCopyright);
+
+    // Advance past TTL (24h + 1ms)
+    mockNow += 24 * 60 * 60 * 1000 + 1;
+
+    const result = getCachedCopyright('ENGESV');
+    expect(result).toBeNull();
+  });
+
+  it('returns data when within TTL', () => {
+    cacheCopyright('ENGESV', sampleCopyright);
+
+    // Advance just under TTL
+    mockNow += 24 * 60 * 60 * 1000 - 1;
+
+    const result = getCachedCopyright('ENGESV');
     expect(result).toEqual(sampleCopyright);
   });
 

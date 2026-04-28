@@ -10,9 +10,7 @@ import * as api from '../api';
 import * as cacheManager from '../utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
-
-const API_BASE =
-  'http://localhost:8000';
+import { API_BASE_URL } from '../config';
 
 describe('getCopyrightInfo', () => {
   beforeEach(() => {
@@ -69,7 +67,7 @@ describe('getCopyrightInfo', () => {
   it('returns empty array on fetch failure', async () => {
     server.use(
       http.get(
-        `${API_BASE}/api/v1/bible/copyright/`,
+        `${API_BASE_URL}/api/v1/bible/copyright/`,
         () => new HttpResponse(null, { status: 500 })
       )
     );
