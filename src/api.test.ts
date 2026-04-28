@@ -31,22 +31,20 @@ describe('API Functions', () => {
   });
 
   describe('Lazy Loading', () => {
-    it('getBooks should NOT load KJV data if API succeeds', async () => {
+    it('getBooks should load KJV data on first call', async () => {
       await api.getBooks();
-      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalledTimes(1);
     });
 
-    it('getBooks SHOULD load KJV data if API fails', async () => {
-      server.use(
-        http.get(`${API_URL}/bible/books/`, () => new HttpResponse(null, { status: 500 }))
-      );
+    it('getBooks should use cache on subsequent calls', async () => {
       await api.getBooks();
-      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
+      await api.getBooks();
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('Navigation Functions', () => {
-    it('getBooks should return books from API', async () => {
+    it('getBooks should return books from KJV data', async () => {
       const books = await api.getBooks();
       expect(books.length).toBeGreaterThan(0);
       expect(books[0].book_name).toBe('Genesis');

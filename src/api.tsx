@@ -35,67 +35,49 @@ export interface KjvBook {
 let booksCache: { book_name: string; book_id: string }[] | null = null;
 
 /**
- * Get list of all Bible books from API
- * Falls back to KJV data if API fails
+ * Get list of all Bible books from KJV data (lazy-loaded)
  */
 export const getBooks = async (): Promise<{ book_name: string; book_id: string }[]> => {
-  // Return cached data if available
   if (booksCache) {
-    return booksCache || [];
-  }
-
-  try {
-    // Try API first
-    const response = await fetch(`${API_URL}/bible/books/`);
-    const data = await response.json();
-    booksCache = data.results || data || [];
-    console.log('✅ Books loaded from API');
-    return booksCache || [];
-  } catch (error) {
-    console.warn('⚠️ Failed to fetch books from API, falling back to KJV data');
-    // Fallback to KJV data
-    const kjvData = await loadKjvData();
-    const bookMap = new Map<string, { book_name: string; book_id: string }>();
-    kjvData.forEach((book: KjvBook) => {
-        if (!bookMap.has(book.book_id)) {
-            bookMap.set(book.book_id, { book_name: book.book_name, book_id: book.book_id });
-        }
-    });
-    booksCache = Array.from(bookMap.values());
     return booksCache;
   }
+
+  const kjvData = await loadKjvData();
+  const bookMap = new Map<string, { book_name: string; book_id: string }>();
+  kjvData.forEach((book: KjvBook) => {
+    if (!bookMap.has(book.book_id)) {
+      bookMap.set(book.book_id, {
+        book_name: book.book_name,
+        book_id: book.book_id,
+      });
+    }
+  });
+  booksCache = Array.from(bookMap.values());
+  return booksCache;
 };
 
 export const getChapters = async (thebook: string): Promise<number[]> => {
-  try {
-    const response = await fetch(`${API_URL}/bible/books/${thebook}/chapters/`);
-    const data = await response.json();
-    return data.chapters || [];
-  } catch (error) {
-    console.warn('⚠️ Failed to fetch chapters from API, falling back to KJV data');
-    const kjvData = await loadKjvData();
-    return [
-      ...new Set<number>(
-        kjvData
-          .filter((book: KjvBook) => book.book_name === thebook)
-          .map((book: KjvBook) => book.chapter)
-      ),
-    ];
-  }
+  const kjvData = await loadKjvData();
+  return [
+    ...new Set<number>(
+      kjvData
+        .filter((book: KjvBook) => book.book_name === thebook)
+        .map((book: KjvBook) => book.chapter)
+    ),
+  ];
 };
 
-export const getVerses = async (thebook: string, thechapter: number): Promise<number[]> => {
-  try {
-    const response = await fetch(`${API_URL}/bible/${thebook}/${thechapter}/verses/`);
-    const data = await response.json();
-    return data.verses || [];
-  } catch (error) {
-    console.warn('⚠️ Failed to fetch verses from API, falling back to KJV data');
-    const kjvData = await loadKjvData();
-    return kjvData
-      .filter((book: KjvBook) => book.book_name === thebook && book.chapter === thechapter)
-      .map((book: KjvBook) => book.verse);
-  }
+export const getVerses = async (
+  thebook: string,
+  thechapter: number
+): Promise<number[]> => {
+  const kjvData = await loadKjvData();
+  return kjvData
+    .filter(
+      (book: KjvBook) =>
+        book.book_name === thebook && book.chapter === thechapter
+    )
+    .map((book: KjvBook) => book.verse);
 };
 
 export const getVersesInChapter = async (
@@ -144,29 +126,30 @@ export const getVersesFromApi = async (
   }
 };
 
-export const getPassage = async (): Promise<{ book_name: string; book_id: string; chapter: number }[]> => {
+export const getPassage = async (): Promise<
+  { book_name: string; book_id: string; chapter: number }[]
+> => {
   if (passageCache) {
-    return passageCache || [];
-  }
-
-  try {
-    const response = await fetch(`${API_URL}/bible/passages/`);
-    const data = await response.json();
-    passageCache = data.results || data || [];
-    return passageCache || [];
-  } catch (error) {
-    console.warn('⚠️ Failed to fetch passages from API, falling back to KJV data');
-    const kjvData = await loadKjvData();
-    const passageMap = new Map<string, { book_name: string; book_id: string; chapter: number }>();
-    kjvData.forEach((book: KjvBook) => {
-        const key = `${book.book_id}-${book.chapter}`;
-        if (!passageMap.has(key)) {
-            passageMap.set(key, { book_name: book.book_name, book_id: book.book_id, chapter: book.chapter });
-        }
-    });
-    passageCache = Array.from(passageMap.values());
     return passageCache;
   }
+
+  const kjvData = await loadKjvData();
+  const passageMap = new Map<
+    string,
+    { book_name: string; book_id: string; chapter: number }
+  >();
+  kjvData.forEach((book: KjvBook) => {
+    const key = `${book.book_id}-${book.chapter}`;
+    if (!passageMap.has(key)) {
+      passageMap.set(key, {
+        book_name: book.book_name,
+        book_id: book.book_id,
+        chapter: book.chapter,
+      });
+    }
+  });
+  passageCache = Array.from(passageMap.values());
+  return passageCache;
 };
 
 export const addTagNote = async (
@@ -462,16 +445,21 @@ export const getBibleAudioUrl = async (
  * @param chapter - Chapter number
  * @returns Audio URL string
  */
-export const getKjvAudioUrl = async (book: string, chapter: number): Promise<string> => {
-  await loadKjvData(); // Ensure KJV data is loaded for the fallback in getBooks
-  const books = await getBooks();
-  const index = books.findIndex((b) => b.book_name === book);
-
-  if (index === -1) {
+export const getKjvAudioUrl = async (
+  book: string,
+  chapter: number
+): Promise<string> => {
+  const kjvData = await loadKjvData();
+  const bookEntry = kjvData.find(
+    (b: KjvBook) => b.book_name === book
+  );
+  if (!bookEntry) {
     throw new Error(`Book not found: ${book}`);
   }
+  const bookIndex = [...new Set(kjvData.map((b: KjvBook) => b.book_id))]
+    .indexOf(bookEntry.book_id);
 
-  return `https://wordpocket.org/bibles/app/audio/1/${index + 1}/${chapter}.mp3`;
+  return `https://wordpocket.org/bibles/app/audio/1/${bookIndex + 1}/${chapter}.mp3`;
 };
 
 /**
@@ -538,7 +526,7 @@ export const prefetchAudioUrl = async (
       return;
     }
 
-    // KJV URLs are now async
+    // KJV URLs use lazy-loaded data
     if (filesetId === 'ENGKJV') {
       const url = await getKjvAudioUrl(book, chapter);
       // Cache it for consistency
