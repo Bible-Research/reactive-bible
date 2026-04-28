@@ -1,8 +1,9 @@
 import { http, HttpResponse } from 'msw';
 import { mockBooks, mockPassages } from '../__tests__/mocks/data';
+import { API_BASE_URL } from '../config';
 
 // Define your request handlers
-const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const API_URL = `${API_BASE_URL}/api/v1`;
 
 export const handlers = [
   // --- Single /bible Endpoint Handler ---
@@ -81,6 +82,30 @@ export const handlers = [
   http.delete(`${API_URL}/notes/:id`, () => {
     return HttpResponse.text('Deleted');
   }),
+
+  // --- Copyright ---
+  http.get(
+    `${API_URL}/bible/copyright/`,
+    ({ request }) => {
+      const url = new URL(request.url);
+      const bibleId = url.searchParams.get(
+        'bible_id'
+      );
+      return HttpResponse.json({
+        data: [
+          {
+            id: bibleId || 'ENGESV',
+            type: 'text_plain',
+            size: 'C',
+            copyright: `© 2001 Test Copyright`,
+            copyright_date: '2001',
+            copyright_description:
+              'The Holy Bible, Test Version',
+          },
+        ],
+      });
+    }
+  ),
 ];
 
 

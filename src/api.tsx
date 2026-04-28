@@ -1,6 +1,6 @@
 import { Translation } from "./store";
 import { loadKjvData } from './utils/kjvDataLoader';
-import { VerseTimestamp } from './types';
+import { VerseTimestamp, FilesetCopyright } from './types';
 
 import {
   getCachedVerses,
@@ -11,11 +11,13 @@ import {
   cacheTranslations,
   getCachedTimestamps,
   cacheTimestamps,
+  getCachedCopyright,
+  cacheCopyright,
 } from './utils/cacheManager';
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
 
-const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const API_URL = `${API_BASE_URL}/api/v1`;
 
 let passageCache: { book_name: string; book_id: string; chapter: number }[] | null = null;
 
@@ -593,6 +595,42 @@ export const prefetchAdjacentChapters = async (
 // AUDIO TIMESTAMP FUNCTIONS
 // ============================================
 
+/**
+ * Fetch copyright info for a Bible translation.
+ * @param bibleId - The Bible abbreviation (e.g. "ENGESV")
+ * @returns Array of fileset copyright objects
+ */
+export const getCopyrightInfo = async (
+  bibleId: string
+): Promise<FilesetCopyright[]> => {
+  const cached = getCachedCopyright(bibleId);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const url =
+      `${API_BASE_URL}/api/v1/bible/copyright/` +
+      `?bible_id=${encodeURIComponent(bibleId)}`;
+    const response = await publicFetch(url);
+    if (!response.ok) {
+      throw new Error(
+        `Copyright fetch failed: ${response.statusText}`
+      );
+    }
+    const data = await response.json();
+    const copyrights: FilesetCopyright[] =
+      data.data || [];
+    cacheCopyright(bibleId, copyrights);
+    return copyrights;
+  } catch (error) {
+    console.warn(
+      'Failed to fetch copyright info:', error
+    );
+    return [];
+  }
+};
+
 export const getAudioTimestamps = async (
   book: string,
   chapter: number,
@@ -609,7 +647,7 @@ export const getAudioTimestamps = async (
       `?fileset_id=${encodeURIComponent(filesetId)}` +
       `&book=${encodeURIComponent(book)}` +
       `&chapter=${chapter}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
     if (!response.ok) {
       throw new Error(
         `Timestamps fetch failed: ${response.statusText}`

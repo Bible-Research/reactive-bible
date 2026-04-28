@@ -4,10 +4,11 @@ import * as cacheManager from './utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 import * as kjvDataLoader from './utils/kjvDataLoader';
+import { API_BASE_URL } from './config';
 
 // Mock the KJV data loader
 
-const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const API_URL = `${API_BASE_URL}/api/v1`;
 
 describe('API Functions', () => {
   beforeEach(() => {
