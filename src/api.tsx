@@ -1,7 +1,7 @@
-import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
+import { loadKjvData } from './utils/kjvDataLoader';
+import bibleStructure from './assets/bibleStructure.json';
 import { VerseTimestamp, FilesetCopyright } from './types';
-
 import {
   getCachedVerses,
   cacheVerses,
@@ -17,7 +17,22 @@ import {
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
 
-export const data = bibleJson as KjvBook[];
+interface BibleStructureEntry {
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  max_verse: number;
+}
+
+const structure = bibleStructure as BibleStructureEntry[];
+
+const API_URL = `${API_BASE_URL}/api/v1`;
+
+let passageCache: { book_name: string; book_id: string; chapter: number }[] | null = null;
+
+// Exported for testing purposes
+export const clearBooksCache = () => (booksCache = null);
+export const clearPassageCache = () => (passageCache = null);
 
 export interface KjvBook {
   chapter: number;
@@ -28,40 +43,44 @@ export interface KjvBook {
   book_name: string;
 }
 
-export const getBooks = (): { book_name: string; book_id: string }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
+let booksCache: { book_name: string; book_id: string }[] | null = null;
+
+/**
+ * Get list of all Bible books from lightweight structure data
+ */
+export const getBooks = async (): Promise<{ book_name: string; book_id: string }[]> => {
+  if (booksCache) {
+    return booksCache;
+  }
+
+  const bookMap = new Map<string, { book_name: string; book_id: string }>();
+  structure.forEach((entry) => {
+    if (!bookMap.has(entry.book_id)) {
+      bookMap.set(entry.book_id, {
+        book_name: entry.book_name,
+        book_id: entry.book_id,
+      });
+    }
   });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as {
-    book_name: string;
-    book_id: string;
-  }[];
+  booksCache = Array.from(bookMap.values());
+  return booksCache;
 };
 
-export const getChapters = (thebook: string): number[] => {
-  return [
-    ...new Set<number>(
-      data
-        .filter((book: KjvBook) => book.book_name === thebook)
-        .map((book: KjvBook) => book.chapter)
-    ),
-  ];
+export const getChapters = async (thebook: string): Promise<number[]> => {
+  return structure
+    .filter((entry) => entry.book_name === thebook)
+    .map((entry) => entry.chapter);
 };
 
-export const getVerses = (thebook: string, thechapter: number): number[] => {
-  return data
-    .filter(
-      (book: KjvBook) => book.book_name === thebook && book.chapter === thechapter
-    )
-    .map((book: KjvBook) => book.verse);
+export const getVerses = async (
+  thebook: string,
+  thechapter: number
+): Promise<number[]> => {
+  const entry = structure.find(
+    (e) => e.book_name === thebook && e.chapter === thechapter
+  );
+  if (!entry) return [];
+  return Array.from({ length: entry.max_verse }, (_, i) => i + 1);
 };
 
 export const getVersesInChapter = async (
@@ -75,11 +94,12 @@ export const getVersesInChapter = async (
   return await getVersesFromApi(thebook, thechapter, filesetId);
 };
 
-export const getVersesInKjvChapter = (
+export const getVersesInKjvChapter = async (
   thebook: string,
   thechapter: number
-): { verse: number; text: string }[] => {
-  return data
+): Promise<{ verse: number; text: string }[]> => {
+  const kjvData = await loadKjvData();
+  return kjvData
     .filter(
       (book: KjvBook) => book.book_name === thebook && book.chapter === thechapter
     )
@@ -97,7 +117,7 @@ export const getVersesFromApi = async (
   }
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `${API_URL}/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const data = await response.json();
     const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
@@ -109,20 +129,19 @@ export const getVersesFromApi = async (
   }
 };
 
-export const getPassage = (): { book_name: string; book_id: string; chapter: number }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-      chapter: book.chapter,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
-  });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as { book_name: string; book_id: string; chapter: number }[];
+export const getPassage = async (): Promise<
+  { book_name: string; book_id: string; chapter: number }[]
+> => {
+  if (passageCache) {
+    return passageCache;
+  }
+
+  passageCache = structure.map((entry) => ({
+    book_name: entry.book_name,
+    book_id: entry.book_id,
+    chapter: entry.chapter,
+  }));
+  return passageCache;
 };
 
 export const addTagNote = async (
@@ -362,7 +381,7 @@ export const getBibleAudioUrl = async (
 
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `${API_URL}/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -418,17 +437,23 @@ export const getBibleAudioUrl = async (
  * @param chapter - Chapter number
  * @returns Audio URL string
  */
-export const getKjvAudioUrl = (book: string, chapter: number): string => {
-  const books = getBooks();
-  const index = books.findIndex((b) => b.book_name === book);
-
-  if (index === -1) {
+export const getKjvAudioUrl = async (
+  book: string,
+  chapter: number
+): Promise<string> => {
+  const bookEntry = structure.find((e) => e.book_name === book);
+  if (!bookEntry) {
     throw new Error(`Book not found: ${book}`);
   }
+  const uniqueBookIds: string[] = [];
+  for (const e of structure) {
+    if (!uniqueBookIds.includes(e.book_id)) {
+      uniqueBookIds.push(e.book_id);
+    }
+  }
+  const bookIndex = uniqueBookIds.indexOf(bookEntry.book_id);
 
-  return `https://wordpocket.org/bibles/app/audio/1/${
-    index + 1
-  }/${chapter}.mp3`;
+  return `https://wordpocket.org/bibles/app/audio/1/${bookIndex + 1}/${chapter}.mp3`;
 };
 
 /**
@@ -437,14 +462,14 @@ export const getKjvAudioUrl = (book: string, chapter: number): string => {
  * @param chapter - Current chapter number
  * @returns Object with previous and next chapter info
  */
-export const getAdjacentChapters = (
+export const getAdjacentChapters = async (
   book: string,
   chapter: number
-): {
+): Promise<{
   previous: { book: string; chapter: number } | null;
   next: { book: string; chapter: number } | null;
-} => {
-  const passages = getPassage();
+}> => {
+  const passages = await getPassage();
   const currentIndex = passages.findIndex(
     (p) => p.book_name === book && p.chapter === chapter
   );
@@ -495,9 +520,9 @@ export const prefetchAudioUrl = async (
       return;
     }
 
-    // KJV URLs are instant (no API call needed)
+    // KJV URLs use lazy-loaded data
     if (filesetId === 'ENGKJV') {
-      const url = getKjvAudioUrl(book, chapter);
+      const url = await getKjvAudioUrl(book, chapter);
       // Cache it for consistency
       cacheAudioUrl(book, chapter, 'ENGKJV', url, 0, 0);
       console.log(`🎵 Prefetched KJV audio for ${book} ${chapter}`);
@@ -532,7 +557,7 @@ export const prefetchAdjacentChapters = async (
   chapter: number,
   filesetId: string
 ): Promise<void> => {
-  const { previous, next } = getAdjacentChapters(book, chapter);
+  const { previous, next } = await getAdjacentChapters(book, chapter);
 
   const prefetch = async (
     b: string,

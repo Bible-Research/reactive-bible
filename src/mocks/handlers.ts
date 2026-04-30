@@ -1,7 +1,9 @@
 import { http, HttpResponse } from 'msw';
+import { mockBooks, mockPassages } from '../__tests__/mocks/data';
+import { API_BASE_URL } from '../config';
 
 // Define your request handlers
-const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const API_URL = `${API_BASE_URL}/api/v1`;
 
 export const handlers = [
   // --- Single /bible Endpoint Handler ---
@@ -30,6 +32,14 @@ export const handlers = [
   // --- Translations ---
   http.get(`${API_URL}/bible/translations`, () => {
     return HttpResponse.json({ results: [] });
+  }),
+
+  http.get(`${API_URL}/bible/passages/`, () => {
+    return HttpResponse.json({ results: mockPassages });
+  }),
+
+  http.get(`${API_URL}/bible/books/`, () => {
+    return HttpResponse.json({ results: mockBooks });
   }),
 
   // --- Tags ---

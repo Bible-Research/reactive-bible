@@ -42,6 +42,7 @@ export const mockNotes: Note[] = [
     note_text: 'This is a test note about faith.',
     tag: mockTags[0],
     public: false,
+    is_owner: true,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     verses: [mockVerses[0]],
@@ -51,6 +52,7 @@ export const mockNotes: Note[] = [
     note_text: 'This is a multi-verse note.',
     tag: mockTags[0],
     public: false,
+    is_owner: true,
     created_at: '2024-01-02T00:00:00Z',
     updated_at: '2024-01-02T00:00:00Z',
     verses: [mockVerses[0], mockVerses[1]],
@@ -60,6 +62,7 @@ export const mockNotes: Note[] = [
     note_text: 'A note about hope.',
     tag: mockTags[1],
     public: true,
+    is_owner: false,
     created_at: '2024-01-03T00:00:00Z',
     updated_at: '2024-01-03T00:00:00Z',
     verses: [mockVerses[3]],
@@ -116,6 +119,13 @@ export const mockBooks = [
   { book_id: 'Matt', book_name: 'Matthew' },
   { book_id: 'John', book_name: 'John' },
   { book_id: 'Rev', book_name: 'Revelation' },
+];
+
+// --- Passages (simplified) ---
+export const mockPassages = [
+  { book_name: 'Genesis', book_id: 'Gen', chapter: 1 },
+  { book_name: 'Genesis', book_id: 'Gen', chapter: 2 },
+  { book_name: 'Exodus', book_id: 'Exod', chapter: 1 },
 ];
 
 // --- API Response Mocks ---

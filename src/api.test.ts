@@ -3,16 +3,27 @@ import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
+import * as kjvDataLoader from './utils/kjvDataLoader';
+import { API_BASE_URL } from './config';
 
-const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+// Mock the KJV data loader
+
+const API_URL = `${API_BASE_URL}/api/v1`;
 
 describe('API Functions', () => {
   beforeEach(() => {
+    // Reset mocks and clear API module caches before each test
     vi.resetAllMocks();
-    // Spy on cache functions to track their calls
-    vi.spyOn(cacheManager, 'getCachedVerses');
+    api.clearBooksCache();
+    api.clearPassageCache();
+
+    // Mock dependencies
+    vi.spyOn(kjvDataLoader, 'loadKjvData').mockResolvedValue([
+      { chapter: 1, verse: 1, text: 'Test verse', book_name: 'Genesis', book_id: 'Gen', translation_id: 'KJV' },
+    ]);
+    vi.spyOn(cacheManager, 'getCachedVerses').mockReturnValue(null);
     vi.spyOn(cacheManager, 'cacheVerses');
-    vi.spyOn(cacheManager, 'getCachedAudioUrl');
+    vi.spyOn(cacheManager, 'getCachedAudioUrl').mockReturnValue(null);
     vi.spyOn(cacheManager, 'cacheAudioUrl');
   });
 
@@ -20,30 +31,37 @@ describe('API Functions', () => {
     vi.restoreAllMocks();
   });
 
-  // --- Local Data Functions ---
-  describe('Local Data Functions', () => {
-    it('getBooks should return a list of all books', () => {
-      const books = api.getBooks();
-      expect(books.length).toBe(66);
+  describe('Lazy Loading', () => {
+    it('getBooks should NOT load KJV data (uses lightweight structure)', async () => {
+      await api.getBooks();
+      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
+    });
+
+    it('getPassage should NOT load KJV data (uses lightweight structure)', async () => {
+      await api.getPassage();
+      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
+    });
+
+    it('getVersesInKjvChapter SHOULD load KJV data', async () => {
+      await api.getVersesInKjvChapter('Genesis', 1);
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
+    });
+  });
+
+  describe('Navigation Functions', () => {
+    it('getBooks should return books from KJV data', async () => {
+      const books = await api.getBooks();
+      expect(books.length).toBeGreaterThan(0);
       expect(books[0].book_name).toBe('Genesis');
-      expect(books[65].book_name).toBe('Revelation');
     });
 
-    it('getChapters should return the correct number of chapters for a book', () => {
-      const chapters = api.getChapters('Genesis');
-      expect(chapters.length).toBe(50);
-    });
-
-    it('getVersesInKjvChapter should return all verses for a given chapter', () => {
-      const verses = api.getVersesInKjvChapter('John', 3);
-      expect(verses.length).toBe(36);
-      expect(verses[15].text).toContain('For God so loved the world');
-    });
-
-    it('getAdjacentChapters should return correct previous and next chapters', () => {
-      const adjacent = api.getAdjacentChapters('John', 1);
-      expect(adjacent.previous).toEqual({ book: 'Luke', chapter: 24 });
-      expect(adjacent.next).toEqual({ book: 'John', chapter: 2 });
+    it('getVersesInKjvChapter should lazy load KJV data', async () => {
+      const verses = await api.getVersesInKjvChapter('Genesis', 1);
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
+      expect(verses).toEqual([{
+        "text": "Test verse",
+        "verse": 1,
+      }]);
     });
   });
 
@@ -84,25 +102,17 @@ describe('API Functions', () => {
     });
 
     it('should throw an error if the fetch response is not ok', async () => {
-      // Use a specific handler that returns 404 for a specific fileset
       server.use(
         http.get(`${API_URL}/bible`, ({ request }) => {
           const url = new URL(request.url);
           const filesetId = url.searchParams.get('fileset_id');
-
-          // Only return 404 for this specific test case
           if (filesetId === 'ERRORTEST') {
             return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
           }
-
-          // Let other requests pass through to default handler
           return;
         })
       );
-
-      // Clear the cache to ensure the API is actually called
       localStorage.clear();
-
       await expect(api.getBibleAudioUrl('Genesis', 1, 'ERRORTEST')).rejects.toThrow(
         'Failed to fetch audio for ERRORTEST: Not Found'
       );

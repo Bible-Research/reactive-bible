@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { Note, Tag } from '../../types';
 import { Translation } from '../../store';
 
@@ -202,4 +203,19 @@ export const mockData = {
       text: 'Jesus wept.',
     }),
   },
+};
+
+/**
+ * Mock KJV data loader
+ */
+export const mockKjvDataLoader = () => {
+  vi.mock('../../utils/kjvDataLoader', () => ({
+    loadKjvData: vi.fn().mockResolvedValue([
+      // Minimal mock data for tests
+      { chapter: 1, verse: 1, text: 'In the beginning...', book_name: 'Genesis', book_id: 'Gen' },
+      // Add more as needed
+    ]),
+    isKjvDataLoaded: vi.fn().mockReturnValue(false),
+    clearKjvDataCache: vi.fn(),
+  }));
 };

@@ -18,16 +18,20 @@ vi.mock('howler', () => ({
 }));
 
 // Mock API
-vi.mock('../api', () => ({
-  getKjvAudioUrl: vi.fn().mockReturnValue('http://audio.url/test.mp3'),
-  getBibleAudioUrl: vi.fn()
-    .mockResolvedValue('http://audio.url/test.mp3'),
-  getPassage: vi.fn().mockReturnValue({
-    book: 'Genesis',
-    chapter: 1,
-  }),
-  getAudioTimestamps: vi.fn().mockResolvedValue([]),
-}));
+vi.mock('../api', async () => {
+  const actual = await vi.importActual('../api');
+  return {
+    ...actual,
+    getKjvAudioUrl: vi.fn().mockResolvedValue('http://audio.url/kjv-test.mp3'),
+    getBibleAudioUrl: vi.fn().mockResolvedValue('http://audio.url/api-test.mp3'),
+    getPassage: vi.fn().mockResolvedValue([
+      { book_name: 'Genesis', book_id: 'Gen', chapter: 1 },
+      { book_name: 'Genesis', book_id: 'Gen', chapter: 2 },
+      { book_name: 'Exodus', book_id: 'Exo', chapter: 1 },
+    ]),
+    getAudioTimestamps: vi.fn().mockResolvedValue([]),
+  };
+});
 
 // Note: AudioPlayer component is now used as-is (no mock)
 
@@ -38,11 +42,13 @@ describe('Audio Component', () => {
 
   it('should render the play button', () => {
     renderWithProviders(<Audio />, {
-      storeOverrides: {
-        activeBook: 'Genesis',
-        activeChapter: 1,
-        activeAudioFilesetId: 'ENGKJV',
-        showAudioPlayer: false,
+      stores: {
+        bible: {
+          activeBook: 'Genesis',
+          activeChapter: 1,
+          activeAudioFilesetId: 'ENGKJV',
+          showAudioPlayer: false,
+        },
       },
     });
     const button = screen.getByRole('button');

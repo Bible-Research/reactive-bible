@@ -17,7 +17,7 @@ import {
 import { Button } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getPassage } from "../api";
 import AddTagNoteModal from "./AddTagNoteModal";
 import Audio from "./Audio";
@@ -41,16 +41,21 @@ const SubHeader = ({
   const activeBookShort = useBibleStore((state) => state.activeBookShort);
   const activeBook = useBibleStore((state) => state.activeBook);
   const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const getPassageResult = getPassage();
+  const [passages, setPassages] = useState<{ book_name: string; book_id: string; chapter: number }[]>([]);
   const [opened, setOpened] = useState(false);
+
+  useEffect(() => {
+    getPassage().then(setPassages);
+  }, []);
+
   const checkNext = (): number | null => {
-    const index = getPassageResult.findIndex(
+    const index = passages.findIndex(
       (book) => book.book_name === activeBook && book.chapter === activeChapter
     );
-    return index === -1 || index === getPassageResult.length - 1 ? null : index;
+    return index === -1 || index === passages.length - 1 ? null : index;
   };
   const checkPrev = (): number | null => {
-    const index = getPassageResult.findIndex(
+    const index = passages.findIndex(
       (book) => book.book_name === activeBook && book.chapter === activeChapter
     );
     return index === -1 || index === 0 ? null : index;
@@ -60,8 +65,8 @@ const SubHeader = ({
     const index = checkNext();
     console.log('🔗 checkNext index:', index);
     if (index === null) return null;
-    if (getPassageResult) {
-      const next = getPassageResult[index + 1];
+    if (passages) {
+      const next = passages[index + 1];
       console.log('🔗 next passage:', next);
       if (next !== null) {
         console.log(`🔗 Navigating to: /bible/${next.book_name}/${next.chapter}`);
@@ -74,8 +79,8 @@ const SubHeader = ({
   const prevHandler = () => {
     const index = checkPrev();
     if (index === null) return null;
-    if (getPassageResult) {
-      const prev = getPassageResult[index - 1];
+    if (passages) {
+      const prev = passages[index - 1];
       if (prev !== null) {
         console.log(`🔗 Prev: /bible/${prev.book_name}/${prev.chapter}`);
         setActiveBookShort(prev.book_id);

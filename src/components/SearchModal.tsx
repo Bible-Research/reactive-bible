@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { IconSearch } from "@tabler/icons-react";
 import {
   Text,
@@ -11,10 +11,9 @@ import {
   SelectItemProps,
 } from "@mantine/core";
 import { useBibleStore } from "../store";
-import { data } from "../api";
 import { KjvBook } from '../api';
+import { loadKjvData } from "../utils/kjvDataLoader";
 
-const searchData = data.map((book: KjvBook) => ({ ...book, value: book.text }));
 interface ItemProps extends SelectItemProps {
   chapter: number;
   verse: number;
@@ -50,6 +49,22 @@ export function SearchModal({
   const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const [searchData, setSearchData] = useState<(ItemProps & { value: string })[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (opened && searchData.length === 0) {
+      setLoading(true);
+      loadKjvData().then((kjvData) => {
+        const mappedData = kjvData.map((book: KjvBook) => ({ ...book, value: book.text, label: book.text }));
+        setSearchData(mappedData);
+        setLoading(false);
+      }).catch(() => {
+        setLoading(false);
+        // Handle error appropriately
+      });
+    }
+  }, [opened, searchData.length]);
 
   return (
     <Modal
@@ -70,8 +85,9 @@ export function SearchModal({
       <Autocomplete
         icon={<IconSearch size={rem(16)} />}
         itemComponent={AutoCompleteItem}
-        placeholder="Search Bible"
+        placeholder={loading ? "Loading search data..." : "Search Bible"}
         data={searchData}
+        disabled={loading}
         transitionProps={{
           transition: "pop-top-left",
           duration: 80,

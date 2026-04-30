@@ -12,6 +12,8 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { API_BASE_URL } from '../config';
 
+const COPYRIGHT_URL = `${API_BASE_URL}/api/v1/bible/copyright/`;
+
 describe('getCopyrightInfo', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -67,7 +69,7 @@ describe('getCopyrightInfo', () => {
   it('returns empty array on fetch failure', async () => {
     server.use(
       http.get(
-        `${API_BASE_URL}/api/v1/bible/copyright/`,
+        COPYRIGHT_URL,
         () => new HttpResponse(null, { status: 500 })
       )
     );
