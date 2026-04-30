@@ -48,12 +48,13 @@ export default function NotesRoute() {
     // Prevent double-navigation in React Strict Mode
     if (hasNavigatedRef.current) return;
 
-    // Anonymous visitors have no "default tag" to land on and no way to
-    // browse tags. Send them to the bible page; direct share links to
-    // /notes/:noteId or /notes/tag/:tagId still work for them.
+    // Anonymous visitors have no "default tag" to land on and no way
+    // to browse tags. Send them to the login page so the click on
+    // "View Notes" produces a visible response. Direct share links
+    // to /notes/:noteId or /notes/tag/:tagId still work for them.
     if (!isAuthenticated) {
       hasNavigatedRef.current = true;
-      navigate('/bible', { replace: true });
+      navigate('/login', { replace: true });
       return;
     }
 

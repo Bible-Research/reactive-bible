@@ -118,7 +118,7 @@ describe('NotesRoute', () => {
     });
   });
 
-  it('redirects to /bible when not authenticated', async () => {
+  it('redirects to /login when not authenticated', async () => {
     useAuthStore.setState({
       isAuthenticated: false,
       token: null,
@@ -131,6 +131,14 @@ describe('NotesRoute', () => {
           <Route
             path="/notes"
             element={<NotesRoute />}
+          />
+          <Route
+            path="/login"
+            element={
+              <div data-testid="login-page">
+                Login Page
+              </div>
+            }
           />
           <Route
             path="/bible"
@@ -146,9 +154,12 @@ describe('NotesRoute', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByTestId('bible-page')
+        screen.getByTestId('login-page')
       ).toBeInTheDocument();
     });
+    expect(
+      screen.queryByTestId('bible-page')
+    ).not.toBeInTheDocument();
   });
 
   it('navigates to /notes/tag/:tagId when authenticated and tags exist', async () => {
