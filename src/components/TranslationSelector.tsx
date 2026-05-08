@@ -119,7 +119,7 @@ const TranslationSelector = () => {
           <SegmentedControl
             data={[
               { label: 'English', value: 'eng' },
-              { label: 'Latvian (audio only)', value: 'lvs' },
+              { label: 'Latvian', value: 'lvs' },
             ]}
             value={languageIso}
             onChange={setLanguageIso}
