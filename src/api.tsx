@@ -365,7 +365,7 @@ export const getBibleAudioUrl = async (
 
   try {
     const passage = `${book} ${chapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}&response_format=audio`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
