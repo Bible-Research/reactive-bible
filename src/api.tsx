@@ -301,12 +301,15 @@ export const deleteTag = async (tagId: string): Promise<void> => {
 // ============================================
 
 export const getAvailableTranslations = async (
-  languageIso = "eng"
+  languageIso = "eng",
+  forceRefresh = false
 ): Promise<Translation[]> => {
-  const cached = getCachedTranslations(languageIso);
-  if (cached) {
-    console.log(`✅ Translations for ${languageIso} loaded from cache`);
-    return cached;
+  if (!forceRefresh) {
+    const cached = getCachedTranslations(languageIso);
+    if (cached) {
+      console.log(`✅ Translations for ${languageIso} loaded from cache`);
+      return cached;
+    }
   }
 
   try {

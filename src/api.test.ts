@@ -113,4 +113,60 @@ describe('API Functions', () => {
       expect(removeNote).toBe('Deleted');
     });
   });
+
+  describe('getAvailableTranslations', () => {
+    const cached = [
+      {
+        abbr: 'KJV',
+        name: 'King James Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [{ id: 'ENGKJV', type: 'text_plain', size: 'NT' }],
+      },
+    ];
+
+    const fresh = [
+      ...cached,
+      {
+        abbr: 'NIV',
+        name: 'New International Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [{ id: 'ENGNIV', type: 'text_plain', size: 'C' }],
+      },
+    ];
+
+    beforeEach(() => {
+      vi.spyOn(cacheManager, 'getCachedTranslations');
+      vi.spyOn(cacheManager, 'cacheTranslations');
+    });
+
+    it('returns cached translations without hitting API', async () => {
+      vi.spyOn(cacheManager, 'getCachedTranslations')
+        .mockReturnValue(cached as any);
+      const fetchSpy = vi.spyOn(global, 'fetch');
+
+      const result = await api.getAvailableTranslations('eng');
+
+      expect(result).toEqual(cached);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('bypasses cache when forceRefresh=true and updates cache', async () => {
+      vi.spyOn(cacheManager, 'getCachedTranslations')
+        .mockReturnValue(cached as any);
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({ results: fresh })
+        )
+      );
+
+      const result = await api.getAvailableTranslations('eng', true);
+
+      expect(result).toEqual(fresh);
+      expect(cacheManager.cacheTranslations)
+        .toHaveBeenCalledWith('eng', fresh);
+    });
+  });
 });

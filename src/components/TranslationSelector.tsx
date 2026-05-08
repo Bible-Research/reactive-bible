@@ -49,18 +49,37 @@ const TranslationSelector = () => {
   };
 
   useEffect(() => {
-    const fetchTranslations = async () => {
-      // Clear previous selections when language changes
-      setTranslations([]);
-      setSelectedTextId(null);
-      setSelectedAudioId(null);
+    let cancelled = false;
 
-      const fetched = await getAvailableTranslations(languageIso);
-      setTranslations(fetched);
+    const fetchTranslations = async () => {
+      // Show cached list immediately for snappy UX (stale)…
+      const cached = await getAvailableTranslations(languageIso);
+      if (!cancelled) {
+        setTranslations(cached);
+      }
+
+      // …then revalidate against the API so newly published
+      // translations show up without requiring a cache bust.
+      if (!opened) return;
+      const fresh = await getAvailableTranslations(languageIso, true);
+      if (!cancelled) {
+        setTranslations(fresh);
+      }
     };
 
     fetchTranslations();
-    // We only want this to run when the language changes.
+
+    return () => {
+      cancelled = true;
+    };
+    // We refetch whenever the modal is (re)opened or the language changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [languageIso, opened]);
+
+  useEffect(() => {
+    // Clear transient selections whenever the language changes.
+    setSelectedTextId(null);
+    setSelectedAudioId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [languageIso]);
 
