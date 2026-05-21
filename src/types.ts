@@ -37,3 +37,9 @@ export interface FilesetCopyright {
   copyright_date: string;
   copyright_description: string;
 }
+
+export type {
+  Comment,
+  CommentAuthor,
+  CommentCounts,
+} from './api';
