@@ -36,9 +36,20 @@ const CommentNode = ({
     comment.author.username === currentUsername;
   const indent = Math.min(depth, MAX_DEPTH) * 16;
 
-  const formatTime = (ts: string) => {
+  const formatTime = (ts: string): string => {
     try {
-      return new Date(ts).toLocaleString();
+      const diff = Date.now() - new Date(ts).getTime();
+      const seconds = Math.floor(diff / 1000);
+      if (seconds < 60) return 'just now';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) {
+        return `${minutes}m ago`;
+      }
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      if (days < 30) return `${days}d ago`;
+      return new Date(ts).toLocaleDateString();
     } catch {
       return ts;
     }

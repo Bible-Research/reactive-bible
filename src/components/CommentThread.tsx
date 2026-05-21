@@ -44,23 +44,13 @@ const CommentThread = ({
   const currentUsername =
     useAuthStore((state) => state.user)?.username ?? null;
 
-  const load = async () => {
-    let cancelled = false;
+  const load = () => {
     setLoading(true);
     setError(null);
-    try {
-      const data = await fetchComments(noteId);
-      if (!cancelled) setComments(data);
-    } catch {
-      if (!cancelled) {
-        setError('Failed to load comments.');
-      }
-    } finally {
-      if (!cancelled) setLoading(false);
-    }
-    return () => {
-      cancelled = true;
-    };
+    fetchComments(noteId)
+      .then((data) => setComments(data))
+      .catch(() => setError('Failed to load comments.'))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -158,7 +148,12 @@ const CommentThread = ({
         <Text color="red" size="sm">
           {error}
         </Text>
-        <Button size="xs" variant="subtle" onClick={load}>
+        <Button
+          size="xs"
+          variant="subtle"
+          onClick={load}
+          aria-label="Retry loading comments"
+        >
           Retry
         </Button>
       </Stack>
