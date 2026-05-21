@@ -1,0 +1,83 @@
+import { Comment } from '../api';
+
+/**
+ * Insert a new comment as a reply to the given parentId.
+ * If parentId is null, appends to the root list.
+ */
+export function insertReply(
+  tree: Comment[],
+  parentId: string | null,
+  newComment: Comment
+): Comment[] {
+  if (parentId === null) {
+    return [...tree, newComment];
+  }
+  return tree.map((node) => {
+    if (node.id === parentId) {
+      return { ...node, replies: [...node.replies, newComment] };
+    }
+    if (node.replies.length > 0) {
+      return {
+        ...node,
+        replies: insertReply(node.replies, parentId, newComment),
+      };
+    }
+    return node;
+  });
+}
+
+/**
+ * Apply updater to the node with the given id (deep).
+ */
+export function updateNode(
+  tree: Comment[],
+  id: string,
+  updater: (node: Comment) => Comment
+): Comment[] {
+  return tree.map((node) => {
+    if (node.id === id) {
+      return updater(node);
+    }
+    if (node.replies.length > 0) {
+      return {
+        ...node,
+        replies: updateNode(node.replies, id, updater),
+      };
+    }
+    return node;
+  });
+}
+
+/**
+ * Returns true if the subtree rooted at `node` contains at least
+ * one non-deleted descendant (not counting the node itself).
+ */
+function hasSurvivingDescendant(node: Comment): boolean {
+  return node.replies.some(
+    (r) => !r.is_deleted || hasSurvivingDescendant(r)
+  );
+}
+
+/**
+ * Prune deleted comments from the tree:
+ * - Deleted leaf nodes are removed entirely.
+ * - Deleted nodes that have surviving descendants are kept as
+ *   tombstones (is_deleted stays true, replies preserved).
+ */
+export function pruneDeleted(tree: Comment[]): Comment[] {
+  return tree.reduce<Comment[]>((acc, node) => {
+    const prunedReplies = pruneDeleted(node.replies);
+    const nodeWithPruned = { ...node, replies: prunedReplies };
+    if (!node.is_deleted) {
+      acc.push(nodeWithPruned);
+      return acc;
+    }
+    const surviving = prunedReplies.some((r) => !r.is_deleted) ||
+      prunedReplies.length > 0 &&
+      prunedReplies.some((r) => hasSurvivingDescendant(r));
+    if (surviving || prunedReplies.length > 0) {
+      acc.push(nodeWithPruned);
+    }
+    return acc;
+  }, []);
+}
