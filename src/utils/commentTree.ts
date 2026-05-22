@@ -4,22 +4,28 @@ import { Comment } from '../api';
  * Insert a new comment as a reply to the given parentId.
  * If parentId is null, appends to the root list.
  */
+const replies = (node: Comment): Comment[] =>
+  node.replies ?? [];
+
 export function insertReply(
   tree: Comment[],
   parentId: string | null,
   newComment: Comment
 ): Comment[] {
   if (parentId === null) {
-    return [...tree, newComment];
+    return [...(tree ?? []), newComment];
   }
-  return tree.map((node) => {
+  return (tree ?? []).map((node) => {
     if (node.id === parentId) {
-      return { ...node, replies: [...node.replies, newComment] };
-    }
-    if (node.replies.length > 0) {
       return {
         ...node,
-        replies: insertReply(node.replies, parentId, newComment),
+        replies: [...replies(node), newComment],
+      };
+    }
+    if (replies(node).length > 0) {
+      return {
+        ...node,
+        replies: insertReply(replies(node), parentId, newComment),
       };
     }
     return node;
@@ -34,14 +40,14 @@ export function updateNode(
   id: string,
   updater: (node: Comment) => Comment
 ): Comment[] {
-  return tree.map((node) => {
+  return (tree ?? []).map((node) => {
     if (node.id === id) {
       return updater(node);
     }
-    if (node.replies.length > 0) {
+    if (replies(node).length > 0) {
       return {
         ...node,
-        replies: updateNode(node.replies, id, updater),
+        replies: updateNode(replies(node), id, updater),
       };
     }
     return node;
@@ -53,7 +59,7 @@ export function updateNode(
  * one non-deleted descendant (not counting the node itself).
  */
 function hasSurvivingDescendant(node: Comment): boolean {
-  return node.replies.some(
+  return replies(node).some(
     (r) => !r.is_deleted || hasSurvivingDescendant(r)
   );
 }
@@ -65,16 +71,17 @@ function hasSurvivingDescendant(node: Comment): boolean {
  *   tombstones (is_deleted stays true, replies preserved).
  */
 export function pruneDeleted(tree: Comment[]): Comment[] {
-  return tree.reduce<Comment[]>((acc, node) => {
-    const prunedReplies = pruneDeleted(node.replies);
+  return (tree ?? []).reduce<Comment[]>((acc, node) => {
+    const prunedReplies = pruneDeleted(replies(node));
     const nodeWithPruned = { ...node, replies: prunedReplies };
     if (!node.is_deleted) {
       acc.push(nodeWithPruned);
       return acc;
     }
-    const surviving = prunedReplies.some((r) => !r.is_deleted) ||
-      prunedReplies.length > 0 &&
-      prunedReplies.some((r) => hasSurvivingDescendant(r));
+    const surviving =
+      prunedReplies.some((r) => !r.is_deleted) ||
+      (prunedReplies.length > 0 &&
+        prunedReplies.some((r) => hasSurvivingDescendant(r)));
     if (surviving || prunedReplies.length > 0) {
       acc.push(nodeWithPruned);
     }

@@ -44,11 +44,17 @@ const CommentThread = ({
   const currentUsername =
     useAuthStore((state) => state.user)?.username ?? null;
 
+  const normalize = (nodes: Comment[]): Comment[] =>
+    (nodes ?? []).map((c) => ({
+      ...c,
+      replies: normalize(c.replies),
+    }));
+
   const load = () => {
     setLoading(true);
     setError(null);
     fetchComments(noteId)
-      .then((data) => setComments(data))
+      .then((data) => setComments(normalize(data)))
       .catch(() => setError('Failed to load comments.'))
       .finally(() => setLoading(false));
   };
@@ -59,7 +65,7 @@ const CommentThread = ({
     setError(null);
     fetchComments(noteId)
       .then((data) => {
-        if (!cancel) setComments(data);
+        if (!cancel) setComments(normalize(data));
       })
       .catch(() => {
         if (!cancel) setError('Failed to load comments.');
@@ -84,7 +90,11 @@ const CommentThread = ({
         parentId
       );
       setComments((prev) =>
-        insertReply(prev, parentId, newComment)
+        insertReply(
+          prev,
+          parentId,
+          normalize([newComment])[0]
+        )
       );
       onCountChange?.(1);
     } catch {
@@ -102,7 +112,7 @@ const CommentThread = ({
     try {
       const updated = await updateComment(noteId, id, content);
       setComments((prev) =>
-        updateNode(prev, id, () => updated)
+        updateNode(prev, id, () => normalize([updated])[0])
       );
     } catch {
       showNotification({
