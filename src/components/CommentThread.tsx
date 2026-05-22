@@ -74,12 +74,37 @@ const CommentThread = ({
       });
   }, [noteId]);
 
+  const silentLoad = useCallback(() => {
+    const version = ++loadVersion.current;
+    fetchComments(noteId)
+      .then((data) => {
+        if (loadVersion.current === version)
+          setComments(normalize(data));
+      })
+      .catch(() => {
+        // background refresh — don't surface errors
+      });
+  }, [noteId]);
+
   useEffect(() => {
     load();
     return () => {
       loadVersion.current++;
     };
   }, [load]);
+
+  useEffect(() => {
+    const POLL_MS = 30_000;
+    const poll = () => {
+      if (document.visibilityState === 'visible') silentLoad();
+    };
+    const id = setInterval(poll, POLL_MS);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', poll);
+    };
+  }, [silentLoad]);
 
   const handleCreate = async (
     parentId: string | null,
@@ -100,6 +125,7 @@ const CommentThread = ({
         )
       );
       onCountChange?.(1);
+      silentLoad();
     } catch {
       showNotification({
         color: 'red',
@@ -117,6 +143,7 @@ const CommentThread = ({
       setComments((prev) =>
         updateNode(prev, id, () => normalize([updated])[0])
       );
+      silentLoad();
     } catch {
       showNotification({
         color: 'red',
@@ -137,6 +164,7 @@ const CommentThread = ({
         }))
       );
       onCountChange?.(-1);
+      silentLoad();
     } catch {
       showNotification({
         color: 'red',
