@@ -5,6 +5,7 @@ import {
   ColorScheme,
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
+import { ModalsProvider } from "@mantine/modals";
 import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
@@ -70,6 +71,7 @@ export default function App() {
         withGlobalStyles
         withNormalizeCSS
       >
+        <ModalsProvider>
         <Notifications position="top-right" zIndex={2077} />
         <AppShell
           padding="md"
@@ -118,6 +120,7 @@ export default function App() {
         </AppShell>
         <Analytics />
         <SpeedInsights />
+        </ModalsProvider>
       </MantineProvider>
     </ColorSchemeProvider>
   );

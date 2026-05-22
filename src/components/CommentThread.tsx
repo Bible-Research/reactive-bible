@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Stack,
   Text,
@@ -8,7 +8,8 @@ import {
   Button,
 } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
-import { Comment } from '../api';
+import { Link } from 'react-router-dom';
+import { Comment } from '../types';
 import {
   fetchComments,
   createComment,
@@ -24,6 +25,14 @@ import { useAuthStore } from '../stores/authStore';
 import CommentForm from './CommentForm';
 import CommentNode from './CommentNode';
 
+const normalize = (
+  nodes: Comment[] | undefined
+): Comment[] =>
+  (nodes ?? []).map((c) => ({
+    ...c,
+    replies: normalize(c.replies),
+  }));
+
 interface CommentThreadProps {
   noteId: string;
   onCountChange?: (delta: number) => void;
@@ -38,45 +47,39 @@ const CommentThread = ({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const loadVersion = useRef(0);
+
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
   const currentUsername =
     useAuthStore((state) => state.user)?.username ?? null;
 
-  const normalize = (nodes: Comment[]): Comment[] =>
-    (nodes ?? []).map((c) => ({
-      ...c,
-      replies: normalize(c.replies),
-    }));
-
-  const load = () => {
-    setLoading(true);
-    setError(null);
-    fetchComments(noteId)
-      .then((data) => setComments(normalize(data)))
-      .catch(() => setError('Failed to load comments.'))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    let cancel = false;
+  const load = useCallback(() => {
+    const version = ++loadVersion.current;
     setLoading(true);
     setError(null);
     fetchComments(noteId)
       .then((data) => {
-        if (!cancel) setComments(normalize(data));
+        if (loadVersion.current === version)
+          setComments(normalize(data));
       })
       .catch(() => {
-        if (!cancel) setError('Failed to load comments.');
+        if (loadVersion.current === version)
+          setError('Failed to load comments.');
       })
       .finally(() => {
-        if (!cancel) setLoading(false);
+        if (loadVersion.current === version)
+          setLoading(false);
       });
-    return () => {
-      cancel = true;
-    };
   }, [noteId]);
+
+  useEffect(() => {
+    load();
+    return () => {
+      loadVersion.current++;
+    };
+  }, [load]);
 
   const handleCreate = async (
     parentId: string | null,
@@ -133,6 +136,7 @@ const CommentThread = ({
           content: '[deleted]',
         }))
       );
+      onCountChange?.(-1);
     } catch {
       showNotification({
         color: 'red',
@@ -147,7 +151,7 @@ const CommentThread = ({
   if (loading) {
     return (
       <Center py={16}>
-        <Loader size="sm" />
+        <Loader size="sm" data-testid="thread-loader" />
       </Center>
     );
   }
@@ -182,7 +186,7 @@ const CommentThread = ({
         ) : (
           <Text size="sm" color="dimmed">
             No comments yet.{' '}
-            <a href="/login">Log in to comment</a>.
+            <Link to="/login">Log in to comment</Link>.
           </Text>
         )
       ) : (

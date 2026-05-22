@@ -1,6 +1,12 @@
 import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
-import { VerseTimestamp, FilesetCopyright } from './types';
+import {
+  VerseTimestamp,
+  FilesetCopyright,
+  Comment,
+  CommentAuthor,
+  CommentCounts,
+} from './types';
 
 import {
   getCachedVerses,
@@ -699,23 +705,7 @@ export const getNote = async (noteId: string): Promise<Note> => {
 // COMMENT TYPES
 // ============================================
 
-export interface CommentAuthor {
-  id: number;
-  username: string;
-}
-
-export interface Comment {
-  id: string;
-  author: CommentAuthor;
-  note_id: string;
-  parent_comment: string | null;
-  content: string;
-  timestamp: string;
-  is_deleted: boolean;
-  replies: Comment[];
-}
-
-export type CommentCounts = Record<string, number>;
+export type { Comment, CommentAuthor, CommentCounts };
 
 // ============================================
 // COMMENT FUNCTIONS
@@ -841,6 +831,9 @@ export const fetchCommentCounts = async (params: {
   };
 
   try {
+    if (tagId) {
+      return await fetchBatch();
+    }
     if (!noteIds || noteIds.length === 0) {
       return await fetchBatch();
     }

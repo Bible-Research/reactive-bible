@@ -22,6 +22,9 @@ const CommentForm = ({
 }: CommentFormProps) => {
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
+  const [localSubmitting, setLocalSubmitting] = useState(false);
+
+  const isDisabled = submitting || localSubmitting;
 
   const handleSubmit = async () => {
     if (!value.trim()) {
@@ -29,8 +32,13 @@ const CommentForm = ({
       return;
     }
     setError(null);
-    await onSubmit(value.trim());
-    setValue('');
+    setLocalSubmitting(true);
+    try {
+      await onSubmit(value.trim());
+      setValue('');
+    } finally {
+      setLocalSubmitting(false);
+    }
   };
 
   return (
@@ -43,15 +51,15 @@ const CommentForm = ({
         minRows={2}
         aria-label={placeholder}
         error={error}
-        disabled={submitting}
+        disabled={isDisabled}
         mb={6}
       />
       <Group spacing="xs">
         <Button
           size="xs"
           onClick={handleSubmit}
-          disabled={submitting}
-          loading={submitting}
+          disabled={isDisabled}
+          loading={isDisabled}
         >
           {submitLabel}
         </Button>
@@ -60,7 +68,7 @@ const CommentForm = ({
             size="xs"
             variant="subtle"
             onClick={onCancel}
-            disabled={submitting}
+            disabled={isDisabled}
           >
             Cancel
           </Button>

@@ -1,4 +1,4 @@
-import { Comment } from '../api';
+import { Comment } from '../types';
 
 /**
  * Insert a new comment as a reply to the given parentId.
@@ -55,16 +55,6 @@ export function updateNode(
 }
 
 /**
- * Returns true if the subtree rooted at `node` contains at least
- * one non-deleted descendant (not counting the node itself).
- */
-function hasSurvivingDescendant(node: Comment): boolean {
-  return replies(node).some(
-    (r) => !r.is_deleted || hasSurvivingDescendant(r)
-  );
-}
-
-/**
  * Prune deleted comments from the tree:
  * - Deleted leaf nodes are removed entirely.
  * - Deleted nodes that have surviving descendants are kept as
@@ -78,11 +68,7 @@ export function pruneDeleted(tree: Comment[]): Comment[] {
       acc.push(nodeWithPruned);
       return acc;
     }
-    const surviving =
-      prunedReplies.some((r) => !r.is_deleted) ||
-      (prunedReplies.length > 0 &&
-        prunedReplies.some((r) => hasSurvivingDescendant(r)));
-    if (surviving || prunedReplies.length > 0) {
+    if (prunedReplies.length > 0) {
       acc.push(nodeWithPruned);
     }
     return acc;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Box, Text, Stack } from '@mantine/core';
-import { Comment } from '../api';
+import { openConfirmModal } from '@mantine/modals';
+import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
 
@@ -66,9 +67,13 @@ const CommentNode = ({
   };
 
   const handleDeleteClick = () => {
-    if (window.confirm('Delete this comment?')) {
-      onDelete(comment.id);
-    }
+    openConfirmModal({
+      title: 'Delete comment',
+      children: 'Are you sure you want to delete this comment?',
+      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: () => onDelete(comment.id),
+    });
   };
 
   return (
@@ -133,9 +138,9 @@ const CommentNode = ({
         </Stack>
       )}
 
-      {comment.replies.length > 0 && (
+      {(comment.replies?.length ?? 0) > 0 && (
         <Stack spacing={8} mt={8}>
-          {comment.replies.map((reply) => (
+          {comment.replies!.map((reply) => (
             <CommentNode
               key={reply.id}
               comment={reply}

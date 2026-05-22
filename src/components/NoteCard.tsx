@@ -76,6 +76,8 @@ const NoteCard = ({
     }
   };
 
+  // commentCount is undefined on the detail route, which renders
+  // its own always-expanded CommentThread – no badge needed there.
   const showCommentButton = commentCount === undefined
     ? false
     : commentCount > 0 || isAuthenticated;
@@ -139,6 +141,11 @@ const NoteCard = ({
                 compact
                 leftIcon={
                   <IconMessageCircle size={14} />
+                }
+                aria-label={
+                  commentCount === 0
+                    ? 'Add a comment'
+                    : undefined
                 }
                 aria-expanded={threadOpen}
                 aria-controls={`comment-thread-${note.id}`}

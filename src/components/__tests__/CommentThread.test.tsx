@@ -11,6 +11,13 @@ import {
   vi,
   beforeEach,
 } from 'vitest';
+
+vi.mock('@mantine/modals', () => ({
+  openConfirmModal: vi.fn(
+    ({ onConfirm }: { onConfirm?: () => void }) =>
+      onConfirm?.()
+  ),
+}));
 import { http, HttpResponse } from 'msw';
 import CommentThread from '../CommentThread';
 import { renderWithProviders } from '../../__tests__/helpers';
@@ -31,10 +38,8 @@ describe('CommentThread', () => {
       <CommentThread noteId={NOTE_ID} />
     );
     expect(
-      document.querySelector('.mantine-Loader-root') ||
-        document.querySelector('[data-testid="loader"]') ||
-        document.querySelector('svg')
-    ).toBeTruthy();
+      screen.getByTestId('thread-loader')
+    ).toBeInTheDocument();
   });
 
   it('renders comments after fetch', async () => {
@@ -126,6 +131,77 @@ describe('CommentThread', () => {
     expect(
       screen.queryByPlaceholderText('Add a comment…')
     ).not.toBeInTheDocument();
+  });
+
+  it('calls onCountChange with -1 after successful delete', async () => {
+    const onCountChange = vi.fn();
+    renderWithProviders(
+      <CommentThread
+        noteId={NOTE_ID}
+        onCountChange={onCountChange}
+      />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete' })
+    );
+
+    await waitFor(() => {
+      expect(onCountChange).toHaveBeenCalledWith(-1);
+    });
+  });
+
+  it('updates comment content after successful edit', async () => {
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit' })
+    );
+    fireEvent.change(
+      screen.getByDisplayValue('Test comment'),
+      { target: { value: 'Updated content' } }
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save' })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Updated content')
+      ).toBeInTheDocument();
+    });
   });
 
   it('calls onCountChange with +1 after successful create', async () => {
