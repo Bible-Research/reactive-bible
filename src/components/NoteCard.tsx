@@ -1,18 +1,36 @@
 import type { MouseEvent } from "react";
-import { Card, Title, Text, Group, Box } from "@mantine/core";
+import { useState } from "react";
+import { Card, Title, Text, Group, Box, Button, Tooltip } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
+import { IconMessageCircle } from "@tabler/icons-react";
 import { Note } from "../types";
+import { useAuthStore } from "../stores/authStore";
 import Verse from "./Verse";
-import Button from "./Button";
+import ButtonComponent from "./Button";
+import CommentThread from "./CommentThread";
 
 interface NoteCardProps {
   note: Note;
   onViewInBible: (book: string, chapter: number, verse: number) => void;
   onEdit?: (note: Note) => void;
   onDelete?: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
+  commentCount?: number;
+  onCountChange?: (delta: number) => void;
 }
 
-const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {  
+const NoteCard = ({
+  note,
+  onViewInBible,
+  onEdit,
+  onDelete,
+  commentCount,
+  onCountChange,
+}: NoteCardProps) => {
+  const [threadOpen, setThreadOpen] = useState(false);
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
+
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
   const book = note?.verses?.[0]?.book || "";
@@ -58,38 +76,44 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
     }
   };
 
+  // commentCount is undefined on the detail route, which renders
+  // its own always-expanded CommentThread – no badge needed there.
+  const showCommentButton = commentCount === undefined
+    ? false
+    : commentCount > 0 || isAuthenticated;
+
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
       <Group position="apart" mb={0}>
         <Title order={4}>{heading}</Title>
         <Group spacing="xs">
-          <Button
+          <ButtonComponent
             variant="subtle"
             size="xs"
             onClick={() => onViewInBible(book, chapter, firstVerse)}
           >
             View in Bible
-          </Button>
+          </ButtonComponent>
           {canShare && (
-            <Button
+            <ButtonComponent
               variant="subtle"
               size="xs"
               onClick={handleShare}
             >
               Share
-            </Button>
+            </ButtonComponent>
           )}
           {canEdit && (
-            <Button
+            <ButtonComponent
               variant="subtle"
               size="xs"
               onClick={() => onEdit!(note)}
             >
               Edit
-            </Button>
+            </ButtonComponent>
           )}
           {canDelete && (
-            <Button
+            <ButtonComponent
               variant="subtle"
               size="xs"
               onClick={
@@ -98,7 +122,42 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
               }
             >
               Remove
-            </Button>
+            </ButtonComponent>
+          )}
+          {showCommentButton && (
+            <Tooltip
+              label={
+                commentCount === 0
+                  ? 'Add a comment'
+                  : `${commentCount} comment${
+                      commentCount === 1 ? '' : 's'
+                    }`
+              }
+              position="top"
+            >
+              <Button
+                variant="subtle"
+                size="xs"
+                compact
+                leftIcon={
+                  <IconMessageCircle size={14} />
+                }
+                aria-label={
+                  commentCount === 0
+                    ? 'Add a comment'
+                    : undefined
+                }
+                aria-expanded={threadOpen}
+                aria-controls={`comment-thread-${note.id}`}
+                onClick={() =>
+                  setThreadOpen((o) => !o)
+                }
+              >
+                {commentCount && commentCount > 0
+                  ? String(commentCount)
+                  : null}
+              </Button>
+            </Tooltip>
           )}
         </Group>
       </Group>
@@ -124,6 +183,18 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
           {note.note_text}
         </Text>
       </Box>
+
+      {threadOpen && (
+        <Box
+          id={`comment-thread-${note.id}`}
+          mt={8}
+        >
+          <CommentThread
+            noteId={note.id}
+            onCountChange={onCountChange}
+          />
+        </Box>
+      )}
     </Card>
   );
 };

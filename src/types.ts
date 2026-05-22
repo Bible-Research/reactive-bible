@@ -37,3 +37,21 @@ export interface FilesetCopyright {
   copyright_date: string;
   copyright_description: string;
 }
+
+export interface CommentAuthor {
+  id: number;
+  username: string;
+}
+
+export interface Comment {
+  id: string;
+  author: CommentAuthor;
+  note_id: string;
+  parent_comment: string | null;
+  content: string;
+  timestamp: string;
+  is_deleted: boolean;
+  replies: Comment[] | undefined;
+}
+
+export type CommentCounts = Record<string, number>;

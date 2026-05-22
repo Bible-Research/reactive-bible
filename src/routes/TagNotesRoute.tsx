@@ -15,11 +15,11 @@ import {
 import { IconShare, IconRefresh } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
-import { Note, Tag } from '../types';
+import { Note, Tag, CommentCounts } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
-import { deleteNote, getTag } from '../api';
+import { deleteNote, getTag, fetchCommentCounts } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 
@@ -46,6 +46,8 @@ export default function TagNotesRoute() {
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [commentCounts, setCommentCounts] =
+    useState<CommentCounts>({});
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -100,6 +102,12 @@ export default function TagNotesRoute() {
           setTag(resolvedTag);
         }
         setLoading(false);
+
+        if (!cancelled && tagId) {
+          fetchCommentCounts({ tagId }).then((counts) => {
+            if (!cancelled) setCommentCounts(counts);
+          }).catch(() => {});
+        }
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading tag notes:', err);
@@ -150,6 +158,16 @@ export default function TagNotesRoute() {
     
     // Switch to Bible view
     setShowNotes(false);
+  };
+
+  const handleCountChange = (
+    noteId: string,
+    delta: number
+  ) => {
+    setCommentCounts((prev) => ({
+      ...prev,
+      [noteId]: (prev[noteId] ?? 0) + delta,
+    }));
   };
 
   const handleTagChange = (value: string | null) => {
@@ -299,8 +317,16 @@ export default function TagNotesRoute() {
               tagName={tag.name}
               notes={notes}
               onViewInBible={handleViewInBible}
-              onEditNote={isAuthenticated ? handleEditNote : undefined}
-              onDeleteNote={isAuthenticated ? handleDeleteNote : undefined}
+              onEditNote={
+                isAuthenticated ? handleEditNote : undefined
+              }
+              onDeleteNote={
+                isAuthenticated
+                  ? handleDeleteNote
+                  : undefined
+              }
+              commentCounts={commentCounts}
+              onCountChange={handleCountChange}
             />
           </Stack>
         ) : (

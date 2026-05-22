@@ -1,7 +1,9 @@
 import { http, HttpResponse } from 'msw';
+import { API_BASE_URL } from '../config';
 
 // Define your request handlers
 const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const COMMENT_BASE = `${API_BASE_URL}/api/v1`;
 
 export const handlers = [
   // --- Single /bible Endpoint Handler ---
@@ -71,6 +73,76 @@ export const handlers = [
   // --- Delete Note ---
   http.delete(`${API_URL}/notes/:id`, () => {
     return HttpResponse.text('Deleted');
+  }),
+
+  // --- Comments ---
+  http.get(`${COMMENT_BASE}/notes/:noteId/comments/`, ({ params }) => {
+    return HttpResponse.json([
+      {
+        id: 'comment-1',
+        author: { id: 1, username: 'testuser' },
+        note_id: params.noteId,
+        parent_comment: null,
+        content: 'Test comment',
+        timestamp: new Date().toISOString(),
+        is_deleted: false,
+        replies: [],
+      },
+    ]);
+  }),
+
+  http.post(
+    `${COMMENT_BASE}/notes/:noteId/comments/`,
+    async ({ params, request }) => {
+      const body = await request.json() as any;
+      return HttpResponse.json({
+        id: 'comment-new',
+        author: { id: 1, username: 'testuser' },
+        note_id: params.noteId,
+        parent_comment: body.parent_comment || null,
+        content: body.content,
+        timestamp: new Date().toISOString(),
+        is_deleted: false,
+        replies: [],
+      }, { status: 201 });
+    }
+  ),
+
+  http.patch(
+    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
+    async ({ params, request }) => {
+      const body = await request.json() as any;
+      return HttpResponse.json({
+        id: params.commentId,
+        author: { id: 1, username: 'testuser' },
+        note_id: params.noteId,
+        parent_comment: null,
+        content: body.content,
+        timestamp: new Date().toISOString(),
+        is_deleted: false,
+        replies: [],
+      });
+    }
+  ),
+
+  http.delete(
+    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
+    () => {
+      return new HttpResponse(null, { status: 204 });
+    }
+  ),
+
+  // --- Comment Counts ---
+  http.get(`${COMMENT_BASE}/comments/counts/`, ({ request }) => {
+    const url = new URL(request.url);
+    const noteIds = url.searchParams.get('note_ids');
+    const counts: Record<string, number> = {};
+    if (noteIds) {
+      noteIds.split(',').forEach((id) => {
+        counts[id] = 1;
+      });
+    }
+    return HttpResponse.json({ counts });
   }),
 
   // --- Copyright ---

@@ -14,6 +14,7 @@ import { IconShare } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import { Note } from '../types';
 import NoteCard from '../components/NoteCard';
+import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
 import { useBibleStore } from '../store';
 
@@ -148,6 +149,7 @@ export default function NoteDetailRoute() {
           note={note}
           onViewInBible={handleViewInBible}
         />
+        <CommentThread noteId={note.id} />
       </Stack>
     </Box>
   );

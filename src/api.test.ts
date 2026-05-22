@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 
 const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const COMMENT_BASE = `${API_URL}`;
 
 describe('API Functions', () => {
   beforeEach(() => {
@@ -111,6 +112,48 @@ describe('API Functions', () => {
     it.skip('should make a DELETE request with note id', async () => {
       const removeNote = await api.deleteNote('abc-123');
       expect(removeNote).toBe('Deleted');
+    });
+  });
+
+  describe('fetchCommentCounts', () => {
+    it('chunks requests when noteIds exceeds 200', async () => {
+      const noteIds = Array.from(
+        { length: 201 },
+        (_, i) => `n${i}`
+      );
+      const result = await api.fetchCommentCounts({ noteIds });
+      expect(Object.keys(result).length).toBe(201);
+      noteIds.forEach((id) => {
+        expect(result[id]).toBe(1);
+      });
+    });
+
+    it('uses tag_id only and ignores noteIds when tagId is set', async () => {
+      let capturedUrl: string | undefined;
+      let callCount = 0;
+      server.use(
+        http.get(
+          `${COMMENT_BASE}/comments/counts/`,
+          ({ request }) => {
+            capturedUrl = request.url;
+            callCount++;
+            return HttpResponse.json({ counts: { 'note-x': 5 } });
+          }
+        )
+      );
+      const noteIds = Array.from(
+        { length: 201 },
+        (_, i) => `n${i}`
+      );
+      const result = await api.fetchCommentCounts({
+        tagId: 'tag-1',
+        noteIds,
+      });
+      expect(result).toEqual({ 'note-x': 5 });
+      expect(callCount).toBe(1);
+      const url = new URL(capturedUrl!);
+      expect(url.searchParams.get('tag_id')).toBe('tag-1');
+      expect(url.searchParams.has('note_ids')).toBe(false);
     });
   });
 
