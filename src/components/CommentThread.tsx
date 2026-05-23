@@ -30,6 +30,7 @@ const normalize = (
 ): Comment[] =>
   (nodes ?? []).map((c) => ({
     ...c,
+    images: c.images ?? [],
     replies: normalize(c.replies),
   }));
 
