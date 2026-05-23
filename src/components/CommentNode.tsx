@@ -1,7 +1,15 @@
 import { useState } from 'react';
-import { Box, Text, Stack } from '@mantine/core';
+import {
+  Box,
+  Text,
+  Stack,
+  SimpleGrid,
+  ActionIcon,
+  Modal,
+} from '@mantine/core';
 import { openConfirmModal } from '@mantine/modals';
-import { Comment } from '../types';
+import { IconX } from '@tabler/icons-react';
+import { Comment, CommentImage } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
 
@@ -12,10 +20,20 @@ interface CommentNodeProps {
   isAuthenticated: boolean;
   onReply: (
     parentId: string,
-    content: string
+    content: string,
+    files: File[]
   ) => Promise<void>;
-  onUpdate: (id: string, content: string) => Promise<void>;
+  onUpdate: (
+    id: string,
+    content: string,
+    files: File[]
+  ) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onDeleteImage?: (
+    commentId: string,
+    imageId: string
+  ) => Promise<void>;
+  onRequestRefresh?: () => void;
 }
 
 const MAX_DEPTH = 6;
@@ -28,9 +46,13 @@ const CommentNode = ({
   onReply,
   onUpdate,
   onDelete,
+  onDeleteImage,
+  onRequestRefresh,
 }: CommentNodeProps) => {
   const [replyOpen, setReplyOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [lightboxImage, setLightboxImage] =
+    useState<CommentImage | null>(null);
 
   const isAuthor =
     !!currentUsername &&
@@ -56,13 +78,19 @@ const CommentNode = ({
     }
   };
 
-  const handleReplySubmit = async (content: string) => {
-    await onReply(comment.id, content);
+  const handleReplySubmit = async (
+    content: string,
+    files: File[]
+  ) => {
+    await onReply(comment.id, content, files);
     setReplyOpen(false);
   };
 
-  const handleEditSubmit = async (content: string) => {
-    await onUpdate(comment.id, content);
+  const handleEditSubmit = async (
+    content: string,
+    files: File[]
+  ) => {
+    await onUpdate(comment.id, content, files);
     setEditing(false);
   };
 
@@ -75,6 +103,8 @@ const CommentNode = ({
       onConfirm: () => onDelete(comment.id),
     });
   };
+
+  const images = comment.images ?? [];
 
   return (
     <Box
@@ -108,9 +138,73 @@ const CommentNode = ({
               autoFocus
               onSubmit={handleEditSubmit}
               onCancel={() => setEditing(false)}
+              existingImages={images}
+              onDeleteImage={
+                onDeleteImage
+                  ? (imageId) =>
+                      onDeleteImage(comment.id, imageId)
+                  : undefined
+              }
             />
           ) : (
-            <Text size="sm">{comment.content}</Text>
+            <>
+              <Text size="sm">{comment.content}</Text>
+
+              {images.length > 0 && (
+                <SimpleGrid
+                  cols={3}
+                  spacing={4}
+                  breakpoints={[
+                    { maxWidth: 'xs', cols: 2 },
+                  ]}
+                  mt={4}
+                >
+                  {images.map((img) => (
+                    <Box
+                      key={img.id}
+                      style={{
+                        position: 'relative',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <img
+                        src={img.signed_url}
+                        loading="lazy"
+                        alt="comment attachment"
+                        onError={onRequestRefresh}
+                        onClick={() => setLightboxImage(img)}
+                        style={{
+                          width: '100%',
+                          maxHeight: 200,
+                          objectFit: 'cover',
+                          borderRadius: 4,
+                          display: 'block',
+                        }}
+                      />
+                      {isAuthor && onDeleteImage && (
+                        <ActionIcon
+                          size="xs"
+                          color="red"
+                          variant="filled"
+                          style={{
+                            position: 'absolute',
+                            top: 4,
+                            right: 4,
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteImage(comment.id, img.id);
+                          }}
+                          aria-label={`Delete image ${img.id}`}
+                        >
+                          <IconX size={10} />
+                        </ActionIcon>
+                      )}
+                    </Box>
+                  ))}
+                </SimpleGrid>
+              )}
+            </>
           )}
 
           {!editing && (
@@ -150,10 +244,28 @@ const CommentNode = ({
               onReply={onReply}
               onUpdate={onUpdate}
               onDelete={onDelete}
+              onDeleteImage={onDeleteImage}
+              onRequestRefresh={onRequestRefresh}
             />
           ))}
         </Stack>
       )}
+
+      <Modal
+        opened={lightboxImage !== null}
+        onClose={() => setLightboxImage(null)}
+        size="xl"
+        title="Image"
+        padding="xs"
+      >
+        {lightboxImage && (
+          <img
+            src={lightboxImage.signed_url}
+            alt="full size"
+            style={{ width: '100%', height: 'auto' }}
+          />
+        )}
+      </Modal>
     </Box>
   );
 };

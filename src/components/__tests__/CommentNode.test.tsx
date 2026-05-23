@@ -3,7 +3,16 @@ import { screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import CommentNode from '../CommentNode';
 import { renderWithProviders } from '../../__tests__/helpers';
-import { Comment } from '../../api';
+import { Comment, CommentImage } from '../../types';
+
+const makeImage = (id: string): CommentImage => ({
+  id,
+  signed_url: `https://example.com/${id}.png`,
+  content_type: 'image/png',
+  size_bytes: 1024,
+  uploaded_by: 1,
+  created_at: '2024-01-01T00:00:00Z',
+});
 
 const makeComment = (overrides: Partial<Comment> = {}): Comment => ({
   id: 'c1',
@@ -14,6 +23,7 @@ const makeComment = (overrides: Partial<Comment> = {}): Comment => ({
   timestamp: '2024-01-01T00:00:00Z',
   is_deleted: false,
   replies: [],
+  images: [],
   ...overrides,
 });
 
@@ -24,6 +34,7 @@ const defaultProps = {
   onReply: vi.fn().mockResolvedValue(undefined),
   onUpdate: vi.fn().mockResolvedValue(undefined),
   onDelete: vi.fn().mockResolvedValue(undefined),
+  onDeleteImage: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('CommentNode', () => {
@@ -142,5 +153,43 @@ describe('CommentNode', () => {
     expect(
       screen.getByText('A nested reply')
     ).toBeInTheDocument();
+  });
+
+  it('renders image thumbnails when comment has images', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+      />
+    );
+    expect(
+      document.querySelector('img[alt="comment attachment"]')
+    ).toBeInTheDocument();
+  });
+
+  it('shows delete affordance on each image for the author', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+        currentUsername="alice"
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Delete image img-1' })
+    ).toBeInTheDocument();
+  });
+
+  it('hides delete affordance on images for non-author', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+        currentUsername="bob"
+      />
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Delete image img-1' })
+    ).not.toBeInTheDocument();
   });
 });
