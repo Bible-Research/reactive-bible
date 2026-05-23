@@ -51,6 +51,15 @@ export interface CommentAuthor {
   username: string;
 }
 
+export interface CommentImage {
+  id: string;
+  signed_url: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_by: number;
+  created_at: string;
+}
+
 export interface Comment {
   id: string;
   author: CommentAuthor;
@@ -60,6 +69,7 @@ export interface Comment {
   timestamp: string;
   is_deleted: boolean;
   replies: Comment[] | undefined;
+  images: CommentImage[];
 }
 
 export type CommentCounts = Record<string, number>;
