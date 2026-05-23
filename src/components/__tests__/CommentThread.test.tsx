@@ -238,4 +238,126 @@ describe('CommentThread', () => {
       expect(onCountChange).toHaveBeenCalledWith(1);
     });
   });
+
+  it('removes image from comment after delete-image', async () => {
+    server.use(
+      http.get(
+        `${API_URL}/notes/${NOTE_ID}/comments/`,
+        () =>
+          HttpResponse.json([
+            {
+              id: 'comment-1',
+              author: { id: 1, username: 'testuser' },
+              note_id: NOTE_ID,
+              parent_comment: null,
+              content: 'Test comment',
+              timestamp: new Date().toISOString(),
+              is_deleted: false,
+              replies: [],
+              images: [
+                {
+                  id: 'img-1',
+                  signed_url: 'https://example.com/img-1.png',
+                  content_type: 'image/png',
+                  size_bytes: 1024,
+                  uploaded_by: 1,
+                  created_at: new Date().toISOString(),
+                },
+              ],
+            },
+          ])
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('img[alt="comment attachment"]')
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete image img-1' })
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('img[alt="comment attachment"]')
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('calls image upload endpoint after creating comment with a file', async () => {
+    let uploadCalled = false;
+    server.use(
+      http.post(
+        `${API_URL}/notes/${NOTE_ID}/comments/:commentId/images/`,
+        async () => {
+          uploadCalled = true;
+          return HttpResponse.json(
+            {
+              id: 'img-new',
+              signed_url: 'https://example.com/img-new.png',
+              content_type: 'image/png',
+              size_bytes: 100,
+              uploaded_by: 1,
+              created_at: new Date().toISOString(),
+            },
+            { status: 201 }
+          );
+        }
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('Add a comment…')
+      ).toBeInTheDocument();
+    });
+
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+    const file = new File(['x'], 'test.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fireEvent.change(input);
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Add a comment…'),
+      { target: { value: 'Comment with image' } }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+
+    await waitFor(() => {
+      expect(uploadCalled).toBe(true);
+    });
+  });
 });
