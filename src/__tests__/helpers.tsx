@@ -107,6 +107,11 @@ export function mockDomApis() {
       disconnect: vi.fn(),
     };
   });
+
+  // Mock URL.createObjectURL / revokeObjectURL — happy-dom
+  // doesn't support File as a Blob subclass
+  global.URL.createObjectURL = vi.fn(() => 'blob:test-url');
+  global.URL.revokeObjectURL = vi.fn();
 }
 
 /**
