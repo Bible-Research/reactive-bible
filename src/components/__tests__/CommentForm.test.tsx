@@ -73,8 +73,34 @@ describe('CommentForm', () => {
     );
     await waitFor(() => {
       expect(
-        screen.getByText('Comment cannot be empty.')
+        screen.getByText('Add text or attach an image.')
       ).toBeInTheDocument();
+    });
+  });
+
+  it('submits with only staged images and no text', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <CommentForm onSubmit={onSubmit} />
+    );
+
+    const input = document
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(
+      ['x'], 'photo.png', { type: 'image/png' }
+    );
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fireEvent.change(input);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Post' })
+    );
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('', [file]);
     });
   });
 

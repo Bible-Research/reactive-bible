@@ -101,8 +101,8 @@ const CommentForm = ({
   };
 
   const handleSubmit = async () => {
-    if (!value.trim()) {
-      setError('Comment cannot be empty.');
+    if (!value.trim() && staged.length === 0) {
+      setError('Add text or attach an image.');
       return;
     }
     setError(null);
