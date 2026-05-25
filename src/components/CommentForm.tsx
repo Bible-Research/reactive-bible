@@ -103,8 +103,8 @@ const CommentForm = ({
 
   const handleSubmit = async () => {
     // Doc-JSON is never '' even when the editor is blank.
-    if (!toPlainText(value).trim()) {
-      setError('Comment cannot be empty.');
+    if (!toPlainText(value).trim() && staged.length === 0) {
+      setError('Add text or attach an image.');
       return;
     }
     setError(null);
