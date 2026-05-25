@@ -9,7 +9,7 @@ import {
 } from '@mantine/core';
 import { openConfirmModal } from '@mantine/modals';
 import { IconX } from '@tabler/icons-react';
-import { Comment, CommentImage } from '../types';
+import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
 
@@ -51,8 +51,8 @@ const CommentNode = ({
 }: CommentNodeProps) => {
   const [replyOpen, setReplyOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [lightboxImage, setLightboxImage] =
-    useState<CommentImage | null>(null);
+  const [lightboxImageId, setLightboxImageId] =
+    useState<string | null>(null);
 
   const isAuthor =
     !!currentUsername &&
@@ -105,6 +105,8 @@ const CommentNode = ({
   };
 
   const images = comment.images ?? [];
+  const lightboxImage =
+    images.find((img) => img.id === lightboxImageId) ?? null;
 
   return (
     <Box
@@ -172,7 +174,7 @@ const CommentNode = ({
                         loading="lazy"
                         alt="comment attachment"
                         onError={onRequestRefresh}
-                        onClick={() => setLightboxImage(img)}
+                        onClick={() => setLightboxImageId(img.id)}
                         style={{
                           width: '100%',
                           maxHeight: 200,
@@ -252,8 +254,8 @@ const CommentNode = ({
       )}
 
       <Modal
-        opened={lightboxImage !== null}
-        onClose={() => setLightboxImage(null)}
+        opened={lightboxImageId !== null}
+        onClose={() => setLightboxImageId(null)}
         size="xl"
         title="Image"
         padding="xs"
@@ -262,6 +264,7 @@ const CommentNode = ({
           <img
             src={lightboxImage.signed_url}
             alt="full size"
+            onError={onRequestRefresh}
             style={{ width: '100%', height: 'auto' }}
           />
         )}

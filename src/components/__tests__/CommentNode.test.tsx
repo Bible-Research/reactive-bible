@@ -192,4 +192,63 @@ describe('CommentNode', () => {
       screen.queryByRole('button', { name: 'Delete image img-1' })
     ).not.toBeInTheDocument();
   });
+
+  it('lightbox shows fresh signed URL after comment prop update', () => {
+    const img1 = makeImage('img-1');
+    const { rerender } = renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [img1] })}
+        {...defaultProps}
+      />
+    );
+
+    fireEvent.click(
+      document.querySelector(
+        'img[alt="comment attachment"]'
+      )!
+    );
+
+    const lightboxImg = screen.getByAltText(
+      'full size'
+    ) as HTMLImageElement;
+    expect(lightboxImg.src).toBe(
+      'https://example.com/img-1.png'
+    );
+
+    const refreshedImg = {
+      ...img1,
+      signed_url: 'https://example.com/img-1-refreshed.png',
+    };
+    rerender(
+      <CommentNode
+        comment={makeComment({ images: [refreshedImg] })}
+        {...defaultProps}
+      />
+    );
+
+    expect(lightboxImg.src).toBe(
+      'https://example.com/img-1-refreshed.png'
+    );
+  });
+
+  it('lightbox img onError calls onRequestRefresh', () => {
+    const onRequestRefresh = vi.fn();
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+        onRequestRefresh={onRequestRefresh}
+      />
+    );
+
+    fireEvent.click(
+      document.querySelector(
+        'img[alt="comment attachment"]'
+      )!
+    );
+
+    fireEvent.error(screen.getByAltText('full size'));
+
+    expect(onRequestRefresh).toHaveBeenCalled();
+  });
 });
