@@ -114,6 +114,9 @@ const CommentForm = ({
       urlsRef.current = [];
       setStaged([]);
       setStagedUrls([]);
+    } catch {
+      // caller already surfaced the error via notification;
+      // keep form state so the user can retry
     } finally {
       setLocalSubmitting(false);
     }

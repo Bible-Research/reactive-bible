@@ -151,12 +151,13 @@ const CommentThread = ({
       );
       onCountChange?.(1);
       silentLoad();
-    } catch {
+    } catch (err) {
       showNotification({
         color: 'red',
         title: 'Error',
         message: 'Failed to post comment.',
       });
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -198,12 +199,13 @@ const CommentThread = ({
         }))
       );
       silentLoad();
-    } catch {
+    } catch (err) {
       showNotification({
         color: 'red',
         title: 'Error',
         message: 'Failed to update comment.',
       });
+      throw err;
     }
   };
 

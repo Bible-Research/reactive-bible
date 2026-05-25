@@ -299,6 +299,50 @@ describe('CommentThread', () => {
     });
   });
 
+  it('retains form content when createComment fails', async () => {
+    server.use(
+      http.post(
+        `${API_URL}/notes/${NOTE_ID}/comments/`,
+        () => HttpResponse.error()
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('Add a comment…')
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Add a comment…'),
+      { target: { value: 'Keep me on failure' } }
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Post' })
+    );
+
+    await waitFor(() => {
+      expect(
+        (screen.getByPlaceholderText(
+          'Add a comment…'
+        ) as HTMLTextAreaElement).value
+      ).toBe('Keep me on failure');
+    });
+  });
+
   it('calls image upload endpoint after creating comment with a file', async () => {
     let uploadCalled = false;
     server.use(
