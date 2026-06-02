@@ -7,10 +7,11 @@ import {
   Text,
   rem,
 } from "@mantine/core";
-import { IconBookmark, IconMap2, IconX } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import { IconBookmark, IconCopy, IconMap2, IconX } from "@tabler/icons-react";
+import { useCallback, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { showNotification } from "@mantine/notifications";
 import AddTagNoteModal from "./AddTagNoteModal";
 
 const VerseActionToolbar = () => {
@@ -22,6 +23,38 @@ const VerseActionToolbar = () => {
   const [noteModalOpened, setNoteModalOpened] = useState(false);
   const [mapModalOpened, setMapModalOpened] = useState(false);
   const location = useLocation();
+
+  const passageRef = useMemo(() => {
+    const sorted = [...activeVerses].sort((a, b) => a - b);
+    if (sorted.length === 0) return `${activeBook} ${activeChapter}`;
+    const isConsecutive = sorted.every(
+      (v, i) => i === 0 || v === sorted[i - 1] + 1
+    );
+    if (isConsecutive) {
+      return sorted.length === 1
+        ? `${activeBook} ${activeChapter}:${sorted[0]}`
+        : `${activeBook} ${activeChapter}:${sorted[0]}-${sorted[sorted.length - 1]}`;
+    }
+    return `${activeBook} ${activeChapter}:${sorted.join(", ")}`;
+  }, [activeBook, activeChapter, activeVerses]);
+
+  const handleCopyAndOpenWebViewer = useCallback(async () => {
+    window.open("https://biblemapper.com/web/", "_blank", "noopener,noreferrer");
+    try {
+      await navigator.clipboard.writeText(passageRef);
+      showNotification({
+        title: "Copied",
+        message: `${passageRef} copied to clipboard`,
+        color: "green",
+      });
+    } catch {
+      showNotification({
+        title: "Error",
+        message: "Failed to copy to clipboard",
+        color: "red",
+      });
+    }
+  }, [passageRef]);
 
   const mapUrl = useMemo(() => {
     const ref = `${activeBook} ${activeChapter}`;
@@ -74,6 +107,15 @@ const VerseActionToolbar = () => {
           </Text>
         </Group>
         <Group spacing="xs">
+          <ActionIcon
+            variant="light"
+            color="orange"
+            size="lg"
+            onClick={handleCopyAndOpenWebViewer}
+            title="Copy passage & open WebViewer"
+          >
+            <IconCopy size={rem(20)} />
+          </ActionIcon>
           <ActionIcon
             variant="light"
             color="teal"
