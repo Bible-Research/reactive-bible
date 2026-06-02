@@ -7,7 +7,7 @@ import {
   Text,
   rem,
 } from "@mantine/core";
-import { IconBook2, IconBookmark, IconCopy, IconMap2, IconSearch, IconX } from "@tabler/icons-react";
+import { IconBook2, IconBookmark, IconCopy, IconMap2, IconMessage2, IconSearch, IconX } from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
@@ -152,6 +152,17 @@ const VerseActionToolbar = () => {
     return `https://www.bible.com/bible/59/${bookCode}.${activeChapter}.${verseStr}.ESV`;
   }, [activeBook, activeChapter, activeVerses]);
 
+  const bibleHubUrl = useMemo(() => {
+    const sorted = [...activeVerses].sort((a, b) => a - b);
+    const verse = sorted[sorted.length - 1];
+    if (verse == null) return null;
+    const bookPath =
+      activeBook === "Song of Solomon"
+        ? "songs"
+        : activeBook.toLowerCase().replace(/ /g, "_");
+    return `https://biblehub.com/${bookPath}/${activeChapter}-${verse}.htm#commentary`;
+  }, [activeBook, activeChapter, activeVerses]);
+
   const blbUrl = useMemo(() => {
     const sorted = [...activeVerses].sort((a, b) => a - b);
     const verse = sorted[sorted.length - 1];
@@ -247,6 +258,23 @@ const VerseActionToolbar = () => {
               title="Open in YouVersion (Bible.com)"
             >
               <IconBook2 size={rem(20)} />
+            </ActionIcon>
+          )}
+          {bibleHubUrl && (
+            <ActionIcon
+              variant="light"
+              color="lime"
+              size="lg"
+              onClick={() =>
+                window.open(
+                  bibleHubUrl,
+                  "_blank",
+                  "noopener,noreferrer"
+                )
+              }
+              title="Commentary on BibleHub"
+            >
+              <IconMessage2 size={rem(20)} />
             </ActionIcon>
           )}
           {blbUrl && (
