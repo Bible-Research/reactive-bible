@@ -174,10 +174,10 @@ const VerseActionToolbar = () => {
       <Box
         sx={(theme) => ({
           position: "fixed",
-          bottom: isVisible ? `${bottomOffset}px` : "-56px",
+          bottom: isVisible ? `${bottomOffset}px` : "-200px",
           left: 0,
           right: 0,
-          height: rem(56),
+          minHeight: rem(56),
           zIndex: 200,
           transition: "bottom 0.25s ease-in-out",
           pointerEvents: isVisible ? "auto" : "none",
@@ -191,10 +191,13 @@ const VerseActionToolbar = () => {
               : theme.colors.gray[3]
           }`,
           display: "flex",
+          flexWrap: "wrap",
           alignItems: "center",
           justifyContent: "space-between",
           paddingLeft: rem(16),
           paddingRight: rem(16),
+          paddingTop: rem(8),
+          paddingBottom: rem(8),
         })}
       >
         <Group spacing="xs">
@@ -210,7 +213,7 @@ const VerseActionToolbar = () => {
             {activeVerses.length !== 1 ? "s" : ""} selected
           </Text>
         </Group>
-        <Group spacing="xs">
+        <Group spacing="xs" sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
           <ActionIcon
             variant="light"
             color="orange"
