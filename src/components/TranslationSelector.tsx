@@ -188,7 +188,7 @@ const TranslationSelector = () => {
         onClick={() => setOpened(true)}
         color="gray"
       >
-        Translations
+        Change Translation
       </Button>
     </>
   );

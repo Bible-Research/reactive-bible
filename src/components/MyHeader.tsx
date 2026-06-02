@@ -4,12 +4,10 @@ import {
   Burger,
   Center,
   Header,
-  Text,
   useMantineTheme,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
-import AddTagNoteModal from "./AddTagNoteModal";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
 
@@ -23,7 +21,6 @@ const MyHeader = ({
   open: () => void;
 }) => {
   const theme = useMantineTheme();
-  const [noteModalOpened, setNoteModalOpened] = useState(false);
   const [visible, setVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -75,20 +72,6 @@ const MyHeader = ({
           <ActionIcon variant="transparent" onClick={open}>
             <IconSearch />
           </ActionIcon>
-          <Text
-            weight={500}
-            size="lg"
-            onClick={() => setNoteModalOpened(true)}
-            sx={{ cursor: "pointer" }}
-          >
-            Add Note
-          </Text>
-          {noteModalOpened && (
-            <AddTagNoteModal
-              opened={noteModalOpened}
-              onClose={() => setNoteModalOpened(false)}
-            />
-          )}
           <Audio />
           <TranslationSelector />
         </Box>

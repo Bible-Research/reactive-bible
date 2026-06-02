@@ -20,6 +20,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useAuthStore } from "./stores/authStore";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import VerseActionToolbar from "./components/VerseActionToolbar";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -110,6 +111,7 @@ export default function App() {
           <ErrorBoundary>
             <AppRoutes />
           </ErrorBoundary>
+          {!isAuthPage && <VerseActionToolbar />}
           <SearchModal opened={modalOpened} close={modalFn.close} />
           <MainMenu
             opened={mainMenuOpened}
