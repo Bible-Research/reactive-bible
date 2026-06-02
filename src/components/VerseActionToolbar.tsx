@@ -149,7 +149,7 @@ const VerseActionToolbar = () => {
     const bookCode = BOOK_NAME_TO_CODE[activeBook.toLowerCase()];
     if (!bookCode) return null;
     const verseStr = formatVerseRanges(activeVerses);
-    return `https://www.bible.com/bible/1/${bookCode}.${activeChapter}.${verseStr}.KJV`;
+    return `https://www.bible.com/bible/59/${bookCode}.${activeChapter}.${verseStr}.ESV`;
   }, [activeBook, activeChapter, activeVerses]);
 
   const blbUrl = useMemo(() => {
