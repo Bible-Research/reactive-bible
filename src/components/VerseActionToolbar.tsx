@@ -1,22 +1,32 @@
 import {
   ActionIcon,
+  Anchor,
   Box,
   Group,
+  Modal,
   Text,
   rem,
 } from "@mantine/core";
-import { IconBookmark, IconX } from "@tabler/icons-react";
-import { useState } from "react";
+import { IconBookmark, IconMap2, IconX } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
 import AddTagNoteModal from "./AddTagNoteModal";
 
 const VerseActionToolbar = () => {
   const activeVerses = useBibleStore((state) => state.activeVerses);
+  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeChapter = useBibleStore((state) => state.activeChapter);
   const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const [noteModalOpened, setNoteModalOpened] = useState(false);
+  const [mapModalOpened, setMapModalOpened] = useState(false);
   const location = useLocation();
+
+  const mapUrl = useMemo(() => {
+    const ref = `${activeBook} ${activeChapter}`;
+    return `https://biblemapper.com/blog/mapfinder/?ref=${encodeURIComponent(ref)}`;
+  }, [activeBook, activeChapter]);
 
   const isBibleRoute = location.pathname.startsWith("/bible");
   const isVisible = activeVerses.length > 0 && isBibleRoute;
@@ -66,6 +76,15 @@ const VerseActionToolbar = () => {
         <Group spacing="xs">
           <ActionIcon
             variant="light"
+            color="teal"
+            size="lg"
+            onClick={() => setMapModalOpened(true)}
+            title="View on map"
+          >
+            <IconMap2 size={rem(20)} />
+          </ActionIcon>
+          <ActionIcon
+            variant="light"
             color="blue"
             size="lg"
             onClick={() => setNoteModalOpened(true)}
@@ -81,6 +100,29 @@ const VerseActionToolbar = () => {
           onClose={() => setNoteModalOpened(false)}
         />
       )}
+      <Modal
+        opened={mapModalOpened}
+        onClose={() => setMapModalOpened(false)}
+        title="Bible Maps"
+        size="xl"
+        styles={{
+          body: { padding: 0 },
+          header: { paddingLeft: rem(16), paddingRight: rem(16) },
+        }}
+      >
+        <iframe
+          src={mapUrl}
+          title="BibleMapper PassageBrowser"
+          width="100%"
+          height="600px"
+          style={{ border: "none", display: "block" }}
+        />
+        <Box p="xs" sx={{ textAlign: "center" }}>
+          <Anchor href={mapUrl} target="_blank" rel="noopener noreferrer" size="sm">
+            Open in new tab
+          </Anchor>
+        </Box>
+      </Modal>
     </>
   );
 };
