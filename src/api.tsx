@@ -34,6 +34,8 @@ export interface KjvBook {
   book_name: string;
 }
 
+export const fetchPassage = (passage: string) => {}
+
 export const getBooks = (): { book_name: string; book_id: string }[] => {
   const set = new Set<string>();
   data.map((book: KjvBook) => {
