@@ -43,7 +43,6 @@ const NoteCard = ({
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (part.startsWith("@")) {
-
         newParts.push(<a onClick={() => onGrabBiblePassage(part)}>{part}</a>)
       } else newParts.push(part);
     }
