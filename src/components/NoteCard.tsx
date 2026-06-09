@@ -1,5 +1,5 @@
-import {MouseEvent, useEffect} from "react";
 import { useState } from "react";
+import type { MouseEvent } from "react";
 import { Card, Title, Text, Group, Box, Button, Tooltip } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
 import { IconMessageCircle } from "@tabler/icons-react";
@@ -27,7 +27,11 @@ const NoteCard = ({
   onCountChange,
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
-  const [passageContainer, setPassageContainer] = useState({})
+  const [passageContainer, setPassageContainer] = useState<{ book: string; chapter: number, verse: number; }>({
+    book: "",
+    chapter: 0,
+    verse: 0
+  });
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
@@ -74,8 +78,8 @@ const NoteCard = ({
     return newParts;
    }
 
-   // useEffect(() => {}, [passageContainer])
-  // console.log(passageContainer)
+  // useEffect(() => {}, [passageContainer])
+  console.log(passageContainer)
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
