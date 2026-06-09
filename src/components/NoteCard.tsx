@@ -27,13 +27,35 @@ const NoteCard = ({
   onCountChange,
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
-  const [passage, setPassage] = useState('')
+  const [passageContainer, setPassageContainer] = useState({})
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
 
   const onGrabBiblePassage = (hashtag: string) => {
-    setPassage(hashtag.replace('+', ' ').replace('@', ''));
+    const parts = hashtag.split(/[@+.:]/).filter(Boolean);
+    const biblePassageParts = {
+      book: "",
+      chapter: 0,
+      verse: 0
+    } as { book: string; chapter: number, verse: number; }
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+
+      if(i === 0) {
+        biblePassageParts['book'] = part
+      }
+
+      if (i === 1) {
+        biblePassageParts['chapter'] = +part;
+      }
+
+      if(i === parts.length - 1) {
+        biblePassageParts['verse'] = +part;
+      }
+    }
+
+    setPassageContainer(biblePassageParts);
   }
 
   const transformNote = (note_text: string) => {
@@ -42,18 +64,18 @@ const NoteCard = ({
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
-      if (part.startsWith("@")) {
-        newParts.push(<a onClick={() => onGrabBiblePassage(part)}>{part}</a>)
-      } else newParts.push(part);
+      if (part.startsWith("@"))
+        newParts.push(
+          <a onClick={() => onGrabBiblePassage(part)}>{part}</a>
+        );
+      else newParts.push(part);
     }
 
     return newParts;
    }
 
-   useEffect(() => {}, [passage])
-
-   console.log(transformNote(note.note_text))
-   console.log(passage)
+   // useEffect(() => {}, [passageContainer])
+  // console.log(passageContainer)
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
@@ -208,8 +230,8 @@ const NoteCard = ({
           {transformNote(note.note_text)}
         </Text>
       </Box>
-      {passage && (
-        <h1>{passage.replace('+', ' ').replace('@', '')}</h1>
+      {passageContainer && (
+        <h1>{passageContainer?.book}</h1>
       )}
 
       {threadOpen && (
