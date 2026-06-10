@@ -8,6 +8,10 @@ const useStyles = createStyles((theme) => ({
     cursor: "pointer",
     transition: "background-color 150ms ease",
   },
+  linkReadOnly: {
+    cursor: "default",
+    WebkitTapHighlightColor: "transparent",
+  },
   linkActive: {
     backgroundColor:
       theme.colorScheme === "dark"
@@ -28,10 +32,12 @@ const Verse = ({
   verse,
   text,
   folded,
+  selectable = true,
 }: {
   verse: number;
   text: string;
   folded?: boolean;
+  selectable?: boolean;
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
@@ -53,6 +59,7 @@ const Verse = ({
   const userClickedRef = useRef(false);
 
   const handleVerseClick = () => {
+    if (!selectable) return;
     userClickedRef.current = true;
     if (isActive) {
       setActiveVerses(activeVerses.filter((v) => v !== verse));
@@ -112,8 +119,10 @@ const Verse = ({
       component="div"
       display="flex"
       data-active={isActive}
-      className={cx(classes.link, {
-        [classes.linkActive]: isActive,
+      className={cx({
+        [classes.link]: selectable,
+        [classes.linkReadOnly]: !selectable,
+        [classes.linkActive]: selectable && isActive,
         [classes.linkAudioActive]: isAudioActive,
       })}
       py={7}

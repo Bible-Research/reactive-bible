@@ -167,10 +167,21 @@ const NoteCard = ({
       <Box mt={-10}>
         {versesFolded
           ? note?.verses?.slice(0, 1).map(v => (
-            <Verse key={v.verse} verse={v.verse} text={v.text} folded />
+            <Verse
+              key={v.verse}
+              verse={v.verse}
+              text={v.text}
+              folded
+              selectable={false}
+            />
           ))
           : note?.verses?.map(v => (
-            <Verse key={v.verse} verse={v.verse} text={v.text} />
+            <Verse
+              key={v.verse}
+              verse={v.verse}
+              text={v.text}
+              selectable={false}
+            />
           ))
         }
       </Box>
