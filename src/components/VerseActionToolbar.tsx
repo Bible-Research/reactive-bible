@@ -133,11 +133,27 @@ const VerseActionToolbar = () => {
         ? `?v=${formatVerseRanges(activeVerses)}`
         : "";
     const url = `${window.location.origin}/bible/${bookEncoded}/${activeChapter}${verseParam}`;
+
+    const sorted = [...activeVerses].sort((a, b) => a - b);
+    const verseText = sorted
+      .map((v) => {
+        const el = document.querySelector(
+          `[title="passage-verse-${v}"]`
+        );
+        return el?.textContent?.trim() ?? "";
+      })
+      .filter(Boolean)
+      .join(" ");
+
+    const shareBody = verseText
+      ? `${verseText}\n\n${passageRef}`
+      : passageRef;
+
     if (navigator.share) {
       try {
         await navigator.share({
           title: passageRef,
-          text: passageRef,
+          text: shareBody,
           url,
         });
       } catch (err) {
@@ -153,8 +169,11 @@ const VerseActionToolbar = () => {
         }
       }
     } else {
+      const clipboardText = verseText
+        ? `${verseText}\n\n${passageRef}\n\n${url}`
+        : `${passageRef}\n\n${url}`;
       try {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(clipboardText);
         showNotification({
           title: "Link copied",
           message: `Link to ${passageRef} copied to clipboard`,
