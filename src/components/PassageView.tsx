@@ -126,7 +126,7 @@ const PassageView = () => {
       'Try selecting a different text version in the ' +
       'Translation Settings ("Change Translation" button).';
     return (
-      <ScrollArea h="80vh">
+      <ScrollArea h="calc(100vh - 112px)">
         <Box p="md">
           <Alert
             icon={<IconAlertCircle size={16} />}
@@ -152,7 +152,7 @@ const PassageView = () => {
   }
 
   return (
-    <ScrollArea h="80vh">
+    <ScrollArea h="calc(100vh - 112px)">
       <Box pb={showAudioPlayer ? 120 : 0}>
         {verses.map((verse) => (
           <Verse verse={verse.verse} key={verse.verse} text={verse.text} />

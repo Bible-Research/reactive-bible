@@ -76,7 +76,7 @@ export default function App() {
         <ModalsProvider>
         <Notifications position="top-right" zIndex={2077} />
         <AppShell
-          padding="md"
+          padding={0}
           navbar={
             isBibleView ? (
               <BibleSelector
