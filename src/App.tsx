@@ -52,6 +52,7 @@ export default function App() {
   const location = useLocation();
   const isAuthPage = location.pathname === '/login' || 
                      location.pathname === '/register';
+  const isBibleView = location.pathname.startsWith('/bible');
   useWindowEvent("keydown", (event) => {
     if (event.key === "/") {
       event.preventDefault();
@@ -77,7 +78,7 @@ export default function App() {
         <AppShell
           padding="md"
           navbar={
-            !isAuthPage ? (
+            isBibleView ? (
               <BibleSelector
                 opened={bibleSelectorOpened}
                 setOpened={setBibleSelectorOpened}
@@ -92,7 +93,7 @@ export default function App() {
             />
           }
           footer={
-            !isAuthPage ? (
+            isBibleView ? (
               <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
             ) : undefined
           }
@@ -111,7 +112,7 @@ export default function App() {
           <ErrorBoundary>
             <AppRoutes />
           </ErrorBoundary>
-          {!isAuthPage && <VerseActionToolbar />}
+          {isBibleView && <VerseActionToolbar />}
           <SearchModal opened={modalOpened} close={modalFn.close} />
           <MainMenu
             opened={mainMenuOpened}
