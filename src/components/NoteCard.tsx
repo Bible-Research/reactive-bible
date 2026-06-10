@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MouseEvent } from "react";
 import { Card, Title, Text, Group, Box, Button, Tooltip } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
@@ -8,6 +8,7 @@ import { useAuthStore } from "../stores/authStore";
 import Verse from "./Verse";
 import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
+import {getVersesInChapter} from "../api.tsx";
 
 interface NoteCardProps {
   note: Note;
@@ -32,11 +33,12 @@ const NoteCard = ({
     chapter: 0,
     verse: 0
   });
+  const [passage, setPassage] = useState<{ verse: number; text: string; }|undefined>({text: "", verse: 0})
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
 
-  const onGrabBiblePassage = (hashtag: string) => {
+  const onGrabBiblePassage = (hashtag: string): void => {
     const parts = hashtag.split(/[@+.:]/).filter(Boolean);
     const biblePassageParts = {
       book: "",
@@ -78,8 +80,31 @@ const NoteCard = ({
     return newParts;
    }
 
-  // useEffect(() => {}, [passageContainer])
-  console.log(passageContainer)
+  useEffect(() => {
+    if (!passageContainer) return;
+    let cancelled = false;
+    const getPassage = async () => {
+      const { book, chapter, verse } = passageContainer;
+
+      try {
+        const res = await getVersesInChapter(book, chapter, 'LVSGLU8')
+        if (cancelled) return
+
+        const verseFound: { verse: number; text: string; } | undefined = res?.find(r => r.verse === verse);
+        setPassage(verseFound);
+        console.log('...verseFound:', verseFound)
+      } catch (err: any) {
+        console.error('Failed to load passage', err);
+        throw new Error(err);
+      }
+    }
+
+    void getPassage()
+
+    return () => {
+      cancelled = true
+    };
+  }, [passageContainer, passageContainer.book, passageContainer.chapter, passageContainer.verse])
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
@@ -235,7 +260,10 @@ const NoteCard = ({
         </Text>
       </Box>
       {passageContainer && (
-        <h1>{passageContainer?.book}</h1>
+        <>
+          <h1>{passageContainer?.book} {passageContainer?.chapter || ""} {passage?.verse || ""}</h1>
+          <p>{passage?.text}</p>
+        </>
       )}
 
       {threadOpen && (

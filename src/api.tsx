@@ -106,7 +106,7 @@ export const getVersesFromApi = async (
     const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const data = await response.json();
-    const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
+    const verses = data.verses?.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
     cacheVerses(thebook, thechapter, filesetId, verses);
     return verses;
   } catch (error) {

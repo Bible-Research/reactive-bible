@@ -220,7 +220,7 @@ export const cacheVerses = (
   const now = Date.now();
 
   // Add new verses to the cache and LRU queue
-  verses.forEach((verse) => {
+  verses?.forEach((verse) => {
     const cacheKey = `${bibleVersion}:${book}:${chapter}:${verse.verse}`;
     if (!cache[cacheKey]) {
       // Only add if it's a new verse to avoid duplicates in queue
