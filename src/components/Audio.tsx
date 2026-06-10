@@ -3,10 +3,15 @@ import { Howl } from "howler";
 import { useBibleStore } from "../store";
 import { getKjvAudioUrl, getBibleAudioUrl, getAudioTimestamps, getPassage } from "../api";
 import { ActionIcon, rem, Loader } from "@mantine/core";
-import { IconPlayerPlay } from "@tabler/icons-react";
+import { IconPlayerPlay, IconAlertCircle } from "@tabler/icons-react";
 import AudioPlayer from "./AudioPlayer";
 import { useVerseHighlighter } from "../hooks/useVerseHighlighter";
 import { VerseTimestamp } from "../types";
+import { showNotification } from "@mantine/notifications";
+import {
+  getTestamentByBookName,
+  filesetCoversTestament,
+} from "../utils/bibleUtils";
 
 const Audio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -291,10 +296,42 @@ const Audio = () => {
               errorMsg = err.message.split(':')[0]; // Get first part
             }
           }
-          
+
+          // Build a testament-aware hint for the notification
+          const testament = getTestamentByBookName(activeBook);
+          const fileset = translations
+            .flatMap((t) => t.filesets)
+            .find((f) => f.id === activeAudioFilesetId);
+          let hint =
+            'Try selecting a different audio version in the ' +
+            'Translation Settings ("Change Translation" button).';
+          if (
+            testament &&
+            fileset &&
+            !filesetCoversTestament(fileset.size, testament)
+          ) {
+            const covered = fileset.size.toUpperCase().startsWith('NT')
+              ? 'New Testament'
+              : 'Old Testament';
+            const needed =
+              testament === 'OT' ? 'Old Testament' : 'New Testament';
+            hint =
+              `The selected audio version (${activeAudioFilesetId}) only ` +
+              `covers the ${covered}. Try selecting a ${needed} audio ` +
+              `version in the Translation Settings.`;
+          }
+
+          showNotification({
+            title: errorMsg,
+            message: hint,
+            color: 'orange',
+            autoClose: 8000,
+          });
+
           setError(errorMsg);
           setIsPlaying(false);
           setLoading(false);
+          setShowPlayer(false);
         }
       }
     };
@@ -323,6 +360,8 @@ const Audio = () => {
       >
         {loading ? (
           <Loader size={rem(20)} />
+        ) : error ? (
+          <IconAlertCircle size={rem(20)} color="orange" />
         ) : (
           <IconPlayerPlay size={rem(20)} />
         )}

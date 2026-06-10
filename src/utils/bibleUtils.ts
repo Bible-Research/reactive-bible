@@ -111,3 +111,31 @@ export const NEW_TESTAMENT_BOOKS = new Set(
 export const getTestament = (bookCode: string): Testament | null => {
   return BOOK_CODE_TO_TESTAMENT[bookCode.toUpperCase()] || null;
 };
+
+/**
+ * Checks whether a fileset's size field covers the given testament.
+ * DBT size values: "C" = complete, "NT"/"NT1"/"NT2" = New Testament,
+ * "OT"/"OT1"/"OT2" = Old Testament.
+ * Returns true if compatible or if the size is unknown/ambiguous.
+ */
+export const filesetCoversTestament = (
+  filesetSize: string | null,
+  testament: Testament | null,
+): boolean => {
+  if (!filesetSize || !testament) return true;
+  const s = filesetSize.toUpperCase();
+  if (s === 'C') return true;
+  if (testament === 'OT') return s.startsWith('OT');
+  if (testament === 'NT') return s.startsWith('NT');
+  return true;
+};
+
+/**
+ * Given a full book name (e.g. "Genesis"), returns its testament or null.
+ */
+export const getTestamentByBookName = (
+  bookName: string,
+): Testament | null => {
+  const code = BOOK_NAME_TO_CODE[bookName.toLowerCase()];
+  return code ? getTestament(code) : null;
+};
