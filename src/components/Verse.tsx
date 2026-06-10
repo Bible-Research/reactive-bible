@@ -24,7 +24,15 @@ const useStyles = createStyles((theme) => ({
   },
 }));
 
-const Verse = ({ verse, text }: { verse: number; text: string }) => {
+const Verse = ({
+  verse,
+  text,
+  folded,
+}: {
+  verse: number;
+  text: string;
+  folded?: boolean;
+}) => {
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
   const activeVerses = useBibleStore((state) => state.activeVerses);
@@ -141,6 +149,13 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
         order={3} 
         weight={400} 
         title={"passage-verse-" + verse}
+        sx={folded ? {
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          textOverflow: 'ellipsis',
+          minWidth: 0,
+          flex: 1,
+        } : undefined}
       >
         {text}
       </Title>

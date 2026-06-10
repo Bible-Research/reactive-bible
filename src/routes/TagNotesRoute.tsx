@@ -12,7 +12,7 @@ import {
   ActionIcon,
   Tooltip,
 } from '@mantine/core';
-import { IconShare, IconRefresh } from '@tabler/icons-react';
+import { IconShare, IconRefresh, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
 import { Note, Tag, CommentCounts } from '../types';
@@ -41,6 +41,8 @@ export default function TagNotesRoute() {
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
   );
+  const versesFolded = useBibleStore((state) => state.versesFolded);
+  const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   const [tag, setTag] = useState<Tag | null>(null);
@@ -287,6 +289,21 @@ export default function TagNotesRoute() {
           <Text color="dimmed" size="sm">
             {notes.length} {notes.length === 1 ? 'note' : 'notes'}
           </Text>
+          <Tooltip
+            label={versesFolded ? "Unfold verses" : "Fold verses"}
+            position="left"
+          >
+            <ActionIcon
+              onClick={() => setVersesFolded(!versesFolded)}
+              variant="subtle"
+              color={versesFolded ? "blue" : "gray"}
+              size="lg"
+            >
+              {versesFolded
+                ? <IconArrowsMaximize size={20} />
+                : <IconArrowsMinimize size={20} />}
+            </ActionIcon>
+          </Tooltip>
           <Tooltip label="Refresh notes" position="left">
             <ActionIcon
               onClick={handleRefresh}

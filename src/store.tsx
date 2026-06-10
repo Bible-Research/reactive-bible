@@ -38,6 +38,8 @@ interface BibleState {
   lastSelectedTagId: string | null;
   audioActiveVerse: number | null;
   setAudioActiveVerse: (verse: number | null) => void;
+  versesFolded: boolean;
+  setVersesFolded: (folded: boolean) => void;
   setActiveBook: (activeBook: string) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
@@ -74,6 +76,7 @@ export const initialState = {
   showNotes: false,
   lastSelectedTagId: null,
   audioActiveVerse: null as number | null,
+  versesFolded: false,
 };
 
 export const useBibleStore = createWithEqualityFn<BibleState>()(
@@ -191,6 +194,25 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),
       setAudioActiveVerse: (audioActiveVerse) =>
         set({ audioActiveVerse }),
+      setVersesFolded: (versesFolded) => {
+        set({ versesFolded });
+        if (!versesFolded) {
+          setTimeout(() => {
+            const { activeVerses, audioActiveVerse } =
+              useBibleStore.getState();
+            const focusVerse =
+              activeVerses[0] ?? audioActiveVerse;
+            if (focusVerse != null) {
+              document
+                .getElementById("verse-" + focusVerse)
+                ?.scrollIntoView({
+                  block: "center",
+                  behavior: "smooth",
+                });
+            }
+          }, 50);
+        }
+      },
     }),
     {
       name: "bible-storage",
