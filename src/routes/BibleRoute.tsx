@@ -13,41 +13,28 @@ export default function BibleRoute() {
   const {
     activeBook,
     activeChapter,
-    setActiveBook,
-    setActiveChapter,
+    setActiveBookAndChapter,
     setShowNotes,
     setVersesFolded,
   } = useBibleStore();
 
-  console.log('📖 BibleRoute render:', { 
-    urlBook: book, 
-    urlChapter: chapter, 
-    storeBook: activeBook, 
-    storeChapter: activeChapter 
-  });
-
-  // Sync URL params to store (one-way: URL is source of truth)
+  // Sync URL params to store (one-way: URL is source of truth).
+  // activeBook/activeChapter are intentionally included so this
+  // re-runs after Zustand persist rehydration overwrites the state.
   useEffect(() => {
-    // Ensure we're showing Bible view, not notes
     setShowNotes(false);
     setVersesFolded(false);
-    
+
     if (book && chapter) {
       const chapterNum = parseInt(chapter, 10);
-      
-      // Update store to match URL
       if (book !== activeBook || chapterNum !== activeChapter) {
-        console.log(`📖 Syncing URL to store: ${book} ${chapterNum}`);
-        setActiveBook(book);
-        setActiveChapter(chapterNum);
+        setActiveBookAndChapter(book, chapterNum);
       }
     } else {
-      // No URL params - redirect to current store state
-      console.log(`📖 No URL params, redirecting to: ${activeBook} ${activeChapter}`);
       navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, chapter]); // Only depend on URL params to prevent loops
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book, chapter, activeBook, activeChapter]);
 
   return <Passage />;
 }

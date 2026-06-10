@@ -41,6 +41,10 @@ interface BibleState {
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
   setActiveBook: (activeBook: string) => void;
+  setActiveBookAndChapter: (
+    activeBook: string,
+    activeChapter: number
+  ) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
   setActiveChapter: (activeChapter: number) => void;
@@ -89,6 +93,13 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         activeVerses: [],
         audioActiveVerse: null
       }),
+      setActiveBookAndChapter: (activeBook, activeChapter) =>
+        set({
+          activeBook,
+          activeChapter,
+          activeVerses: [],
+          audioActiveVerse: null,
+        }),
       setActiveBookOnly: (activeBook) => set({ activeBook }),
       setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
       setActiveChapter: (activeChapter) => set({ 
