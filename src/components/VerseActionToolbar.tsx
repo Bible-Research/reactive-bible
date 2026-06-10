@@ -6,8 +6,9 @@ import {
   Modal,
   Text,
   rem,
+  useMantineTheme,
 } from "@mantine/core";
-import { IconBook2, IconBookmark, IconCopy, IconMap2, IconMessage2, IconSearch, IconShare, IconX } from "@tabler/icons-react";
+import { IconBookmark, IconMap2, IconShare, IconX } from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
@@ -111,6 +112,14 @@ const VerseActionToolbar = () => {
   const [noteModalOpened, setNoteModalOpened] = useState(false);
   const [mapModalOpened, setMapModalOpened] = useState(false);
   const location = useLocation();
+  const theme = useMantineTheme();
+  const faviconStyle = {
+    width: rem(28),
+    height: rem(28),
+    mixBlendMode: (
+      theme.colorScheme === "dark" ? "screen" : "multiply"
+    ) as React.CSSProperties["mixBlendMode"],
+  };
 
   const passageRef = useMemo(() => {
     const sorted = [...activeVerses].sort((a, b) => a - b);
@@ -288,13 +297,16 @@ const VerseActionToolbar = () => {
         </Group>
         <Group spacing="xs" sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
           <ActionIcon
-            variant="light"
-            color="orange"
+            variant="transparent"
             size="lg"
             onClick={handleCopyAndOpenWebViewer}
             title="Copy passage & open WebViewer"
           >
-            <IconCopy size={rem(20)} />
+            <img
+              src="https://www.google.com/s2/favicons?sz=64&domain=biblemapper.com"
+              alt="BibleMapper"
+              style={faviconStyle}
+            />
           </ActionIcon>
           <ActionIcon
             variant="light"
@@ -307,8 +319,7 @@ const VerseActionToolbar = () => {
           </ActionIcon>
           {youVersionUrl && (
             <ActionIcon
-              variant="light"
-              color="grape"
+              variant="transparent"
               size="lg"
               onClick={() =>
                 window.open(
@@ -319,13 +330,16 @@ const VerseActionToolbar = () => {
               }
               title="Open in YouVersion (Bible.com)"
             >
-              <IconBook2 size={rem(20)} />
+              <img
+                src="https://www.bible.com/apple-touch-icon.png"
+                alt="YouVersion"
+                style={faviconStyle}
+              />
             </ActionIcon>
           )}
           {bibleHubUrl && (
             <ActionIcon
-              variant="light"
-              color="lime"
+              variant="transparent"
               size="lg"
               onClick={() =>
                 window.open(
@@ -336,20 +350,27 @@ const VerseActionToolbar = () => {
               }
               title="Commentary on BibleHub"
             >
-              <IconMessage2 size={rem(20)} />
+              <img
+                src="https://www.google.com/s2/favicons?sz=64&domain=biblehub.com"
+                alt="BibleHub"
+                style={faviconStyle}
+              />
             </ActionIcon>
           )}
           {blbUrl && (
             <ActionIcon
-              variant="light"
-              color="violet"
+              variant="transparent"
               size="lg"
               onClick={() =>
                 window.open(blbUrl, "_blank", "noopener,noreferrer")
               }
               title="Look up in Blue Letter Bible"
             >
-              <IconSearch size={rem(20)} />
+              <img
+                src="https://www.google.com/s2/favicons?sz=64&domain=blueletterbible.org"
+                alt="Blue Letter Bible"
+                style={faviconStyle}
+              />
             </ActionIcon>
           )}
           <ActionIcon
