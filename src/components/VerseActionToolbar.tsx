@@ -7,7 +7,7 @@ import {
   Text,
   rem,
 } from "@mantine/core";
-import { IconBook2, IconBookmark, IconCopy, IconMap2, IconMessage2, IconSearch, IconX } from "@tabler/icons-react";
+import { IconBook2, IconBookmark, IconCopy, IconMap2, IconMessage2, IconSearch, IconShare, IconX } from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
@@ -125,6 +125,50 @@ const VerseActionToolbar = () => {
     }
     return `${activeBook} ${activeChapter}:${sorted.join(", ")}`;
   }, [activeBook, activeChapter, activeVerses]);
+
+  const handleShare = useCallback(async () => {
+    const bookEncoded = encodeURIComponent(activeBook);
+    const verseParam =
+      activeVerses.length > 0
+        ? `?v=${formatVerseRanges(activeVerses)}`
+        : "";
+    const url = `${window.location.origin}/bible/${bookEncoded}/${activeChapter}${verseParam}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: passageRef,
+          text: passageRef,
+          url,
+        });
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          err.name !== "AbortError"
+        ) {
+          showNotification({
+            title: "Error",
+            message: "Failed to share",
+            color: "red",
+          });
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        showNotification({
+          title: "Link copied",
+          message: `Link to ${passageRef} copied to clipboard`,
+          color: "blue",
+        });
+      } catch {
+        showNotification({
+          title: "Error",
+          message: "Failed to copy link",
+          color: "red",
+        });
+      }
+    }
+  }, [activeBook, activeChapter, activeVerses, passageRef]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
     window.open("https://biblemapper.com/web/", "_blank", "noopener,noreferrer");
@@ -290,6 +334,15 @@ const VerseActionToolbar = () => {
               <IconSearch size={rem(20)} />
             </ActionIcon>
           )}
+          <ActionIcon
+            variant="light"
+            color="cyan"
+            size="lg"
+            onClick={handleShare}
+            title="Share this passage"
+          >
+            <IconShare size={rem(20)} />
+          </ActionIcon>
           <ActionIcon
             variant="light"
             color="blue"
