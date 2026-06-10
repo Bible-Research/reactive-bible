@@ -153,8 +153,7 @@ const VerseActionToolbar = () => {
       try {
         await navigator.share({
           title: passageRef,
-          text: shareBody,
-          url,
+          text: `${shareBody}\n\n${url}`,
         });
       } catch (err) {
         if (
