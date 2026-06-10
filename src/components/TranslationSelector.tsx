@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   Modal,
   Button,
@@ -28,6 +29,7 @@ const useStyles = createStyles((theme) => ({
 const TranslationSelector = () => {
   const { classes } = useStyles();
   const [opened, setOpened] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const {
     translations,
@@ -114,6 +116,7 @@ const TranslationSelector = () => {
         onClose={() => setOpened(false)}
         title="Select Translation"
         size="lg"
+        fullScreen={isMobile}
       >
         <Stack>
           <SegmentedControl
