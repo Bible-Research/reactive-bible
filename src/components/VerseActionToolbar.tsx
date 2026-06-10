@@ -10,6 +10,7 @@ import {
 } from "@mantine/core";
 import { IconBookmark, IconMap2, IconShare, IconX } from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
+import { useMediaQuery } from "@mantine/hooks";
 import { useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { showNotification } from "@mantine/notifications";
@@ -111,6 +112,7 @@ const VerseActionToolbar = () => {
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const [noteModalOpened, setNoteModalOpened] = useState(false);
   const [mapModalOpened, setMapModalOpened] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const location = useLocation();
   const theme = useMantineTheme();
   const faviconStyle = {
@@ -404,8 +406,20 @@ const VerseActionToolbar = () => {
         onClose={() => setMapModalOpened(false)}
         title="Bible Maps"
         size="xl"
+        fullScreen={isMobile}
         styles={{
-          body: { padding: 0 },
+          content: isMobile
+            ? { display: "flex", flexDirection: "column" }
+            : {},
+          body: {
+            padding: 0,
+            ...(isMobile && {
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }),
+          },
           header: { paddingLeft: rem(16), paddingRight: rem(16) },
         }}
       >
@@ -413,8 +427,12 @@ const VerseActionToolbar = () => {
           src={mapUrl}
           title="BibleMapper PassageBrowser"
           width="100%"
-          height="600px"
-          style={{ border: "none", display: "block" }}
+          height={isMobile ? undefined : "600px"}
+          style={{
+            border: "none",
+            display: "block",
+            ...(isMobile && { flex: 1, minHeight: 0 }),
+          }}
         />
         <Box p="xs" sx={{ textAlign: "center" }}>
           <Anchor href={mapUrl} target="_blank" rel="noopener noreferrer" size="sm">
