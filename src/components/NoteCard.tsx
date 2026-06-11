@@ -58,6 +58,26 @@ const NoteCard = ({
 
       if(i === parts.length - 1) {
         biblePassageParts['verse'] = +part;
+
+        if (part.includes('-')) {
+          const verses = part.split('-');
+          const freshVerses: any[] = [];
+
+          const start = +verses[0];
+          const end = +verses[verses.length - 1];
+          let current = start;
+
+          while (current <= end) {
+            freshVerses.push(current);
+
+            current++
+          }
+
+          console.log('part with -', part)
+          console.log('...verses:', verses)
+          console.log('...freshVerses:', freshVerses)
+          console.log('...end:', end)
+        }
       }
     }
 
@@ -87,7 +107,7 @@ const NoteCard = ({
       const { book, chapter, verse } = passageContainer;
 
       try {
-        const res = await getVersesInChapter(book, chapter, 'LVSGLU8')
+        const res = await getVersesInChapter(book, chapter, 'ENGESV')
         if (cancelled) return
 
         const verseFound: { verse: number; text: string; } | undefined = res?.find(r => r.verse === verse);
