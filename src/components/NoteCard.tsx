@@ -273,7 +273,6 @@ const NoteCard = ({
         })}
       >
         <Text fs="italic">
-          {/*{note.note_text}*/}
           {transformNote(note.note_text)}
         </Text>
       </Box>
