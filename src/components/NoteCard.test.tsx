@@ -44,6 +44,44 @@ describe.skip('NoteCard Component', () => {
     ],
   });
 
+  const noteWithScripturePresent = createMockNote({
+    id: 'n3',
+    note_text: 'This is a note with scripture present. @John.1:1-5',
+    tag: createMockTag({ id: '2', name: 'Jesus is God' }),
+    verses: [
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: 1,
+        text: 'In the beginning...',
+      }),
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: 2,
+        text: 'He was in the beginning...',
+      }),
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: 3,
+        text: 'All things were made through him...',
+      }),
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: 4,
+        text: 'In him was life, and the life...',
+      }),
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: 5,
+        text: 'There was a man...',
+      }),
+    ]
+  })
+
   const mockOnViewInBible = vi.fn();
   const mockOnEdit = vi.fn();
   const mockOnDelete = vi.fn();
@@ -131,4 +169,17 @@ describe.skip('NoteCard Component', () => {
       expect(mockOnDelete).toHaveBeenCalledWith(singleVerseNote.id);
     });
   });
+
+  // TODO: need to revise this test att the end
+  it.skip('should render notes with scriptures which have @ symbol appended to the front of it', async () => {
+    renderWithProviders(
+      <NoteCard note={noteWithScripturePresent} onViewInBible={mockOnViewInBible} onEdit={mockOnEdit} onDelete={mockOnDelete} />
+    )
+
+    const openButton = screen.getByRole('link');
+
+    fireEvent.click(openButton);
+
+    expect()
+  })
 });

@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
-import type { MouseEvent } from "react";
-import { Card, Title, Text, Group, Box, Button, Tooltip } from "@mantine/core";
-import { showNotification } from "@mantine/notifications";
-import { IconMessageCircle } from "@tabler/icons-react";
-import { Note } from "../types";
-import { useAuthStore } from "../stores/authStore";
+import type {MouseEvent} from "react";
+import {useEffect, useState} from "react";
+import {Box, Button, Card, Group, Text, Title, Tooltip} from "@mantine/core";
+import {showNotification} from "@mantine/notifications";
+import {IconMessageCircle} from "@tabler/icons-react";
+import {Note} from "../types";
+import {useAuthStore} from "../stores/authStore";
 import Verse from "./Verse";
 import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
 import {getVersesInChapter} from "../api.tsx";
+import {findVersesInBetween} from "../utils/findVersesInBetween.ts";
 
 interface NoteCardProps {
   note: Note;
@@ -17,6 +18,17 @@ interface NoteCardProps {
   onDelete?: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
+}
+
+interface PassageContainerState {
+  book: string;
+  chapter: number,
+  verses: number[];
+}
+
+interface PassageState {
+  verse: number;
+  text: string;
 }
 
 const NoteCard = ({
@@ -28,12 +40,12 @@ const NoteCard = ({
   onCountChange,
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
-  const [passageContainer, setPassageContainer] = useState<{ book: string; chapter: number, verse: number; }>({
+  const [passageContainer, setPassageContainer] = useState<PassageContainerState>({
     book: "",
     chapter: 0,
-    verse: 0
+    verses: []
   });
-  const [passage, setPassage] = useState<{ verse: number; text: string; }|undefined>({text: "", verse: 0})
+  const [passages, setPassages] = useState<PassageState[] | undefined>([{text: "", verse: 0}]);
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
@@ -43,8 +55,8 @@ const NoteCard = ({
     const biblePassageParts = {
       book: "",
       chapter: 0,
-      verse: 0
-    } as { book: string; chapter: number, verse: number; }
+      verses: []
+    } as { book: string; chapter: number, verses: number[]; }
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
 
@@ -57,27 +69,11 @@ const NoteCard = ({
       }
 
       if(i === parts.length - 1) {
-        biblePassageParts['verse'] = +part;
-
         if (part.includes('-')) {
-          const verses = part.split('-');
-          const freshVerses: any[] = [];
+          const [startStr, endStr] = part.split('-');
 
-          const start = +verses[0];
-          const end = +verses[verses.length - 1];
-          let current = start;
-
-          while (current <= end) {
-            freshVerses.push(current);
-
-            current++
-          }
-
-          console.log('part with -', part)
-          console.log('...verses:', verses)
-          console.log('...freshVerses:', freshVerses)
-          console.log('...end:', end)
-        }
+          biblePassageParts['verses'] = findVersesInBetween(startStr, endStr);
+        } else biblePassageParts['verses'].push(+part);
       }
     }
 
@@ -92,7 +88,9 @@ const NoteCard = ({
       const part = parts[i];
       if (part.startsWith("@"))
         newParts.push(
-          <a onClick={() => onGrabBiblePassage(part)}>{part}</a>
+          <a onClick={() => {
+            onGrabBiblePassage(part)
+          }}>{part}</a>
         );
       else newParts.push(part);
     }
@@ -104,14 +102,14 @@ const NoteCard = ({
     if (!passageContainer) return;
     let cancelled = false;
     const getPassage = async () => {
-      const { book, chapter, verse } = passageContainer;
+      const { book, chapter, verses } = passageContainer;
 
       try {
         const res = await getVersesInChapter(book, chapter, 'ENGESV')
         if (cancelled) return
 
-        const verseFound: { verse: number; text: string; } | undefined = res?.find(r => r.verse === verse);
-        setPassage(verseFound);
+        const verseFound: { verse: number; text: string; }[] | undefined = res?.filter(res => verses?.includes(res.verse));
+        setPassages(verseFound);
         console.log('...verseFound:', verseFound)
       } catch (err: any) {
         console.error('Failed to load passage', err);
@@ -124,7 +122,7 @@ const NoteCard = ({
     return () => {
       cancelled = true
     };
-  }, [passageContainer, passageContainer.book, passageContainer.chapter, passageContainer.verse])
+  }, [passageContainer, passageContainer.book, passageContainer.chapter, passageContainer.verses])
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
@@ -281,8 +279,12 @@ const NoteCard = ({
       </Box>
       {passageContainer && (
         <>
-          <h1>{passageContainer?.book} {passageContainer?.chapter || ""} {passage?.verse || ""}</h1>
-          <p>{passage?.text}</p>
+          <h1>{passageContainer?.book} {passageContainer?.chapter || ""}</h1>
+          <>
+            {passages?.map((passage: PassageState, i: number) => (
+              <Text key={i}>{passage.verse}{". "}{passage.text}</Text>
+            ))}
+          </>
         </>
       )}
 
