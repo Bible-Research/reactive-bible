@@ -1,7 +1,7 @@
+import { useEffect } from "react";
 import { Modal } from "@mantine/core";
 import { editNote } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect } from "react";
 import NoteForm from "./NoteForm";
 import { Note } from "../types";
 

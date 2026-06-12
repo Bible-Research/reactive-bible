@@ -1,6 +1,6 @@
 import type {MouseEvent} from "react";
 import {useEffect, useState} from "react";
-import {Box, Button, Card, Group, Text, Title, Tooltip} from "@mantine/core";
+import {Box, Button, Card, Group, Text, Title, Tooltip, Anchor} from "@mantine/core";
 import {showNotification} from "@mantine/notifications";
 import {IconMessageCircle} from "@tabler/icons-react";
 import {Note} from "../types";
@@ -56,7 +56,7 @@ const NoteCard = ({
       book: "",
       chapter: 0,
       verses: []
-    } as { book: string; chapter: number, verses: number[]; }
+    } as { book: string; chapter: number, verses: number[]; };
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
 
@@ -65,7 +65,7 @@ const NoteCard = ({
       }
 
       if (i === 1) {
-        biblePassageParts['chapter'] = +part;
+        biblePassageParts['chapter'] = Number(part);
       }
 
       if(i === parts.length - 1) {
@@ -88,9 +88,7 @@ const NoteCard = ({
       const part = parts[i];
       if (part.startsWith("@"))
         newParts.push(
-          <a onClick={() => {
-            onGrabBiblePassage(part)
-          }}>{part}</a>
+          <Anchor onClick={() => onGrabBiblePassage(part)}>{part}</Anchor>
         );
       else newParts.push(part);
     }
@@ -110,7 +108,6 @@ const NoteCard = ({
 
         const verseFound: { verse: number; text: string; }[] | undefined = res?.filter(res => verses?.includes(res.verse));
         setPassages(verseFound);
-        console.log('...verseFound:', verseFound)
       } catch (err: any) {
         console.error('Failed to load passage', err);
         throw new Error(err);
