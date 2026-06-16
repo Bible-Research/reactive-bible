@@ -68,12 +68,44 @@ const Audio = () => {
   // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
   useEffect(() => {
     if ('mediaSession' in navigator && audio) {
-      const translationName = translations.find(t => t.filesets.some(f => f.id === activeAudioFilesetId))?.name || 'Unknown Version';
+      const translationName = translations.find(
+        t => t.filesets.some(f => f.id === activeAudioFilesetId)
+      )?.name || 'Unknown Version';
       navigator.mediaSession.metadata = new MediaMetadata({
         title: `${activeBook} ${activeChapter}`,
         artist: translationName,
         album: 'Bible Audio',
       });
+
+      // Required for lock-screen action handlers to fire on Android
+      navigator.mediaSession.playbackState =
+        isPlaying ? 'playing' : 'paused';
+
+      // Helper: push current position/duration to the OS so that
+      // lock-screen seeking and the seekforward/seekbackward actions
+      // work correctly.
+      const syncPositionState = () => {
+        const duration = audio.duration();
+        const position = audio.seek() as number;
+        if (
+          duration > 0 &&
+          typeof position === 'number' &&
+          !isNaN(position) &&
+          position <= duration
+        ) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration,
+              playbackRate: 1,
+              position,
+            });
+          } catch {
+            // setPositionState throws if values are out of range
+          }
+        }
+      };
+
+      syncPositionState();
 
       navigator.mediaSession.setActionHandler('play', () => {
         // Only update state, let useEffect handle audio playback
@@ -92,52 +124,59 @@ const Audio = () => {
 
       // Seek backward (headphones with seek buttons)
       navigator.mediaSession.setActionHandler(
-        'seekbackward', 
-        () => {
+        'seekbackward',
+        (details) => {
+          const offset = details.seekOffset ?? 10;
           const currentTime = audio.seek() as number;
-          const newTime = Math.max(0, currentTime - 10);
+          const newTime = Math.max(0, currentTime - offset);
           audio.seek(newTime);
+          syncPositionState();
         }
       );
 
       // Seek forward (headphones with seek buttons)
       navigator.mediaSession.setActionHandler(
-        'seekforward', 
-        () => {
+        'seekforward',
+        (details) => {
+          const offset = details.seekOffset ?? 10;
           const currentTime = audio.seek() as number;
           const duration = audio.duration();
-          const newTime = Math.min(duration, currentTime + 10);
+          const newTime = Math.min(duration, currentTime + offset);
           audio.seek(newTime);
+          syncPositionState();
         }
       );
 
       // Previous track (car stereo prev button)
       navigator.mediaSession.setActionHandler(
-        'previoustrack', 
+        'previoustrack',
         () => {
           const currentTime = audio.seek() as number;
           const newTime = Math.max(0, currentTime - 10);
           audio.seek(newTime);
+          syncPositionState();
         }
       );
 
-      // Next track: 10s (car stereo next button)
+      // Next track (car stereo next button)
       navigator.mediaSession.setActionHandler(
-        'nexttrack', 
+        'nexttrack',
         () => {
           const currentTime = audio.seek() as number;
           const duration = audio.duration();
           const newTime = Math.min(duration, currentTime + 10);
           audio.seek(newTime);
+          syncPositionState();
         }
       );
 
       // Seek to specific time (additional car stereo fallback)
       navigator.mediaSession.setActionHandler(
-        'seekto', 
+        'seekto',
         (details) => {
           if (details.seekTime !== undefined) {
             audio.seek(details.seekTime);
+            syncPositionState();
           }
         }
       );
@@ -148,18 +187,9 @@ const Audio = () => {
         navigator.mediaSession.setActionHandler('play', null);
         navigator.mediaSession.setActionHandler('pause', null);
         navigator.mediaSession.setActionHandler('stop', null);
-        navigator.mediaSession.setActionHandler(
-          'seekbackward', 
-          null
-        );
-        navigator.mediaSession.setActionHandler(
-          'seekforward', 
-          null
-        );
-        navigator.mediaSession.setActionHandler(
-          'previoustrack', 
-          null
-        );
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
         navigator.mediaSession.setActionHandler('nexttrack', null);
         navigator.mediaSession.setActionHandler('seekto', null);
       }
