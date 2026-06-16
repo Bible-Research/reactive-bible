@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
 import { getKjvAudioUrl, getBibleAudioUrl, getAudioTimestamps, getPassage } from "../api";
@@ -36,6 +37,7 @@ const Audio = () => {
     (state) => state.setActiveBookShort
   );
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
+  const navigate = useNavigate();
   const getPassageResult = getPassage();
 
   // Reset audio when chapter/book/version changes
@@ -182,6 +184,10 @@ const Audio = () => {
       setActiveBookOnly(next.book_name);
       setActiveBookShort(next.book_id);
       setActiveChapter(next.chapter);
+      navigate(
+        `/bible/${next.book_name}/${next.chapter}`,
+        { replace: true }
+      );
       return true; // Successfully moved to next chapter
     }
 
