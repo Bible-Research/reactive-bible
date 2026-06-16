@@ -15,6 +15,7 @@ const AUDIO_CACHE_KEY = 'bible_audio_cache';
 const NOTES_CACHE_KEY = 'bible_notes_cache';
 const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
 const MAX_VERSES = 500;
+const CACHE_VERSION = 2;
 
 // ============================================
 // IN-MEMORY CACHE FOR LOCALSTORAGE READS
@@ -96,8 +97,9 @@ interface VerseCache {
 }
 
 interface VerseCacheMetadata {
+  version: number;
   totalVerses: number;
-  lruQueue: string[]; // Keys in LRU order (oldest first)
+  lruQueue: string[]; // Chapter keys in LRU order (oldest first)
 }
 
 interface AudioData {
@@ -141,12 +143,18 @@ export const getVerseCache = (): VerseCache => {
 export const getVerseCacheMetadata = (): VerseCacheMetadata => {
   try {
     const metadata = getCachedLocalStorage(VERSE_CACHE_METADATA_KEY);
-    return metadata
-      ? JSON.parse(metadata)
-      : { totalVerses: 0, lruQueue: [] };
+    if (!metadata) {
+      return { version: CACHE_VERSION, totalVerses: 0, lruQueue: [] };
+    }
+    const parsed: VerseCacheMetadata = JSON.parse(metadata);
+    if (parsed.version !== CACHE_VERSION) {
+      clearVerseCache();
+      return { version: CACHE_VERSION, totalVerses: 0, lruQueue: [] };
+    }
+    return parsed;
   } catch (error) {
     console.error('Error reading verse cache metadata:', error);
-    return { totalVerses: 0, lruQueue: [] };
+    return { version: CACHE_VERSION, totalVerses: 0, lruQueue: [] };
   }
 };
 
@@ -172,41 +180,34 @@ export const getCachedVerses = (
 ): { verse: number; text: string }[] | null => {
   const cache = getVerseCache();
   const metadata = getVerseCacheMetadata();
-  const cacheKey = `${bibleVersion}:${book}:${chapter}`;
+  const chapterKey = `${bibleVersion}:${book}:${chapter}`;
 
-  // Check if all verses for this chapter are cached
+  // Chapter-level LRU: chapter must be present in queue
+  const lruIndex = metadata.lruQueue.indexOf(chapterKey);
+  if (lruIndex === -1) return null;
+
+  // Move chapter to end of queue (most recently used)
+  metadata.lruQueue.splice(lruIndex, 1);
+  metadata.lruQueue.push(chapterKey);
+
+  // Collect all verses for this chapter
   const cachedVerses: { verse: number; text: string }[] = [];
-  let foundAny = false;
-
   Object.keys(cache).forEach((key) => {
-    if (key.startsWith(cacheKey + ':')) {
-      foundAny = true;
+    if (key.startsWith(chapterKey + ':')) {
       const verseData = cache[key];
       cachedVerses.push({
         verse: verseData.verse,
         text: verseData.text,
       });
-
-      // Update LRU: move to end of queue
-      const lruIndex = metadata.lruQueue.indexOf(key);
-      if (lruIndex > -1) {
-        metadata.lruQueue.splice(lruIndex, 1);
-      }
-      metadata.lruQueue.push(key);
-
-      // Update access count
       verseData.accessCount++;
       verseData.timestamp = Date.now();
     }
   });
 
-  if (foundAny) {
-    // Update cache with new access times
-    setVerseCache(cache, metadata);
-    return cachedVerses.sort((a, b) => a.verse - b.verse);
-  }
+  if (cachedVerses.length === 0) return null;
 
-  return null;
+  setVerseCache(cache, metadata);
+  return cachedVerses.sort((a, b) => a.verse - b.verse);
 };
 
 export const cacheVerses = (
@@ -215,18 +216,27 @@ export const cacheVerses = (
   bibleVersion: string,
   verses: { verse: number; text: string }[]
 ) => {
-  const cache = getVerseCache(); // Use let to allow modification
+  const cache = getVerseCache();
   const metadata = getVerseCacheMetadata();
   const now = Date.now();
+  const chapterKey = `${bibleVersion}:${book}:${chapter}`;
 
-  // Add new verses to the cache and LRU queue
+  // Remove existing entry for this chapter (supports re-caching)
+  const lruIndex = metadata.lruQueue.indexOf(chapterKey);
+  if (lruIndex > -1) {
+    metadata.lruQueue.splice(lruIndex, 1);
+    Object.keys(cache).forEach((k) => {
+      if (k.startsWith(chapterKey + ':')) {
+        metadata.totalVerses--;
+        delete cache[k];
+      }
+    });
+  }
+
+  // Store all verses for this chapter
   verses.forEach((verse) => {
-    const cacheKey = `${bibleVersion}:${book}:${chapter}:${verse.verse}`;
-    if (!cache[cacheKey]) {
-      // Only add if it's a new verse to avoid duplicates in queue
-      metadata.lruQueue.push(cacheKey);
-    }
-    cache[cacheKey] = {
+    const verseKey = `${chapterKey}:${verse.verse}`;
+    cache[verseKey] = {
       verse: verse.verse,
       text: verse.text,
       timestamp: now,
@@ -234,19 +244,23 @@ export const cacheVerses = (
     };
   });
 
-  // If the cache exceeds the limit, evict the oldest verses
-  if (metadata.lruQueue.length > MAX_VERSES) {
-    const versesToRemove = metadata.lruQueue.length - MAX_VERSES;
-    const keysToRemove = metadata.lruQueue.splice(0, versesToRemove);
+  // Add chapter to end of LRU queue (most recently used)
+  metadata.lruQueue.push(chapterKey);
+  metadata.totalVerses += verses.length;
 
-    // Remove the evicted keys from the cache object
-    keysToRemove.forEach((key) => {
-      delete cache[key];
+  // Evict oldest chapters until within verse limit
+  while (
+    metadata.totalVerses > MAX_VERSES &&
+    metadata.lruQueue.length > 1
+  ) {
+    const oldestChapterKey = metadata.lruQueue.shift()!;
+    Object.keys(cache).forEach((k) => {
+      if (k.startsWith(oldestChapterKey + ':')) {
+        metadata.totalVerses--;
+        delete cache[k];
+      }
     });
   }
-
-  // Update the total verse count
-  metadata.totalVerses = metadata.lruQueue.length;
 
   setVerseCache(cache, metadata);
 };
