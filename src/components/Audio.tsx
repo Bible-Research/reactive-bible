@@ -316,7 +316,6 @@ const Audio = () => {
           });
 
           setAudio(audioHowl);
-          audioHowl.play();
         } catch (err) {
           console.error('Error loading audio:', err);
           
