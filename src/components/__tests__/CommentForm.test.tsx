@@ -7,6 +7,16 @@ import {
 import { describe, it, expect, vi } from 'vitest';
 import CommentForm from '../CommentForm';
 import { renderWithProviders } from '../../__tests__/helpers';
+import { CommentImage } from '../../types';
+
+const makeImage = (id: string): CommentImage => ({
+  id,
+  signed_url: `https://example.com/${id}.png`,
+  content_type: 'image/png',
+  size_bytes: 1024,
+  uploaded_by: 1,
+  created_at: '2024-01-01T00:00:00Z',
+});
 
 describe('CommentForm', () => {
   it('renders textarea and submit button', () => {
@@ -63,12 +73,38 @@ describe('CommentForm', () => {
     );
     await waitFor(() => {
       expect(
-        screen.getByText('Comment cannot be empty.')
+        screen.getByText('Add text or attach an image.')
       ).toBeInTheDocument();
     });
   });
 
-  it('calls onSubmit with trimmed content', async () => {
+  it('submits with only staged images and no text', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <CommentForm onSubmit={onSubmit} />
+    );
+
+    const input = document
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(
+      ['x'], 'photo.png', { type: 'image/png' }
+    );
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fireEvent.change(input);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Post' })
+    );
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('', [file]);
+    });
+  });
+
+  it('calls onSubmit with trimmed content and empty files', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     renderWithProviders(
       <CommentForm onSubmit={onSubmit} />
@@ -80,7 +116,10 @@ describe('CommentForm', () => {
       screen.getByRole('button', { name: 'Post' })
     );
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('hello world');
+      expect(onSubmit).toHaveBeenCalledWith(
+        'hello world',
+        []
+      );
     });
   });
 
@@ -109,5 +148,110 @@ describe('CommentForm', () => {
       (screen.getByRole('textbox') as HTMLTextAreaElement)
         .value
     ).toBe('existing text');
+  });
+
+  it('selecting a valid file stages a thumbnail', async () => {
+    renderWithProviders(
+      <CommentForm onSubmit={vi.fn()} />
+    );
+    const input = document
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'photo.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fireEvent.change(input);
+    await waitFor(() => {
+      expect(
+        document.querySelectorAll('img[alt="photo.png"]').length
+      ).toBe(1);
+    });
+  });
+
+  it('rejects a file with wrong MIME type', async () => {
+    renderWithProviders(
+      <CommentForm onSubmit={vi.fn()} />
+    );
+    const input = document
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(
+      ['x'],
+      'doc.pdf',
+      { type: 'application/pdf' }
+    );
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fireEvent.change(input);
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Unsupported file type/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('rejects a file that exceeds 10 MiB', async () => {
+    renderWithProviders(
+      <CommentForm onSubmit={vi.fn()} />
+    );
+    const input = document
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    const bigFile = new File(
+      [new ArrayBuffer(11 * 1024 * 1024)],
+      'big.png',
+      { type: 'image/png' }
+    );
+    Object.defineProperty(input, 'files', {
+      value: [bigFile],
+      configurable: true,
+    });
+    fireEvent.change(input);
+    await waitFor(() => {
+      expect(
+        screen.getByText(/File too large/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('enforces the 5-image cap with existingImages', async () => {
+    const existing = [1, 2, 3, 4, 5].map((i) =>
+      makeImage(`img-${i}`)
+    );
+    renderWithProviders(
+      <CommentForm
+        onSubmit={vi.fn()}
+        existingImages={existing}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Attach images' })
+    ).toBeDisabled();
+  });
+
+  it('calls onSubmit with staged files', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <CommentForm onSubmit={onSubmit} />
+    );
+
+    const input = document
+      .querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'test.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fireEvent.change(input);
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'hello' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith('hello', [file]);
+    });
   });
 });

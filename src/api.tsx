@@ -6,6 +6,7 @@ import {
   Comment,
   CommentAuthor,
   CommentCounts,
+  CommentImage,
 } from './types';
 
 import {
@@ -20,7 +21,7 @@ import {
   getCachedCopyright,
   cacheCopyright,
 } from './utils/cacheManager';
-import { authenticatedFetch, publicFetch } from './utils/apiClient';
+import { authenticatedFetch, authenticatedUpload, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
 
 export const data = bibleJson as KjvBook[];
@@ -705,7 +706,7 @@ export const getNote = async (noteId: string): Promise<Note> => {
 // COMMENT TYPES
 // ============================================
 
-export type { Comment, CommentAuthor, CommentCounts };
+export type { Comment, CommentAuthor, CommentCounts, CommentImage };
 
 // ============================================
 // COMMENT FUNCTIONS
@@ -794,6 +795,53 @@ export const deleteComment = async (
     console.error('Error deleting comment:', error);
     throw error;
   }
+};
+
+export const uploadCommentImage = async (
+  noteId: string,
+  commentId: string,
+  file: File,
+): Promise<CommentImage> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const response = await authenticatedUpload(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+    fd,
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message =
+      data.detail ||
+      (Array.isArray(data.file) ? data.file[0] : data.file) ||
+      'Failed to upload image.';
+    throw new Error(message);
+  }
+  return response.json();
+};
+
+export const deleteImage = async (
+  imageId: string,
+): Promise<void> => {
+  const response = await authenticatedFetch(
+    `${API_BASE_URL}/api/v1/images/${imageId}/`,
+    { method: 'DELETE' },
+  );
+  if (!response.ok && response.status !== 204) {
+    throw new Error('Failed to delete image.');
+  }
+};
+
+export const fetchCommentImages = async (
+  noteId: string,
+  commentId: string,
+): Promise<CommentImage[]> => {
+  const response = await publicFetch(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch images.');
+  }
+  return response.json();
 };
 
 export const fetchCommentCounts = async (params: {

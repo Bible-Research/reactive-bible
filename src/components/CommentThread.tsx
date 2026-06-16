@@ -15,6 +15,8 @@ import {
   createComment,
   updateComment,
   deleteComment,
+  uploadCommentImage,
+  deleteImage,
 } from '../api';
 import {
   insertReply,
@@ -30,6 +32,7 @@ const normalize = (
 ): Comment[] =>
   (nodes ?? []).map((c) => ({
     ...c,
+    images: c.images ?? [],
     replies: normalize(c.replies),
   }));
 
@@ -108,7 +111,8 @@ const CommentThread = ({
 
   const handleCreate = async (
     parentId: string | null,
-    content: string
+    content: string,
+    files: File[] = []
   ) => {
     setSubmitting(true);
     try {
@@ -117,38 +121,113 @@ const CommentThread = ({
         content,
         parentId
       );
+      const uploadedImages = [];
+      for (const file of files) {
+        try {
+          const img = await uploadCommentImage(
+            noteId,
+            newComment.id,
+            file
+          );
+          uploadedImages.push(img);
+        } catch (err: unknown) {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Failed to upload image.';
+          showNotification({
+            color: 'red',
+            title: 'Upload failed',
+            message: msg,
+          });
+        }
+      }
+      const normalizedNew = {
+        ...normalize([newComment])[0],
+        images: uploadedImages,
+      };
       setComments((prev) =>
-        insertReply(
-          prev,
-          parentId,
-          normalize([newComment])[0]
-        )
+        insertReply(prev, parentId, normalizedNew)
       );
       onCountChange?.(1);
       silentLoad();
-    } catch {
+    } catch (err) {
       showNotification({
         color: 'red',
         title: 'Error',
         message: 'Failed to post comment.',
       });
+      throw err;
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleUpdate = async (id: string, content: string) => {
+  const handleUpdate = async (
+    id: string,
+    content: string,
+    files: File[] = []
+  ) => {
     try {
       const updated = await updateComment(noteId, id, content);
+      const existingImages = updated.images ?? [];
+      const newImages = [...existingImages];
+      for (const file of files) {
+        try {
+          const img = await uploadCommentImage(
+            noteId,
+            id,
+            file
+          );
+          newImages.push(img);
+        } catch (err: unknown) {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Failed to upload image.';
+          showNotification({
+            color: 'red',
+            title: 'Upload failed',
+            message: msg,
+          });
+        }
+      }
       setComments((prev) =>
-        updateNode(prev, id, () => normalize([updated])[0])
+        updateNode(prev, id, () => ({
+          ...normalize([updated])[0],
+          images: newImages,
+        }))
       );
       silentLoad();
-    } catch {
+    } catch (err) {
       showNotification({
         color: 'red',
         title: 'Error',
         message: 'Failed to update comment.',
+      });
+      throw err;
+    }
+  };
+
+  const handleDeleteImage = async (
+    commentId: string,
+    imageId: string
+  ) => {
+    try {
+      await deleteImage(imageId);
+      setComments((prev) =>
+        updateNode(prev, commentId, (n) => ({
+          ...n,
+          images: (n.images ?? []).filter(
+            (i) => i.id !== imageId
+          ),
+        }))
+      );
+    } catch {
+      showNotification({
+        color: 'red',
+        title: 'Error',
+        message: 'Failed to delete image.',
       });
     }
   };
@@ -226,11 +305,13 @@ const CommentThread = ({
               depth={0}
               currentUsername={currentUsername}
               isAuthenticated={isAuthenticated}
-              onReply={(parentId, content) =>
-                handleCreate(parentId, content)
+              onReply={(parentId, content, files) =>
+                handleCreate(parentId, content, files)
               }
               onUpdate={handleUpdate}
               onDelete={handleDelete}
+              onDeleteImage={handleDeleteImage}
+              onRequestRefresh={silentLoad}
             />
           ))}
         </Stack>
@@ -241,7 +322,9 @@ const CommentThread = ({
           placeholder="Add a comment…"
           submitLabel="Post"
           submitting={submitting}
-          onSubmit={(content) => handleCreate(null, content)}
+          onSubmit={(content, files) =>
+            handleCreate(null, content, files)
+          }
         />
       )}
     </Stack>
