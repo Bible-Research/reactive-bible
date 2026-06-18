@@ -274,14 +274,14 @@ const NoteCard = ({
         </Text>
       </Box>
       {passageContainer && (
-        <>
+        <Box data-testid='passage-container'>
           <h1>{passageContainer?.book} {passageContainer?.chapter || ""}</h1>
           <>
             {passages?.map((passage: PassageState, i: number) => (
               <Text key={i}>{passage.verse}{". "}{passage.text}</Text>
             ))}
           </>
-        </>
+        </Box>
       )}
 
       {threadOpen && (

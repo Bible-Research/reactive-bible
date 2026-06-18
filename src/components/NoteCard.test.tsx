@@ -170,16 +170,19 @@ describe.skip('NoteCard Component', () => {
     });
   });
 
-  // TODO: need to revise this test att the end
-  it.skip('should render notes with scriptures which have @ symbol appended to the front of it', async () => {
+  it('should render open passage container', async () => {
     renderWithProviders(
-      <NoteCard note={noteWithScripturePresent} onViewInBible={mockOnViewInBible} onEdit={mockOnEdit} onDelete={mockOnDelete} />
-    )
+      <NoteCard
+        note={noteWithScripturePresent}
+        onViewInBible={mockOnViewInBible}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
+      />
+    );
 
     const openButton = screen.getByRole('link');
-
+    const passageContainer = screen.getByTestId('passage-container');
     fireEvent.click(openButton);
-
-    expect()
-  })
+    expect(passageContainer).toBeInTheDocument();
+  });
 });
