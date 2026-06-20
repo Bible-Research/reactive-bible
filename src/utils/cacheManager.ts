@@ -661,3 +661,7 @@ export const cacheHeadings = (
     console.error('Error writing headings cache:', error);
   }
 };
+
+export const clearHeadingsCache = () => {
+  removeCachedLocalStorage(HEADINGS_CACHE_KEY);
+};
