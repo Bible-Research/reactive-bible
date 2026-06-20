@@ -109,6 +109,39 @@ export const getVersesInKjvChapter = (
   return { verses, headings: [] };
 };
 
+export const fetchHeadingsOnly = async (
+  book: string,
+  chapter: number,
+  filesetId: string
+): Promise<SectionHeading[]> => {
+  if (filesetId === 'ENGKJV') {
+    return [];
+  }
+  const cached = getCachedHeadings(book, chapter, filesetId);
+  if (cached !== null) {
+    return cached;
+  }
+  try {
+    const passage = `${book} ${chapter}`;
+    const url =
+      `https://bible-research-489314.ey.r.appspot.com` +
+      `/api/v1/bible?passage=` +
+      `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const response = await fetch(url);
+    const responseData = await response.json();
+    const headings: SectionHeading[] =
+      responseData.headings ?? [];
+    cacheHeadings(book, chapter, filesetId, headings);
+    return headings;
+  } catch (error) {
+    console.warn(
+      `Failed to fetch headings for ${book} ${chapter}:`,
+      error
+    );
+    return [];
+  }
+};
+
 export const getVersesFromApi = async (
   thebook: string,
   thechapter: number,
