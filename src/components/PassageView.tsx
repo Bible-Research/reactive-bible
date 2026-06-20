@@ -14,8 +14,10 @@ import {
   getVersesInChapter,
   prefetchAudioUrl,
   prefetchAdjacentChapters,
+  type SectionHeading,
 } from "../api";
 import Verse from "./Verse";
+import SectionHeadingComponent from "./SectionHeading";
 import CopyrightNotice from "./CopyrightNotice";
 import { shallow } from 'zustand/shallow';
 import {
@@ -42,7 +44,10 @@ const PassageView = () => {
     }),
     shallow
   );
-  const [verses, setVerses] = useState<{ verse: number; text: string }[]>([]);
+  const [verses, setVerses] = useState<
+    { verse: number; text: string }[]
+  >([]);
+  const [headings, setHeadings] = useState<SectionHeading[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -78,7 +83,8 @@ const PassageView = () => {
     setFetchError(null);
     getVersesInChapter(activeBook, activeChapter, activeTextFilesetId)
       .then((result) => {
-        setVerses(result);
+        setVerses(result.verses);
+        setHeadings(result.headings);
         setLoading(false);
 
         // Prefetch current chapter audio (parallel)
@@ -100,6 +106,7 @@ const PassageView = () => {
           error instanceof Error ? error.message : 'Failed to load text'
         );
         setVerses([]);
+        setHeadings([]);
         setLoading(false);
       });
   }, [activeBook, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
@@ -154,9 +161,24 @@ const PassageView = () => {
   return (
     <ScrollArea h="calc(100vh - 112px)">
       <Box pb={showAudioPlayer ? 120 : 0}>
-        {verses.map((verse) => (
-          <Verse verse={verse.verse} key={verse.verse} text={verse.text} />
-        ))}
+        {verses.map((verse) => {
+          const heading = headings.find(
+            (h) => h.before_verse === verse.verse
+          );
+          return (
+            <React.Fragment key={verse.verse}>
+              {heading && (
+                <SectionHeadingComponent
+                  text={heading.text}
+                />
+              )}
+              <Verse
+                verse={verse.verse}
+                text={verse.text}
+              />
+            </React.Fragment>
+          );
+        })}
         <CopyrightNotice />
       </Box>
     </ScrollArea>

@@ -36,9 +36,10 @@ describe('API Functions', () => {
     });
 
     it('getVersesInKjvChapter should return all verses for a given chapter', () => {
-      const verses = api.getVersesInKjvChapter('John', 3);
-      expect(verses.length).toBe(36);
-      expect(verses[15].text).toContain('For God so loved the world');
+      const result = api.getVersesInKjvChapter('John', 3);
+      expect(result.verses.length).toBe(36);
+      expect(result.verses[15].text).toContain('For God so loved the world');
+      expect(result.headings).toEqual([]);
     });
 
     it('getAdjacentChapters should return correct previous and next chapters', () => {
@@ -52,20 +53,22 @@ describe('API Functions', () => {
   describe('API-Calling Functions', () => {
     it('getVersesFromApi should fetch from API when not cached', async () => {
       const mockVerses = [{ verse: 16, text: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.' }];
-      const verses = await api.getVersesFromApi('Genesis', 1, 'ESV');
+      const result = await api.getVersesFromApi('Genesis', 1, 'ESV');
 
       expect(cacheManager.getCachedVerses).toHaveBeenCalledWith('Genesis', 1, 'ESV');
       expect(cacheManager.cacheVerses).toHaveBeenCalledWith('Genesis', 1, 'ESV', mockVerses);
-      expect(verses).toEqual(mockVerses);
+      expect(result.verses).toEqual(mockVerses);
+      expect(result.headings).toEqual([]);
     });
 
     it('getVersesFromApi should return from cache when available', async () => {
       const mockVerses = [{ verse: 1, text: 'Cached verse' }];
       vi.spyOn(cacheManager, 'getCachedVerses').mockReturnValue(mockVerses);
 
-      const verses = await api.getVersesFromApi('Genesis', 1, 'ESV');
+      const result = await api.getVersesFromApi('Genesis', 1, 'ESV');
 
-      expect(verses).toEqual(mockVerses);
+      expect(result.verses).toEqual(mockVerses);
+      expect(result.headings).toEqual([]);
     });
 
     it('getBibleAudioUrl should fetch from API when not cached', async () => {

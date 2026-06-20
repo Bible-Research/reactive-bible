@@ -3,6 +3,7 @@ import { Translation } from "./store";
 import {
   VerseTimestamp,
   FilesetCopyright,
+  SectionHeading,
   Comment,
   CommentAuthor,
   CommentCounts,
@@ -11,6 +12,8 @@ import {
 import {
   getCachedVerses,
   cacheVerses,
+  getCachedHeadings,
+  cacheHeadings,
   getCachedAudioUrl,
   cacheAudioUrl,
   getCachedTranslations,
@@ -20,8 +23,11 @@ import {
   getCachedCopyright,
   cacheCopyright,
 } from './utils/cacheManager';
+
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
+
+export type { SectionHeading };
 
 export const data = bibleJson as KjvBook[];
 
@@ -70,11 +76,16 @@ export const getVerses = (thebook: string, thechapter: number): number[] => {
     .map((book: KjvBook) => book.verse);
 };
 
+type VerseResult = {
+  verses: { verse: number; text: string }[];
+  headings: SectionHeading[];
+};
+
 export const getVersesInChapter = async (
   thebook: string,
   thechapter: number,
   filesetId: string
-): Promise<{ verse: number; text: string }[]> => {
+): Promise<VerseResult> => {
   if (filesetId === 'ENGKJV') {
     return getVersesInKjvChapter(thebook, thechapter);
   }
@@ -84,31 +95,51 @@ export const getVersesInChapter = async (
 export const getVersesInKjvChapter = (
   thebook: string,
   thechapter: number
-): { verse: number; text: string }[] => {
-  return data
+): VerseResult => {
+  const verses = data
     .filter(
-      (book: KjvBook) => book.book_name === thebook && book.chapter === thechapter
+      (book: KjvBook) =>
+        book.book_name === thebook &&
+        book.chapter === thechapter
     )
-    .map((book: KjvBook) => ({ verse: book.verse, text: book.text }));
+    .map((book: KjvBook) => ({
+      verse: book.verse,
+      text: book.text,
+    }));
+  return { verses, headings: [] };
 };
 
 export const getVersesFromApi = async (
   thebook: string,
   thechapter: number,
   filesetId: string
-): Promise<{ verse: number; text: string }[]> => {
-  const cached = getCachedVerses(thebook, thechapter, filesetId);
-  if (cached) {
-    return cached;
+): Promise<VerseResult> => {
+  const cachedVerses = getCachedVerses(
+    thebook, thechapter, filesetId
+  );
+  if (cachedVerses) {
+    const cachedHeadings =
+      getCachedHeadings(thebook, thechapter, filesetId)
+      ?? [];
+    return { verses: cachedVerses, headings: cachedHeadings };
   }
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url =
+      `https://bible-research-489314.ey.r.appspot.com` +
+      `/api/v1/bible?passage=` +
+      `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
-    const data = await response.json();
-    const verses = data.verses.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
+    const responseData = await response.json();
+    const verses = (responseData.verses as {
+      verse: number;
+      text: string;
+    }[]).map((v) => ({ verse: v.verse, text: v.text }));
+    const headings: SectionHeading[] =
+      responseData.headings ?? [];
     cacheVerses(thebook, thechapter, filesetId, verses);
-    return verses;
+    cacheHeadings(thebook, thechapter, filesetId, headings);
+    return { verses, headings };
   } catch (error) {
     console.error(error);
     throw error;

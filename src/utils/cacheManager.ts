@@ -1,4 +1,9 @@
-import { Note, VerseTimestamp, FilesetCopyright } from '../types';
+import {
+  Note,
+  VerseTimestamp,
+  FilesetCopyright,
+  SectionHeading,
+} from '../types';
 import { Translation } from '../store';
 
 // Cache Manager for Bible Verses and Audio URLs
@@ -602,4 +607,57 @@ export const cacheCopyright = (
 
 export const clearCopyrightCache = () => {
   removeCachedLocalStorage(COPYRIGHT_CACHE_KEY);
+};
+
+// ============================================
+// HEADINGS CACHE (no LRU — small data)
+// ============================================
+
+const HEADINGS_CACHE_KEY = 'bible_headings_cache';
+
+interface HeadingsCache {
+  [chapterKey: string]: SectionHeading[];
+}
+
+export const getCachedHeadings = (
+  book: string,
+  chapter: number,
+  bibleVersion: string
+): SectionHeading[] | null => {
+  try {
+    const cacheStr = getCachedLocalStorage(
+      HEADINGS_CACHE_KEY
+    );
+    if (!cacheStr) return null;
+    const cache: HeadingsCache = JSON.parse(cacheStr);
+    const key = `${bibleVersion}:${book}:${chapter}`;
+    return key in cache ? cache[key] : null;
+  } catch (error) {
+    console.error('Error reading headings cache:', error);
+    return null;
+  }
+};
+
+export const cacheHeadings = (
+  book: string,
+  chapter: number,
+  bibleVersion: string,
+  headings: SectionHeading[]
+) => {
+  try {
+    const cacheStr = getCachedLocalStorage(
+      HEADINGS_CACHE_KEY
+    );
+    const cache: HeadingsCache = cacheStr
+      ? JSON.parse(cacheStr)
+      : {};
+    const key = `${bibleVersion}:${book}:${chapter}`;
+    cache[key] = headings;
+    setCachedLocalStorage(
+      HEADINGS_CACHE_KEY,
+      JSON.stringify(cache)
+    );
+  } catch (error) {
+    console.error('Error writing headings cache:', error);
+  }
 };

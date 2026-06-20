@@ -44,10 +44,13 @@ describe('PassageView Component Performance Tests', () => {
     });
 
     // Default mock implementation
-    mockGetVersesInChapter.mockResolvedValue([
-      { verse: 1, text: 'In the beginning...' },
-      { verse: 2, text: 'And the earth was...' },
-    ]);
+    mockGetVersesInChapter.mockResolvedValue({
+      verses: [
+        { verse: 1, text: 'In the beginning...' },
+        { verse: 2, text: 'And the earth was...' },
+      ],
+      headings: [],
+    });
   });
 
   describe('Render Performance', () => {
@@ -412,12 +415,15 @@ describe('PassageView Component Performance Tests', () => {
 
     it('should handle verses with very long text', async () => {
       const longText = 'A'.repeat(1000); // 1000 character verse
-      const verses = Array.from({ length: 50 }, (_, i) => ({
+      const longVerses = Array.from({ length: 50 }, (_, i) => ({
         verse: i + 1,
         text: longText,
       }));
 
-      mockGetVersesInChapter.mockResolvedValue(verses);
+      mockGetVersesInChapter.mockResolvedValue({
+        verses: longVerses,
+        headings: [],
+      });
 
       const start = performance.now();
 

@@ -24,6 +24,11 @@ export interface Note {
   verses: Verse[];
 }
 
+export interface SectionHeading {
+  before_verse: number;
+  text: string;
+}
+
 export interface VerseTimestamp {
   verse_start: number;
   timestamp: number;

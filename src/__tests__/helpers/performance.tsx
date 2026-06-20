@@ -61,11 +61,14 @@ export function waitForNextFrame(): Promise<void> {
  * Create large mock data for performance testing
  */
 export function createLargeVerseData(count: number) {
-  return Array.from({ length: count }, (_, i) => ({
-    verse: i + 1,
-    text: `This is verse ${i + 1} with some sample text content that 
+  return {
+    verses: Array.from({ length: count }, (_, i) => ({
+      verse: i + 1,
+      text: `This is verse ${i + 1} with some sample text content that 
            represents a typical Bible verse length.`,
-  }));
+    })),
+    headings: [] as { before_verse: number; text: string }[],
+  };
 }
 
 /**
