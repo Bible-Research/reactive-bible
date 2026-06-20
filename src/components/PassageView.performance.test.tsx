@@ -20,6 +20,12 @@ vi.mock('../api', () => ({
   prefetchAudioUrl: (...args: any[]) => mockPrefetchAudioUrl(...args),
   prefetchAdjacentChapters: (...args: any[]) =>
     mockPrefetchAdjacentChapters(...args),
+  fetchHeadingsOnly: vi.fn().mockResolvedValue([]),
+  getChapters: vi.fn().mockReturnValue([1, 2, 3]),
+}));
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
 }));
 
 // Mock Verse component to isolate PassageView performance
