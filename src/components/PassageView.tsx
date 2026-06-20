@@ -272,7 +272,9 @@ const PassageView = () => {
           <Title order={5} color="dimmed" mb="xs">
             {activeBook} — Section Outline
           </Title>
-          {tocEntries.map(({ chapter, headings: chHeadings }) => (
+          {[...tocEntries]
+            .sort((a, b) => a.chapter - b.chapter)
+            .map(({ chapter, headings: chHeadings }) => (
             <React.Fragment key={chapter}>
               <Text
                 size="xs"
