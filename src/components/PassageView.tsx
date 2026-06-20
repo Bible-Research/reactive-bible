@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ScrollArea,
   Center,
@@ -13,14 +13,17 @@ import { IconAlertCircle } from "@tabler/icons-react";
 import { useBibleStore, type Translation } from "../store";
 import {
   getVersesInChapter,
+  fetchHeadingsOnly,
   prefetchAudioUrl,
   prefetchAdjacentChapters,
+  getChapters,
   type SectionHeading,
 } from "../api";
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
 import CopyrightNotice from "./CopyrightNotice";
 import { shallow } from 'zustand/shallow';
+import { useNavigate } from 'react-router-dom';
 import {
   getTestamentByBookName,
   filesetCoversTestament,
@@ -50,6 +53,13 @@ const PassageView = () => {
   >([]);
   const [headings, setHeadings] = useState<SectionHeading[]>([]);
   const [headingsOnlyMode, setHeadingsOnlyMode] = useState(false);
+  const [tocEntries, setTocEntries] = useState<
+    { chapter: number; headings: SectionHeading[] }[]
+  >([]);
+  const [tocLoading, setTocLoading] = useState(false);
+  const pendingScrollHeadingRef = useRef<number | null>(null);
+  const tocAbortRef = useRef(false);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -78,19 +88,94 @@ const PassageView = () => {
     );
   };
 
-  const handleTocHeadingClick = (beforeVerse: number) => {
-    setHeadingsOnlyMode(false);
-    setTimeout(() => {
-      document
-        .getElementById(`section-heading-${beforeVerse}`)
-        ?.scrollIntoView({ block: "start", behavior: "smooth" });
-    }, 50);
+  const enterHeadingsOnlyMode = async (
+    currentHeadings: SectionHeading[]
+  ) => {
+    tocAbortRef.current = false;
+    setHeadingsOnlyMode(true);
+    setTocEntries([{ chapter: activeChapter, headings: currentHeadings }]);
+
+    if (!activeTextFilesetId || activeTextFilesetId === 'ENGKJV') return;
+
+    setTocLoading(true);
+    const allChapters = getChapters(activeBook);
+    const totalChapters = allChapters.length;
+
+    const forwardEnd = Math.min(activeChapter + 30, totalChapters);
+    for (let ch = activeChapter + 1; ch <= forwardEnd; ch++) {
+      if (tocAbortRef.current) {
+        setTocLoading(false);
+        return;
+      }
+      try {
+        const h = await fetchHeadingsOnly(
+          activeBook, ch, activeTextFilesetId
+        );
+        if (tocAbortRef.current) {
+          setTocLoading(false);
+          return;
+        }
+        if (h.length > 0) {
+          setTocEntries((prev) => [
+            ...prev, { chapter: ch, headings: h },
+          ]);
+        }
+      } catch { /* silent */ }
+    }
+
+    const backwardStart = Math.max(activeChapter - 15, 1);
+    for (let ch = activeChapter - 1; ch >= backwardStart; ch--) {
+      if (tocAbortRef.current) {
+        setTocLoading(false);
+        return;
+      }
+      try {
+        const h = await fetchHeadingsOnly(
+          activeBook, ch, activeTextFilesetId
+        );
+        if (tocAbortRef.current) {
+          setTocLoading(false);
+          return;
+        }
+        if (h.length > 0) {
+          setTocEntries((prev) => [
+            ...prev, { chapter: ch, headings: h },
+          ]);
+        }
+      } catch { /* silent */ }
+    }
+
+    if (!tocAbortRef.current) {
+      setTocLoading(false);
+    }
+  };
+
+  const handleTocHeadingClick = (
+    chapter: number,
+    beforeVerse: number
+  ) => {
+    tocAbortRef.current = true;
+    if (chapter === activeChapter) {
+      setHeadingsOnlyMode(false);
+      setTimeout(() => {
+        document
+          .getElementById(`section-heading-${beforeVerse}`)
+          ?.scrollIntoView({ block: "start", behavior: "smooth" });
+      }, 50);
+    } else {
+      pendingScrollHeadingRef.current = beforeVerse;
+      setHeadingsOnlyMode(false);
+      navigate(`/bible/${activeBook}/${chapter}`);
+    }
   };
 
   useEffect(() => {
     if (!activeTextFilesetId) return;
 
+    tocAbortRef.current = true;
     setHeadingsOnlyMode(false);
+    setTocEntries([]);
+    setTocLoading(false);
     setLoading(true);
     setFetchError(null);
     getVersesInChapter(activeBook, activeChapter, activeTextFilesetId)
@@ -98,6 +183,16 @@ const PassageView = () => {
         setVerses(result.verses);
         setHeadings(result.headings);
         setLoading(false);
+
+        const pendingVerse = pendingScrollHeadingRef.current;
+        if (pendingVerse !== null) {
+          pendingScrollHeadingRef.current = null;
+          setTimeout(() => {
+            document
+              .getElementById(`section-heading-${pendingVerse}`)
+              ?.scrollIntoView({ block: "start", behavior: "smooth" });
+          }, 50);
+        }
 
         // Prefetch current chapter audio (parallel)
         prefetchAudioUrl(activeBook, activeChapter, activeAudioFilesetId);
@@ -170,22 +265,41 @@ const PassageView = () => {
     );
   }
 
-  if (headingsOnlyMode && headings.length > 0) {
+  if (headingsOnlyMode) {
     return (
       <ScrollArea h="calc(100vh - 112px)">
         <Box pb={showAudioPlayer ? 120 : 0} px={10} pt="md">
           <Title order={5} color="dimmed" mb="xs">
-            {activeBook} {activeChapter} — Section Outline
+            {activeBook} — Section Outline
           </Title>
-          {headings.map((heading) => (
-            <SectionHeadingComponent
-              key={heading.before_verse}
-              text={heading.text}
-              onClick={() =>
-                handleTocHeadingClick(heading.before_verse)
-              }
-            />
+          {tocEntries.map(({ chapter, headings: chHeadings }) => (
+            <React.Fragment key={chapter}>
+              <Text
+                size="xs"
+                color="dimmed"
+                mt="sm"
+                mb={0}
+                px={0}
+                sx={{ opacity: 0.7, fontWeight: 600 }}
+              >
+                Chapter {chapter}
+              </Text>
+              {chHeadings.map((h) => (
+                <SectionHeadingComponent
+                  key={`${chapter}-${h.before_verse}`}
+                  text={h.text}
+                  onClick={() =>
+                    handleTocHeadingClick(chapter, h.before_verse)
+                  }
+                />
+              ))}
+            </React.Fragment>
           ))}
+          {tocLoading && (
+            <Center py="md">
+              <Loader size="sm" />
+            </Center>
+          )}
         </Box>
       </ScrollArea>
     );
@@ -204,7 +318,9 @@ const PassageView = () => {
                 <SectionHeadingComponent
                   text={heading.text}
                   id={`section-heading-${heading.before_verse}`}
-                  onClick={() => setHeadingsOnlyMode(true)}
+                  onClick={() =>
+                    void enterHeadingsOnlyMode(headings)
+                  }
                 />
               )}
               <Verse
