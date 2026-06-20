@@ -7,6 +7,7 @@ import {
   Alert,
   Text,
   Stack,
+  Title,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useBibleStore, type Translation } from "../store";
@@ -48,6 +49,7 @@ const PassageView = () => {
     { verse: number; text: string }[]
   >([]);
   const [headings, setHeadings] = useState<SectionHeading[]>([]);
+  const [headingsOnlyMode, setHeadingsOnlyMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -76,9 +78,19 @@ const PassageView = () => {
     );
   };
 
+  const handleTocHeadingClick = (beforeVerse: number) => {
+    setHeadingsOnlyMode(false);
+    setTimeout(() => {
+      document
+        .getElementById(`section-heading-${beforeVerse}`)
+        ?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, 50);
+  };
+
   useEffect(() => {
     if (!activeTextFilesetId) return;
 
+    setHeadingsOnlyMode(false);
     setLoading(true);
     setFetchError(null);
     getVersesInChapter(activeBook, activeChapter, activeTextFilesetId)
@@ -158,6 +170,27 @@ const PassageView = () => {
     );
   }
 
+  if (headingsOnlyMode && headings.length > 0) {
+    return (
+      <ScrollArea h="calc(100vh - 112px)">
+        <Box pb={showAudioPlayer ? 120 : 0} px={10} pt="md">
+          <Title order={5} color="dimmed" mb="xs">
+            {activeBook} {activeChapter} — Section Outline
+          </Title>
+          {headings.map((heading) => (
+            <SectionHeadingComponent
+              key={heading.before_verse}
+              text={heading.text}
+              onClick={() =>
+                handleTocHeadingClick(heading.before_verse)
+              }
+            />
+          ))}
+        </Box>
+      </ScrollArea>
+    );
+  }
+
   return (
     <ScrollArea h="calc(100vh - 112px)">
       <Box pb={showAudioPlayer ? 120 : 0}>
@@ -170,6 +203,8 @@ const PassageView = () => {
               {heading && (
                 <SectionHeadingComponent
                   text={heading.text}
+                  id={`section-heading-${heading.before_verse}`}
+                  onClick={() => setHeadingsOnlyMode(true)}
                 />
               )}
               <Verse
