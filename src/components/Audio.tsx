@@ -12,6 +12,7 @@ import { showNotification } from "@mantine/notifications";
 import {
   getTestamentByBookName,
   filesetCoversTestament,
+  resolveTimestampsFilesetId,
 } from "../utils/bibleUtils";
 
 const Audio = () => {
@@ -26,10 +27,12 @@ const Audio = () => {
   const setAudioActiveVerse = useBibleStore(
     (s) => s.setAudioActiveVerse
   );
-  const { activeAudioFilesetId, translations } = useBibleStore((state) => ({
-    activeAudioFilesetId: state.activeAudioFilesetId,
-    translations: state.translations,
-  }));
+  const { activeAudioFilesetId, activeTextFilesetId, translations } =
+    useBibleStore((state) => ({
+      activeAudioFilesetId: state.activeAudioFilesetId,
+      activeTextFilesetId: state.activeTextFilesetId,
+      translations: state.translations,
+    }));
   const showPlayer = useBibleStore((state) => state.showAudioPlayer);
   const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
   const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
@@ -50,17 +53,21 @@ const Audio = () => {
     setAudioActiveVerse(null);
   }, [activeBook, activeChapter, activeAudioFilesetId]);
 
-  // Fetch timestamps when audio fileset changes
+  // Fetch timestamps when audio or text fileset changes
   useEffect(() => {
     if (!activeAudioFilesetId) return;
-    // Strip codec suffix (e.g. "ENGESHN1DA-opus16" -> "ENGESHN1DA")
-    const baseFilesetId = activeAudioFilesetId.split('-')[0];
+    const tsFilesetId = resolveTimestampsFilesetId(
+      activeAudioFilesetId,
+      activeTextFilesetId,
+      activeBook,
+    );
+    if (!tsFilesetId) return;
     getAudioTimestamps(
       activeBook,
       activeChapter,
-      baseFilesetId
+      tsFilesetId,
     ).then(setTimestamps);
-  }, [activeBook, activeChapter, activeAudioFilesetId]);
+  }, [activeBook, activeChapter, activeAudioFilesetId, activeTextFilesetId]);
 
   // Hook: highlight active verse during playback
   useVerseHighlighter(audio, isPlaying, timestamps);

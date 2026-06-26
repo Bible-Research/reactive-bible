@@ -148,3 +148,24 @@ export const getTestamentByBookName = (
   const code = BOOK_NAME_TO_CODE[bookName.toLowerCase()];
   return code ? getTestament(code) : null;
 };
+
+/**
+ * Resolves the fileset ID to use for fetching verse timestamps.
+ * When the active text fileset is ENGESV_API (text-only),
+ * timestamps come from the corresponding ESV audio fileset
+ * based on the book's testament. Otherwise strips the codec
+ * suffix from the audio fileset ID.
+ */
+export const resolveTimestampsFilesetId = (
+  audioFilesetId: string | null,
+  textFilesetId: string | null,
+  book: string,
+): string | null => {
+  if (textFilesetId === 'ENGESV_API') {
+    const testament = getTestamentByBookName(book);
+    if (testament === 'OT') return 'ENGESVO1DA';
+    if (testament === 'NT') return 'ENGESVN1DA';
+  }
+  if (!audioFilesetId) return null;
+  return audioFilesetId.split('-')[0];
+};
