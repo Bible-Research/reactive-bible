@@ -26,6 +26,7 @@ interface AudioPlayerProps {
   onPlayPause: () => void;
   onLoopToggle: () => void;
   onClose: () => void;
+  subtitle?: string;
 }
 
 const AudioPlayer = ({
@@ -35,6 +36,7 @@ const AudioPlayer = ({
   onPlayPause,
   onLoopToggle,
   onClose,
+  subtitle,
 }: AudioPlayerProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -136,7 +138,7 @@ const AudioPlayer = ({
     >
       <Group position="apart" mb="xs">
         <Text weight={500} size="sm">
-          {activeBook} {activeChapter}
+          {subtitle ?? `${activeBook} ${activeChapter}`}
         </Text>
         <CloseButton onClick={onClose} title="Close player" />
       </Group>
