@@ -15,7 +15,7 @@ import {
 import { IconShare, IconRefresh, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
-import { Note, Tag, CommentCounts } from '../types';
+import { Note, Tag, CommentCounts, PlaylistItem } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
@@ -46,6 +46,9 @@ export default function TagNotesRoute() {
   );
   const versesFolded = useBibleStore((state) => state.versesFolded);
   const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
+  const setAudioPlaylistItems = useBibleStore(
+    (state) => state.setAudioPlaylistItems
+  );
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   type SortOrder =
@@ -67,7 +70,10 @@ export default function TagNotesRoute() {
     if (tagId) {
       setLastSelectedTagId(tagId);
     }
-  }, [setShowNotes, setLastSelectedTagId, tagId]);
+    return () => {
+      setAudioPlaylistItems(null);
+    };
+  }, [setShowNotes, setLastSelectedTagId, tagId, setAudioPlaylistItems]);
 
   useEffect(() => {
     let cancelled = false;
@@ -259,28 +265,6 @@ export default function TagNotesRoute() {
     }
   };
 
-  if (loading) {
-    return (
-      <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
-      </Center>
-    );
-  }
-
-  if (error || !tag) {
-    return (
-      <Center style={{ height: '100vh' }}>
-        <Text color="red" size="lg">
-          {error || 'Tag not found'}
-        </Text>
-      </Center>
-    );
-  }
-
-  const sortedTags = [...storedTags].sort(
-    (a, b) => a.name.localeCompare(b.name)
-  );
-
   const sortedNotes = [...notes].sort((a, b) => {
     switch (sortOrder) {
       case 'created_desc':
@@ -325,6 +309,61 @@ export default function TagNotesRoute() {
         return 0;
     }
   });
+
+  useEffect(() => {
+    if (loading || notes.length === 0) {
+      setAudioPlaylistItems(null);
+      return;
+    }
+    const items: PlaylistItem[] = sortedNotes
+      .filter((n) => n.verses.length > 0)
+      .map((note, i, arr) => {
+        const firstVerse = note.verses[0];
+        const sameBlock = note.verses.filter(
+          (v) =>
+            v.book === firstVerse.book &&
+            v.chapter === firstVerse.chapter,
+        );
+        const startVerse = Math.min(...sameBlock.map((v) => v.verse));
+        const endVerse = Math.max(...sameBlock.map((v) => v.verse));
+        const label =
+          `Note ${i + 1}/${arr.length} ` +
+          `\u2013 ${firstVerse.book} ` +
+          `${firstVerse.chapter}:${startVerse}` +
+          (startVerse !== endVerse ? `-${endVerse}` : '');
+        return {
+          itemId: note.id,
+          book: firstVerse.book,
+          chapter: firstVerse.chapter,
+          startVerse,
+          endVerse,
+          label,
+        };
+      });
+    setAudioPlaylistItems(items.length > 0 ? items : null);
+  }, [notes, sortOrder, loading, setAudioPlaylistItems]);
+
+  if (loading) {
+    return (
+      <Center style={{ height: '100vh' }}>
+        <Loader size="lg" aria-label="loading" />
+      </Center>
+    );
+  }
+
+  if (error || !tag) {
+    return (
+      <Center style={{ height: '100vh' }}>
+        <Text color="red" size="lg">
+          {error || 'Tag not found'}
+        </Text>
+      </Center>
+    );
+  }
+
+  const sortedTags = [...storedTags].sort(
+    (a, b) => a.name.localeCompare(b.name)
+  );
 
   return (
     <Box p="md">
