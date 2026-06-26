@@ -60,3 +60,12 @@ export interface Comment {
 }
 
 export type CommentCounts = Record<string, number>;
+
+export interface PlaylistItem {
+  itemId: string;
+  book: string;
+  chapter: number;
+  startVerse: number;
+  endVerse: number;
+  label: string;
+}

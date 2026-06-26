@@ -2,7 +2,7 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
 import { showNotification } from "@mantine/notifications";
 import * as api from './api';
-import { Note, Tag } from './types';
+import { Note, Tag, PlaylistItem } from './types';
 import { getCachedNotes, cacheNotes, clearNotesCache } from './utils/cacheManager';
 
 export interface Fileset {
@@ -38,6 +38,8 @@ interface BibleState {
   lastSelectedTagId: string | null;
   audioActiveVerse: number | null;
   setAudioActiveVerse: (verse: number | null) => void;
+  audioPlaylistItems: PlaylistItem[] | null;
+  setAudioPlaylistItems: (items: PlaylistItem[] | null) => void;
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
   setActiveBook: (activeBook: string) => void;
@@ -80,6 +82,7 @@ export const initialState = {
   showNotes: false,
   lastSelectedTagId: null,
   audioActiveVerse: null as number | null,
+  audioPlaylistItems: null as PlaylistItem[] | null,
   versesFolded: false,
 };
 
@@ -205,6 +208,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),
       setAudioActiveVerse: (audioActiveVerse) =>
         set({ audioActiveVerse }),
+      setAudioPlaylistItems: (audioPlaylistItems) =>
+        set({ audioPlaylistItems }),
       setVersesFolded: (versesFolded) => {
         set({ versesFolded });
         if (!versesFolded) {
