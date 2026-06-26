@@ -79,6 +79,15 @@ const BIBLE_BOOKS: BibleBook[] = [
   { name: 'revelation', code: 'REV', testament: 'NT' },
 ];
 
+export const BOOK_NAME_TO_ORDER: Record<string, number> =
+  BIBLE_BOOKS.reduce(
+    (acc, book, idx) => {
+      acc[book.name] = idx;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
 export const BOOK_NAME_TO_CODE = BIBLE_BOOKS.reduce(
   (acc, book) => {
     acc[book.name] = book.code;

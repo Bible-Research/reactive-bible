@@ -22,6 +22,9 @@ import { useBibleStore } from '../store';
 import { deleteNote, getTag, fetchCommentCounts } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
+import {
+  BOOK_NAME_TO_ORDER,
+} from '../utils/bibleUtils';
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -295,6 +298,11 @@ export default function TagNotesRoute() {
         const bV = b.verses[0];
         if (!aV) return 1;
         if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return aBook - bBook;
         if (aV.chapter !== bV.chapter)
           return aV.chapter - bV.chapter;
         return aV.verse - bV.verse;
@@ -304,6 +312,11 @@ export default function TagNotesRoute() {
         const bV = b.verses[0];
         if (!aV) return 1;
         if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return bBook - aBook;
         if (aV.chapter !== bV.chapter)
           return bV.chapter - aV.chapter;
         return bV.verse - aV.verse;
