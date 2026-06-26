@@ -45,6 +45,13 @@ export default function TagNotesRoute() {
   const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
+  type SortOrder =
+    | 'created_desc'
+    | 'created_asc'
+    | 'verse_asc'
+    | 'verse_desc';
+
+  const [sortOrder, setSortOrder] = useState<SortOrder>('created_desc');
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -267,7 +274,44 @@ export default function TagNotesRoute() {
     );
   }
 
-  const sortedTags = [...storedTags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...storedTags].sort(
+    (a, b) => a.name.localeCompare(b.name)
+  );
+
+  const sortedNotes = [...notes].sort((a, b) => {
+    switch (sortOrder) {
+      case 'created_desc':
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      case 'created_asc':
+        return (
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
+        );
+      case 'verse_asc': {
+        const aV = a.verses[0];
+        const bV = b.verses[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        if (aV.chapter !== bV.chapter)
+          return aV.chapter - bV.chapter;
+        return aV.verse - bV.verse;
+      }
+      case 'verse_desc': {
+        const aV = a.verses[0];
+        const bV = b.verses[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        if (aV.chapter !== bV.chapter)
+          return bV.chapter - aV.chapter;
+        return bV.verse - aV.verse;
+      }
+      default:
+        return 0;
+    }
+  });
 
   return (
     <Box p="md">
@@ -286,6 +330,32 @@ export default function TagNotesRoute() {
           <Text fw={500} size="lg">{tag.name}</Text>
         )}
         <Group spacing="xs">
+          <Select
+            size="xs"
+            value={sortOrder}
+            onChange={(v) =>
+              v && setSortOrder(v as SortOrder)
+            }
+            data={[
+              {
+                value: 'created_desc',
+                label: 'Date: Newest first',
+              },
+              {
+                value: 'created_asc',
+                label: 'Date: Oldest first',
+              },
+              {
+                value: 'verse_asc',
+                label: 'Verse: Ascending',
+              },
+              {
+                value: 'verse_desc',
+                label: 'Verse: Descending',
+              },
+            ]}
+            style={{ width: 170 }}
+          />
           <Text color="dimmed" size="sm">
             {notes.length} {notes.length === 1 ? 'note' : 'notes'}
           </Text>
@@ -332,7 +402,7 @@ export default function TagNotesRoute() {
           <Stack spacing="md">
             <TagSection
               tagName={tag.name}
-              notes={notes}
+              notes={sortedNotes}
               onViewInBible={handleViewInBible}
               onEditNote={
                 isAuthenticated ? handleEditNote : undefined
