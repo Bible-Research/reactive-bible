@@ -17,23 +17,6 @@ import { showNotification } from "@mantine/notifications";
 import AddTagNoteModal from "./AddTagNoteModal";
 import { BOOK_NAME_TO_CODE } from "../utils/bibleUtils";
 
-function formatVerseRanges(verses: number[]): string {
-  const sorted = [...verses].sort((a, b) => a - b);
-  const ranges: string[] = [];
-  let start = sorted[0];
-  let end = sorted[0];
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] === end + 1) {
-      end = sorted[i];
-    } else {
-      ranges.push(start === end ? `${start}` : `${start}-${end}`);
-      start = sorted[i];
-      end = sorted[i];
-    }
-  }
-  ranges.push(start === end ? `${start}` : `${start}-${end}`);
-  return ranges.join(",");
-}
 
 const BOOK_TO_BLB_ABBR: Record<string, string> = {
   Genesis: "gen",
@@ -139,13 +122,10 @@ const VerseActionToolbar = () => {
 
   const handleShare = useCallback(async () => {
     const bookEncoded = encodeURIComponent(activeBook);
-    const verseParam =
-      activeVerses.length > 0
-        ? `?v=${formatVerseRanges(activeVerses)}`
-        : "";
-    const url = `${window.location.origin}/bible/${bookEncoded}/${activeChapter}${verseParam}`;
-
     const sorted = [...activeVerses].sort((a, b) => a - b);
+    const versePath = sorted.length > 0 ? `/${sorted[0]}` : "";
+    const url = `${window.location.origin}/bible/${bookEncoded}/${activeChapter}${versePath}`;
+
     const verseText = sorted
       .map((v) => {
         const el = document.querySelector(
