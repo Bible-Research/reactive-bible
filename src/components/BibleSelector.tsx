@@ -132,7 +132,7 @@ const BibleSelector = ({
                   onClick={(event) => {
                     event.preventDefault();
                     navigate(
-                      `/bible/${activeBook}/${activeChapter}/${verse}`
+                      `/bible/${activeBook}/${activeChapter}.${verse}`
                     );
                     setOpened(false);
                   }}

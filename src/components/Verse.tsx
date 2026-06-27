@@ -72,7 +72,7 @@ const Verse = ({
     const sorted = [...newVerses].sort((a, b) => a - b);
     if (sorted.length > 0) {
       navigate(
-        `/bible/${activeBook}/${activeChapter}/${sorted[0]}`,
+        `/bible/${activeBook}/${activeChapter}.${sorted[0]}`,
         { replace: true }
       );
     } else {

@@ -163,7 +163,7 @@ export default function TagNotesRoute() {
     chapter: number,
     verse: number
   ) => {
-    navigate(`/bible/${book}/${chapter}/${verse}`);
+    navigate(`/bible/${book}/${chapter}.${verse}`);
     setShowNotes(false);
   };
 

@@ -4,11 +4,17 @@ import { useBibleStore } from '../store';
 import Passage from '../components/Passage';
 
 export default function BibleRoute() {
-  const { book, chapter, verse } = useParams<{
+  const { book, chapterVerse } = useParams<{
     book?: string;
-    chapter?: string;
-    verse?: string;
+    chapterVerse?: string;
   }>();
+  const dotIdx = chapterVerse?.indexOf('.') ?? -1;
+  const chapter = dotIdx >= 0
+    ? chapterVerse!.slice(0, dotIdx)
+    : chapterVerse;
+  const verse = dotIdx >= 0
+    ? chapterVerse!.slice(dotIdx + 1)
+    : undefined;
   
   const navigate = useNavigate();
   const {

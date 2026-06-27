@@ -40,7 +40,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/1']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -52,7 +52,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/Matthew/3']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -69,7 +69,7 @@ describe('BibleRoute', () => {
       <MemoryRouter initialEntries={['/bible']}>
         <Routes>
           <Route path="/bible" element={<BibleRoute />} />
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -84,7 +84,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/1']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -106,7 +106,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/abc']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -120,10 +120,10 @@ describe('BibleRoute', () => {
 
   it('syncs verse URL param to activeVerses on mount', async () => {
     render(
-      <MemoryRouter initialEntries={['/bible/John/3/16']}>
+      <MemoryRouter initialEntries={['/bible/John/3.16']}>
         <Routes>
           <Route
-            path="/bible/:book/:chapter/:verse"
+            path="/bible/:book/:chapterVerse"
             element={<BibleRoute />}
           />
         </Routes>
@@ -145,7 +145,7 @@ describe('BibleRoute', () => {
       <MemoryRouter initialEntries={['/bible/John/1']}>
         <Routes>
           <Route
-            path="/bible/:book/:chapter"
+            path="/bible/:book/:chapterVerse"
             element={<BibleRoute />}
           />
         </Routes>
@@ -163,7 +163,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/1']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );

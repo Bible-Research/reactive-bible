@@ -17,8 +17,7 @@ export function AppRoutes() {
 
       {/* Bible routes - public (can view Bible without auth) */}
       <Route path="/bible" element={<BibleRoute />} />
-      <Route path="/bible/:book/:chapter/:verse" element={<BibleRoute />} />
-      <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+      <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
 
       {/* Notes routes - public for viewing, protected for private notes */}
       <Route path="/notes" element={<NotesRoute />} />
