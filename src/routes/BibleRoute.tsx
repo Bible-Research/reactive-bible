@@ -20,7 +20,7 @@ export default function BibleRoute() {
     setVersesFolded,
   } = useBibleStore();
 
-  // Sync URL params to store (one-way: URL is source of truth).
+  // Sync book/chapter URL params to store and handle redirect.
   // activeBook/activeChapter are intentionally included so this
   // re-runs after Zustand persist rehydration overwrites the state.
   useEffect(() => {
@@ -32,17 +32,28 @@ export default function BibleRoute() {
       if (book !== activeBook || chapterNum !== activeChapter) {
         setActiveBookAndChapter(book, chapterNum);
       }
-      const verseNum = verse ? parseInt(verse, 10) : null;
-      if (verseNum && !isNaN(verseNum)) {
-        setActiveVerses([verseNum]);
-      } else {
-        setActiveVerses([]);
-      }
     } else {
       navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, chapter, verse, activeBook, activeChapter]);
+  }, [book, chapter, activeBook, activeChapter]);
+
+  // Sync verse URL param to store. Guarded so that navigating from
+  // Verse.tsx (which already called setActiveVerses) does not collapse
+  // a multi-verse selection down to a single verse.
+  useEffect(() => {
+    const verseNum = verse ? parseInt(verse, 10) : null;
+    if (verseNum && !isNaN(verseNum)) {
+      if (!useBibleStore.getState().activeVerses.includes(verseNum)) {
+        setActiveVerses([verseNum]);
+      }
+    } else {
+      if (useBibleStore.getState().activeVerses.length > 0) {
+        setActiveVerses([]);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verse]);
 
   return <Passage />;
 }

@@ -1,4 +1,5 @@
 import { Box, Text, Title, createStyles } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useEffect, useRef, useState } from "react";
 
@@ -41,8 +42,11 @@ const Verse = ({
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
+  const navigate = useNavigate();
   const activeVerses = useBibleStore((state) => state.activeVerses);
   const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeChapter = useBibleStore((state) => state.activeChapter);
   const audioActiveVerse = useBibleStore(
     (state) => state.audioActiveVerse
   );
@@ -61,10 +65,21 @@ const Verse = ({
   const handleVerseClick = () => {
     if (!selectable) return;
     userClickedRef.current = true;
-    if (isActive) {
-      setActiveVerses(activeVerses.filter((v) => v !== verse));
+    const newVerses = isActive
+      ? activeVerses.filter((v) => v !== verse)
+      : [...activeVerses, verse];
+    setActiveVerses(newVerses);
+    const sorted = [...newVerses].sort((a, b) => a - b);
+    if (sorted.length > 0) {
+      navigate(
+        `/bible/${activeBook}/${activeChapter}/${sorted[0]}`,
+        { replace: true }
+      );
     } else {
-      setActiveVerses([...activeVerses, verse]);
+      navigate(
+        `/bible/${activeBook}/${activeChapter}`,
+        { replace: true }
+      );
     }
   };
 
