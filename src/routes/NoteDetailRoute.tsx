@@ -27,9 +27,6 @@ export default function NoteDetailRoute() {
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
 
-  const setActiveBook = useBibleStore((state) => state.setActiveBook);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
 
   const [note, setNote] = useState<Note | null>(null);
@@ -69,10 +66,7 @@ export default function NoteDetailRoute() {
     chapter: number,
     verse: number,
   ) => {
-    setActiveBook(book);
-    setActiveChapter(chapter);
-    setActiveVerses([verse]);
-    navigate(`/bible/${book}/${chapter}`);
+    navigate(`/bible/${book}/${chapter}/${verse}`);
     setShowNotes(false);
   };
 

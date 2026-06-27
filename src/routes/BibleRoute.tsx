@@ -4,9 +4,10 @@ import { useBibleStore } from '../store';
 import Passage from '../components/Passage';
 
 export default function BibleRoute() {
-  const { book, chapter } = useParams<{
+  const { book, chapter, verse } = useParams<{
     book?: string;
     chapter?: string;
+    verse?: string;
   }>();
   
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function BibleRoute() {
     activeBook,
     activeChapter,
     setActiveBookAndChapter,
+    setActiveVerses,
     setShowNotes,
     setVersesFolded,
   } = useBibleStore();
@@ -30,11 +32,17 @@ export default function BibleRoute() {
       if (book !== activeBook || chapterNum !== activeChapter) {
         setActiveBookAndChapter(book, chapterNum);
       }
+      const verseNum = verse ? parseInt(verse, 10) : null;
+      if (verseNum && !isNaN(verseNum)) {
+        setActiveVerses([verseNum]);
+      } else {
+        setActiveVerses([]);
+      }
     } else {
       navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book, chapter, activeBook, activeChapter]);
+  }, [book, chapter, verse, activeBook, activeChapter]);
 
   return <Passage />;
 }
