@@ -221,7 +221,11 @@ const VerseActionToolbar = () => {
     if (activeVerses.length === 0) return null;
     const bookCode = BOOK_NAME_TO_CODE[activeBook.toLowerCase()];
     if (!bookCode) return null;
-    const verseStr = formatVerseRanges(activeVerses);
+    const sorted = [...activeVerses].sort((a, b) => a - b);
+    const verseStr =
+      sorted.length === 1
+        ? `${sorted[0]}`
+        : `${sorted[0]}-${sorted[sorted.length - 1]}`;
     return `https://www.bible.com/bible/compare/${bookCode}.${activeChapter}.${verseStr}`;
   }, [activeBook, activeChapter, activeVerses]);
 
