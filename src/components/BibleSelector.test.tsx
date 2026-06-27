@@ -59,7 +59,7 @@ describe('BibleSelector Component', () => {
     );
     const verseLink = screen.getByTitle('nav-verse-5');
     await userEvent.click(verseLink);
-    // Verse clicking navigates to the chapter and sets activeVerses for scroll focus
-    expect(mockNavigate).toHaveBeenCalledWith('/bible/John/1');
+    // Verse clicking navigates to the verse URL (URL is source of truth)
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/John/1/5');
   });
 });
