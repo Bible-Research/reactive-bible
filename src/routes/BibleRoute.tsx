@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBibleStore } from '../store';
+import { decodeVerses } from '../utils/bibleUtils';
 import Passage from '../components/Passage';
 
 export default function BibleRoute() {
@@ -45,13 +46,20 @@ export default function BibleRoute() {
   }, [book, chapter, activeBook, activeChapter]);
 
   // Sync verse URL param to store. Guarded so that navigating from
-  // Verse.tsx (which already called setActiveVerses) does not collapse
-  // a multi-verse selection down to a single verse.
+  // Verse.tsx (which already called setActiveVerses) does not re-set
+  // the store when the URL already matches current selection.
   useEffect(() => {
-    const verseNum = verse ? parseInt(verse, 10) : null;
-    if (verseNum && !isNaN(verseNum)) {
-      if (!useBibleStore.getState().activeVerses.includes(verseNum)) {
-        setActiveVerses([verseNum]);
+    if (verse) {
+      const decoded = decodeVerses(verse);
+      if (decoded.length > 0) {
+        const current = useBibleStore.getState().activeVerses;
+        const sd = [...decoded].sort((a, b) => a - b);
+        const sc = [...current].sort((a, b) => a - b);
+        const matches = sd.length === sc.length &&
+          sd.every((v, i) => v === sc[i]);
+        if (!matches) {
+          setActiveVerses(decoded);
+        }
       }
     } else {
       if (useBibleStore.getState().activeVerses.length > 0) {

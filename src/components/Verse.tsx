@@ -1,6 +1,7 @@
 import { Box, Text, Title, createStyles } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { encodeVerses } from "../utils/bibleUtils";
 import { useEffect, useRef, useState } from "react";
 
 const useStyles = createStyles((theme) => ({
@@ -69,10 +70,9 @@ const Verse = ({
       ? activeVerses.filter((v) => v !== verse)
       : [...activeVerses, verse];
     setActiveVerses(newVerses);
-    const sorted = [...newVerses].sort((a, b) => a - b);
-    if (sorted.length > 0) {
+    if (newVerses.length > 0) {
       navigate(
-        `/bible/${activeBook}/${activeChapter}.${sorted[0]}`,
+        `/bible/${activeBook}/${activeChapter}.${encodeVerses(newVerses)}`,
         { replace: true }
       );
     } else {

@@ -15,7 +15,7 @@ import { useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { showNotification } from "@mantine/notifications";
 import AddTagNoteModal from "./AddTagNoteModal";
-import { BOOK_NAME_TO_CODE } from "../utils/bibleUtils";
+import { BOOK_NAME_TO_CODE, encodeVerses } from "../utils/bibleUtils";
 
 
 const BOOK_TO_BLB_ABBR: Record<string, string> = {
@@ -123,7 +123,9 @@ const VerseActionToolbar = () => {
   const handleShare = useCallback(async () => {
     const bookEncoded = encodeURIComponent(activeBook);
     const sorted = [...activeVerses].sort((a, b) => a - b);
-    const versePath = sorted.length > 0 ? `.${sorted[0]}` : "";
+    const versePath = sorted.length > 0
+      ? `.${encodeVerses(activeVerses)}`
+      : "";
     const url = `${window.location.origin}/bible/${bookEncoded}/${activeChapter}${versePath}`;
 
     const verseText = sorted
