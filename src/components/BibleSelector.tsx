@@ -59,7 +59,6 @@ const BibleSelector = ({
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeVerses = useBibleStore((state) => state.activeVerses);
   const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
 
   return (
     <Navbar
@@ -132,8 +131,9 @@ const BibleSelector = ({
                   href="/"
                   onClick={(event) => {
                     event.preventDefault();
-                    setActiveVerses([verse]);
-                    navigate(`/bible/${activeBook}/${activeChapter}`);
+                    navigate(
+                      `/bible/${activeBook}/${activeChapter}.${verse}`
+                    );
                     setOpened(false);
                   }}
                   key={verse}

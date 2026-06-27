@@ -1,5 +1,51 @@
 // src/utils/bibleUtils.ts
 
+/**
+ * Encodes an array of verse numbers into a compact URL string.
+ * e.g. [16,17,18] → "16-18", [16,18] → "16,18"
+ */
+export function encodeVerses(verses: number[]): string {
+  if (verses.length === 0) return '';
+  const sorted = [...verses].sort((a, b) => a - b);
+  const ranges: string[] = [];
+  let start = sorted[0];
+  let end = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i];
+    } else {
+      ranges.push(start === end ? `${start}` : `${start}-${end}`);
+      start = sorted[i];
+      end = sorted[i];
+    }
+  }
+  ranges.push(start === end ? `${start}` : `${start}-${end}`);
+  return ranges.join(',');
+}
+
+/**
+ * Decodes a URL verse string back into an array of verse numbers.
+ * e.g. "16-18" → [16,17,18], "16,18" → [16,18]
+ */
+export function decodeVerses(verseStr: string): number[] {
+  const verses: number[] = [];
+  for (const part of verseStr.split(',')) {
+    const trimmed = part.trim();
+    if (trimmed.includes('-')) {
+      const [startStr, endStr] = trimmed.split('-');
+      const start = parseInt(startStr, 10);
+      const end = parseInt(endStr, 10);
+      if (!isNaN(start) && !isNaN(end) && start <= end) {
+        for (let v = start; v <= end; v++) verses.push(v);
+      }
+    } else {
+      const v = parseInt(trimmed, 10);
+      if (!isNaN(v)) verses.push(v);
+    }
+  }
+  return verses;
+}
+
 export type Testament = 'OT' | 'NT';
 
 export interface BibleBook {

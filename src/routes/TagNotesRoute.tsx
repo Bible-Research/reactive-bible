@@ -37,9 +37,6 @@ export default function TagNotesRoute() {
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
-  const setActiveBook = useBibleStore((state) => state.setActiveBook);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
@@ -162,19 +159,11 @@ export default function TagNotesRoute() {
   };
 
   const handleViewInBible = (
-    book: string, 
-    chapter: number, 
+    book: string,
+    chapter: number,
     verse: number
   ) => {
-    // Set the Bible context
-    setActiveBook(book);
-    setActiveChapter(chapter);
-    setActiveVerses([verse]);
-    
-    // Navigate to the Bible passage
-    navigate(`/bible/${book}/${chapter}`);
-    
-    // Switch to Bible view
+    navigate(`/bible/${book}/${chapter}.${verse}`);
     setShowNotes(false);
   };
 

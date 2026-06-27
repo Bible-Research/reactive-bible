@@ -1,10 +1,18 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useNavigate } from 'react-router-dom';
 import Verse from './Verse';
 import { useBibleStore } from '../store';
 
-// Mock the Zustand store
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<
+    typeof import('react-router-dom')
+  >('react-router-dom');
+  return { ...actual, useNavigate: vi.fn() };
+});
+
+const mockNavigate = vi.fn();
 const mockSetActiveVerses = vi.fn();
 const initialStoreState = useBibleStore.getState();
 
@@ -14,7 +22,7 @@ window.HTMLElement.prototype.scrollIntoView = vi.fn();
 describe('Verse Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset the store state before each test
+    (useNavigate as ReturnType<typeof vi.fn>).mockReturnValue(mockNavigate);
     useBibleStore.setState({
       ...initialStoreState,
       activeVerses: [],
