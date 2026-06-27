@@ -8,19 +8,19 @@ import {
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
 
 const MyHeader = ({
   menuOpened,
   setMenuOpened,
-  open,
 }: {
   menuOpened: boolean;
   setMenuOpened: (opened: boolean) => void;
-  open: () => void;
 }) => {
   const theme = useMantineTheme();
+  const navigate = useNavigate();
   const [visible, setVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -69,7 +69,7 @@ const MyHeader = ({
             width: "100%",
           }}
         >
-          <ActionIcon variant="transparent" onClick={open}>
+          <ActionIcon variant="transparent" onClick={() => navigate('/search')}>
             <IconSearch />
           </ActionIcon>
           <Audio />

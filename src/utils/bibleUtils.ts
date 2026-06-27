@@ -134,6 +134,28 @@ export const BOOK_NAME_TO_ORDER: Record<string, number> =
     {} as Record<string, number>,
   );
 
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export const BOOK_CODE_TO_NAME: Record<string, string> =
+  BIBLE_BOOKS.reduce(
+    (acc, b) => {
+      acc[b.code] = titleCase(b.name);
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
+
+export const BOOK_CODE_TO_ORDER: Record<string, number> =
+  BIBLE_BOOKS.reduce(
+    (acc, b, i) => {
+      acc[b.code] = i;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
 export const BOOK_NAME_TO_CODE = BIBLE_BOOKS.reduce(
   (acc, book) => {
     acc[book.name] = book.code;
