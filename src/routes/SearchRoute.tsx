@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Accordion,
@@ -101,36 +101,22 @@ export default function SearchRoute() {
     (s) => s.setAudioPlaylistItems,
   );
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-
-  const handleInputChange = useCallback(
-    (val: string) => {
-      setInputValue(val);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        setSearchParams(
-          (prev) => {
-            const next = new URLSearchParams(prev);
-            if (val.trim()) {
-              next.set('q', val.trim());
-            } else {
-              next.delete('q');
-            }
-            next.delete('page');
-            return next;
-          },
-          { replace: true },
-        );
-      }, 300);
-    },
-    [setSearchParams],
-  );
-
-  useEffect(() => {
-    setInputValue(q);
-  }, [q]);
+  const handleSubmit = useCallback(() => {
+    const trimmed = inputValue.trim();
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (trimmed) {
+          next.set('q', trimmed);
+        } else {
+          next.delete('q');
+        }
+        next.delete('page');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [inputValue, setSearchParams]);
 
   useEffect(() => {
     if (!q.trim() || !activeTextFilesetId) {
@@ -193,15 +179,29 @@ export default function SearchRoute() {
       <Title order={2} mb="md">
         Search Bible
       </Title>
-      <TextInput
-        icon={<IconSearch size={16} />}
-        placeholder="Search for words or phrases..."
-        value={inputValue}
-        onChange={(e) => handleInputChange(e.currentTarget.value)}
+      <Box
         mb="md"
-        size="md"
-        aria-label="search-input"
-      />
+        component="form"
+        onSubmit={(e: React.FormEvent) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+      >
+        <Group noWrap>
+          <TextInput
+            icon={<IconSearch size={16} />}
+            placeholder="Search for words or phrases..."
+            value={inputValue}
+            onChange={(e) => setInputValue(e.currentTarget.value)}
+            size="md"
+            aria-label="search-input"
+            sx={{ flex: 1 }}
+          />
+          <Button type="submit" size="md" aria-label="search-button">
+            Search
+          </Button>
+        </Group>
+      </Box>
 
       {loading && (
         <Center mt="xl">

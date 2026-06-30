@@ -102,12 +102,30 @@ describe('SearchRoute', () => {
     expect(screen.getByText('Search Bible')).toBeInTheDocument();
   });
 
-  it('calls searchBible when q param is present', async () => {
+  it('calls searchBible when q param is present on mount', async () => {
     mockSearchBible.mockResolvedValue({ verses: [], meta: {} });
     renderSearch('?q=grace');
     await waitFor(() => {
       expect(mockSearchBible).toHaveBeenCalledWith(
         'grace',
+        'ENGESH',
+        1,
+        50,
+        expect.any(AbortSignal),
+      );
+    });
+  });
+
+  it('does not search while typing; searches on button click', async () => {
+    mockSearchBible.mockResolvedValue({ verses: [], meta: {} });
+    renderSearch('');
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'faith' } });
+    expect(mockSearchBible).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText('search-button'));
+    await waitFor(() => {
+      expect(mockSearchBible).toHaveBeenCalledWith(
+        'faith',
         'ENGESH',
         1,
         50,
