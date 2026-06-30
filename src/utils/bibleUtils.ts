@@ -125,6 +125,11 @@ const BIBLE_BOOKS: BibleBook[] = [
   { name: 'revelation', code: 'REV', testament: 'NT' },
 ];
 
+/**
+ * Map of lowercase book names to their canonical order index.
+ * Derived from BIBLE_BOOKS array.
+ * Example: { 'genesis': 0, 'exodus': 1, ... }
+ */
 export const BOOK_NAME_TO_ORDER: Record<string, number> =
   BIBLE_BOOKS.reduce(
     (acc, book, idx) => {
@@ -138,6 +143,11 @@ function titleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * Map of USFM book codes to title-cased display names.
+ * Derived from BIBLE_BOOKS array.
+ * Example: { 'GEN': 'Genesis', 'JHN': 'John', ... }
+ */
 export const BOOK_CODE_TO_NAME: Record<string, string> =
   BIBLE_BOOKS.reduce(
     (acc, b) => {
@@ -147,6 +157,11 @@ export const BOOK_CODE_TO_NAME: Record<string, string> =
     {} as Record<string, string>,
   );
 
+/**
+ * Map of USFM book codes to their canonical order index.
+ * Derived from BIBLE_BOOKS array.
+ * Example: { 'GEN': 0, 'EXO': 1, 'JHN': 42, ... }
+ */
 export const BOOK_CODE_TO_ORDER: Record<string, number> =
   BIBLE_BOOKS.reduce(
     (acc, b, i) => {

@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Accordion,
@@ -20,6 +26,7 @@ import {
 } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { searchBible, SearchVerse } from '../api';
+import { useAudioPlaylist } from '../hooks/useAudioPlaylist';
 import {
   type PlaylistItem,
 } from '../types';
@@ -27,6 +34,8 @@ import {
   BOOK_CODE_TO_NAME,
   BOOK_CODE_TO_ORDER,
 } from '../utils/bibleUtils';
+
+const VERSE_PREVIEW_LIMIT = 5;
 
 function toPlaylistItem(
   v: SearchVerse,
@@ -93,6 +102,11 @@ export default function SearchRoute() {
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [expandedBooks, setExpandedBooks] =
     useState<Set<string>>(new Set());
+  const [playlistItems, setPlaylistItems] =
+    useState<PlaylistItem[] | null>(null);
+
+  const verseRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const playlist = useAudioPlaylist();
 
   const activeTextFilesetId = useBibleStore(
     (s) => s.activeTextFilesetId,
@@ -151,25 +165,24 @@ export default function SearchRoute() {
     return () => controller.abort();
   }, [q, activeTextFilesetId, page]);
 
-  const VERSE_PREVIEW_LIMIT = 5;
-
-  const groups = groupByBook(verses);
+  const groups = useMemo(() => groupByBook(verses), [verses]);
 
   useEffect(() => {
     setOpenGroups(groups.map((g) => g.code));
     setExpandedBooks(new Set());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verses]);
+  }, [groups]);
 
   useEffect(() => {
     if (verses.length === 0) {
       setAudioPlaylistItems(null);
+      setPlaylistItems(null);
       return;
     }
     const items = verses.map((v, i) =>
       toPlaylistItem(v, i, verses.length),
     );
     setAudioPlaylistItems(items);
+    setPlaylistItems(items);
   }, [verses, setAudioPlaylistItems]);
 
   useEffect(() => {
@@ -186,22 +199,41 @@ export default function SearchRoute() {
       );
       setAudioPlaylistStartIndex(0);
     }
-  }, [audioPlaylistEnded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    audioPlaylistEnded,
+    page,
+    totalPages,
+    setAudioPlaylistEnded,
+    setSearchParams,
+    setAudioPlaylistStartIndex,
+  ]);
 
-  const handlePlayVerse = (v: SearchVerse) => {
-    const clickedIdx = verses.findIndex(
-      (x) =>
-        x.book_id === v.book_id &&
-        x.chapter === v.chapter &&
-        x.verse_start === v.verse_start,
-    );
-    const startIdx = Math.max(0, clickedIdx);
-    const items = verses.map((x, i) =>
-      toPlaylistItem(x, i, verses.length),
-    );
-    setAudioPlaylistItems(items);
-    setAudioPlaylistStartIndex(startIdx);
-  };
+  const handlePlayVerse = useCallback(
+    (v: SearchVerse) => {
+      if (!playlistItems) return;
+      const clickedIdx = verses.findIndex(
+        (x) =>
+          x.book_id === v.book_id &&
+          x.chapter === v.chapter &&
+          x.verse_start === v.verse_start,
+      );
+      const startIdx = Math.max(0, clickedIdx);
+      setAudioPlaylistStartIndex(startIdx);
+    },
+    [playlistItems, verses, setAudioPlaylistStartIndex],
+  );
+
+  useEffect(() => {
+    if (!playlist.currentItem || !playlist.isActive) return;
+    const itemId = playlist.currentItem.itemId;
+    const verseEl = verseRefs.current.get(itemId);
+    if (verseEl) {
+      verseEl.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [playlist.currentItem, playlist.isActive]);
 
   const handleVerseClick = (v: SearchVerse) => {
     const bookName = BOOK_CODE_TO_NAME[v.book_id] ?? v.book_id;
@@ -297,13 +329,40 @@ export default function SearchRoute() {
                   </Accordion.Control>
                   <Accordion.Panel>
                     <Stack spacing="xs">
-                      {visible.map((v) => (
-                        <Group
-                          key={`${v.chapter}-${v.verse_start}`}
-                          noWrap
-                          position="apart"
-                          sx={{ alignItems: 'flex-start' }}
-                        >
+                      {visible.map((v) => {
+                        const itemId =
+                          `search-${v.book_id}-` +
+                          `${v.chapter}-${v.verse_start}`;
+                        const isCurrentlyPlaying =
+                          playlist.isActive &&
+                          playlist.currentItem?.itemId === itemId;
+                        return (
+                          <Group
+                            key={`${v.chapter}-${v.verse_start}`}
+                            noWrap
+                            position="apart"
+                            ref={(el) => {
+                              if (el) {
+                                verseRefs.current.set(itemId, el);
+                              } else {
+                                verseRefs.current.delete(itemId);
+                              }
+                            }}
+                            sx={{
+                              alignItems: 'flex-start',
+                              backgroundColor: isCurrentlyPlaying
+                                ? 'rgba(0, 123, 255, 0.1)'
+                                : undefined,
+                              borderRadius: isCurrentlyPlaying
+                                ? '4px'
+                                : undefined,
+                              padding: isCurrentlyPlaying
+                                ? '8px'
+                                : undefined,
+                              transition:
+                                'background-color 0.2s ease',
+                            }}
+                          >
                           <Box
                             sx={{ cursor: 'pointer', flex: 1 }}
                             onClick={() => handleVerseClick(v)}
@@ -333,7 +392,8 @@ export default function SearchRoute() {
                             <IconPlayerPlay size={12} />
                           </ActionIcon>
                         </Group>
-                      ))}
+                        );
+                      })}
                       {hiddenCount > 0 && (
                         <Button
                           size="xs"
