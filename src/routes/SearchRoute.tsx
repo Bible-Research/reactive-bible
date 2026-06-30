@@ -103,6 +103,12 @@ export default function SearchRoute() {
   const setAudioPlaylistStartIndex = useBibleStore(
     (s) => s.setAudioPlaylistStartIndex,
   );
+  const audioPlaylistEnded = useBibleStore(
+    (s) => s.audioPlaylistEnded,
+  );
+  const setAudioPlaylistEnded = useBibleStore(
+    (s) => s.setAudioPlaylistEnded,
+  );
 
   const handleSubmit = useCallback(() => {
     const trimmed = inputValue.trim();
@@ -165,6 +171,22 @@ export default function SearchRoute() {
     );
     setAudioPlaylistItems(items);
   }, [verses, setAudioPlaylistItems]);
+
+  useEffect(() => {
+    if (!audioPlaylistEnded) return;
+    setAudioPlaylistEnded(false);
+    if (page < totalPages) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('page', String(page + 1));
+          return next;
+        },
+        { replace: true },
+      );
+      setAudioPlaylistStartIndex(0);
+    }
+  }, [audioPlaylistEnded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePlayVerse = (v: SearchVerse) => {
     const clickedIdx = verses.findIndex(

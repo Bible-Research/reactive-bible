@@ -51,6 +51,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
     (s) => s.setAudioActiveVerse
   );
   const setShowPlayer = useBibleStore((s) => s.setShowAudioPlayer);
+  const setAudioPlaylistEnded = useBibleStore(
+    (s) => s.setAudioPlaylistEnded
+  );
 
   const isActive = items.length > 0 && currentIndex >= 0;
   const currentItem = isActive ? (items[currentIndex] ?? null) : null;
@@ -75,6 +78,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         setIsPlaying(false);
         setCurrentIndex(-1);
         setShowPlayer(false);
+        setAudioPlaylistEnded(true);
         return;
       }
 
@@ -299,6 +303,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       unloadCurrent,
       setAudioActiveVerse,
       setShowPlayer,
+      setAudioPlaylistEnded,
     ],
   );
 
