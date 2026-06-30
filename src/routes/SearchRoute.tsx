@@ -15,13 +15,14 @@ import {
   Title,
 } from '@mantine/core';
 import {
-  IconListCheck,
   IconPlayerPlay,
   IconSearch,
 } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { searchBible, SearchVerse } from '../api';
-import { PlaylistItem } from '../types';
+import {
+  type PlaylistItem,
+} from '../types';
 import {
   BOOK_CODE_TO_NAME,
   BOOK_CODE_TO_ORDER,
@@ -89,18 +90,15 @@ export default function SearchRoute() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const [expandedBooks, setExpandedBooks] =
+    useState<Set<string>>(new Set());
 
   const activeTextFilesetId = useBibleStore(
     (s) => s.activeTextFilesetId,
   );
   const setAudioPlaylistItems = useBibleStore(
     (s) => s.setAudioPlaylistItems,
-  );
-  const setActiveVerses = useBibleStore(
-    (s) => s.setActiveVerses,
-  );
-  const setActiveBookAndChapter = useBibleStore(
-    (s) => s.setActiveBookAndChapter,
   );
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -158,26 +156,25 @@ export default function SearchRoute() {
     return () => controller.abort();
   }, [q, activeTextFilesetId, page]);
 
+  const VERSE_PREVIEW_LIMIT = 5;
+
   const groups = groupByBook(verses);
-  const allPlaylistItems = verses.map((v, i) =>
-    toPlaylistItem(v, i, verses.length),
-  );
+
+  useEffect(() => {
+    setOpenGroups(groups.map((g) => g.code));
+    setExpandedBooks(new Set());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verses]);
 
   const handlePlayVerse = (v: SearchVerse) => {
     setAudioPlaylistItems([toPlaylistItem(v, 0, 1)]);
   };
 
-  const handlePlayAll = () => {
-    if (allPlaylistItems.length > 0) {
-      setAudioPlaylistItems(allPlaylistItems);
-    }
-  };
-
   const handleVerseClick = (v: SearchVerse) => {
     const bookName = BOOK_CODE_TO_NAME[v.book_id] ?? v.book_id;
-    setActiveBookAndChapter(bookName, v.chapter);
-    setActiveVerses([v.verse_start]);
-    navigate(`/bible/${bookName}/${v.chapter}`);
+    navigate(
+      `/bible/${bookName}/${v.chapter}.${v.verse_start}`,
+    );
   };
 
   return (
@@ -215,77 +212,101 @@ export default function SearchRoute() {
 
       {!loading && verses.length > 0 && (
         <>
-          <Group position="apart" mb="sm">
-            <Text size="sm" color="dimmed">
-              {verses.length} result{verses.length !== 1 ? 's' : ''}
-            </Text>
-            <Button
-              size="xs"
-              leftIcon={<IconListCheck size={14} />}
-              variant="light"
-              onClick={handlePlayAll}
-              aria-label="play-all"
-            >
-              Play all
-            </Button>
-          </Group>
+          <Text size="sm" color="dimmed" mb="sm">
+            {verses.length} result{verses.length !== 1 ? 's' : ''}
+          </Text>
 
-          <Accordion variant="separated" chevronPosition="right">
-            {groups.map((group) => (
-              <Accordion.Item
-                key={group.code}
-                value={group.code}
-              >
-                <Accordion.Control>
-                  <Text weight={600}>
-                    {group.displayName}
-                    <Text
-                      component="span"
-                      size="sm"
-                      color="dimmed"
-                      ml="xs"
-                    >
-                      ({group.verses.length})
-                    </Text>
-                  </Text>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <Stack spacing="xs">
-                    {group.verses.map((v) => (
-                      <Group
-                        key={`${v.chapter}-${v.verse_start}`}
-                        noWrap
-                        position="apart"
-                        sx={{ alignItems: 'flex-start' }}
+          <Accordion
+            variant="separated"
+            chevronPosition="right"
+            multiple
+            value={openGroups}
+            onChange={setOpenGroups}
+          >
+            {groups.map((group) => {
+              const isExpanded = expandedBooks.has(group.code);
+              const visible = isExpanded
+                ? group.verses
+                : group.verses.slice(0, VERSE_PREVIEW_LIMIT);
+              const hiddenCount =
+                group.verses.length - visible.length;
+              return (
+                <Accordion.Item
+                  key={group.code}
+                  value={group.code}
+                >
+                  <Accordion.Control>
+                    <Text weight={600}>
+                      {group.displayName}
+                      <Text
+                        component="span"
+                        size="sm"
+                        color="dimmed"
+                        ml="xs"
                       >
-                        <Box
-                          sx={{ cursor: 'pointer', flex: 1 }}
-                          onClick={() => handleVerseClick(v)}
+                        ({group.verses.length})
+                      </Text>
+                    </Text>
+                  </Accordion.Control>
+                  <Accordion.Panel>
+                    <Stack spacing="xs">
+                      {visible.map((v) => (
+                        <Group
+                          key={`${v.chapter}-${v.verse_start}`}
+                          noWrap
+                          position="apart"
+                          sx={{ alignItems: 'flex-start' }}
                         >
-                          <Text size="xs" color="dimmed" mb={2}>
-                            {group.displayName} {v.chapter}:
-                            {v.verse_start}
-                          </Text>
-                          <Text size="sm">{v.verse_text}</Text>
-                        </Box>
-                        <ActionIcon
-                          size="sm"
-                          variant="light"
-                          color="blue"
-                          onClick={() => handlePlayVerse(v)}
-                          aria-label={
-                            `play-${v.book_id}-` +
-                            `${v.chapter}-${v.verse_start}`
+                          <Box
+                            sx={{ cursor: 'pointer', flex: 1 }}
+                            onClick={() => handleVerseClick(v)}
+                          >
+                            <Text
+                              size="xs"
+                              color="dimmed"
+                              mb={2}
+                            >
+                              {group.displayName} {v.chapter}:
+                              {v.verse_start}
+                            </Text>
+                            <Text size="sm">
+                              {v.verse_text}
+                            </Text>
+                          </Box>
+                          <ActionIcon
+                            size="sm"
+                            variant="light"
+                            color="blue"
+                            onClick={() => handlePlayVerse(v)}
+                            aria-label={
+                              `play-${v.book_id}-` +
+                              `${v.chapter}-${v.verse_start}`
+                            }
+                          >
+                            <IconPlayerPlay size={12} />
+                          </ActionIcon>
+                        </Group>
+                      ))}
+                      {hiddenCount > 0 && (
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          onClick={() =>
+                            setExpandedBooks(
+                              (prev) =>
+                                new Set([...prev, group.code]),
+                            )
                           }
                         >
-                          <IconPlayerPlay size={12} />
-                        </ActionIcon>
-                      </Group>
-                    ))}
-                  </Stack>
-                </Accordion.Panel>
-              </Accordion.Item>
-            ))}
+                          Show {hiddenCount} more verse
+                          {hiddenCount !== 1 ? 's' : ''}
+                        </Button>
+                      )}
+                    </Stack>
+                  </Accordion.Panel>
+                </Accordion.Item>
+              );
+            })}
           </Accordion>
 
           {totalPages > 1 && (

@@ -134,20 +134,27 @@ describe('SearchRoute', () => {
     expect(johnIdx).toBeLessThan(romIdx);
   });
 
-  it('clicking "Play all" sets multi-item playlist', async () => {
+  it('shows "Show N more" button when book has > 5 results', async () => {
+    const manyVerses = Array.from({ length: 7 }, (_, i) => ({
+      book_id: 'JHN',
+      chapter: 1,
+      verse_start: i + 1,
+      verse_text: `Verse ${i + 1}`,
+    }));
     mockSearchBible.mockResolvedValue({
-      verses: MOCK_VERSES,
+      verses: manyVerses,
       meta: {},
     });
     renderSearch();
-    const playAllBtn = await screen.findByLabelText('play-all');
-    await act(async () => {
-      fireEvent.click(playAllBtn);
+    await waitFor(() =>
+      expect(screen.getByText(/Show 2 more verses/)).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByText(/Show 2 more verses/));
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/Show.*more verse/),
+      ).not.toBeInTheDocument();
     });
-    const items = useBibleStore.getState().audioPlaylistItems;
-    expect(items).toHaveLength(3);
-    expect(items?.[0].book).toBe('Romans');
-    expect(items?.[1].book).toBe('John');
   });
 
   it('clicking a verse play button sets single-item playlist', async () => {
@@ -156,17 +163,7 @@ describe('SearchRoute', () => {
       meta: {},
     });
     renderSearch();
-    await waitFor(() =>
-      expect(screen.getByText('John')).toBeInTheDocument(),
-    );
-    const accordionControl = screen
-      .getAllByRole('button')
-      .find((b) => b.textContent?.includes('John'));
-    if (!accordionControl) throw new Error('John accordion not found');
-    fireEvent.click(accordionControl);
-    const playBtn = await screen.findByLabelText(
-      'play-JHN-3-16',
-    );
+    const playBtn = await screen.findByLabelText('play-JHN-3-16');
     await act(async () => {
       fireEvent.click(playBtn);
     });
@@ -179,6 +176,21 @@ describe('SearchRoute', () => {
       startVerse: 16,
       endVerse: 16,
     });
+  });
+
+  it('clicking a verse navigates to chapter.verse URL', async () => {
+    mockSearchBible.mockResolvedValue({
+      verses: [MOCK_VERSES[1]],
+      meta: {},
+    });
+    renderSearch();
+    await waitFor(() =>
+      expect(screen.getByText('For God so loved the world')).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByText('For God so loved the world'));
+    await waitFor(() =>
+      expect(screen.getByTestId('bible-page')).toBeInTheDocument(),
+    );
   });
 
   it('shows no-results message for empty response', async () => {
