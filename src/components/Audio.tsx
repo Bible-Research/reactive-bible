@@ -469,6 +469,17 @@ const Audio = () => {
           onLoopToggle={() => setIsLooping((value) => !value)}
           onClose={handlePlaylistClose}
           subtitle={playlist.currentItem?.label}
+          onFocus={
+            playlist.currentItem
+              ? () => {
+                  const item = playlist.currentItem!;
+                  navigate(
+                    `/bible/${item.book}/${item.chapter}` +
+                    `.${item.startVerse}`,
+                  );
+                }
+              : undefined
+          }
         />
       )}
 
