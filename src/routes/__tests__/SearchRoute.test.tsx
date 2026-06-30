@@ -269,4 +269,24 @@ describe('SearchRoute', () => {
       .find((b) => b.textContent?.trim() === '2');
     expect(pageBtn).toBeDefined();
   });
+
+  it('clears audioPlaylistItems on unmount', async () => {
+    mockSearchBible.mockResolvedValue({
+      verses: MOCK_VERSES,
+      meta: {},
+    });
+
+    const { unmount } = renderSearch();
+
+    await waitFor(() => {
+      const items = useBibleStore.getState().audioPlaylistItems;
+      expect(items).not.toBeNull();
+      expect(items?.length).toBe(3);
+    });
+
+    unmount();
+
+    const items = useBibleStore.getState().audioPlaylistItems;
+    expect(items).toBeNull();
+  });
 });
