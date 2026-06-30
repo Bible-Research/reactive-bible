@@ -267,8 +267,8 @@ export default function TagNotesRoute() {
           new Date(b.created_at).getTime()
         );
       case 'verse_asc': {
-        const aV = a.verses[0];
-        const bV = b.verses[0];
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
         if (!aV) return 1;
         if (!bV) return -1;
         const aBook =
@@ -281,8 +281,8 @@ export default function TagNotesRoute() {
         return aV.verse - bV.verse;
       }
       case 'verse_desc': {
-        const aV = a.verses[0];
-        const bV = b.verses[0];
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
         if (!aV) return 1;
         if (!bV) return -1;
         const aBook =
@@ -305,10 +305,10 @@ export default function TagNotesRoute() {
       return;
     }
     const items: PlaylistItem[] = sortedNotes
-      .filter((n) => n.verses.length > 0)
+      .filter((n) => (n.verses?.length ?? 0) > 0)
       .map((note, i, arr) => {
-        const firstVerse = note.verses[0];
-        const sameBlock = note.verses.filter(
+        const firstVerse = note.verses![0];
+        const sameBlock = note.verses!.filter(
           (v) =>
             v.book === firstVerse.book &&
             v.chapter === firstVerse.chapter,
