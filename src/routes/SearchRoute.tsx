@@ -3,7 +3,6 @@ import {
   useState,
   useCallback,
   useMemo,
-  useRef,
 } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
@@ -26,7 +25,6 @@ import {
 } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { searchBible, SearchVerse } from '../api';
-import { useAudioPlaylist } from '../hooks/useAudioPlaylist';
 import {
   type PlaylistItem,
 } from '../types';
@@ -106,9 +104,6 @@ export default function SearchRoute() {
     useState<PlaylistItem[] | null>(null);
   const [shouldAutoStartPlaylist, setShouldAutoStartPlaylist] =
     useState(false);
-
-  const verseRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const playlist = useAudioPlaylist();
 
   const activeTextFilesetId = useBibleStore(
     (s) => s.activeTextFilesetId,
@@ -229,18 +224,6 @@ export default function SearchRoute() {
     [playlistItems, verses, setAudioPlaylistStartIndex],
   );
 
-  useEffect(() => {
-    if (!playlist.currentItem || !playlist.isActive) return;
-    const itemId = playlist.currentItem.itemId;
-    const verseEl = verseRefs.current.get(itemId);
-    if (verseEl) {
-      verseEl.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-  }, [playlist.currentItem, playlist.isActive]);
-
   const handleVerseClick = (v: SearchVerse) => {
     const bookName = BOOK_CODE_TO_NAME[v.book_id] ?? v.book_id;
     navigate(
@@ -335,40 +318,13 @@ export default function SearchRoute() {
                   </Accordion.Control>
                   <Accordion.Panel>
                     <Stack spacing="xs">
-                      {visible.map((v) => {
-                        const itemId =
-                          `search-${v.book_id}-` +
-                          `${v.chapter}-${v.verse_start}`;
-                        const isCurrentlyPlaying =
-                          playlist.isActive &&
-                          playlist.currentItem?.itemId === itemId;
-                        return (
-                          <Group
-                            key={`${v.chapter}-${v.verse_start}`}
-                            noWrap
-                            position="apart"
-                            ref={(el) => {
-                              if (el) {
-                                verseRefs.current.set(itemId, el);
-                              } else {
-                                verseRefs.current.delete(itemId);
-                              }
-                            }}
-                            sx={{
-                              alignItems: 'flex-start',
-                              backgroundColor: isCurrentlyPlaying
-                                ? 'rgba(0, 123, 255, 0.1)'
-                                : undefined,
-                              borderRadius: isCurrentlyPlaying
-                                ? '4px'
-                                : undefined,
-                              padding: isCurrentlyPlaying
-                                ? '8px'
-                                : undefined,
-                              transition:
-                                'background-color 0.2s ease',
-                            }}
-                          >
+                      {visible.map((v) => (
+                        <Group
+                          key={`${v.chapter}-${v.verse_start}`}
+                          noWrap
+                          position="apart"
+                          sx={{ alignItems: 'flex-start' }}
+                        >
                           <Box
                             sx={{ cursor: 'pointer', flex: 1 }}
                             onClick={() => handleVerseClick(v)}
@@ -398,8 +354,7 @@ export default function SearchRoute() {
                             <IconPlayerPlay size={12} />
                           </ActionIcon>
                         </Group>
-                        );
-                      })}
+                      ))}
                       {hiddenCount > 0 && (
                         <Button
                           size="xs"
