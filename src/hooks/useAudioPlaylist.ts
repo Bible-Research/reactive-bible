@@ -180,9 +180,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         if (stoppedRef.current) return;
 
         let fetchedTimestamps: VerseTimestamp[] = [];
-        if (activeAudioFilesetId !== 'ENGKJV') {
+        if (effectiveFilesetId !== 'ENGKJV') {
           const tsId = resolveTimestampsFilesetId(
-            activeAudioFilesetId,
+            effectiveFilesetId,
             activeTextFilesetId,
             item.book,
           );
@@ -194,7 +194,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             );
             fetchedTimestamps = adjustTimestampsForENGESV(
               rawTimestamps,
-              activeAudioFilesetId,
+              effectiveFilesetId,
             );
           }
         }
