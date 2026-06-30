@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
@@ -17,6 +17,12 @@ import {
   findTestamentFallback,
 } from "../utils/bibleUtils";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
+import {
+  useMediaSession,
+  MediaSessionControls,
+  MediaSessionMetadata,
+  MediaSessionPosition,
+} from "../hooks/useMediaSession";
 
 const Audio = () => {
   const playlist = useAudioPlaylist();
@@ -29,7 +35,6 @@ const Audio = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
   const audioRef = useRef<Howl | null>(null);
-  const pendingOperationRef = useRef<Promise<void> | null>(null);
   const [audio, setAudio] = useState<Howl | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,41 +142,32 @@ const Audio = () => {
     }
   }, []);
 
-  const safePlay = useCallback(async () => {
+  // Synchronous and fire-and-forget. Howler's html5 `play()` returns a sound
+  // id (number), not a promise, and handles the underlying <audio> element's
+  // play promise internally (rejections surface via onplayerror). Keeping
+  // these synchronous guarantees Media Session action handlers return
+  // immediately and never block the main thread (prevents Android ANR).
+  const safePlay = useCallback(() => {
     const currentAudio = audioRef.current;
     if (!currentAudio || isPlayingRef.current) return;
-    if (pendingOperationRef.current) {
-      await pendingOperationRef.current;
-    }
     try {
-      const playPromise = currentAudio.play();
-      if (playPromise && typeof playPromise.then === 'function') {
-        pendingOperationRef.current = playPromise as Promise<void>;
-        await playPromise;
-        pendingOperationRef.current = null;
-      }
+      currentAudio.play();
       isPlayingRef.current = true;
       setIsPlaying(true);
     } catch (err) {
       console.warn('Play operation failed:', err);
-      pendingOperationRef.current = null;
     }
   }, []);
 
-  const safePause = useCallback(async () => {
+  const safePause = useCallback(() => {
     const currentAudio = audioRef.current;
     if (!currentAudio || !isPlayingRef.current) return;
-    if (pendingOperationRef.current) {
-      await pendingOperationRef.current;
-    }
     try {
       currentAudio.pause();
       isPlayingRef.current = false;
       setIsPlaying(false);
-      pendingOperationRef.current = null;
     } catch (err) {
       console.warn('Pause operation failed:', err);
-      pendingOperationRef.current = null;
     }
   }, []);
 
@@ -183,133 +179,104 @@ const Audio = () => {
     audioRef.current = audio;
   }, [audio]);
 
-  useEffect(() => {
-    if (!('mediaSession' in navigator) || !audio) return;
+  // ----- Unified Media Session wiring (single global owner) -----
+  const translationName = useMemo(
+    () =>
+      translations.find((t) =>
+        t.filesets.some((f) => f.id === activeAudioFilesetId),
+      )?.name || 'Bible Audio',
+    [translations, activeAudioFilesetId],
+  );
 
-    const translationName = translations.find(
-      t => t.filesets.some(f => f.id === activeAudioFilesetId)
-    )?.name || 'Unknown Version';
-    
-    navigator.mediaSession.metadata = new MediaMetadata({
+  const mediaActive = isPlaylistMode ? playlist.isActive : audio !== null;
+  const mediaIsPlaying = isPlaylistMode ? playlist.isPlaying : isPlaying;
+
+  const mediaMetadata = useMemo<MediaSessionMetadata | null>(() => {
+    if (isPlaylistMode) {
+      if (!playlist.currentItem) return null;
+      return {
+        title: playlist.currentItem.label,
+        artist: translationName,
+        album: 'Bible Audio',
+      };
+    }
+    if (!audio) return null;
+    return {
       title: `${activeBook} ${activeChapter}`,
       artist: translationName,
       album: 'Bible Audio',
-    });
-
-    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-
-    let positionUpdateTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedSyncPosition = () => {
-      if (positionUpdateTimer) clearTimeout(positionUpdateTimer);
-      positionUpdateTimer = setTimeout(() => {
-        const currentAudio = audioRef.current;
-        if (!currentAudio) return;
-        const duration = currentAudio.duration();
-        const position = currentAudio.seek() as number;
-        if (
-          duration > 0 &&
-          typeof position === 'number' &&
-          !isNaN(position) &&
-          position <= duration
-        ) {
-          try {
-            navigator.mediaSession.setPositionState({
-              duration,
-              playbackRate: 1,
-              position,
-            });
-          } catch {
-          }
-        }
-      }, 100);
     };
+  }, [
+    isPlaylistMode,
+    playlist.currentItem,
+    audio,
+    activeBook,
+    activeChapter,
+    translationName,
+  ]);
 
-    navigator.mediaSession.setActionHandler('play', () => {
-      safePlay();
-    });
-
-    navigator.mediaSession.setActionHandler('pause', () => {
-      safePause();
-    });
-
-    navigator.mediaSession.setActionHandler('stop', () => {
-      safePause();
-    });
-
-    navigator.mediaSession.setActionHandler(
-      'seekbackward',
-      (details) => {
-        const currentAudio = audioRef.current;
-        if (!currentAudio) return;
-        const offset = details.seekOffset ?? 10;
-        const currentTime = currentAudio.seek() as number;
-        const newTime = Math.max(0, currentTime - offset);
-        safeSeek(newTime);
-        debouncedSyncPosition();
-      }
-    );
-
-    navigator.mediaSession.setActionHandler(
-      'seekforward',
-      (details) => {
-        const currentAudio = audioRef.current;
-        if (!currentAudio) return;
-        const offset = details.seekOffset ?? 10;
-        const currentTime = currentAudio.seek() as number;
-        const duration = currentAudio.duration();
-        const newTime = Math.min(duration, currentTime + offset);
-        safeSeek(newTime);
-        debouncedSyncPosition();
-      }
-    );
-
-    navigator.mediaSession.setActionHandler(
-      'previoustrack',
-      () => {
-        const currentAudio = audioRef.current;
-        if (!currentAudio) return;
-        const currentTime = currentAudio.seek() as number;
-        const newTime = Math.max(0, currentTime - 10);
-        safeSeek(newTime);
-        debouncedSyncPosition();
-      }
-    );
-
-    navigator.mediaSession.setActionHandler(
-      'nexttrack',
-      () => {
-        const currentAudio = audioRef.current;
-        if (!currentAudio) return;
-        const currentTime = currentAudio.seek() as number;
-        const duration = currentAudio.duration();
-        const newTime = Math.min(duration, currentTime + 10);
-        safeSeek(newTime);
-        debouncedSyncPosition();
-      }
-    );
-
-    navigator.mediaSession.setActionHandler(
-      'seekto',
-      (details) => {
-        if (details.seekTime !== undefined) {
-          safeSeek(details.seekTime);
-          debouncedSyncPosition();
-        }
-      }
-    );
-
-    return () => {
-      if (positionUpdateTimer) clearTimeout(positionUpdateTimer);
-      navigator.mediaSession.setActionHandler('play', null);
-      navigator.mediaSession.setActionHandler('pause', null);
-      navigator.mediaSession.setActionHandler('stop', null);
-      navigator.mediaSession.setActionHandler('seekbackward', null);
-      navigator.mediaSession.setActionHandler('seekforward', null);
-      navigator.mediaSession.setActionHandler('previoustrack', null);
-      navigator.mediaSession.setActionHandler('nexttrack', null);
-      navigator.mediaSession.setActionHandler('seekto', null);
+  const mediaControls = useMemo<MediaSessionControls>(() => {
+    if (isPlaylistMode) {
+      const seekRelative = (offset: number) => {
+        const a = playlist.audio;
+        if (!a) return;
+        const current = a.seek() as number;
+        const duration = a.duration();
+        const target = Math.max(
+          0,
+          Math.min(duration || Infinity, current + offset),
+        );
+        a.seek(target);
+      };
+      return {
+        play: () => playlist.resume(),
+        pause: () => playlist.pause(),
+        stop: () => playlist.stop(),
+        nextTrack: () => playlist.next(),
+        previousTrack: () => playlist.previous(),
+        seekBy: seekRelative,
+        seekTo: (time) => {
+          playlist.audio?.seek(time);
+        },
+      };
+    }
+    return {
+      play: () => {
+        void safePlay();
+      },
+      pause: () => {
+        void safePause();
+      },
+      stop: () => {
+        void safePause();
+      },
+      seekBy: (offset) => {
+        const a = audioRef.current;
+        if (!a) return;
+        const current = a.seek() as number;
+        safeSeek(current + offset);
+      },
+      seekTo: (time) => safeSeek(time),
     };
-  }, [audio, activeBook, activeChapter, activeAudioFilesetId, translations, safePlay, safePause, safeSeek]);
+  }, [isPlaylistMode, playlist, safePlay, safePause, safeSeek]);
+
+  const getMediaPosition = useCallback((): MediaSessionPosition | null => {
+    const a = isPlaylistMode ? playlist.audio : audioRef.current;
+    if (!a) return null;
+    return {
+      duration: a.duration(),
+      position: a.seek() as number,
+      playbackRate: 1,
+    };
+  }, [isPlaylistMode, playlist.audio]);
+
+  useMediaSession({
+    active: mediaActive,
+    isPlaying: mediaIsPlaying,
+    metadata: mediaMetadata,
+    controls: mediaControls,
+    getPosition: getMediaPosition,
+  });
 
   // Function to navigate to next chapter
   const goToNextChapter = () => {

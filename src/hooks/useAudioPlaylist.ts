@@ -242,30 +242,14 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             prefetchNext(index);
           },
           onplay: () => {
+            // Media Session metadata/state is owned centrally by
+            // useMediaSession (wired in Audio.tsx). Do not write to
+            // navigator.mediaSession here to avoid duplicate owners.
             setIsPlaying(true);
             setShowPlayer(true);
-
-            if ('mediaSession' in navigator) {
-              const translationName =
-                translations.find((t) =>
-                  t.filesets.some(
-                    (f) => f.id === activeAudioFilesetId,
-                  ),
-                )?.name || 'Bible Audio';
-              navigator.mediaSession.metadata =
-                new MediaMetadata({
-                  title: item.label,
-                  artist: translationName,
-                  album: 'Bible Audio',
-                });
-              navigator.mediaSession.playbackState = 'playing';
-            }
           },
           onpause: () => {
             setIsPlaying(false);
-            if ('mediaSession' in navigator) {
-              navigator.mediaSession.playbackState = 'paused';
-            }
           },
           onend: () => {
             if (stoppedRef.current) return;
@@ -413,11 +397,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
     setCurrentIndex(-1);
     setItems([]);
     setShowPlayer(false);
-
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = null;
-      navigator.mediaSession.playbackState = 'none';
-    }
+    // Media Session is reset centrally by useMediaSession once `active`
+    // becomes false (isActive -> false here).
   }, [unloadCurrent, setShowPlayer]);
 
   useEffect(() => {
