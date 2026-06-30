@@ -68,15 +68,16 @@ const Audio = () => {
     playlist.start(audioPlaylistItems, audioPlaylistStartIndex);
   }, [audioPlaylistStartIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset audio when chapter/book/version changes
+  // Reset chapter audio when chapter/book/version changes (non-playlist only)
   useEffect(() => {
+    if (isPlaylistMode) return;
     if (audio) {
       audio.unload();
       setAudio(null);
     }
     setTimestamps([]);
     setAudioActiveVerse(null);
-  }, [activeBook, activeChapter, activeAudioFilesetId]);
+  }, [activeBook, activeChapter, activeAudioFilesetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch timestamps when audio or text fileset changes
   useEffect(() => {

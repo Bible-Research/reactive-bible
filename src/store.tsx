@@ -107,14 +107,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           activeBook,
           activeChapter,
           activeVerses: [],
-          audioActiveVerse: null,
         }),
       setActiveBookOnly: (activeBook) => set({ activeBook }),
       setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
       setActiveChapter: (activeChapter) => set({ 
         activeChapter, 
         activeVerses: [],
-        audioActiveVerse: null
       }),
       setActiveVerses: (activeVerses) => {
         set({ activeVerses });
