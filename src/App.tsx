@@ -49,8 +49,9 @@ export default function App() {
   
   // Check if we're on an auth page (login/register)
   const location = useLocation();
-  const isAuthPage = location.pathname === '/login' || 
+  const isAuthPage = location.pathname === '/login' ||
                      location.pathname === '/register';
+  const isSearchPage = location.pathname === '/search';
   const isBibleView = location.pathname.startsWith('/bible');
   useWindowEvent("keydown", (event) => {
     const tag = (event.target as HTMLElement).tagName;
@@ -103,8 +104,8 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
-              // Allow scrolling on auth pages
-              overflow: isAuthPage ? "auto" : "hidden",
+              // Allow scrolling on auth and search pages
+              overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
             },
           })}
         >
