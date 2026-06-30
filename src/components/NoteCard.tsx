@@ -41,11 +41,7 @@ const NoteCard = ({
   onCountChange,
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
-  const [passageContainer, setPassageContainer] = useState<PassageContainerState>({
-    book: "",
-    chapter: 0,
-    verses: []
-  });
+  const [passageContainer, setPassageContainer] = useState<PassageContainerState | null>(null);
   const [passages, setPassages] = useState<PassageState[]>([]);
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
@@ -99,36 +95,36 @@ const NoteCard = ({
    }
 
   useEffect(() => {
+    if (!passageContainer) return;
+
     const { book, chapter, verses } = passageContainer;
+
     if (!book || !chapter || !verses.length) return;
+
     let cancelled = false;
+
     const getPassage = async () => {
       try {
-        const res = await getVersesInChapter(
-          book,
-          chapter,
-          filesetId
-        )
-        if (cancelled) return
+        const res = await getVersesInChapter(book, chapter, filesetId);
 
-        const verseFound: {
-          verse: number; text: string;
-        }[] | undefined = res?.filter(res =>
-          verses?.includes(res.verse));
+        if (cancelled) return;
+
+        const verseFound = res?.filter(res =>
+          verses.includes(res.verse)
+        );
 
         setPassages(verseFound);
-      } catch (err: any) {
-        console.error('Failed to load passage', err);
-        throw new Error(err);
+      } catch (err) {
+        console.error("Failed to load passage", err);
       }
-    }
+    };
 
-    void getPassage()
+    void getPassage();
 
     return () => {
-      cancelled = true
+      cancelled = true;
     };
-  }, [passageContainer])
+  }, [passageContainer, filesetId]);
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
