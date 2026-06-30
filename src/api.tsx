@@ -25,7 +25,8 @@ import {
 } from './utils/cacheManager';
 
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, ESV_API_KEY } from './config';
+import { BOOK_NAME_TO_CODE } from './utils/bibleUtils';
 
 export type { SectionHeading };
 
@@ -871,6 +872,98 @@ export interface SearchVerse {
   verse_text: string;
 }
 
+/**
+ * Search the ESV Bible using the ESV API passage search endpoint.
+ * @param query - Search query string
+ * @param page - Page number (default: 1)
+ * @param pageSize - Results per page (default: 50, max: 100)
+ * @param signal - AbortSignal for request cancellation
+ * @returns Promise<SearchResponse> with ESV search results
+ */
+export const searchEsvApi = async (
+  query: string,
+  page = 1,
+  pageSize = 50,
+  signal?: AbortSignal,
+): Promise<SearchResponse> => {
+  if (!ESV_API_KEY) {
+    throw new Error('ESV API key not configured. Please set VITE_ESV_API_KEY environment variable.');
+  }
+
+  const params = new URLSearchParams({
+    q: query,
+    page: String(page),
+    'page-size': String(Math.min(pageSize, 100)), // ESV API max is 100
+  });
+
+  const url = `https://api.esv.org/v3/passage/search/?${params.toString()}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Token ${ESV_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      signal,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Invalid ESV API key. Please check your VITE_ESV_API_KEY configuration.');
+      }
+      throw new Error(`ESV API search failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Transform ESV API response to our SearchVerse format
+    const verses: SearchVerse[] = data.results.map((result: any) => {
+      // Parse reference like "John 3:16" or "Genesis 1:1-2"
+      const referenceMatch = result.reference.match(/^(\d*\s*\w+)\s+(\d+):(\d+)(?:-\d+)?$/);
+      if (!referenceMatch) {
+        throw new Error(`Unable to parse reference: ${result.reference}`);
+      }
+
+      const [, bookName, chapterStr, verseStr] = referenceMatch;
+      const chapter = parseInt(chapterStr, 10);
+      const verse_start = parseInt(verseStr, 10);
+
+      // Convert book name to book code using our existing mapping
+      const bookCode = BOOK_NAME_TO_CODE[bookName.toLowerCase().replace(/\s+/g, ' ')];
+      if (!bookCode) {
+        throw new Error(`Unknown book: ${bookName}`);
+      }
+
+      return {
+        book_id: bookCode,
+        chapter,
+        verse_start,
+        verse_text: result.content,
+      };
+    });
+
+    // Transform pagination metadata
+    const pagination: SearchPagination = {
+      total: data.total_results,
+      count: verses.length,
+      per_page: Math.min(pageSize, 100),
+      current_page: data.page,
+      total_pages: data.total_pages,
+    };
+
+    return {
+      verses,
+      meta: { pagination },
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('ESV API search failed: Unknown error');
+  }
+};
+
 export interface SearchPagination {
   total: number;
   count: number;
@@ -891,6 +984,12 @@ export const searchBible = async (
   limit = 50,
   signal?: AbortSignal,
 ): Promise<SearchResponse> => {
+  // Use ESV API for ENGESV_API fileset
+  if (filesetId === 'ENGESV_API') {
+    return await searchEsvApi(query, page, limit, signal);
+  }
+
+  // Use existing Bible Research API for other translations
   const params = new URLSearchParams({
     query,
     fileset_id: filesetId,

@@ -40,6 +40,8 @@ interface BibleState {
   setAudioActiveVerse: (verse: number | null) => void;
   audioPlaylistItems: PlaylistItem[] | null;
   setAudioPlaylistItems: (items: PlaylistItem[] | null) => void;
+  audioPlaylistStartIndex: number | null;
+  setAudioPlaylistStartIndex: (index: number | null) => void;
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
   setActiveBook: (activeBook: string) => void;
@@ -83,6 +85,7 @@ export const initialState = {
   lastSelectedTagId: null,
   audioActiveVerse: null as number | null,
   audioPlaylistItems: null as PlaylistItem[] | null,
+  audioPlaylistStartIndex: null as number | null,
   versesFolded: false,
 };
 
@@ -210,6 +213,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ audioActiveVerse }),
       setAudioPlaylistItems: (audioPlaylistItems) =>
         set({ audioPlaylistItems }),
+      setAudioPlaylistStartIndex: (audioPlaylistStartIndex) =>
+        set({ audioPlaylistStartIndex }),
       setVersesFolded: (versesFolded) => {
         set({ versesFolded });
         if (!versesFolded) {

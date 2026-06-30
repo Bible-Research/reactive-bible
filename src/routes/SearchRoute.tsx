@@ -100,6 +100,9 @@ export default function SearchRoute() {
   const setAudioPlaylistItems = useBibleStore(
     (s) => s.setAudioPlaylistItems,
   );
+  const setAudioPlaylistStartIndex = useBibleStore(
+    (s) => s.setAudioPlaylistStartIndex,
+  );
 
   const handleSubmit = useCallback(() => {
     const trimmed = inputValue.trim();
@@ -164,7 +167,18 @@ export default function SearchRoute() {
   }, [verses, setAudioPlaylistItems]);
 
   const handlePlayVerse = (v: SearchVerse) => {
-    setAudioPlaylistItems([toPlaylistItem(v, 0, 1)]);
+    const clickedIdx = verses.findIndex(
+      (x) =>
+        x.book_id === v.book_id &&
+        x.chapter === v.chapter &&
+        x.verse_start === v.verse_start,
+    );
+    const startIdx = Math.max(0, clickedIdx);
+    const items = verses.map((x, i) =>
+      toPlaylistItem(x, i, verses.length),
+    );
+    setAudioPlaylistItems(items);
+    setAudioPlaylistStartIndex(startIdx);
   };
 
   const handleVerseClick = (v: SearchVerse) => {

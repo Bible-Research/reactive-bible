@@ -43,6 +43,12 @@ const Audio = () => {
     }));
   const showPlayer = useBibleStore((state) => state.showAudioPlayer);
   const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
+  const audioPlaylistStartIndex = useBibleStore(
+    (s) => s.audioPlaylistStartIndex
+  );
+  const setAudioPlaylistStartIndex = useBibleStore(
+    (s) => s.setAudioPlaylistStartIndex
+  );
   const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort
@@ -50,6 +56,17 @@ const Audio = () => {
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const navigate = useNavigate();
   const getPassageResult = getPassage();
+
+  // Start playlist when an external component signals a start index
+  useEffect(() => {
+    if (
+      audioPlaylistStartIndex === null ||
+      !audioPlaylistItems ||
+      audioPlaylistItems.length === 0
+    ) return;
+    setAudioPlaylistStartIndex(null);
+    playlist.start(audioPlaylistItems, audioPlaylistStartIndex);
+  }, [audioPlaylistStartIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset audio when chapter/book/version changes
   useEffect(() => {
