@@ -282,3 +282,50 @@ export const adjustTimestampsForENGESV = (
     timestamp: Math.max(0, t.timestamp - offset),
   }));
 };
+
+export interface Fileset {
+  id: string;
+  type: string;
+  size: string;
+  codec: string | null;
+  bitrate: string | null;
+}
+
+export const findTestamentFallback = (
+  filesetId: string,
+  targetTestament: Testament,
+  availableFilesets: Fileset[],
+): string | null => {
+  const upper = filesetId.toUpperCase();
+  const targetChar = targetTestament === 'OT' ? 'O' : 'N';
+  let fallbackId: string | null = null;
+  const nIndex = upper.indexOf('N');
+  const oIndex = upper.indexOf('O');
+  const pIndex = upper.indexOf('P');
+  const hasN = nIndex !== -1 && /N\d/.test(upper.substring(nIndex));
+  const hasO = oIndex !== -1 && /O\d/.test(upper.substring(oIndex));
+  const hasP = pIndex !== -1 && /P\d/.test(upper.substring(pIndex));
+  if (hasP) {
+    return null;
+  }
+  if (hasN) {
+    const match = upper.match(/N(\d)/);
+    if (match) {
+      const versionNum = match[1];
+      fallbackId = filesetId.replace(/N\d/, `${targetChar}${versionNum}`);
+    }
+  } else if (hasO) {
+    const match = upper.match(/O(\d)/);
+    if (match) {
+      const versionNum = match[1];
+      fallbackId = filesetId.replace(/O\d/, `${targetChar}${versionNum}`);
+    }
+  }
+  if (!fallbackId) {
+    return null;
+  }
+  const exists = availableFilesets.some(
+    (f) => f.id.toUpperCase() === fallbackId!.toUpperCase(),
+  );
+  return exists ? fallbackId : null;
+};

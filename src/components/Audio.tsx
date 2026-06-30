@@ -14,6 +14,7 @@ import {
   filesetCoversTestament,
   resolveTimestampsFilesetId,
   adjustTimestampsForENGESV,
+  findTestamentFallback,
 } from "../utils/bibleUtils";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 
@@ -307,16 +308,38 @@ const Audio = () => {
           }
 
           let audioUrl: string;
+          let effectiveFilesetId = activeAudioFilesetId;
 
           // KJV has a special, locally-generated URL
           if (activeAudioFilesetId === 'ENGKJV') {
             audioUrl = getKjvAudioUrl(activeBook, activeChapter);
           } else {
-            // All other translations use the Bible Research API
+            const testament = getTestamentByBookName(activeBook);
+            const fileset = translations
+              .flatMap((t) => t.filesets)
+              .find((f) => f.id === activeAudioFilesetId);
+            if (
+              testament &&
+              fileset &&
+              !filesetCoversTestament(fileset.size, testament)
+            ) {
+              const fallbackId = findTestamentFallback(
+                activeAudioFilesetId,
+                testament,
+                translations.flatMap((t) => t.filesets),
+              );
+              if (fallbackId) {
+                console.log(
+                  `🔄 Auto-switching from ${activeAudioFilesetId} ` +
+                  `to ${fallbackId} for ${testament}`
+                );
+                effectiveFilesetId = fallbackId;
+              }
+            }
             audioUrl = await getBibleAudioUrl(
               activeBook,
               activeChapter,
-              activeAudioFilesetId
+              effectiveFilesetId
             );
           }
 

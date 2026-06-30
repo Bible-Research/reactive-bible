@@ -13,6 +13,7 @@ import {
   filesetCoversTestament,
   getTestamentByBookName,
   adjustTimestampsForENGESV,
+  findTestamentFallback,
 } from '../utils/bibleUtils';
 import { useVerseHighlighter } from './useVerseHighlighter';
 
@@ -101,21 +102,35 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         .flatMap((t) => t.filesets)
         .find((f) => f.id === activeAudioFilesetId);
 
+      let effectiveFilesetId = activeAudioFilesetId;
+
       if (
         testament &&
         fileset &&
         !filesetCoversTestament(fileset.size, testament)
       ) {
-        showNotification({
-          title: 'Audio not available',
-          message:
-            `The selected audio version does not cover ` +
-            `${item.book}. Skipping to next item.`,
-          color: 'orange',
-          autoClose: 5000,
-        });
-        playIndex(allItems, index + 1);
-        return;
+        const fallbackId = findTestamentFallback(
+          activeAudioFilesetId!,
+          testament,
+          translations.flatMap((t) => t.filesets),
+        );
+        if (fallbackId) {
+          console.log(
+            `🔄 Playlist auto-switching to ${fallbackId} for ${item.book}`
+          );
+          effectiveFilesetId = fallbackId;
+        } else {
+          showNotification({
+            title: 'Audio not available',
+            message:
+              `The selected audio version does not cover ` +
+              `${item.book}. Skipping to next item.`,
+            color: 'orange',
+            autoClose: 5000,
+          });
+          playIndex(allItems, index + 1);
+          return;
+        }
       }
 
       unloadCurrent();
@@ -146,11 +161,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         let audioUrl: string;
         if (activeAudioFilesetId === 'ENGKJV') {
           audioUrl = getKjvAudioUrl(item.book, item.chapter);
-        } else if (activeAudioFilesetId) {
+        } else if (effectiveFilesetId) {
           audioUrl = await getBibleAudioUrl(
             item.book,
             item.chapter,
-            activeAudioFilesetId,
+            effectiveFilesetId,
           );
         } else {
           showNotification({
