@@ -10,6 +10,7 @@ import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
 import {getVersesInChapter} from "../api.tsx";
 import {findVersesInBetween} from "../utils/findVersesInBetween.ts";
+import { useBibleStore } from '../store.tsx'
 
 interface NoteCardProps {
   note: Note;
@@ -45,10 +46,11 @@ const NoteCard = ({
     chapter: 0,
     verses: []
   });
-  const [passages, setPassages] = useState<PassageState[] | undefined>([{text: "", verse: 0}]);
+  const [passages, setPassages] = useState<PassageState[]>([]);
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
+  const filesetId = useBibleStore(state => state.activeTextFilesetId) as string;
 
   const onGrabBiblePassage = (hashtag: string): void => {
     const ref = hashtag.startsWith('@') ? hashtag.slice(1) : hashtag;
@@ -97,21 +99,15 @@ const NoteCard = ({
    }
 
   useEffect(() => {
-    if (
-      !passageContainer ||
-      !passageContainer.book ||
-      !passageContainer.chapter ||
-      !passageContainer.verses
-    ) return;
+    const { book, chapter, verses } = passageContainer;
+    if (!book || !chapter || !verses.length) return;
     let cancelled = false;
     const getPassage = async () => {
-      const { book, chapter, verses } = passageContainer;
-
       try {
         const res = await getVersesInChapter(
           book,
           chapter,
-          'ENGESV'
+          filesetId
         )
         if (cancelled) return
 
@@ -132,7 +128,7 @@ const NoteCard = ({
     return () => {
       cancelled = true
     };
-  }, [passageContainer, passageContainer.book, passageContainer.chapter, passageContainer.verses])
+  }, [passageContainer])
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;

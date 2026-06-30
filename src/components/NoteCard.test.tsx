@@ -166,7 +166,10 @@ describe.skip('NoteCard Component', () => {
     fireEvent.click(removeButton);
 
     await waitFor(() => {
-      expect(mockOnDelete).toHaveBeenCalledWith(singleVerseNote.id);
+      expect(mockOnDelete).toHaveBeenCalledWith(
+        expect.any(Object),
+        singleVerseNote.id
+      );
     });
   });
 
