@@ -166,6 +166,17 @@ export default function SearchRoute() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verses]);
 
+  useEffect(() => {
+    if (verses.length === 0) {
+      setAudioPlaylistItems(null);
+      return;
+    }
+    const items = verses.map((v, i) =>
+      toPlaylistItem(v, i, verses.length),
+    );
+    setAudioPlaylistItems(items);
+  }, [verses, setAudioPlaylistItems]);
+
   const handlePlayVerse = (v: SearchVerse) => {
     setAudioPlaylistItems([toPlaylistItem(v, 0, 1)]);
   };
