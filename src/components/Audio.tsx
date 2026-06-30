@@ -60,11 +60,12 @@ const Audio = () => {
 
   // Navigate to the playing item's chapter so Verse components
   // are in the DOM and can receive the audioActiveVerse highlight
-  // Skip navigation if we're on the search page (search handles its own UI)
+  // Skip navigation if we're on search or notes pages (they handle their own UI)
   useEffect(() => {
     const item = playlist.currentItem;
     if (!item) return;
     if (location.pathname === '/search') return;
+    if (location.pathname.startsWith('/notes')) return;
     navigate(
       `/bible/${item.book}/${item.chapter}.${item.startVerse}`,
       { replace: true },
