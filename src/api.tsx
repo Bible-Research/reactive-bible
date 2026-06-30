@@ -860,6 +860,60 @@ export const deleteComment = async (
   }
 };
 
+// ============================================
+// SEARCH FUNCTIONS
+// ============================================
+
+export interface SearchVerse {
+  book_id: string;
+  chapter: number;
+  verse_start: number;
+  verse_text: string;
+}
+
+
+export interface SearchPagination {
+  total: number;
+  count: number;
+  per_page: number;
+  current_page: number;
+  total_pages: number;
+}
+
+export interface SearchResponse {
+  verses: SearchVerse[];
+  meta: { pagination?: SearchPagination };
+}
+
+export const searchBible = async (
+  query: string,
+  filesetId: string,
+  page = 1,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<SearchResponse> => {
+  const params = new URLSearchParams({
+    query,
+    fileset_id: filesetId,
+    page: String(page),
+    limit: String(limit),
+  });
+  const url =
+    `${API_BASE_URL}/api/v1/bible/search/?` +
+    params.toString();
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(
+      `Search failed: ${response.statusText}`
+    );
+  }
+  const json = await response.json();
+  return {
+    verses: json.data?.verses ?? [],
+    meta: json.data?.meta ?? {},
+  };
+};
+
 export const fetchCommentCounts = async (params: {
   tagId?: string;
   noteIds?: string[];

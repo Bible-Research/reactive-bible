@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
 import { getKjvAudioUrl, getBibleAudioUrl, getAudioTimestamps, getPassage } from "../api";
@@ -43,23 +43,56 @@ const Audio = () => {
     }));
   const showPlayer = useBibleStore((state) => state.showAudioPlayer);
   const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
+  const audioPlaylistStartIndex = useBibleStore(
+    (s) => s.audioPlaylistStartIndex
+  );
+  const setAudioPlaylistStartIndex = useBibleStore(
+    (s) => s.setAudioPlaylistStartIndex
+  );
   const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort
   );
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const navigate = useNavigate();
+  const location = useLocation();
   const getPassageResult = getPassage();
 
-  // Reset audio when chapter/book/version changes
+  // Navigate to the playing item's chapter so Verse components
+  // are in the DOM and can receive the audioActiveVerse highlight
+  // Skip navigation if we're on search or notes pages (they handle their own UI)
   useEffect(() => {
+    const item = playlist.currentItem;
+    if (!item) return;
+    if (location.pathname === '/search') return;
+    if (location.pathname.startsWith('/notes')) return;
+    navigate(
+      `/bible/${item.book}/${item.chapter}.${item.startVerse}`,
+      { replace: true },
+    );
+  }, [playlist.currentItem?.itemId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start playlist when an external component signals a start index
+  useEffect(() => {
+    if (
+      audioPlaylistStartIndex === null ||
+      !audioPlaylistItems ||
+      audioPlaylistItems.length === 0
+    ) return;
+    setAudioPlaylistStartIndex(null);
+    playlist.start(audioPlaylistItems, audioPlaylistStartIndex);
+  }, [audioPlaylistStartIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset chapter audio when chapter/book/version changes (non-playlist only)
+  useEffect(() => {
+    if (isPlaylistMode) return;
     if (audio) {
       audio.unload();
       setAudio(null);
     }
     setTimestamps([]);
     setAudioActiveVerse(null);
-  }, [activeBook, activeChapter, activeAudioFilesetId]);
+  }, [activeBook, activeChapter, activeAudioFilesetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch timestamps when audio or text fileset changes
   useEffect(() => {
@@ -452,6 +485,17 @@ const Audio = () => {
           onLoopToggle={() => setIsLooping((value) => !value)}
           onClose={handlePlaylistClose}
           subtitle={playlist.currentItem?.label}
+          onFocus={
+            playlist.currentItem
+              ? () => {
+                  const item = playlist.currentItem!;
+                  navigate(
+                    `/bible/${item.book}/${item.chapter}` +
+                    `.${item.startVerse}`,
+                  );
+                }
+              : undefined
+          }
         />
       )}
 

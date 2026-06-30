@@ -15,6 +15,7 @@ import {
   IconPlayerSkipBack,
   IconPlayerSkipForward,
   IconRepeat,
+  IconFocus2,
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
@@ -27,6 +28,7 @@ interface AudioPlayerProps {
   onLoopToggle: () => void;
   onClose: () => void;
   subtitle?: string;
+  onFocus?: () => void;
 }
 
 const AudioPlayer = ({
@@ -37,6 +39,7 @@ const AudioPlayer = ({
   onLoopToggle,
   onClose,
   subtitle,
+  onFocus,
 }: AudioPlayerProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -137,9 +140,21 @@ const AudioPlayer = ({
       })}
     >
       <Group position="apart" mb="xs">
-        <Text weight={500} size="sm">
-          {subtitle ?? `${activeBook} ${activeChapter}`}
-        </Text>
+        <Group spacing={4} sx={{ flex: 1, minWidth: 0 }}>
+          {onFocus && (
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              onClick={onFocus}
+              title="Go to passage"
+            >
+              <IconFocus2 size={16} />
+            </ActionIcon>
+          )}
+          <Text weight={500} size="sm" lineClamp={1}>
+            {subtitle ?? `${activeBook} ${activeChapter}`}
+          </Text>
+        </Group>
         <CloseButton onClick={onClose} title="Close player" />
       </Group>
 

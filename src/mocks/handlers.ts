@@ -145,6 +145,66 @@ export const handlers = [
     return HttpResponse.json({ counts });
   }),
 
+  // --- Search ---
+  http.get(`${API_URL}/bible/search/`, ({ request }) => {
+    const url = new URL(request.url);
+    const filesetId = url.searchParams.get('fileset_id');
+    
+    // Mock ESV API search results for ENGESV_API
+    if (filesetId === 'ENGESV_API') {
+      return HttpResponse.json({
+        data: {
+          verses: [
+            {
+              book_id: 'JHN',
+              chapter: 3,
+              verse_start: 16,
+              verse_text: 'For God so loved the world, that he gave his only Son.',
+            },
+            {
+              book_id: 'ROM',
+              chapter: 8,
+              verse_start: 28,
+              verse_text: 'And we know that for those who love God all things work together for good.',
+            }
+          ],
+          meta: {
+            pagination: {
+              total: 2,
+              count: 2,
+              per_page: 50,
+              current_page: 1,
+              total_pages: 1,
+            }
+          }
+        }
+      });
+    }
+    
+    // Mock search results for other filesets
+    return HttpResponse.json({
+      data: {
+        verses: [
+          {
+            book_id: 'GEN',
+            chapter: 1,
+            verse_start: 1,
+            verse_text: 'In the beginning God created the heavens and the earth.',
+          }
+        ],
+        meta: {
+          pagination: {
+            total: 1,
+            count: 1,
+            per_page: 50,
+            current_page: 1,
+            total_pages: 1,
+          }
+        }
+      }
+    });
+  }),
+
   // --- Copyright ---
   http.get(
     `${API_URL}/bible/copyright/`,
