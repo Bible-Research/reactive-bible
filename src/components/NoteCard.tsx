@@ -1,6 +1,6 @@
 import type {MouseEvent} from "react";
 import {useEffect, useState} from "react";
-import {Box, Button, Card, Group, Text, Title, Tooltip, Anchor} from "@mantine/core";
+import {Anchor, Box, Button, Card, Group, Text, Title, Tooltip} from "@mantine/core";
 import {showNotification} from "@mantine/notifications";
 import {IconMessageCircle} from "@tabler/icons-react";
 import {Note} from "../types";
@@ -51,30 +51,30 @@ const NoteCard = ({
   );
 
   const onGrabBiblePassage = (hashtag: string): void => {
-    const parts = hashtag.split(/[@+.:]/).filter(Boolean);
+    const ref = hashtag.startsWith('@') ? hashtag.slice(1) : hashtag;
+
+    const atColon = ref.indexOf(':');
+    const atDot = ref.indexOf('.');
+
     const biblePassageParts = {
       book: "",
       chapter: 0,
       verses: []
     } as { book: string; chapter: number, verses: number[]; };
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
 
-      if(i === 0) {
-        biblePassageParts['book'] = part
-      }
+    biblePassageParts['book'] = ref.slice(0, atDot).replaceAll('+', ' ');
 
-      if (i === 1) {
-        biblePassageParts['chapter'] = Number(part);
-      }
+    biblePassageParts['chapter'] = Number(ref.slice(atDot + 1, atColon));
 
-      if(i === parts.length - 1) {
-        if (part.includes('-')) {
-          const [startStr, endStr] = part.split('-');
+    const getRawVerses = ref.slice(atColon + 1, ref.length + 1)
+    const getVerses = Number(ref.slice(atColon + 1, ref.length + 1))
 
-          biblePassageParts['verses'] = findVersesInBetween(startStr, endStr);
-        } else biblePassageParts['verses'].push(+part);
-      }
+    if (getRawVerses) {
+      if (getRawVerses.includes('-')) {
+        const [startStr, endStr] = getRawVerses.split('-');
+
+        biblePassageParts['verses'] = findVersesInBetween(startStr, endStr);
+      } else biblePassageParts['verses'].push(+getVerses);
     }
 
     setPassageContainer(biblePassageParts);
@@ -97,16 +97,29 @@ const NoteCard = ({
    }
 
   useEffect(() => {
-    if (!passageContainer) return;
+    if (
+      !passageContainer ||
+      !passageContainer.book ||
+      !passageContainer.chapter ||
+      !passageContainer.verses
+    ) return;
     let cancelled = false;
     const getPassage = async () => {
       const { book, chapter, verses } = passageContainer;
 
       try {
-        const res = await getVersesInChapter(book, chapter, 'ENGESV')
+        const res = await getVersesInChapter(
+          book,
+          chapter,
+          'ENGESV'
+        )
         if (cancelled) return
 
-        const verseFound: { verse: number; text: string; }[] | undefined = res?.filter(res => verses?.includes(res.verse));
+        const verseFound: {
+          verse: number; text: string;
+        }[] | undefined = res?.filter(res =>
+          verses?.includes(res.verse));
+
         setPassages(verseFound);
       } catch (err: any) {
         console.error('Failed to load passage', err);
