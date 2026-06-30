@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
 import { getKjvAudioUrl, getBibleAudioUrl, getAudioTimestamps, getPassage } from "../api";
@@ -55,13 +55,16 @@ const Audio = () => {
   );
   const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const navigate = useNavigate();
+  const location = useLocation();
   const getPassageResult = getPassage();
 
   // Navigate to the playing item's chapter so Verse components
   // are in the DOM and can receive the audioActiveVerse highlight
+  // Skip navigation if we're on the search page (search handles its own UI)
   useEffect(() => {
     const item = playlist.currentItem;
     if (!item) return;
+    if (location.pathname === '/search') return;
     navigate(
       `/bible/${item.book}/${item.chapter}.${item.startVerse}`,
       { replace: true },
