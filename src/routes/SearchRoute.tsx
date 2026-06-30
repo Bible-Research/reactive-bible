@@ -121,6 +121,12 @@ export default function SearchRoute() {
     (s) => s.setAudioPlaylistEnded,
   );
 
+  useEffect(() => {
+    return () => {
+      setAudioPlaylistItems(null);
+    };
+  }, [setAudioPlaylistItems]);
+
   const handleSubmit = useCallback(() => {
     const trimmed = inputValue.trim();
     setSearchParams(
