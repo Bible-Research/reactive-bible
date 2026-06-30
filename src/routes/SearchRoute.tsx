@@ -104,6 +104,8 @@ export default function SearchRoute() {
     useState<Set<string>>(new Set());
   const [playlistItems, setPlaylistItems] =
     useState<PlaylistItem[] | null>(null);
+  const [shouldAutoStartPlaylist, setShouldAutoStartPlaylist] =
+    useState(false);
 
   const verseRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const playlist = useAudioPlaylist();
@@ -183,12 +185,18 @@ export default function SearchRoute() {
     );
     setAudioPlaylistItems(items);
     setPlaylistItems(items);
-  }, [verses, setAudioPlaylistItems]);
+
+    if (shouldAutoStartPlaylist) {
+      setShouldAutoStartPlaylist(false);
+      setAudioPlaylistStartIndex(0);
+    }
+  }, [verses, setAudioPlaylistItems, shouldAutoStartPlaylist, setAudioPlaylistStartIndex]);
 
   useEffect(() => {
     if (!audioPlaylistEnded) return;
     setAudioPlaylistEnded(false);
     if (page < totalPages) {
+      setShouldAutoStartPlaylist(true);
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -197,7 +205,6 @@ export default function SearchRoute() {
         },
         { replace: true },
       );
-      setAudioPlaylistStartIndex(0);
     }
   }, [
     audioPlaylistEnded,
@@ -205,7 +212,6 @@ export default function SearchRoute() {
     totalPages,
     setAudioPlaylistEnded,
     setSearchParams,
-    setAudioPlaylistStartIndex,
   ]);
 
   const handlePlayVerse = useCallback(
