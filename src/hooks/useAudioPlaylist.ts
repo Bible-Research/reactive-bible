@@ -230,6 +230,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           },
           onend: () => {
             if (stoppedRef.current) return;
+            if (endTs !== null) return; // poll handles advancement
             playIndex(allItems, index + 1);
           },
           onloaderror: (_id, err) => {
@@ -260,25 +261,28 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
         if (endTs !== null) {
           const EPSILON = 0.2;
-          const poll = setInterval(() => {
-            if (!howl || stoppedRef.current) {
-              clearInterval(poll);
-              return;
-            }
-            const pos = howl.seek() as number;
-            if (
-              typeof pos === 'number' &&
-              pos >= endTs - EPSILON
-            ) {
-              clearInterval(poll);
-              if (!stoppedRef.current) {
-                playIndex(allItems, index + 1);
+          let poll: ReturnType<typeof setInterval> | null = null;
+          const startPoll = () => {
+            poll = setInterval(() => {
+              if (!howl || stoppedRef.current) {
+                if (poll) clearInterval(poll);
+                return;
               }
-            }
-          }, 100);
-
-          howl.on('end', () => clearInterval(poll));
-          howl.on('stop', () => clearInterval(poll));
+              const pos = howl.seek() as number;
+              if (
+                typeof pos === 'number' &&
+                pos >= endTs - EPSILON
+              ) {
+                if (poll) clearInterval(poll);
+                if (!stoppedRef.current) {
+                  playIndex(allItems, index + 1);
+                }
+              }
+            }, 100);
+          };
+          howl.on('play', startPoll);
+          howl.on('end', () => { if (poll) clearInterval(poll); });
+          howl.on('stop', () => { if (poll) clearInterval(poll); });
         }
 
         audioRef.current = howl;

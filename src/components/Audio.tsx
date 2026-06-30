@@ -57,6 +57,17 @@ const Audio = () => {
   const navigate = useNavigate();
   const getPassageResult = getPassage();
 
+  // Navigate to the playing item's chapter so Verse components
+  // are in the DOM and can receive the audioActiveVerse highlight
+  useEffect(() => {
+    const item = playlist.currentItem;
+    if (!item) return;
+    navigate(
+      `/bible/${item.book}/${item.chapter}.${item.startVerse}`,
+      { replace: true },
+    );
+  }, [playlist.currentItem?.itemId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Start playlist when an external component signals a start index
   useEffect(() => {
     if (
