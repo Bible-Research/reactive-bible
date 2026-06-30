@@ -298,7 +298,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           },
         });
 
-        if (endTs !== null) {
+        if (endTs !== null || item.verseNumbers) {
           const EPSILON = 0.2;
           let poll: ReturnType<typeof setInterval> | null = null;
           const startPoll = () => {
@@ -308,13 +308,41 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 return;
               }
               const pos = howl.seek() as number;
-              if (
-                typeof pos === 'number' &&
-                pos >= endTs - EPSILON
-              ) {
+              if (typeof pos !== 'number') return;
+              if (endTs !== null && pos >= endTs - EPSILON) {
                 if (poll) clearInterval(poll);
                 if (!stoppedRef.current) {
                   playIndex(allItems, index + 1);
+                }
+                return;
+              }
+              if (item.verseNumbers) {
+                const currentVerse = fetchedTimestamps.find(
+                  (t, i) => {
+                    const nextT = fetchedTimestamps[i + 1];
+                    return (
+                      t.timestamp <= pos &&
+                      (!nextT || pos < nextT.timestamp)
+                    );
+                  },
+                );
+                if (
+                  currentVerse &&
+                  !item.verseNumbers.includes(currentVerse.verse_start)
+                ) {
+                  const nextIncludedVerse = fetchedTimestamps.find(
+                    (t) =>
+                      t.timestamp > pos &&
+                      item.verseNumbers!.includes(t.verse_start),
+                  );
+                  if (nextIncludedVerse) {
+                    howl.seek(nextIncludedVerse.timestamp);
+                  } else if (endTs !== null) {
+                    if (poll) clearInterval(poll);
+                    if (!stoppedRef.current) {
+                      playIndex(allItems, index + 1);
+                    }
+                  }
                 }
               }
             }, 100);
