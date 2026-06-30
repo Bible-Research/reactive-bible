@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
@@ -27,6 +27,9 @@ const Audio = () => {
     audioPlaylistItems != null && audioPlaylistItems.length > 0;
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const isPlayingRef = useRef(false);
+  const audioRef = useRef<Howl | null>(null);
+  const pendingOperationRef = useRef<Promise<void> | null>(null);
   const [audio, setAudio] = useState<Howl | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +94,7 @@ const Audio = () => {
     if (audio) {
       audio.unload();
       setAudio(null);
+      audioRef.current = null;
     }
     setTimestamps([]);
     setAudioActiveVerse(null);
@@ -121,28 +125,87 @@ const Audio = () => {
   // Hook: highlight active verse during playback
   useVerseHighlighter(audio, isPlaying, timestamps, activeBook, activeChapter);
 
-  // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
+  const safeSeek = useCallback((targetTime: number) => {
+    const currentAudio = audioRef.current;
+    if (!currentAudio) return;
+    try {
+      const duration = currentAudio.duration();
+      const clampedTime = Math.max(0, Math.min(duration, targetTime));
+      currentAudio.seek(clampedTime);
+    } catch (err) {
+      console.warn('Seek operation failed:', err);
+    }
+  }, []);
+
+  const safePlay = useCallback(async () => {
+    const currentAudio = audioRef.current;
+    if (!currentAudio || isPlayingRef.current) return;
+    if (pendingOperationRef.current) {
+      await pendingOperationRef.current;
+    }
+    try {
+      const playPromise = currentAudio.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        pendingOperationRef.current = playPromise as Promise<void>;
+        await playPromise;
+        pendingOperationRef.current = null;
+      }
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+    } catch (err) {
+      console.warn('Play operation failed:', err);
+      pendingOperationRef.current = null;
+    }
+  }, []);
+
+  const safePause = useCallback(async () => {
+    const currentAudio = audioRef.current;
+    if (!currentAudio || !isPlayingRef.current) return;
+    if (pendingOperationRef.current) {
+      await pendingOperationRef.current;
+    }
+    try {
+      currentAudio.pause();
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      pendingOperationRef.current = null;
+    } catch (err) {
+      console.warn('Pause operation failed:', err);
+      pendingOperationRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
-    if ('mediaSession' in navigator && audio) {
-      const translationName = translations.find(
-        t => t.filesets.some(f => f.id === activeAudioFilesetId)
-      )?.name || 'Unknown Version';
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: `${activeBook} ${activeChapter}`,
-        artist: translationName,
-        album: 'Bible Audio',
-      });
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
-      // Required for lock-screen action handlers to fire on Android
-      navigator.mediaSession.playbackState =
-        isPlaying ? 'playing' : 'paused';
+  useEffect(() => {
+    audioRef.current = audio;
+  }, [audio]);
 
-      // Helper: push current position/duration to the OS so that
-      // lock-screen seeking and the seekforward/seekbackward actions
-      // work correctly.
-      const syncPositionState = () => {
-        const duration = audio.duration();
-        const position = audio.seek() as number;
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !audio) return;
+
+    const translationName = translations.find(
+      t => t.filesets.some(f => f.id === activeAudioFilesetId)
+    )?.name || 'Unknown Version';
+    
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: `${activeBook} ${activeChapter}`,
+      artist: translationName,
+      album: 'Bible Audio',
+    });
+
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+    let positionUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedSyncPosition = () => {
+      if (positionUpdateTimer) clearTimeout(positionUpdateTimer);
+      positionUpdateTimer = setTimeout(() => {
+        const currentAudio = audioRef.current;
+        if (!currentAudio) return;
+        const duration = currentAudio.duration();
+        const position = currentAudio.seek() as number;
         if (
           duration > 0 &&
           typeof position === 'number' &&
@@ -156,101 +219,97 @@ const Audio = () => {
               position,
             });
           } catch {
-            // setPositionState throws if values are out of range
           }
         }
-      };
+      }, 100);
+    };
 
-      syncPositionState();
+    navigator.mediaSession.setActionHandler('play', () => {
+      safePlay();
+    });
 
-      navigator.mediaSession.setActionHandler('play', () => {
-        // Only update state, let useEffect handle audio playback
-        setIsPlaying(true);
-      });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      safePause();
+    });
 
-      navigator.mediaSession.setActionHandler('pause', () => {
-        // Only update state, let useEffect handle audio pause
-        setIsPlaying(false);
-      });
+    navigator.mediaSession.setActionHandler('stop', () => {
+      safePause();
+    });
 
-      navigator.mediaSession.setActionHandler('stop', () => {
-        // Only update state, let useEffect handle audio pause
-        setIsPlaying(false);
-      });
+    navigator.mediaSession.setActionHandler(
+      'seekbackward',
+      (details) => {
+        const currentAudio = audioRef.current;
+        if (!currentAudio) return;
+        const offset = details.seekOffset ?? 10;
+        const currentTime = currentAudio.seek() as number;
+        const newTime = Math.max(0, currentTime - offset);
+        safeSeek(newTime);
+        debouncedSyncPosition();
+      }
+    );
 
-      // Seek backward (headphones with seek buttons)
-      navigator.mediaSession.setActionHandler(
-        'seekbackward',
-        (details) => {
-          const offset = details.seekOffset ?? 10;
-          const currentTime = audio.seek() as number;
-          const newTime = Math.max(0, currentTime - offset);
-          audio.seek(newTime);
-          syncPositionState();
+    navigator.mediaSession.setActionHandler(
+      'seekforward',
+      (details) => {
+        const currentAudio = audioRef.current;
+        if (!currentAudio) return;
+        const offset = details.seekOffset ?? 10;
+        const currentTime = currentAudio.seek() as number;
+        const duration = currentAudio.duration();
+        const newTime = Math.min(duration, currentTime + offset);
+        safeSeek(newTime);
+        debouncedSyncPosition();
+      }
+    );
+
+    navigator.mediaSession.setActionHandler(
+      'previoustrack',
+      () => {
+        const currentAudio = audioRef.current;
+        if (!currentAudio) return;
+        const currentTime = currentAudio.seek() as number;
+        const newTime = Math.max(0, currentTime - 10);
+        safeSeek(newTime);
+        debouncedSyncPosition();
+      }
+    );
+
+    navigator.mediaSession.setActionHandler(
+      'nexttrack',
+      () => {
+        const currentAudio = audioRef.current;
+        if (!currentAudio) return;
+        const currentTime = currentAudio.seek() as number;
+        const duration = currentAudio.duration();
+        const newTime = Math.min(duration, currentTime + 10);
+        safeSeek(newTime);
+        debouncedSyncPosition();
+      }
+    );
+
+    navigator.mediaSession.setActionHandler(
+      'seekto',
+      (details) => {
+        if (details.seekTime !== undefined) {
+          safeSeek(details.seekTime);
+          debouncedSyncPosition();
         }
-      );
-
-      // Seek forward (headphones with seek buttons)
-      navigator.mediaSession.setActionHandler(
-        'seekforward',
-        (details) => {
-          const offset = details.seekOffset ?? 10;
-          const currentTime = audio.seek() as number;
-          const duration = audio.duration();
-          const newTime = Math.min(duration, currentTime + offset);
-          audio.seek(newTime);
-          syncPositionState();
-        }
-      );
-
-      // Previous track (car stereo prev button)
-      navigator.mediaSession.setActionHandler(
-        'previoustrack',
-        () => {
-          const currentTime = audio.seek() as number;
-          const newTime = Math.max(0, currentTime - 10);
-          audio.seek(newTime);
-          syncPositionState();
-        }
-      );
-
-      // Next track (car stereo next button)
-      navigator.mediaSession.setActionHandler(
-        'nexttrack',
-        () => {
-          const currentTime = audio.seek() as number;
-          const duration = audio.duration();
-          const newTime = Math.min(duration, currentTime + 10);
-          audio.seek(newTime);
-          syncPositionState();
-        }
-      );
-
-      // Seek to specific time (additional car stereo fallback)
-      navigator.mediaSession.setActionHandler(
-        'seekto',
-        (details) => {
-          if (details.seekTime !== undefined) {
-            audio.seek(details.seekTime);
-            syncPositionState();
-          }
-        }
-      );
-    }
+      }
+    );
 
     return () => {
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.setActionHandler('play', null);
-        navigator.mediaSession.setActionHandler('pause', null);
-        navigator.mediaSession.setActionHandler('stop', null);
-        navigator.mediaSession.setActionHandler('seekbackward', null);
-        navigator.mediaSession.setActionHandler('seekforward', null);
-        navigator.mediaSession.setActionHandler('previoustrack', null);
-        navigator.mediaSession.setActionHandler('nexttrack', null);
-        navigator.mediaSession.setActionHandler('seekto', null);
-      }
+      if (positionUpdateTimer) clearTimeout(positionUpdateTimer);
+      navigator.mediaSession.setActionHandler('play', null);
+      navigator.mediaSession.setActionHandler('pause', null);
+      navigator.mediaSession.setActionHandler('stop', null);
+      navigator.mediaSession.setActionHandler('seekbackward', null);
+      navigator.mediaSession.setActionHandler('seekforward', null);
+      navigator.mediaSession.setActionHandler('previoustrack', null);
+      navigator.mediaSession.setActionHandler('nexttrack', null);
+      navigator.mediaSession.setActionHandler('seekto', null);
     };
-  }, [audio, isPlaying, activeBook, activeChapter, activeAudioFilesetId, translations]);
+  }, [audio, activeBook, activeChapter, activeAudioFilesetId, translations, safePlay, safePause, safeSeek]);
 
   // Function to navigate to next chapter
   const goToNextChapter = () => {
@@ -282,15 +341,13 @@ const Audio = () => {
 
   useEffect(() => {
     const loadAndPlayAudio = async () => {
-      // If audio exists and we want to play, just resume it
       if (isPlaying && audio !== null) {
-        audio.play();
+        await safePlay();
         return;
       }
 
-      // If we want to pause, just pause
       if (!isPlaying && audio !== null) {
-        audio.pause();
+        await safePause();
         return;
       }
 
@@ -394,6 +451,7 @@ const Audio = () => {
           });
 
           setAudio(audioHowl);
+          audioRef.current = audioHowl;
         } catch (err) {
           console.error('Error loading audio:', err);
           
@@ -450,12 +508,14 @@ const Audio = () => {
     };
 
     loadAndPlayAudio();
-  }, [isPlaying, audio]);
+  }, [isPlaying, audio, safePlay, safePause]);
 
   const handleClose = () => {
     setIsPlaying(false);
+    isPlayingRef.current = false;
     setShowPlayer(false);
     audio?.stop();
+    audioRef.current = null;
   };
 
   const handlePlaylistClose = () => {

@@ -214,7 +214,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         setTimestamps(filteredTimestamps);
 
         const startTs =
-          filteredTimestamps.find(
+          fetchedTimestamps.find(
             (t) => t.verse_start === item.startVerse,
           )?.timestamp ?? 0;
 
