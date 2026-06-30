@@ -5,6 +5,7 @@ import {
   BOOK_CODE_TO_TESTAMENT,
   OLD_TESTAMENT_BOOKS,
   NEW_TESTAMENT_BOOKS,
+  adjustTimestampsForENGESV,
 } from './bibleUtils';
 
 describe('Bible Utils', () => {
@@ -55,6 +56,75 @@ describe('Bible Utils', () => {
       expect(NEW_TESTAMENT_BOOKS.has('MAT')).toBe(true);
       expect(NEW_TESTAMENT_BOOKS.has('REV')).toBe(true);
       expect(NEW_TESTAMENT_BOOKS.has('GEN')).toBe(false);
+    });
+  });
+
+  describe('adjustTimestampsForENGESV', () => {
+    it('adjusts timestamps by subtracting verse 0-1 offset', () => {
+      const input = [
+        { verse_start: 0, timestamp: 0 },
+        { verse_start: 1, timestamp: 2.44 },
+        { verse_start: 2, timestamp: 5.0 },
+        { verse_start: 3, timestamp: 8.5 },
+      ];
+      const result = adjustTimestampsForENGESV(input, 'ENGESV_API');
+      expect(result).toEqual([
+        { verse_start: 0, timestamp: 0 },
+        { verse_start: 1, timestamp: 0 },
+        { verse_start: 2, timestamp: 2.56 },
+        { verse_start: 3, timestamp: 6.06 },
+      ]);
+    });
+
+    it('returns original timestamps for non-ENGESV_API filesets', () => {
+      const input = [
+        { verse_start: 0, timestamp: 0 },
+        { verse_start: 1, timestamp: 2.44 },
+      ];
+      const result = adjustTimestampsForENGESV(input, 'ENGESHN1DA');
+      expect(result).toBe(input);
+    });
+
+    it('returns original timestamps when audioFilesetId is null', () => {
+      const input = [
+        { verse_start: 0, timestamp: 0 },
+        { verse_start: 1, timestamp: 2.44 },
+      ];
+      const result = adjustTimestampsForENGESV(input, null);
+      expect(result).toBe(input);
+    });
+
+    it('returns original timestamps when empty array', () => {
+      const result = adjustTimestampsForENGESV([], 'ENGESV_API');
+      expect(result).toEqual([]);
+    });
+
+    it('returns original timestamps when verse 0 is missing', () => {
+      const input = [
+        { verse_start: 1, timestamp: 2.44 },
+        { verse_start: 2, timestamp: 5.0 },
+      ];
+      const result = adjustTimestampsForENGESV(input, 'ENGESV_API');
+      expect(result).toBe(input);
+    });
+
+    it('returns original timestamps when verse 1 is missing', () => {
+      const input = [
+        { verse_start: 0, timestamp: 0 },
+        { verse_start: 2, timestamp: 5.0 },
+      ];
+      const result = adjustTimestampsForENGESV(input, 'ENGESV_API');
+      expect(result).toBe(input);
+    });
+
+    it('ensures timestamps never go below 0', () => {
+      const input = [
+        { verse_start: 0, timestamp: 5.0 },
+        { verse_start: 1, timestamp: 10.0 },
+        { verse_start: 2, timestamp: 3.0 },
+      ];
+      const result = adjustTimestampsForENGESV(input, 'ENGESV_API');
+      expect(result[2].timestamp).toBe(0);
     });
   });
 });

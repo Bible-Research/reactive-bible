@@ -13,6 +13,7 @@ import {
   getTestamentByBookName,
   filesetCoversTestament,
   resolveTimestampsFilesetId,
+  adjustTimestampsForENGESV,
 } from "../utils/bibleUtils";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 
@@ -107,7 +108,13 @@ const Audio = () => {
       activeBook,
       activeChapter,
       tsFilesetId,
-    ).then(setTimestamps);
+    ).then((ts) => {
+      const adjusted = adjustTimestampsForENGESV(
+        ts,
+        activeAudioFilesetId,
+      );
+      setTimestamps(adjusted);
+    });
   }, [activeBook, activeChapter, activeAudioFilesetId, activeTextFilesetId]);
 
   // Hook: highlight active verse during playback

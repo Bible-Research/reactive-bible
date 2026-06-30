@@ -12,6 +12,7 @@ import {
   resolveTimestampsFilesetId,
   filesetCoversTestament,
   getTestamentByBookName,
+  adjustTimestampsForENGESV,
 } from '../utils/bibleUtils';
 import { useVerseHighlighter } from './useVerseHighlighter';
 
@@ -165,10 +166,14 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             item.book,
           );
           if (tsId) {
-            fetchedTimestamps = await getAudioTimestamps(
+            const rawTimestamps = await getAudioTimestamps(
               item.book,
               item.chapter,
               tsId,
+            );
+            fetchedTimestamps = adjustTimestampsForENGESV(
+              rawTimestamps,
+              activeAudioFilesetId,
             );
           }
         }

@@ -252,3 +252,33 @@ export const resolveTimestampsFilesetId = (
   if (!audioFilesetId) return null;
   return audioFilesetId.split('-')[0];
 };
+
+/**
+ * Adjusts timestamps for ENGESV_API audio which doesn't have chapter
+ * number announcements. The fallback timestamp filesets (ENGESVO1DA,
+ * ENGESVN1DA) include chapter announcements, causing an offset.
+ * This function calculates the offset (verse 0 to verse 1) and
+ * subtracts it from all timestamps.
+ */
+export const adjustTimestampsForENGESV = (
+  timestamps: { verse_start: number; timestamp: number }[],
+  audioFilesetId: string | null,
+): { verse_start: number; timestamp: number }[] => {
+  if (audioFilesetId !== 'ENGESV_API' || timestamps.length === 0) {
+    return timestamps;
+  }
+
+  const verse0 = timestamps.find((t) => t.verse_start === 0);
+  const verse1 = timestamps.find((t) => t.verse_start === 1);
+
+  if (!verse0 || !verse1) {
+    return timestamps;
+  }
+
+  const offset = verse1.timestamp - verse0.timestamp;
+
+  return timestamps.map((t) => ({
+    verse_start: t.verse_start,
+    timestamp: Math.max(0, t.timestamp - offset),
+  }));
+};
