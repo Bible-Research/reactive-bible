@@ -118,7 +118,7 @@ const Audio = () => {
   }, [activeBook, activeChapter, activeAudioFilesetId, activeTextFilesetId]);
 
   // Hook: highlight active verse during playback
-  useVerseHighlighter(audio, isPlaying, timestamps);
+  useVerseHighlighter(audio, isPlaying, timestamps, activeBook, activeChapter);
 
   // Setup Media Session API for hardware controls (headphones, lock screen, etc.)
   useEffect(() => {

@@ -2,7 +2,7 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
 import { showNotification } from "@mantine/notifications";
 import * as api from './api';
-import { Note, Tag, PlaylistItem } from './types';
+import { Note, Tag, PlaylistItem, AudioActiveVerse } from './types';
 import { getCachedNotes, cacheNotes, clearNotesCache } from './utils/cacheManager';
 
 export interface Fileset {
@@ -36,8 +36,8 @@ interface BibleState {
   allNotesFetched: boolean;
   showNotes: boolean;
   lastSelectedTagId: string | null;
-  audioActiveVerse: number | null;
-  setAudioActiveVerse: (verse: number | null) => void;
+  audioActiveVerse: AudioActiveVerse | null;
+  setAudioActiveVerse: (verse: AudioActiveVerse | null) => void;
   audioPlaylistItems: PlaylistItem[] | null;
   setAudioPlaylistItems: (items: PlaylistItem[] | null) => void;
   audioPlaylistStartIndex: number | null;
@@ -85,7 +85,7 @@ export const initialState = {
   allNotesFetched: false,
   showNotes: false,
   lastSelectedTagId: null,
-  audioActiveVerse: null as number | null,
+  audioActiveVerse: null as AudioActiveVerse | null,
   audioPlaylistItems: null as PlaylistItem[] | null,
   audioPlaylistStartIndex: null as number | null,
   audioPlaylistEnded: false,
@@ -225,7 +225,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             const { activeVerses, audioActiveVerse } =
               useBibleStore.getState();
             const focusVerse =
-              activeVerses[0] ?? audioActiveVerse;
+              activeVerses[0] ?? audioActiveVerse?.verse;
             if (focusVerse != null) {
               document
                 .getElementById("verse-" + focusVerse)

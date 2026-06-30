@@ -313,8 +313,9 @@ export default function TagNotesRoute() {
             v.book === firstVerse.book &&
             v.chapter === firstVerse.chapter,
         );
-        const startVerse = Math.min(...sameBlock.map((v) => v.verse));
-        const endVerse = Math.max(...sameBlock.map((v) => v.verse));
+        const verseNumbers = sameBlock.map((v) => v.verse);
+        const startVerse = Math.min(...verseNumbers);
+        const endVerse = Math.max(...verseNumbers);
         const label =
           `Note ${i + 1}/${arr.length} ` +
           `\u2013 ${firstVerse.book} ` +
@@ -327,6 +328,7 @@ export default function TagNotesRoute() {
           startVerse,
           endVerse,
           label,
+          verseNumbers,
         };
       });
     setAudioPlaylistItems(items.length > 0 ? items : null);

@@ -68,4 +68,11 @@ export interface PlaylistItem {
   startVerse: number;
   endVerse: number;
   label: string;
+  verseNumbers?: number[];
+}
+
+export interface AudioActiveVerse {
+  book: string;
+  chapter: number;
+  verse: number;
 }

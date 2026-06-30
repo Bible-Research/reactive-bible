@@ -59,7 +59,13 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   const isActive = items.length > 0 && currentIndex >= 0;
   const currentItem = isActive ? (items[currentIndex] ?? null) : null;
 
-  useVerseHighlighter(audio, isPlaying, timestamps);
+  useVerseHighlighter(
+    audio,
+    isPlaying,
+    timestamps,
+    currentItem?.book ?? '',
+    currentItem?.chapter ?? 0,
+  );
 
   const unloadCurrent = useCallback(() => {
     if (audioRef.current) {
@@ -180,16 +186,29 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
         if (stoppedRef.current) return;
 
-        setTimestamps(fetchedTimestamps);
+        const filteredTimestamps = item.verseNumbers
+          ? fetchedTimestamps.filter((t) =>
+              item.verseNumbers!.includes(t.verse_start),
+            )
+          : fetchedTimestamps.filter(
+              (t) =>
+                t.verse_start >= item.startVerse &&
+                t.verse_start <= item.endVerse,
+            );
+
+        setTimestamps(filteredTimestamps);
 
         const startTs =
-          fetchedTimestamps.find(
+          filteredTimestamps.find(
             (t) => t.verse_start === item.startVerse,
           )?.timestamp ?? 0;
 
         const endTs = (() => {
+          const lastVerse = item.verseNumbers
+            ? Math.max(...item.verseNumbers)
+            : item.endVerse;
           const afterEnd = fetchedTimestamps.find(
-            (t) => t.verse_start > item.endVerse,
+            (t) => t.verse_start > lastVerse,
           );
           return afterEnd ? afterEnd.timestamp : null;
         })();

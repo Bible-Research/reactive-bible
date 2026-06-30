@@ -52,7 +52,11 @@ const Verse = ({
     (state) => state.audioActiveVerse
   );
   const isActive = activeVerses.includes(verse);
-  const isAudioActive = audioActiveVerse === verse;
+  const isAudioActive =
+    audioActiveVerse !== null &&
+    audioActiveVerse.book === activeBook &&
+    audioActiveVerse.chapter === activeChapter &&
+    audioActiveVerse.verse === verse;
   
   // Track touch state to differentiate tap from scroll
   const [touchStartPos, setTouchStartPos] = useState<{
