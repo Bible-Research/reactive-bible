@@ -43,6 +43,8 @@ const NoteCard = ({
   const [threadOpen, setThreadOpen] = useState(false);
   const [passageContainer, setPassageContainer] = useState<PassageContainerState | null>(null);
   const [passages, setPassages] = useState<PassageState[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
@@ -96,7 +98,6 @@ const NoteCard = ({
 
   useEffect(() => {
     if (!passageContainer) return;
-
     const { book, chapter, verses } = passageContainer;
 
     if (!book || !chapter || !verses.length) return;
@@ -116,6 +117,7 @@ const NoteCard = ({
         setPassages(verseFound);
       } catch (err) {
         console.error("Failed to load passage", err);
+        setError('Failed to load passage')
       }
     };
 
@@ -179,6 +181,9 @@ const NoteCard = ({
 
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
+      {error && (
+        <Text color="red">{error}</Text>
+      )}
       <Group position="apart" mb={0}>
         <Title order={4}>{heading}</Title>
         <Group spacing="xs">
