@@ -11,7 +11,6 @@ import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
 import {getVersesInChapter} from "../api.tsx";
 import {findVersesInBetween} from "../utils/findVersesInBetween.ts";
-import { useBibleStore } from '../store.tsx'
 
 interface NoteCardProps {
   note: Note;
@@ -49,7 +48,6 @@ const NoteCard = ({
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
-  const versesFolded = useBibleStore((state) => state.versesFolded);
   const filesetId = useBibleStore(state => state.activeTextFilesetId) as string;
 
   const onGrabBiblePassage = (hashtag: string): void => {
@@ -110,9 +108,11 @@ const NoteCard = ({
       try {
         const res = await getVersesInChapter(book, chapter, filesetId);
 
+        console.log('...res:', res);
+        
         if (cancelled) return;
 
-        const verseFound = res?.filter(res =>
+        const verseFound = res?.verses?.filter(res =>
           verses.includes(res.verse)
         );
 
@@ -129,6 +129,7 @@ const NoteCard = ({
       cancelled = true;
     };
   }, [passageContainer, filesetId]);
+  const versesFolded = useBibleStore((state) => state.versesFolded);
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
   const lastVerse =
