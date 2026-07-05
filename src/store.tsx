@@ -2,7 +2,7 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
 import { showNotification } from "@mantine/notifications";
 import * as api from './api';
-import { Note, Tag } from './types';
+import { Note, Tag, PlaylistItem, AudioActiveVerse } from './types';
 import { getCachedNotes, cacheNotes, clearNotesCache } from './utils/cacheManager';
 
 export interface Fileset {
@@ -36,9 +36,21 @@ interface BibleState {
   allNotesFetched: boolean;
   showNotes: boolean;
   lastSelectedTagId: string | null;
-  audioActiveVerse: number | null;
-  setAudioActiveVerse: (verse: number | null) => void;
+  audioActiveVerse: AudioActiveVerse | null;
+  setAudioActiveVerse: (verse: AudioActiveVerse | null) => void;
+  audioPlaylistItems: PlaylistItem[] | null;
+  setAudioPlaylistItems: (items: PlaylistItem[] | null) => void;
+  audioPlaylistStartIndex: number | null;
+  setAudioPlaylistStartIndex: (index: number | null) => void;
+  audioPlaylistEnded: boolean;
+  setAudioPlaylistEnded: (ended: boolean) => void;
+  versesFolded: boolean;
+  setVersesFolded: (folded: boolean) => void;
   setActiveBook: (activeBook: string) => void;
+  setActiveBookAndChapter: (
+    activeBook: string,
+    activeChapter: number
+  ) => void;
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
   setActiveChapter: (activeChapter: number) => void;
@@ -73,7 +85,11 @@ export const initialState = {
   allNotesFetched: false,
   showNotes: false,
   lastSelectedTagId: null,
-  audioActiveVerse: null as number | null,
+  audioActiveVerse: null as AudioActiveVerse | null,
+  audioPlaylistItems: null as PlaylistItem[] | null,
+  audioPlaylistStartIndex: null as number | null,
+  audioPlaylistEnded: false,
+  versesFolded: false,
 };
 
 export const useBibleStore = createWithEqualityFn<BibleState>()(
@@ -86,12 +102,17 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         activeVerses: [],
         audioActiveVerse: null
       }),
+      setActiveBookAndChapter: (activeBook, activeChapter) =>
+        set({
+          activeBook,
+          activeChapter,
+          activeVerses: [],
+        }),
       setActiveBookOnly: (activeBook) => set({ activeBook }),
       setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
       setActiveChapter: (activeChapter) => set({ 
         activeChapter, 
         activeVerses: [],
-        audioActiveVerse: null
       }),
       setActiveVerses: (activeVerses) => {
         set({ activeVerses });
@@ -191,6 +212,31 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),
       setAudioActiveVerse: (audioActiveVerse) =>
         set({ audioActiveVerse }),
+      setAudioPlaylistItems: (audioPlaylistItems) =>
+        set({ audioPlaylistItems }),
+      setAudioPlaylistStartIndex: (audioPlaylistStartIndex) =>
+        set({ audioPlaylistStartIndex }),
+      setAudioPlaylistEnded: (audioPlaylistEnded) =>
+        set({ audioPlaylistEnded }),
+      setVersesFolded: (versesFolded) => {
+        set({ versesFolded });
+        if (!versesFolded) {
+          setTimeout(() => {
+            const { activeVerses, audioActiveVerse } =
+              useBibleStore.getState();
+            const focusVerse =
+              activeVerses[0] ?? audioActiveVerse?.verse;
+            if (focusVerse != null) {
+              document
+                .getElementById("verse-" + focusVerse)
+                ?.scrollIntoView({
+                  block: "center",
+                  behavior: "smooth",
+                });
+            }
+          }, 50);
+        }
+      },
     }),
     {
       name: "bible-storage",

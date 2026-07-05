@@ -5,6 +5,7 @@ import {showNotification} from "@mantine/notifications";
 import {IconMessageCircle} from "@tabler/icons-react";
 import {Note} from "../types";
 import {useAuthStore} from "../stores/authStore";
+import { useBibleStore } from "../store";
 import Verse from "./Verse";
 import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
@@ -48,6 +49,7 @@ const NoteCard = ({
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
+  const versesFolded = useBibleStore((state) => state.versesFolded);
   const filesetId = useBibleStore(state => state.activeTextFilesetId) as string;
 
   const onGrabBiblePassage = (hashtag: string): void => {
@@ -129,7 +131,8 @@ const NoteCard = ({
   }, [passageContainer, filesetId]);
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
-  const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
+  const lastVerse =
+    note?.verses?.[(note.verses?.length ?? 0) - 1]?.verse || 1;
   const book = note?.verses?.[0]?.book || "";
   const chapter = note?.verses?.[0]?.chapter || 1;
 
@@ -263,9 +266,25 @@ const NoteCard = ({
       </Group>
 
       <Box mt={-10}>
-        {note?.verses?.map(v => (
-          <Verse key={v.verse} verse={v.verse} text={v.text} />
-        ))}
+        {versesFolded
+          ? note?.verses?.slice(0, 1).map(v => (
+            <Verse
+              key={v.verse}
+              verse={v.verse}
+              text={v.text}
+              folded
+              selectable={false}
+            />
+          ))
+          : note?.verses?.map(v => (
+            <Verse
+              key={v.verse}
+              verse={v.verse}
+              text={v.text}
+              selectable={false}
+            />
+          ))
+        }
       </Box>
 
       <Box

@@ -12,16 +12,19 @@ import {
   ActionIcon,
   Tooltip,
 } from '@mantine/core';
-import { IconShare, IconRefresh } from '@tabler/icons-react';
+import { IconShare, IconRefresh, IconArrowsMaximize, IconArrowsMinimize } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
-import { Note, Tag, CommentCounts } from '../types';
+import { Note, Tag, CommentCounts, PlaylistItem } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import { useBibleStore } from '../store';
 import { deleteNote, getTag, fetchCommentCounts } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
+import {
+  BOOK_NAME_TO_ORDER,
+} from '../utils/bibleUtils';
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -34,15 +37,24 @@ export default function TagNotesRoute() {
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
-  const setActiveBook = useBibleStore((state) => state.setActiveBook);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
   );
+  const versesFolded = useBibleStore((state) => state.versesFolded);
+  const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
+  const setAudioPlaylistItems = useBibleStore(
+    (state) => state.setAudioPlaylistItems
+  );
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
+  type SortOrder =
+    | 'created_desc'
+    | 'created_asc'
+    | 'verse_asc'
+    | 'verse_desc';
+
+  const [sortOrder, setSortOrder] = useState<SortOrder>('created_desc');
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +67,10 @@ export default function TagNotesRoute() {
     if (tagId) {
       setLastSelectedTagId(tagId);
     }
-  }, [setShowNotes, setLastSelectedTagId, tagId]);
+    return () => {
+      setAudioPlaylistItems(null);
+    };
+  }, [setShowNotes, setLastSelectedTagId, tagId, setAudioPlaylistItems]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,19 +159,11 @@ export default function TagNotesRoute() {
   };
 
   const handleViewInBible = (
-    book: string, 
-    chapter: number, 
+    book: string,
+    chapter: number,
     verse: number
   ) => {
-    // Set the Bible context
-    setActiveBook(book);
-    setActiveChapter(chapter);
-    setActiveVerses([verse]);
-    
-    // Navigate to the Bible passage
-    navigate(`/bible/${book}/${chapter}`);
-    
-    // Switch to Bible view
+    navigate(`/bible/${book}/${chapter}.${verse}`);
     setShowNotes(false);
   };
 
@@ -247,6 +254,86 @@ export default function TagNotesRoute() {
     }
   };
 
+  const sortedNotes = [...notes].sort((a, b) => {
+    switch (sortOrder) {
+      case 'created_desc':
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      case 'created_asc':
+        return (
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
+        );
+      case 'verse_asc': {
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return aBook - bBook;
+        if (aV.chapter !== bV.chapter)
+          return aV.chapter - bV.chapter;
+        return aV.verse - bV.verse;
+      }
+      case 'verse_desc': {
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return bBook - aBook;
+        if (aV.chapter !== bV.chapter)
+          return bV.chapter - aV.chapter;
+        return bV.verse - aV.verse;
+      }
+      default:
+        return 0;
+    }
+  });
+
+  useEffect(() => {
+    if (loading || notes.length === 0) {
+      setAudioPlaylistItems(null);
+      return;
+    }
+    const items: PlaylistItem[] = sortedNotes
+      .filter((n) => (n.verses?.length ?? 0) > 0)
+      .map((note, i, arr) => {
+        const firstVerse = note.verses![0];
+        const sameBlock = note.verses!.filter(
+          (v) =>
+            v.book === firstVerse.book &&
+            v.chapter === firstVerse.chapter,
+        );
+        const verseNumbers = sameBlock.map((v) => v.verse);
+        const startVerse = Math.min(...verseNumbers);
+        const endVerse = Math.max(...verseNumbers);
+        const label =
+          `Note ${i + 1}/${arr.length} ` +
+          `\u2013 ${firstVerse.book} ` +
+          `${firstVerse.chapter}:${startVerse}` +
+          (startVerse !== endVerse ? `-${endVerse}` : '');
+        return {
+          itemId: note.id,
+          book: firstVerse.book,
+          chapter: firstVerse.chapter,
+          startVerse,
+          endVerse,
+          label,
+          verseNumbers,
+        };
+      });
+    setAudioPlaylistItems(items.length > 0 ? items : null);
+  }, [notes, sortOrder, loading, setAudioPlaylistItems]);
+
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
@@ -265,7 +352,9 @@ export default function TagNotesRoute() {
     );
   }
 
-  const sortedTags = [...storedTags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...storedTags].sort(
+    (a, b) => a.name.localeCompare(b.name)
+  );
 
   return (
     <Box p="md">
@@ -284,9 +373,50 @@ export default function TagNotesRoute() {
           <Text fw={500} size="lg">{tag.name}</Text>
         )}
         <Group spacing="xs">
+          <Select
+            size="xs"
+            value={sortOrder}
+            onChange={(v) =>
+              v && setSortOrder(v as SortOrder)
+            }
+            data={[
+              {
+                value: 'created_desc',
+                label: 'Date: Newest first',
+              },
+              {
+                value: 'created_asc',
+                label: 'Date: Oldest first',
+              },
+              {
+                value: 'verse_asc',
+                label: 'Verse: Ascending',
+              },
+              {
+                value: 'verse_desc',
+                label: 'Verse: Descending',
+              },
+            ]}
+            style={{ width: 170 }}
+          />
           <Text color="dimmed" size="sm">
             {notes.length} {notes.length === 1 ? 'note' : 'notes'}
           </Text>
+          <Tooltip
+            label={versesFolded ? "Unfold verses" : "Fold verses"}
+            position="left"
+          >
+            <ActionIcon
+              onClick={() => setVersesFolded(!versesFolded)}
+              variant="subtle"
+              color={versesFolded ? "blue" : "gray"}
+              size="lg"
+            >
+              {versesFolded
+                ? <IconArrowsMaximize size={20} />
+                : <IconArrowsMinimize size={20} />}
+            </ActionIcon>
+          </Tooltip>
           <Tooltip label="Refresh notes" position="left">
             <ActionIcon
               onClick={handleRefresh}
@@ -315,7 +445,7 @@ export default function TagNotesRoute() {
           <Stack spacing="md">
             <TagSection
               tagName={tag.name}
-              notes={notes}
+              notes={sortedNotes}
               onViewInBible={handleViewInBible}
               onEditNote={
                 isAuthenticated ? handleEditNote : undefined

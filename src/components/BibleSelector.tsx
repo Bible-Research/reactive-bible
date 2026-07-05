@@ -62,7 +62,6 @@ const BibleSelector = ({
 
   return (
     <Navbar
-      py="sm"
       hiddenBreakpoint="sm"
       hidden={!opened}
       width={{ sm: 320, lg: 320 }}
@@ -71,72 +70,80 @@ const BibleSelector = ({
         transition: "width 1000ms ease, min-width 1000ms ease",
       }}
     >
-      <Navbar.Section style={{ display: "flex" }}>
-        <Box style={{ flex: "0 0 185px" }}>
-          <ScrollArea h="88vh" className={classes.border}>
-            {getBooks().map((book) => (
-              <a
-                className={cx(classes.link, {
-                  [classes.linkActive]: activeBook === book.book_name,
-                })}
-                href="/"
-                onClick={(event) => {
-                  event.preventDefault();
-                  console.log(`🔗 Navigating to: /bible/${book.book_name}/1`);
-                  setActiveBookShort(book.book_id);
-                  navigate(`/bible/${book.book_name}/1`);
-                }}
-                key={book.book_id}
-                title={"nav-book-" + book.book_id}
-              >
-                {book.book_name}
-              </a>
-            ))}
-          </ScrollArea>
-        </Box>
-        <Box style={{ flex: "1 0 60px" }}>
-          <ScrollArea h="88vh" className={classes.border}>
-            {getChapters(activeBook).map((chapter) => (
-              <a
-                className={cx(classes.link, {
-                  [classes.linkActive]: activeChapter === chapter,
-                })}
-                href="/"
-                onClick={(event) => {
-                  event.preventDefault();
-                  console.log(`🔗 Navigating to: /bible/${activeBook}/${chapter}`);
-                  navigate(`/bible/${activeBook}/${chapter}`);
-                }}
-                key={chapter}
-                title={"nav-chapter-" + chapter}
-              >
-                {chapter}
-              </a>
-            ))}
-          </ScrollArea>
-        </Box>
-        <Box style={{ flex: "1 0 60px" }}>
-          <ScrollArea h="88vh">
-            {getVerses(activeBook, activeChapter).map((verse) => (
-              <a
-                className={cx(classes.link, {
-                  [classes.linkActive]: activeVerses.includes(verse),
-                })}
-                href="/"
-                onClick={(event) => {
-                  event.preventDefault();
-                  console.log(`🔗 Navigating to: /bible/${activeBook}/${activeChapter}`);
-                  // For now, just navigate to chapter (verse highlighting will come later)
-                  navigate(`/bible/${activeBook}/${activeChapter}`);
-                  setOpened(false);
-                }}
-                key={verse}
-                title={"nav-verse-" + verse}
-              >
-                {verse}
-              </a>
-            ))}
-          </ScrollArea>
+      <Navbar.Section grow sx={{ overflow: "hidden" }}>
+        <Box
+          style={{
+            display: "flex",
+            height: "100%",
+            overflow: "hidden",
+          }}
+        >
+          <Box style={{ flex: "0 0 185px", overflow: "hidden" }}>
+            <ScrollArea h="100%" className={classes.border}>
+              {getBooks().map((book) => (
+                <a
+                  className={cx(classes.link, {
+                    [classes.linkActive]: activeBook === book.book_name,
+                  })}
+                  href="/"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    console.log(`🔗 Navigating to: /bible/${book.book_name}/1`);
+                    setActiveBookShort(book.book_id);
+                    navigate(`/bible/${book.book_name}/1`);
+                  }}
+                  key={book.book_id}
+                  title={"nav-book-" + book.book_id}
+                >
+                  {book.book_name}
+                </a>
+              ))}
+            </ScrollArea>
+          </Box>
+          <Box style={{ flex: "1 0 60px", overflow: "hidden" }}>
+            <ScrollArea h="100%" className={classes.border}>
+              {getChapters(activeBook).map((chapter) => (
+                <a
+                  className={cx(classes.link, {
+                    [classes.linkActive]: activeChapter === chapter,
+                  })}
+                  href="/"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    console.log(`🔗 Navigating to: /bible/${activeBook}/${chapter}`);
+                    navigate(`/bible/${activeBook}/${chapter}`);
+                  }}
+                  key={chapter}
+                  title={"nav-chapter-" + chapter}
+                >
+                  {chapter}
+                </a>
+              ))}
+            </ScrollArea>
+          </Box>
+          <Box style={{ flex: "1 0 60px", overflow: "hidden" }}>
+            <ScrollArea h="100%">
+              {getVerses(activeBook, activeChapter).map((verse) => (
+                <a
+                  className={cx(classes.link, {
+                    [classes.linkActive]: activeVerses.includes(verse),
+                  })}
+                  href="/"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    navigate(
+                      `/bible/${activeBook}/${activeChapter}.${verse}`
+                    );
+                    setOpened(false);
+                  }}
+                  key={verse}
+                  title={"nav-verse-" + verse}
+                >
+                  {verse}
+                </a>
+              ))}
+            </ScrollArea>
+          </Box>
         </Box>
       </Navbar.Section>
     </Navbar>

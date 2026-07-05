@@ -24,6 +24,11 @@ export interface Note {
   verses: Verse[];
 }
 
+export interface SectionHeading {
+  before_verse: number;
+  text: string;
+}
+
 export interface VerseTimestamp {
   verse_start: number;
   timestamp: number;
@@ -55,3 +60,19 @@ export interface Comment {
 }
 
 export type CommentCounts = Record<string, number>;
+
+export interface PlaylistItem {
+  itemId: string;
+  book: string;
+  chapter: number;
+  startVerse: number;
+  endVerse: number;
+  label: string;
+  verseNumbers?: number[];
+}
+
+export interface AudioActiveVerse {
+  book: string;
+  chapter: number;
+  verse: number;
+}

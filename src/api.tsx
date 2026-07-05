@@ -3,6 +3,7 @@ import { Translation } from "./store";
 import {
   VerseTimestamp,
   FilesetCopyright,
+  SectionHeading,
   Comment,
   CommentAuthor,
   CommentCounts,
@@ -11,6 +12,8 @@ import {
 import {
   getCachedVerses,
   cacheVerses,
+  getCachedHeadings,
+  cacheHeadings,
   getCachedAudioUrl,
   cacheAudioUrl,
   getCachedTranslations,
@@ -20,8 +23,11 @@ import {
   getCachedCopyright,
   cacheCopyright,
 } from './utils/cacheManager';
+
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
 import { API_BASE_URL } from './config';
+
+export type { SectionHeading };
 
 export const data = bibleJson as KjvBook[];
 
@@ -70,11 +76,16 @@ export const getVerses = (thebook: string, thechapter: number): number[] => {
     .map((book: KjvBook) => book.verse);
 };
 
+type VerseResult = {
+  verses: { verse: number; text: string }[];
+  headings: SectionHeading[];
+};
+
 export const getVersesInChapter = async (
   thebook: string,
   thechapter: number,
   filesetId: string
-): Promise<{ verse: number; text: string }[]> => {
+): Promise<VerseResult> => {
   if (filesetId === 'ENGKJV') {
     return getVersesInKjvChapter(thebook, thechapter);
   }
@@ -84,31 +95,79 @@ export const getVersesInChapter = async (
 export const getVersesInKjvChapter = (
   thebook: string,
   thechapter: number
-): { verse: number; text: string }[] => {
-  return data
+): VerseResult => {
+  const verses = data
     .filter(
-      (book: KjvBook) => book.book_name === thebook && book.chapter === thechapter
+      (book: KjvBook) =>
+        book.book_name === thebook &&
+        book.chapter === thechapter
     )
-    .map((book: KjvBook) => ({ verse: book.verse, text: book.text }));
+    .map((book: KjvBook) => ({
+      verse: book.verse,
+      text: book.text,
+    }));
+  return { verses, headings: [] };
+};
+
+export const fetchHeadingsOnly = async (
+  book: string,
+  chapter: number,
+  filesetId: string
+): Promise<SectionHeading[]> => {
+  if (filesetId === 'ENGKJV') {
+    return [];
+  }
+  const cached = getCachedHeadings(book, chapter, filesetId);
+  if (cached !== null) {
+    return cached;
+  }
+  try {
+    const passage = `${book} ${chapter}`;
+    const url =
+      `https://bible-research-489314.ey.r.appspot.com` +
+      `/api/v1/bible?passage=` +
+      `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const response = await fetch(url);
+    const responseData = await response.json();
+    const headings: SectionHeading[] =
+      responseData.headings ?? [];
+    cacheHeadings(book, chapter, filesetId, headings);
+    return headings;
+  } catch (error) {
+    console.warn(
+      `Failed to fetch headings for ${book} ${chapter}:`,
+      error
+    );
+    return [];
+  }
 };
 
 export const getVersesFromApi = async (
   thebook: string,
   thechapter: number,
   filesetId: string
-): Promise<{ verse: number; text: string }[]> => {
-  const cached = getCachedVerses(thebook, thechapter, filesetId);
-  if (cached) {
-    return cached;
+): Promise<VerseResult> => {
+  const cachedVerses = getCachedVerses(
+    thebook, thechapter, filesetId
+  );
+  if (cachedVerses) {
+    const cachedHeadings =
+      getCachedHeadings(thebook, thechapter, filesetId)
+      ?? [];
+    return { verses: cachedVerses, headings: cachedHeadings };
   }
   try {
     const passage = `${thebook} ${thechapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
+    const url =
+      `https://bible-research-489314.ey.r.appspot.com` +
+      `/api/v1/bible?passage=` +
+      `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const data = await response.json();
     const verses = data.verses?.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
     cacheVerses(thebook, thechapter, filesetId, verses);
-    return verses;
+    cacheHeadings(thebook, thechapter, filesetId, headings);
+    return { verses, headings };
   } catch (error) {
     console.error(error);
     throw error;
@@ -794,6 +853,60 @@ export const deleteComment = async (
     console.error('Error deleting comment:', error);
     throw error;
   }
+};
+
+// ============================================
+// SEARCH FUNCTIONS
+// ============================================
+
+export interface SearchVerse {
+  book_id: string;
+  chapter: number;
+  verse_start: number;
+  verse_text: string;
+}
+
+
+export interface SearchPagination {
+  total: number;
+  count: number;
+  per_page: number;
+  current_page: number;
+  total_pages: number;
+}
+
+export interface SearchResponse {
+  verses: SearchVerse[];
+  meta: { pagination?: SearchPagination };
+}
+
+export const searchBible = async (
+  query: string,
+  filesetId: string,
+  page = 1,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<SearchResponse> => {
+  const params = new URLSearchParams({
+    query,
+    fileset_id: filesetId,
+    page: String(page),
+    limit: String(limit),
+  });
+  const url =
+    `${API_BASE_URL}/api/v1/bible/search/?` +
+    params.toString();
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(
+      `Search failed: ${response.statusText}`
+    );
+  }
+  const json = await response.json();
+  return {
+    verses: json.data?.verses ?? [],
+    meta: json.data?.meta ?? {},
+  };
 };
 
 export const fetchCommentCounts = async (params: {

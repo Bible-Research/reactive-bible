@@ -40,7 +40,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/1']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -52,7 +52,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/Matthew/3']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -69,7 +69,7 @@ describe('BibleRoute', () => {
       <MemoryRouter initialEntries={['/bible']}>
         <Routes>
           <Route path="/bible" element={<BibleRoute />} />
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -84,7 +84,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/1']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -106,7 +106,7 @@ describe('BibleRoute', () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/abc']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );
@@ -118,13 +118,52 @@ describe('BibleRoute', () => {
     });
   });
 
+  it('syncs verse URL param to activeVerses on mount', async () => {
+    render(
+      <MemoryRouter initialEntries={['/bible/John/3.16']}>
+        <Routes>
+          <Route
+            path="/bible/:book/:chapterVerse"
+            element={<BibleRoute />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      const state = useBibleStore.getState();
+      expect(state.activeBook).toBe('John');
+      expect(state.activeChapter).toBe(3);
+      expect(state.activeVerses).toEqual([16]);
+    });
+  });
+
+  it('clears activeVerses when no verse in URL', async () => {
+    useBibleStore.setState({ activeVerses: [5] });
+
+    render(
+      <MemoryRouter initialEntries={['/bible/John/1']}>
+        <Routes>
+          <Route
+            path="/bible/:book/:chapterVerse"
+            element={<BibleRoute />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(useBibleStore.getState().activeVerses).toEqual([]);
+    });
+  });
+
   it('does not cause infinite loops when syncing', async () => {
     const consoleSpy = vi.spyOn(console, 'log');
     
     render(
       <MemoryRouter initialEntries={['/bible/John/1']}>
         <Routes>
-          <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+          <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
         </Routes>
       </MemoryRouter>
     );

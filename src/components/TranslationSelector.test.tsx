@@ -39,17 +39,17 @@ describe('TranslationSelector Component', () => {
     ]);
   });
 
-  it('should render the Translations button', () => {
+  it('should render the Change Translation button', () => {
     render(<TranslationSelector />);
     expect(
-      screen.getByRole('button', { name: 'Translations' })
+      screen.getByRole('button', { name: 'Change Translation' })
     ).toBeInTheDocument();
   });
 
   it('should open modal when button is clicked', () => {
     render(<TranslationSelector />);
     const button = screen.getByRole('button', 
-      { name: 'Translations' });
+      { name: 'Change Translation' });
     fireEvent.click(button);
 
     // Modal should be visible with title
@@ -64,7 +64,7 @@ describe('TranslationSelector Component', () => {
   it.skip('should display available translations', async () => {
     render(<TranslationSelector />);
     const button = screen.getByRole('button', 
-      { name: 'Translations' });
+      { name: 'Change Translation' });
     await userEvent.click(button);
 
     // This test is skipped because Select component renders
@@ -85,7 +85,7 @@ describe('TranslationSelector Component', () => {
     mock.mockClear();
 
     const button = screen.getByRole('button',
-      { name: 'Translations' });
+      { name: 'Change Translation' });
     fireEvent.click(button);
 
     // Opening the modal must trigger an async refresh that
@@ -103,7 +103,7 @@ describe('TranslationSelector Component', () => {
 
     render(<TranslationSelector />);
     const button = screen.getByRole('button',
-      { name: 'Translations' });
+      { name: 'Change Translation' });
 
     fireEvent.click(button);
     await waitFor(() => {
@@ -158,7 +158,7 @@ describe('TranslationSelector Component', () => {
 
     render(<TranslationSelector />);
     fireEvent.click(
-      screen.getByRole('button', { name: 'Translations' })
+      screen.getByRole('button', { name: 'Change Translation' })
     );
 
     await waitFor(() => {

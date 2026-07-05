@@ -1,5 +1,51 @@
 // src/utils/bibleUtils.ts
 
+/**
+ * Encodes an array of verse numbers into a compact URL string.
+ * e.g. [16,17,18] → "16-18", [16,18] → "16,18"
+ */
+export function encodeVerses(verses: number[]): string {
+  if (verses.length === 0) return '';
+  const sorted = [...verses].sort((a, b) => a - b);
+  const ranges: string[] = [];
+  let start = sorted[0];
+  let end = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i];
+    } else {
+      ranges.push(start === end ? `${start}` : `${start}-${end}`);
+      start = sorted[i];
+      end = sorted[i];
+    }
+  }
+  ranges.push(start === end ? `${start}` : `${start}-${end}`);
+  return ranges.join(',');
+}
+
+/**
+ * Decodes a URL verse string back into an array of verse numbers.
+ * e.g. "16-18" → [16,17,18], "16,18" → [16,18]
+ */
+export function decodeVerses(verseStr: string): number[] {
+  const verses: number[] = [];
+  for (const part of verseStr.split(',')) {
+    const trimmed = part.trim();
+    if (trimmed.includes('-')) {
+      const [startStr, endStr] = trimmed.split('-');
+      const start = parseInt(startStr, 10);
+      const end = parseInt(endStr, 10);
+      if (!isNaN(start) && !isNaN(end) && start <= end) {
+        for (let v = start; v <= end; v++) verses.push(v);
+      }
+    } else {
+      const v = parseInt(trimmed, 10);
+      if (!isNaN(v)) verses.push(v);
+    }
+  }
+  return verses;
+}
+
 export type Testament = 'OT' | 'NT';
 
 export interface BibleBook {
@@ -79,6 +125,52 @@ const BIBLE_BOOKS: BibleBook[] = [
   { name: 'revelation', code: 'REV', testament: 'NT' },
 ];
 
+/**
+ * Map of lowercase book names to their canonical order index.
+ * Derived from BIBLE_BOOKS array.
+ * Example: { 'genesis': 0, 'exodus': 1, ... }
+ */
+export const BOOK_NAME_TO_ORDER: Record<string, number> =
+  BIBLE_BOOKS.reduce(
+    (acc, book, idx) => {
+      acc[book.name] = idx;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Map of USFM book codes to title-cased display names.
+ * Derived from BIBLE_BOOKS array.
+ * Example: { 'GEN': 'Genesis', 'JHN': 'John', ... }
+ */
+export const BOOK_CODE_TO_NAME: Record<string, string> =
+  BIBLE_BOOKS.reduce(
+    (acc, b) => {
+      acc[b.code] = titleCase(b.name);
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
+
+/**
+ * Map of USFM book codes to their canonical order index.
+ * Derived from BIBLE_BOOKS array.
+ * Example: { 'GEN': 0, 'EXO': 1, 'JHN': 42, ... }
+ */
+export const BOOK_CODE_TO_ORDER: Record<string, number> =
+  BIBLE_BOOKS.reduce(
+    (acc, b, i) => {
+      acc[b.code] = i;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
 export const BOOK_NAME_TO_CODE = BIBLE_BOOKS.reduce(
   (acc, book) => {
     acc[book.name] = book.code;
@@ -110,4 +202,130 @@ export const NEW_TESTAMENT_BOOKS = new Set(
  */
 export const getTestament = (bookCode: string): Testament | null => {
   return BOOK_CODE_TO_TESTAMENT[bookCode.toUpperCase()] || null;
+};
+
+/**
+ * Checks whether a fileset's size field covers the given testament.
+ * DBT size values: "C" = complete, "NT"/"NT1"/"NT2" = New Testament,
+ * "OT"/"OT1"/"OT2" = Old Testament.
+ * Returns true if compatible or if the size is unknown/ambiguous.
+ */
+export const filesetCoversTestament = (
+  filesetSize: string | null,
+  testament: Testament | null,
+): boolean => {
+  if (!filesetSize || !testament) return true;
+  const s = filesetSize.toUpperCase();
+  if (s === 'C') return true;
+  if (testament === 'OT') return s.startsWith('OT');
+  if (testament === 'NT') return s.startsWith('NT');
+  return true;
+};
+
+/**
+ * Given a full book name (e.g. "Genesis"), returns its testament or null.
+ */
+export const getTestamentByBookName = (
+  bookName: string,
+): Testament | null => {
+  const code = BOOK_NAME_TO_CODE[bookName.toLowerCase()];
+  return code ? getTestament(code) : null;
+};
+
+/**
+ * Resolves the fileset ID to use for fetching verse timestamps.
+ * When the active text fileset is ENGESV_API (text-only),
+ * timestamps come from the corresponding ESV audio fileset
+ * based on the book's testament. Otherwise strips the codec
+ * suffix from the audio fileset ID.
+ */
+export const resolveTimestampsFilesetId = (
+  audioFilesetId: string | null,
+  textFilesetId: string | null,
+  book: string,
+): string | null => {
+  if (textFilesetId === 'ENGESV_API') {
+    const testament = getTestamentByBookName(book);
+    if (testament === 'OT') return 'ENGESVO1DA';
+    if (testament === 'NT') return 'ENGESVN1DA';
+  }
+  if (!audioFilesetId) return null;
+  return audioFilesetId.split('-')[0];
+};
+
+/**
+ * Adjusts timestamps for ENGESV_API audio which doesn't have chapter
+ * number announcements. The fallback timestamp filesets (ENGESVO1DA,
+ * ENGESVN1DA) include chapter announcements, causing an offset.
+ * This function calculates the offset (verse 0 to verse 1) and
+ * subtracts it from all timestamps.
+ */
+export const adjustTimestampsForENGESV = (
+  timestamps: { verse_start: number; timestamp: number }[],
+  audioFilesetId: string | null,
+): { verse_start: number; timestamp: number }[] => {
+  if (audioFilesetId !== 'ENGESV_API' || timestamps.length === 0) {
+    return timestamps;
+  }
+
+  const verse0 = timestamps.find((t) => t.verse_start === 0);
+  const verse1 = timestamps.find((t) => t.verse_start === 1);
+
+  if (!verse0 || !verse1) {
+    return timestamps;
+  }
+
+  const offset = verse1.timestamp - verse0.timestamp;
+
+  return timestamps.map((t) => ({
+    verse_start: t.verse_start,
+    timestamp: Math.max(0, t.timestamp - offset),
+  }));
+};
+
+export interface Fileset {
+  id: string;
+  type: string;
+  size: string;
+  codec: string | null;
+  bitrate: string | null;
+}
+
+export const findTestamentFallback = (
+  filesetId: string,
+  targetTestament: Testament,
+  availableFilesets: Fileset[],
+): string | null => {
+  const upper = filesetId.toUpperCase();
+  const targetChar = targetTestament === 'OT' ? 'O' : 'N';
+  let fallbackId: string | null = null;
+  const nIndex = upper.indexOf('N');
+  const oIndex = upper.indexOf('O');
+  const pIndex = upper.indexOf('P');
+  const hasN = nIndex !== -1 && /N\d/.test(upper.substring(nIndex));
+  const hasO = oIndex !== -1 && /O\d/.test(upper.substring(oIndex));
+  const hasP = pIndex !== -1 && /P\d/.test(upper.substring(pIndex));
+  if (hasP) {
+    return null;
+  }
+  if (hasN) {
+    const match = upper.match(/N(\d)/);
+    if (match) {
+      const versionNum = match[1];
+      fallbackId = filesetId.replace(/N\d/, `${targetChar}${versionNum}`);
+    }
+  } else if (hasO) {
+    const match = upper.match(/O(\d)/);
+    if (match) {
+      const versionNum = match[1];
+      fallbackId = filesetId.replace(/O\d/, `${targetChar}${versionNum}`);
+    }
+  }
+  if (!fallbackId) {
+    return null;
+  }
+  const exists = availableFilesets.some(
+    (f) => f.id.toUpperCase() === fallbackId!.toUpperCase(),
+  );
+  return exists ? fallbackId : null;
 };

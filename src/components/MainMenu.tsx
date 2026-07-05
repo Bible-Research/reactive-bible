@@ -10,7 +10,7 @@ import {
   Divider,
 } from "@mantine/core";
 import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { UserMenu } from "./UserMenu";
 
@@ -29,12 +29,6 @@ const MainMenu = ({
 }: MainMenuProps) => {
   const theme = useMantineTheme();
   const navigate = useNavigate();
-  const location = useLocation();
-  
-  // Determine current page based on route
-  const isOnNotesPage = location.pathname.startsWith('/notes');
-  const isOnAuthPage = location.pathname === '/login' || 
-                       location.pathname === '/register';
   
   // Get Bible state for navigation
   const activeBook = useBibleStore((state) => state.activeBook);
@@ -67,30 +61,18 @@ const MainMenu = ({
         </Group>
         
         <Divider />
-        
+
         <Group position="apart" spacing="xs">
           <Text
             weight={500}
             size="lg"
             onClick={() => {
-              if (isOnNotesPage) {
-                // Navigate back to Bible from notes
-                console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
-                navigate(`/bible/${activeBook}/${activeChapter}`);
-              } else if (isOnAuthPage) {
-                // Navigate to Bible from login/register pages
-                console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
-                navigate(`/bible/${activeBook}/${activeChapter}`);
-              } else {
-                // Navigate to Notes from Bible (will redirect to login if not authenticated)
-                console.log('🔗 MainMenu: Navigate to /notes');
-                navigate('/notes');
-              }
+              navigate(`/bible/${activeBook}/${activeChapter}`);
               onClose();
             }}
             sx={{ cursor: "pointer" }}
           >
-            {isOnNotesPage ? "View Bible" : isOnAuthPage ? "View Bible" : "View Notes"}
+            Read Bible
           </Text>
         </Group>
 
@@ -99,7 +81,20 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              console.log('🔗 MainMenu: Navigate to /tags');
+              navigate('/notes');
+              onClose();
+            }}
+            sx={{ cursor: "pointer" }}
+          >
+            View Notes
+          </Text>
+        </Group>
+
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => {
               navigate('/tags');
               onClose();
             }}

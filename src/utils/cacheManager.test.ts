@@ -81,13 +81,13 @@ describe('Verse Cache Manager', () => {
     // Initial access
     getCachedVerses('GEN', 1, 'KJV');
     let metadata = getVerseCacheMetadata();
-    expect(metadata.lruQueue[metadata.lruQueue.length - 1]).toBe('KJV:GEN:1:1');
+    expect(metadata.lruQueue[metadata.lruQueue.length - 1]).toBe('KJV:GEN:1');
 
     // Second access
     vi.advanceTimersByTime(1000);
     getCachedVerses('GEN', 1, 'KJV');
     metadata = getVerseCacheMetadata();
-    expect(metadata.lruQueue[metadata.lruQueue.length - 1]).toBe('KJV:GEN:1:1');
+    expect(metadata.lruQueue[metadata.lruQueue.length - 1]).toBe('KJV:GEN:1');
   });
 
   it('should clear the verse cache', () => {

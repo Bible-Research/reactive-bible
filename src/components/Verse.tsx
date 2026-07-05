@@ -1,5 +1,7 @@
 import { Box, Text, Title, createStyles } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { encodeVerses } from "../utils/bibleUtils";
 import { useEffect, useRef, useState } from "react";
 
 const useStyles = createStyles((theme) => ({
@@ -7,6 +9,10 @@ const useStyles = createStyles((theme) => ({
     WebkitTapHighlightColor: "transparent", // Remove tap highlight
     cursor: "pointer",
     transition: "background-color 150ms ease",
+  },
+  linkReadOnly: {
+    cursor: "default",
+    WebkitTapHighlightColor: "transparent",
   },
   linkActive: {
     backgroundColor:
@@ -24,16 +30,33 @@ const useStyles = createStyles((theme) => ({
   },
 }));
 
-const Verse = ({ verse, text }: { verse: number; text: string }) => {
+const Verse = ({
+  verse,
+  text,
+  folded,
+  selectable = true,
+}: {
+  verse: number;
+  text: string;
+  folded?: boolean;
+  selectable?: boolean;
+}) => {
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
+  const navigate = useNavigate();
   const activeVerses = useBibleStore((state) => state.activeVerses);
   const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeChapter = useBibleStore((state) => state.activeChapter);
   const audioActiveVerse = useBibleStore(
     (state) => state.audioActiveVerse
   );
   const isActive = activeVerses.includes(verse);
-  const isAudioActive = audioActiveVerse === verse;
+  const isAudioActive =
+    audioActiveVerse !== null &&
+    audioActiveVerse.book === activeBook &&
+    audioActiveVerse.chapter === activeChapter &&
+    audioActiveVerse.verse === verse;
   
   // Track touch state to differentiate tap from scroll
   const [touchStartPos, setTouchStartPos] = useState<{
@@ -45,11 +68,22 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
   const userClickedRef = useRef(false);
 
   const handleVerseClick = () => {
+    if (!selectable) return;
     userClickedRef.current = true;
-    if (isActive) {
-      setActiveVerses(activeVerses.filter((v) => v !== verse));
+    const newVerses = isActive
+      ? activeVerses.filter((v) => v !== verse)
+      : [...activeVerses, verse];
+    setActiveVerses(newVerses);
+    if (newVerses.length > 0) {
+      navigate(
+        `/bible/${activeBook}/${activeChapter}.${encodeVerses(newVerses)}`,
+        { replace: true }
+      );
     } else {
-      setActiveVerses([...activeVerses, verse]);
+      navigate(
+        `/bible/${activeBook}/${activeChapter}`,
+        { replace: true }
+      );
     }
   };
 
@@ -104,8 +138,10 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
       component="div"
       display="flex"
       data-active={isActive}
-      className={cx(classes.link, {
-        [classes.linkActive]: isActive,
+      className={cx({
+        [classes.link]: selectable,
+        [classes.linkReadOnly]: !selectable,
+        [classes.linkActive]: selectable && isActive,
         [classes.linkAudioActive]: isAudioActive,
       })}
       py={7}
@@ -141,6 +177,13 @@ const Verse = ({ verse, text }: { verse: number; text: string }) => {
         order={3} 
         weight={400} 
         title={"passage-verse-" + verse}
+        sx={folded ? {
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          textOverflow: 'ellipsis',
+          minWidth: 0,
+          flex: 1,
+        } : undefined}
       >
         {text}
       </Title>
