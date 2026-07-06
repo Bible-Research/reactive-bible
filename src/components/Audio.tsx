@@ -96,10 +96,20 @@ const Audio = () => {
   // Reset chapter audio when chapter/book/version changes (non-playlist only)
   useEffect(() => {
     if (isPlaylistMode) return;
-    if (audio) {
-      audio.unload();
-      setAudio(null);
+    const current = audioRef.current;
+    if (current) {
+      // stop() halts playback immediately; unload() alone can let the
+      // underlying html5 <audio> element keep playing for a few seconds
+      // until the next chapter finishes loading.
+      try {
+        current.stop();
+        current.unload();
+      } catch (err) {
+        console.warn('Failed to stop previous chapter audio:', err);
+      }
       audioRef.current = null;
+      isPlayingRef.current = false;
+      setAudio(null);
     }
     setTimestamps([]);
     setAudioActiveVerse(null);
