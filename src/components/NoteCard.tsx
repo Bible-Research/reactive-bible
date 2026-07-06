@@ -9,8 +9,8 @@ import { useBibleStore } from "../store";
 import Verse from "./Verse";
 import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
-import {getVersesInChapter} from "../api.tsx";
-import {findVersesInBetween} from "../utils/findVersesInBetween.ts";
+import { getVersesInChapter } from "../api.tsx";
+import { findVersesInBetween ∂} from "../utils/findVersesInBetween.ts";
 
 interface NoteCardProps {
   note: Note;
