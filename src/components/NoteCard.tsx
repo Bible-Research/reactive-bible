@@ -1,10 +1,10 @@
-import type {MouseEvent} from "react";
-import {useEffect, useState} from "react";
-import {Anchor, Box, Button, Card, Group, Text, Title, Tooltip} from "@mantine/core";
-import {showNotification} from "@mantine/notifications";
-import {IconMessageCircle} from "@tabler/icons-react";
-import {Note} from "../types";
-import {useAuthStore} from "../stores/authStore";
+import type { MouseEvent } from "react";
+import { useEffect, useState } from "react";
+import { Anchor, Box, Button, Card, Group, Text, Title, Tooltip } from "@mantine/core";
+import { showNotification } from "@mantine/notifications";
+import { IconMessageCircle } from "@tabler/icons-react";
+import { Note } from "../types";
+import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
 import Verse from "./Verse";
 import ButtonComponent from "./Button";
@@ -21,16 +21,15 @@ interface NoteCardProps {
   onCountChange?: (delta: number) => void;
 }
 
-interface PassageContainerState {
-  book: string;
-  chapter: number,
-  verses: number[];
-}
-
-interface PassageState {
+type PassageState = {
   verse: number;
   text: string;
+  book?: string;
+  chapter?: number;
+  verses?: number[];
 }
+
+type PassageContainerState = Pick<PassageState, 'book' | 'verses' | 'chapter'>;
 
 const NoteCard = ({
   note,
@@ -52,9 +51,20 @@ const NoteCard = ({
 
   const onGrabBiblePassage = (hashtag: string): void => {
     const ref = hashtag.startsWith('@') ? hashtag.slice(1) : hashtag;
+    const match = ref.match(/^([a-zA-Z0-9\s+]+)\.(\d+):(\d+)(?:-(\d+))?$/)
 
-    const atColon = ref.indexOf(':');
-    const atDot = ref.indexOf('.');
+    if(!match) {
+      setError('Invalid scripture format');
+      return;
+    }
+
+    const colonIndex = ref.indexOf(':');
+    const dotIndex = ref.indexOf('.');
+
+    if (dotIndex === -1 || colonIndex === -1 || colonIndex < dotIndex) {
+      setError('Invalid Bible reference format');
+      return;
+    }
 
     const biblePassageParts = {
       book: "",
@@ -62,19 +72,24 @@ const NoteCard = ({
       verses: []
     } as { book: string; chapter: number, verses: number[]; };
 
-    biblePassageParts['book'] = ref.slice(0, atDot).replaceAll('+', ' ');
+    biblePassageParts['book'] = ref.slice(0, dotIndex).replaceAll('+', ' ');
 
-    biblePassageParts['chapter'] = Number(ref.slice(atDot + 1, atColon));
+    biblePassageParts['chapter'] = Number(ref.slice(dotIndex + 1, colonIndex));
 
-    const getRawVerses = ref.slice(atColon + 1, ref.length + 1)
-    const getVerses = Number(ref.slice(atColon + 1, ref.length + 1))
+    if(!biblePassageParts.book || isNaN(biblePassageParts.chapter)) {
+      setError('Invalid Bible reference');
+      return;
+    }
 
-    if (getRawVerses) {
-      if (getRawVerses.includes('-')) {
-        const [startStr, endStr] = getRawVerses.split('-');
+    const rawVerseRange = ref.slice(colonIndex + 1)
+    const singleVerse = Number(rawVerseRange)
+
+    if (rawVerseRange) {
+      if (rawVerseRange.includes('-')) {
+        const [startStr, endStr] = rawVerseRange.split('-');
 
         biblePassageParts['verses'] = findVersesInBetween(startStr, endStr);
-      } else biblePassageParts['verses'].push(+getVerses);
+      } else biblePassageParts['verses'].push(+singleVerse);
     }
 
     setPassageContainer(biblePassageParts);
@@ -100,15 +115,13 @@ const NoteCard = ({
     if (!passageContainer) return;
     const { book, chapter, verses } = passageContainer;
 
-    if (!book || !chapter || !verses.length) return;
+    if (!book || !chapter || !verses?.length) return;
 
     let cancelled = false;
 
     const getPassage = async () => {
       try {
         const res = await getVersesInChapter(book, chapter, filesetId);
-
-        console.log('...res:', res);
         
         if (cancelled) return;
 
