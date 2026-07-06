@@ -149,7 +149,7 @@ const Audio = () => {
   // immediately and never block the main thread (prevents Android ANR).
   const safePlay = useCallback(() => {
     const currentAudio = audioRef.current;
-    if (!currentAudio || isPlayingRef.current) return;
+    if (!currentAudio || currentAudio.playing()) return;
     try {
       currentAudio.play();
       isPlayingRef.current = true;
@@ -161,7 +161,7 @@ const Audio = () => {
 
   const safePause = useCallback(() => {
     const currentAudio = audioRef.current;
-    if (!currentAudio || !isPlayingRef.current) return;
+    if (!currentAudio || !currentAudio.playing()) return;
     try {
       currentAudio.pause();
       isPlayingRef.current = false;
