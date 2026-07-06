@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * Single, centralized owner of the global `navigator.mediaSession`.
@@ -100,31 +100,6 @@ export const useMediaSession = ({
     getPositionRef.current = getPosition;
   }, [getPosition]);
 
-  // Push the latest position to the OS. Stable identity (reads from refs) so
-  // it can be called from action handlers without re-registering them.
-  const updatePositionState = useCallback(() => {
-    if (!isSupported()) return;
-    const pos = getPositionRef.current?.();
-    if (!pos) return;
-    const { duration, position, playbackRate = 1 } = pos;
-    if (
-      duration > 0 &&
-      Number.isFinite(position) &&
-      position >= 0 &&
-      position <= duration
-    ) {
-      try {
-        navigator.mediaSession.setPositionState({
-          duration,
-          playbackRate,
-          position,
-        });
-      } catch {
-        // ignore invalid position states
-      }
-    }
-  }, []);
-
   // Register action handlers once per active session.
   useEffect(() => {
     if (!isSupported() || !active) return;
@@ -155,10 +130,7 @@ export const useMediaSession = ({
       wrap(() => {
         const c = controlsRef.current;
         if (c.previousTrack) c.previousTrack();
-        else {
-          c.seekBy?.(-10);
-          updatePositionState();
-        }
+        else c.seekBy?.(-10);
       }),
     );
 
@@ -167,10 +139,7 @@ export const useMediaSession = ({
       wrap(() => {
         const c = controlsRef.current;
         if (c.nextTrack) c.nextTrack();
-        else {
-          c.seekBy?.(10);
-          updatePositionState();
-        }
+        else c.seekBy?.(10);
       }),
     );
 
@@ -178,7 +147,6 @@ export const useMediaSession = ({
       'seekbackward',
       wrap((details) => {
         controlsRef.current.seekBy?.(-(details.seekOffset ?? 10));
-        updatePositionState();
       }),
     );
 
@@ -186,7 +154,6 @@ export const useMediaSession = ({
       'seekforward',
       wrap((details) => {
         controlsRef.current.seekBy?.(details.seekOffset ?? 10);
-        updatePositionState();
       }),
     );
 
@@ -195,7 +162,6 @@ export const useMediaSession = ({
       wrap((details) => {
         if (details.seekTime != null) {
           controlsRef.current.seekTo?.(details.seekTime);
-          updatePositionState();
         }
       }),
     );
@@ -203,7 +169,7 @@ export const useMediaSession = ({
     return () => {
       ALL_ACTIONS.forEach((a) => safeSetHandler(a, null));
     };
-  }, [active, updatePositionState]);
+  }, [active]);
 
   // Metadata sync (only when the displayed values actually change).
   useEffect(() => {
@@ -255,9 +221,31 @@ export const useMediaSession = ({
   useEffect(() => {
     if (!isSupported() || !active) return;
 
-    updatePositionState();
+    const update = () => {
+      const pos = getPositionRef.current?.();
+      if (!pos) return;
+      const { duration, position, playbackRate = 1 } = pos;
+      if (
+        duration > 0 &&
+        Number.isFinite(position) &&
+        position >= 0 &&
+        position <= duration
+      ) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration,
+            playbackRate,
+            position,
+          });
+        } catch {
+          // ignore invalid position states
+        }
+      }
+    };
+
+    update();
     if (!isPlaying) return;
-    const timer = setInterval(updatePositionState, 1000);
+    const timer = setInterval(update, 1000);
     return () => clearInterval(timer);
-  }, [active, isPlaying, updatePositionState]);
+  }, [active, isPlaying]);
 };
