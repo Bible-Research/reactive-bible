@@ -402,7 +402,20 @@ const Audio = () => {
                 // Loop is enabled, don't advance
                 return;
               }
-              
+
+              // Tear down the finished Howl immediately. Otherwise the load
+              // effect's `isPlaying && audio !== null` branch would call
+              // safePlay() on this ended instance and restart it from 0,
+              // replaying the same chapter until the next one loads.
+              try {
+                audioHowl.stop();
+                audioHowl.unload();
+              } catch {
+                // ignore teardown errors
+              }
+              audioRef.current = null;
+              setAudio(null);
+
               // Only advance to next chapter if not looping
               const movedToNext = goToNextChapter();
               if (movedToNext) {
