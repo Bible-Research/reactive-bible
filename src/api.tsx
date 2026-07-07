@@ -165,9 +165,8 @@ export const getVersesFromApi = async (
     const response = await fetch(url);
     const data = await response.json();
     const verses = data.verses?.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
-    const responseData = await response.json();
     const headings: SectionHeading[] =
-      responseData.headings ?? [];
+      data.headings ?? [];
     cacheVerses(thebook, thechapter, filesetId, verses);
     cacheHeadings(thebook, thechapter, filesetId, headings);
     return { verses, headings };

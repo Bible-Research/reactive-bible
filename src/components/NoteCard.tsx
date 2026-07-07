@@ -64,36 +64,34 @@ const NoteCard = ({
     if (dotIndex === -1 || colonIndex === -1 || colonIndex < dotIndex) {
       setError('Invalid Bible reference format');
       return;
-    }
+    };
 
-    const biblePassageParts = {
-      book: "",
-      chapter: 0,
-      verses: []
-    } as { book: string; chapter: number, verses: number[]; };
+    const book = ref.slice(0, dotIndex).replaceAll('+', ' ');
+    const chapter = Number(ref.slice(dotIndex + 1, colonIndex));
+    let verses: number[] = [];
 
-    biblePassageParts['book'] = ref.slice(0, dotIndex).replaceAll('+', ' ');
-
-    biblePassageParts['chapter'] = Number(ref.slice(dotIndex + 1, colonIndex));
-
-    if(!biblePassageParts.book || isNaN(biblePassageParts.chapter)) {
+    if(!book || isNaN(chapter)) {
       setError('Invalid Bible reference');
       return;
-    }
+    };
 
-    const rawVerseRange = ref.slice(colonIndex + 1)
-    const singleVerse = Number(rawVerseRange)
+    const rawVerseRange = ref.slice(colonIndex + 1);
+    const singleVerse = Number(rawVerseRange);
 
     if (rawVerseRange) {
       if (rawVerseRange.includes('-')) {
         const [startStr, endStr] = rawVerseRange.split('-');
 
-        biblePassageParts['verses'] = findVersesInBetween(startStr, endStr);
-      } else biblePassageParts['verses'].push(+singleVerse);
+        verses = findVersesInBetween(startStr, endStr);
+      } else verses.push(+singleVerse);
     }
 
-    setPassageContainer(biblePassageParts);
-  }
+    setPassageContainer({
+      book,
+      chapter,
+      verses
+    });
+  };
 
   const transformNote = (note_text: string) => {
     const parts = note_text.split(/(@[a-zA-Z0-9_+.:\-]+)/g);
@@ -103,7 +101,9 @@ const NoteCard = ({
       const part = parts[i];
       if (part.startsWith("@"))
         newParts.push(
-          <Anchor onClick={() => onGrabBiblePassage(part)}>{part}</Anchor>
+          <Anchor onClick={() => onGrabBiblePassage(part)}>
+            {part}
+          </Anchor>
         );
       else newParts.push(part);
     }
