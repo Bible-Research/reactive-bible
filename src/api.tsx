@@ -163,11 +163,9 @@ export const getVersesFromApi = async (
       `/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
+    const data = await response.json();
+    const verses = data.verses?.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
     const responseData = await response.json();
-    const verses = (responseData.verses as {
-      verse: number;
-      text: string;
-    }[]).map((v) => ({ verse: v.verse, text: v.text }));
     const headings: SectionHeading[] =
       responseData.headings ?? [];
     cacheVerses(thebook, thechapter, filesetId, verses);

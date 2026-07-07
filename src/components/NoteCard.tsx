@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
-import { useState } from "react";
-import { Card, Title, Text, Group, Box, Button, Tooltip } from "@mantine/core";
+import { useEffect, useState } from "react";
+import { Anchor, Box, Button, Card, Group, Text, Title, Tooltip } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
 import { IconMessageCircle } from "@tabler/icons-react";
 import { Note } from "../types";
@@ -9,6 +9,8 @@ import { useBibleStore } from "../store";
 import Verse from "./Verse";
 import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
+import { getVersesInChapter } from "../api.tsx";
+import { findVersesInBetween } from "../utils/findVersesInBetween.ts";
 
 interface NoteCardProps {
   note: Note;
@@ -19,6 +21,16 @@ interface NoteCardProps {
   onCountChange?: (delta: number) => void;
 }
 
+type PassageState = {
+  verse: number;
+  text: string;
+  book?: string;
+  chapter?: number;
+  verses?: number[];
+}
+
+type PassageContainerState = Pick<PassageState, 'book' | 'verses' | 'chapter'>;
+
 const NoteCard = ({
   note,
   onViewInBible,
@@ -28,9 +40,108 @@ const NoteCard = ({
   onCountChange,
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
+  const [passageContainer, setPassageContainer] = useState<PassageContainerState | null>(null);
+  const [passages, setPassages] = useState<PassageState[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
+  const filesetId = useBibleStore(state => state.activeTextFilesetId) as string;
+
+  const onGrabBiblePassage = (hashtag: string): void => {
+    const ref = hashtag.startsWith('@') ? hashtag.slice(1) : hashtag;
+    const match = ref.match(/^([a-zA-Z0-9\s+]+)\.(\d+):(\d+)(?:-(\d+))?$/)
+
+    if(!match) {
+      setError('Invalid scripture format');
+      return;
+    }
+
+    const colonIndex = ref.indexOf(':');
+    const dotIndex = ref.indexOf('.');
+
+    if (dotIndex === -1 || colonIndex === -1 || colonIndex < dotIndex) {
+      setError('Invalid Bible reference format');
+      return;
+    }
+
+    const biblePassageParts = {
+      book: "",
+      chapter: 0,
+      verses: []
+    } as { book: string; chapter: number, verses: number[]; };
+
+    biblePassageParts['book'] = ref.slice(0, dotIndex).replaceAll('+', ' ');
+
+    biblePassageParts['chapter'] = Number(ref.slice(dotIndex + 1, colonIndex));
+
+    if(!biblePassageParts.book || isNaN(biblePassageParts.chapter)) {
+      setError('Invalid Bible reference');
+      return;
+    }
+
+    const rawVerseRange = ref.slice(colonIndex + 1)
+    const singleVerse = Number(rawVerseRange)
+
+    if (rawVerseRange) {
+      if (rawVerseRange.includes('-')) {
+        const [startStr, endStr] = rawVerseRange.split('-');
+
+        biblePassageParts['verses'] = findVersesInBetween(startStr, endStr);
+      } else biblePassageParts['verses'].push(+singleVerse);
+    }
+
+    setPassageContainer(biblePassageParts);
+  }
+
+  const transformNote = (note_text: string) => {
+    const parts = note_text.split(/(@[a-zA-Z0-9_+.:\-]+)/g);
+    const newParts = []
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (part.startsWith("@"))
+        newParts.push(
+          <Anchor onClick={() => onGrabBiblePassage(part)}>{part}</Anchor>
+        );
+      else newParts.push(part);
+    }
+
+    return newParts;
+   }
+
+  useEffect(() => {
+    if (!passageContainer) return;
+    const { book, chapter, verses } = passageContainer;
+
+    if (!book || !chapter || !verses?.length) return;
+
+    let cancelled = false;
+
+    const getPassage = async () => {
+      try {
+        const res = await getVersesInChapter(book, chapter, filesetId);
+        
+        if (cancelled) return;
+
+        const verseFound = res?.verses?.filter(res =>
+          verses.includes(res.verse)
+        );
+
+        setPassages(verseFound);
+      } catch (err) {
+        console.error("Failed to load passage", err);
+        setError('Failed to load passage')
+      }
+    };
+
+    void getPassage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [passageContainer, filesetId]);
   const versesFolded = useBibleStore((state) => state.versesFolded);
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
@@ -87,6 +198,9 @@ const NoteCard = ({
 
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
+      {error && (
+        <Text color="red">{error}</Text>
+      )}
       <Group position="apart" mb={0}>
         <Title order={4}>{heading}</Title>
         <Group spacing="xs">
@@ -199,9 +313,19 @@ const NoteCard = ({
         })}
       >
         <Text fs="italic">
-          {note.note_text}
+          {transformNote(note.note_text)}
         </Text>
       </Box>
+      {passageContainer && (
+        <Box data-testid='passage-container'>
+          <h1>{passageContainer?.book} {passageContainer?.chapter || ""}</h1>
+          <>
+            {passages?.map((passage: PassageState, i: number) => (
+              <Text key={i}>{passage.verse}{". "}{passage.text}</Text>
+            ))}
+          </>
+        </Box>
+      )}
 
       {threadOpen && (
         <Box
