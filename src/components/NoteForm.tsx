@@ -41,8 +41,6 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
         onDropdownOpen={onTagDropdownOpen}
         data={tags.map((tag) => tag.name)}
         searchable
-        creatable
-        getCreateLabel={(query) => `+ Create ${query}`}
       />
       <TextInput
         variant="transparent"
@@ -52,13 +50,6 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
       />
       <Button variant="transparent" type="submit">
         {submitText}
-      </Button>
-      <Button
-        variant="transparent"
-        onClick={() => window.open('https://bible-research-489314.ey.r.appspot.com/api/v1/tags/', '_blank')}
-        style={{ width: '100%' }}
-      >
-        Or create a new tag
       </Button>
     </form>
   );
