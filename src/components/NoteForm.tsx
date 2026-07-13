@@ -1,4 +1,4 @@
-import { Button, Select, TextInput } from "@mantine/core";
+import { Button, Select, Textarea } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { Tag } from "../types";
 
@@ -42,11 +42,12 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
         data={tags.map((tag) => tag.name)}
         searchable
       />
-      <TextInput
+      <Textarea
         variant="transparent"
         label="Note"
         value={noteText}
         onChange={(event) => setNoteText(event.currentTarget.value)}
+        styles={{ input: { minHeight: "70vh", resize: "none" } }}
       />
       <Button variant="transparent" type="submit">
         {submitText}
