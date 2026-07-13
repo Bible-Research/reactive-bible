@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Modal } from "@mantine/core";
+import { Box, Divider, Modal, Text } from "@mantine/core";
 import { editNote } from "../api";
 import { useBibleStore } from "../store";
 import NoteForm from "./NoteForm";
@@ -38,16 +38,49 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     }
   };
 
+  const firstVerse = note?.verses?.[0];
+  const lastVerse =
+    note?.verses?.[(note.verses?.length ?? 0) - 1];
+  const verseLabel = firstVerse
+    ? firstVerse.verse === lastVerse?.verse
+      ? `${firstVerse.book} ${firstVerse.chapter}:${firstVerse.verse}`
+      : (
+        `${firstVerse.book} ${firstVerse.chapter}:` +
+        `${firstVerse.verse}–${lastVerse?.verse}`
+      )
+    : undefined;
+
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit note">
+    <Modal opened={opened} onClose={onClose} title="Edit note" fullScreen>
       {note && (
-        <NoteForm
-          tags={tags}
-          onSubmit={handleSubmit}
-          submitText="Submit changes"
-          onTagDropdownOpen={() => getTags()}
-          note={{ tagId: note.tag.id, text: note.note_text }}
-        />
+        <>
+          <NoteForm
+            tags={tags}
+            onSubmit={handleSubmit}
+            submitText="Submit changes"
+            onTagDropdownOpen={() => getTags()}
+            note={{ tagId: note.tag.id, text: note.note_text }}
+          />
+          {note.verses?.length > 0 && (
+            <Box mt="xl">
+              <Divider
+                my="sm"
+                label={verseLabel}
+                labelPosition="center"
+              />
+              {note.verses.map((v) => (
+                <Box key={v.verse} py={4} px={8}>
+                  <Text size="sm">
+                    <Text component="span" weight={700} mr={4}>
+                      {v.verse}
+                    </Text>
+                    {v.text}
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </>
       )}
     </Modal>
   );

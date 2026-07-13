@@ -1,4 +1,4 @@
-import { Button, Select, TextInput } from "@mantine/core";
+import { Button, Select, Textarea } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { Tag } from "../types";
 
@@ -41,24 +41,16 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
         onDropdownOpen={onTagDropdownOpen}
         data={tags.map((tag) => tag.name)}
         searchable
-        creatable
-        getCreateLabel={(query) => `+ Create ${query}`}
       />
-      <TextInput
+      <Textarea
         variant="transparent"
         label="Note"
         value={noteText}
         onChange={(event) => setNoteText(event.currentTarget.value)}
+        styles={{ input: { minHeight: "70vh", resize: "none" } }}
       />
       <Button variant="transparent" type="submit">
         {submitText}
-      </Button>
-      <Button
-        variant="transparent"
-        onClick={() => window.open('https://bible-research-489314.ey.r.appspot.com/api/v1/tags/', '_blank')}
-        style={{ width: '100%' }}
-      >
-        Or create a new tag
       </Button>
     </form>
   );

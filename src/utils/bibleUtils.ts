@@ -279,7 +279,9 @@ export const adjustTimestampsForENGESV = (
 
   return timestamps.map((t) => ({
     verse_start: t.verse_start,
-    timestamp: Math.max(0, t.timestamp - offset),
+    timestamp: Math.round(
+      Math.max(0, t.timestamp - offset) * 1e10,
+    ) / 1e10,
   }));
 };
 
@@ -312,13 +314,25 @@ export const findTestamentFallback = (
     const match = upper.match(/N(\d)/);
     if (match) {
       const versionNum = match[1];
-      fallbackId = filesetId.replace(/N\d/, `${targetChar}${versionNum}`);
+      const origChar = filesetId.charAt(
+        upper.indexOf(match[0]),
+      );
+      const tc = origChar === origChar.toUpperCase()
+        ? targetChar
+        : targetChar.toLowerCase();
+      fallbackId = filesetId.replace(/N\d/i, `${tc}${versionNum}`);
     }
   } else if (hasO) {
     const match = upper.match(/O(\d)/);
     if (match) {
       const versionNum = match[1];
-      fallbackId = filesetId.replace(/O\d/, `${targetChar}${versionNum}`);
+      const origChar = filesetId.charAt(
+        upper.indexOf(match[0]),
+      );
+      const tc = origChar === origChar.toUpperCase()
+        ? targetChar
+        : targetChar.toLowerCase();
+      fallbackId = filesetId.replace(/O\d/i, `${tc}${versionNum}`);
     }
   }
   if (!fallbackId) {
