@@ -18,6 +18,8 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     activeChapter,
     setActiveVerses,
     activeTextFilesetId,
+    lastSelectedTagId,
+    setLastSelectedTagId,
   } = useBibleStore((state) => ({
     tags: state.tags,
     getTags: state.getTags,
@@ -26,6 +28,8 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     activeChapter: state.activeChapter,
     setActiveVerses: state.setActiveVerses,
     activeTextFilesetId: state.activeTextFilesetId,
+    lastSelectedTagId: state.lastSelectedTagId,
+    setLastSelectedTagId: state.setLastSelectedTagId,
   }));
 
   const [verseTexts, setVerseTexts] = useState<
@@ -78,6 +82,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
 
     try {
       await addTagNote(tagId, text, verseReferences);
+      setLastSelectedTagId(tagId || null);
       setActiveVerses([]); // Clear selected verses
       setVerseTexts([]);
       onClose();
@@ -93,6 +98,11 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         onSubmit={handleSubmit}
         submitText="Submit"
         onTagDropdownOpen={() => getTags()}
+        note={
+          lastSelectedTagId
+            ? { tagId: lastSelectedTagId, text: "" }
+            : undefined
+        }
       />
       {verseTexts.length > 0 && (
         <Box mt="xl">

@@ -41,6 +41,7 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
         onDropdownOpen={onTagDropdownOpen}
         data={tags.map((tag) => tag.name)}
         searchable
+        maxDropdownHeight={window.innerHeight * 0.7}
       />
       <Textarea
         variant="transparent"
