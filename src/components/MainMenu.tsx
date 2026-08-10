@@ -10,9 +10,11 @@ import {
   Divider,
 } from "@mantine/core";
 import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { UserMenu } from "./UserMenu";
+import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
 
 interface MainMenuProps {
   opened: boolean;
@@ -29,20 +31,22 @@ const MainMenu = ({
 }: MainMenuProps) => {
   const theme = useMantineTheme();
   const navigate = useNavigate();
-  
+  const [newNoteOpened, setNewNoteOpened] = useState(false);
+
   // Get Bible state for navigation
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      position="right"
-      size="100%"
-      withCloseButton={false}
-      padding="xl"
-    >
+    <>
+      <Drawer
+        opened={opened}
+        onClose={onClose}
+        position="right"
+        size="100%"
+        withCloseButton={false}
+        padding="xl"
+      >
       <ActionIcon
         onClick={onClose}
         size="lg"
@@ -94,6 +98,17 @@ const MainMenu = ({
           <Text
             weight={500}
             size="lg"
+            onClick={() => setNewNoteOpened(true)}
+            sx={{ cursor: "pointer" }}
+          >
+            New Note
+          </Text>
+        </Group>
+
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
             onClick={() => {
               navigate('/tags');
               onClose();
@@ -126,6 +141,11 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
+      <AddStandaloneNoteModal
+        opened={newNoteOpened}
+        onClose={() => setNewNoteOpened(false)}
+      />
+    </>
   );
 };
 
