@@ -110,12 +110,12 @@ export const mockAudioUrls = {
 
 // --- Books (simplified) ---
 export const mockBooks = [
-  { book_id: 'Gen', book_name: 'Genesis' },
-  { book_id: 'Exod', book_name: 'Exodus' },
-  { book_id: 'Lev', book_name: 'Leviticus' },
-  { book_id: 'Matt', book_name: 'Matthew' },
-  { book_id: 'John', book_name: 'John' },
-  { book_id: 'Rev', book_name: 'Revelation' },
+  { book_id: 'GEN', book_name: 'Genesis' },
+  { book_id: 'EXO', book_name: 'Exodus' },
+  { book_id: 'LEV', book_name: 'Leviticus' },
+  { book_id: 'MAT', book_name: 'Matthew' },
+  { book_id: 'JHN', book_name: 'John' },
+  { book_id: 'REV', book_name: 'Revelation' },
 ];
 
 // --- API Response Mocks ---

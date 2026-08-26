@@ -48,7 +48,7 @@ describe("check for bible verse", () => {
   // App starts at John 1, navigate to Exodus 2
   test("should contain exodus 2: 18", async () => {
     // fireEvent already wraps in act(), no need for explicit act()
-    fireEvent.click(screen.getByTitle("nav-book-Exod"));
+    fireEvent.click(screen.getByTitle("nav-book-EXO"));
     fireEvent.click(screen.getByTitle("nav-chapter-2"));
 
     // Wait for the verse to appear after async data loading
