@@ -96,6 +96,11 @@ export function CreateTagModal({
     label: tag.name,
   }));
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void handleSubmit();
+  };
+
   return (
     <Modal
       opened={opened}
@@ -103,51 +108,53 @@ export function CreateTagModal({
       title="Create New Tag"
       size="md"
     >
-      <Stack spacing="md">
-        <TextInput
-          label="Tag Name"
-          placeholder="Enter tag name"
-          value={tagName}
-          onChange={(e) => {
-            setTagName(e.currentTarget.value);
-            if (nameError) {
-              validateTagName(e.currentTarget.value);
-            }
-          }}
-          onBlur={() => validateTagName(tagName)}
-          error={nameError}
-          required
-          maxLength={100}
-          data-autofocus
-        />
+      <form onSubmit={handleFormSubmit}>
+        <Stack spacing="md">
+          <TextInput
+            label="Tag Name"
+            placeholder="Enter tag name"
+            value={tagName}
+            onChange={(e) => {
+              setTagName(e.currentTarget.value);
+              if (nameError) {
+                validateTagName(e.currentTarget.value);
+              }
+            }}
+            onBlur={() => validateTagName(tagName)}
+            error={nameError}
+            required
+            maxLength={100}
+            data-autofocus
+          />
 
-        <Select
-          label="Parent Tag (Optional)"
-          placeholder="Select a parent tag"
-          value={parentTagId}
-          onChange={setParentTagId}
-          data={parentTagOptions}
-          searchable
-          clearable
-          description="Leave empty to create a root-level tag"
-        />
+          <Select
+            label="Parent Tag (Optional)"
+            placeholder="Select a parent tag"
+            value={parentTagId}
+            onChange={setParentTagId}
+            data={parentTagOptions}
+            searchable
+            clearable
+            description="Leave empty to create a root-level tag"
+          />
 
-        {parentTagId && (
-          <Text size="xs" color="dimmed">
-            This tag will be nested under "
-            {existingTags.find((t) => t.id === parentTagId)?.name}"
-          </Text>
-        )}
+          {parentTagId && (
+            <Text size="xs" color="dimmed">
+              This tag will be nested under "
+              {existingTags.find((t) => t.id === parentTagId)?.name}"
+            </Text>
+          )}
 
-        <Group position="right" mt="md">
-          <Button variant="subtle" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} loading={loading}>
-            Create Tag
-          </Button>
-        </Group>
-      </Stack>
+          <Group position="right" mt="md">
+            <Button variant="subtle" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={loading}>
+              Create Tag
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

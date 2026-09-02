@@ -127,64 +127,71 @@ export function EditTagModal({
 
   const hasChildren = existingTags.some((t) => t.parent_tag === tag?.id);
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void handleSubmit();
+  };
+
   return (
     <Modal opened={opened} onClose={onClose} title="Edit Tag" size="md">
-      <Stack spacing="md">
-        <TextInput
-          label="Tag Name"
-          placeholder="Enter tag name"
-          value={tagName}
-          onChange={(e) => {
-            setTagName(e.currentTarget.value);
-            if (nameError) {
-              validateTagName(e.currentTarget.value);
-            }
-          }}
-          onBlur={() => validateTagName(tagName)}
-          error={nameError}
-          required
-          maxLength={100}
-          data-autofocus
-        />
+      <form onSubmit={handleFormSubmit}>
+        <Stack spacing="md">
+          <TextInput
+            label="Tag Name"
+            placeholder="Enter tag name"
+            value={tagName}
+            onChange={(e) => {
+              setTagName(e.currentTarget.value);
+              if (nameError) {
+                validateTagName(e.currentTarget.value);
+              }
+            }}
+            onBlur={() => validateTagName(tagName)}
+            error={nameError}
+            required
+            maxLength={100}
+            data-autofocus
+          />
 
-        <Select
-          label="Parent Tag (Optional)"
-          placeholder="Select a parent tag"
-          value={parentTagId}
-          onChange={setParentTagId}
-          data={parentTagOptions}
-          searchable
-          clearable
-          description="Leave empty to make this a root-level tag"
-        />
+          <Select
+            label="Parent Tag (Optional)"
+            placeholder="Select a parent tag"
+            value={parentTagId}
+            onChange={setParentTagId}
+            data={parentTagOptions}
+            searchable
+            clearable
+            description="Leave empty to make this a root-level tag"
+          />
 
-        {hasChildren && (
-          <Text size="xs" color="orange">
-            ⚠️ This tag has child tags. Changing its parent will affect the
-            hierarchy.
-          </Text>
-        )}
-
-        {tag && (
-          <Stack spacing={4}>
-            <Text size="xs" color="dimmed">
-              Created: {new Date(tag.created_at).toLocaleDateString()}
+          {hasChildren && (
+            <Text size="xs" color="orange">
+              ⚠️ This tag has child tags. Changing its parent will affect the
+              hierarchy.
             </Text>
-            <Text size="xs" color="dimmed">
-              Updated: {new Date(tag.updated_at).toLocaleDateString()}
-            </Text>
-          </Stack>
-        )}
+          )}
 
-        <Group position="right" mt="md">
-          <Button variant="subtle" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} loading={loading}>
-            Save Changes
-          </Button>
-        </Group>
-      </Stack>
+          {tag && (
+            <Stack spacing={4}>
+              <Text size="xs" color="dimmed">
+                Created: {new Date(tag.created_at).toLocaleDateString()}
+              </Text>
+              <Text size="xs" color="dimmed">
+                Updated: {new Date(tag.updated_at).toLocaleDateString()}
+              </Text>
+            </Stack>
+          )}
+
+          <Group position="right" mt="md">
+            <Button variant="subtle" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={loading}>
+              Save Changes
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }
