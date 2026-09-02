@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { Anchor, Box, Button, Card, Group, Text, Title, Tooltip } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
 import { IconMessageCircle } from "@tabler/icons-react";
-import { Note } from "../types";
+import { Note, SectionHeading } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
 import Verse from "./Verse";
 import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
+import SectionHeadingComponent from "./SectionHeading";
 import { getVersesInChapter } from "../api.tsx";
 import { findVersesInBetween } from "../utils/findVersesInBetween.ts";
 
@@ -42,12 +43,16 @@ const NoteCard = ({
   const [threadOpen, setThreadOpen] = useState(false);
   const [passageContainer, setPassageContainer] = useState<PassageContainerState | null>(null);
   const [passages, setPassages] = useState<PassageState[]>([]);
+  const [passageHeadings, setPassageHeadings] = useState<SectionHeading[]>([]);
+  const [noteHeadings, setNoteHeadings] = useState<SectionHeading[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
-  const filesetId = useBibleStore(state => state.activeTextFilesetId) as string;
+  
+  // Use ENGESV_API for note verses display
+  const noteFilesetId = "ENGESV_API";
 
   const onGrabBiblePassage = (hashtag: string): void => {
     const ref = hashtag.startsWith('@') ? hashtag.slice(1) : hashtag;
@@ -64,7 +69,7 @@ const NoteCard = ({
     if (dotIndex === -1 || colonIndex === -1 || colonIndex < dotIndex) {
       setError('Invalid Bible reference format');
       return;
-    };
+    }
 
     const book = ref.slice(0, dotIndex).replaceAll('+', ' ');
     const chapter = Number(ref.slice(dotIndex + 1, colonIndex));
@@ -73,7 +78,7 @@ const NoteCard = ({
     if(!book || isNaN(chapter)) {
       setError('Invalid Bible reference');
       return;
-    };
+    }
 
     const rawVerseRange = ref.slice(colonIndex + 1);
     const singleVerse = Number(rawVerseRange);
@@ -94,7 +99,7 @@ const NoteCard = ({
   };
 
   const transformNote = (note_text: string) => {
-    const parts = note_text.split(/(@[a-zA-Z0-9_+.:\-]+)/g);
+    const parts = note_text.split(/(@[a-zA-Z0-9_+.:+-]+)/g);
     const newParts = []
 
     for (let i = 0; i < parts.length; i++) {
@@ -121,7 +126,7 @@ const NoteCard = ({
 
     const getPassage = async () => {
       try {
-        const res = await getVersesInChapter(book, chapter, filesetId);
+        const res = await getVersesInChapter(book, chapter, noteFilesetId);
         
         if (cancelled) return;
 
@@ -130,6 +135,12 @@ const NoteCard = ({
         );
 
         setPassages(verseFound);
+        
+        // Filter headings to only those that appear before verses in our range
+        const relevantHeadings = res?.headings?.filter(heading =>
+          verses.some(v => heading.before_verse <= v)
+        ) || [];
+        setPassageHeadings(relevantHeadings);
       } catch (err) {
         console.error("Failed to load passage", err);
         setError('Failed to load passage')
@@ -141,7 +152,41 @@ const NoteCard = ({
     return () => {
       cancelled = true;
     };
-  }, [passageContainer, filesetId]);
+  }, [passageContainer, noteFilesetId]);
+
+  // Fetch headings for the note's own verses
+  useEffect(() => {
+    if (!note?.verses?.length) return;
+    
+    const book = note.verses[0].book;
+    const chapter = note.verses[0].chapter;
+    const verseNumbers = note.verses.map(v => v.verse);
+    
+    let cancelled = false;
+
+    const fetchNoteHeadings = async () => {
+      try {
+        const res = await getVersesInChapter(book, chapter, noteFilesetId);
+        
+        if (cancelled) return;
+        
+        // Filter headings to only those that appear before verses in the note
+        const relevantHeadings = res?.headings?.filter(heading =>
+          verseNumbers.some(v => heading.before_verse <= v)
+        ) || [];
+        setNoteHeadings(relevantHeadings);
+      } catch (err) {
+        console.error("Failed to load note headings", err);
+      }
+    };
+
+    void fetchNoteHeadings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [note, noteFilesetId]);
+
   const versesFolded = useBibleStore((state) => state.versesFolded);
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
@@ -281,23 +326,39 @@ const NoteCard = ({
 
       <Box mt={-10}>
         {versesFolded
-          ? note?.verses?.slice(0, 1).map(v => (
-            <Verse
-              key={v.verse}
-              verse={v.verse}
-              text={v.text}
-              folded
-              selectable={false}
-            />
-          ))
-          : note?.verses?.map(v => (
-            <Verse
-              key={v.verse}
-              verse={v.verse}
-              text={v.text}
-              selectable={false}
-            />
-          ))
+          ? note?.verses?.slice(0, 1).map(v => {
+              // Check if there's a heading before this verse
+              const heading = noteHeadings.find(h => h.before_verse === v.verse);
+              return (
+                <Box key={v.verse}>
+                  {heading && (
+                    <SectionHeadingComponent text={heading.text} />
+                  )}
+                  <Verse
+                    verse={v.verse}
+                    text={v.text}
+                    folded
+                    selectable={false}
+                  />
+                </Box>
+              );
+            })
+          : note?.verses?.map(v => {
+              // Check if there's a heading before this verse
+              const heading = noteHeadings.find(h => h.before_verse === v.verse);
+              return (
+                <Box key={v.verse}>
+                  {heading && (
+                    <SectionHeadingComponent text={heading.text} />
+                  )}
+                  <Verse
+                    verse={v.verse}
+                    text={v.text}
+                    selectable={false}
+                  />
+                </Box>
+              );
+            })
         }
       </Box>
 
@@ -320,9 +381,18 @@ const NoteCard = ({
         <Box data-testid='passage-container'>
           <h1>{passageContainer?.book} {passageContainer?.chapter || ""}</h1>
           <>
-            {passages?.map((passage: PassageState, i: number) => (
-              <Text key={i}>{passage.verse}{". "}{passage.text}</Text>
-            ))}
+            {passages?.map((passage: PassageState, i: number) => {
+              // Check if there's a heading before this verse
+              const heading = passageHeadings.find(h => h.before_verse === passage.verse);
+              return (
+                <Box key={i}>
+                  {heading && (
+                    <SectionHeadingComponent text={heading.text} />
+                  )}
+                  <Text>{passage.verse}{". "}{passage.text}</Text>
+                </Box>
+              );
+            })}
           </>
         </Box>
       )}
