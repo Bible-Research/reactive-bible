@@ -86,10 +86,20 @@ const Verse = ({
 
   const handleVerseClick = (event: React.MouseEvent) => {
     if (!selectable) return;
+    
+    // Only handle click if no text is selected (allow users to copy text)
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0 && !event.shiftKey) {
+      return;
+    }
+    
     userClickedRef.current = true;
     
     // Shift+click for range selection
     if (event.shiftKey && lastClickedVerse !== null) {
+      // Clear any text selection
+      window.getSelection()?.removeAllRanges();
+      
       const start = Math.min(lastClickedVerse, verse);
       const end = Math.max(lastClickedVerse, verse);
       const rangeVerses: number[] = [];
@@ -183,10 +193,12 @@ const Verse = ({
       py={7}
       px={10}
       onClick={(e) => {
-        // Only handle click if no text is selected
-        const selection = window.getSelection();
-        if (!selection || selection.toString().length === 0) {
-          handleVerseClick(e);
+        handleVerseClick(e);
+      }}
+      onMouseDown={(e) => {
+        // Prevent text selection when shift-clicking
+        if (e.shiftKey) {
+          e.preventDefault();
         }
       }}
       onTouchStart={handleTouchStart}
