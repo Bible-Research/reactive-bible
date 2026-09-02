@@ -246,103 +246,171 @@ const NoteCard = ({
       {error && (
         <Text color="red">{error}</Text>
       )}
-      <Group 
-        position="apart" 
-        mb={0}
-        sx={!versesFolded ? {
-          position: 'relative',
-        } : undefined}
+      <Box
+        sx={!versesFolded ? (theme) => ({
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: theme.spacing.md,
+          marginBottom: 0,
+          overflow: 'hidden',
+        }) : undefined}
       >
-        <Title order={4}>{heading}</Title>
-        <Group 
-          spacing="xs"
-          sx={!versesFolded ? (theme) => ({
-            position: 'sticky',
-            right: 0,
-            backgroundColor: theme.colorScheme === 'dark' 
-              ? theme.colors.dark[6] 
-              : theme.white,
-            paddingLeft: theme.spacing.md,
-            boxShadow: theme.colorScheme === 'dark'
-              ? `-8px 0 8px -4px ${theme.colors.dark[6]}`
-              : `-8px 0 8px -4px ${theme.white}`,
-            zIndex: 1,
-          }) : undefined}
-        >
-          <ButtonComponent
-            variant="subtle"
-            size="xs"
-            onClick={() => onViewInBible(book, chapter, firstVerse)}
-          >
-            View in Bible
-          </ButtonComponent>
-          {canShare && (
-            <ButtonComponent
-              variant="subtle"
-              size="xs"
-              onClick={handleShare}
-            >
-              Share
-            </ButtonComponent>
-          )}
-          {canEdit && (
-            <ButtonComponent
-              variant="subtle"
-              size="xs"
-              onClick={() => onEdit!(note)}
-            >
-              Edit
-            </ButtonComponent>
-          )}
-          {canDelete && (
-            <ButtonComponent
-              variant="subtle"
-              size="xs"
-              onClick={
-                (evt: MouseEvent<HTMLButtonElement>) =>
-                  onDelete!(evt, note)
-              }
-            >
-              Remove
-            </ButtonComponent>
-          )}
-          {showCommentButton && (
-            <Tooltip
-              label={
-                commentCount === 0
-                  ? 'Add a comment'
-                  : `${commentCount} comment${
-                      commentCount === 1 ? '' : 's'
-                    }`
-              }
-              position="top"
-            >
-              <Button
+        <Group position="apart" mb={0} sx={!versesFolded ? { flex: 1, minWidth: 0 } : undefined}>
+          <Title order={4}>{heading}</Title>
+          {versesFolded && (
+            <Group spacing="xs">
+              <ButtonComponent
                 variant="subtle"
                 size="xs"
-                compact
-                leftIcon={
-                  <IconMessageCircle size={14} />
-                }
-                aria-label={
-                  commentCount === 0
-                    ? 'Add a comment'
-                    : undefined
-                }
-                aria-expanded={threadOpen}
-                aria-controls={`comment-thread-${note.id}`}
-                onClick={() =>
-                  setThreadOpen((o) => !o)
-                }
+                onClick={() => onViewInBible(book, chapter, firstVerse)}
               >
-                {commentCount && commentCount > 0
-                  ? String(commentCount)
-                  : null}
-              </Button>
-            </Tooltip>
+                View in Bible
+              </ButtonComponent>
+              {canShare && (
+                <ButtonComponent
+                  variant="subtle"
+                  size="xs"
+                  onClick={handleShare}
+                >
+                  Share
+                </ButtonComponent>
+              )}
+              {canEdit && (
+                <ButtonComponent
+                  variant="subtle"
+                  size="xs"
+                  onClick={() => onEdit!(note)}
+                >
+                  Edit
+                </ButtonComponent>
+              )}
+              {canDelete && (
+                <ButtonComponent
+                  variant="subtle"
+                  size="xs"
+                  onClick={
+                    (evt: MouseEvent<HTMLButtonElement>) =>
+                      onDelete!(evt, note)
+                  }
+                >
+                  Remove
+                </ButtonComponent>
+              )}
+              {showCommentButton && (
+                <Tooltip
+                  label={
+                    commentCount === 0
+                      ? 'Add a comment'
+                      : `${commentCount} comment${
+                          commentCount === 1 ? '' : 's'
+                        }`
+                  }
+                  position="top"
+                >
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    compact
+                    leftIcon={
+                      <IconMessageCircle size={14} />
+                    }
+                    aria-label={
+                      commentCount === 0
+                        ? 'Add a comment'
+                        : undefined
+                    }
+                    aria-expanded={threadOpen}
+                    aria-controls={`comment-thread-${note.id}`}
+                    onClick={() =>
+                      setThreadOpen((o) => !o)
+                    }
+                  >
+                    {commentCount && commentCount > 0
+                      ? String(commentCount)
+                      : null}
+                  </Button>
+                </Tooltip>
+              )}
+            </Group>
           )}
         </Group>
-      </Group>
+        {!versesFolded && (
+          <Group spacing="xs" sx={{ flexShrink: 0 }}>
+            <ButtonComponent
+              variant="subtle"
+              size="xs"
+              onClick={() => onViewInBible(book, chapter, firstVerse)}
+            >
+              View in Bible
+            </ButtonComponent>
+            {canShare && (
+              <ButtonComponent
+                variant="subtle"
+                size="xs"
+                onClick={handleShare}
+              >
+                Share
+              </ButtonComponent>
+            )}
+            {canEdit && (
+              <ButtonComponent
+                variant="subtle"
+                size="xs"
+                onClick={() => onEdit!(note)}
+              >
+                Edit
+              </ButtonComponent>
+            )}
+            {canDelete && (
+              <ButtonComponent
+                variant="subtle"
+                size="xs"
+                onClick={
+                  (evt: MouseEvent<HTMLButtonElement>) =>
+                    onDelete!(evt, note)
+                }
+              >
+                Remove
+              </ButtonComponent>
+            )}
+            {showCommentButton && (
+              <Tooltip
+                label={
+                  commentCount === 0
+                    ? 'Add a comment'
+                    : `${commentCount} comment${
+                        commentCount === 1 ? '' : 's'
+                      }`
+                }
+                position="top"
+              >
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  compact
+                  leftIcon={
+                    <IconMessageCircle size={14} />
+                  }
+                  aria-label={
+                    commentCount === 0
+                      ? 'Add a comment'
+                      : undefined
+                  }
+                  aria-expanded={threadOpen}
+                  aria-controls={`comment-thread-${note.id}`}
+                  onClick={() =>
+                    setThreadOpen((o) => !o)
+                  }
+                >
+                  {commentCount && commentCount > 0
+                    ? String(commentCount)
+                    : null}
+                </Button>
+              </Tooltip>
+            )}
+          </Group>
+        )}
+      </Box>
 
       <Box mt={-10}>
         {versesFolded
