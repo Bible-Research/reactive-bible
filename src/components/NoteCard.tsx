@@ -246,9 +246,29 @@ const NoteCard = ({
       {error && (
         <Text color="red">{error}</Text>
       )}
-      <Group position="apart" mb={0}>
+      <Group 
+        position="apart" 
+        mb={0}
+        sx={!versesFolded ? {
+          position: 'relative',
+        } : undefined}
+      >
         <Title order={4}>{heading}</Title>
-        <Group spacing="xs">
+        <Group 
+          spacing="xs"
+          sx={!versesFolded ? (theme) => ({
+            position: 'sticky',
+            right: 0,
+            backgroundColor: theme.colorScheme === 'dark' 
+              ? theme.colors.dark[6] 
+              : theme.white,
+            paddingLeft: theme.spacing.md,
+            boxShadow: theme.colorScheme === 'dark'
+              ? `-8px 0 8px -4px ${theme.colors.dark[6]}`
+              : `-8px 0 8px -4px ${theme.white}`,
+            zIndex: 1,
+          }) : undefined}
+        >
           <ButtonComponent
             variant="subtle"
             size="xs"
