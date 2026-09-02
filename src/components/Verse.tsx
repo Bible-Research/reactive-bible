@@ -30,6 +30,9 @@ const useStyles = createStyles((theme) => ({
   },
 }));
 
+// Store for tracking the last clicked verse for Shift+click range selection
+let lastClickedVerse: number | null = null;
+
 const Verse = ({
   verse,
   text,
@@ -67,16 +70,10 @@ const Verse = ({
   // Track if verse was just clicked to prevent scroll jump
   const userClickedRef = useRef(false);
 
-  const handleVerseClick = () => {
-    if (!selectable) return;
-    userClickedRef.current = true;
-    const newVerses = isActive
-      ? activeVerses.filter((v) => v !== verse)
-      : [...activeVerses, verse];
-    setActiveVerses(newVerses);
-    if (newVerses.length > 0) {
+  const updateNavigationWithVerses = (verses: number[]) => {
+    if (verses.length > 0) {
       navigate(
-        `/bible/${activeBook}/${activeChapter}.${encodeVerses(newVerses)}`,
+        `/bible/${activeBook}/${activeChapter}.${encodeVerses(verses)}`,
         { replace: true }
       );
     } else {
@@ -84,6 +81,33 @@ const Verse = ({
         `/bible/${activeBook}/${activeChapter}`,
         { replace: true }
       );
+    }
+  };
+
+  const handleVerseClick = (event: React.MouseEvent) => {
+    if (!selectable) return;
+    userClickedRef.current = true;
+    
+    // Shift+click for range selection
+    if (event.shiftKey && lastClickedVerse !== null) {
+      const start = Math.min(lastClickedVerse, verse);
+      const end = Math.max(lastClickedVerse, verse);
+      const rangeVerses: number[] = [];
+      for (let v = start; v <= end; v++) {
+        rangeVerses.push(v);
+      }
+      // Merge with existing selection
+      const newVerses = Array.from(new Set([...activeVerses, ...rangeVerses])).sort((a, b) => a - b);
+      setActiveVerses(newVerses);
+      updateNavigationWithVerses(newVerses);
+    } else {
+      // Normal click - toggle single verse
+      const newVerses = isActive
+        ? activeVerses.filter((v) => v !== verse)
+        : [...activeVerses, verse];
+      setActiveVerses(newVerses);
+      updateNavigationWithVerses(newVerses);
+      lastClickedVerse = isActive ? null : verse;
     }
   };
 
@@ -106,12 +130,24 @@ const Verse = ({
       setTimeout(() => {
         const selection = window.getSelection();
         if (!selection || selection.toString().length === 0) {
-          handleVerseClick();
+          handleTouchClick();
         }
       }, 50);
     }
     
     setTouchStartPos(null);
+  };
+
+  const handleTouchClick = () => {
+    if (!selectable) return;
+    userClickedRef.current = true;
+    // Mobile: simple toggle (no shift-click support)
+    const newVerses = isActive
+      ? activeVerses.filter((v) => v !== verse)
+      : [...activeVerses, verse];
+    setActiveVerses(newVerses);
+    updateNavigationWithVerses(newVerses);
+    lastClickedVerse = isActive ? null : verse;
   };
 
   useEffect(() => {
@@ -146,11 +182,11 @@ const Verse = ({
       })}
       py={7}
       px={10}
-      onClick={() => {
+      onClick={(e) => {
         // Only handle click if no text is selected
         const selection = window.getSelection();
         if (!selection || selection.toString().length === 0) {
-          handleVerseClick();
+          handleVerseClick(e);
         }
       }}
       onTouchStart={handleTouchStart}
