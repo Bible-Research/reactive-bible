@@ -138,7 +138,7 @@ const NoteCard = ({
         
         // Filter headings to only those that appear before verses in our range
         const relevantHeadings = res?.headings?.filter(heading =>
-          verses.some(v => heading.before_verse <= v)
+          verses.includes(heading.before_verse)
         ) || [];
         setPassageHeadings(relevantHeadings);
       } catch (err) {
@@ -172,7 +172,7 @@ const NoteCard = ({
         
         // Filter headings to only those that appear before verses in the note
         const relevantHeadings = res?.headings?.filter(heading =>
-          verseNumbers.some(v => heading.before_verse <= v)
+          verseNumbers.includes(heading.before_verse)
         ) || [];
         setNoteHeadings(relevantHeadings);
       } catch (err) {
