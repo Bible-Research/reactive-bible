@@ -256,7 +256,7 @@ const NoteCard = ({
         }) : undefined}
       >
         <Group position="apart" mb={0} sx={!versesFolded ? { flex: 1, minWidth: 0 } : undefined}>
-          <Title order={4}>{heading}</Title>
+          <Title order={4} className="note-card-heading">{heading}</Title>
           {versesFolded && (
             <Group spacing="xs">
               <ButtonComponent

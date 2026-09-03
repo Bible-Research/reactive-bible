@@ -1,8 +1,7 @@
 import type { MouseEvent } from "react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Box, Group } from "@mantine/core";
-import { IconGripVertical } from '@tabler/icons-react';
+import { Box } from "@mantine/core";
 import { Note } from "../types";
 import NoteCard from "./NoteCard";
 
@@ -46,34 +45,29 @@ const SortableNoteCard = ({
   };
 
   return (
-    <Box ref={setNodeRef} style={style}>
-      <Group spacing={0} align="flex-start" noWrap>
-        <Box
-          {...attributes}
-          {...listeners}
-          sx={{
-            cursor: 'grab',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '8px 4px',
-            '&:active': {
-              cursor: 'grabbing',
-            },
-          }}
-        >
-          <IconGripVertical size={20} color="gray" />
-        </Box>
-        <Box style={{ flex: 1 }}>
-          <NoteCard
-            note={note}
-            onViewInBible={onViewInBible}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            commentCount={commentCount}
-            onCountChange={onCountChange}
-          />
-        </Box>
-      </Group>
+    <Box
+      ref={setNodeRef}
+      style={style}
+      sx={{
+        '& .note-card-heading': {
+          cursor: 'grab',
+          userSelect: 'none',
+          '&:active': {
+            cursor: 'grabbing',
+          },
+        },
+      }}
+    >
+      <div {...attributes} {...listeners}>
+        <NoteCard
+          note={note}
+          onViewInBible={onViewInBible}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          commentCount={commentCount}
+          onCountChange={onCountChange}
+        />
+      </div>
     </Box>
   );
 };
