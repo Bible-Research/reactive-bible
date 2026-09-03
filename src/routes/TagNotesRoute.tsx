@@ -37,6 +37,7 @@ export default function TagNotesRoute() {
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
+  const reorderNotes = useBibleStore((state) => state.reorderNotes);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
@@ -49,6 +50,7 @@ export default function TagNotesRoute() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   type SortOrder =
+    | 'custom'
     | 'created_desc'
     | 'created_asc'
     | 'verse_asc'
@@ -121,7 +123,7 @@ export default function TagNotesRoute() {
         if (!cancelled && tagId) {
           fetchCommentCounts({ tagId }).then((counts) => {
             if (!cancelled) setCommentCounts(counts);
-          }).catch(() => {});
+          }).catch(() => { /* ignore comment count errors */ });
         }
       } catch (err) {
         if (cancelled) return;
@@ -256,6 +258,15 @@ export default function TagNotesRoute() {
 
   const sortedNotes = [...notes].sort((a, b) => {
     switch (sortOrder) {
+      case 'custom': {
+        const aPos = a.tag_position ?? Number.MAX_SAFE_INTEGER;
+        const bPos = b.tag_position ?? Number.MAX_SAFE_INTEGER;
+        if (aPos !== bPos) return aPos - bPos;
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      }
       case 'created_desc':
         return (
           new Date(b.created_at).getTime() -
@@ -381,6 +392,10 @@ export default function TagNotesRoute() {
             }
             data={[
               {
+                value: 'custom',
+                label: 'Custom order',
+              },
+              {
                 value: 'created_desc',
                 label: 'Date: Newest first',
               },
@@ -457,6 +472,9 @@ export default function TagNotesRoute() {
               }
               commentCounts={commentCounts}
               onCountChange={handleCountChange}
+              isDraggable={sortOrder === 'custom' && isAuthenticated}
+              tagId={tagId || ''}
+              onReorder={reorderNotes}
             />
           </Stack>
         ) : (

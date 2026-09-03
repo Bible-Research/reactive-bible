@@ -263,6 +263,19 @@ export const deleteNote = async (noteId: string) => {
   }
 }
 
+export const reorderNotes = async (
+  tagId: string,
+  noteIds: string[],
+): Promise<void> => {
+  await authenticatedFetch(
+    `${API_BASE_URL}/api/v1/notes/reorder/`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ tag_id: tagId, note_ids: noteIds }),
+    },
+  );
+};
+
 export const getTags = async (): Promise<Tag[]> => {
   try {
     const response = await authenticatedFetch(
@@ -729,6 +742,7 @@ export interface Note {
   updated_at: string;
   tag: Tag;
   verses: NoteVerse[];
+  tag_position: number | null;
 }
 
 export const getNotes = async (tagId?: string): Promise<Note[]> => {

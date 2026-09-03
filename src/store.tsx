@@ -64,6 +64,7 @@ interface BibleState {
   fetchNotes: (tagId?: string) => Promise<void>;
   getTags: (forceRefresh?: boolean) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
+  reorderNotes: (tagId: string, noteIds: string[]) => Promise<void>;
   setShowNotes: (show: boolean) => void;
   setLastSelectedTagId: (tagId: string | null) => void;
 }
@@ -207,6 +208,22 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           });
           throw error;
         }
+      },
+      reorderNotes: async (tagId: string, noteIds: string[]) => {
+        await api.reorderNotes(tagId, noteIds);
+        // Update local state to reflect new order
+        set((state) => {
+          const ordered = noteIds
+            .map((id, i) => {
+              const note = state.notes.find((n) => n.id === id);
+              return note ? { ...note, tag_position: i + 1 } : null;
+            })
+            .filter(Boolean) as Note[];
+          const rest = state.notes.filter(
+            (n) => !noteIds.includes(n.id),
+          );
+          return { notes: [...ordered, ...rest] };
+        });
       },
       setShowNotes: (showNotes) => set({ showNotes }),
       setLastSelectedTagId: (lastSelectedTagId) => set({ lastSelectedTagId }),
