@@ -51,7 +51,8 @@ export default function TagNotesRoute() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   type SortOrder =
-    | 'custom'
+    | 'custom_asc'
+    | 'custom_desc'
     | 'created_desc'
     | 'created_asc'
     | 'verse_asc'
@@ -60,7 +61,8 @@ export default function TagNotesRoute() {
   // Get sort order from URL, default to 'created_desc'
   const urlSortOrder = searchParams.get('sort') as SortOrder | null;
   const validSortOrders: SortOrder[] = [
-    'custom',
+    'custom_asc',
+    'custom_desc',
     'created_desc',
     'created_asc',
     'verse_asc',
@@ -271,13 +273,22 @@ export default function TagNotesRoute() {
 
   const sortedNotes = [...notes].sort((a, b) => {
     switch (sortOrder) {
-      case 'custom': {
+      case 'custom_asc': {
         const aPos = a.tag_position ?? Number.MAX_SAFE_INTEGER;
         const bPos = b.tag_position ?? Number.MAX_SAFE_INTEGER;
         if (aPos !== bPos) return aPos - bPos;
         return (
           new Date(b.created_at).getTime() -
           new Date(a.created_at).getTime()
+        );
+      }
+      case 'custom_desc': {
+        const aPos = a.tag_position ?? Number.MIN_SAFE_INTEGER;
+        const bPos = b.tag_position ?? Number.MIN_SAFE_INTEGER;
+        if (aPos !== bPos) return bPos - aPos;
+        return (
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
         );
       }
       case 'created_desc':
@@ -407,8 +418,12 @@ export default function TagNotesRoute() {
             }}
             data={[
               {
-                value: 'custom',
-                label: 'Custom order',
+                value: 'custom_asc',
+                label: 'Custom: Ascending',
+              },
+              {
+                value: 'custom_desc',
+                label: 'Custom: Descending',
               },
               {
                 value: 'created_desc',
@@ -487,7 +502,9 @@ export default function TagNotesRoute() {
               }
               commentCounts={commentCounts}
               onCountChange={handleCountChange}
-              isDraggable={sortOrder === 'custom' && isAuthenticated}
+              isDraggable={(sortOrder === 'custom_asc' || 
+                sortOrder === 'custom_desc') && 
+                isAuthenticated}
               tagId={tagId || ''}
               onReorder={reorderNotes}
             />
