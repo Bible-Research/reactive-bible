@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ScrollArea,
   Stack,
@@ -29,6 +29,7 @@ import {
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
@@ -56,7 +57,19 @@ export default function TagNotesRoute() {
     | 'verse_asc'
     | 'verse_desc';
 
-  const [sortOrder, setSortOrder] = useState<SortOrder>('created_desc');
+  // Get sort order from URL, default to 'created_desc'
+  const urlSortOrder = searchParams.get('sort') as SortOrder | null;
+  const validSortOrders: SortOrder[] = [
+    'custom',
+    'created_desc',
+    'created_asc',
+    'verse_asc',
+    'verse_desc',
+  ];
+  const sortOrder: SortOrder =
+    urlSortOrder && validSortOrders.includes(urlSortOrder)
+      ? urlSortOrder
+      : 'created_desc';
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -387,9 +400,11 @@ export default function TagNotesRoute() {
           <Select
             size="xs"
             value={sortOrder}
-            onChange={(v) =>
-              v && setSortOrder(v as SortOrder)
-            }
+            onChange={(v) => {
+              if (v) {
+                setSearchParams({ sort: v });
+              }
+            }}
             data={[
               {
                 value: 'custom',
