@@ -33,7 +33,7 @@ export default function TagManagementRoute() {
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
 
   useEffect(() => {
-    loadTags();
+    loadTags(true); // Force refresh on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBibleStore } from '../store';
+import { useAuthStore } from '../stores/authStore';
 import { decodeVerses } from '../utils/bibleUtils';
 import Passage from '../components/Passage';
 
@@ -25,7 +26,16 @@ export default function BibleRoute() {
     setActiveVerses,
     setShowNotes,
     setVersesFolded,
+    getTags,
   } = useBibleStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  // Always refresh tags when navigating to this route
+  useEffect(() => {
+    if (isAuthenticated) {
+      getTags(true); // Force refresh to get latest tags
+    }
+  }, [getTags, isAuthenticated]);
 
   // Sync book/chapter URL params to store and handle redirect.
   // activeBook/activeChapter are intentionally included so this

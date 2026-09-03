@@ -89,6 +89,13 @@ export default function TagNotesRoute() {
     };
   }, [setShowNotes, setLastSelectedTagId, tagId, setAudioPlaylistItems]);
 
+  // Always refresh tags when navigating to this route
+  useEffect(() => {
+    if (isAuthenticated) {
+      getTags(true); // Force refresh to get latest tags
+    }
+  }, [getTags, isAuthenticated]);
+
   useEffect(() => {
     let cancelled = false;
 
