@@ -281,8 +281,8 @@ export default function TagNotesRoute() {
   const sortedNotes = [...notes].sort((a, b) => {
     switch (sortOrder) {
       case 'custom_asc': {
-        const aPos = a.tag_position ?? Number.MAX_SAFE_INTEGER;
-        const bPos = b.tag_position ?? Number.MAX_SAFE_INTEGER;
+        const aPos = a.tag_position ?? 0;
+        const bPos = b.tag_position ?? 0;
         if (aPos !== bPos) return aPos - bPos;
         return (
           new Date(b.created_at).getTime() -
@@ -290,8 +290,8 @@ export default function TagNotesRoute() {
         );
       }
       case 'custom_desc': {
-        const aPos = a.tag_position ?? Number.MIN_SAFE_INTEGER;
-        const bPos = b.tag_position ?? Number.MIN_SAFE_INTEGER;
+        const aPos = a.tag_position ?? 0;
+        const bPos = b.tag_position ?? 0;
         if (aPos !== bPos) return bPos - aPos;
         return (
           new Date(a.created_at).getTime() -
