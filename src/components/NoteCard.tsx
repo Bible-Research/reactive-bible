@@ -307,28 +307,30 @@ const NoteCard = ({
                   }
                   position="top"
                 >
-                  <Button
-                    variant="subtle"
-                    size="xs"
-                    compact
-                    leftIcon={
-                      <IconMessageCircle size={14} />
-                    }
-                    aria-label={
-                      commentCount === 0
-                        ? 'Add a comment'
-                        : undefined
-                    }
-                    aria-expanded={threadOpen}
-                    aria-controls={`comment-thread-${note.id}`}
-                    onClick={() =>
-                      setThreadOpen((o) => !o)
-                    }
-                  >
-                    {commentCount && commentCount > 0
-                      ? String(commentCount)
-                      : null}
-                  </Button>
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      compact
+                      leftIcon={
+                        <IconMessageCircle size={14} />
+                      }
+                      aria-label={
+                        commentCount === 0
+                          ? 'Add a comment'
+                          : undefined
+                      }
+                      aria-expanded={threadOpen}
+                      aria-controls={`comment-thread-${note.id}`}
+                      onClick={() =>
+                        setThreadOpen((o) => !o)
+                      }
+                    >
+                      {commentCount && commentCount > 0
+                        ? String(commentCount)
+                        : null}
+                    </Button>
+                  </Box>
                 </Tooltip>
               )}
             </Group>
@@ -384,28 +386,30 @@ const NoteCard = ({
                 }
                 position="top"
               >
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  compact
-                  leftIcon={
-                    <IconMessageCircle size={14} />
-                  }
-                  aria-label={
-                    commentCount === 0
-                      ? 'Add a comment'
-                      : undefined
-                  }
-                  aria-expanded={threadOpen}
-                  aria-controls={`comment-thread-${note.id}`}
-                  onClick={() =>
-                    setThreadOpen((o) => !o)
-                  }
-                >
-                  {commentCount && commentCount > 0
-                    ? String(commentCount)
-                    : null}
-                </Button>
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    compact
+                    leftIcon={
+                      <IconMessageCircle size={14} />
+                    }
+                    aria-label={
+                      commentCount === 0
+                        ? 'Add a comment'
+                        : undefined
+                    }
+                    aria-expanded={threadOpen}
+                    aria-controls={`comment-thread-${note.id}`}
+                    onClick={() =>
+                      setThreadOpen((o) => !o)
+                    }
+                  >
+                    {commentCount && commentCount > 0
+                      ? String(commentCount)
+                      : null}
+                  </Button>
+                </Box>
               </Tooltip>
             )}
           </Group>
