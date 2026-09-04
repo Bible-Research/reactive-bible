@@ -2,12 +2,11 @@ import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
 import { ActionIcon, Anchor, Box, Button, Card, Group, Text, Title, Tooltip } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
-import { IconMessageCircle, IconPlayerPlay } from "@tabler/icons-react";
+import { IconMessageCircle, IconPlayerPlay, IconBook, IconShare, IconEdit, IconTrash } from "@tabler/icons-react";
 import { Note, SectionHeading } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
 import Verse from "./Verse";
-import ButtonComponent from "./Button";
 import CommentThread from "./CommentThread";
 import SectionHeadingComponent from "./SectionHeading";
 import { getVersesInChapter } from "../api.tsx";
@@ -276,21 +275,31 @@ const NoteCard = ({
           </Title>
           {versesFolded && (
             <Group spacing="xs" sx={{ position: 'relative', zIndex: 1 }}>
-              <ButtonComponent
-                variant="subtle"
-                size="xs"
-                onClick={() => onViewInBible(book, chapter, firstVerse)}
-              >
-                View in Bible
-              </ButtonComponent>
+              <Tooltip label="View in Bible" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => onViewInBible(book, chapter, firstVerse)}
+                    aria-label="view-in-bible"
+                  >
+                    <IconBook size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
               {canShare && (
-                <ButtonComponent
-                  variant="subtle"
-                  size="xs"
-                  onClick={handleShare}
-                >
-                  Share
-                </ButtonComponent>
+                <Tooltip label="Share" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      onClick={handleShare}
+                      aria-label="share-note"
+                    >
+                      <IconShare size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
               )}
               {onPlayFromNote && (
                 <Tooltip label="Play from here" position="top">
@@ -308,25 +317,36 @@ const NoteCard = ({
                 </Tooltip>
               )}
               {canEdit && (
-                <ButtonComponent
-                  variant="subtle"
-                  size="xs"
-                  onClick={() => onEdit!(note)}
-                >
-                  Edit
-                </ButtonComponent>
+                <Tooltip label="Edit" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => onEdit!(note)}
+                      aria-label="edit-note"
+                    >
+                      <IconEdit size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
               )}
               {canDelete && (
-                <ButtonComponent
-                  variant="subtle"
-                  size="xs"
-                  onClick={
-                    (evt: MouseEvent<HTMLButtonElement>) =>
-                      onDelete!(evt, note)
-                  }
-                >
-                  Remove
-                </ButtonComponent>
+                <Tooltip label="Remove" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      color="red"
+                      onClick={
+                        (evt: MouseEvent<HTMLButtonElement>) =>
+                          onDelete!(evt, note)
+                      }
+                      aria-label="remove-note"
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
               )}
               {showCommentButton && (
                 <Tooltip
@@ -370,21 +390,31 @@ const NoteCard = ({
         </Group>
         {!versesFolded && (
           <Group spacing="xs" sx={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
-            <ButtonComponent
-              variant="subtle"
-              size="xs"
-              onClick={() => onViewInBible(book, chapter, firstVerse)}
-            >
-              View in Bible
-            </ButtonComponent>
+            <Tooltip label="View in Bible" position="top">
+              <Box component="span" sx={{ display: 'inline-block' }}>
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={() => onViewInBible(book, chapter, firstVerse)}
+                  aria-label="view-in-bible"
+                >
+                  <IconBook size={16} />
+                </ActionIcon>
+              </Box>
+            </Tooltip>
             {canShare && (
-              <ButtonComponent
-                variant="subtle"
-                size="xs"
-                onClick={handleShare}
-              >
-                Share
-              </ButtonComponent>
+              <Tooltip label="Share" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={handleShare}
+                    aria-label="share-note"
+                  >
+                    <IconShare size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
             )}
             {onPlayFromNote && (
               <Tooltip label="Play from here" position="top">
@@ -402,25 +432,36 @@ const NoteCard = ({
               </Tooltip>
             )}
             {canEdit && (
-              <ButtonComponent
-                variant="subtle"
-                size="xs"
-                onClick={() => onEdit!(note)}
-              >
-                Edit
-              </ButtonComponent>
+              <Tooltip label="Edit" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => onEdit!(note)}
+                    aria-label="edit-note"
+                  >
+                    <IconEdit size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
             )}
             {canDelete && (
-              <ButtonComponent
-                variant="subtle"
-                size="xs"
-                onClick={
-                  (evt: MouseEvent<HTMLButtonElement>) =>
-                    onDelete!(evt, note)
-                }
-              >
-                Remove
-              </ButtonComponent>
+              <Tooltip label="Remove" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    color="red"
+                    onClick={
+                      (evt: MouseEvent<HTMLButtonElement>) =>
+                        onDelete!(evt, note)
+                    }
+                    aria-label="remove-note"
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
             )}
             {showCommentButton && (
               <Tooltip
