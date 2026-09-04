@@ -82,7 +82,6 @@ const TranslationSelector = () => {
     // Clear transient selections whenever the language changes.
     setSelectedTextId(null);
     setSelectedAudioId(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [languageIso]);
 
   useEffect(() => {

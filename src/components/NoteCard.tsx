@@ -1,8 +1,8 @@
 import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
-import { Anchor, Box, Button, Card, Group, Text, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Anchor, Box, Button, Card, Group, Text, Title, Tooltip } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
-import { IconMessageCircle } from "@tabler/icons-react";
+import { IconMessageCircle, IconPlayerPlay } from "@tabler/icons-react";
 import { Note, SectionHeading } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
@@ -18,6 +18,7 @@ interface NoteCardProps {
   onViewInBible: (book: string, chapter: number, verse: number) => void;
   onEdit?: (note: Note) => void;
   onDelete?: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
+  onPlayFromNote?: (noteId: string) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
 }
@@ -37,6 +38,7 @@ const NoteCard = ({
   onViewInBible,
   onEdit,
   onDelete,
+  onPlayFromNote,
   commentCount,
   onCountChange,
 }: NoteCardProps) => {
@@ -275,6 +277,19 @@ const NoteCard = ({
                   Share
                 </ButtonComponent>
               )}
+              {onPlayFromNote && (
+                <Tooltip label="Play from here" position="top">
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    color="blue"
+                    onClick={() => onPlayFromNote(note.id)}
+                    aria-label={`play-from-${note.id}`}
+                  >
+                    <IconPlayerPlay size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
               {canEdit && (
                 <ButtonComponent
                   variant="subtle"
@@ -353,6 +368,19 @@ const NoteCard = ({
               >
                 Share
               </ButtonComponent>
+            )}
+            {onPlayFromNote && (
+              <Tooltip label="Play from here" position="top">
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  color="blue"
+                  onClick={() => onPlayFromNote(note.id)}
+                  aria-label={`play-from-${note.id}`}
+                >
+                  <IconPlayerPlay size={16} />
+                </ActionIcon>
+              </Tooltip>
             )}
             {canEdit && (
               <ButtonComponent

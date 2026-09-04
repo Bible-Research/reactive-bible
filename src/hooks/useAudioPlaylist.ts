@@ -144,7 +144,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             next.book,
             next.chapter,
             activeAudioFilesetId,
-          ).catch(() => {});
+          ).catch(() => { /* prefetch - ignore errors */ });
         }
         const tsId = resolveTimestampsFilesetId(
           activeAudioFilesetId,
@@ -153,7 +153,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         );
         if (tsId) {
           getAudioTimestamps(next.book, next.chapter, tsId)
-            .catch(() => {});
+            .catch(() => { /* prefetch - ignore errors */ });
         }
       };
 

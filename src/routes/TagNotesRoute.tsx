@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ScrollArea,
@@ -47,6 +47,9 @@ export default function TagNotesRoute() {
   const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
   const setAudioPlaylistItems = useBibleStore(
     (state) => state.setAudioPlaylistItems
+  );
+  const setAudioPlaylistStartIndex = useBibleStore(
+    (state) => state.setAudioPlaylistStartIndex
   );
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
@@ -341,6 +344,24 @@ export default function TagNotesRoute() {
     }
   });
 
+  const handlePlayFromNote = useCallback(
+    (noteId: string) => {
+      const noteIndex = sortedNotes.findIndex((n) => n.id === noteId);
+      
+      if (noteIndex >= 0) {
+        setAudioPlaylistStartIndex(noteIndex);
+        
+        showNotification({
+          title: 'Playlist Started',
+          message: `Playing from note ${noteIndex + 1} of ${sortedNotes.length}`,
+          color: 'blue',
+          autoClose: 3000,
+        });
+      }
+    },
+    [sortedNotes, setAudioPlaylistStartIndex]
+  );
+
   useEffect(() => {
     if (loading || notes.length === 0) {
       setAudioPlaylistItems(null);
@@ -507,6 +528,7 @@ export default function TagNotesRoute() {
                   ? handleDeleteNote
                   : undefined
               }
+              onPlayFromNote={handlePlayFromNote}
               commentCounts={commentCounts}
               onCountChange={handleCountChange}
               isDraggable={(sortOrder === 'custom_asc' || 

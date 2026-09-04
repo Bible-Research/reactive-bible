@@ -17,6 +17,7 @@ interface SortableNoteCardProps {
     evt: MouseEvent<HTMLButtonElement>,
     note: Note
   ) => void;
+  onPlayFromNote?: (noteId: string) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
 }
@@ -26,6 +27,7 @@ const SortableNoteCard = ({
   onViewInBible,
   onEdit,
   onDelete,
+  onPlayFromNote,
   commentCount,
   onCountChange,
 }: SortableNoteCardProps) => {
@@ -64,6 +66,7 @@ const SortableNoteCard = ({
           onViewInBible={onViewInBible}
           onEdit={onEdit}
           onDelete={onDelete}
+          onPlayFromNote={onPlayFromNote}
           commentCount={commentCount}
           onCountChange={onCountChange}
         />

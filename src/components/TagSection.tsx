@@ -28,6 +28,7 @@ interface TagSectionProps {
     evt: MouseEvent<HTMLButtonElement>,
     note: Note
   ) => void;
+  onPlayFromNote?: (noteId: string) => void;
   commentCounts?: CommentCounts;
   onCountChange?: (noteId: string, delta: number) => void;
   isDraggable?: boolean;
@@ -41,6 +42,7 @@ const TagSection = ({
   onViewInBible,
   onEditNote,
   onDeleteNote,
+  onPlayFromNote,
   commentCounts,
   onCountChange,
   isDraggable = false,
@@ -80,6 +82,7 @@ const TagSection = ({
             onViewInBible={onViewInBible}
             onEdit={onEditNote}
             onDelete={onDeleteNote}
+            onPlayFromNote={onPlayFromNote}
             commentCount={commentCounts?.[note.id]}
             onCountChange={
               onCountChange
@@ -112,6 +115,7 @@ const TagSection = ({
               onViewInBible={onViewInBible}
               onEdit={onEditNote}
               onDelete={onDeleteNote}
+              onPlayFromNote={onPlayFromNote}
               commentCount={commentCounts?.[note.id]}
               onCountChange={
                 onCountChange
