@@ -260,7 +260,7 @@ const NoteCard = ({
         <Group position="apart" mb={0} sx={!versesFolded ? { flex: 1, minWidth: 0 } : undefined}>
           <Title order={4} className="note-card-heading">{heading}</Title>
           {versesFolded && (
-            <Group spacing="xs">
+            <Group spacing="xs" sx={{ position: 'relative', zIndex: 1 }}>
               <ButtonComponent
                 variant="subtle"
                 size="xs"
@@ -279,15 +279,17 @@ const NoteCard = ({
               )}
               {onPlayFromNote && (
                 <Tooltip label="Play from here" position="top">
-                  <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    color="blue"
-                    onClick={() => onPlayFromNote(note.id)}
-                    aria-label={`play-from-${note.id}`}
-                  >
-                    <IconPlayerPlay size={16} />
-                  </ActionIcon>
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      color="blue"
+                      onClick={() => onPlayFromNote(note.id)}
+                      aria-label={`play-from-${note.id}`}
+                    >
+                      <IconPlayerPlay size={16} />
+                    </ActionIcon>
+                  </Box>
                 </Tooltip>
               )}
               {canEdit && (
@@ -352,7 +354,7 @@ const NoteCard = ({
           )}
         </Group>
         {!versesFolded && (
-          <Group spacing="xs" sx={{ flexShrink: 0 }}>
+          <Group spacing="xs" sx={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
             <ButtonComponent
               variant="subtle"
               size="xs"
@@ -371,15 +373,17 @@ const NoteCard = ({
             )}
             {onPlayFromNote && (
               <Tooltip label="Play from here" position="top">
-                <ActionIcon
-                  variant="subtle"
-                  size="sm"
-                  color="blue"
-                  onClick={() => onPlayFromNote(note.id)}
-                  aria-label={`play-from-${note.id}`}
-                >
-                  <IconPlayerPlay size={16} />
-                </ActionIcon>
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    color="blue"
+                    onClick={() => onPlayFromNote(note.id)}
+                    aria-label={`play-from-${note.id}`}
+                  >
+                    <IconPlayerPlay size={16} />
+                  </ActionIcon>
+                </Box>
               </Tooltip>
             )}
             {canEdit && (
@@ -444,7 +448,7 @@ const NoteCard = ({
         )}
       </Box>
 
-      <Box mt={-10}>
+      <Box mt={-10} sx={{ position: 'relative', zIndex: 0 }}>
         {versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
