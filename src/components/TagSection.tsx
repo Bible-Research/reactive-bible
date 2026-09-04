@@ -34,6 +34,7 @@ interface TagSectionProps {
   isDraggable?: boolean;
   tagId?: string;
   onReorder?: (tagId: string, noteIds: string[]) => void;
+  sortOrder?: string;
 }
 
 const TagSection = ({
@@ -48,6 +49,7 @@ const TagSection = ({
   isDraggable = false,
   tagId = '',
   onReorder,
+  sortOrder,
 }: TagSectionProps) => {
   const [localNotes, setLocalNotes] = useState(notes);
 
@@ -65,7 +67,13 @@ const TagSection = ({
 
     setLocalNotes(reordered);
     if (onReorder && tagId) {
-      onReorder(tagId, reordered.map((n) => n.id));
+      // When sorting descending, reverse the order before sending
+      // to server so position 1 goes to the bottom note
+      const noteIds = reordered.map((n) => n.id);
+      const idsToSend = sortOrder === 'custom_desc'
+        ? [...noteIds].reverse()
+        : noteIds;
+      onReorder(tagId, idsToSend);
     }
   };
 

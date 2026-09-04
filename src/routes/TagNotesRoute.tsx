@@ -536,6 +536,7 @@ export default function TagNotesRoute() {
                 isAuthenticated}
               tagId={tagId || ''}
               onReorder={reorderNotes}
+              sortOrder={sortOrder}
             />
           </Stack>
         ) : (
