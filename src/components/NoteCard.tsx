@@ -21,6 +21,7 @@ interface NoteCardProps {
   onPlayFromNote?: (noteId: string) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
+  dragHandleProps?: Record<string, unknown>;
 }
 
 type PassageState = {
@@ -41,6 +42,7 @@ const NoteCard = ({
   onPlayFromNote,
   commentCount,
   onCountChange,
+  dragHandleProps,
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
   const [passageContainer, setPassageContainer] = useState<PassageContainerState | null>(null);
@@ -258,7 +260,20 @@ const NoteCard = ({
         }) : undefined}
       >
         <Group position="apart" mb={0} sx={!versesFolded ? { flex: 1, minWidth: 0 } : undefined}>
-          <Title order={4} className="note-card-heading">{heading}</Title>
+          <Title 
+            order={4} 
+            className="note-card-heading"
+            {...(dragHandleProps || {})}
+            sx={dragHandleProps ? {
+              cursor: 'grab',
+              userSelect: 'none',
+              '&:active': {
+                cursor: 'grabbing',
+              },
+            } : undefined}
+          >
+            {heading}
+          </Title>
           {versesFolded && (
             <Group spacing="xs" sx={{ position: 'relative', zIndex: 1 }}>
               <ButtonComponent

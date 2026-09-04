@@ -50,27 +50,17 @@ const SortableNoteCard = ({
     <Box
       ref={setNodeRef}
       style={style}
-      sx={{
-        '& .note-card-heading': {
-          cursor: 'grab',
-          userSelect: 'none',
-          '&:active': {
-            cursor: 'grabbing',
-          },
-        },
-      }}
     >
-      <div {...attributes} {...listeners}>
-        <NoteCard
-          note={note}
-          onViewInBible={onViewInBible}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onPlayFromNote={onPlayFromNote}
-          commentCount={commentCount}
-          onCountChange={onCountChange}
-        />
-      </div>
+      <NoteCard
+        note={note}
+        onViewInBible={onViewInBible}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onPlayFromNote={onPlayFromNote}
+        commentCount={commentCount}
+        onCountChange={onCountChange}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
     </Box>
   );
 };
