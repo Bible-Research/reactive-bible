@@ -301,7 +301,7 @@ export const setNotesCache = (cache: NotesCache) => {
 
 const getNotesCacheKey = (
   tagId: string,
-  page: number = 1,
+  page = 1,
   ordering: string | null = null
 ): string => {
   const orderingPart = ordering || 'default';
@@ -310,7 +310,7 @@ const getNotesCacheKey = (
 
 export const getCachedNotes = (
   tagId: string,
-  page: number = 1,
+  page = 1,
   ordering: string | null = null
 ): NotesData | null => {
   const cache = getNotesCache();

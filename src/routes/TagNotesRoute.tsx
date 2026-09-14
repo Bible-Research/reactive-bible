@@ -523,7 +523,7 @@ export default function TagNotesRoute() {
 
   return (
     <Box p="md">
-      <Group mb="md" position="apart">
+      <Stack spacing="sm" mb="md">
         {isAuthenticated && sortedTags.length > 0 ? (
           <Select
             label="Filter by tag"
@@ -532,12 +532,12 @@ export default function TagNotesRoute() {
             onChange={handleTagChange}
             data={sortedTags.map(t => ({ value: t.id, label: t.name }))}
             searchable
-            style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+            style={{ maxWidth: 400 }}
           />
         ) : (
           <Text fw={500} size="lg">{tag.name}</Text>
         )}
-        <Group spacing="xs">
+        <Group spacing="xs" position="apart">
           <Select
             size="xs"
             value={sortOrder}
@@ -572,51 +572,61 @@ export default function TagNotesRoute() {
                 label: 'Verse: Descending',
               },
             ]}
-            style={{ width: 170 }}
+            style={{ width: 170, flexShrink: 0 }}
           />
-          <Text color="dimmed" size="sm">
-            {notes.length}
-            {notesCount > notes.length && ` of ${notesCount}`}
-            {' '}
-            {notes.length === 1 ? 'note' : 'notes'}
-          </Text>
-          <Tooltip
-            label={versesFolded ? "Unfold verses" : "Fold verses"}
-            position="left"
-          >
-            <ActionIcon
-              onClick={() => setVersesFolded(!versesFolded)}
-              variant="subtle"
-              color={versesFolded ? "blue" : "gray"}
-              size="lg"
+          <Group spacing="xs" noWrap>
+            <Text
+              color="dimmed"
+              size="sm"
+              sx={(theme) => ({
+                [theme.fn.smallerThan('sm')]: {
+                  display: 'none',
+                },
+              })}
             >
-              {versesFolded
-                ? <IconArrowsMaximize size={20} />
-                : <IconArrowsMinimize size={20} />}
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Refresh notes" position="left">
-            <ActionIcon
-              onClick={handleRefresh}
-              variant="subtle"
-              color="gray"
-              size="lg"
+              {notes.length}
+              {notesCount > notes.length && ` of ${notesCount}`}
+              {' '}
+              {notes.length === 1 ? 'note' : 'notes'}
+            </Text>
+            <Tooltip
+              label={versesFolded ? "Unfold verses" : "Fold verses"}
+              position="left"
             >
-              <IconRefresh size={20} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Share tag link" position="left">
-            <ActionIcon
-              onClick={handleShare}
-              variant="subtle"
-              color="blue"
-              size="lg"
-            >
-              <IconShare size={20} />
-            </ActionIcon>
-          </Tooltip>
+              <ActionIcon
+                onClick={() => setVersesFolded(!versesFolded)}
+                variant="subtle"
+                color={versesFolded ? "blue" : "gray"}
+                size="lg"
+              >
+                {versesFolded
+                  ? <IconArrowsMaximize size={20} />
+                  : <IconArrowsMinimize size={20} />}
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Refresh notes" position="left">
+              <ActionIcon
+                onClick={handleRefresh}
+                variant="subtle"
+                color="gray"
+                size="lg"
+              >
+                <IconRefresh size={20} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Share tag link" position="left">
+              <ActionIcon
+                onClick={handleShare}
+                variant="subtle"
+                color="blue"
+                size="lg"
+              >
+                <IconShare size={20} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         </Group>
-      </Group>
+      </Stack>
 
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
         {notes.length > 0 ? (
@@ -625,9 +635,9 @@ export default function TagNotesRoute() {
               (sortOrder === 'custom_asc' ||
                 sortOrder === 'custom_desc') && (
               <Alert icon={<IconInfoCircle />} color="blue">
-                Custom ordering is only available for tags with{' '}
-                {notesPageSize} or fewer notes. This tag has{' '}
-                {notesCount} notes. Use date or verse ordering instead.
+                You can reorder notes on this page. Changes only
+                affect the {notes.length} notes currently displayed.
+                Navigate to other pages to reorder those notes.
               </Alert>
             )}
             
@@ -649,8 +659,7 @@ export default function TagNotesRoute() {
               isDraggable={
                 (sortOrder === 'custom_asc' ||
                   sortOrder === 'custom_desc') &&
-                isAuthenticated &&
-                notesCount <= notesPageSize
+                isAuthenticated
               }
               tagId={tagId || ''}
               onReorder={reorderNotes}

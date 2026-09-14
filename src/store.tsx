@@ -267,20 +267,55 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         }
       },
       reorderNotes: async (tagId: string, noteIds: string[]) => {
-        await api.reorderNotes(tagId, noteIds);
-        // Update local state to reflect new order
-        set((state) => {
-          const ordered = noteIds
-            .map((id, i) => {
-              const note = state.notes.find((n) => n.id === id);
-              return note ? { ...note, tag_position: i + 1 } : null;
-            })
-            .filter(Boolean) as Note[];
-          const rest = state.notes.filter(
-            (n) => !noteIds.includes(n.id),
-          );
-          return { notes: [...ordered, ...rest] };
-        });
+        try {
+          // Build updates with new sequential positions
+          const updates = noteIds.map((id, index) => ({
+            note_id: id,
+            position: index + 1,
+          }));
+          
+          await api.reorderNotes(tagId, updates);
+          
+          // Update local state to reflect new order
+          set((state) => {
+            const ordered = noteIds
+              .map((id, i) => {
+                const note = state.notes.find((n) => n.id === id);
+                return note ? { ...note, tag_position: i + 1 } : null;
+              })
+              .filter(Boolean) as Note[];
+            const rest = state.notes.filter(
+              (n) => !noteIds.includes(n.id),
+            );
+            return { notes: [...ordered, ...rest] };
+          });
+          
+          showNotification({
+            title: 'Success',
+            message: 'Notes reordered',
+            color: 'green',
+          });
+        } catch (error) {
+          if (error instanceof api.ConflictError) {
+            showNotification({
+              title: 'Conflict',
+              message: (
+                'Another user modified these notes. ' +
+                'Refreshing...'
+              ),
+              color: 'orange',
+            });
+            // Refresh notes from server
+            await useBibleStore.getState().fetchNotes(tagId);
+          } else {
+            showNotification({
+              title: 'Error',
+              message: 'Failed to reorder notes',
+              color: 'red',
+            });
+          }
+          throw error;
+        }
       },
       setShowNotes: (showNotes) => set({ showNotes }),
       setLastSelectedTagId: (lastSelectedTagId) =>

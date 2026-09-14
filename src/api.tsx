@@ -263,17 +263,41 @@ export const deleteNote = async (noteId: string) => {
   }
 }
 
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+export interface NotePositionUpdate {
+  note_id: string;
+  position: number;
+}
+
 export const reorderNotes = async (
   tagId: string,
-  noteIds: string[],
+  updates: NotePositionUpdate[]
 ): Promise<void> => {
-  await authenticatedFetch(
-    `${API_BASE_URL}/api/v1/notes/reorder/`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ tag_id: tagId, note_ids: noteIds }),
-    },
-  );
+  const url = `${API_BASE_URL}/api/v1/notes/reorder/`;
+  
+  const response = await authenticatedFetch(url, {
+    method: 'POST',
+    body: JSON.stringify({
+      tag_id: tagId,
+      updates,
+    }),
+  });
+  
+  if (response.status === 409) {
+    const error = await response.json();
+    throw new ConflictError(error.message);
+  }
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Reorder failed');
+  }
 };
 
 export const getTags = async (): Promise<Tag[]> => {
