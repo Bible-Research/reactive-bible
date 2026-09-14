@@ -22,6 +22,7 @@ export interface Note {
   updated_at: string;
   tag: Tag;
   verses: Verse[];
+  headings?: SectionHeading[];
   tag_position: number | null;
 }
 
