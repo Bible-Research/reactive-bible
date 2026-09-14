@@ -44,11 +44,15 @@ const NoteCard = ({
   dragHandleProps,
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
-  const [passageContainer, setPassageContainer] = useState<PassageContainerState | null>(null);
+  const [passageContainer, setPassageContainer] =
+    useState<PassageContainerState | null>(null);
   const [passages, setPassages] = useState<PassageState[]>([]);
-  const [passageHeadings, setPassageHeadings] = useState<SectionHeading[]>([]);
-  const [noteHeadings, setNoteHeadings] = useState<SectionHeading[]>([]);
+  const [passageHeadings, setPassageHeadings] =
+    useState<SectionHeading[]>([]);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use headings from the note (provided by backend)
+  const noteHeadings = note.headings || [];
 
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
@@ -157,38 +161,8 @@ const NoteCard = ({
     };
   }, [passageContainer, noteFilesetId]);
 
-  // Fetch headings for the note's own verses
-  useEffect(() => {
-    if (!note?.verses?.length) return;
-    
-    const book = note.verses[0].book;
-    const chapter = note.verses[0].chapter;
-    const verseNumbers = note.verses.map(v => v.verse);
-    
-    let cancelled = false;
-
-    const fetchNoteHeadings = async () => {
-      try {
-        const res = await getVersesInChapter(book, chapter, noteFilesetId);
-        
-        if (cancelled) return;
-        
-        // Filter headings to only those that appear before verses in the note
-        const relevantHeadings = res?.headings?.filter(heading =>
-          verseNumbers.includes(heading.before_verse)
-        ) || [];
-        setNoteHeadings(relevantHeadings);
-      } catch (err) {
-        console.error("Failed to load note headings", err);
-      }
-    };
-
-    void fetchNoteHeadings();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [note, noteFilesetId]);
+  // Note: Headings are now provided by the backend in note.headings
+  // No need to fetch them separately
 
   const versesFolded = useBibleStore((state) => state.versesFolded);
 

@@ -299,11 +299,23 @@ export const setNotesCache = (cache: NotesCache) => {
   }
 };
 
+const getNotesCacheKey = (
+  tagId: string,
+  page: number = 1,
+  ordering: string | null = null
+): string => {
+  const orderingPart = ordering || 'default';
+  return `${tagId}:page${page}:${orderingPart}`;
+};
+
 export const getCachedNotes = (
-  tagId: string
+  tagId: string,
+  page: number = 1,
+  ordering: string | null = null
 ): NotesData | null => {
   const cache = getNotesCache();
-  const notesData = cache[tagId];
+  const cacheKey = getNotesCacheKey(tagId, page, ordering);
+  const notesData = cache[cacheKey];
 
   if (!notesData) return null;
 
@@ -314,10 +326,19 @@ export const getCachedNotes = (
 export const cacheNotes = (
   tagId: string,
   notes: Note[],
-  metadata?: { count: number; hasMore: boolean }
+  metadata?: {
+    count: number;
+    hasMore: boolean;
+    page?: number;
+    ordering?: string | null;
+  }
 ) => {
   const cache = getNotesCache();
-  cache[tagId] = {
+  const page = metadata?.page ?? 1;
+  const ordering = metadata?.ordering ?? null;
+  const cacheKey = getNotesCacheKey(tagId, page, ordering);
+  
+  cache[cacheKey] = {
     notes,
     timestamp: Date.now(),
     count: metadata?.count,
@@ -328,9 +349,12 @@ export const cacheNotes = (
 
 export const clearNotesCache = (tagId?: string) => {
   if (tagId) {
-    // Clear specific tag's notes
+    // Clear all cached pages for this tag
     const cache = getNotesCache();
-    delete cache[tagId];
+    const keysToDelete = Object.keys(cache).filter((key) =>
+      key.startsWith(`${tagId}:`)
+    );
+    keysToDelete.forEach((key) => delete cache[key]);
     setNotesCache(cache);
   } else {
     // Clear all notes

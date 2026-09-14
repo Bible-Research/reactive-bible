@@ -153,26 +153,22 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           const { ordering, page = 1, append = false } = options;
           const { notesPageSize } = useBibleStore.getState();
           
-          // Check cache only for first page with default ordering
-          if (
-            !append &&
-            page === 1 &&
-            !ordering &&
-            tagId
-          ) {
-            const cachedData = getCachedNotes(tagId);
+          // Check cache for any page/ordering combination
+          if (!append && tagId) {
+            const cachedData = getCachedNotes(tagId, page, ordering);
             if (cachedData) {
               console.log(
                 `✅ Using cached notes for tag: ${tagId} ` +
-                `(${cachedData.notes.length} notes, ` +
+                `(page ${page}, ordering: ${ordering || 'default'}, ` +
+                `${cachedData.notes.length} notes, ` +
                 `total: ${cachedData.count ?? 'unknown'})`
               );
               set({
                 notes: cachedData.notes,
                 notesCount: cachedData.count ?? cachedData.notes.length,
-                notesPage: 1,
+                notesPage: page,
                 notesHasMore: cachedData.hasMore ?? false,
-                notesOrdering: null,
+                notesOrdering: ordering || null,
                 lastSelectedTagId: tagId,
               });
               return;
@@ -192,11 +188,13 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             pageSize: notesPageSize,
           });
           
-          // Cache first page results with default ordering
-          if (page === 1 && !ordering && tagId) {
+          // Cache all page results
+          if (tagId) {
             cacheNotes(tagId, response.results, {
               count: response.count,
               hasMore: response.next !== null,
+              page,
+              ordering,
             });
           }
           

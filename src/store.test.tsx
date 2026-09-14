@@ -45,7 +45,11 @@ describe('useBibleStore', () => {
 
       await useBibleStore.getState().fetchNotes('TAG1');
 
-      expect(mockCacheManager.getCachedNotes).toHaveBeenCalledWith('TAG1');
+      expect(mockCacheManager.getCachedNotes).toHaveBeenCalledWith(
+        'TAG1',
+        1,
+        undefined
+      );
       expect(mockApi.getNotes).not.toHaveBeenCalled();
       expect(useBibleStore.getState().notes).toEqual(sampleNotes);
     });
@@ -61,7 +65,11 @@ describe('useBibleStore', () => {
 
       await useBibleStore.getState().fetchNotes('TAG1');
 
-      expect(mockCacheManager.getCachedNotes).toHaveBeenCalledWith('TAG1');
+      expect(mockCacheManager.getCachedNotes).toHaveBeenCalledWith(
+        'TAG1',
+        1,
+        undefined
+      );
       expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1', {
         ordering: undefined,
         page: 1,
@@ -70,7 +78,7 @@ describe('useBibleStore', () => {
       expect(mockCacheManager.cacheNotes).toHaveBeenCalledWith(
         'TAG1',
         sampleNotes,
-        { count: 1, hasMore: false }
+        { count: 1, hasMore: false, page: 1, ordering: undefined }
       );
       expect(useBibleStore.getState().notes).toEqual(sampleNotes);
     });

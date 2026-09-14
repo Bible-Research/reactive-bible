@@ -657,11 +657,13 @@ export default function TagNotesRoute() {
               sortOrder={sortOrder}
             />
             
-            <Pagination
-              currentPage={notesPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={notesPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            )}
           </Stack>
         ) : (
           <Center style={{ height: 200 }}>
