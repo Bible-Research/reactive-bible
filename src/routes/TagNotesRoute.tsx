@@ -120,14 +120,6 @@ export default function TagNotesRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagId]);
 
-  // Always refresh tags when navigating to this route
-  useEffect(() => {
-    if (isAuthenticated) {
-      getTags(true); // Force refresh to get latest tags
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
-
   useEffect(() => {
     let cancelled = false;
 
