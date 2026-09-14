@@ -125,6 +125,8 @@ interface TranslationCache {
 interface NotesData {
   notes: Note[];
   timestamp: number;
+  count?: number;
+  hasMore?: boolean;
 }
 
 interface NotesCache {
@@ -297,21 +299,29 @@ export const setNotesCache = (cache: NotesCache) => {
   }
 };
 
-export const getCachedNotes = (tagId: string): Note[] | null => {
+export const getCachedNotes = (
+  tagId: string
+): NotesData | null => {
   const cache = getNotesCache();
   const notesData = cache[tagId];
 
   if (!notesData) return null;
 
   // Notes don't expire, return cached data
-  return notesData.notes;
+  return notesData;
 };
 
-export const cacheNotes = (tagId: string, notes: Note[]) => {
+export const cacheNotes = (
+  tagId: string,
+  notes: Note[],
+  metadata?: { count: number; hasMore: boolean }
+) => {
   const cache = getNotesCache();
   cache[tagId] = {
     notes,
     timestamp: Date.now(),
+    count: metadata?.count,
+    hasMore: metadata?.hasMore,
   };
   setNotesCache(cache);
 };

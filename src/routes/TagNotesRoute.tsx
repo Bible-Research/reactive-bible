@@ -11,7 +11,6 @@ import {
   Select,
   ActionIcon,
   Tooltip,
-  Button,
   Alert,
 } from '@mantine/core';
 import {
@@ -26,6 +25,7 @@ import type { MouseEvent } from 'react';
 import { Note, Tag, CommentCounts, PlaylistItem } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
+import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
 import { deleteNote, getTag, fetchCommentCounts } from '../api';
 import { useAuthStore } from '../stores/authStore';
@@ -33,6 +33,29 @@ import { clearNotesCache } from '../utils/cacheManager';
 import {
   BOOK_NAME_TO_ORDER,
 } from '../utils/bibleUtils';
+
+// Type definition for sort orders
+type SortOrder =
+  | 'custom_asc'
+  | 'custom_desc'
+  | 'created_desc'
+  | 'created_asc'
+  | 'verse_asc'
+  | 'verse_desc';
+
+// Map frontend sort order to API ordering parameter
+// Moved outside component to prevent re-creation on every render
+const getApiOrdering = (sortOrder: SortOrder): string => {
+  const orderingMap: Record<SortOrder, string> = {
+    custom_asc: 'custom',
+    custom_desc: '-custom',
+    created_desc: '-created',
+    created_asc: 'created',
+    verse_asc: 'verse',
+    verse_desc: '-verse',
+  };
+  return orderingMap[sortOrder];
+};
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -54,6 +77,7 @@ export default function TagNotesRoute() {
   );
   const notesCount = useBibleStore((state) => state.notesCount);
   const notesPage = useBibleStore((state) => state.notesPage);
+  const notesPageSize = useBibleStore((state) => state.notesPageSize);
   const notesHasMore = useBibleStore((state) => state.notesHasMore);
   const versesFolded = useBibleStore((state) => state.versesFolded);
   const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
@@ -67,14 +91,6 @@ export default function TagNotesRoute() {
     (state) => state.isAuthenticated
   );
   
-  type SortOrder =
-    | 'custom_asc'
-    | 'custom_desc'
-    | 'created_desc'
-    | 'created_asc'
-    | 'verse_asc'
-    | 'verse_desc';
-
   // Get sort order from URL, default to 'created_desc'
   const urlSortOrder = searchParams.get('sort') as SortOrder | null;
   const validSortOrders: SortOrder[] = [
@@ -90,18 +106,6 @@ export default function TagNotesRoute() {
       ? urlSortOrder
       : 'created_desc';
 
-  // Map frontend sort order to API ordering parameter
-  const getApiOrdering = (sortOrder: SortOrder): string => {
-    const orderingMap: Record<SortOrder, string> = {
-      custom_asc: 'custom',
-      custom_desc: '-custom',
-      created_desc: '-created',
-      created_asc: 'created',
-      verse_asc: 'verse',
-      verse_desc: '-verse',
-    };
-    return orderingMap[sortOrder];
-  };
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +197,7 @@ export default function TagNotesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [tagId, fetchNotes, getTags, isAuthenticated, sortOrder, getApiOrdering]);
+  }, [tagId, fetchNotes, getTags, isAuthenticated, sortOrder]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -311,43 +315,60 @@ export default function TagNotesRoute() {
     }
   };
 
-  const handleSortChange = async (newSortOrder: string) => {
-    if (!tagId) return;
-    
-    // Update URL
-    setSearchParams({ sort: newSortOrder });
-    
-    // Check if we can sort client-side
-    const canSortClientSide = notesCount <= 25 && notes.length > 0;
-    
-    if (canSortClientSide) {
-      // Client-side sort - no API call needed
-      console.log('📊 Sorting notes client-side');
-      // Notes will be sorted by the existing sortedNotes logic
-    } else {
-      // Server-side sort - fetch from API
-      console.log('📊 Fetching sorted notes from API');
-      const apiOrdering = getApiOrdering(
-        newSortOrder as SortOrder
-      );
-      await fetchNotes(tagId, { ordering: apiOrdering, page: 1 });
-    }
-  };
+  const handleSortChange = useCallback(
+    async (newSortOrder: string) => {
+      if (!tagId) return;
+      
+      // Update URL
+      setSearchParams({ sort: newSortOrder });
+      
+      // Check if we can sort client-side
+      const canSortClientSide =
+        notesCount <= notesPageSize && notes.length > 0;
+      
+      if (canSortClientSide) {
+        // Client-side sort - no API call needed
+        console.log('📊 Sorting notes client-side');
+        // Notes will be sorted by the existing sortedNotes logic
+      } else {
+        // Server-side sort - fetch from API
+        console.log('📊 Fetching sorted notes from API');
+        const apiOrdering = getApiOrdering(
+          newSortOrder as SortOrder
+        );
+        await fetchNotes(tagId, { ordering: apiOrdering, page: 1 });
+      }
+    },
+    [
+      tagId,
+      setSearchParams,
+      notesCount,
+      notesPageSize,
+      notes.length,
+      fetchNotes,
+    ]
+  );
 
-  const handleLoadMore = async () => {
-    if (!tagId || !notesHasMore) return;
-    
-    const apiOrdering =
-      sortOrder !== 'created_desc'
-        ? getApiOrdering(sortOrder)
-        : undefined;
-    
-    await fetchNotes(tagId, {
-      ordering: apiOrdering,
-      page: notesPage + 1,
-      append: true,
-    });
-  };
+  const handlePageChange = useCallback(
+    async (newPage: number) => {
+      if (!tagId) return;
+      
+      const apiOrdering =
+        sortOrder !== 'created_desc'
+          ? getApiOrdering(sortOrder)
+          : undefined;
+      
+      await fetchNotes(tagId, {
+        ordering: apiOrdering,
+        page: newPage,
+        append: false,
+      });
+      
+      // Scroll to top of notes section
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [tagId, sortOrder, fetchNotes]
+  );
 
   const sortedNotes = [...notes].sort((a, b) => {
     switch (sortOrder) {
@@ -488,6 +509,18 @@ export default function TagNotesRoute() {
     (a, b) => a.name.localeCompare(b.name)
   );
 
+  // Calculate total pages
+  const totalPages = Math.ceil(notesCount / notesPageSize);
+
+  // Debug pagination state
+  console.log('🔍 Pagination Debug:', {
+    notesHasMore,
+    notesCount,
+    notesLength: notes.length,
+    notesPage,
+    totalPages,
+  });
+
   return (
     <Box p="md">
       <Group mb="md" position="apart">
@@ -587,14 +620,14 @@ export default function TagNotesRoute() {
 
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
         {notes.length > 0 ? (
-          <Stack spacing="md">
-            {notesCount > 25 &&
+          <Stack spacing="md" pb="xl">
+            {notesCount > notesPageSize &&
               (sortOrder === 'custom_asc' ||
                 sortOrder === 'custom_desc') && (
               <Alert icon={<IconInfoCircle />} color="blue">
-                Custom ordering is only available for tags with 25
-                or fewer notes. This tag has {notesCount} notes.
-                Use date or verse ordering instead.
+                Custom ordering is only available for tags with{' '}
+                {notesPageSize} or fewer notes. This tag has{' '}
+                {notesCount} notes. Use date or verse ordering instead.
               </Alert>
             )}
             
@@ -617,20 +650,18 @@ export default function TagNotesRoute() {
                 (sortOrder === 'custom_asc' ||
                   sortOrder === 'custom_desc') &&
                 isAuthenticated &&
-                notesCount <= 25
+                notesCount <= notesPageSize
               }
               tagId={tagId || ''}
               onReorder={reorderNotes}
               sortOrder={sortOrder}
             />
             
-            {notesHasMore && (
-              <Center mt="md">
-                <Button onClick={handleLoadMore} variant="outline">
-                  Load More ({notesCount - notes.length} remaining)
-                </Button>
-              </Center>
-            )}
+            <Pagination
+              currentPage={notesPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
           </Stack>
         ) : (
           <Center style={{ height: 200 }}>

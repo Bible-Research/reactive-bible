@@ -151,6 +151,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       fetchNotes: async (tagId?: string, options = {}) => {
         try {
           const { ordering, page = 1, append = false } = options;
+          const { notesPageSize } = useBibleStore.getState();
           
           // Check cache only for first page with default ordering
           if (
@@ -159,17 +160,18 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             !ordering &&
             tagId
           ) {
-            const cachedNotes = getCachedNotes(tagId);
-            if (cachedNotes) {
+            const cachedData = getCachedNotes(tagId);
+            if (cachedData) {
               console.log(
                 `✅ Using cached notes for tag: ${tagId} ` +
-                `(${cachedNotes.length} notes)`
+                `(${cachedData.notes.length} notes, ` +
+                `total: ${cachedData.count ?? 'unknown'})`
               );
               set({
-                notes: cachedNotes,
-                notesCount: cachedNotes.length,
+                notes: cachedData.notes,
+                notesCount: cachedData.count ?? cachedData.notes.length,
                 notesPage: 1,
-                notesHasMore: false,
+                notesHasMore: cachedData.hasMore ?? false,
                 notesOrdering: null,
                 lastSelectedTagId: tagId,
               });
@@ -187,12 +189,15 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           const response = await api.getNotes(tagId, {
             ordering,
             page,
-            pageSize: 25,
+            pageSize: notesPageSize,
           });
           
           // Cache first page results with default ordering
           if (page === 1 && !ordering && tagId) {
-            cacheNotes(tagId, response.results);
+            cacheNotes(tagId, response.results, {
+              count: response.count,
+              hasMore: response.next !== null,
+            });
           }
           
           set((state) => ({

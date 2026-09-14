@@ -33,10 +33,15 @@ describe('useBibleStore', () => {
 
   describe('fetchNotes with caching', () => {
     const tag: Tag = { id: 'TAG1', name: 'Test Tag', parent_tag: null, created_at: '', updated_at: '' };
-    const sampleNotes: Note[] = [{ id: 'note1', note_text: 'Cached note', tag, verses: [], public: false, created_at: '', updated_at: '' }];
+    const sampleNotes: Note[] = [{ id: 'note1', note_text: 'Cached note', tag, verses: [], public: false, is_owner: true, created_at: '', updated_at: '', tag_position: null }];
 
     it('should fetch notes from cache if available', async () => {
-      mockCacheManager.getCachedNotes.mockReturnValue(sampleNotes);
+      mockCacheManager.getCachedNotes.mockReturnValue({
+        notes: sampleNotes,
+        timestamp: Date.now(),
+        count: 1,
+        hasMore: false,
+      });
 
       await useBibleStore.getState().fetchNotes('TAG1');
 
@@ -47,13 +52,26 @@ describe('useBibleStore', () => {
 
     it('should fetch notes from API if not in cache', async () => {
       mockCacheManager.getCachedNotes.mockReturnValue(null);
-      mockApi.getNotes.mockResolvedValue(sampleNotes);
+      mockApi.getNotes.mockResolvedValue({
+        count: 1,
+        next: null,
+        previous: null,
+        results: sampleNotes,
+      });
 
       await useBibleStore.getState().fetchNotes('TAG1');
 
       expect(mockCacheManager.getCachedNotes).toHaveBeenCalledWith('TAG1');
-      expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1');
-      expect(mockCacheManager.cacheNotes).toHaveBeenCalledWith('TAG1', sampleNotes);
+      expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1', {
+        ordering: undefined,
+        page: 1,
+        pageSize: 25,
+      });
+      expect(mockCacheManager.cacheNotes).toHaveBeenCalledWith(
+        'TAG1',
+        sampleNotes,
+        { count: 1, hasMore: false }
+      );
       expect(useBibleStore.getState().notes).toEqual(sampleNotes);
     });
   });
@@ -62,12 +80,24 @@ describe('useBibleStore', () => {
     it('should call clearNotesCache when a note is deleted', async () => {
       mockApi.deleteNote.mockResolvedValue();
       // Pre-fill state with a note
-      useBibleStore.setState({ notes: [{ id: 'note1', note_text: 'A note', tag: {id: 't1', name: 't1', parent_tag: null, created_at: '', updated_at: ''}, verses: [], public: false, created_at: '', updated_at: '' }] });
+      useBibleStore.setState({ 
+        notes: [{ 
+          id: 'note1', 
+          note_text: 'A note', 
+          tag: {id: 't1', name: 't1', parent_tag: null, created_at: '', updated_at: ''}, 
+          verses: [], 
+          public: false, 
+          is_owner: true,
+          created_at: '', 
+          updated_at: '',
+          tag_position: null
+        }] 
+      });
 
       await useBibleStore.getState().deleteNote('note1');
 
       expect(mockApi.deleteNote).toHaveBeenCalledWith('note1');
-      expect(mockCacheManager.clearNotesCache).toHaveBeenCalledWith();
+      expect(mockCacheManager.clearNotesCache).toHaveBeenCalled();
       expect(useBibleStore.getState().notes).toEqual([]);
     });
   });
