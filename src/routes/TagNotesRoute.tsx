@@ -78,6 +78,9 @@ export default function TagNotesRoute() {
   const notesCount = useBibleStore((state) => state.notesCount);
   const notesPage = useBibleStore((state) => state.notesPage);
   const notesPageSize = useBibleStore((state) => state.notesPageSize);
+  const setNotesPageSize = useBibleStore(
+    (state) => state.setNotesPageSize
+  );
   const notesHasMore = useBibleStore((state) => state.notesHasMore);
   const versesFolded = useBibleStore((state) => state.versesFolded);
   const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
@@ -370,6 +373,33 @@ export default function TagNotesRoute() {
     [tagId, sortOrder, fetchNotes]
   );
 
+  const handlePageSizeChange = useCallback(
+    async (newPageSize: string | null) => {
+      if (!newPageSize || !tagId) return;
+      
+      const pageSizeNum = parseInt(newPageSize, 10);
+      setNotesPageSize(pageSizeNum);
+      
+      // Clear cache and refetch from page 1
+      clearNotesCache(tagId);
+      
+      const apiOrdering =
+        sortOrder !== 'created_desc'
+          ? getApiOrdering(sortOrder)
+          : undefined;
+      
+      await fetchNotes(tagId, {
+        ordering: apiOrdering,
+        page: 1,
+        append: false,
+      });
+      
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [tagId, sortOrder, setNotesPageSize, fetchNotes]
+  );
+
   const sortedNotes = [...notes].sort((a, b) => {
     switch (sortOrder) {
       case 'custom_asc': {
@@ -538,42 +568,56 @@ export default function TagNotesRoute() {
           <Text fw={500} size="lg">{tag.name}</Text>
         )}
         <Group spacing="xs" position="apart">
-          <Select
-            size="xs"
-            value={sortOrder}
-            onChange={(v) => {
-              if (v) {
-                handleSortChange(v);
-              }
-            }}
-            data={[
-              {
-                value: 'custom_asc',
-                label: 'Custom: Ascending',
-              },
-              {
-                value: 'custom_desc',
-                label: 'Custom: Descending',
-              },
-              {
-                value: 'created_desc',
-                label: 'Date: Newest first',
-              },
-              {
-                value: 'created_asc',
-                label: 'Date: Oldest first',
-              },
-              {
-                value: 'verse_asc',
-                label: 'Verse: Ascending',
-              },
-              {
-                value: 'verse_desc',
-                label: 'Verse: Descending',
-              },
-            ]}
-            style={{ width: 170, flexShrink: 0 }}
-          />
+          <Group spacing="xs" noWrap>
+            <Select
+              size="xs"
+              value={sortOrder}
+              onChange={(v) => {
+                if (v) {
+                  handleSortChange(v);
+                }
+              }}
+              data={[
+                {
+                  value: 'custom_asc',
+                  label: 'Custom: Ascending',
+                },
+                {
+                  value: 'custom_desc',
+                  label: 'Custom: Descending',
+                },
+                {
+                  value: 'created_desc',
+                  label: 'Date: Newest first',
+                },
+                {
+                  value: 'created_asc',
+                  label: 'Date: Oldest first',
+                },
+                {
+                  value: 'verse_asc',
+                  label: 'Verse: Ascending',
+                },
+                {
+                  value: 'verse_desc',
+                  label: 'Verse: Descending',
+                },
+              ]}
+              style={{ width: 170, flexShrink: 0 }}
+            />
+            <Select
+              size="xs"
+              value={String(notesPageSize)}
+              onChange={handlePageSizeChange}
+              data={[
+                { value: '5', label: '5' },
+                { value: '25', label: '25' },
+                { value: '50', label: '50' },
+                { value: '100', label: '100' },
+              ]}
+              style={{ width: 60, flexShrink: 0 }}
+            />
+          </Group>
           <Group spacing="xs" noWrap>
             <Text
               color="dimmed"

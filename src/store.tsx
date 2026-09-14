@@ -80,6 +80,7 @@ interface BibleState {
   setShowNotes: (show: boolean) => void;
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
+  setNotesPageSize: (pageSize: number) => void;
 }
 
 // Define and export the initial state for reusability and testing
@@ -321,6 +322,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setLastSelectedTagId: (lastSelectedTagId) =>
         set({ lastSelectedTagId }),
       setNotesPage: (page) => set({ notesPage: page }),
+      setNotesPageSize: (pageSize) => set({ notesPageSize: pageSize }),
       setAudioActiveVerse: (audioActiveVerse) =>
         set({ audioActiveVerse }),
       setAudioPlaylistItems: (audioPlaylistItems) =>
