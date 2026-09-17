@@ -152,7 +152,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       fetchNotes: async (tagId?: string, options = {}) => {
         try {
           const { ordering, page = 1, append = false } = options;
-          const { notesPageSize } = useBibleStore.getState();
+          const {
+            notesPageSize,
+            activeTextFilesetId
+          } = useBibleStore.getState();
           
           // Check cache for any page/ordering combination
           if (!append && tagId) {
@@ -180,13 +183,15 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           console.log(
             `📝 Fetching notes from API for tag: ` +
             `${tagId || 'all'} ` +
-            `(page ${page}, ordering: ${ordering || 'default'})`
+            `(page ${page}, ordering: ${ordering || 'default'}, ` +
+            `fileset: ${activeTextFilesetId || 'default'})`
           );
           
           const response = await api.getNotes(tagId, {
             ordering,
             page,
             pageSize: notesPageSize,
+            filesetId: activeTextFilesetId || undefined,
           });
           
           // Cache all page results

@@ -783,6 +783,7 @@ export const getNotes = async (
     ordering?: string;
     page?: number;
     pageSize?: number;
+    filesetId?: string;
   }
 ): Promise<PaginatedNotesResponse> => {
   const params = new URLSearchParams();
@@ -801,6 +802,10 @@ export const getNotes = async (
   
   if (options?.pageSize) {
     params.append('page_size', options.pageSize.toString());
+  }
+  
+  if (options?.filesetId) {
+    params.append('fileset_id', options.filesetId);
   }
   
   const url = `${API_BASE_URL}/api/v1/notes/?${params.toString()}`;

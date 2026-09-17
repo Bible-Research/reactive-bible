@@ -677,14 +677,9 @@ export default function TagNotesRoute() {
           <Stack spacing="md" pb="xl">
             {notesCount > notesPageSize &&
               (sortOrder === 'custom_asc' ||
-                sortOrder === 'custom_desc') && (
-              <Alert icon={<IconInfoCircle />} color="blue">
-                You can reorder notes on this page. Changes only
-                affect the {notes.length} notes currently displayed.
-                Navigate to other pages to reorder those notes.
-              </Alert>
-            )}
-            
+                sortOrder === 'custom_desc')
+            }
+
             <TagSection
               tagName={tag.name}
               notes={sortedNotes}
