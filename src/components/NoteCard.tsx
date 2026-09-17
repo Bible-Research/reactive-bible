@@ -20,7 +20,10 @@ interface NoteCardProps {
   onPlayFromNote?: (noteId: string) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
-  dragHandleProps?: Record<string, unknown>;
+  dragHandleProps?: {
+    ref?: (element: HTMLElement | null) => void;
+    [key: string]: unknown;
+  };
 }
 
 type PassageState = {
@@ -233,7 +236,10 @@ const NoteCard = ({
           <Title 
             order={4} 
             className="note-card-heading"
-            {...(dragHandleProps || {})}
+            ref={dragHandleProps?.ref as any}
+            {...(dragHandleProps ? Object.fromEntries(
+              Object.entries(dragHandleProps).filter(([key]) => key !== 'ref')
+            ) : {})}
             sx={dragHandleProps ? {
               cursor: 'grab',
               userSelect: 'none',

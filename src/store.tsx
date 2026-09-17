@@ -76,7 +76,12 @@ interface BibleState {
   ) => Promise<void>;
   getTags: (forceRefresh?: boolean) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
-  reorderNotes: (tagId: string, noteIds: string[]) => Promise<void>;
+  reorderNotes: (
+    tagId: string,
+    noteIds: string[],
+    currentPage: number,
+    pageSize: number
+  ) => Promise<void>;
   setShowNotes: (show: boolean) => void;
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
@@ -272,12 +277,21 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           throw error;
         }
       },
-      reorderNotes: async (tagId: string, noteIds: string[]) => {
+      reorderNotes: async (
+        tagId: string,
+        noteIds: string[],
+        currentPage: number,
+        pageSize: number
+      ) => {
         try {
-          // Build updates with new sequential positions
+          // Calculate the starting position based on current page
+          // Page 1: positions 1-25, Page 2: positions 26-50, etc.
+          const startPosition = (currentPage - 1) * pageSize;
+
+          // Build updates with positions relative to the page
           const updates = noteIds.map((id, index) => ({
             note_id: id,
-            position: index + 1,
+            position: startPosition + index + 1,
           }));
           
           await api.reorderNotes(tagId, updates);
@@ -287,7 +301,9 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             const ordered = noteIds
               .map((id, i) => {
                 const note = state.notes.find((n) => n.id === id);
-                return note ? { ...note, tag_position: i + 1 } : null;
+                return note
+                  ? { ...note, tag_position: startPosition + i + 1 }
+                  : null;
               })
               .filter(Boolean) as Note[];
             const rest = state.notes.filter(

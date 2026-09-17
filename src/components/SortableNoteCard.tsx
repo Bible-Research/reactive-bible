@@ -38,6 +38,7 @@ const SortableNoteCard = ({
     transform,
     transition,
     isDragging,
+    setActivatorNodeRef,
   } = useSortable({ id: note.id });
 
   const style = {
@@ -50,6 +51,7 @@ const SortableNoteCard = ({
     <Box
       ref={setNodeRef}
       style={style}
+      {...attributes}
     >
       <NoteCard
         note={note}
@@ -59,7 +61,10 @@ const SortableNoteCard = ({
         onPlayFromNote={onPlayFromNote}
         commentCount={commentCount}
         onCountChange={onCountChange}
-        dragHandleProps={{ ...attributes, ...listeners }}
+        dragHandleProps={{
+          ref: setActivatorNodeRef,
+          ...listeners,
+        }}
       />
     </Box>
   );

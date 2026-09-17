@@ -686,6 +686,8 @@ export default function TagNotesRoute() {
               tagId={tagId || ''}
               onReorder={reorderNotes}
               sortOrder={sortOrder}
+              currentPage={notesPage}
+              pageSize={notesPageSize}
             />
             
             {totalPages > 1 && (

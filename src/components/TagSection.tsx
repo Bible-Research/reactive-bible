@@ -5,6 +5,12 @@ import {
   DndContext,
   closestCenter,
   DragEndEvent,
+  DragStartEvent,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -33,8 +39,15 @@ interface TagSectionProps {
   onCountChange?: (noteId: string, delta: number) => void;
   isDraggable?: boolean;
   tagId?: string;
-  onReorder?: (tagId: string, noteIds: string[]) => void;
+  onReorder?: (
+    tagId: string,
+    noteIds: string[],
+    currentPage: number,
+    pageSize: number
+  ) => void;
   sortOrder?: string;
+  currentPage?: number;
+  pageSize?: number;
 }
 
 const TagSection = ({
@@ -50,20 +63,69 @@ const TagSection = ({
   tagId = '',
   onReorder,
   sortOrder,
+  currentPage = 1,
+  pageSize = 25,
 }: TagSectionProps) => {
   const [localNotes, setLocalNotes] = useState(notes);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Configure sensors for drag and drop
+  // Use MouseSensor and TouchSensor separately for better control
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 10, // 10px movement required before drag starts
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250, // 250ms press required before drag starts
+        tolerance: 5, // 5px tolerance during delay
+      },
+    })
+  );
 
   useEffect(() => {
     setLocalNotes(notes);
   }, [notes]);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('🎯 TagSection Debug:', {
+      isDraggable,
+      sortOrder,
+      tagId,
+      notesCount: notes.length,
+      hasOnReorder: !!onReorder,
+      currentPage,
+      pageSize,
+    });
+  }, [isDraggable, sortOrder, tagId, notes.length, onReorder, 
+      currentPage, pageSize]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    console.log('🎯 Drag started:', event.active.id);
+    setActiveId(event.active.id as string);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    console.log('🎯 Drag ended:', { active: active.id, over: over?.id });
+    
+    setActiveId(null);
+    
     if (!over || active.id === over.id) return;
 
     const oldIndex = localNotes.findIndex((n) => n.id === active.id);
     const newIndex = localNotes.findIndex((n) => n.id === over.id);
     const reordered = arrayMove(localNotes, oldIndex, newIndex);
+
+    console.log('🎯 Reordering:', { 
+      oldIndex, 
+      newIndex, 
+      from: active.id, 
+      to: over.id 
+    });
 
     setLocalNotes(reordered);
     if (onReorder && tagId) {
@@ -73,9 +135,19 @@ const TagSection = ({
       const idsToSend = sortOrder === 'custom_desc'
         ? [...noteIds].reverse()
         : noteIds;
-      onReorder(tagId, idsToSend);
+      console.log('🎯 Calling onReorder with:', { 
+        tagId, 
+        noteCount: idsToSend.length,
+        currentPage,
+        pageSize 
+      });
+      onReorder(tagId, idsToSend, currentPage, pageSize);
     }
   };
+
+  const activeNote = activeId 
+    ? localNotes.find(n => n.id === activeId) 
+    : null;
 
   if (!isDraggable) {
     return (
@@ -105,7 +177,9 @@ const TagSection = ({
 
   return (
     <DndContext
+      sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
       <SortableContext
@@ -134,6 +208,15 @@ const TagSection = ({
           ))}
         </Stack>
       </SortableContext>
+      <DragOverlay>
+        {activeNote ? (
+          <NoteCard
+            note={activeNote}
+            onViewInBible={onViewInBible}
+            commentCount={commentCounts?.[activeNote.id]}
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 };
