@@ -64,27 +64,49 @@ describe('Zustand Store (useBibleStore)', () => {
 
   describe('fetchNotes', () => {
     it('should fetch all notes and update state when no tagId is provided', async () => {
-      const mockNotes = [{ id: '1', content: 'Note 1', tags: [] }];
-      (api.getNotes as import('vitest').Mock).mockResolvedValue(mockNotes);
+      const mockResponse = {
+        count: 1,
+        next: null,
+        previous: null,
+        results: [{ id: '1', content: 'Note 1', tags: [] }]
+      };
+      (api.getNotes as import('vitest').Mock).mockResolvedValue(mockResponse);
 
       await useBibleStore.getState().fetchNotes();
 
       const state = useBibleStore.getState();
-      expect(api.getNotes).toHaveBeenCalledWith(undefined);
-      expect(state.notes).toEqual(mockNotes);
-      expect(state.allNotesFetched).toBe(true);
+      expect(api.getNotes).toHaveBeenCalledWith(undefined, {
+        ordering: undefined,
+        page: 1,
+        pageSize: 25,
+        filesetId: 'ENGESV_API',
+      });
+      expect(state.notes).toEqual(mockResponse.results);
+      expect(state.notesCount).toBe(1);
+      expect(state.notesHasMore).toBe(false);
     });
 
     it('should fetch notes for a specific tag and update state', async () => {
-      const mockNotes = [{ id: '2', content: 'Tagged Note', tags: ['tag1'] }];
-      (api.getNotes as import('vitest').Mock).mockResolvedValue(mockNotes);
+      const mockResponse = {
+        count: 1,
+        next: null,
+        previous: null,
+        results: [{ id: '2', content: 'Tagged Note', tags: ['tag1'] }]
+      };
+      (api.getNotes as import('vitest').Mock).mockResolvedValue(mockResponse);
 
       await useBibleStore.getState().fetchNotes('tag1');
 
       const state = useBibleStore.getState();
-      expect(api.getNotes).toHaveBeenCalledWith('tag1');
-      expect(state.notes).toEqual(mockNotes);
-      expect(state.allNotesFetched).toBe(false);
+      expect(api.getNotes).toHaveBeenCalledWith('tag1', {
+        ordering: undefined,
+        page: 1,
+        pageSize: 25,
+        filesetId: 'ENGESV_API',
+      });
+      expect(state.notes).toEqual(mockResponse.results);
+      expect(state.notesCount).toBe(1);
+      expect(state.notesHasMore).toBe(false);
     });
   });
 });

@@ -70,7 +70,7 @@ describe('TagSection Component', () => {
       />
     );
 
-    const editButtons = screen.getAllByRole('button', { name: 'Edit' });
+    const editButtons = screen.getAllByRole('button', { name: 'edit-note' });
     editButtons[0].click();
 
     expect(mockOnEditNote).toHaveBeenCalledWith(mockNotes[0]);
@@ -86,7 +86,7 @@ describe('TagSection Component', () => {
       />
     );
 
-    const viewButtons = screen.getAllByRole('button', { name: 'View in Bible' });
+    const viewButtons = screen.getAllByRole('button', { name: 'view-in-bible' });
     viewButtons[0].click();
 
     expect(mockOnViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);
