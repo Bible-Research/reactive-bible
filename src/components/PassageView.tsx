@@ -18,6 +18,7 @@ import {
   prefetchAdjacentChapters,
   getChapters,
   type SectionHeading,
+  RateLimitError,
 } from "../api";
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
@@ -62,6 +63,7 @@ const PassageView = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isRateLimitError, setIsRateLimitError] = useState(false);
 
   const getTestamentMismatchHint = (
     filesetId: string | null,
@@ -178,6 +180,7 @@ const PassageView = () => {
     setTocLoading(false);
     setLoading(true);
     setFetchError(null);
+    setIsRateLimitError(false);
     getVersesInChapter(activeBook, activeChapter, activeTextFilesetId)
       .then((result) => {
         setVerses(result.verses);
@@ -209,6 +212,8 @@ const PassageView = () => {
       })
       .catch((error) => {
         console.error(error);
+        const isRateLimit = error instanceof RateLimitError;
+        setIsRateLimitError(isRateLimit);
         setFetchError(
           error instanceof Error ? error.message : 'Failed to load text'
         );
@@ -236,6 +241,10 @@ const PassageView = () => {
       activeTextFilesetId,
       translations,
     );
+    const rateLimitHint =
+      'The translation provider has temporarily rate-limited ' +
+      'requests. Please wait a few moments and try again, or ' +
+      'switch to KJV which is always available offline.';
     const genericHint =
       'Try selecting a different text version in the ' +
       'Translation Settings ("Change Translation" button).';
@@ -245,18 +254,22 @@ const PassageView = () => {
           <Alert
             icon={<IconAlertCircle size={16} />}
             title={
-              fetchError
+              isRateLimitError
+                ? 'Rate Limit Reached'
+                : fetchError
                 ? 'Failed to load text'
                 : `No content for ${activeBook} ${activeChapter}`
             }
-            color="orange"
+            color={isRateLimitError ? 'yellow' : 'orange'}
           >
             <Stack spacing="xs">
               {fetchError && (
                 <Text size="sm">{fetchError}</Text>
               )}
               <Text size="sm">
-                {mismatchHint ?? genericHint}
+                {isRateLimitError
+                  ? rateLimitHint
+                  : (mismatchHint ?? genericHint)}
               </Text>
             </Stack>
           </Alert>

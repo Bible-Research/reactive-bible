@@ -71,6 +71,25 @@ describe('API Functions', () => {
       expect(result.headings).toEqual([]);
     });
 
+    it('getVersesFromApi should throw RateLimitError on 429', async () => {
+      // Override the MSW handler to return 429
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return new HttpResponse(null, { status: 429 });
+        })
+      );
+
+      await expect(
+        api.getVersesFromApi('John', 3, 'ENGESV')
+      ).rejects.toThrow(api.RateLimitError);
+
+      await expect(
+        api.getVersesFromApi('John', 3, 'ENGESV')
+      ).rejects.toThrow(
+        'The translation provider is currently rate-limited'
+      );
+    });
+
     it('getBibleAudioUrl should fetch from API when not cached', async () => {
       const mockUrl = 'http://audio.url/test.mp3';
       const url = await api.getBibleAudioUrl('Genesis', 1, 'ESVDA');

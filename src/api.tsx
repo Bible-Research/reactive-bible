@@ -163,8 +163,29 @@ export const getVersesFromApi = async (
       `/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
+    
+    // Handle rate limit errors (429)
+    if (response.status === 429) {
+      throw new RateLimitError(
+        'The translation provider is currently rate-limited. ' +
+        'Please try again in a few moments or switch to KJV.'
+      );
+    }
+    
+    // Handle other HTTP errors
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMsg = errorData.error || errorData.detail ||
+        `Failed to fetch verses (HTTP ${response.status})`;
+      throw new Error(errorMsg);
+    }
+    
     const data = await response.json();
-    const verses = data.verses?.map((v: { verse: number; text: string }) => ({ verse: v.verse, text: v.text }));
+    const verses = data.verses?.map(
+      (v: { verse: number; text: string }) => (
+        { verse: v.verse, text: v.text }
+      )
+    );
     const headings: SectionHeading[] =
       data.headings ?? [];
     cacheVerses(thebook, thechapter, filesetId, verses);
@@ -267,6 +288,13 @@ export class ConflictError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ConflictError';
+  }
+}
+
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RateLimitError';
   }
 }
 
