@@ -161,9 +161,6 @@ const NoteCard = ({
     };
   }, [passageContainer, noteFilesetId]);
 
-  // Note: Headings are now provided by the backend in note.headings
-  // No need to fetch them separately
-
   const versesFolded = useBibleStore((state) => state.versesFolded);
 
   const firstVerse = note?.verses?.[0]?.verse || 1;
