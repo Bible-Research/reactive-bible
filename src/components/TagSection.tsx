@@ -89,28 +89,12 @@ const TagSection = ({
     setLocalNotes(notes);
   }, [notes]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('🎯 TagSection Debug:', {
-      isDraggable,
-      sortOrder,
-      tagId,
-      notesCount: notes.length,
-      hasOnReorder: !!onReorder,
-      currentPage,
-      pageSize,
-    });
-  }, [isDraggable, sortOrder, tagId, notes.length, onReorder, 
-      currentPage, pageSize]);
-
   const handleDragStart = (event: DragStartEvent) => {
-    console.log('🎯 Drag started:', event.active.id);
     setActiveId(event.active.id as string);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    console.log('🎯 Drag ended:', { active: active.id, over: over?.id });
     
     setActiveId(null);
     
@@ -120,13 +104,6 @@ const TagSection = ({
     const newIndex = localNotes.findIndex((n) => n.id === over.id);
     const reordered = arrayMove(localNotes, oldIndex, newIndex);
 
-    console.log('🎯 Reordering:', { 
-      oldIndex, 
-      newIndex, 
-      from: active.id, 
-      to: over.id 
-    });
-
     setLocalNotes(reordered);
     if (onReorder && tagId) {
       // When sorting descending, reverse the order before sending
@@ -135,12 +112,6 @@ const TagSection = ({
       const idsToSend = sortOrder === 'custom_desc'
         ? [...noteIds].reverse()
         : noteIds;
-      console.log('🎯 Calling onReorder with:', { 
-        tagId, 
-        noteCount: idsToSend.length,
-        currentPage,
-        pageSize 
-      });
       onReorder(tagId, idsToSend, currentPage, pageSize);
     }
   };
