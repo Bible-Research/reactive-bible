@@ -74,6 +74,7 @@ describe('useBibleStore', () => {
         ordering: undefined,
         page: 1,
         pageSize: 25,
+        filesetId: 'ENGESV_API',
       });
       expect(mockCacheManager.cacheNotes).toHaveBeenCalledWith(
         'TAG1',
@@ -86,7 +87,7 @@ describe('useBibleStore', () => {
 
   describe('deleteNote with cache clearing', () => {
     it('should call clearNotesCache when a note is deleted', async () => {
-      mockApi.deleteNote.mockResolvedValue();
+      mockApi.deleteNote.mockResolvedValue('');
       // Pre-fill state with a note
       useBibleStore.setState({ 
         notes: [{ 

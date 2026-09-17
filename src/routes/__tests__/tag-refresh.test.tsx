@@ -86,9 +86,14 @@ describe('Tag Refresh Behavior', () => {
   const mockNotes = [
     {
       id: 'note-1',
+      note_text: 'Test note',
+      public: false,
+      is_owner: true,
       tag: mockTags[0],
-      content: 'Test note',
-      verses: [{ book: 'John', chapter: 3, verse: 16 }],
+      verses: [
+        { book: 'John', chapter: 3, verse: 16, text: 'For God...' }
+      ],
+      tag_position: null,
       created_at: '2026-01-01',
       updated_at: '2026-01-01',
     },
