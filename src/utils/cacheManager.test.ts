@@ -145,26 +145,30 @@ describe('Notes Cache Manager', () => {
         id: 'note1',
         note_text: 'Test note 1',
         public: false,
+        is_owner: true,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         tag,
         verses: [],
+        tag_position: null,
       },
       {
         id: 'note2',
         note_text: 'Test note 2',
         public: true,
+        is_owner: true,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         tag,
         verses: [],
+        tag_position: null,
       },
     ];
     
     cacheNotes('TAG123', notes);
     const cached = getCachedNotes('TAG123');
     
-    expect(cached).toEqual(notes);
+    expect(cached?.notes).toEqual(notes);
   });
 
   it('should return null for non-cached notes', () => {
@@ -181,10 +185,12 @@ describe('Notes Cache Manager', () => {
         id: 'note1',
         note_text: 'Tag 1 note',
         public: false,
+        is_owner: true,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         tag: tag1,
         verses: [],
+        tag_position: null,
       },
     ];
     
@@ -193,18 +199,20 @@ describe('Notes Cache Manager', () => {
         id: 'note2',
         note_text: 'Tag 2 note',
         public: false,
+        is_owner: true,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
         tag: tag2,
         verses: [],
+        tag_position: null,
       },
     ];
     
     cacheNotes('TAG1', notes1);
     cacheNotes('TAG2', notes2);
     
-    expect(getCachedNotes('TAG1')).toEqual(notes1);
-    expect(getCachedNotes('TAG2')).toEqual(notes2);
+    expect(getCachedNotes('TAG1')?.notes).toEqual(notes1);
+    expect(getCachedNotes('TAG2')?.notes).toEqual(notes2);
   });
 
   it('should clear notes cache for a specific tag', () => {
@@ -212,10 +220,10 @@ describe('Notes Cache Manager', () => {
     const tag2: Tag = { id: 'TAG2', name: 'Tag 2', parent_tag: null, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' };
     
     const notes1: Note[] = [
-      { id: 'note1', note_text: 'Note 1', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag1, verses: [] },
+      { id: 'note1', note_text: 'Note 1', public: false, is_owner: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag1, verses: [], tag_position: null },
     ];
     const notes2: Note[] = [
-      { id: 'note2', note_text: 'Note 2', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag2, verses: [] },
+      { id: 'note2', note_text: 'Note 2', public: false, is_owner: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag2, verses: [], tag_position: null },
     ];
     
     cacheNotes('TAG1', notes1);
@@ -224,7 +232,7 @@ describe('Notes Cache Manager', () => {
     clearNotesCache('TAG1');
     
     expect(getCachedNotes('TAG1')).toBeNull();
-    expect(getCachedNotes('TAG2')).toEqual(notes2);
+    expect(getCachedNotes('TAG2')?.notes).toEqual(notes2);
   });
 
   it('should clear all notes cache', () => {
@@ -232,10 +240,10 @@ describe('Notes Cache Manager', () => {
     const tag2: Tag = { id: 'TAG2', name: 'Tag 2', parent_tag: null, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' };
     
     const notes1: Note[] = [
-      { id: 'note1', note_text: 'Note 1', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag1, verses: [] },
+      { id: 'note1', note_text: 'Note 1', public: false, is_owner: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag1, verses: [], tag_position: null },
     ];
     const notes2: Note[] = [
-      { id: 'note2', note_text: 'Note 2', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag2, verses: [] },
+      { id: 'note2', note_text: 'Note 2', public: false, is_owner: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag: tag2, verses: [], tag_position: null },
     ];
     
     cacheNotes('TAG1', notes1);
@@ -251,19 +259,19 @@ describe('Notes Cache Manager', () => {
     const tag: Tag = { id: 'TAG1', name: 'Tag 1', parent_tag: null, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' };
     
     const initialNotes: Note[] = [
-      { id: 'note1', note_text: 'Initial note', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [] },
+      { id: 'note1', note_text: 'Initial note', public: false, is_owner: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [], tag_position: null },
     ];
     const updatedNotes: Note[] = [
-      { id: 'note1', note_text: 'Updated note', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [] },
-      { id: 'note2', note_text: 'New note', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [] },
+      { id: 'note1', note_text: 'Updated note', public: false, is_owner: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [], tag_position: null },
+      { id: 'note2', note_text: 'New note', public: false, is_owner: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [], tag_position: null },
     ];
     
     cacheNotes('TAG1', initialNotes);
     cacheNotes('TAG1', updatedNotes);
     
     const cached = getCachedNotes('TAG1');
-    expect(cached).toEqual(updatedNotes);
-    expect(cached?.length).toBe(2);
+    expect(cached?.notes).toEqual(updatedNotes);
+    expect(cached?.notes.length).toBe(2);
   });
 
   it('should store timestamp with cached notes', () => {
@@ -282,8 +290,149 @@ describe('Notes Cache Manager', () => {
     expect(cacheStr).toBeTruthy();
     
     const cache = JSON.parse(cacheStr!);
-    expect(cache.TAG1.timestamp).toBeGreaterThanOrEqual(beforeCache);
-    expect(cache.TAG1.timestamp).toBeLessThanOrEqual(afterCache);
+    expect(cache['TAG1:page1:default'].timestamp).toBeGreaterThanOrEqual(
+      beforeCache
+    );
+    expect(cache['TAG1:page1:default'].timestamp).toBeLessThanOrEqual(
+      afterCache
+    );
+  });
+
+  it('should cache different pages independently', () => {
+    const tag: Tag = {
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    };
+
+    const page1Notes: Note[] = [
+      {
+        id: 'note1',
+        note_text: 'Page 1 note',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
+      },
+    ];
+
+    const page2Notes: Note[] = [
+      {
+        id: 'note2',
+        note_text: 'Page 2 note',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
+      },
+    ];
+
+    cacheNotes('TAG1', page1Notes, { count: 50, hasMore: true, page: 1 });
+    cacheNotes('TAG1', page2Notes, { count: 50, hasMore: true, page: 2 });
+
+    expect(getCachedNotes('TAG1', 1)?.notes).toEqual(page1Notes);
+    expect(getCachedNotes('TAG1', 2)?.notes).toEqual(page2Notes);
+  });
+
+  it('should cache different orderings independently', () => {
+    const tag: Tag = {
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    };
+
+    const defaultNotes: Note[] = [
+      {
+        id: 'note1',
+        note_text: 'Default order',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
+      },
+    ];
+
+    const customNotes: Note[] = [
+      {
+        id: 'note2',
+        note_text: 'Custom order',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
+      },
+    ];
+
+    cacheNotes('TAG1', defaultNotes, {
+      count: 2,
+      hasMore: false,
+      page: 1,
+      ordering: null,
+    });
+    cacheNotes('TAG1', customNotes, {
+      count: 2,
+      hasMore: false,
+      page: 1,
+      ordering: 'custom',
+    });
+
+    expect(getCachedNotes('TAG1', 1, null)?.notes).toEqual(defaultNotes);
+    expect(getCachedNotes('TAG1', 1, 'custom')?.notes).toEqual(customNotes);
+  });
+
+  it('should clear all pages when clearing tag cache', () => {
+    const tag: Tag = {
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    };
+
+    const notes: Note[] = [
+      {
+        id: 'note1',
+        note_text: 'Test note',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
+      },
+    ];
+
+    cacheNotes('TAG1', notes, { count: 50, hasMore: true, page: 1 });
+    cacheNotes('TAG1', notes, { count: 50, hasMore: true, page: 2 });
+    cacheNotes('TAG1', notes, {
+      count: 50,
+      hasMore: true,
+      page: 1,
+      ordering: 'custom',
+    });
+
+    clearNotesCache('TAG1');
+
+    expect(getCachedNotes('TAG1', 1)).toBeNull();
+    expect(getCachedNotes('TAG1', 2)).toBeNull();
+    expect(getCachedNotes('TAG1', 1, 'custom')).toBeNull();
   });
 });
 

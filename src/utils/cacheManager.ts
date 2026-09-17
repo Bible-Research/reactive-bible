@@ -125,6 +125,8 @@ interface TranslationCache {
 interface NotesData {
   notes: Note[];
   timestamp: number;
+  count?: number;
+  hasMore?: boolean;
 }
 
 interface NotesCache {
@@ -297,30 +299,62 @@ export const setNotesCache = (cache: NotesCache) => {
   }
 };
 
-export const getCachedNotes = (tagId: string): Note[] | null => {
+const getNotesCacheKey = (
+  tagId: string,
+  page = 1,
+  ordering: string | null = null
+): string => {
+  const orderingPart = ordering || 'default';
+  return `${tagId}:page${page}:${orderingPart}`;
+};
+
+export const getCachedNotes = (
+  tagId: string,
+  page = 1,
+  ordering: string | null = null
+): NotesData | null => {
   const cache = getNotesCache();
-  const notesData = cache[tagId];
+  const cacheKey = getNotesCacheKey(tagId, page, ordering);
+  const notesData = cache[cacheKey];
 
   if (!notesData) return null;
 
   // Notes don't expire, return cached data
-  return notesData.notes;
+  return notesData;
 };
 
-export const cacheNotes = (tagId: string, notes: Note[]) => {
+export const cacheNotes = (
+  tagId: string,
+  notes: Note[],
+  metadata?: {
+    count: number;
+    hasMore: boolean;
+    page?: number;
+    ordering?: string | null;
+  }
+) => {
   const cache = getNotesCache();
-  cache[tagId] = {
+  const page = metadata?.page ?? 1;
+  const ordering = metadata?.ordering ?? null;
+  const cacheKey = getNotesCacheKey(tagId, page, ordering);
+  
+  cache[cacheKey] = {
     notes,
     timestamp: Date.now(),
+    count: metadata?.count,
+    hasMore: metadata?.hasMore,
   };
   setNotesCache(cache);
 };
 
 export const clearNotesCache = (tagId?: string) => {
   if (tagId) {
-    // Clear specific tag's notes
+    // Clear all cached pages for this tag
     const cache = getNotesCache();
-    delete cache[tagId];
+    const keysToDelete = Object.keys(cache).filter((key) =>
+      key.startsWith(`${tagId}:`)
+    );
+    keysToDelete.forEach((key) => delete cache[key]);
     setNotesCache(cache);
   } else {
     // Clear all notes

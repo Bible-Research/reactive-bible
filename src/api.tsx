@@ -263,17 +263,41 @@ export const deleteNote = async (noteId: string) => {
   }
 }
 
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConflictError';
+  }
+}
+
+export interface NotePositionUpdate {
+  note_id: string;
+  position: number;
+}
+
 export const reorderNotes = async (
   tagId: string,
-  noteIds: string[],
+  updates: NotePositionUpdate[]
 ): Promise<void> => {
-  await authenticatedFetch(
-    `${API_BASE_URL}/api/v1/notes/reorder/`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ tag_id: tagId, note_ids: noteIds }),
-    },
-  );
+  const url = `${API_BASE_URL}/api/v1/notes/reorder/`;
+  
+  const response = await authenticatedFetch(url, {
+    method: 'POST',
+    body: JSON.stringify({
+      tag_id: tagId,
+      updates,
+    }),
+  });
+  
+  if (response.status === 409) {
+    const error = await response.json();
+    throw new ConflictError(error.message);
+  }
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Reorder failed');
+  }
 };
 
 export const getTags = async (): Promise<Tag[]> => {
@@ -742,23 +766,80 @@ export interface Note {
   updated_at: string;
   tag: Tag;
   verses: NoteVerse[];
+  headings?: SectionHeading[];
   tag_position: number | null;
 }
 
-export const getNotes = async (tagId?: string): Promise<Note[]> => {
-  const url = tagId
-    ? `${API_BASE_URL}/api/v1/notes/?tag_id=${tagId}`
-    : `${API_BASE_URL}/api/v1/notes/`;
+export interface PaginatedNotesResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Note[];
+}
+
+export const getNotes = async (
+  tagId?: string,
+  options?: {
+    ordering?: string;
+    page?: number;
+    pageSize?: number;
+    filesetId?: string;
+  }
+): Promise<PaginatedNotesResponse> => {
+  const params = new URLSearchParams();
+  
+  if (tagId) {
+    params.append('tag_id', tagId);
+  }
+  
+  if (options?.ordering) {
+    params.append('ordering', options.ordering);
+  }
+  
+  if (options?.page) {
+    params.append('page', options.page.toString());
+  }
+  
+  if (options?.pageSize) {
+    params.append('page_size', options.pageSize.toString());
+  }
+  
+  if (options?.filesetId) {
+    params.append('fileset_id', options.filesetId);
+  }
+  
+  const url = `${API_BASE_URL}/api/v1/notes/?${params.toString()}`;
+  
   try {
     const response = await publicFetch(url);
     if (!response.ok) {
       throw new Error('Failed to fetch notes');
     }
-    return await response.json();
+    const data = await response.json();
+    
+    // API returns paginated response
+    return data;
   } catch (error) {
     console.error('Error fetching notes:', error);
     throw error;
   }
+};
+
+export const getAllNotes = async (
+  tagId?: string
+): Promise<Note[]> => {
+  const allNotes: Note[] = [];
+  let page = 1;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const response = await getNotes(tagId, { page });
+    allNotes.push(...response.results);
+    hasMore = response.next !== null;
+    page++;
+  }
+  
+  return allNotes;
 };
 
 export const getNote = async (noteId: string): Promise<Note> => {
