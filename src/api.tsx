@@ -817,23 +817,7 @@ export const getNotes = async (
     }
     const data = await response.json();
     
-    // Backward compatibility: handle both paginated and
-    // non-paginated responses
-    if (Array.isArray(data)) {
-      // Old API format: array of notes
-      console.log(
-        '⚠️  API returned array format (old). ' +
-        'Wrapping in pagination format.'
-      );
-      return {
-        count: data.length,
-        next: null,
-        previous: null,
-        results: data,
-      };
-    }
-    
-    // New API format: paginated response
+    // API returns paginated response
     return data;
   } catch (error) {
     console.error('Error fetching notes:', error);

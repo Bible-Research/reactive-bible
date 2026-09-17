@@ -11,14 +11,12 @@ import {
   Select,
   ActionIcon,
   Tooltip,
-  Alert,
 } from '@mantine/core';
 import {
   IconShare,
   IconRefresh,
   IconArrowsMaximize,
   IconArrowsMinimize,
-  IconInfoCircle,
 } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
@@ -81,7 +79,6 @@ export default function TagNotesRoute() {
   const setNotesPageSize = useBibleStore(
     (state) => state.setNotesPageSize
   );
-  const notesHasMore = useBibleStore((state) => state.notesHasMore);
   const versesFolded = useBibleStore((state) => state.versesFolded);
   const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
   const setAudioPlaylistItems = useBibleStore(
@@ -542,15 +539,6 @@ export default function TagNotesRoute() {
   // Calculate total pages
   const totalPages = Math.ceil(notesCount / notesPageSize);
 
-  // Debug pagination state
-  console.log('🔍 Pagination Debug:', {
-    notesHasMore,
-    notesCount,
-    notesLength: notes.length,
-    notesPage,
-    totalPages,
-  });
-
   return (
     <Box p="md">
       <Stack spacing="sm" mb="md">
@@ -675,11 +663,6 @@ export default function TagNotesRoute() {
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
         {notes.length > 0 ? (
           <Stack spacing="md" pb="xl">
-            {notesCount > notesPageSize &&
-              (sortOrder === 'custom_asc' ||
-                sortOrder === 'custom_desc')
-            }
-
             <TagSection
               tagName={tag.name}
               notes={sortedNotes}
