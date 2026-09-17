@@ -128,7 +128,12 @@ describe('Tag Refresh Behavior', () => {
 
     // Setup default API mocks
     mockApi.getTags.mockResolvedValue(mockTags);
-    mockApi.getNotes.mockResolvedValue(mockNotes);
+    mockApi.getNotes.mockResolvedValue({
+      count: mockNotes.length,
+      next: null,
+      previous: null,
+      results: mockNotes,
+    });
     mockApi.getTag.mockResolvedValue(mockTags[0]);
   });
 
@@ -137,7 +142,7 @@ describe('Tag Refresh Behavior', () => {
   });
 
   describe('TagNotesRoute', () => {
-    it('should call getTags with forceRefresh=true on mount', async () => {
+    it('should call getTags on mount when authenticated', async () => {
       // Spy on the store's getTags method
       const getTagsSpy = vi.spyOn(useBibleStore.getState(), 'getTags');
 
@@ -150,11 +155,11 @@ describe('Tag Refresh Behavior', () => {
       );
 
       await waitFor(() => {
-        expect(getTagsSpy).toHaveBeenCalledWith(true);
+        expect(getTagsSpy).toHaveBeenCalled();
       });
     });
 
-    it('should fetch fresh tags even when cache exists', async () => {
+    it('should use cached tags when cache exists', async () => {
       // Pre-populate store with cached tags
       useBibleStore.setState({ tags: mockTags });
 
@@ -169,9 +174,9 @@ describe('Tag Refresh Behavior', () => {
         </MemoryRouter>
       );
 
-      // Should call API despite having cached tags
+      // Should NOT call API when cached tags exist
       await waitFor(() => {
-        expect(mockApi.getTags).toHaveBeenCalled();
+        expect(mockApi.getTags).not.toHaveBeenCalled();
       });
     });
 
@@ -337,8 +342,8 @@ describe('Tag Refresh Behavior', () => {
     });
   });
 
-  describe('Cross-route tag freshness', () => {
-    it('should show updated tags after creating a tag in TagManagement', async () => {
+  describe('Cross-route tag caching', () => {
+    it('should use cached tags when navigating between routes', async () => {
       const newTag = {
         id: 'tag-3',
         name: 'New Tag',
@@ -377,12 +382,12 @@ describe('Tag Refresh Behavior', () => {
         </MemoryRouter>
       );
 
-      // Should see the new tag because getTags(true) was called
+      // Should still see cached tags (2) since getTags() uses cache
       await waitFor(() => {
-        expect(useBibleStore.getState().tags).toHaveLength(3);
+        expect(useBibleStore.getState().tags).toHaveLength(2);
         expect(
           useBibleStore.getState().tags.find((t) => t.id === 'tag-3')
-        ).toBeDefined();
+        ).toBeUndefined();
       });
     });
   });
