@@ -104,7 +104,7 @@ export default function TagNotesRoute() {
   const sortOrder: SortOrder =
     urlSortOrder && validSortOrders.includes(urlSortOrder)
       ? urlSortOrder
-      : 'created_desc';
+      : 'custom_asc';
 
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,7 +146,7 @@ export default function TagNotesRoute() {
 
         // Fetch notes with ordering if non-default sort
         const apiOrdering =
-          sortOrder !== 'created_desc'
+          sortOrder !== 'custom_asc'
             ? getApiOrdering(sortOrder)
             : undefined;
         
@@ -354,7 +354,7 @@ export default function TagNotesRoute() {
       if (!tagId) return;
       
       const apiOrdering =
-        sortOrder !== 'created_desc'
+        sortOrder !== 'custom_asc'
           ? getApiOrdering(sortOrder)
           : undefined;
       
@@ -381,7 +381,7 @@ export default function TagNotesRoute() {
       clearNotesCache(tagId);
       
       const apiOrdering =
-        sortOrder !== 'created_desc'
+        sortOrder !== 'custom_asc'
           ? getApiOrdering(sortOrder)
           : undefined;
       
