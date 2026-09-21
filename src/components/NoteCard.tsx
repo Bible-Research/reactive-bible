@@ -519,21 +519,23 @@ const NoteCard = ({
         }
       </Box>
 
-      <Box
-        mt={10}
-        p={10}
-        sx={(theme) => ({
-          backgroundColor:
-            theme.colorScheme === "dark"
-              ? theme.colors.dark[4]
-              : theme.colors.gray[4],
-          borderRadius: theme.radius.sm,
-        })}
-      >
-        <Text fs="italic">
-          {transformNote(note.note_text)}
-        </Text>
-      </Box>
+      {note.note_text && (
+        <Box
+          mt={10}
+          p={10}
+          sx={(theme) => ({
+            backgroundColor:
+              theme.colorScheme === "dark"
+                ? theme.colors.dark[4]
+                : theme.colors.gray[4],
+            borderRadius: theme.radius.sm,
+          })}
+        >
+          <Text fs="italic">
+            {transformNote(note.note_text)}
+          </Text>
+        </Box>
+      )}
       {passageContainer && (
         <Box data-testid='passage-container'>
           <h1>{passageContainer?.book} {passageContainer?.chapter || ""}</h1>
