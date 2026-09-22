@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, waitFor } from '@testing-library/react';
+import { act } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { createTestAuthStore } from '../authStore';
 
 describe('authStore', () => {
   const mockToken = 'test-token-123';
   const mockUsername = 'testuser';
-  const mockPassword = 'testpass123';
 
   beforeEach(() => {
     localStorage.clear();

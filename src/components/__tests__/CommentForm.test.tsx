@@ -1,4 +1,4 @@
-import React from 'react';
+import '@testing-library/jest-dom';
 import {
   screen,
   fireEvent,
@@ -7,6 +7,13 @@ import {
 import { describe, it, expect, vi } from 'vitest';
 import CommentForm from '../CommentForm';
 import { renderWithProviders } from '../../__tests__/helpers';
+
+// ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
+vi.mock('../RichTextEditor', async () => ({
+  default: (
+    await import('../../__tests__/mocks/RichTextEditorStub')
+  ).default,
+}));
 
 describe('CommentForm', () => {
   it('renders textarea and submit button', () => {

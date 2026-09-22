@@ -13,7 +13,6 @@
  * - 2407a23: Feat: Force refresh tags on route navigation
  */
 
-import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';

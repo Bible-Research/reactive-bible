@@ -1,9 +1,17 @@
 import React, { ReactElement } from 'react';
-import { render, RenderOptions, waitFor, act } from '@testing-library/react';
+import { render, RenderOptions, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
-import { useBibleStore, initialState } from '../store';
-import { useAuthStore, AuthState, initialState as authInitialState } from '../stores/authStore';
+import {
+  useBibleStore,
+  initialState,
+  type BibleState,
+} from '../store';
+import {
+  useAuthStore,
+  AuthState,
+  initialState as authInitialState,
+} from '../stores/authStore';
 
 // Re-export mock data for convenience
 export * from './mocks/data';
@@ -20,7 +28,7 @@ export * from './helpers/performance';
  * Creates a mock store state with optional overrides.
  * Use this to set up specific test scenarios.
  */
-export function createMockStore(overrides: Partial<typeof initialState> = {}) {
+export function createMockStore(overrides: Partial<BibleState> = {}) {
   const mockFunctions = {
     setActiveBook: vi.fn(),
     setActiveBookOnly: vi.fn(),
@@ -46,7 +54,7 @@ export function createMockStore(overrides: Partial<typeof initialState> = {}) {
  * Resets the Zustand store to initial state with mock functions.
  * Call this in beforeEach() to ensure test isolation.
  */
-export function resetStore(overrides: Partial<typeof initialState> = {}) {
+export function resetStore(overrides: Partial<BibleState> = {}) {
   const mockStore = createMockStore(overrides);
   useBibleStore.setState(mockStore);
   return mockStore;
@@ -126,9 +134,13 @@ export function createMockLocalStorage() {
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   stores?: {
-    bible?: Partial<typeof initialState>;
+    bible?: Partial<BibleState>;
     auth?: Partial<AuthState>;
   };
+  /** Legacy alias for stores.bible. */
+  storeOverrides?: Partial<BibleState>;
+  /** Legacy alias for stores.auth. */
+  authStoreState?: Partial<AuthState>;
 }
 
 /**
@@ -140,20 +152,23 @@ export function renderWithProviders(
   ui: ReactElement,
   options: ExtendedRenderOptions = {}
 ) {
-  const { stores, ...renderOptions } = options;
+  const { stores, storeOverrides, authStoreState, ...renderOptions } =
+    options;
+
+  const bibleOverrides = stores?.bible ?? storeOverrides;
+  const authOverrides = stores?.auth ?? authStoreState;
 
   // Reset stores to their initial states plus any overrides
-  if (stores?.bible) {
-    useBibleStore.setState({ ...initialState, ...stores.bible });
-  } else {
-    useBibleStore.setState(initialState);
-  }
+  const bibleState = bibleOverrides
+    ? { ...initialState, ...bibleOverrides }
+    : initialState;
+  useBibleStore.setState(bibleState);
 
-  if (stores?.auth) {
-    useAuthStore.setState({ ...authInitialState, ...stores.auth });
-  } else {
-    useAuthStore.setState(authInitialState);
-  }
+  useAuthStore.setState(
+    authOverrides
+      ? { ...authInitialState, ...authOverrides }
+      : authInitialState
+  );
 
   // Mock DOM APIs
   mockDomApis();
@@ -162,7 +177,12 @@ export function renderWithProviders(
     <MemoryRouter>{children}</MemoryRouter>
   );
 
-  return render(ui, { wrapper: Wrapper, ...renderOptions });
+  return {
+    ...render(ui, { wrapper: Wrapper, ...renderOptions }),
+    // Full store state incl. real actions — tests both read
+    // values and call actions like mockStore.setActiveVerses.
+    mockStore: useBibleStore.getState(),
+  };
 }
 
 // --- Async Helpers ---

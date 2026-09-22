@@ -1,50 +1,8 @@
-import { Box, Navbar, ScrollArea, createStyles, rem } from "@mantine/core";
+import { Navbar } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
-import { getBooks, getChapters, getVerses } from "../api";
 import { useBibleStore } from "../store";
-
-const useStyles = createStyles((theme) => ({
-  border: {
-    borderRight: `${rem(1)} solid ${
-      theme.colorScheme === "dark" ? theme.colors.dark[5] : theme.colors.gray[3]
-    }`,
-  },
-
-  link: {
-    boxSizing: "border-box",
-    display: "block",
-    textDecoration: "none",
-    color:
-      theme.colorScheme === "dark"
-        ? theme.colors.dark[0]
-        : theme.colors.gray[7],
-    padding: `0 ${theme.spacing.xs}`,
-    fontSize: theme.fontSizes.sm,
-    marginRight: theme.spacing.xs,
-    marginLeft: theme.spacing.xs,
-    fontWeight: 500,
-    height: rem(30),
-    lineHeight: rem(30),
-
-    "&:hover": {
-      backgroundColor:
-        theme.colorScheme === "dark"
-          ? theme.colors.dark[5]
-          : theme.colors.gray[1],
-      color: theme.colorScheme === "dark" ? theme.white : theme.black,
-    },
-  },
-
-  linkActive: {
-    "&, &:hover": {
-      backgroundColor:
-        theme.colorScheme === "dark"
-          ? theme.colors.dark[5]
-          : theme.colors.gray[1],
-      color: theme.colorScheme === "dark" ? theme.white : theme.black,
-    },
-  },
-}));
+import { getAllBooks } from "../utils/scriptureMention";
+import PassagePicker from "./PassagePicker";
 
 const BibleSelector = ({
   opened,
@@ -53,12 +11,13 @@ const BibleSelector = ({
   opened: boolean;
   setOpened: (opened: boolean) => void;
 }) => {
-  const { classes, cx } = useStyles();
   const navigate = useNavigate();
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeVerses = useBibleStore((state) => state.activeVerses);
-  const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
+  const setActiveBookShort = useBibleStore(
+    (state) => state.setActiveBookShort
+  );
 
   return (
     <Navbar
@@ -71,80 +30,30 @@ const BibleSelector = ({
       }}
     >
       <Navbar.Section grow sx={{ overflow: "hidden" }}>
-        <Box
-          style={{
-            display: "flex",
-            height: "100%",
-            overflow: "hidden",
+        <PassagePicker
+          book={activeBook}
+          chapter={activeChapter}
+          verses={activeVerses}
+          titlePrefix="nav-"
+          onSelectBook={(bookName) => {
+            const entry = getAllBooks().find(
+              (b) => b.book_name === bookName
+            );
+            if (entry) setActiveBookShort(entry.book_id);
+            console.log(`🔗 Navigating to: /bible/${bookName}/1`);
+            navigate(`/bible/${bookName}/1`);
           }}
-        >
-          <Box style={{ flex: "0 0 185px", overflow: "hidden" }}>
-            <ScrollArea h="100%" className={classes.border}>
-              {getBooks().map((book) => (
-                <a
-                  className={cx(classes.link, {
-                    [classes.linkActive]: activeBook === book.book_name,
-                  })}
-                  href="/"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    console.log(`🔗 Navigating to: /bible/${book.book_name}/1`);
-                    setActiveBookShort(book.book_id);
-                    navigate(`/bible/${book.book_name}/1`);
-                  }}
-                  key={book.book_id}
-                  title={"nav-book-" + book.book_id}
-                >
-                  {book.book_name}
-                </a>
-              ))}
-            </ScrollArea>
-          </Box>
-          <Box style={{ flex: "1 0 60px", overflow: "hidden" }}>
-            <ScrollArea h="100%" className={classes.border}>
-              {getChapters(activeBook).map((chapter) => (
-                <a
-                  className={cx(classes.link, {
-                    [classes.linkActive]: activeChapter === chapter,
-                  })}
-                  href="/"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    console.log(`🔗 Navigating to: /bible/${activeBook}/${chapter}`);
-                    navigate(`/bible/${activeBook}/${chapter}`);
-                  }}
-                  key={chapter}
-                  title={"nav-chapter-" + chapter}
-                >
-                  {chapter}
-                </a>
-              ))}
-            </ScrollArea>
-          </Box>
-          <Box style={{ flex: "1 0 60px", overflow: "hidden" }}>
-            <ScrollArea h="100%">
-              {getVerses(activeBook, activeChapter).map((verse) => (
-                <a
-                  className={cx(classes.link, {
-                    [classes.linkActive]: activeVerses.includes(verse),
-                  })}
-                  href="/"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    navigate(
-                      `/bible/${activeBook}/${activeChapter}.${verse}`
-                    );
-                    setOpened(false);
-                  }}
-                  key={verse}
-                  title={"nav-verse-" + verse}
-                >
-                  {verse}
-                </a>
-              ))}
-            </ScrollArea>
-          </Box>
-        </Box>
+          onSelectChapter={(chapter) => {
+            console.log(
+              `🔗 Navigating to: /bible/${activeBook}/${chapter}`
+            );
+            navigate(`/bible/${activeBook}/${chapter}`);
+          }}
+          onSelectVerse={(verse) => {
+            navigate(`/bible/${activeBook}/${activeChapter}.${verse}`);
+            setOpened(false);
+          }}
+        />
       </Navbar.Section>
     </Navbar>
   );

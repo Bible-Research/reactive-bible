@@ -5,7 +5,7 @@ import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
 import ScripturePassage from './ScripturePassage';
-import { linkifyScripture } from '../utils/scriptureLinkify';
+import RichTextView from './RichTextView';
 import {
   parseScriptureRef,
   ScriptureRef,
@@ -132,12 +132,11 @@ const CommentNode = ({
               onCancel={() => setEditing(false)}
             />
           ) : (
-            <Text size="sm">
-              {linkifyScripture(
-                comment.content,
-                handleScriptureClick
-              )}
-            </Text>
+            <RichTextView
+              content={comment.content}
+              onScriptureRef={handleScriptureClick}
+              size="sm"
+            />
           )}
 
           {scriptureError && (

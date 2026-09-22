@@ -1,0 +1,8 @@
+{
+  // IDE/typecheck config: covers test files excluded from
+  // tsconfig.json so vitest globals and jest-dom matchers
+  // resolve. Build still uses tsconfig.json.
+  "extends": "./tsconfig.json",
+  "include": ["src"],
+  "exclude": []
+}

@@ -16,6 +16,7 @@ import { Note } from '../types';
 import NoteCard from '../components/NoteCard';
 import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
+import { toPlainText } from '../utils/tiptapContent';
 import { useBibleStore } from '../store';
 
 /**
@@ -76,7 +77,7 @@ export default function NoteDetailRoute() {
       ? `Note: ${note.tag.name}`
       : 'Shared note';
     const text = note?.note_text
-      ? note.note_text.slice(0, 140)
+      ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
     if (navigator.share) {

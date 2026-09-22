@@ -1,9 +1,15 @@
-import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import CommentNode from '../CommentNode';
 import { renderWithProviders } from '../../__tests__/helpers';
 import { Comment } from '../../api';
+
+// ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
+vi.mock('../RichTextEditor', async () => ({
+  default: (
+    await import('../../__tests__/mocks/RichTextEditorStub')
+  ).default,
+}));
 
 const makeComment = (overrides: Partial<Comment> = {}): Comment => ({
   id: 'c1',

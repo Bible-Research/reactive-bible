@@ -278,7 +278,7 @@ describe('Notes Cache Manager', () => {
     const tag: Tag = { id: 'TAG1', name: 'Tag 1', parent_tag: null, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' };
     
     const notes: Note[] = [
-      { id: 'note1', note_text: 'Test note', public: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [] },
+      { id: 'note1', note_text: 'Test note', public: false, is_owner: false, tag_position: null, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z', tag, verses: [] },
     ];
     
     const beforeCache = Date.now();

@@ -4,7 +4,6 @@ import {
   expect,
   beforeEach,
   afterEach,
-  vi,
 } from 'vitest';
 import {
   cacheCopyright,

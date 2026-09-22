@@ -1,8 +1,16 @@
+import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from 
   '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NoteForm from './NoteForm';
 import { Tag } from '../types';
+
+// ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
+vi.mock('./RichTextEditor', async () => ({
+  default: (
+    await import('../__tests__/mocks/RichTextEditorStub')
+  ).default,
+}));
 
 describe('NoteForm Component', () => {
   const mockTags: Tag[] = [

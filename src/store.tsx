@@ -3,7 +3,11 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { showNotification } from "@mantine/notifications";
 import * as api from './api';
 import { Note, Tag, PlaylistItem, AudioActiveVerse } from './types';
-import { getCachedNotes, cacheNotes, clearNotesCache } from './utils/cacheManager';
+import {
+  getCachedNotes,
+  cacheNotes,
+  clearNotesCache,
+} from './utils/cacheManager';
 
 export interface Fileset {
   id: string;
@@ -21,7 +25,7 @@ export interface Translation {
   filesets: Fileset[];
 }
 
-interface BibleState {
+export interface BibleState {
   activeBook: string;
   activeBookShort: string;
   activeChapter: number;
@@ -234,7 +238,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         // Use cached tags unless force refresh
         const currentTags = useBibleStore.getState().tags;
         if (!forceRefresh && currentTags.length > 0) {
-          console.log(`✅ Using cached tags (${currentTags.length} tags) - no API call`);
+          console.log(
+            `✅ Using cached tags ` +
+            `(${currentTags.length} tags) - no API call`
+          );
           return;
         }
 
@@ -257,7 +264,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       deleteNote: async (noteId: string) => {
         try {
           await api.deleteNote(noteId);
-          // Clear all notes cache since we don't know which tag this note belonged to
+          // Clear all notes cache since we don't know which
+          // tag this note belonged to
           clearNotesCache();
           set((state) => ({
             notes: state.notes.filter((n) => n.id !== noteId)

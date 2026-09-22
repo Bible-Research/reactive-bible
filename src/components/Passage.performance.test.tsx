@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
@@ -27,7 +26,6 @@ vi.mock('../api', () => ({
 }));
 
 describe('Passage Component Performance Tests', () => {
-  const mockOpen = vi.fn();
 
   beforeEach(() => {
     // Reset store to clean state
@@ -44,7 +42,7 @@ describe('Passage Component Performance Tests', () => {
       const renderFn = () => {
         render(
           <MantineProvider>
-            <Passage open={mockOpen} />
+            <Passage />
           </MantineProvider>
         );
       };
@@ -62,7 +60,7 @@ describe('Passage Component Performance Tests', () => {
     it('should handle view switching efficiently', () => {
       const { rerender } = render(
         <MantineProvider>
-          <Passage open={mockOpen} />
+          <Passage />
         </MantineProvider>
       );
 
@@ -75,7 +73,7 @@ describe('Passage Component Performance Tests', () => {
       for (let i = 0; i < 20; i++) {
         rerender(
           <MantineProvider>
-            <Passage open={mockOpen} />
+            <Passage />
           </MantineProvider>
         );
       }
@@ -95,7 +93,7 @@ describe('Passage Component Performance Tests', () => {
     it('should handle rapid store updates efficiently', () => {
       render(
         <MantineProvider>
-          <Passage open={mockOpen} />
+          <Passage />
         </MantineProvider>
       );
 
@@ -123,7 +121,7 @@ describe('Passage Component Performance Tests', () => {
     it('should handle handleViewInBible efficiently', () => {
       render(
         <MantineProvider>
-          <Passage open={mockOpen} />
+          <Passage />
         </MantineProvider>
       );
 
@@ -161,7 +159,7 @@ describe('Passage Component Performance Tests', () => {
       for (let i = 0; i < iterations; i++) {
         const { container, unmount } = render(
           <MantineProvider>
-            <Passage open={mockOpen} />
+            <Passage />
           </MantineProvider>
         );
         containers.push(container);

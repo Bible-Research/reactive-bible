@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, waitFor, act } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';

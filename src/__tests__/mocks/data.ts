@@ -29,9 +29,12 @@ export const mockTags: Tag[] = [
 // --- Verses ---
 export const mockVerses: Verse[] = [
   { book: 'Genesis', chapter: 1, verse: 1, text: 'In the beginning...' },
-  { book: 'Genesis', chapter: 1, verse: 2, text: 'The earth was without form...' },
-  { book: 'Genesis', chapter: 1, verse: 3, text: 'And God said, Let there be light...' },
-  { book: 'John', chapter: 3, verse: 16, text: 'For God so loved the world...' },
+  { book: 'Genesis', chapter: 1, verse: 2,
+    text: 'The earth was without form...' },
+  { book: 'Genesis', chapter: 1, verse: 3,
+    text: 'And God said, Let there be light...' },
+  { book: 'John', chapter: 3, verse: 16,
+    text: 'For God so loved the world...' },
   { book: 'John', chapter: 11, verse: 35, text: 'Jesus wept.' },
 ];
 
@@ -42,6 +45,8 @@ export const mockNotes: Note[] = [
     note_text: 'This is a test note about faith.',
     tag: mockTags[0],
     public: false,
+    is_owner: true,
+    tag_position: null,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     verses: [mockVerses[0]],
@@ -51,6 +56,8 @@ export const mockNotes: Note[] = [
     note_text: 'This is a multi-verse note.',
     tag: mockTags[0],
     public: false,
+    is_owner: true,
+    tag_position: null,
     created_at: '2024-01-02T00:00:00Z',
     updated_at: '2024-01-02T00:00:00Z',
     verses: [mockVerses[0], mockVerses[1]],
@@ -60,6 +67,8 @@ export const mockNotes: Note[] = [
     note_text: 'A note about hope.',
     tag: mockTags[1],
     public: true,
+    is_owner: true,
+    tag_position: null,
     created_at: '2024-01-03T00:00:00Z',
     updated_at: '2024-01-03T00:00:00Z',
     verses: [mockVerses[3]],
@@ -88,7 +97,8 @@ export const mockTranslations: Translation[] = [
     language: 'English',
     language_iso: 'eng',
     filesets: [
-      { id: 'ENGESV', type: 'text_plain', size: 'C', codec: null, bitrate: null },
+      { id: 'ENGESV', type: 'text_plain', size: 'C',
+        codec: null, bitrate: null },
     ],
   },
   {
@@ -97,7 +107,8 @@ export const mockTranslations: Translation[] = [
     language: 'English',
     language_iso: 'eng',
     filesets: [
-      { id: 'ENGNIV', type: 'text_plain', size: 'C', codec: null, bitrate: null },
+      { id: 'ENGNIV', type: 'text_plain', size: 'C',
+        codec: null, bitrate: null },
     ],
   },
 ];

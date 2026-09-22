@@ -1,6 +1,7 @@
-import { Button, Select, Textarea } from "@mantine/core";
+import { Button, Select } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { Tag } from "../types";
+import RichTextEditor from "./RichTextEditor";
 
 interface NoteFormProps {
   tags: Tag[];
@@ -10,7 +11,13 @@ interface NoteFormProps {
   onTagDropdownOpen: () => void;
 }
 
-const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteFormProps) => {
+const NoteForm = ({
+  tags,
+  note,
+  onSubmit,
+  submitText,
+  onTagDropdownOpen,
+}: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
 
@@ -26,7 +33,8 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
     onSubmit(selectedTagId, noteText);
   };
 
-  const selectedTagName = tags.find((tag) => tag.id === selectedTagId)?.name || "";
+  const selectedTagName =
+    tags.find((tag) => tag.id === selectedTagId)?.name || "";
 
   return (
     <form onSubmit={handleSubmit}>
@@ -43,12 +51,11 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
         searchable
         maxDropdownHeight={window.innerHeight * 0.7}
       />
-      <Textarea
-        variant="transparent"
+      <RichTextEditor
+        variant="note"
         label="Note"
         value={noteText}
-        onChange={(event) => setNoteText(event.currentTarget.value)}
-        styles={{ input: { minHeight: "70vh", resize: "none" } }}
+        onChange={setNoteText}
       />
       <Button variant="transparent" type="submit">
         {submitText}

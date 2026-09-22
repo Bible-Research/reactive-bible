@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Group, Textarea, Button } from '@mantine/core';
+import { Group, Text, Button } from '@mantine/core';
+import RichTextEditor from './RichTextEditor';
+import { toPlainText } from '../utils/tiptapContent';
 
 interface CommentFormProps {
   initialValue?: string;
@@ -27,7 +29,8 @@ const CommentForm = ({
   const isDisabled = submitting || localSubmitting;
 
   const handleSubmit = async () => {
-    if (!value.trim()) {
+    // Doc-JSON is never '' even when the editor is blank.
+    if (!toPlainText(value).trim()) {
       setError('Comment cannot be empty.');
       return;
     }
@@ -43,18 +46,20 @@ const CommentForm = ({
 
   return (
     <div>
-      <Textarea
+      <RichTextEditor
+        variant="comment"
         value={value}
-        onChange={(e) => setValue(e.currentTarget.value)}
+        onChange={setValue}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        minRows={2}
-        aria-label={placeholder}
-        error={error}
         disabled={isDisabled}
-        mb={6}
       />
-      <Group spacing="xs">
+      {error && (
+        <Text color="red" size="xs" mt={4}>
+          {error}
+        </Text>
+      )}
+      <Group spacing="xs" mt={6}>
         <Button
           size="xs"
           onClick={handleSubmit}

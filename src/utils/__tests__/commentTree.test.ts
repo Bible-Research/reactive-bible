@@ -35,7 +35,7 @@ describe('insertReply', () => {
     const newC = makeComment('2', { parent_comment: '1' });
     const result = insertReply(tree, '1', newC);
     expect(result[0].replies).toHaveLength(1);
-    expect(result[0].replies[0].id).toBe('2');
+    expect(result[0].replies?.[0].id).toBe('2');
   });
 
   it('inserts deep into nested tree', () => {
@@ -43,8 +43,8 @@ describe('insertReply', () => {
     const tree = [makeComment('1', { replies: [child] })];
     const grandchild = makeComment('3', { parent_comment: '2' });
     const result = insertReply(tree, '2', grandchild);
-    expect(result[0].replies[0].replies).toHaveLength(1);
-    expect(result[0].replies[0].replies[0].id).toBe('3');
+    expect(result[0].replies?.[0].replies).toHaveLength(1);
+    expect(result[0].replies?.[0].replies?.[0].id).toBe('3');
   });
 
   it('does not mutate the original tree', () => {
@@ -71,7 +71,7 @@ describe('updateNode', () => {
       ...n,
       content: 'updated',
     }));
-    expect(result[0].replies[0].content).toBe('updated');
+    expect(result[0].replies?.[0].content).toBe('updated');
   });
 
   it('does not mutate the original tree', () => {

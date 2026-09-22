@@ -1,7 +1,13 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  type Mock,
+} from 'vitest';
 import TranslationSelector from './TranslationSelector';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -26,7 +32,7 @@ describe('TranslationSelector Component', () => {
       setActiveAudioFilesetId: vi.fn(),
     });
 
-    (api.getAvailableTranslations as vi.Mock).mockResolvedValue([
+    (api.getAvailableTranslations as Mock).mockResolvedValue([
       {
         abbr: 'KJV',
         name: 'King James Version',

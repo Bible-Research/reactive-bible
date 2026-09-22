@@ -1,4 +1,3 @@
-import React from 'react';
 import { screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import TagSection from './TagSection';

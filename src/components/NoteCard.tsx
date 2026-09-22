@@ -26,7 +26,8 @@ import Verse from "./Verse";
 import CommentThread from "./CommentThread";
 import SectionHeadingComponent from "./SectionHeading";
 import ScripturePassage from "./ScripturePassage";
-import { linkifyScripture } from "../utils/scriptureLinkify";
+import RichTextView from "./RichTextView";
+import { toPlainText } from "../utils/tiptapContent";
 import {
   parseScriptureRef,
   ScriptureRef,
@@ -103,7 +104,7 @@ const NoteCard = ({
       ? `Note: ${note.tag.name}`
       : 'Shared note';
     const text = note.note_text
-      ? note.note_text.slice(0, 140)
+      ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
     if (navigator.share) {
@@ -464,9 +465,12 @@ const NoteCard = ({
             borderRadius: theme.radius.sm,
           })}
         >
-          <Text fs="italic">
-            {linkifyScripture(note.note_text, onGrabBiblePassage)}
-          </Text>
+          <Box sx={{ fontStyle: "italic" }}>
+            <RichTextView
+              content={note.note_text}
+              onScriptureRef={onGrabBiblePassage}
+            />
+          </Box>
         </Box>
       )}
       {passageContainer && (

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   screen,
   waitFor,
@@ -17,6 +16,13 @@ vi.mock('@mantine/modals', () => ({
     ({ onConfirm }: { onConfirm?: () => void }) =>
       onConfirm?.()
   ),
+}));
+
+// ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
+vi.mock('../RichTextEditor', async () => ({
+  default: (
+    await import('../../__tests__/mocks/RichTextEditorStub')
+  ).default,
 }));
 import { http, HttpResponse } from 'msw';
 import CommentThread from '../CommentThread';
