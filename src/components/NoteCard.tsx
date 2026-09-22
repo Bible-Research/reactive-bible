@@ -1,16 +1,36 @@
 import type { MouseEvent } from "react";
-import { useEffect, useState } from "react";
-import { ActionIcon, Anchor, Box, Button, Card, Group, Text, Title, Tooltip } from "@mantine/core";
+import { useState } from "react";
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Card,
+  Group,
+  Text,
+  Title,
+  Tooltip,
+} from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
-import { IconMessageCircle, IconPlayerPlay, IconBook, IconShare, IconEdit, IconTrash } from "@tabler/icons-react";
-import { Note, SectionHeading } from "../types";
+import {
+  IconMessageCircle,
+  IconPlayerPlay,
+  IconBook,
+  IconShare,
+  IconEdit,
+  IconTrash,
+} from "@tabler/icons-react";
+import { Note } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
 import Verse from "./Verse";
 import CommentThread from "./CommentThread";
 import SectionHeadingComponent from "./SectionHeading";
-import { getVersesInChapter } from "../api.tsx";
-import { findVersesInBetween } from "../utils/findVersesInBetween.ts";
+import ScripturePassage from "./ScripturePassage";
+import { linkifyScripture } from "../utils/scriptureLinkify";
+import {
+  parseScriptureRef,
+  ScriptureRef,
+} from "../utils/scriptureRef";
 
 interface NoteCardProps {
   note: Note;
@@ -26,16 +46,6 @@ interface NoteCardProps {
   };
 }
 
-type PassageState = {
-  verse: number;
-  text: string;
-  book?: string;
-  chapter?: number;
-  verses?: number[];
-}
-
-type PassageContainerState = Pick<PassageState, 'book' | 'verses' | 'chapter'>;
-
 const NoteCard = ({
   note,
   onViewInBible,
@@ -48,121 +58,27 @@ const NoteCard = ({
 }: NoteCardProps) => {
   const [threadOpen, setThreadOpen] = useState(false);
   const [passageContainer, setPassageContainer] =
-    useState<PassageContainerState | null>(null);
-  const [passages, setPassages] = useState<PassageState[]>([]);
-  const [passageHeadings, setPassageHeadings] =
-    useState<SectionHeading[]>([]);
+    useState<ScriptureRef | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Use headings from the note (provided by backend)
   const noteHeadings = note.headings || [];
 
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
-  
-  // Use ENGESV_API for note verses display
-  const noteFilesetId = "ENGESV_API";
 
   const onGrabBiblePassage = (hashtag: string): void => {
-    const ref = hashtag.startsWith('@') ? hashtag.slice(1) : hashtag;
-    const match = ref.match(/^([a-zA-Z0-9\s+]+)\.(\d+):(\d+)(?:-(\d+))?$/)
+    const result = parseScriptureRef(hashtag);
 
-    if(!match) {
-      setError('Invalid scripture format');
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
 
-    const colonIndex = ref.indexOf(':');
-    const dotIndex = ref.indexOf('.');
-
-    if (dotIndex === -1 || colonIndex === -1 || colonIndex < dotIndex) {
-      setError('Invalid Bible reference format');
-      return;
-    }
-
-    const book = ref.slice(0, dotIndex).replaceAll('+', ' ');
-    const chapter = Number(ref.slice(dotIndex + 1, colonIndex));
-    let verses: number[] = [];
-
-    if(!book || isNaN(chapter)) {
-      setError('Invalid Bible reference');
-      return;
-    }
-
-    const rawVerseRange = ref.slice(colonIndex + 1);
-    const singleVerse = Number(rawVerseRange);
-
-    if (rawVerseRange) {
-      if (rawVerseRange.includes('-')) {
-        const [startStr, endStr] = rawVerseRange.split('-');
-
-        verses = findVersesInBetween(startStr, endStr);
-      } else verses.push(+singleVerse);
-    }
-
-    setPassageContainer({
-      book,
-      chapter,
-      verses
-    });
+    setError(null);
+    setPassageContainer(result.ref);
   };
-
-  const transformNote = (note_text: string) => {
-    const parts = note_text.split(/(@[a-zA-Z0-9_+.:+-]+)/g);
-    const newParts = []
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (part.startsWith("@"))
-        newParts.push(
-          <Anchor onClick={() => onGrabBiblePassage(part)}>
-            {part}
-          </Anchor>
-        );
-      else newParts.push(part);
-    }
-
-    return newParts;
-   }
-
-  useEffect(() => {
-    if (!passageContainer) return;
-    const { book, chapter, verses } = passageContainer;
-
-    if (!book || !chapter || !verses?.length) return;
-
-    let cancelled = false;
-
-    const getPassage = async () => {
-      try {
-        const res = await getVersesInChapter(book, chapter, noteFilesetId);
-        
-        if (cancelled) return;
-
-        const verseFound = res?.verses?.filter(res =>
-          verses.includes(res.verse)
-        );
-
-        setPassages(verseFound);
-        
-        // Filter headings to only those that appear before verses in our range
-        const relevantHeadings = res?.headings?.filter(heading =>
-          verses.includes(heading.before_verse)
-        ) || [];
-        setPassageHeadings(relevantHeadings);
-      } catch (err) {
-        console.error("Failed to load passage", err);
-        setError('Failed to load passage')
-      }
-    };
-
-    void getPassage();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [passageContainer, noteFilesetId]);
 
   const versesFolded = useBibleStore((state) => state.versesFolded);
 
@@ -232,7 +148,13 @@ const NoteCard = ({
           overflow: 'hidden',
         }) : undefined}
       >
-        <Group position="apart" mb={0} sx={!versesFolded ? { flex: 1, minWidth: 0 } : undefined}>
+        <Group
+          position="apart"
+          mb={0}
+          sx={!versesFolded
+            ? { flex: 1, minWidth: 0 }
+            : undefined}
+        >
           <Title 
             order={4} 
             className="note-card-heading"
@@ -366,7 +288,14 @@ const NoteCard = ({
           )}
         </Group>
         {!versesFolded && (
-          <Group spacing="xs" sx={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
+          <Group
+            spacing="xs"
+            sx={{
+              flexShrink: 0,
+              position: 'relative',
+              zIndex: 1,
+            }}
+          >
             <Tooltip label="View in Bible" position="top">
               <Box component="span" sx={{ display: 'inline-block' }}>
                 <ActionIcon
@@ -485,7 +414,9 @@ const NoteCard = ({
         {versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
-              const heading = noteHeadings.find(h => h.before_verse === v.verse);
+              const heading = noteHeadings.find(
+                h => h.before_verse === v.verse
+              );
               return (
                 <Box key={v.verse}>
                   {heading && (
@@ -502,7 +433,9 @@ const NoteCard = ({
             })
           : note?.verses?.map(v => {
               // Check if there's a heading before this verse
-              const heading = noteHeadings.find(h => h.before_verse === v.verse);
+              const heading = noteHeadings.find(
+                h => h.before_verse === v.verse
+              );
               return (
                 <Box key={v.verse}>
                   {heading && (
@@ -532,28 +465,12 @@ const NoteCard = ({
           })}
         >
           <Text fs="italic">
-            {transformNote(note.note_text)}
+            {linkifyScripture(note.note_text, onGrabBiblePassage)}
           </Text>
         </Box>
       )}
       {passageContainer && (
-        <Box data-testid='passage-container'>
-          <h1>{passageContainer?.book} {passageContainer?.chapter || ""}</h1>
-          <>
-            {passages?.map((passage: PassageState, i: number) => {
-              // Check if there's a heading before this verse
-              const heading = passageHeadings.find(h => h.before_verse === passage.verse);
-              return (
-                <Box key={i}>
-                  {heading && (
-                    <SectionHeadingComponent text={heading.text} />
-                  )}
-                  <Text>{passage.verse}{". "}{passage.text}</Text>
-                </Box>
-              );
-            })}
-          </>
-        </Box>
+        <ScripturePassage reference={passageContainer} />
       )}
 
       {threadOpen && (

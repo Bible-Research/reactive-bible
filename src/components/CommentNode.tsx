@@ -4,6 +4,12 @@ import { openConfirmModal } from '@mantine/modals';
 import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
+import ScripturePassage from './ScripturePassage';
+import { linkifyScripture } from '../utils/scriptureLinkify';
+import {
+  parseScriptureRef,
+  ScriptureRef,
+} from '../utils/scriptureRef';
 
 interface CommentNodeProps {
   comment: Comment;
@@ -31,6 +37,10 @@ const CommentNode = ({
 }: CommentNodeProps) => {
   const [replyOpen, setReplyOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [scripture, setScripture] =
+    useState<ScriptureRef | null>(null);
+  const [scriptureError, setScriptureError] =
+    useState<string | null>(null);
 
   const isAuthor =
     !!currentUsername &&
@@ -59,6 +69,18 @@ const CommentNode = ({
   const handleReplySubmit = async (content: string) => {
     await onReply(comment.id, content);
     setReplyOpen(false);
+  };
+
+  const handleScriptureClick = (hashtag: string): void => {
+    const result = parseScriptureRef(hashtag);
+
+    if (!result.ok) {
+      setScriptureError(result.error);
+      return;
+    }
+
+    setScriptureError(null);
+    setScripture(result.ref);
   };
 
   const handleEditSubmit = async (content: string) => {
@@ -110,7 +132,21 @@ const CommentNode = ({
               onCancel={() => setEditing(false)}
             />
           ) : (
-            <Text size="sm">{comment.content}</Text>
+            <Text size="sm">
+              {linkifyScripture(
+                comment.content,
+                handleScriptureClick
+              )}
+            </Text>
+          )}
+
+          {scriptureError && (
+            <Text size="sm" color="red">
+              {scriptureError}
+            </Text>
+          )}
+          {scripture && (
+            <ScripturePassage reference={scripture} />
           )}
 
           {!editing && (
