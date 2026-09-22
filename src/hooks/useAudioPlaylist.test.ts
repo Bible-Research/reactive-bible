@@ -73,7 +73,7 @@ let mockHowlStop = vi.fn();
 let mockHowlOn = vi.fn();
 
 vi.mock('howler', () => ({
-  Howl: vi.fn().mockImplementation((opts: Record<string, unknown>) => {
+  Howl: vi.fn().mockImplementation(function (opts: Record<string, unknown>) {
     mockHowlOnLoad = opts.onload as () => void;
     mockHowlOnEnd = opts.onend as () => void;
     mockHowlOnLoadError = opts.onloaderror as (
@@ -253,22 +253,25 @@ describe('useAudioPlaylist', () => {
     },
   );
 
-  it('works with arbitrary PlaylistItem shapes (source-agnostic)', async () => {
-    const { result } = renderHook(() => useAudioPlaylist());
-    const items: PlaylistItem[] = [
-      {
-        itemId: 'result-0',
-        book: 'Romans',
-        chapter: 8,
-        startVerse: 1,
-        endVerse: 1,
-        label: 'Result 1/5 – Romans 8:1',
-      },
-    ];
-    act(() => { result.current.start(items); });
-    await waitFor(() =>
-      expect(result.current.currentIndex).toBe(0)
-    );
-    expect(result.current.currentItem?.itemId).toBe('result-0');
-  });
+  it(
+    'works with arbitrary PlaylistItem shapes (source-agnostic)',
+    async () => {
+      const { result } = renderHook(() => useAudioPlaylist());
+      const items: PlaylistItem[] = [
+        {
+          itemId: 'result-0',
+          book: 'Romans',
+          chapter: 8,
+          startVerse: 1,
+          endVerse: 1,
+          label: 'Result 1/5 – Romans 8:1',
+        },
+      ];
+      act(() => { result.current.start(items); });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(0)
+      );
+      expect(result.current.currentItem?.itemId).toBe('result-0');
+    },
+  );
 });

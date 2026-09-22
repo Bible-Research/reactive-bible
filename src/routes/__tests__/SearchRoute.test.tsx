@@ -81,11 +81,13 @@ function setupDomMocks() {
       dispatchEvent: vi.fn(),
     })),
   });
-  global.ResizeObserver = vi.fn().mockImplementation(() => ({
-    observe: vi.fn(),
-    unobserve: vi.fn(),
-    disconnect: vi.fn(),
-  }));
+  global.ResizeObserver = vi.fn().mockImplementation(function () {
+    return {
+      observe: vi.fn(),
+      unobserve: vi.fn(),
+      disconnect: vi.fn(),
+    };
+  });
 }
 
 describe('SearchRoute', () => {
@@ -151,19 +153,22 @@ describe('SearchRoute', () => {
     expect(johnIdx).toBeLessThan(romIdx);
   });
 
-  it('populates audioPlaylistItems with all results in canonical order', async () => {
-    mockSearchBible.mockResolvedValue({
-      verses: MOCK_VERSES,
-      meta: {},
-    });
-    renderSearch();
-    await waitFor(() => {
-      const items = useBibleStore.getState().audioPlaylistItems;
-      expect(items?.length).toBe(3);
-      expect(items?.[0].book).toBe('Romans');
-      expect(items?.[1].book).toBe('John');
-    });
-  });
+  it(
+    'populates audioPlaylistItems with all results in canonical order',
+    async () => {
+      mockSearchBible.mockResolvedValue({
+        verses: MOCK_VERSES,
+        meta: {},
+      });
+      renderSearch();
+      await waitFor(() => {
+        const items = useBibleStore.getState().audioPlaylistItems;
+        expect(items?.length).toBe(3);
+        expect(items?.[0].book).toBe('Romans');
+        expect(items?.[1].book).toBe('John');
+      });
+    },
+  );
 
   it('shows "Show N more" button when book has > 5 results', async () => {
     const manyVerses = Array.from({ length: 7 }, (_, i) => ({
@@ -216,7 +221,9 @@ describe('SearchRoute', () => {
     });
     renderSearch();
     await waitFor(() =>
-      expect(screen.getByText('For God so loved the world')).toBeInTheDocument(),
+      expect(
+        screen.getByText('For God so loved the world'),
+      ).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByText('For God so loved the world'));
     await waitFor(() =>
