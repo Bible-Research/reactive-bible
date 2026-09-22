@@ -139,6 +139,7 @@ describe('Tag Refresh Behavior', () => {
       results: mockNotes,
     });
     mockApi.getTag.mockResolvedValue(mockTags[0]);
+    mockApi.fetchCommentCounts.mockResolvedValue({});
   });
 
   afterEach(() => {
