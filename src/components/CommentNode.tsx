@@ -7,6 +7,7 @@ import CommentActions from './CommentActions';
 import ScripturePassage from './ScripturePassage';
 import RichTextView from './RichTextView';
 import {
+  isSameScriptureRef,
   parseScriptureRef,
   ScriptureRef,
 } from '../utils/scriptureRef';
@@ -80,7 +81,9 @@ const CommentNode = ({
     }
 
     setScriptureError(null);
-    setScripture(result.ref);
+    setScripture((current) =>
+      isSameScriptureRef(current, result.ref) ? null : result.ref
+    );
   };
 
   const handleEditSubmit = async (content: string) => {

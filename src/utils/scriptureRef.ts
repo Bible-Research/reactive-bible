@@ -11,6 +11,17 @@ export type ParsedScriptureRef =
   | { ok: true; ref: ScriptureRef }
   | { ok: false; error: string };
 
+export const isSameScriptureRef = (
+  a: ScriptureRef | null,
+  b: ScriptureRef | null
+): boolean =>
+  !!a &&
+  !!b &&
+  a.book === b.book &&
+  a.chapter === b.chapter &&
+  a.verses.length === b.verses.length &&
+  a.verses.every((v, i) => v === b.verses[i]);
+
 // Accepts Book.Chap:Verse or Book.Chap.Verse, optional -EndVerse
 const REF_REGEX = /^([a-zA-Z0-9+]+)\.(\d+)[.:](\d+)(?:-(\d+))?$/;
 

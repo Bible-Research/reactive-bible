@@ -29,6 +29,7 @@ import ScripturePassage from "./ScripturePassage";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
 import {
+  isSameScriptureRef,
   parseScriptureRef,
   ScriptureRef,
 } from "../utils/scriptureRef";
@@ -78,7 +79,9 @@ const NoteCard = ({
     }
 
     setError(null);
-    setPassageContainer(result.ref);
+    setPassageContainer((current) =>
+      isSameScriptureRef(current, result.ref) ? null : result.ref
+    );
   };
 
   const versesFolded = useBibleStore((state) => state.versesFolded);
