@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import { decodeVerses } from '../utils/bibleUtils';
+import { sameRefSet } from '../utils/verseRefs';
+import type { VerseRef } from '../types';
 import Passage from '../components/Passage';
 
 export default function BibleRoute() {
@@ -23,7 +25,7 @@ export default function BibleRoute() {
     activeBook,
     activeChapter,
     setActiveBookAndChapter,
-    setActiveVerses,
+    setVerseSelection,
     setShowNotes,
     setVersesFolded,
     getTags,
@@ -56,28 +58,33 @@ export default function BibleRoute() {
   }, [book, chapter, activeBook, activeChapter]);
 
   // Sync verse URL param to store. Guarded so that navigating from
-  // Verse.tsx (which already called setActiveVerses) does not re-set
+  // Verse.tsx (which already updated verseSelection) does not re-set
   // the store when the URL already matches current selection.
   useEffect(() => {
-    if (verse) {
+    const chapterNum = chapter ? parseInt(chapter, 10) : NaN;
+    if (verse && book && !isNaN(chapterNum)) {
       const decoded = decodeVerses(verse);
       if (decoded.length > 0) {
-        const current = useBibleStore.getState().activeVerses;
-        const sd = [...decoded].sort((a, b) => a - b);
-        const sc = [...current].sort((a, b) => a - b);
-        const matches = sd.length === sc.length &&
-          sd.every((v, i) => v === sc[i]);
+        const refs: VerseRef[] = decoded.map((v) => ({
+          book,
+          chapter: chapterNum,
+          verse: v,
+        }));
+        const current = useBibleStore.getState().verseSelection;
+        const matches =
+          current?.scope === 'bible' &&
+          sameRefSet(current.refs, refs);
         if (!matches) {
-          setActiveVerses(decoded);
+          setVerseSelection({ scope: 'bible', refs });
         }
-      }
-    } else {
-      if (useBibleStore.getState().activeVerses.length > 0) {
-        setActiveVerses([]);
+        return;
       }
     }
+    if (useBibleStore.getState().verseSelection !== null) {
+      setVerseSelection(null);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verse]);
+  }, [verse, book, chapter]);
 
   return <Passage />;
 }

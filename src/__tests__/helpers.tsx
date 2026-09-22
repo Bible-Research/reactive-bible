@@ -34,7 +34,9 @@ export function createMockStore(overrides: Partial<BibleState> = {}) {
     setActiveBookOnly: vi.fn(),
     setActiveBookShort: vi.fn(),
     setActiveChapter: vi.fn(),
-    setActiveVerses: vi.fn(),
+    setVerseSelection: vi.fn(),
+    toggleVerseRef: vi.fn(),
+    selectVerseRange: vi.fn(),
     setBibleVersion: vi.fn(),
     setShowAudioPlayer: vi.fn(),
     setTranslations: vi.fn(),
@@ -180,7 +182,7 @@ export function renderWithProviders(
   return {
     ...render(ui, { wrapper: Wrapper, ...renderOptions }),
     // Full store state incl. real actions — tests both read
-    // values and call actions like mockStore.setActiveVerses.
+    // values and call actions like mockStore.setVerseSelection.
     mockStore: useBibleStore.getState(),
   };
 }

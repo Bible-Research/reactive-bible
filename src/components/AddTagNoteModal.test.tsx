@@ -35,12 +35,20 @@ describe('AddTagNoteModal Component', () => {
     ]);
   });
 
+  const genesisSelection = {
+    scope: 'bible',
+    refs: [
+      { book: 'Genesis', chapter: 1, verse: 1 },
+      { book: 'Genesis', chapter: 1, verse: 2 },
+    ],
+  };
+
   it('should not render when closed', () => {
     renderWithProviders(
       <AddTagNoteModal opened={false} onClose={vi.fn()} />,
       {
         storeOverrides: {
-          activeVerses: [1, 2],
+          verseSelection: genesisSelection,
           activeBook: 'Genesis',
           activeChapter: 1,
         },
@@ -54,7 +62,7 @@ describe('AddTagNoteModal Component', () => {
       <AddTagNoteModal opened={true} onClose={vi.fn()} />,
       {
         storeOverrides: {
-          activeVerses: [1, 2],
+          verseSelection: genesisSelection,
           activeBook: 'Genesis',
           activeChapter: 1,
         },
@@ -71,7 +79,7 @@ describe('AddTagNoteModal Component', () => {
       <AddTagNoteModal opened={true} onClose={vi.fn()} />,
       {
         storeOverrides: {
-          activeVerses: [1, 2],
+          verseSelection: genesisSelection,
           activeBook: 'Genesis',
           activeChapter: 1,
         },

@@ -73,8 +73,24 @@ export interface PlaylistItem {
   verseNumbers?: number[];
 }
 
+/** A fully-qualified verse coordinate. */
+export interface VerseRef {
+  book: string;
+  chapter: number;
+  verse: number;
+}
+
+/** 'bible' = PassageView chapter; a note id = inside that NoteCard. */
+export type VerseScope = string;
+
+export interface VerseSelection {
+  scope: VerseScope;
+  refs: VerseRef[];
+}
+
 export interface AudioActiveVerse {
   book: string;
   chapter: number;
   verse: number;
+  scope?: VerseScope; // 'bible' | PlaylistItem.itemId
 }

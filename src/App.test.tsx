@@ -19,7 +19,7 @@ beforeEach(() => {
     activeBook: "John",
     activeBookShort: "Joh",
     activeChapter: 1,
-    activeVerses: [],
+    verseSelection: null,
     bibleVersion: "KJV",
     activeTextFilesetId: "ENGKJV",
     activeAudioFilesetId: null,
@@ -55,7 +55,7 @@ describe("check for bible verse", () => {
     await waitFor(
       () => {
         expect(
-          screen.getByTitle("passage-verse-18")
+          screen.getByTitle("passage-verse-2-18")
         ).toHaveTextContent(
           "And when they came to Reuel their father, " +
           "he said, How is it that ye are come so soon to day?"
@@ -75,7 +75,7 @@ describe("check for bible verse", () => {
     await waitFor(
       () => {
         expect(
-          screen.getByTitle("passage-verse-35")
+          screen.getByTitle("passage-verse-11-35")
         ).toHaveTextContent("Jesus wept.");
       },
       { timeout: 5000 }

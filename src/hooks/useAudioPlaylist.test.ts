@@ -125,6 +125,7 @@ vi.mock('../store', () => ({
 }));
 
 import { useAudioPlaylist } from './useAudioPlaylist';
+import { useVerseHighlighter } from './useVerseHighlighter';
 import * as api from '../api';
 
 const makeItem = (
@@ -253,7 +254,27 @@ describe('useAudioPlaylist', () => {
     },
   );
 
-  it('works with arbitrary PlaylistItem shapes (source-agnostic)', async () => {
+  it('passes the current itemId as the verse-highlight scope',
+    async () => {
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([makeItem({ itemId: 'note-42' })]);
+      });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(0)
+      );
+      expect(useVerseHighlighter).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        'John',
+        3,
+        'note-42',
+      );
+    },
+  );
+
+  it('works with arbitrary PlaylistItem shapes', async () => {
     const { result } = renderHook(() => useAudioPlaylist());
     const items: PlaylistItem[] = [
       {

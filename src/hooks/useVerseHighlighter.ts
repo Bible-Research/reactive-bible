@@ -1,14 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
-import { VerseTimestamp } from '../types';
+import { VerseTimestamp, VerseScope } from '../types';
 
 /**
  * Polls audio playback position and sets the
  * audio-active verse based on timestamps.
  *
- * Designed to work for both chapter-play and
- * future note-play modes.
+ * `scope` ties the highlight to a rendering context: 'bible' for
+ * chapter playback, or a PlaylistItem.itemId (e.g. note id) so only
+ * the playing card's verses light up.
  */
 export const useVerseHighlighter = (
   audio: Howl | null,
@@ -16,6 +17,7 @@ export const useVerseHighlighter = (
   timestamps: VerseTimestamp[],
   book: string,
   chapter: number,
+  scope: VerseScope,
 ) => {
   const setAudioActiveVerse = useBibleStore(
     (s) => s.setAudioActiveVerse
@@ -50,6 +52,7 @@ export const useVerseHighlighter = (
         book,
         chapter,
         verse: activeVerseNum,
+        scope,
       });
     }, 100);
 
@@ -58,7 +61,15 @@ export const useVerseHighlighter = (
         clearInterval(intervalRef.current);
       }
     };
-  }, [audio, isPlaying, timestamps, book, chapter, setAudioActiveVerse]);
+  }, [
+    audio,
+    isPlaying,
+    timestamps,
+    book,
+    chapter,
+    scope,
+    setAudioActiveVerse,
+  ]);
 
   // Clear on unmount
   useEffect(() => {

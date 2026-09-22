@@ -31,7 +31,7 @@ describe('BibleRoute', () => {
       activeBook: 'John',
       activeBookShort: 'Joh',
       activeChapter: 1,
-      activeVerses: [],
+      verseSelection: null,
     });
   });
 
@@ -117,7 +117,7 @@ describe('BibleRoute', () => {
     });
   });
 
-  it('syncs verse URL param to activeVerses on mount', async () => {
+  it('syncs verse URL param to verseSelection on mount', async () => {
     render(
       <MemoryRouter initialEntries={['/bible/John/3.16']}>
         <Routes>
@@ -133,12 +133,20 @@ describe('BibleRoute', () => {
       const state = useBibleStore.getState();
       expect(state.activeBook).toBe('John');
       expect(state.activeChapter).toBe(3);
-      expect(state.activeVerses).toEqual([16]);
+      expect(state.verseSelection).toEqual({
+        scope: 'bible',
+        refs: [{ book: 'John', chapter: 3, verse: 16 }],
+      });
     });
   });
 
-  it('clears activeVerses when no verse in URL', async () => {
-    useBibleStore.setState({ activeVerses: [5] });
+  it('clears verseSelection when no verse in URL', async () => {
+    useBibleStore.setState({
+      verseSelection: {
+        scope: 'bible',
+        refs: [{ book: 'John', chapter: 1, verse: 5 }],
+      },
+    });
 
     render(
       <MemoryRouter initialEntries={['/bible/John/1']}>
@@ -152,7 +160,7 @@ describe('BibleRoute', () => {
     );
 
     await waitFor(() => {
-      expect(useBibleStore.getState().activeVerses).toEqual([]);
+      expect(useBibleStore.getState().verseSelection).toBeNull();
     });
   });
 

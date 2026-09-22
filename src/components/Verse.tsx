@@ -2,7 +2,13 @@ import { Box, Text, Title, createStyles } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { encodeVerses } from "../utils/bibleUtils";
+import {
+  refsInclude,
+  verseDomId,
+  verseNumbersFor,
+} from "../utils/verseRefs";
 import { useEffect, useRef, useState } from "react";
+import type { VerseRef, VerseScope } from "../types";
 
 const useStyles = createStyles((theme) => ({
   link: {
@@ -30,94 +36,107 @@ const useStyles = createStyles((theme) => ({
   },
 }));
 
-// Store for tracking the last clicked verse for Shift+click range selection
-let lastClickedVerse: number | null = null;
+// Store for tracking the last clicked verse for Shift+click range
+// selection. Scoped so ranges never leak between views/cards.
+let lastClickedVerse: { scope: VerseScope; ref: VerseRef } | null = null;
 
 const Verse = ({
+  book,
+  chapter,
   verse,
   text,
+  scope,
   folded,
   selectable = true,
 }: {
+  book: string;
+  chapter: number;
   verse: number;
   text: string;
+  scope: VerseScope;
   folded?: boolean;
   selectable?: boolean;
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
   const navigate = useNavigate();
-  const activeVerses = useBibleStore((state) => state.activeVerses);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
+  const verseSelection = useBibleStore((state) => state.verseSelection);
+  const toggleVerseRef = useBibleStore((state) => state.toggleVerseRef);
+  const selectVerseRange = useBibleStore(
+    (state) => state.selectVerseRange
+  );
   const audioActiveVerse = useBibleStore(
     (state) => state.audioActiveVerse
   );
-  const isActive = activeVerses.includes(verse);
+  const thisRef: VerseRef = { book, chapter, verse };
+  const isActive =
+    verseSelection?.scope === scope &&
+    refsInclude(verseSelection.refs, thisRef);
   const isAudioActive =
     audioActiveVerse !== null &&
-    audioActiveVerse.book === activeBook &&
-    audioActiveVerse.chapter === activeChapter &&
+    audioActiveVerse.scope === scope &&
+    audioActiveVerse.book === book &&
+    audioActiveVerse.chapter === chapter &&
     audioActiveVerse.verse === verse;
-  
+
   // Track touch state to differentiate tap from scroll
   const [touchStartPos, setTouchStartPos] = useState<{
     x: number;
     y: number;
   } | null>(null);
-  
+
   // Track if verse was just clicked to prevent scroll jump
   const userClickedRef = useRef(false);
 
-  const updateNavigationWithVerses = (verses: number[]) => {
+  // Bible-scope selection is mirrored into the URL; note-scope
+  // selection is ephemeral and never navigates.
+  const navigateForSelection = () => {
+    const sel = useBibleStore.getState().verseSelection;
+    const verses =
+      sel && sel.scope === scope
+        ? verseNumbersFor(sel.refs, book, chapter)
+        : [];
     if (verses.length > 0) {
       navigate(
-        `/bible/${activeBook}/${activeChapter}.${encodeVerses(verses)}`,
+        `/bible/${book}/${chapter}.${encodeVerses(verses)}`,
         { replace: true }
       );
     } else {
-      navigate(
-        `/bible/${activeBook}/${activeChapter}`,
-        { replace: true }
-      );
+      navigate(`/bible/${book}/${chapter}`, { replace: true });
     }
   };
 
   const handleVerseClick = (event: React.MouseEvent) => {
     if (!selectable) return;
-    
+
     // Only handle click if no text is selected (allow users to copy text)
     const selection = window.getSelection();
     if (selection && selection.toString().length > 0 && !event.shiftKey) {
       return;
     }
-    
+
     userClickedRef.current = true;
-    
-    // Shift+click for range selection
-    if (event.shiftKey && lastClickedVerse !== null) {
+
+    // Shift+click for range selection — only within the same scope
+    // and same book/chapter.
+    const anchor = lastClickedVerse;
+    if (
+      event.shiftKey &&
+      anchor !== null &&
+      anchor.scope === scope &&
+      anchor.ref.book === book &&
+      anchor.ref.chapter === chapter
+    ) {
       // Clear any text selection
       window.getSelection()?.removeAllRanges();
-      
-      const start = Math.min(lastClickedVerse, verse);
-      const end = Math.max(lastClickedVerse, verse);
-      const rangeVerses: number[] = [];
-      for (let v = start; v <= end; v++) {
-        rangeVerses.push(v);
-      }
-      // Merge with existing selection
-      const newVerses = Array.from(new Set([...activeVerses, ...rangeVerses])).sort((a, b) => a - b);
-      setActiveVerses(newVerses);
-      updateNavigationWithVerses(newVerses);
+      selectVerseRange(scope, anchor.ref, thisRef);
     } else {
       // Normal click - toggle single verse
-      const newVerses = isActive
-        ? activeVerses.filter((v) => v !== verse)
-        : [...activeVerses, verse];
-      setActiveVerses(newVerses);
-      updateNavigationWithVerses(newVerses);
-      lastClickedVerse = isActive ? null : verse;
+      toggleVerseRef(scope, thisRef);
+      lastClickedVerse = isActive ? null : { scope, ref: thisRef };
+    }
+    if (scope === 'bible') {
+      navigateForSelection();
     }
   };
 
@@ -132,7 +151,7 @@ const Verse = ({
     const touch = e.changedTouches[0];
     const deltaX = Math.abs(touch.clientX - touchStartPos.x);
     const deltaY = Math.abs(touch.clientY - touchStartPos.y);
-    
+
     // Only trigger click if movement is minimal (< 10px)
     // This prevents selection during scroll
     if (deltaX < 10 && deltaY < 10) {
@@ -144,7 +163,7 @@ const Verse = ({
         }
       }, 50);
     }
-    
+
     setTouchStartPos(null);
   };
 
@@ -152,12 +171,11 @@ const Verse = ({
     if (!selectable) return;
     userClickedRef.current = true;
     // Mobile: simple toggle (no shift-click support)
-    const newVerses = isActive
-      ? activeVerses.filter((v) => v !== verse)
-      : [...activeVerses, verse];
-    setActiveVerses(newVerses);
-    updateNavigationWithVerses(newVerses);
-    lastClickedVerse = isActive ? null : verse;
+    toggleVerseRef(scope, thisRef);
+    lastClickedVerse = isActive ? null : { scope, ref: thisRef };
+    if (scope === 'bible') {
+      navigateForSelection();
+    }
   };
 
   useEffect(() => {
@@ -184,6 +202,7 @@ const Verse = ({
       component="div"
       display="flex"
       data-active={isActive}
+      data-audio-active={isAudioActive}
       className={cx({
         [classes.link]: selectable,
         [classes.linkReadOnly]: !selectable,
@@ -204,15 +223,15 @@ const Verse = ({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu
-      id={"verse-" + verse}
+      id={verseDomId(scope, thisRef)}
       ref={ref}
       sx={{
         touchAction: "pan-y", // Allow vertical scrolling
       }}
     >
-      <Text 
-        fz="sm" 
-        fw="bold" 
+      <Text
+        fz="sm"
+        fw="bold"
         mr={3}
         sx={{
           userSelect: "none", // Keep verse number non-selectable
@@ -221,10 +240,10 @@ const Verse = ({
       >
         {verse}
       </Text>
-      <Title 
-        order={3} 
-        weight={400} 
-        title={"passage-verse-" + verse}
+      <Title
+        order={3}
+        weight={400}
+        title={`passage-verse-${chapter}-${verse}`}
         sx={folded ? {
           overflow: 'hidden',
           whiteSpace: 'nowrap',

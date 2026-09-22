@@ -2,9 +2,18 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
-import { getKjvAudioUrl, getBibleAudioUrl, getAudioTimestamps, getPassage } from "../api";
+import {
+  getKjvAudioUrl,
+  getBibleAudioUrl,
+  getAudioTimestamps,
+  getPassage,
+} from "../api";
 import { ActionIcon, rem, Loader } from "@mantine/core";
-import { IconPlayerPlay, IconAlertCircle, IconPlayerPause } from "@tabler/icons-react";
+import {
+  IconPlayerPlay,
+  IconAlertCircle,
+  IconPlayerPause,
+} from "@tabler/icons-react";
 import AudioPlayer from "./AudioPlayer";
 import { useVerseHighlighter } from "../hooks/useVerseHighlighter";
 import { VerseTimestamp } from "../types";
@@ -16,6 +25,7 @@ import {
   adjustTimestampsForENGESV,
   findTestamentFallback,
 } from "../utils/bibleUtils";
+import { verseDomId } from "../utils/verseRefs";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import {
   useMediaSession,
@@ -70,17 +80,33 @@ const Audio = () => {
 
   // Navigate to the playing item's chapter so Verse components
   // are in the DOM and can receive the audioActiveVerse highlight
-  // Skip navigation if we're on search or notes pages (they handle their own UI)
+  // Skip navigation on search or notes pages
+  // (they handle their own UI)
   useEffect(() => {
     const item = playlist.currentItem;
     if (!item) return;
     if (location.pathname === '/search') return;
-    if (location.pathname.startsWith('/notes')) return;
+    if (location.pathname.startsWith('/notes')) {
+      // Notes pages render note cards — scroll to the playing
+      // card's first verse so the audio-follow highlight is
+      // visible.
+      document
+        .getElementById(
+          verseDomId(item.itemId, {
+            book: item.book,
+            chapter: item.chapter,
+            verse: item.startVerse,
+          })
+        )
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
     navigate(
       `/bible/${item.book}/${item.chapter}.${item.startVerse}`,
       { replace: true },
     );
-  }, [playlist.currentItem?.itemId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playlist.currentItem?.itemId]);
 
   // Start playlist when an external component signals a start index
   useEffect(() => {
@@ -91,7 +117,8 @@ const Audio = () => {
     ) return;
     setAudioPlaylistStartIndex(null);
     playlist.start(audioPlaylistItems, audioPlaylistStartIndex);
-  }, [audioPlaylistStartIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioPlaylistStartIndex]);
 
   // Reset chapter audio when chapter/book/version changes (non-playlist only)
   useEffect(() => {
@@ -113,7 +140,8 @@ const Audio = () => {
     }
     setTimestamps([]);
     setAudioActiveVerse(null);
-  }, [activeBook, activeChapter, activeAudioFilesetId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBook, activeChapter, activeAudioFilesetId]);
 
   // Fetch timestamps when audio or text fileset changes
   useEffect(() => {
@@ -138,7 +166,14 @@ const Audio = () => {
   }, [activeBook, activeChapter, activeAudioFilesetId, activeTextFilesetId]);
 
   // Hook: highlight active verse during playback
-  useVerseHighlighter(audio, isPlaying, timestamps, activeBook, activeChapter);
+  useVerseHighlighter(
+    audio,
+    isPlaying,
+    timestamps,
+    activeBook,
+    activeChapter,
+    'bible',
+  );
 
   const safeSeek = useCallback((targetTime: number) => {
     const currentAudio = audioRef.current;

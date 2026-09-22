@@ -8,14 +8,25 @@ import {
   rem,
   useMantineTheme,
 } from "@mantine/core";
-import { IconBookmark, IconMap2, IconShare, IconX } from "@tabler/icons-react";
+import {
+  IconBook,
+  IconBookmark,
+  IconMap2,
+  IconShare,
+  IconX,
+} from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
 import { useMediaQuery } from "@mantine/hooks";
-import { useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
 import AddTagNoteModal from "./AddTagNoteModal";
 import { BOOK_NAME_TO_CODE, encodeVerses } from "../utils/bibleUtils";
+import {
+  groupRefsByChapter,
+  verseNumbersFor,
+} from "../utils/verseRefs";
 
 
 const BOOK_TO_BLB_ABBR: Record<string, string> = {
@@ -87,16 +98,39 @@ const BOOK_TO_BLB_ABBR: Record<string, string> = {
   Revelation: "rev",
 };
 
+const faviconUrl = (domain: string) =>
+  `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+
+const formatChapterGroup = (group: {
+  book: string;
+  chapter: number;
+  verses: number[];
+}): string => {
+  const sorted = group.verses;
+  const label = `${group.book} ${group.chapter}`;
+  if (sorted.length === 0) return label;
+  const isConsecutive = sorted.every(
+    (v, i) => i === 0 || v === sorted[i - 1] + 1
+  );
+  if (isConsecutive) {
+    return sorted.length === 1
+      ? `${label}:${sorted[0]}`
+      : `${label}:${sorted[0]}-${sorted[sorted.length - 1]}`;
+  }
+  return `${label}:${sorted.join(", ")}`;
+};
+
 const VerseActionToolbar = () => {
-  const activeVerses = useBibleStore((state) => state.activeVerses);
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const verseSelection = useBibleStore((state) => state.verseSelection);
+  const setVerseSelection = useBibleStore(
+    (state) => state.setVerseSelection
+  );
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [noteModalOpened, setNoteModalOpened] = useState(false);
   const [mapModalOpened, setMapModalOpened] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const location = useLocation();
+  const navigate = useNavigate();
   const theme = useMantineTheme();
   const faviconStyle = {
     width: rem(28),
@@ -106,32 +140,45 @@ const VerseActionToolbar = () => {
     ) as React.CSSProperties["mixBlendMode"],
   };
 
+  const scope = verseSelection?.scope;
+  const refs = useMemo(
+    () => verseSelection?.refs ?? [],
+    [verseSelection]
+  );
+  const refCount = refs.length;
+
+  // The primary group is the first ref's book/chapter — share URLs
+  // and external links are single-chapter formats.
+  const primary = useMemo(() => {
+    if (refs.length === 0) return null;
+    const first = refs[0];
+    return {
+      book: first.book,
+      chapter: first.chapter,
+      verses: verseNumbersFor(refs, first.book, first.chapter),
+    };
+  }, [refs]);
+
   const passageRef = useMemo(() => {
-    const sorted = [...activeVerses].sort((a, b) => a - b);
-    if (sorted.length === 0) return `${activeBook} ${activeChapter}`;
-    const isConsecutive = sorted.every(
-      (v, i) => i === 0 || v === sorted[i - 1] + 1
-    );
-    if (isConsecutive) {
-      return sorted.length === 1
-        ? `${activeBook} ${activeChapter}:${sorted[0]}`
-        : `${activeBook} ${activeChapter}:${sorted[0]}-${sorted[sorted.length - 1]}`;
-    }
-    return `${activeBook} ${activeChapter}:${sorted.join(", ")}`;
-  }, [activeBook, activeChapter, activeVerses]);
+    if (refs.length === 0) return "";
+    return groupRefsByChapter(refs).map(formatChapterGroup).join("; ");
+  }, [refs]);
 
   const handleShare = useCallback(async () => {
-    const bookEncoded = encodeURIComponent(activeBook);
-    const sorted = [...activeVerses].sort((a, b) => a - b);
-    const versePath = sorted.length > 0
-      ? `.${encodeVerses(activeVerses)}`
+    if (!primary) return;
+    const bookEncoded = encodeURIComponent(primary.book);
+    const versePath = primary.verses.length > 0
+      ? `.${encodeVerses(primary.verses)}`
       : "";
-    const url = `${window.location.origin}/bible/${bookEncoded}/${activeChapter}${versePath}`;
+    const url =
+      `${window.location.origin}/bible/${bookEncoded}/` +
+      `${primary.chapter}${versePath}`;
 
-    const verseText = sorted
-      .map((v) => {
+    const verseText = refs
+      .map((r) => {
         const el = document.querySelector(
-          `[title="passage-verse-${v}"]`
+          `[data-verse-scope="${scope}"] ` +
+          `[title="passage-verse-${r.chapter}-${r.verse}"]`
         );
         return el?.textContent?.trim() ?? "";
       })
@@ -179,10 +226,14 @@ const VerseActionToolbar = () => {
         });
       }
     }
-  }, [activeBook, activeChapter, activeVerses, passageRef]);
+  }, [primary, refs, scope, passageRef]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
-    window.open("https://biblemapper.com/web/", "_blank", "noopener,noreferrer");
+    window.open(
+      "https://biblemapper.com/web/",
+      "_blank",
+      "noopener,noreferrer"
+    );
     try {
       await navigator.clipboard.writeText(passageRef);
       showNotification({
@@ -200,44 +251,68 @@ const VerseActionToolbar = () => {
   }, [passageRef]);
 
   const youVersionUrl = useMemo(() => {
-    if (activeVerses.length === 0) return null;
-    const bookCode = BOOK_NAME_TO_CODE[activeBook.toLowerCase()];
+    if (!primary) return null;
+    const bookCode = BOOK_NAME_TO_CODE[primary.book.toLowerCase()];
     if (!bookCode) return null;
-    const sorted = [...activeVerses].sort((a, b) => a - b);
+    const sorted = primary.verses;
     const verseStr =
       sorted.length === 1
         ? `${sorted[0]}`
         : `${sorted[0]}-${sorted[sorted.length - 1]}`;
-    return `https://www.bible.com/bible/compare/${bookCode}.${activeChapter}.${verseStr}`;
-  }, [activeBook, activeChapter, activeVerses]);
+    return (
+      "https://www.bible.com/bible/compare/" +
+      `${bookCode}.${primary.chapter}.${verseStr}`
+    );
+  }, [primary]);
 
   const bibleHubUrl = useMemo(() => {
-    const sorted = [...activeVerses].sort((a, b) => a - b);
-    const verse = sorted[sorted.length - 1];
+    if (!primary) return null;
+    const verse = primary.verses[primary.verses.length - 1];
     if (verse == null) return null;
     const bookPath =
-      activeBook === "Song of Solomon"
+      primary.book === "Song of Solomon"
         ? "songs"
-        : activeBook.toLowerCase().replace(/ /g, "_");
-    return `https://biblehub.com/${bookPath}/${activeChapter}-${verse}.htm#commentary`;
-  }, [activeBook, activeChapter, activeVerses]);
+        : primary.book.toLowerCase().replace(/ /g, "_");
+    return (
+      `https://biblehub.com/${bookPath}/` +
+      `${primary.chapter}-${verse}.htm#commentary`
+    );
+  }, [primary]);
 
   const blbUrl = useMemo(() => {
-    const sorted = [...activeVerses].sort((a, b) => a - b);
-    const verse = sorted[sorted.length - 1];
-    const abbr = BOOK_TO_BLB_ABBR[activeBook];
+    if (!primary) return null;
+    const verse = primary.verses[primary.verses.length - 1];
+    const abbr = BOOK_TO_BLB_ABBR[primary.book];
     if (!abbr || verse == null) return null;
-    return `https://www.blueletterbible.org/kjv/${abbr}/${activeChapter}/${verse}/`;
-  }, [activeBook, activeChapter, activeVerses]);
+    return (
+      `https://www.blueletterbible.org/kjv/${abbr}/` +
+      `${primary.chapter}/${verse}/`
+    );
+  }, [primary]);
 
   const mapUrl = useMemo(() => {
-    const ref = `${activeBook} ${activeChapter}`;
-    return `https://biblemapper.com/blog/mapfinder/?ref=${encodeURIComponent(ref)}`;
-  }, [activeBook, activeChapter]);
+    if (!primary) {
+      return "https://biblemapper.com/blog/mapfinder/";
+    }
+    const ref = `${primary.book} ${primary.chapter}`;
+    return (
+      "https://biblemapper.com/blog/mapfinder/?ref=" +
+      encodeURIComponent(ref)
+    );
+  }, [primary]);
 
-  const isBibleRoute = location.pathname.startsWith("/bible");
-  const isVisible = activeVerses.length > 0 && isBibleRoute;
+  const isVisible = refCount > 0;
   const bottomOffset = showAudioPlayer ? 176 : 56;
+
+  const handleViewInBible = useCallback(() => {
+    if (!primary) return;
+    const versePath = primary.verses.length > 0
+      ? `.${encodeVerses(primary.verses)}`
+      : "";
+    navigate(
+      `/bible/${primary.book}/${primary.chapter}${versePath}`
+    );
+  }, [primary, navigate]);
 
   return (
     <>
@@ -273,17 +348,31 @@ const VerseActionToolbar = () => {
         <Group spacing="xs">
           <ActionIcon
             variant="transparent"
-            onClick={() => setActiveVerses([])}
+            onClick={() => setVerseSelection(null)}
             title="Clear selection"
           >
             <IconX size={rem(18)} />
           </ActionIcon>
           <Text size="sm">
-            {activeVerses.length} verse
-            {activeVerses.length !== 1 ? "s" : ""} selected
+            {refCount} verse
+            {refCount !== 1 ? "s" : ""} selected
           </Text>
         </Group>
-        <Group spacing="xs" sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Group
+          spacing="xs"
+          sx={{ flexWrap: "wrap", justifyContent: "flex-end" }}
+        >
+          {scope !== 'bible' && (
+            <ActionIcon
+              variant="light"
+              color="indigo"
+              size="lg"
+              onClick={handleViewInBible}
+              title="View in Bible"
+            >
+              <IconBook size={rem(20)} />
+            </ActionIcon>
+          )}
           <ActionIcon
             variant="transparent"
             size="lg"
@@ -291,7 +380,7 @@ const VerseActionToolbar = () => {
             title="Copy passage & open WebViewer"
           >
             <img
-              src="https://www.google.com/s2/favicons?sz=64&domain=biblemapper.com"
+              src={faviconUrl("biblemapper.com")}
               alt="BibleMapper"
               style={faviconStyle}
             />
@@ -339,7 +428,7 @@ const VerseActionToolbar = () => {
               title="Commentary on BibleHub"
             >
               <img
-                src="https://www.google.com/s2/favicons?sz=64&domain=biblehub.com"
+                src={faviconUrl("biblehub.com")}
                 alt="BibleHub"
                 style={faviconStyle}
               />
@@ -355,7 +444,7 @@ const VerseActionToolbar = () => {
               title="Look up in Blue Letter Bible"
             >
               <img
-                src="https://www.google.com/s2/favicons?sz=64&domain=blueletterbible.org"
+                src={faviconUrl("blueletterbible.org")}
                 alt="Blue Letter Bible"
                 style={faviconStyle}
               />
@@ -370,15 +459,17 @@ const VerseActionToolbar = () => {
           >
             <IconShare size={rem(20)} />
           </ActionIcon>
-          <ActionIcon
-            variant="light"
-            color="blue"
-            size="lg"
-            onClick={() => setNoteModalOpened(true)}
-            title="Add note"
-          >
-            <IconBookmark size={rem(20)} />
-          </ActionIcon>
+          {isAuthenticated && (
+            <ActionIcon
+              variant="light"
+              color="blue"
+              size="lg"
+              onClick={() => setNoteModalOpened(true)}
+              title="Add note"
+            >
+              <IconBookmark size={rem(20)} />
+            </ActionIcon>
+          )}
         </Group>
       </Box>
       {noteModalOpened && (
@@ -421,7 +512,12 @@ const VerseActionToolbar = () => {
           }}
         />
         <Box p="xs" sx={{ textAlign: "center" }}>
-          <Anchor href={mapUrl} target="_blank" rel="noopener noreferrer" size="sm">
+          <Anchor
+            href={mapUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            size="sm"
+          >
             Open in new tab
           </Anchor>
         </Box>

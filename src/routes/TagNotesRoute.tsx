@@ -31,6 +31,7 @@ import { clearNotesCache } from '../utils/cacheManager';
 import {
   BOOK_NAME_TO_ORDER,
 } from '../utils/bibleUtils';
+import { verseDomId } from '../utils/verseRefs';
 
 // Type definition for sort orders
 type SortOrder =
@@ -274,7 +275,9 @@ export default function TagNotesRoute() {
   const handleShare = async () => {
     const url = window.location.href;
     const title = `Notes: ${tag?.name || 'Tag'}`;
-    const text = `Check out these ${notes.length} note(s) tagged with "${tag?.name}"`;
+    const text =
+      `Check out these ${notes.length} note(s) ` +
+      `tagged with "${tag?.name}"`;
 
     // Try Web Share API first (mobile-friendly)
     if (navigator.share) {
@@ -460,6 +463,32 @@ export default function TagNotesRoute() {
     }
   });
 
+  const handleToggleFolded = () => {
+    const next = !versesFolded;
+    setVersesFolded(next);
+    if (next) return; // Folding needs no scroll compensation.
+    // After unfolding, restore focus to the selected or
+    // currently-playing verse inside its note card.
+    setTimeout(() => {
+      const { verseSelection, audioActiveVerse } =
+        useBibleStore.getState();
+      const focus =
+        verseSelection && verseSelection.refs.length > 0
+          ? {
+              scope: verseSelection.scope,
+              ref: verseSelection.refs[0],
+            }
+          : audioActiveVerse?.scope
+            ? { scope: audioActiveVerse.scope, ref: audioActiveVerse }
+            : null;
+      if (focus) {
+        document
+          .getElementById(verseDomId(focus.scope, focus.ref))
+          ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, 50);
+  };
+
   const handlePlayFromNote = useCallback(
     (noteId: string) => {
       const noteIndex = sortedNotes.findIndex((n) => n.id === noteId);
@@ -469,7 +498,9 @@ export default function TagNotesRoute() {
         
         showNotification({
           title: 'Playlist Started',
-          message: `Playing from note ${noteIndex + 1} of ${sortedNotes.length}`,
+          message:
+            `Playing from note ${noteIndex + 1} ` +
+            `of ${sortedNotes.length}`,
           color: 'blue',
           autoClose: 3000,
         });
@@ -626,7 +657,7 @@ export default function TagNotesRoute() {
               position="left"
             >
               <ActionIcon
-                onClick={() => setVersesFolded(!versesFolded)}
+                onClick={handleToggleFolded}
                 variant="subtle"
                 color={versesFolded ? "blue" : "gray"}
                 size="lg"

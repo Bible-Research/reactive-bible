@@ -66,6 +66,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
     timestamps,
     currentItem?.book ?? '',
     currentItem?.chapter ?? 0,
+    currentItem?.itemId ?? '',
   );
 
   const unloadCurrent = useCallback(() => {

@@ -168,7 +168,16 @@ describe('PassageView Component Performance Tests', () => {
 
       // Change unrelated store state
       act(() => {
-        useBibleStore.setState({ activeVerses: [1, 2, 3] });
+        useBibleStore.setState({
+          verseSelection: {
+            scope: 'bible',
+            refs: [1, 2, 3].map((v) => ({
+              book: 'Genesis',
+              chapter: 1,
+              verse: v,
+            })),
+          },
+        });
       });
 
       rerender(
@@ -183,7 +192,7 @@ describe('PassageView Component Performance Tests', () => {
       );
     });
 
-    it('should be optimized with React.memo and shallow equality', async () => {
+    it('should use React.memo with shallow equality', async () => {
       const verses = createLargeVerseData(10);
       mockGetVersesInChapter.mockResolvedValue(verses);
 
@@ -199,7 +208,7 @@ describe('PassageView Component Performance Tests', () => {
 
       const initialCallCount = mockGetVersesInChapter.mock.calls.length;
 
-      // Update completely unrelated state that PassageView doesn't subscribe to
+      // Update state that PassageView doesn't subscribe to
       act(() => {
         useBibleStore.setState({ showNotes: true });
       });
@@ -218,7 +227,9 @@ describe('PassageView Component Performance Tests', () => {
 
       await waitFor(() => {
         // Should trigger new API call because activeChapter changed
-        expect(mockGetVersesInChapter).toHaveBeenCalledTimes(initialCallCount + 1);
+        expect(mockGetVersesInChapter).toHaveBeenCalledTimes(
+          initialCallCount + 1
+        );
       });
     });
   });

@@ -2,7 +2,16 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from "zustand/middleware";
 import { showNotification } from "@mantine/notifications";
 import * as api from './api';
-import { Note, Tag, PlaylistItem, AudioActiveVerse } from './types';
+import {
+  Note,
+  Tag,
+  PlaylistItem,
+  AudioActiveVerse,
+  VerseRef,
+  VerseScope,
+  VerseSelection,
+} from './types';
+import { refsInclude, sameRef } from './utils/verseRefs';
 import {
   getCachedNotes,
   cacheNotes,
@@ -29,7 +38,7 @@ export interface BibleState {
   activeBook: string;
   activeBookShort: string;
   activeChapter: number;
-  activeVerses: number[];
+  verseSelection: VerseSelection | null;
   bibleVersion: string;
   showAudioPlayer: boolean;
   translations: Translation[];
@@ -63,8 +72,13 @@ export interface BibleState {
   setActiveBookOnly: (activeBook: string) => void;
   setActiveBookShort: (activeBookShort: string) => void;
   setActiveChapter: (activeChapter: number) => void;
-  setActiveVerses: (activeVerses: number[]) => void;
-  selectedVerses: number[];
+  setVerseSelection: (selection: VerseSelection | null) => void;
+  toggleVerseRef: (scope: VerseScope, ref: VerseRef) => void;
+  selectVerseRange: (
+    scope: VerseScope,
+    refA: VerseRef,
+    refB: VerseRef
+  ) => void;
   setBibleVersion: (bibleVersion: string) => void;
   setShowAudioPlayer: (show: boolean) => void;
   setTranslations: (translations: Translation[]) => void;
@@ -97,8 +111,7 @@ export const initialState = {
   activeBook: "John",
   activeBookShort: "Joh",
   activeChapter: 1,
-  activeVerses: [],
-  selectedVerses: [],
+  verseSelection: null as VerseSelection | null,
   bibleVersion: "KJV",
   showAudioPlayer: false,
   translations: [],
@@ -121,36 +134,128 @@ export const initialState = {
   versesFolded: false,
 };
 
+const partializeState = (state: BibleState) => ({
+  activeBook: state.activeBook,
+  activeBookShort: state.activeBookShort,
+  activeChapter: state.activeChapter,
+  verseSelection: state.verseSelection,
+  bibleVersion: state.bibleVersion,
+  translations: state.translations,
+  activeTextFilesetId: state.activeTextFilesetId,
+  activeAudioFilesetId: state.activeAudioFilesetId,
+  lastSelectedTagId: state.lastSelectedTagId,
+  audioActiveVerse: state.audioActiveVerse,
+  notes: state.notes,
+  tags: state.tags,
+  // showAudioPlayer is NOT persisted
+});
+
+type PersistedBibleState = ReturnType<typeof partializeState>;
+
+/**
+ * Migrates pre-v2 persisted state: the old bare `activeVerses:
+ * number[]` becomes a 'bible'-scoped VerseSelection built from the
+ * persisted book/chapter. `selectedVerses` is dropped entirely.
+ */
+export const migratePersistedState = (
+  persistedState: unknown,
+  version: number,
+): PersistedBibleState => {
+  const persisted = (persistedState ?? {}) as Record<string, unknown>;
+  if (version >= 2) {
+    return persisted as PersistedBibleState;
+  }
+  const oldVerses = Array.isArray(persisted.activeVerses)
+    ? (persisted.activeVerses as unknown[]).filter(
+        (v): v is number => typeof v === 'number'
+      )
+    : [];
+  const refs: VerseRef[] = oldVerses.map((v) => ({
+    book:
+      typeof persisted.activeBook === 'string'
+        ? persisted.activeBook
+        : 'John',
+    chapter:
+      typeof persisted.activeChapter === 'number'
+        ? persisted.activeChapter
+        : 1,
+    verse: v,
+  }));
+  const migrated: Record<string, unknown> = {
+    ...persisted,
+    verseSelection:
+      refs.length > 0 ? { scope: 'bible', refs } : null,
+  };
+  delete migrated.activeVerses;
+  delete migrated.selectedVerses;
+  return migrated as PersistedBibleState;
+};
+
 export const useBibleStore = createWithEqualityFn<BibleState>()(
   persist(
     (set) => ({
       ...initialState,
-      setActiveBook: (activeBook) => set({ 
-        activeBook, 
-        activeChapter: 1, 
-        activeVerses: [],
+      setActiveBook: (activeBook) => set({
+        activeBook,
+        activeChapter: 1,
+        verseSelection: null,
         audioActiveVerse: null
       }),
       setActiveBookAndChapter: (activeBook, activeChapter) =>
         set({
           activeBook,
           activeChapter,
-          activeVerses: [],
+          verseSelection: null,
         }),
       setActiveBookOnly: (activeBook) => set({ activeBook }),
       setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
-      setActiveChapter: (activeChapter) => set({ 
-        activeChapter, 
-        activeVerses: [],
+      setActiveChapter: (activeChapter) => set({
+        activeChapter,
+        verseSelection: null,
       }),
-      setActiveVerses: (activeVerses) => {
-        set({ activeVerses });
-        activeVerses.forEach((verse) => {
-          document
-            .getElementById("verse-" + verse)
-            ?.scrollIntoView({ block: "center", behavior: "smooth" });
-        });
-      },
+      setVerseSelection: (verseSelection) => set({ verseSelection }),
+      toggleVerseRef: (scope, ref) =>
+        set((state) => {
+          const current =
+            state.verseSelection?.scope === scope
+              ? state.verseSelection.refs
+              : [];
+          const next = refsInclude(current, ref)
+            ? current.filter((r) => !sameRef(r, ref))
+            : [...current, ref];
+          return {
+            verseSelection:
+              next.length > 0 ? { scope, refs: next } : null,
+          };
+        }),
+      selectVerseRange: (scope, refA, refB) =>
+        set((state) => {
+          // Range selection is constrained to a single book/chapter.
+          if (
+            refA.book !== refB.book ||
+            refA.chapter !== refB.chapter
+          ) {
+            return { verseSelection: { scope, refs: [refB] } };
+          }
+          const start = Math.min(refA.verse, refB.verse);
+          const end = Math.max(refA.verse, refB.verse);
+          const rangeRefs: VerseRef[] = [];
+          for (let v = start; v <= end; v++) {
+            rangeRefs.push({
+              book: refA.book,
+              chapter: refA.chapter,
+              verse: v,
+            });
+          }
+          const merged =
+            state.verseSelection?.scope === scope
+              ? [...state.verseSelection.refs]
+              : [];
+          for (const r of rangeRefs) {
+            if (!refsInclude(merged, r)) merged.push(r);
+          }
+          return { verseSelection: { scope, refs: merged } };
+        }),
       setBibleVersion: (bibleVersion) => set({ bibleVersion }),
       setShowAudioPlayer: (showAudioPlayer) => set({ showAudioPlayer }),
       setTranslations: (translations) => set({ translations }),
@@ -360,45 +465,14 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ audioPlaylistStartIndex }),
       setAudioPlaylistEnded: (audioPlaylistEnded) =>
         set({ audioPlaylistEnded }),
-      setVersesFolded: (versesFolded) => {
-        set({ versesFolded });
-        if (!versesFolded) {
-          setTimeout(() => {
-            const { activeVerses, audioActiveVerse } =
-              useBibleStore.getState();
-            const focusVerse =
-              activeVerses[0] ?? audioActiveVerse?.verse;
-            if (focusVerse != null) {
-              document
-                .getElementById("verse-" + focusVerse)
-                ?.scrollIntoView({
-                  block: "center",
-                  behavior: "smooth",
-                });
-            }
-          }, 50);
-        }
-      },
+      setVersesFolded: (versesFolded) => set({ versesFolded }),
     }),
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        activeBook: state.activeBook,
-        activeBookShort: state.activeBookShort,
-        activeChapter: state.activeChapter,
-        activeVerses: state.activeVerses,
-        selectedVerses: state.selectedVerses,
-        bibleVersion: state.bibleVersion,
-        translations: state.translations,
-        activeTextFilesetId: state.activeTextFilesetId,
-        activeAudioFilesetId: state.activeAudioFilesetId,
-        lastSelectedTagId: state.lastSelectedTagId,
-        audioActiveVerse: state.audioActiveVerse,
-        notes: state.notes,
-        tags: state.tags,
-        // showAudioPlayer is NOT persisted
-      }),
+      version: 2,
+      migrate: migratePersistedState,
+      partialize: partializeState,
     }
   )
 );

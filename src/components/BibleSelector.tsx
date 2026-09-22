@@ -2,6 +2,7 @@ import { Navbar } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { getAllBooks } from "../utils/scriptureMention";
+import { verseNumbersFor } from "../utils/verseRefs";
 import PassagePicker from "./PassagePicker";
 
 const BibleSelector = ({
@@ -14,7 +15,11 @@ const BibleSelector = ({
   const navigate = useNavigate();
   const activeBook = useBibleStore((state) => state.activeBook);
   const activeChapter = useBibleStore((state) => state.activeChapter);
-  const activeVerses = useBibleStore((state) => state.activeVerses);
+  const verseSelection = useBibleStore((state) => state.verseSelection);
+  const pickerVerses =
+    verseSelection?.scope === 'bible'
+      ? verseNumbersFor(verseSelection.refs, activeBook, activeChapter)
+      : [];
   const setActiveBookShort = useBibleStore(
     (state) => state.setActiveBookShort
   );
@@ -33,7 +38,7 @@ const BibleSelector = ({
         <PassagePicker
           book={activeBook}
           chapter={activeChapter}
-          verses={activeVerses}
+          verses={pickerVerses}
           titlePrefix="nav-"
           onSelectBook={(bookName) => {
             const entry = getAllBooks().find(

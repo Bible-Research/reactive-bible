@@ -53,6 +53,8 @@ export default function App() {
                      location.pathname === '/register';
   const isSearchPage = location.pathname === '/search';
   const isBibleView = location.pathname.startsWith('/bible');
+  const isNotesView = location.pathname.startsWith('/notes');
+  const showVerseToolbar = isBibleView || isNotesView;
   useWindowEvent("keydown", (event) => {
     const tag = (event.target as HTMLElement).tagName;
     if (
@@ -112,7 +114,7 @@ export default function App() {
           <ErrorBoundary>
             <AppRoutes />
           </ErrorBoundary>
-          {isBibleView && <VerseActionToolbar />}
+          {showVerseToolbar && <VerseActionToolbar />}
           <MainMenu
             opened={mainMenuOpened}
             onClose={() => setMainMenuOpened(false)}

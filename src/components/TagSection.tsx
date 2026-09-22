@@ -185,6 +185,7 @@ const TagSection = ({
             note={activeNote}
             onViewInBible={onViewInBible}
             commentCount={commentCounts?.[activeNote.id]}
+            verseScope={`${activeNote.id}__overlay`}
           />
         ) : null}
       </DragOverlay>

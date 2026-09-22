@@ -33,7 +33,7 @@ describe('Passage Component Performance Tests', () => {
       activeBook: 'Genesis',
       activeBookShort: 'GEN',
       activeChapter: 1,
-      activeVerses: [],
+      verseSelection: null,
     });
   });
 
@@ -135,7 +135,16 @@ describe('Passage Component Performance Tests', () => {
             activeBook: 'Genesis',
             activeBookShort: 'GEN',
             activeChapter: (i % 50) + 1,
-            activeVerses: [i % 31 + 1],
+            verseSelection: {
+              scope: 'bible',
+              refs: [
+                {
+                  book: 'Genesis',
+                  chapter: (i % 50) + 1,
+                  verse: (i % 31) + 1,
+                },
+              ],
+            },
           });
         });
       }

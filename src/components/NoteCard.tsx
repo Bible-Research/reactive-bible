@@ -42,6 +42,10 @@ interface NoteCardProps {
   onPlayFromNote?: (noteId: string) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
+  /** Verse selection scope — defaults to the note id. The drag
+   *  overlay passes a distinct scope so it never shares DOM ids or
+   *  selection state with the real card. */
+  verseScope?: string;
   dragHandleProps?: {
     ref?: (element: HTMLElement | null) => void;
     [key: string]: unknown;
@@ -56,8 +60,10 @@ const NoteCard = ({
   onPlayFromNote,
   commentCount,
   onCountChange,
+  verseScope,
   dragHandleProps,
 }: NoteCardProps) => {
+  const scope = verseScope ?? note.id;
   const [threadOpen, setThreadOpen] = useState(false);
   const [passageContainer, setPassageContainer] =
     useState<ScriptureRef | null>(null);
@@ -414,7 +420,11 @@ const NoteCard = ({
         )}
       </Box>
 
-      <Box mt={-10} sx={{ position: 'relative', zIndex: 0 }}>
+      <Box
+        mt={-10}
+        sx={{ position: 'relative', zIndex: 0 }}
+        data-verse-scope={scope}
+      >
         {versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
@@ -422,11 +432,14 @@ const NoteCard = ({
                 h => h.before_verse === v.verse
               );
               return (
-                <Box key={v.verse}>
+                <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
                   {heading && (
                     <SectionHeadingComponent text={heading.text} />
                   )}
                   <Verse
+                    scope={scope}
+                    book={v.book}
+                    chapter={v.chapter}
                     verse={v.verse}
                     text={v.text}
                     folded
@@ -441,14 +454,16 @@ const NoteCard = ({
                 h => h.before_verse === v.verse
               );
               return (
-                <Box key={v.verse}>
+                <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
                   {heading && (
                     <SectionHeadingComponent text={heading.text} />
                   )}
                   <Verse
+                    scope={scope}
+                    book={v.book}
+                    chapter={v.chapter}
                     verse={v.verse}
                     text={v.text}
-                    selectable={false}
                   />
                 </Box>
               );

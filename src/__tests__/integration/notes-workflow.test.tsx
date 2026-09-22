@@ -46,6 +46,6 @@ describe.skip('Notes Workflow Integration Test', () => {
     });
 
     // 6. Verify the selected verses are cleared
-    expect(mockStore.setActiveVerses).toHaveBeenCalledWith([]);
+    expect(mockStore.setVerseSelection).toHaveBeenCalledWith(null);
   });
 });

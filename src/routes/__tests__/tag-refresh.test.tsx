@@ -108,8 +108,7 @@ describe('Tag Refresh Behavior', () => {
       activeBook: 'John',
       activeBookShort: 'Joh',
       activeChapter: 1,
-      activeVerses: [],
-      selectedVerses: [],
+      verseSelection: null,
       bibleVersion: 'KJV',
       translations: [],
       activeTextFilesetId: null,
@@ -398,7 +397,7 @@ describe('Tag Refresh Behavior', () => {
   });
 
   describe('Performance: cache is still used within same session', () => {
-    it('should use cache when getTags is called without forceRefresh', async () => {
+    it('should use cache without forceRefresh', async () => {
       // Pre-populate store
       useBibleStore.setState({ tags: mockTags });
 
@@ -411,7 +410,7 @@ describe('Tag Refresh Behavior', () => {
       expect(mockApi.getTags).not.toHaveBeenCalled();
     });
 
-    it('should bypass cache when getTags is called with forceRefresh', async () => {
+    it('should bypass cache with forceRefresh', async () => {
       // Pre-populate store
       useBibleStore.setState({ tags: mockTags });
 
