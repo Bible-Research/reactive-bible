@@ -73,7 +73,7 @@ let mockHowlStop = vi.fn();
 let mockHowlOn = vi.fn();
 
 vi.mock('howler', () => ({
-  Howl: vi.fn().mockImplementation((opts: Record<string, unknown>) => {
+  Howl: vi.fn().mockImplementation(function (opts: Record<string, unknown>) {
     mockHowlOnLoad = opts.onload as () => void;
     mockHowlOnEnd = opts.onend as () => void;
     mockHowlOnLoadError = opts.onloaderror as (
