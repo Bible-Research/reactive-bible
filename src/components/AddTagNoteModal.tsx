@@ -3,6 +3,7 @@ import { addTagNote, getVersesInChapter } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useMemo, useState } from "react";
 import { groupRefsByChapter } from "../utils/verseRefs";
+import { toBookName } from "../utils/bibleUtils";
 import NoteForm from "./NoteForm";
 
 interface AddTagNoteModalProps {
@@ -64,7 +65,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         const results = await Promise.all(
           groups.map(async (group) => {
             const result = await getVersesInChapter(
-              group.book,
+              group.bookId,
               group.chapter,
               activeTextFilesetId
             );
@@ -72,7 +73,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
             return result.verses
               .filter((v) => wanted.has(v.verse))
               .map((v) => ({
-                book: group.book,
+                book: toBookName(group.bookId) ?? group.bookId,
                 chapter: group.chapter,
                 verse: v.verse,
                 text: v.text,
@@ -94,11 +95,14 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   }, [opened, refs, activeTextFilesetId]);
 
   const handleSubmit = async (tagId: string, text: string) => {
-    const verseReferences = refs.map(({ book, chapter, verse }) => ({
-      book,
-      chapter,
-      verse,
-    }));
+    // The notes API expects book names (verses[].book).
+    const verseReferences = refs.map(
+      ({ bookId, chapter, verse }) => ({
+        book: toBookName(bookId) ?? bookId,
+        chapter,
+        verse,
+      })
+    );
 
     try {
       await addTagNote(tagId, text, verseReferences);

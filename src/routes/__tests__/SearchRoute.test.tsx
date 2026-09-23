@@ -58,7 +58,7 @@ function renderSearch(search = '?q=grace') {
       <Routes>
         <Route path="/search" element={<SearchRoute />} />
         <Route
-          path="/bible/:book/:chapterVerse"
+          path="/bible/:ref"
           element={<div data-testid="bible-page" />}
         />
       </Routes>
@@ -164,8 +164,8 @@ describe('SearchRoute', () => {
       await waitFor(() => {
         const items = useBibleStore.getState().audioPlaylistItems;
         expect(items?.length).toBe(3);
-        expect(items?.[0].book).toBe('Romans');
-        expect(items?.[1].book).toBe('John');
+        expect(items?.[0].bookId).toBe('ROM');
+        expect(items?.[1].bookId).toBe('JHN');
       });
     },
   );
@@ -207,7 +207,7 @@ describe('SearchRoute', () => {
     expect(items).toHaveLength(1);
     expect(items?.[0]).toMatchObject({
       itemId: 'search-JHN-3-16',
-      book: 'John',
+      bookId: 'JHN',
       chapter: 3,
       startVerse: 16,
       endVerse: 16,

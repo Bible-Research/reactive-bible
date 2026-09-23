@@ -50,8 +50,7 @@ describe('note-card multi verse selection', () => {
     useBibleStore.setState({
       tags: [mockTag],
       notes: [],
-      activeBook: 'John',
-      activeBookShort: 'Joh',
+      activeBookId: 'JHN',
       activeChapter: 1,
       verseSelection: null,
       bibleVersion: 'KJV',

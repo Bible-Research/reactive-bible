@@ -13,8 +13,7 @@ const sel = () => useBibleStore.getState().verseSelection;
 describe('shift+click range selection in full App', () => {
   beforeEach(() => {
     useBibleStore.setState({
-      activeBook: 'John',
-      activeBookShort: 'Joh',
+      activeBookId: 'JHN',
       activeChapter: 1,
       verseSelection: null,
       bibleVersion: 'KJV',
@@ -28,7 +27,7 @@ describe('shift+click range selection in full App', () => {
       const user = userEvent.setup();
       render(
         <React.StrictMode>
-          <MemoryRouter initialEntries={['/bible/John/1']}>
+          <MemoryRouter initialEntries={['/bible/JHN.1']}>
             <App />
           </MemoryRouter>
         </React.StrictMode>

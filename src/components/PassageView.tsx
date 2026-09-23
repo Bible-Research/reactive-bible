@@ -26,13 +26,15 @@ import CopyrightNotice from "./CopyrightNotice";
 import { shallow } from 'zustand/shallow';
 import { useNavigate } from 'react-router-dom';
 import {
-  getTestamentByBookName,
+  getTestament,
+  toBookName,
+  buildBiblePath,
   filesetCoversTestament,
 } from '../utils/bibleUtils';
 
 const PassageView = () => {
   const {
-    activeBook,
+    activeBookId,
     activeChapter,
     activeTextFilesetId,
     activeAudioFilesetId,
@@ -40,7 +42,7 @@ const PassageView = () => {
     translations,
   } = useBibleStore(
     (state) => ({
-      activeBook: state.activeBook,
+      activeBookId: state.activeBookId,
       activeChapter: state.activeChapter,
       activeTextFilesetId: state.activeTextFilesetId,
       activeAudioFilesetId: state.activeAudioFilesetId,
@@ -49,6 +51,7 @@ const PassageView = () => {
     }),
     shallow
   );
+  const activeBookName = toBookName(activeBookId) ?? activeBookId;
   const [verses, setVerses] = useState<
     { verse: number; text: string }[]
   >([]);
@@ -70,7 +73,7 @@ const PassageView = () => {
     tls: Translation[],
   ): string | null => {
     if (!filesetId || filesetId === 'ENGKJV') return null;
-    const testament = getTestamentByBookName(activeBook);
+    const testament = getTestament(activeBookId);
     if (!testament) return null;
     const fileset = tls
       .flatMap((t) => t.filesets)
@@ -100,7 +103,7 @@ const PassageView = () => {
     if (!activeTextFilesetId || activeTextFilesetId === 'ENGKJV') return;
 
     setTocLoading(true);
-    const allChapters = getChapters(activeBook);
+    const allChapters = getChapters(activeBookId);
     const totalChapters = allChapters.length;
 
     const forwardEnd = Math.min(activeChapter + 30, totalChapters);
@@ -111,7 +114,7 @@ const PassageView = () => {
       }
       try {
         const h = await fetchHeadingsOnly(
-          activeBook, ch, activeTextFilesetId
+          activeBookId, ch, activeTextFilesetId
         );
         if (tocAbortRef.current) {
           setTocLoading(false);
@@ -133,7 +136,7 @@ const PassageView = () => {
       }
       try {
         const h = await fetchHeadingsOnly(
-          activeBook, ch, activeTextFilesetId
+          activeBookId, ch, activeTextFilesetId
         );
         if (tocAbortRef.current) {
           setTocLoading(false);
@@ -167,7 +170,7 @@ const PassageView = () => {
     } else {
       pendingScrollHeadingRef.current = beforeVerse;
       setHeadingsOnlyMode(false);
-      navigate(`/bible/${activeBook}/${chapter}`);
+      navigate(buildBiblePath(activeBookId, chapter));
     }
   };
 
@@ -181,7 +184,9 @@ const PassageView = () => {
     setLoading(true);
     setFetchError(null);
     setIsRateLimitError(false);
-    getVersesInChapter(activeBook, activeChapter, activeTextFilesetId)
+    getVersesInChapter(
+      activeBookId, activeChapter, activeTextFilesetId
+    )
       .then((result) => {
         setVerses(result.verses);
         setHeadings(result.headings);
@@ -198,14 +203,18 @@ const PassageView = () => {
         }
 
         // Prefetch current chapter audio (parallel)
-        prefetchAudioUrl(activeBook, activeChapter, activeAudioFilesetId);
+        prefetchAudioUrl(
+          activeBookId, activeChapter, activeAudioFilesetId
+        );
 
         // Prefetch next chapter audio (parallel)
-        prefetchAudioUrl(activeBook, activeChapter + 1, activeAudioFilesetId);
+        prefetchAudioUrl(
+          activeBookId, activeChapter + 1, activeAudioFilesetId
+        );
 
         // Prefetch adjacent chapters (parallel)
         prefetchAdjacentChapters(
-          activeBook,
+          activeBookId,
           activeChapter,
           activeTextFilesetId
         );
@@ -221,7 +230,7 @@ const PassageView = () => {
         setHeadings([]);
         setLoading(false);
       });
-  }, [activeBook, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
+  }, [activeBookId, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
 
   if (loading) {
     return (
@@ -258,7 +267,8 @@ const PassageView = () => {
                 ? 'Rate Limit Reached'
                 : fetchError
                 ? 'Failed to load text'
-                : `No content for ${activeBook} ${activeChapter}`
+                : `No content for ` +
+                  `${activeBookName} ${activeChapter}`
             }
             color={isRateLimitError ? 'yellow' : 'orange'}
           >
@@ -283,7 +293,7 @@ const PassageView = () => {
       <ScrollArea h="calc(100vh - 112px)">
         <Box pb={showAudioPlayer ? 120 : 0} px={10} pt="md">
           <Title order={5} color="dimmed" mb="xs">
-            {activeBook} — Section Outline
+            {activeBookName} — Section Outline
           </Title>
           {[...tocEntries]
             .sort((a, b) => a.chapter - b.chapter)
@@ -340,7 +350,7 @@ const PassageView = () => {
               )}
               <Verse
                 scope="bible"
-                book={activeBook}
+                book={activeBookId}
                 chapter={activeChapter}
                 verse={verse.verse}
                 text={verse.text}

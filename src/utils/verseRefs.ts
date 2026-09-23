@@ -1,9 +1,9 @@
 import type { VerseRef, VerseScope } from '../types';
-import { BOOK_NAME_TO_ORDER } from './bibleUtils';
+import { BOOK_CODE_TO_ORDER } from './bibleUtils';
 
 /** Structural equality for qualified verse references. */
 export const sameRef = (a: VerseRef, b: VerseRef): boolean =>
-  a.book === b.book &&
+  a.bookId === b.bookId &&
   a.chapter === b.chapter &&
   a.verse === b.verse;
 
@@ -15,8 +15,8 @@ export const refsInclude = (
 /** Canonical ordering: Bible book order, then chapter, then verse. */
 export const sortRefs = (refs: VerseRef[]): VerseRef[] =>
   [...refs].sort((a, b) => {
-    const aBook = BOOK_NAME_TO_ORDER[a.book.toLowerCase()] ?? 999;
-    const bBook = BOOK_NAME_TO_ORDER[b.book.toLowerCase()] ?? 999;
+    const aBook = BOOK_CODE_TO_ORDER[a.bookId] ?? 999;
+    const bBook = BOOK_CODE_TO_ORDER[b.bookId] ?? 999;
     return (
       aBook - bBook ||
       a.chapter - b.chapter ||
@@ -35,30 +35,30 @@ export const sameRefSet = (a: VerseRef[], b: VerseRef[]): boolean => {
 /** Sorted verse numbers of refs within one book/chapter. */
 export const verseNumbersFor = (
   refs: VerseRef[],
-  book: string,
+  bookId: string,
   chapter: number,
 ): number[] =>
   refs
-    .filter((r) => r.book === book && r.chapter === chapter)
+    .filter((r) => r.bookId === bookId && r.chapter === chapter)
     .map((r) => r.verse)
     .sort((a, b) => a - b);
 
 /** Groups refs by book+chapter, preserving canonical order. */
 export const groupRefsByChapter = (
   refs: VerseRef[],
-): { book: string; chapter: number; verses: number[] }[] => {
+): { bookId: string; chapter: number; verses: number[] }[] => {
   const groups = new Map<
     string,
-    { book: string; chapter: number; verses: number[] }
+    { bookId: string; chapter: number; verses: number[] }
   >();
   for (const ref of sortRefs(refs)) {
-    const key = `${ref.book}|${ref.chapter}`;
+    const key = `${ref.bookId}|${ref.chapter}`;
     const group = groups.get(key);
     if (group) {
       group.verses.push(ref.verse);
     } else {
       groups.set(key, {
-        book: ref.book,
+        bookId: ref.bookId,
         chapter: ref.chapter,
         verses: [ref.verse],
       });
@@ -76,10 +76,11 @@ export const slug = (s: string): string =>
 
 /**
  * DOM id unique per scope + coordinate, e.g.
- * `verse-bible-john-3-16` or `verse-<note-id>-john-3-16`.
+ * `verse-bible-jhn-3-16` or `verse-<note-id>-jhn-3-16`.
  */
 export const verseDomId = (
   scope: VerseScope,
   ref: VerseRef,
 ): string =>
-  `verse-${slug(scope)}-${slug(ref.book)}-${ref.chapter}-${ref.verse}`;
+  `verse-${slug(scope)}-${slug(ref.bookId)}` +
+  `-${ref.chapter}-${ref.verse}`;

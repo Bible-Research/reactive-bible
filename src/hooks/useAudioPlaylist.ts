@@ -11,7 +11,8 @@ import { PlaylistItem, VerseTimestamp } from '../types';
 import {
   resolveTimestampsFilesetId,
   filesetCoversTestament,
-  getTestamentByBookName,
+  getTestament,
+  toBookName,
   adjustTimestampsForENGESV,
   findTestamentFallback,
 } from '../utils/bibleUtils';
@@ -64,7 +65,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
     audio,
     isPlaying,
     timestamps,
-    currentItem?.book ?? '',
+    currentItem?.bookId ?? '',
     currentItem?.chapter ?? 0,
     currentItem?.itemId ?? '',
   );
@@ -93,12 +94,13 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
       const item = allItems[index];
 
-      if (!item.book || item.startVerse == null) {
+      if (!item.bookId || item.startVerse == null) {
         playIndex(allItems, index + 1);
         return;
       }
 
-      const testament = getTestamentByBookName(item.book);
+      const itemBookName = toBookName(item.bookId) ?? item.bookId;
+      const testament = getTestament(item.bookId);
       const fileset = translations
         .flatMap((t) => t.filesets)
         .find((f) => f.id === activeAudioFilesetId);
@@ -117,7 +119,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         );
         if (fallbackId) {
           console.log(
-            `🔄 Playlist auto-switching to ${fallbackId} for ${item.book}`
+            `🔄 Playlist auto-switching to ${fallbackId} ` +
+            `for ${itemBookName}`
           );
           effectiveFilesetId = fallbackId;
         } else {
@@ -125,7 +128,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             title: 'Audio not available',
             message:
               `The selected audio version does not cover ` +
-              `${item.book}. Skipping to next item.`,
+              `${itemBookName}. Skipping to next item.`,
             color: 'orange',
             autoClose: 5000,
           });
@@ -142,7 +145,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         if (!next || !activeAudioFilesetId) return;
         if (activeAudioFilesetId !== 'ENGKJV') {
           getBibleAudioUrl(
-            next.book,
+            next.bookId,
             next.chapter,
             activeAudioFilesetId,
           ).catch(() => { /* prefetch - ignore errors */ });
@@ -150,10 +153,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         const tsId = resolveTimestampsFilesetId(
           activeAudioFilesetId,
           activeTextFilesetId,
-          next.book,
+          next.bookId,
         );
         if (tsId) {
-          getAudioTimestamps(next.book, next.chapter, tsId)
+          getAudioTimestamps(next.bookId, next.chapter, tsId)
             .catch(() => { /* prefetch - ignore errors */ });
         }
       };
@@ -161,10 +164,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       try {
         let audioUrl: string;
         if (activeAudioFilesetId === 'ENGKJV') {
-          audioUrl = getKjvAudioUrl(item.book, item.chapter);
+          audioUrl = getKjvAudioUrl(item.bookId, item.chapter);
         } else if (effectiveFilesetId) {
           audioUrl = await getBibleAudioUrl(
-            item.book,
+            item.bookId,
             item.chapter,
             effectiveFilesetId,
           );
@@ -185,11 +188,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           const tsId = resolveTimestampsFilesetId(
             effectiveFilesetId,
             activeTextFilesetId,
-            item.book,
+            item.bookId,
           );
           if (tsId) {
             const rawTimestamps = await getAudioTimestamps(
-              item.book,
+              item.bookId,
               item.chapter,
               tsId,
             );

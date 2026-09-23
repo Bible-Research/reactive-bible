@@ -7,6 +7,10 @@ import {
   NEW_TESTAMENT_BOOKS,
   adjustTimestampsForENGESV,
   findTestamentFallback,
+  toUsfmCode,
+  toBookName,
+  parseBibleRef,
+  buildBiblePath,
   type Fileset,
 } from './bibleUtils';
 
@@ -37,6 +41,147 @@ describe('Bible Utils', () => {
     it('should correctly map book names to codes', () => {
       expect(BOOK_NAME_TO_CODE['genesis']).toBe('GEN');
       expect(BOOK_NAME_TO_CODE['revelation']).toBe('REV');
+    });
+  });
+
+  describe('toUsfmCode', () => {
+    it('resolves display names to codes', () => {
+      expect(toUsfmCode('John')).toBe('JHN');
+      expect(toUsfmCode('1 Corinthians')).toBe('1CO');
+      expect(toUsfmCode('1 John')).toBe('1JN');
+      expect(toUsfmCode('1 Chronicles')).toBe('1CH');
+      expect(toUsfmCode('Song of Solomon')).toBe('SNG');
+    });
+
+    it('is case-insensitive for names', () => {
+      expect(toUsfmCode('john')).toBe('JHN');
+      expect(toUsfmCode('1 corinthians')).toBe('1CO');
+    });
+
+    it('accepts codes in any case', () => {
+      expect(toUsfmCode('JHN')).toBe('JHN');
+      expect(toUsfmCode('jhn')).toBe('JHN');
+      expect(toUsfmCode('1co')).toBe('1CO');
+    });
+
+    it('returns null for unknown books', () => {
+      expect(toUsfmCode('NotABook')).toBeNull();
+      expect(toUsfmCode('')).toBeNull();
+    });
+  });
+
+  describe('toBookName', () => {
+    it('resolves codes to display names', () => {
+      expect(toBookName('JHN')).toBe('John');
+      expect(toBookName('1CO')).toBe('1 Corinthians');
+      expect(toBookName('SNG')).toBe('Song Of Solomon');
+    });
+
+    it('is case-insensitive', () => {
+      expect(toBookName('jhn')).toBe('John');
+    });
+
+    it('returns null for unknown codes', () => {
+      expect(toBookName('XXX')).toBeNull();
+      expect(toBookName('John')).toBeNull();
+    });
+  });
+
+  describe('parseBibleRef', () => {
+    it('parses book-only refs to chapter 1', () => {
+      expect(parseBibleRef('JHN')).toEqual({
+        bookId: 'JHN',
+        chapter: 1,
+        verses: [],
+        canonical: 'JHN.1',
+        needsRedirect: true,
+      });
+    });
+
+    it('parses book.chapter refs', () => {
+      expect(parseBibleRef('JHN.3')).toEqual({
+        bookId: 'JHN',
+        chapter: 3,
+        verses: [],
+        canonical: 'JHN.3',
+        needsRedirect: false,
+      });
+    });
+
+    it('parses single-verse refs', () => {
+      expect(parseBibleRef('JHN.3.16')).toEqual({
+        bookId: 'JHN',
+        chapter: 3,
+        verses: [16],
+        canonical: 'JHN.3.16',
+        needsRedirect: false,
+      });
+    });
+
+    it('parses range and comma verse refs', () => {
+      const parsed = parseBibleRef('JHN.3.16-18,20');
+      expect(parsed?.verses).toEqual([16, 17, 18, 20]);
+      expect(parsed?.canonical).toBe('JHN.3.16-18,20');
+      expect(parsed?.needsRedirect).toBe(false);
+    });
+
+    it('parses book names and flags redirect', () => {
+      const parsed = parseBibleRef('John.3');
+      expect(parsed?.bookId).toBe('JHN');
+      expect(parsed?.canonical).toBe('JHN.3');
+      expect(parsed?.needsRedirect).toBe(true);
+    });
+
+    it('flags lowercase codes for redirect', () => {
+      const parsed = parseBibleRef('jhn.3');
+      expect(parsed?.bookId).toBe('JHN');
+      expect(parsed?.needsRedirect).toBe(true);
+    });
+
+    it('expands dense verse lists in canonical form', () => {
+      const parsed = parseBibleRef('JHN.3.16,17');
+      expect(parsed?.canonical).toBe('JHN.3.16-17');
+      expect(parsed?.needsRedirect).toBe(true);
+    });
+
+    it('returns null for invalid refs', () => {
+      expect(parseBibleRef('FOO.1')).toBeNull();
+      expect(parseBibleRef('JHN.abc')).toBeNull();
+      expect(parseBibleRef('JHN.3.x')).toBeNull();
+      expect(parseBibleRef('JHN.3.16.2')).toBeNull();
+      expect(parseBibleRef('')).toBeNull();
+    });
+
+    it('returns null for non-positive chapters', () => {
+      expect(parseBibleRef('JHN.0')).toBeNull();
+    });
+  });
+
+  describe('buildBiblePath', () => {
+    it('builds chapter paths from codes', () => {
+      expect(buildBiblePath('JHN', 3)).toBe('/bible/JHN.3');
+      expect(buildBiblePath('1CO', 1)).toBe('/bible/1CO.1');
+    });
+
+    it('builds chapter paths from names', () => {
+      expect(buildBiblePath('John', 3)).toBe('/bible/JHN.3');
+    });
+
+    it('appends encoded verses', () => {
+      expect(buildBiblePath('JHN', 3, [16])).toBe('/bible/JHN.3.16');
+      expect(
+        buildBiblePath('JHN', 3, [16, 17, 18, 20])
+      ).toBe('/bible/JHN.3.16-18,20');
+    });
+
+    it('sorts verses into ranges', () => {
+      expect(buildBiblePath('JHN', 3, [18, 17, 16])).toBe(
+        '/bible/JHN.3.16-18'
+      );
+    });
+
+    it('falls back to /bible for unknown books', () => {
+      expect(buildBiblePath('NotABook', 3)).toBe('/bible');
     });
   });
 

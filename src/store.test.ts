@@ -11,7 +11,7 @@ vi.mock('./api', () => ({
   getNotes: vi.fn(),
 }));
 
-const john316 = { book: 'John', chapter: 3, verse: 16 };
+const john316 = { bookId: 'JHN', chapter: 3, verse: 16 };
 
 describe('Zustand Store (useBibleStore)', () => {
   // Reset store to initial state before each test
@@ -22,7 +22,7 @@ describe('Zustand Store (useBibleStore)', () => {
 
   it('should have the correct initial state', () => {
     const state = useBibleStore.getState();
-    expect(state.activeBook).toBe('John');
+    expect(state.activeBookId).toBe('JHN');
     expect(state.activeChapter).toBe(1);
     expect(state.bibleVersion).toBe('KJV');
     expect(state.notes).toEqual([]);
@@ -30,11 +30,11 @@ describe('Zustand Store (useBibleStore)', () => {
     expect(state.verseSelection).toBeNull();
   });
 
-  it('setActiveBook should update book, chapter, and verses', () => {
-    useBibleStore.getState().setActiveBook('Exodus');
+  it('setActiveBookAndChapter updates book and chapter', () => {
+    useBibleStore.getState().setActiveBookAndChapter('EXO', 2);
     const state = useBibleStore.getState();
-    expect(state.activeBook).toBe('Exodus');
-    expect(state.activeChapter).toBe(1);
+    expect(state.activeBookId).toBe('EXO');
+    expect(state.activeChapter).toBe(2);
     expect(state.verseSelection).toBeNull();
   });
 
@@ -65,22 +65,22 @@ describe('Zustand Store (useBibleStore)', () => {
   it('toggleVerseRef adds and removes refs within a scope', () => {
     const { toggleVerseRef } = useBibleStore.getState();
     toggleVerseRef('bible', john316);
-    toggleVerseRef('bible', { book: 'John', chapter: 3, verse: 17 });
+    toggleVerseRef('bible', { bookId: 'JHN', chapter: 3, verse: 17 });
     expect(useBibleStore.getState().verseSelection?.refs).toHaveLength(
       2
     );
     toggleVerseRef('bible', john316);
     expect(useBibleStore.getState().verseSelection?.refs).toEqual([
-      { book: 'John', chapter: 3, verse: 17 },
+      { bookId: 'JHN', chapter: 3, verse: 17 },
     ]);
-    toggleVerseRef('bible', { book: 'John', chapter: 3, verse: 17 });
+    toggleVerseRef('bible', { bookId: 'JHN', chapter: 3, verse: 17 });
     expect(useBibleStore.getState().verseSelection).toBeNull();
   });
 
   it('toggleVerseRef in a different scope replaces the selection', () => {
     const { toggleVerseRef } = useBibleStore.getState();
     toggleVerseRef('bible', john316);
-    const noteRef = { book: 'John', chapter: 3, verse: 16 };
+    const noteRef = { bookId: 'JHN', chapter: 3, verse: 16 };
     toggleVerseRef('note-1', noteRef);
     expect(useBibleStore.getState().verseSelection).toEqual({
       scope: 'note-1',
@@ -91,19 +91,19 @@ describe('Zustand Store (useBibleStore)', () => {
   it('selectVerseRange merges a range into the scope selection', () => {
     const { toggleVerseRef, selectVerseRange } =
       useBibleStore.getState();
-    toggleVerseRef('note-1', { book: 'John', chapter: 3, verse: 20 });
+    toggleVerseRef('note-1', { bookId: 'JHN', chapter: 3, verse: 20 });
     selectVerseRange(
       'note-1',
-      { book: 'John', chapter: 3, verse: 16 },
-      { book: 'John', chapter: 3, verse: 18 }
+      { bookId: 'JHN', chapter: 3, verse: 16 },
+      { bookId: 'JHN', chapter: 3, verse: 18 }
     );
     expect(useBibleStore.getState().verseSelection).toEqual({
       scope: 'note-1',
       refs: [
-        { book: 'John', chapter: 3, verse: 20 },
-        { book: 'John', chapter: 3, verse: 16 },
-        { book: 'John', chapter: 3, verse: 17 },
-        { book: 'John', chapter: 3, verse: 18 },
+        { bookId: 'JHN', chapter: 3, verse: 20 },
+        { bookId: 'JHN', chapter: 3, verse: 16 },
+        { bookId: 'JHN', chapter: 3, verse: 17 },
+        { bookId: 'JHN', chapter: 3, verse: 18 },
       ],
     });
   });
@@ -112,12 +112,12 @@ describe('Zustand Store (useBibleStore)', () => {
     const { selectVerseRange } = useBibleStore.getState();
     selectVerseRange(
       'bible',
-      { book: 'John', chapter: 3, verse: 16 },
-      { book: 'John', chapter: 4, verse: 2 }
+      { bookId: 'JHN', chapter: 3, verse: 16 },
+      { bookId: 'JHN', chapter: 4, verse: 2 }
     );
     expect(useBibleStore.getState().verseSelection).toEqual({
       scope: 'bible',
-      refs: [{ book: 'John', chapter: 4, verse: 2 }],
+      refs: [{ bookId: 'JHN', chapter: 4, verse: 2 }],
     });
   });
 
@@ -145,10 +145,17 @@ describe('Zustand Store (useBibleStore)', () => {
     expect(migrated.verseSelection).toEqual({
       scope: 'bible',
       refs: [
-        { book: 'John', chapter: 3, verse: 16 },
-        { book: 'John', chapter: 3, verse: 17 },
+        { bookId: 'JHN', chapter: 3, verse: 16 },
+        { bookId: 'JHN', chapter: 3, verse: 17 },
       ],
     });
+    expect(migrated.activeBookId).toBe('JHN');
+    expect(
+      (migrated as Record<string, unknown>).activeBook
+    ).toBeUndefined();
+    expect(
+      (migrated as Record<string, unknown>).activeBookShort
+    ).toBeUndefined();
     expect(
       (migrated as Record<string, unknown>).activeVerses
     ).toBeUndefined();
@@ -163,6 +170,58 @@ describe('Zustand Store (useBibleStore)', () => {
       0
     );
     expect(migrated.verseSelection).toBeNull();
+    expect(migrated.activeBookId).toBe('JHN');
+  });
+
+  it('migratePersistedState converts v2 name-based state', () => {
+    const migrated = migratePersistedState(
+      {
+        activeBook: 'John',
+        activeBookShort: 'Joh',
+        activeChapter: 3,
+        verseSelection: {
+          scope: 'bible',
+          refs: [{ book: 'John', chapter: 3, verse: 16 }],
+        },
+        audioActiveVerse: {
+          book: 'John',
+          chapter: 3,
+          verse: 17,
+          scope: 'bible',
+        },
+      },
+      2
+    );
+    expect(migrated.activeBookId).toBe('JHN');
+    expect(migrated.verseSelection).toEqual({
+      scope: 'bible',
+      refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+    });
+    expect(migrated.audioActiveVerse).toEqual({
+      bookId: 'JHN',
+      chapter: 3,
+      verse: 17,
+      scope: 'bible',
+    });
+    expect(
+      (migrated as Record<string, unknown>).activeBook
+    ).toBeUndefined();
+  });
+
+  it('migratePersistedState keeps v3 state untouched', () => {
+    const persisted = {
+      activeBookId: 'JHN',
+      activeChapter: 3,
+      verseSelection: {
+        scope: 'bible',
+        refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+      },
+    };
+    const migrated = migratePersistedState(persisted, 3);
+    expect(migrated.activeBookId).toBe('JHN');
+    expect(migrated.verseSelection).toEqual(
+      persisted.verseSelection
+    );
   });
 
   describe('fetchNotes', () => {

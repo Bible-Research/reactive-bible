@@ -38,7 +38,7 @@ describe('Audio Component', () => {
   it('should render the play button', () => {
     renderWithProviders(<Audio />, {
       storeOverrides: {
-        activeBook: 'Genesis',
+        activeBookId: 'GEN',
         activeChapter: 1,
         activeAudioFilesetId: 'ENGKJV',
         showAudioPlayer: false,

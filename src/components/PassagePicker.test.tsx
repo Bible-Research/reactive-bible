@@ -11,7 +11,7 @@ const renderPicker = (
   > = {}
 ) => {
   const props = {
-    book: 'John' as string | null,
+    bookId: 'JHN' as string | null,
     chapter: 3 as number | null,
     verses: [16],
     titlePrefix: 'mention-',
@@ -37,12 +37,12 @@ describe('PassagePicker', () => {
       .toBeInTheDocument();
   });
 
-  it('calls onSelectBook with the book name', async () => {
+  it('calls onSelectBook with the USFM book code', async () => {
     const props = renderPicker();
     await userEvent.click(
       screen.getByTitle('mention-book-GEN')
     );
-    expect(props.onSelectBook).toHaveBeenCalledWith('Genesis');
+    expect(props.onSelectBook).toHaveBeenCalledWith('GEN');
   });
 
   it('calls onSelectChapter with the chapter', async () => {
@@ -68,7 +68,7 @@ describe('PassagePicker', () => {
   });
 
   it('scrolls the active book into view', () => {
-    renderPicker({ book: 'Colossians' });
+    renderPicker({ bookId: 'COL' });
     // scrollIntoView is mocked by renderWithProviders
     expect(
       window.HTMLElement.prototype.scrollIntoView
@@ -90,7 +90,7 @@ describe('PassagePicker', () => {
   });
 
   it('renders empty chapter/verse columns without a book', () => {
-    renderPicker({ book: null, chapter: null, verses: [] });
+    renderPicker({ bookId: null, chapter: null, verses: [] });
     expect(screen.getByTitle('mention-book-GEN'))
       .toBeInTheDocument();
     expect(screen.queryByTitle('mention-chapter-1'))

@@ -13,6 +13,7 @@ import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { buildBiblePath } from "../utils/bibleUtils";
 import { UserMenu } from "./UserMenu";
 import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
 
@@ -34,7 +35,7 @@ const MainMenu = ({
   const [newNoteOpened, setNewNoteOpened] = useState(false);
 
   // Get Bible state for navigation
-  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
   return (
@@ -71,7 +72,7 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              navigate(`/bible/${activeBook}/${activeChapter}`);
+              navigate(buildBiblePath(activeBookId, activeChapter));
               onClose();
             }}
             sx={{ cursor: "pointer" }}

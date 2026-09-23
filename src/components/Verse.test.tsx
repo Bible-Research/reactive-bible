@@ -24,7 +24,7 @@ const initialStoreState = useBibleStore.getState();
 // Mock scrollIntoView
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
-const JOHN_3_5: VerseRef = { book: 'John', chapter: 3, verse: 5 };
+const JOHN_3_5: VerseRef = { bookId: 'JHN', chapter: 3, verse: 5 };
 
 const renderVerse = (
   overrides: Partial<{
@@ -83,7 +83,7 @@ describe('Verse Component', () => {
       scope: 'bible',
       refs: [JOHN_3_5],
     });
-    expect(mockNavigate).toHaveBeenCalledWith('/bible/John/3.5', {
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/JHN.3.5', {
       replace: true,
     });
   });
@@ -96,7 +96,7 @@ describe('Verse Component', () => {
     await userEvent.click(verseContainer('5'));
 
     expect(useBibleStore.getState().verseSelection).toBeNull();
-    expect(mockNavigate).toHaveBeenCalledWith('/bible/John/3', {
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/JHN.3', {
       replace: true,
     });
   });
@@ -105,7 +105,7 @@ describe('Verse Component', () => {
     useBibleStore.setState({
       verseSelection: {
         scope: 'bible',
-        refs: [{ book: 'John', chapter: 3, verse: 10 }],
+        refs: [{ bookId: 'JHN', chapter: 3, verse: 10 }],
       },
     });
     renderVerse({ verse: 10 });
@@ -153,7 +153,7 @@ describe('Verse Component', () => {
 
     expect(useBibleStore.getState().verseSelection).toEqual({
       scope: 'note-7',
-      refs: [{ book: 'John', chapter: 3, verse: 2 }],
+      refs: [{ bookId: 'JHN', chapter: 3, verse: 2 }],
     });
   });
 
@@ -183,9 +183,9 @@ describe('Verse Component', () => {
     expect(useBibleStore.getState().verseSelection).toEqual({
       scope: 'note-1',
       refs: [
-        { book: 'John', chapter: 3, verse: 16 },
-        { book: 'John', chapter: 3, verse: 17 },
-        { book: 'John', chapter: 3, verse: 18 },
+        { bookId: 'JHN', chapter: 3, verse: 16 },
+        { bookId: 'JHN', chapter: 3, verse: 17 },
+        { bookId: 'JHN', chapter: 3, verse: 18 },
       ],
     });
   });

@@ -7,6 +7,7 @@ export interface Tag {
 }
 
 export interface Verse {
+  /** Backend contract: a title-cased book name (e.g. "John"). */
   book: string;
   chapter: number;
   verse: number;
@@ -65,7 +66,8 @@ export type CommentCounts = Record<string, number>;
 
 export interface PlaylistItem {
   itemId: string;
-  book: string;
+  /** USFM book code (e.g. "JHN"). */
+  bookId: string;
   chapter: number;
   startVerse: number;
   endVerse: number;
@@ -75,7 +77,8 @@ export interface PlaylistItem {
 
 /** A fully-qualified verse coordinate. */
 export interface VerseRef {
-  book: string;
+  /** USFM book code (e.g. "JHN"). */
+  bookId: string;
   chapter: number;
   verse: number;
 }
@@ -89,7 +92,8 @@ export interface VerseSelection {
 }
 
 export interface AudioActiveVerse {
-  book: string;
+  /** USFM book code (e.g. "JHN"). */
+  bookId: string;
   chapter: number;
   verse: number;
   scope?: VerseScope; // 'bible' | PlaylistItem.itemId

@@ -1,7 +1,10 @@
 import { Box, Text, Title, createStyles } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
-import { encodeVerses } from "../utils/bibleUtils";
+import {
+  buildBiblePath,
+  toUsfmCode,
+} from "../utils/bibleUtils";
 import {
   refsInclude,
   verseDomId,
@@ -49,6 +52,7 @@ const Verse = ({
   folded,
   selectable = true,
 }: {
+  /** USFM code or book name (notes API gives names). */
   book: string;
   chapter: number;
   verse: number;
@@ -68,14 +72,15 @@ const Verse = ({
   const audioActiveVerse = useBibleStore(
     (state) => state.audioActiveVerse
   );
-  const thisRef: VerseRef = { book, chapter, verse };
+  const bookId = toUsfmCode(book) ?? book;
+  const thisRef: VerseRef = { bookId, chapter, verse };
   const isActive =
     verseSelection?.scope === scope &&
     refsInclude(verseSelection.refs, thisRef);
   const isAudioActive =
     audioActiveVerse !== null &&
     audioActiveVerse.scope === scope &&
-    audioActiveVerse.book === book &&
+    audioActiveVerse.bookId === bookId &&
     audioActiveVerse.chapter === chapter &&
     audioActiveVerse.verse === verse;
 
@@ -98,16 +103,11 @@ const Verse = ({
     const sel = useBibleStore.getState().verseSelection;
     const verses =
       sel && sel.scope === scope
-        ? verseNumbersFor(sel.refs, book, chapter)
+        ? verseNumbersFor(sel.refs, bookId, chapter)
         : [];
-    if (verses.length > 0) {
-      navigate(
-        `/bible/${book}/${chapter}.${encodeVerses(verses)}`,
-        { replace: true }
-      );
-    } else {
-      navigate(`/bible/${book}/${chapter}`, { replace: true });
-    }
+    navigate(buildBiblePath(bookId, chapter, verses), {
+      replace: true,
+    });
   };
 
   const handleVerseClick = (event: React.MouseEvent) => {
@@ -131,7 +131,7 @@ const Verse = ({
       event.shiftKey &&
       anchor !== null &&
       anchor.scope === scope &&
-      anchor.ref.book === book &&
+      anchor.ref.bookId === bookId &&
       anchor.ref.chapter === chapter
     ) {
       // Clear any text selection

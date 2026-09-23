@@ -10,13 +10,13 @@ import type { PlaylistItem } from '../types';
 describe('resolveTimestampsFilesetId', () => {
   it('returns ENGESVO1DA for ENGESV_API + OT book', () => {
     expect(
-      resolveTimestampsFilesetId('SOMEAUDIO', 'ENGESV_API', 'Genesis'),
+      resolveTimestampsFilesetId('SOMEAUDIO', 'ENGESV_API', 'GEN'),
     ).toBe('ENGESVO1DA');
   });
 
   it('returns ENGESVN1DA for ENGESV_API + NT book', () => {
     expect(
-      resolveTimestampsFilesetId('SOMEAUDIO', 'ENGESV_API', 'John'),
+      resolveTimestampsFilesetId('SOMEAUDIO', 'ENGESV_API', 'JHN'),
     ).toBe('ENGESVN1DA');
   });
 
@@ -25,7 +25,7 @@ describe('resolveTimestampsFilesetId', () => {
       resolveTimestampsFilesetId(
         'ENGESHN1DA-opus16',
         'ENGESH',
-        'John',
+        'JHN',
       ),
     ).toBe('ENGESHN1DA');
   });
@@ -33,14 +33,14 @@ describe('resolveTimestampsFilesetId', () => {
   it('returns null when audio fileset is null and text is not ENGESV_API',
     () => {
       expect(
-        resolveTimestampsFilesetId(null, 'ENGESH', 'John'),
+        resolveTimestampsFilesetId(null, 'ENGESH', 'JHN'),
       ).toBeNull();
     },
   );
 
   it('returns base audio id when codec suffix is absent', () => {
     expect(
-      resolveTimestampsFilesetId('ENGESHN1DA', 'ENGESH', 'Genesis'),
+      resolveTimestampsFilesetId('ENGESHN1DA', 'ENGESH', 'GEN'),
     ).toBe('ENGESHN1DA');
   });
 });
@@ -132,7 +132,7 @@ const makeItem = (
   overrides: Partial<PlaylistItem> = {},
 ): PlaylistItem => ({
   itemId: 'note-1',
-  book: 'John',
+  bookId: 'JHN',
   chapter: 3,
   startVerse: 16,
   endVerse: 18,
@@ -225,11 +225,11 @@ describe('useAudioPlaylist', () => {
       mockStoreState.activeTextFilesetId = 'ENGESV_API';
       const { result } = renderHook(() => useAudioPlaylist());
       act(() => {
-        result.current.start([makeItem({ book: 'John' })]);
+        result.current.start([makeItem({ bookId: 'JHN' })]);
       });
       await waitFor(() =>
         expect(api.getAudioTimestamps).toHaveBeenCalledWith(
-          'John',
+          'JHN',
           expect.any(Number),
           'ENGESVN1DA',
         )
@@ -242,11 +242,11 @@ describe('useAudioPlaylist', () => {
       mockStoreState.activeTextFilesetId = 'ENGESV_API';
       const { result } = renderHook(() => useAudioPlaylist());
       act(() => {
-        result.current.start([makeItem({ book: 'Genesis', chapter: 1 })]);
+        result.current.start([makeItem({ bookId: 'GEN', chapter: 1 })]);
       });
       await waitFor(() =>
         expect(api.getAudioTimestamps).toHaveBeenCalledWith(
-          'Genesis',
+          'GEN',
           expect.any(Number),
           'ENGESVO1DA',
         )
@@ -267,7 +267,7 @@ describe('useAudioPlaylist', () => {
         expect.anything(),
         expect.anything(),
         expect.anything(),
-        'John',
+        'JHN',
         3,
         'note-42',
       );
@@ -279,7 +279,7 @@ describe('useAudioPlaylist', () => {
     const items: PlaylistItem[] = [
       {
         itemId: 'result-0',
-        book: 'Romans',
+        bookId: 'ROM',
         chapter: 8,
         startVerse: 1,
         endVerse: 1,

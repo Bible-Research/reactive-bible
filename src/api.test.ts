@@ -30,42 +30,53 @@ describe('API Functions', () => {
       expect(books[65].book_name).toBe('Revelation');
     });
 
-    it('getChapters should return the correct number of chapters for a book', () => {
-      const chapters = api.getChapters('Genesis');
+    it('getChapters should return the correct number of chapters',
+      () => {
+      const chapters = api.getChapters('GEN');
       expect(chapters.length).toBe(50);
     });
 
-    it('getVersesInKjvChapter should return all verses for a given chapter', () => {
-      const result = api.getVersesInKjvChapter('John', 3);
+    it('getVersesInKjvChapter should return all verses for a ' +
+      'given chapter', () => {
+      const result = api.getVersesInKjvChapter('JHN', 3);
       expect(result.verses.length).toBe(36);
       expect(result.verses[15].text).toContain('For God so loved the world');
       expect(result.headings).toEqual([]);
     });
 
-    it('getAdjacentChapters should return correct previous and next chapters', () => {
-      const adjacent = api.getAdjacentChapters('John', 1);
-      expect(adjacent.previous).toEqual({ book: 'Luke', chapter: 24 });
-      expect(adjacent.next).toEqual({ book: 'John', chapter: 2 });
+    it('getAdjacentChapters should return correct previous and ' +
+      'next chapters', () => {
+      const adjacent = api.getAdjacentChapters('JHN', 1);
+      expect(adjacent.previous).toEqual({ bookId: 'LUK', chapter: 24 });
+      expect(adjacent.next).toEqual({ bookId: 'JHN', chapter: 2 });
     });
   });
 
   // --- API-Calling Functions ---
   describe('API-Calling Functions', () => {
     it('getVersesFromApi should fetch from API when not cached', async () => {
-      const mockVerses = [{ verse: 16, text: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.' }];
-      const result = await api.getVersesFromApi('Genesis', 1, 'ESV');
+      const mockVerses = [{
+        verse: 16,
+        text: 'For God so loved the world, that he gave his ' +
+          'only begotten Son, that whosoever believeth in him ' +
+          'should not perish, but have everlasting life.',
+      }];
+      const result = await api.getVersesFromApi('GEN', 1, 'ESV');
 
-      expect(cacheManager.getCachedVerses).toHaveBeenCalledWith('Genesis', 1, 'ESV');
-      expect(cacheManager.cacheVerses).toHaveBeenCalledWith('Genesis', 1, 'ESV', mockVerses);
+      expect(cacheManager.getCachedVerses).toHaveBeenCalledWith(
+        'GEN', 1, 'ESV');
+      expect(cacheManager.cacheVerses).toHaveBeenCalledWith(
+        'GEN', 1, 'ESV', mockVerses);
       expect(result.verses).toEqual(mockVerses);
       expect(result.headings).toEqual([]);
     });
 
-    it('getVersesFromApi should return from cache when available', async () => {
+    it('getVersesFromApi should return from cache when available',
+      async () => {
       const mockVerses = [{ verse: 1, text: 'Cached verse' }];
       vi.spyOn(cacheManager, 'getCachedVerses').mockReturnValue(mockVerses);
 
-      const result = await api.getVersesFromApi('Genesis', 1, 'ESV');
+      const result = await api.getVersesFromApi('GEN', 1, 'ESV');
 
       expect(result.verses).toEqual(mockVerses);
       expect(result.headings).toEqual([]);
@@ -80,11 +91,11 @@ describe('API Functions', () => {
       );
 
       await expect(
-        api.getVersesFromApi('John', 3, 'ENGESV')
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
       ).rejects.toThrow(api.RateLimitError);
 
       await expect(
-        api.getVersesFromApi('John', 3, 'ENGESV')
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
       ).rejects.toThrow(
         'The translation provider is currently rate-limited'
       );
@@ -92,14 +103,17 @@ describe('API Functions', () => {
 
     it('getBibleAudioUrl should fetch from API when not cached', async () => {
       const mockUrl = 'http://audio.url/test.mp3';
-      const url = await api.getBibleAudioUrl('Genesis', 1, 'ESVDA');
+      const url = await api.getBibleAudioUrl('GEN', 1, 'ESVDA');
 
-      expect(cacheManager.getCachedAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESVDA');
-      expect(cacheManager.cacheAudioUrl).toHaveBeenCalledWith('Genesis', 1, 'ESVDA', mockUrl, 0, 0);
+      expect(cacheManager.getCachedAudioUrl).toHaveBeenCalledWith(
+        'GEN', 1, 'ESVDA');
+      expect(cacheManager.cacheAudioUrl).toHaveBeenCalledWith(
+        'GEN', 1, 'ESVDA', mockUrl, 0, 0);
       expect(url).toBe(mockUrl);
     });
 
-    it.skip('addTagNote should make a POST request with the correct body', async () => {
+    it.skip('addTagNote should make a POST request with the ' +
+      'correct body', async () => {
       const verseRefs = [{ book: 'John', chapter: 3, verse: 16 }];
       const result = await api.addTagNote('tag1', 'My note', verseRefs);
       expect(result.id).toBe('note-1');
@@ -115,7 +129,8 @@ describe('API Functions', () => {
 
           // Only return 404 for this specific test case
           if (filesetId === 'ERRORTEST') {
-            return new HttpResponse(null, { status: 404, statusText: 'Not Found' });
+            return new HttpResponse(
+              null, { status: 404, statusText: 'Not Found' });
           }
 
           // Let other requests pass through to default handler
@@ -126,7 +141,9 @@ describe('API Functions', () => {
       // Clear the cache to ensure the API is actually called
       localStorage.clear();
 
-      await expect(api.getBibleAudioUrl('Genesis', 1, 'ERRORTEST')).rejects.toThrow(
+      await expect(
+        api.getBibleAudioUrl('GEN', 1, 'ERRORTEST')
+      ).rejects.toThrow(
         'Failed to fetch audio for ERRORTEST: Not Found'
       );
     });

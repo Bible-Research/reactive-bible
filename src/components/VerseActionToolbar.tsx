@@ -22,7 +22,10 @@ import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
 import AddTagNoteModal from "./AddTagNoteModal";
-import { BOOK_NAME_TO_CODE, encodeVerses } from "../utils/bibleUtils";
+import {
+  buildBiblePath,
+  toBookName,
+} from "../utils/bibleUtils";
 import {
   groupRefsByChapter,
   verseNumbersFor,
@@ -102,12 +105,14 @@ const faviconUrl = (domain: string) =>
   `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
 
 const formatChapterGroup = (group: {
-  book: string;
+  bookId: string;
   chapter: number;
   verses: number[];
 }): string => {
   const sorted = group.verses;
-  const label = `${group.book} ${group.chapter}`;
+  const label =
+    `${toBookName(group.bookId) ?? group.bookId} ` +
+    `${group.chapter}`;
   if (sorted.length === 0) return label;
   const isConsecutive = sorted.every(
     (v, i) => i === 0 || v === sorted[i - 1] + 1
@@ -153,11 +158,14 @@ const VerseActionToolbar = () => {
     if (refs.length === 0) return null;
     const first = refs[0];
     return {
-      book: first.book,
+      bookId: first.bookId,
       chapter: first.chapter,
-      verses: verseNumbersFor(refs, first.book, first.chapter),
+      verses: verseNumbersFor(refs, first.bookId, first.chapter),
     };
   }, [refs]);
+  const primaryBookName = primary
+    ? toBookName(primary.bookId) ?? primary.bookId
+    : null;
 
   const passageRef = useMemo(() => {
     if (refs.length === 0) return "";
@@ -166,13 +174,12 @@ const VerseActionToolbar = () => {
 
   const handleShare = useCallback(async () => {
     if (!primary) return;
-    const bookEncoded = encodeURIComponent(primary.book);
-    const versePath = primary.verses.length > 0
-      ? `.${encodeVerses(primary.verses)}`
-      : "";
-    const url =
-      `${window.location.origin}/bible/${bookEncoded}/` +
-      `${primary.chapter}${versePath}`;
+    const path = buildBiblePath(
+      primary.bookId,
+      primary.chapter,
+      primary.verses,
+    );
+    const url = `${window.location.origin}${path}`;
 
     const verseText = refs
       .map((r) => {
@@ -252,8 +259,7 @@ const VerseActionToolbar = () => {
 
   const youVersionUrl = useMemo(() => {
     if (!primary) return null;
-    const bookCode = BOOK_NAME_TO_CODE[primary.book.toLowerCase()];
-    if (!bookCode) return null;
+    const bookCode = primary.bookId;
     const sorted = primary.verses;
     const verseStr =
       sorted.length === 1
@@ -266,51 +272,52 @@ const VerseActionToolbar = () => {
   }, [primary]);
 
   const bibleHubUrl = useMemo(() => {
-    if (!primary) return null;
+    if (!primary || !primaryBookName) return null;
     const verse = primary.verses[primary.verses.length - 1];
     if (verse == null) return null;
     const bookPath =
-      primary.book === "Song of Solomon"
+      primaryBookName === "Song of Solomon"
         ? "songs"
-        : primary.book.toLowerCase().replace(/ /g, "_");
+        : primaryBookName.toLowerCase().replace(/ /g, "_");
     return (
       `https://biblehub.com/${bookPath}/` +
       `${primary.chapter}-${verse}.htm#commentary`
     );
-  }, [primary]);
+  }, [primary, primaryBookName]);
 
   const blbUrl = useMemo(() => {
-    if (!primary) return null;
+    if (!primary || !primaryBookName) return null;
     const verse = primary.verses[primary.verses.length - 1];
-    const abbr = BOOK_TO_BLB_ABBR[primary.book];
+    const abbr = BOOK_TO_BLB_ABBR[primaryBookName];
     if (!abbr || verse == null) return null;
     return (
       `https://www.blueletterbible.org/kjv/${abbr}/` +
       `${primary.chapter}/${verse}/`
     );
-  }, [primary]);
+  }, [primary, primaryBookName]);
 
   const mapUrl = useMemo(() => {
-    if (!primary) {
+    if (!primary || !primaryBookName) {
       return "https://biblemapper.com/blog/mapfinder/";
     }
-    const ref = `${primary.book} ${primary.chapter}`;
+    const ref = `${primaryBookName} ${primary.chapter}`;
     return (
       "https://biblemapper.com/blog/mapfinder/?ref=" +
       encodeURIComponent(ref)
     );
-  }, [primary]);
+  }, [primary, primaryBookName]);
 
   const isVisible = refCount > 0;
   const bottomOffset = showAudioPlayer ? 176 : 56;
 
   const handleViewInBible = useCallback(() => {
     if (!primary) return;
-    const versePath = primary.verses.length > 0
-      ? `.${encodeVerses(primary.verses)}`
-      : "";
     navigate(
-      `/bible/${primary.book}/${primary.chapter}${versePath}`
+      buildBiblePath(
+        primary.bookId,
+        primary.chapter,
+        primary.verses,
+      )
     );
   }, [primary, navigate]);
 

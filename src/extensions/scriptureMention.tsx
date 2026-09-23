@@ -87,7 +87,7 @@ const ScriptureMentionPopup = ({
         {parsed.error ?? (preview || 'Type @ to cite a passage')}
       </Text>
       <PassagePicker
-        book={parsed.bookName}
+        bookId={code ?? null}
         chapter={parsed.chapter}
         verses={selectedVerses}
         bookFilter={
@@ -95,10 +95,8 @@ const ScriptureMentionPopup = ({
         }
         height={POPUP_HEIGHT}
         titlePrefix="mention-"
-        onSelectBook={(bookName) => {
-          const bookCode =
-            BOOK_NAME_TO_CODE[bookName.toLowerCase()];
-          if (bookCode) rewriteQuery(`@${bookCode}.`);
+        onSelectBook={(bookId) => {
+          rewriteQuery(`@${bookId}.`);
         }}
         onSelectChapter={(ch) => {
           if (code) rewriteQuery(`@${code}.${ch}.`);

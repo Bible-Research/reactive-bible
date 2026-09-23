@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Box, Text } from '@mantine/core';
 import { getVersesInChapter } from '../api';
 import { ScriptureRef } from '../utils/scriptureRef';
+import { toUsfmCode } from '../utils/bibleUtils';
 import { SectionHeading } from '../types';
 import SectionHeadingComponent from './SectionHeading';
 
@@ -25,8 +26,10 @@ const ScripturePassage = ({
 
     const getPassage = async () => {
       try {
+        // reference.book is a display name; the API helper
+        // keys on USFM codes.
         const res = await getVersesInChapter(
-          book, chapter, FILESET_ID
+          toUsfmCode(book) ?? book, chapter, FILESET_ID
         );
         if (cancelled) return;
         setPassages(

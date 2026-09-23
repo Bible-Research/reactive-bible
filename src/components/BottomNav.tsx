@@ -9,6 +9,7 @@ import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { getPassage } from "../api";
+import { buildBiblePath } from "../utils/bibleUtils";
 
 interface BottomNavProps {
   setBibleSelectorOpened: (opened: boolean) => void;
@@ -18,17 +19,14 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const navigate = useNavigate();
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const activeChapter = useBibleStore((state) => state.activeChapter);
-  const activeBookShort = useBibleStore((state) => state.activeBookShort);
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const setActiveBookShort = useBibleStore(
-    (state) => state.setActiveBookShort
-  );
+  const activeBookId = useBibleStore((state) => state.activeBookId);
   const getPassageResult = getPassage();
 
   const checkNext = (): number | null => {
     const index = getPassageResult.findIndex(
       (book) =>
-        book.book_name === activeBook && book.chapter === activeChapter
+        book.book_id === activeBookId &&
+        book.chapter === activeChapter
     );
     return index === -1 || index === getPassageResult.length - 1
       ? null
@@ -38,7 +36,8 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const checkPrev = (): number | null => {
     const index = getPassageResult.findIndex(
       (book) =>
-        book.book_name === activeBook && book.chapter === activeChapter
+        book.book_id === activeBookId &&
+        book.chapter === activeChapter
     );
     return index === -1 || index === 0 ? null : index;
   };
@@ -49,9 +48,11 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
     if (getPassageResult) {
       const next = getPassageResult[index + 1];
       if (next !== null) {
-        console.log(`🔗 BottomNav Next: /bible/${next.book_name}/${next.chapter}`);
-        setActiveBookShort(next.book_id);
-        navigate(`/bible/${next.book_name}/${next.chapter}`);
+        console.log(
+          `🔗 BottomNav Next: ` +
+          `/bible/${next.book_id}.${next.chapter}`
+        );
+        navigate(buildBiblePath(next.book_id, next.chapter));
       }
     }
   };
@@ -62,9 +63,11 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
     if (getPassageResult) {
       const prev = getPassageResult[index - 1];
       if (prev !== null) {
-        console.log(`🔗 BottomNav Prev: /bible/${prev.book_name}/${prev.chapter}`);
-        setActiveBookShort(prev.book_id);
-        navigate(`/bible/${prev.book_name}/${prev.chapter}`);
+        console.log(
+          `🔗 BottomNav Prev: ` +
+          `/bible/${prev.book_id}.${prev.chapter}`
+        );
+        navigate(buildBiblePath(prev.book_id, prev.chapter));
       }
     }
   };
@@ -106,7 +109,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
             },
           }}
         >
-          {activeBookShort} {activeChapter}
+          {activeBookId} {activeChapter}
         </Title>
         <ActionIcon
           variant="transparent"

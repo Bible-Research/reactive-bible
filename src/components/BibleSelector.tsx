@@ -1,7 +1,7 @@
 import { Navbar } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
-import { getAllBooks } from "../utils/scriptureMention";
+import { buildBiblePath } from "../utils/bibleUtils";
 import { verseNumbersFor } from "../utils/verseRefs";
 import PassagePicker from "./PassagePicker";
 
@@ -13,16 +13,15 @@ const BibleSelector = ({
   setOpened: (opened: boolean) => void;
 }) => {
   const navigate = useNavigate();
-  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const verseSelection = useBibleStore((state) => state.verseSelection);
   const pickerVerses =
     verseSelection?.scope === 'bible'
-      ? verseNumbersFor(verseSelection.refs, activeBook, activeChapter)
+      ? verseNumbersFor(
+          verseSelection.refs, activeBookId, activeChapter
+        )
       : [];
-  const setActiveBookShort = useBibleStore(
-    (state) => state.setActiveBookShort
-  );
 
   return (
     <Navbar
@@ -36,26 +35,24 @@ const BibleSelector = ({
     >
       <Navbar.Section grow sx={{ overflow: "hidden" }}>
         <PassagePicker
-          book={activeBook}
+          bookId={activeBookId}
           chapter={activeChapter}
           verses={pickerVerses}
           titlePrefix="nav-"
-          onSelectBook={(bookName) => {
-            const entry = getAllBooks().find(
-              (b) => b.book_name === bookName
-            );
-            if (entry) setActiveBookShort(entry.book_id);
-            console.log(`🔗 Navigating to: /bible/${bookName}/1`);
-            navigate(`/bible/${bookName}/1`);
+          onSelectBook={(bookId) => {
+            console.log(`🔗 Navigating to: /bible/${bookId}.1`);
+            navigate(buildBiblePath(bookId, 1));
           }}
           onSelectChapter={(chapter) => {
             console.log(
-              `🔗 Navigating to: /bible/${activeBook}/${chapter}`
+              `🔗 Navigating to: /bible/${activeBookId}.${chapter}`
             );
-            navigate(`/bible/${activeBook}/${chapter}`);
+            navigate(buildBiblePath(activeBookId, chapter));
           }}
           onSelectVerse={(verse) => {
-            navigate(`/bible/${activeBook}/${activeChapter}.${verse}`);
+            navigate(
+              buildBiblePath(activeBookId, activeChapter, [verse])
+            );
             setOpened(false);
           }}
         />

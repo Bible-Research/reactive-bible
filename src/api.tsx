@@ -1,5 +1,6 @@
 import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
+import { toBookName } from "./utils/bibleUtils";
 import {
   VerseTimestamp,
   FilesetCopyright,
@@ -58,20 +59,24 @@ export const getBooks = (): { book_name: string; book_id: string }[] => {
   }[];
 };
 
-export const getChapters = (thebook: string): number[] => {
+export const getChapters = (bookId: string): number[] => {
   return [
     ...new Set<number>(
       data
-        .filter((book: KjvBook) => book.book_name === thebook)
+        .filter((book: KjvBook) => book.book_id === bookId)
         .map((book: KjvBook) => book.chapter)
     ),
   ];
 };
 
-export const getVerses = (thebook: string, thechapter: number): number[] => {
+export const getVerses = (
+  bookId: string,
+  thechapter: number
+): number[] => {
   return data
     .filter(
-      (book: KjvBook) => book.book_name === thebook && book.chapter === thechapter
+      (book: KjvBook) =>
+        book.book_id === bookId && book.chapter === thechapter
     )
     .map((book: KjvBook) => book.verse);
 };
@@ -82,24 +87,24 @@ type VerseResult = {
 };
 
 export const getVersesInChapter = async (
-  thebook: string,
+  bookId: string,
   thechapter: number,
   filesetId: string
 ): Promise<VerseResult> => {
   if (filesetId === 'ENGKJV') {
-    return getVersesInKjvChapter(thebook, thechapter);
+    return getVersesInKjvChapter(bookId, thechapter);
   }
-  return await getVersesFromApi(thebook, thechapter, filesetId);
+  return await getVersesFromApi(bookId, thechapter, filesetId);
 };
 
 export const getVersesInKjvChapter = (
-  thebook: string,
+  bookId: string,
   thechapter: number
 ): VerseResult => {
   const verses = data
     .filter(
       (book: KjvBook) =>
-        book.book_name === thebook &&
+        book.book_id === bookId &&
         book.chapter === thechapter
     )
     .map((book: KjvBook) => ({
@@ -110,19 +115,20 @@ export const getVersesInKjvChapter = (
 };
 
 export const fetchHeadingsOnly = async (
-  book: string,
+  bookId: string,
   chapter: number,
   filesetId: string
 ): Promise<SectionHeading[]> => {
   if (filesetId === 'ENGKJV') {
     return [];
   }
-  const cached = getCachedHeadings(book, chapter, filesetId);
+  const cached = getCachedHeadings(bookId, chapter, filesetId);
   if (cached !== null) {
     return cached;
   }
   try {
-    const passage = `${book} ${chapter}`;
+    // The backend expects a book name in the passage param.
+    const passage = `${toBookName(bookId) ?? bookId} ${chapter}`;
     const url =
       `https://bible-research-489314.ey.r.appspot.com` +
       `/api/v1/bible?passage=` +
@@ -131,11 +137,11 @@ export const fetchHeadingsOnly = async (
     const responseData = await response.json();
     const headings: SectionHeading[] =
       responseData.headings ?? [];
-    cacheHeadings(book, chapter, filesetId, headings);
+    cacheHeadings(bookId, chapter, filesetId, headings);
     return headings;
   } catch (error) {
     console.warn(
-      `Failed to fetch headings for ${book} ${chapter}:`,
+      `Failed to fetch headings for ${bookId} ${chapter}:`,
       error
     );
     return [];
@@ -143,21 +149,23 @@ export const fetchHeadingsOnly = async (
 };
 
 export const getVersesFromApi = async (
-  thebook: string,
+  bookId: string,
   thechapter: number,
   filesetId: string
 ): Promise<VerseResult> => {
   const cachedVerses = getCachedVerses(
-    thebook, thechapter, filesetId
+    bookId, thechapter, filesetId
   );
   if (cachedVerses) {
     const cachedHeadings =
-      getCachedHeadings(thebook, thechapter, filesetId)
+      getCachedHeadings(bookId, thechapter, filesetId)
       ?? [];
     return { verses: cachedVerses, headings: cachedHeadings };
   }
   try {
-    const passage = `${thebook} ${thechapter}`;
+    // The backend expects a book name in the passage param.
+    const bookName = toBookName(bookId) ?? bookId;
+    const passage = `${bookName} ${thechapter}`;
     const url =
       `https://bible-research-489314.ey.r.appspot.com` +
       `/api/v1/bible?passage=` +
@@ -188,8 +196,8 @@ export const getVersesFromApi = async (
     );
     const headings: SectionHeading[] =
       data.headings ?? [];
-    cacheVerses(thebook, thechapter, filesetId, verses);
-    cacheHeadings(thebook, thechapter, filesetId, headings);
+    cacheVerses(bookId, thechapter, filesetId, verses);
+    cacheHeadings(bookId, thechapter, filesetId, headings);
     return { verses, headings };
   } catch (error) {
     console.error(error);
@@ -197,7 +205,11 @@ export const getVersesFromApi = async (
   }
 };
 
-export const getPassage = (): { book_name: string; book_id: string; chapter: number }[] => {
+export const getPassage = (): {
+  book_name: string;
+  book_id: string;
+  chapter: number;
+}[] => {
   const set = new Set<string>();
   data.map((book: KjvBook) => {
     const obj = {
@@ -445,7 +457,9 @@ export const getAvailableTranslations = async (
   }
 
   try {
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible/translations/?language_iso=${languageIso}`;
+    const url =
+      `https://bible-research-489314.ey.r.appspot.com/api/v1/` +
+      `bible/translations/?language_iso=${languageIso}`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -478,26 +492,31 @@ export interface AudioResponse {
 
 /**
  * Get audio URL for any Bible translation from Bible Research API
- * @param book - Book name (e.g., "Genesis", "2 Chronicles")
+ * @param bookId - USFM book code (e.g., "GEN", "2CH")
  * @param chapter - Chapter number
  * @param translation - Translation code (e.g., "ESV", "NIV", "NASB")
  * @returns Audio URL string
  */
 export const getBibleAudioUrl = async (
-  book: string,
+  bookId: string,
   chapter: number,
   filesetId: string
 ): Promise<string> => {
   const translation = filesetId;
-  const cached = getCachedAudioUrl(book, chapter, translation);
+  const cached = getCachedAudioUrl(bookId, chapter, translation);
   if (cached) {
     console.log('✅ Audio URL loaded from cache');
     return cached;
   }
 
   try {
-    const passage = `${book} ${chapter}`;
-    const url = `https://bible-research-489314.ey.r.appspot.com/api/v1/bible?passage=${encodeURIComponent(passage)}&fileset_id=${filesetId}&response_format=audio`;
+    // The backend expects a book name in the passage param.
+    const bookName = toBookName(bookId) ?? bookId;
+    const passage = `${bookName} ${chapter}`;
+    const url =
+      `https://bible-research-489314.ey.r.appspot.com/api/v1/bible` +
+      `?passage=${encodeURIComponent(passage)}` +
+      `&fileset_id=${filesetId}&response_format=audio`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -515,23 +534,25 @@ export const getBibleAudioUrl = async (
 
     // Check if API returned an error
     if (data.error) {
-      const errorMsg = typeof data.error === 'string' 
-        ? data.error 
+      const errorMsg = typeof data.error === 'string'
+        ? data.error
         : data.error.message || 'Unknown error';
       throw new Error(
-        `Audio not available for ${translation} ${book} ${chapter}: ${errorMsg}`
+        `Audio not available for ${translation} ${bookId} ` +
+        `${chapter}: ${errorMsg}`
       );
     }
     // Validate audio_url exists and is a string
     if (!data.audio_url || typeof data.audio_url !== 'string') {
       throw new Error(
-        `No audio URL in API response for ${translation} ${book} ${chapter}`
+        `No audio URL in API response for ${translation} ` +
+        `${bookId} ${chapter}`
       );
     }
-    
+
     // Cache the audio URL
     cacheAudioUrl(
-      book,
+      bookId,
       chapter,
       translation,
       data.audio_url,
@@ -549,16 +570,19 @@ export const getBibleAudioUrl = async (
 
 /**
  * Get KJV audio URL from wordpocket.org
- * @param book - Book name
+ * @param bookId - USFM book code
  * @param chapter - Chapter number
  * @returns Audio URL string
  */
-export const getKjvAudioUrl = (book: string, chapter: number): string => {
+export const getKjvAudioUrl = (
+  bookId: string,
+  chapter: number
+): string => {
   const books = getBooks();
-  const index = books.findIndex((b) => b.book_name === book);
+  const index = books.findIndex((b) => b.book_id === bookId);
 
   if (index === -1) {
-    throw new Error(`Book not found: ${book}`);
+    throw new Error(`Book not found: ${bookId}`);
   }
 
   return `https://wordpocket.org/bibles/app/audio/1/${
@@ -568,20 +592,20 @@ export const getKjvAudioUrl = (book: string, chapter: number): string => {
 
 /**
  * Get adjacent chapter info (previous/next)
- * @param book - Current book name
+ * @param bookId - Current USFM book code
  * @param chapter - Current chapter number
  * @returns Object with previous and next chapter info
  */
 export const getAdjacentChapters = (
-  book: string,
+  bookId: string,
   chapter: number
 ): {
-  previous: { book: string; chapter: number } | null;
-  next: { book: string; chapter: number } | null;
+  previous: { bookId: string; chapter: number } | null;
+  next: { bookId: string; chapter: number } | null;
 } => {
   const passages = getPassage();
   const currentIndex = passages.findIndex(
-    (p) => p.book_name === book && p.chapter === chapter
+    (p) => p.book_id === bookId && p.chapter === chapter
   );
 
   if (currentIndex === -1) {
@@ -591,7 +615,7 @@ export const getAdjacentChapters = (
   const previous =
     currentIndex > 0
       ? {
-          book: passages[currentIndex - 1].book_name,
+          bookId: passages[currentIndex - 1].book_id,
           chapter: passages[currentIndex - 1].chapter,
         }
       : null;
@@ -599,7 +623,7 @@ export const getAdjacentChapters = (
   const next =
     currentIndex < passages.length - 1
       ? {
-          book: passages[currentIndex + 1].book_name,
+          bookId: passages[currentIndex + 1].book_id,
           chapter: passages[currentIndex + 1].chapter,
         }
       : null;
@@ -610,44 +634,46 @@ export const getAdjacentChapters = (
 /**
  * Prefetch audio URL for a chapter (background caching)
  * Silently fetches and caches audio URL without blocking UI
- * @param book - Book name
+ * @param bookId - USFM book code
  * @param chapter - Chapter number
  * @param bibleVersion - Bible version ("KJV", "ESV", etc.)
  */
 export const prefetchAudioUrl = async (
-  book: string,
+  bookId: string,
   chapter: number,
   filesetId: string | null
 ): Promise<void> => {
   if (!filesetId) return; // Cannot prefetch without a filesetId
   try {
     // Check if already cached
-    const cached = getCachedAudioUrl(book, chapter, filesetId);
+    const cached = getCachedAudioUrl(bookId, chapter, filesetId);
     if (cached) {
       console.log(
-        `🎵 Audio URL already cached for ${book} ${chapter}`
+        `🎵 Audio URL already cached for ${bookId} ${chapter}`
       );
       return;
     }
 
     // KJV URLs are instant (no API call needed)
     if (filesetId === 'ENGKJV') {
-      const url = getKjvAudioUrl(book, chapter);
+      const url = getKjvAudioUrl(bookId, chapter);
       // Cache it for consistency
-      cacheAudioUrl(book, chapter, 'ENGKJV', url, 0, 0);
-      console.log(`🎵 Prefetched KJV audio for ${book} ${chapter}`);
+      cacheAudioUrl(bookId, chapter, 'ENGKJV', url, 0, 0);
+      console.log(
+        `🎵 Prefetched KJV audio for ${bookId} ${chapter}`
+      );
       return;
     }
 
     // For other versions, fetch from API
-    await getBibleAudioUrl(book, chapter, filesetId);
+    await getBibleAudioUrl(bookId, chapter, filesetId);
     console.log(
-      `🎵 Prefetched ${filesetId} audio for ${book} ${chapter}`
+      `🎵 Prefetched ${filesetId} audio for ${bookId} ${chapter}`
     );
   } catch (error) {
     // Silent fail - prefetch errors shouldn't block the UI
     console.warn(
-      `Failed to prefetch audio for ${book} ${chapter}:`,
+      `Failed to prefetch audio for ${bookId} ${chapter}:`,
       error
     );
   }
@@ -658,16 +684,16 @@ export const prefetchAudioUrl = async (
 /**
  * Prefetch verses and audio for adjacent chapters
  * (previous and next)
- * @param book - Current book name
+ * @param bookId - Current USFM book code
  * @param chapter - Current chapter number
  * @param filesetId - The fileset ID for the translation to prefetch
  */
 export const prefetchAdjacentChapters = async (
-  book: string,
+  bookId: string,
   chapter: number,
   filesetId: string
 ): Promise<void> => {
-  const { previous, next } = getAdjacentChapters(book, chapter);
+  const { previous, next } = getAdjacentChapters(bookId, chapter);
 
   const prefetch = async (
     b: string,
@@ -686,10 +712,12 @@ export const prefetchAdjacentChapters = async (
   };
 
   if (previous) {
-    prefetch(previous.book, previous.chapter, filesetId, 'previous');
+    prefetch(
+      previous.bookId, previous.chapter, filesetId, 'previous'
+    );
   }
   if (next) {
-    prefetch(next.book, next.chapter, filesetId, 'next');
+    prefetch(next.bookId, next.chapter, filesetId, 'next');
   }
 };
 
@@ -734,20 +762,22 @@ export const getCopyrightInfo = async (
 };
 
 export const getAudioTimestamps = async (
-  book: string,
+  bookId: string,
   chapter: number,
   filesetId: string
 ): Promise<VerseTimestamp[]> => {
-  const cached = getCachedTimestamps(filesetId, book, chapter);
+  const cached = getCachedTimestamps(filesetId, bookId, chapter);
   if (cached) {
     return cached;
   }
 
   try {
+    // The backend expects a book name in the book param.
+    const bookName = toBookName(bookId) ?? bookId;
     const url =
       `${API_BASE_URL}/api/v1/bible/timestamps/` +
       `?fileset_id=${encodeURIComponent(filesetId)}` +
-      `&book=${encodeURIComponent(book)}` +
+      `&book=${encodeURIComponent(bookName)}` +
       `&chapter=${chapter}`;
     const response = await publicFetch(url);
     if (!response.ok) {
@@ -762,7 +792,7 @@ export const getAudioTimestamps = async (
         timestamp: item.timestamp,
       })
     );
-    cacheTimestamps(filesetId, book, chapter, timestamps);
+    cacheTimestamps(filesetId, bookId, chapter, timestamps);
     return timestamps;
   } catch (error) {
     console.warn('Failed to fetch audio timestamps:', error);

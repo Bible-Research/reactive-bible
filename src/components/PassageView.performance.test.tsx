@@ -40,8 +40,7 @@ describe('PassageView Component Performance Tests', () => {
 
     // Setup default store state
     useBibleStore.setState({
-      activeBook: 'Genesis',
-      activeBookShort: 'GEN',
+      activeBookId: 'GEN',
       activeChapter: 1,
       activeTextFilesetId: 'ENGKJV',
       activeAudioFilesetId: 'ENGKJVO2DA',
@@ -172,7 +171,7 @@ describe('PassageView Component Performance Tests', () => {
           verseSelection: {
             scope: 'bible',
             refs: [1, 2, 3].map((v) => ({
-              book: 'Genesis',
+              bookId: 'GEN',
               chapter: 1,
               verse: v,
             })),

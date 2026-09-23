@@ -49,8 +49,8 @@ const useStyles = createStyles((theme) => ({
 }));
 
 interface PassagePickerProps {
-  /** Resolved book_name (e.g. "John"), null when unresolved. */
-  book: string | null;
+  /** USFM book code (e.g. "JHN"), null when unresolved. */
+  bookId: string | null;
   chapter: number | null;
   /** Highlighted verse range. */
   verses: number[];
@@ -59,13 +59,13 @@ interface PassagePickerProps {
   height?: number | string;
   /** 'nav-' for BibleSelector, 'mention-' for the picker popup. */
   titlePrefix?: string;
-  onSelectBook: (bookName: string) => void;
+  onSelectBook: (bookId: string) => void;
   onSelectChapter: (chapter: number) => void;
   onSelectVerse: (verse: number, extendRange: boolean) => void;
 }
 
 const PassagePicker = ({
-  book,
+  bookId,
   chapter,
   verses,
   bookFilter,
@@ -85,13 +85,16 @@ const PassagePicker = ({
   }, [bookFilter]);
 
   const chapters = useMemo(
-    () => (book ? getChapters(book) : []),
-    [book]
+    () => (bookId ? getChapters(bookId) : []),
+    [bookId]
   );
 
   const verseList = useMemo(
-    () => (book && chapter !== null ? getVerses(book, chapter) : []),
-    [book, chapter]
+    () =>
+      bookId && chapter !== null
+        ? getVerses(bookId, chapter)
+        : [],
+    [bookId, chapter]
   );
 
   // Keep the active item of each column scrolled into view, e.g.
@@ -105,19 +108,19 @@ const PassagePicker = ({
     booksRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [book, bookFilter]);
+  }, [bookId, bookFilter]);
 
   useEffect(() => {
     chaptersRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [book, chapter]);
+  }, [bookId, chapter]);
 
   useEffect(() => {
     versesRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [book, chapter, verses]);
+  }, [bookId, chapter, verses]);
 
   return (
     <Box
@@ -135,13 +138,13 @@ const PassagePicker = ({
           {books.map((b) => (
             <a
               className={cx(classes.link, {
-                [classes.linkActive]: book === b.book_name,
+                [classes.linkActive]: bookId === b.book_id,
               })}
-              data-active={book === b.book_name || undefined}
+              data-active={bookId === b.book_id || undefined}
               href="/"
               onClick={(event) => {
                 event.preventDefault();
-                onSelectBook(b.book_name);
+                onSelectBook(b.book_id);
               }}
               key={b.book_id}
               title={`${titlePrefix}book-${b.book_id}`}

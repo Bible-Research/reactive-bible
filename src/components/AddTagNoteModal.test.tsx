@@ -38,8 +38,8 @@ describe('AddTagNoteModal Component', () => {
   const genesisSelection = {
     scope: 'bible',
     refs: [
-      { book: 'Genesis', chapter: 1, verse: 1 },
-      { book: 'Genesis', chapter: 1, verse: 2 },
+      { bookId: 'GEN', chapter: 1, verse: 1 },
+      { bookId: 'GEN', chapter: 1, verse: 2 },
     ],
   };
 
@@ -49,7 +49,7 @@ describe('AddTagNoteModal Component', () => {
       {
         storeOverrides: {
           verseSelection: genesisSelection,
-          activeBook: 'Genesis',
+          activeBookId: 'GEN',
           activeChapter: 1,
         },
       }
@@ -63,7 +63,7 @@ describe('AddTagNoteModal Component', () => {
       {
         storeOverrides: {
           verseSelection: genesisSelection,
-          activeBook: 'Genesis',
+          activeBookId: 'GEN',
           activeChapter: 1,
         },
       }
@@ -80,7 +80,7 @@ describe('AddTagNoteModal Component', () => {
       {
         storeOverrides: {
           verseSelection: genesisSelection,
-          activeBook: 'Genesis',
+          activeBookId: 'GEN',
           activeChapter: 1,
         },
       }

@@ -31,6 +31,7 @@ import {
 import {
   BOOK_CODE_TO_NAME,
   BOOK_CODE_TO_ORDER,
+  buildBiblePath,
 } from '../utils/bibleUtils';
 
 const VERSE_PREVIEW_LIMIT = 5;
@@ -43,7 +44,7 @@ function toPlaylistItem(
   const bookName = BOOK_CODE_TO_NAME[v.book_id] ?? v.book_id;
   return {
     itemId: `search-${v.book_id}-${v.chapter}-${v.verse_start}`,
-    book: bookName,
+    bookId: v.book_id,
     chapter: v.chapter,
     startVerse: v.verse_start,
     endVerse: v.verse_start,
@@ -191,7 +192,12 @@ export default function SearchRoute() {
       setShouldAutoStartPlaylist(false);
       setAudioPlaylistStartIndex(0);
     }
-  }, [verses, setAudioPlaylistItems, shouldAutoStartPlaylist, setAudioPlaylistStartIndex]);
+  }, [
+    verses,
+    setAudioPlaylistItems,
+    shouldAutoStartPlaylist,
+    setAudioPlaylistStartIndex,
+  ]);
 
   useEffect(() => {
     if (!audioPlaylistEnded) return;
@@ -231,9 +237,8 @@ export default function SearchRoute() {
   );
 
   const handleVerseClick = (v: SearchVerse) => {
-    const bookName = BOOK_CODE_TO_NAME[v.book_id] ?? v.book_id;
     navigate(
-      `/bible/${bookName}/${v.chapter}.${v.verse_start}`,
+      buildBiblePath(v.book_id, v.chapter, [v.verse_start]),
     );
   };
 

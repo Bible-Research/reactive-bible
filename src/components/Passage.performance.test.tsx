@@ -30,8 +30,7 @@ describe('Passage Component Performance Tests', () => {
   beforeEach(() => {
     // Reset store to clean state
     useBibleStore.setState({
-      activeBook: 'Genesis',
-      activeBookShort: 'GEN',
+      activeBookId: 'GEN',
       activeChapter: 1,
       verseSelection: null,
     });
@@ -132,14 +131,13 @@ describe('Passage Component Performance Tests', () => {
       for (let i = 0; i < iterations; i++) {
         act(() => {
           useBibleStore.setState({
-            activeBook: 'Genesis',
-            activeBookShort: 'GEN',
+            activeBookId: 'GEN',
             activeChapter: (i % 50) + 1,
             verseSelection: {
               scope: 'bible',
               refs: [
                 {
-                  book: 'Genesis',
+                  bookId: 'GEN',
                   chapter: (i % 50) + 1,
                   verse: (i % 31) + 1,
                 },

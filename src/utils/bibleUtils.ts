@@ -187,6 +187,103 @@ export const BOOK_CODE_TO_TESTAMENT = BIBLE_BOOKS.reduce(
   {} as { [code: string]: Testament },
 );
 
+/**
+ * Resolves a book name or USFM code to its canonical USFM code.
+ * Accepts "1 Corinthians", "1 corinthians", or "1CO" -> "1CO".
+ * Returns null when the input matches no known book.
+ */
+export const toUsfmCode = (book: string): string | null => {
+  const upper = book.toUpperCase();
+  if (BOOK_CODE_TO_NAME[upper]) return upper;
+  return BOOK_NAME_TO_CODE[book.toLowerCase()] ?? null;
+};
+
+/**
+ * Resolves a USFM code to its title-cased display name.
+ * "JHN" -> "John". Returns null for unknown codes.
+ */
+export const toBookName = (code: string): string | null => {
+  return BOOK_CODE_TO_NAME[code.toUpperCase()] ?? null;
+};
+
+export interface ParsedBibleRef {
+  bookId: string;
+  chapter: number;
+  verses: number[];
+  /** Canonical ref string, e.g. "JHN.3.16-18". */
+  canonical: string;
+  /** True when the input differed from the canonical form. */
+  needsRedirect: boolean;
+}
+
+/**
+ * Parses a single-segment bible ref: "JHN.3", "jhn.3",
+ * "1CO.1.5-10", or "PSA.119.1-8,176". The first token may be a
+ * USFM code or a book name; a missing chapter defaults to 1.
+ * Returns null for unrecognized books or malformed input.
+ */
+export const parseBibleRef = (
+  ref: string,
+): ParsedBibleRef | null => {
+  const segments = ref.split('.');
+  if (segments.length > 3 || segments[0] === '') return null;
+  const bookId = toUsfmCode(segments[0]);
+  if (!bookId) return null;
+
+  if (segments.length === 1) {
+    const canonical = `${bookId}.1`;
+    return {
+      bookId,
+      chapter: 1,
+      verses: [],
+      canonical,
+      needsRedirect: ref !== canonical,
+    };
+  }
+
+  if (!/^\d+$/.test(segments[1])) return null;
+  const chapter = parseInt(segments[1], 10);
+  if (chapter < 1) return null;
+
+  let verses: number[] = [];
+  if (segments.length === 3) {
+    verses = decodeVerses(segments[2]);
+    if (verses.length === 0) return null;
+  }
+
+  const versePart =
+    verses.length > 0 ? `.${encodeVerses(verses)}` : '';
+  const canonical = `${bookId}.${chapter}${versePart}`;
+  return {
+    bookId,
+    chapter,
+    verses,
+    canonical,
+    needsRedirect: ref !== canonical,
+  };
+};
+
+/**
+ * Builds the canonical dot-notation bible path. Accepts a USFM
+ * code or a book name. Falls back to '/bible' when the book
+ * cannot be resolved.
+ * "1CO", 1 -> "/bible/1CO.1"; "John", 3, [16,17] ->
+ * "/bible/JHN.3.16-17"
+ */
+export const buildBiblePath = (
+  book: string,
+  chapter: number,
+  verses?: number[],
+): string => {
+  const code = toUsfmCode(book);
+  if (!code) return '/bible';
+  const versePart =
+    verses && verses.length > 0
+      ? `.${encodeVerses(verses)}`
+      : '';
+  return `/bible/${code}.${chapter}${versePart}`;
+};
+
 export const OLD_TESTAMENT_BOOKS = new Set(
   BIBLE_BOOKS.filter((b) => b.testament === 'OT').map((b) => b.code),
 );
@@ -242,10 +339,10 @@ export const getTestamentByBookName = (
 export const resolveTimestampsFilesetId = (
   audioFilesetId: string | null,
   textFilesetId: string | null,
-  book: string,
+  bookId: string,
 ): string | null => {
   if (textFilesetId === 'ENGESV_API') {
-    const testament = getTestamentByBookName(book);
+    const testament = getTestament(bookId);
     if (testament === 'OT') return 'ENGESVO1DA';
     if (testament === 'NT') return 'ENGESVN1DA';
   }

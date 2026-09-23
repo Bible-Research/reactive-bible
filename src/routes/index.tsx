@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import BibleRoute from './BibleRoute';
+import LegacyBibleRedirect from './LegacyBibleRedirect';
 import NotesRoute from './NotesRoute';
 import TagNotesRoute from './TagNotesRoute';
 import NoteDetailRoute from './NoteDetailRoute';
@@ -21,7 +22,12 @@ export function AppRoutes() {
 
       {/* Bible routes - public (can view Bible without auth) */}
       <Route path="/bible" element={<BibleRoute />} />
-      <Route path="/bible/:book/:chapterVerse" element={<BibleRoute />} />
+      <Route path="/bible/:ref" element={<BibleRoute />} />
+      {/* Legacy name-based URLs: /bible/John/3.16 */}
+      <Route
+        path="/bible/:book/:chapterVerse"
+        element={<LegacyBibleRedirect />}
+      />
 
       {/* Notes routes - public for viewing, protected for private notes */}
       <Route path="/notes" element={<NotesRoute />} />

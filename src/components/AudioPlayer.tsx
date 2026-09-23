@@ -44,7 +44,7 @@ const AudioPlayer = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seeking, setSeeking] = useState(false);
-  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
   // Update current time
@@ -152,7 +152,7 @@ const AudioPlayer = ({
             </ActionIcon>
           )}
           <Text weight={500} size="sm" lineClamp={1}>
-            {subtitle ?? `${activeBook} ${activeChapter}`}
+            {subtitle ?? `${activeBookId} ${activeChapter}`}
           </Text>
         </Group>
         <CloseButton onClick={onClose} title="Close player" />
@@ -219,7 +219,11 @@ const AudioPlayer = ({
           />
         </Box>
 
-        <Text size="xs" color="dimmed" sx={{ minWidth: 80, textAlign: 'right' }}>
+        <Text
+          size="xs"
+          color="dimmed"
+          sx={{ minWidth: 80, textAlign: 'right' }}
+        >
           {formatTime(currentTime)} / {formatTime(duration)}
         </Text>
       </Group>

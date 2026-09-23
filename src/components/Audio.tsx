@@ -19,7 +19,9 @@ import { useVerseHighlighter } from "../hooks/useVerseHighlighter";
 import { VerseTimestamp } from "../types";
 import { showNotification } from "@mantine/notifications";
 import {
-  getTestamentByBookName,
+  getTestament,
+  toBookName,
+  buildBiblePath,
   filesetCoversTestament,
   resolveTimestampsFilesetId,
   adjustTimestampsForENGESV,
@@ -50,7 +52,7 @@ const Audio = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLooping, setIsLooping] = useState(false);
   const [timestamps, setTimestamps] = useState<VerseTimestamp[]>([]);
-  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const setAudioActiveVerse = useBibleStore(
     (s) => s.setAudioActiveVerse
@@ -69,11 +71,9 @@ const Audio = () => {
   const setAudioPlaylistStartIndex = useBibleStore(
     (s) => s.setAudioPlaylistStartIndex
   );
-  const setActiveBookOnly = useBibleStore((state) => state.setActiveBookOnly);
-  const setActiveBookShort = useBibleStore(
-    (state) => state.setActiveBookShort
+  const setActiveBookAndChapter = useBibleStore(
+    (state) => state.setActiveBookAndChapter
   );
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
   const navigate = useNavigate();
   const location = useLocation();
   const getPassageResult = getPassage();
@@ -93,7 +93,7 @@ const Audio = () => {
       document
         .getElementById(
           verseDomId(item.itemId, {
-            book: item.book,
+            bookId: item.bookId,
             chapter: item.chapter,
             verse: item.startVerse,
           })
@@ -102,7 +102,7 @@ const Audio = () => {
       return;
     }
     navigate(
-      `/bible/${item.book}/${item.chapter}.${item.startVerse}`,
+      buildBiblePath(item.bookId, item.chapter, [item.startVerse]),
       { replace: true },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,7 +141,7 @@ const Audio = () => {
     setTimestamps([]);
     setAudioActiveVerse(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBook, activeChapter, activeAudioFilesetId]);
+  }, [activeBookId, activeChapter, activeAudioFilesetId]);
 
   // Fetch timestamps when audio or text fileset changes
   useEffect(() => {
@@ -149,11 +149,11 @@ const Audio = () => {
     const tsFilesetId = resolveTimestampsFilesetId(
       activeAudioFilesetId,
       activeTextFilesetId,
-      activeBook,
+      activeBookId,
     );
     if (!tsFilesetId) return;
     getAudioTimestamps(
-      activeBook,
+      activeBookId,
       activeChapter,
       tsFilesetId,
     ).then((ts) => {
@@ -163,14 +163,14 @@ const Audio = () => {
       );
       setTimestamps(adjusted);
     });
-  }, [activeBook, activeChapter, activeAudioFilesetId, activeTextFilesetId]);
+  }, [activeBookId, activeChapter, activeAudioFilesetId, activeTextFilesetId]);
 
   // Hook: highlight active verse during playback
   useVerseHighlighter(
     audio,
     isPlaying,
     timestamps,
-    activeBook,
+    activeBookId,
     activeChapter,
     'bible',
   );
@@ -247,7 +247,8 @@ const Audio = () => {
     }
     if (!audio) return null;
     return {
-      title: `${activeBook} ${activeChapter}`,
+      title: `${toBookName(activeBookId) ?? activeBookId} ` +
+        `${activeChapter}`,
       artist: translationName,
       album: 'Bible Audio',
     };
@@ -255,7 +256,7 @@ const Audio = () => {
     isPlaylistMode,
     playlist.currentItem,
     audio,
-    activeBook,
+    activeBookId,
     activeChapter,
     translationName,
   ]);
@@ -327,7 +328,7 @@ const Audio = () => {
   const goToNextChapter = () => {
     const index = getPassageResult.findIndex(
       (book) =>
-        book.book_name === activeBook && 
+        book.book_id === activeBookId &&
         book.chapter === activeChapter
     );
 
@@ -338,11 +339,9 @@ const Audio = () => {
 
     const next = getPassageResult[index + 1];
     if (next !== null) {
-      setActiveBookOnly(next.book_name);
-      setActiveBookShort(next.book_id);
-      setActiveChapter(next.chapter);
+      setActiveBookAndChapter(next.book_id, next.chapter);
       navigate(
-        `/bible/${next.book_name}/${next.chapter}`,
+        buildBiblePath(next.book_id, next.chapter),
         { replace: true }
       );
       return true; // Successfully moved to next chapter
@@ -381,9 +380,9 @@ const Audio = () => {
 
           // KJV has a special, locally-generated URL
           if (activeAudioFilesetId === 'ENGKJV') {
-            audioUrl = getKjvAudioUrl(activeBook, activeChapter);
+            audioUrl = getKjvAudioUrl(activeBookId, activeChapter);
           } else {
-            const testament = getTestamentByBookName(activeBook);
+            const testament = getTestament(activeBookId);
             const fileset = translations
               .flatMap((t) => t.filesets)
               .find((f) => f.id === activeAudioFilesetId);
@@ -406,7 +405,7 @@ const Audio = () => {
               }
             }
             audioUrl = await getBibleAudioUrl(
-              activeBook,
+              activeBookId,
               activeChapter,
               effectiveFilesetId
             );
@@ -494,7 +493,7 @@ const Audio = () => {
           }
 
           // Build a testament-aware hint for the notification
-          const testament = getTestamentByBookName(activeBook);
+          const testament = getTestament(activeBookId);
           const fileset = translations
             .flatMap((t) => t.filesets)
             .find((f) => f.id === activeAudioFilesetId);
@@ -605,8 +604,11 @@ const Audio = () => {
               ? () => {
                   const item = playlist.currentItem!;
                   navigate(
-                    `/bible/${item.book}/${item.chapter}` +
-                    `.${item.startVerse}`,
+                    buildBiblePath(
+                      item.bookId,
+                      item.chapter,
+                      [item.startVerse],
+                    ),
                   );
                 }
               : undefined

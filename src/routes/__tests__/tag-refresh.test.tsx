@@ -105,8 +105,7 @@ describe('Tag Refresh Behavior', () => {
     useBibleStore.setState({
       tags: [],
       notes: [],
-      activeBook: 'John',
-      activeBookShort: 'Joh',
+      activeBookId: 'JHN',
       activeChapter: 1,
       verseSelection: null,
       bibleVersion: 'KJV',

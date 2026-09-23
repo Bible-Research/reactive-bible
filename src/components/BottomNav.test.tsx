@@ -44,9 +44,9 @@ describe.skip('BottomNav Component', () => {
     
     const passageTitle = screen.getByRole('heading', { level: 4 });
     
-    // Should display book short name and chapter
+    // Should display book id and chapter
     expect(passageTitle).toHaveTextContent(
-      `${mockStore.activeBookShort} ${mockStore.activeChapter}`
+      `${mockStore.activeBookId} ${mockStore.activeChapter}`
     );
   });
 });

@@ -15,7 +15,7 @@ export const useVerseHighlighter = (
   audio: Howl | null,
   isPlaying: boolean,
   timestamps: VerseTimestamp[],
-  book: string,
+  bookId: string,
   chapter: number,
   scope: VerseScope,
 ) => {
@@ -49,7 +49,7 @@ export const useVerseHighlighter = (
       }
 
       setAudioActiveVerse({
-        book,
+        bookId,
         chapter,
         verse: activeVerseNum,
         scope,
@@ -65,7 +65,7 @@ export const useVerseHighlighter = (
     audio,
     isPlaying,
     timestamps,
-    book,
+    bookId,
     chapter,
     scope,
     setAudioActiveVerse,

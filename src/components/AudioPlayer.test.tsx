@@ -28,7 +28,7 @@ describe('AudioPlayer Component', () => {
     vi.clearAllMocks();
     useBibleStore.setState({
       ...initialStoreState,
-      activeBook: 'Genesis',
+      activeBookId: 'GEN',
       activeChapter: 1,
     });
   });
@@ -45,7 +45,7 @@ describe('AudioPlayer Component', () => {
       />
     );
 
-    expect(screen.getByText('Genesis 1')).toBeInTheDocument();
+    expect(screen.getByText('GEN 1')).toBeInTheDocument();
   });
 
   it('should display play button when not playing', () => {

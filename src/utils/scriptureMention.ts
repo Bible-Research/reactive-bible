@@ -109,6 +109,9 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
     return result;
   }
 
+  // getChapters/getVerses key on the USFM book_id, not the name.
+  const bookId = exact?.book_id ?? prefixMatches[0].book_id;
+
   const rest = tokens.slice(consumed);
   const [chapterToken, verseToken, ...extra] = rest;
 
@@ -118,7 +121,7 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
       return result;
     }
     const chapter = Number(chapterToken);
-    if (!getChapters(result.bookName).includes(chapter)) {
+    if (!getChapters(bookId).includes(chapter)) {
       result.error =
         `No chapter ${chapter} in ${result.bookName}`;
       return result;
@@ -137,7 +140,7 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
     const start = Number(verseMatch[1]);
     const end =
       verseMatch[2] !== undefined ? Number(verseMatch[2]) : null;
-    const verses = getVerses(result.bookName, result.chapter);
+    const verses = getVerses(bookId, result.chapter);
     const ref = `${result.bookName} ${result.chapter}`;
     if (!verses.includes(start)) {
       result.error = `No verse ${start} in ${ref}`;

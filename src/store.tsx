@@ -13,6 +13,10 @@ import {
 } from './types';
 import { refsInclude, sameRef } from './utils/verseRefs';
 import {
+  toBookName,
+  toUsfmCode,
+} from './utils/bibleUtils';
+import {
   getCachedNotes,
   cacheNotes,
   clearNotesCache,
@@ -35,8 +39,8 @@ export interface Translation {
 }
 
 export interface BibleState {
-  activeBook: string;
-  activeBookShort: string;
+  /** USFM book code (e.g. "JHN") — canonical passage identity. */
+  activeBookId: string;
   activeChapter: number;
   verseSelection: VerseSelection | null;
   bibleVersion: string;
@@ -64,13 +68,10 @@ export interface BibleState {
   setAudioPlaylistEnded: (ended: boolean) => void;
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
-  setActiveBook: (activeBook: string) => void;
   setActiveBookAndChapter: (
-    activeBook: string,
+    activeBookId: string,
     activeChapter: number
   ) => void;
-  setActiveBookOnly: (activeBook: string) => void;
-  setActiveBookShort: (activeBookShort: string) => void;
   setActiveChapter: (activeChapter: number) => void;
   setVerseSelection: (selection: VerseSelection | null) => void;
   toggleVerseRef: (scope: VerseScope, ref: VerseRef) => void;
@@ -108,8 +109,7 @@ export interface BibleState {
 
 // Define and export the initial state for reusability and testing
 export const initialState = {
-  activeBook: "John",
-  activeBookShort: "Joh",
+  activeBookId: "JHN",
   activeChapter: 1,
   verseSelection: null as VerseSelection | null,
   bibleVersion: "KJV",
@@ -135,8 +135,7 @@ export const initialState = {
 };
 
 const partializeState = (state: BibleState) => ({
-  activeBook: state.activeBook,
-  activeBookShort: state.activeBookShort,
+  activeBookId: state.activeBookId,
   activeChapter: state.activeChapter,
   verseSelection: state.verseSelection,
   bibleVersion: state.bibleVersion,
@@ -152,42 +151,88 @@ const partializeState = (state: BibleState) => ({
 
 type PersistedBibleState = ReturnType<typeof partializeState>;
 
+/** Resolves a persisted book name or code to a USFM code. */
+const migrateBookId = (book: unknown): string =>
+  typeof book === 'string'
+    ? toUsfmCode(book) ?? 'JHN'
+    : 'JHN';
+
+/** Converts a persisted ref ({book} or {bookId}) to bookId form. */
+const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
+  bookId:
+    typeof ref.bookId === 'string'
+      ? ref.bookId
+      : migrateBookId(ref.book),
+  chapter:
+    typeof ref.chapter === 'number' ? ref.chapter : 1,
+  verse:
+    typeof ref.verse === 'number' ? ref.verse : 1,
+});
+
 /**
- * Migrates pre-v2 persisted state: the old bare `activeVerses:
- * number[]` becomes a 'bible'-scoped VerseSelection built from the
- * persisted book/chapter. `selectedVerses` is dropped entirely.
+ * Migrates persisted state across versions:
+ * - pre-v2: the old bare `activeVerses: number[]` becomes a
+ *   'bible'-scoped VerseSelection built from the persisted
+ *   book/chapter; `selectedVerses` is dropped entirely.
+ * - pre-v3: `activeBook`/`activeBookShort` (display names) become
+ *   `activeBookId` (USFM code); VerseRef/audio refs gain bookId.
  */
 export const migratePersistedState = (
   persistedState: unknown,
   version: number,
 ): PersistedBibleState => {
-  const persisted = (persistedState ?? {}) as Record<string, unknown>;
-  if (version >= 2) {
-    return persisted as PersistedBibleState;
+  let migrated = (persistedState ?? {}) as Record<string, unknown>;
+
+  if (version < 2) {
+    const oldVerses = Array.isArray(migrated.activeVerses)
+      ? (migrated.activeVerses as unknown[]).filter(
+          (v): v is number => typeof v === 'number'
+        )
+      : [];
+    const refs: VerseRef[] = oldVerses.map((v) => ({
+      bookId: migrateBookId(migrated.activeBook),
+      chapter:
+        typeof migrated.activeChapter === 'number'
+          ? migrated.activeChapter
+          : 1,
+      verse: v,
+    }));
+    migrated = {
+      ...migrated,
+      verseSelection:
+        refs.length > 0 ? { scope: 'bible', refs } : null,
+    };
+    delete migrated.activeVerses;
+    delete migrated.selectedVerses;
   }
-  const oldVerses = Array.isArray(persisted.activeVerses)
-    ? (persisted.activeVerses as unknown[]).filter(
-        (v): v is number => typeof v === 'number'
-      )
-    : [];
-  const refs: VerseRef[] = oldVerses.map((v) => ({
-    book:
-      typeof persisted.activeBook === 'string'
-        ? persisted.activeBook
-        : 'John',
-    chapter:
-      typeof persisted.activeChapter === 'number'
-        ? persisted.activeChapter
-        : 1,
-    verse: v,
-  }));
-  const migrated: Record<string, unknown> = {
-    ...persisted,
-    verseSelection:
-      refs.length > 0 ? { scope: 'bible', refs } : null,
-  };
-  delete migrated.activeVerses;
-  delete migrated.selectedVerses;
+
+  if (version < 3) {
+    const selection = migrated.verseSelection as
+      | { scope: string; refs: Record<string, unknown>[] }
+      | null;
+    const aav = migrated.audioActiveVerse as
+      | Record<string, unknown>
+      | null;
+    migrated = {
+      ...migrated,
+      activeBookId:
+        typeof migrated.activeBookId === 'string'
+          ? migrated.activeBookId
+          : migrateBookId(migrated.activeBook),
+      verseSelection: selection
+        ? {
+            scope: selection.scope,
+            refs: selection.refs.map(migrateRef),
+          }
+        : null,
+      audioActiveVerse: aav
+        ? { ...migrateRef(aav), scope: aav.scope }
+        : null,
+    };
+    delete migrated.activeBook;
+    delete migrated.activeBookShort;
+  }
+
   return migrated as PersistedBibleState;
 };
 
@@ -195,20 +240,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
   persist(
     (set) => ({
       ...initialState,
-      setActiveBook: (activeBook) => set({
-        activeBook,
-        activeChapter: 1,
-        verseSelection: null,
-        audioActiveVerse: null
-      }),
-      setActiveBookAndChapter: (activeBook, activeChapter) =>
+      setActiveBookAndChapter: (activeBookId, activeChapter) =>
         set({
-          activeBook,
+          activeBookId,
           activeChapter,
           verseSelection: null,
         }),
-      setActiveBookOnly: (activeBook) => set({ activeBook }),
-      setActiveBookShort: (activeBookShort) => set({ activeBookShort }),
       setActiveChapter: (activeChapter) => set({
         activeChapter,
         verseSelection: null,
@@ -232,7 +269,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set((state) => {
           // Range selection is constrained to a single book/chapter.
           if (
-            refA.book !== refB.book ||
+            refA.bookId !== refB.bookId ||
             refA.chapter !== refB.chapter
           ) {
             return { verseSelection: { scope, refs: [refB] } };
@@ -242,7 +279,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           const rangeRefs: VerseRef[] = [];
           for (let v = start; v <= end; v++) {
             rangeRefs.push({
-              book: refA.book,
+              bookId: refA.bookId,
               chapter: refA.chapter,
               verse: v,
             });
@@ -470,9 +507,13 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 2,
+      version: 3,
       migrate: migratePersistedState,
       partialize: partializeState,
     }
   )
 );
+
+/** Display name for the active book (e.g. "John"). */
+export const selectActiveBookName = (state: BibleState): string =>
+  toBookName(state.activeBookId) ?? state.activeBookId;

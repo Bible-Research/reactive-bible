@@ -30,9 +30,7 @@ export * from './helpers/performance';
  */
 export function createMockStore(overrides: Partial<BibleState> = {}) {
   const mockFunctions = {
-    setActiveBook: vi.fn(),
-    setActiveBookOnly: vi.fn(),
-    setActiveBookShort: vi.fn(),
+    setActiveBookAndChapter: vi.fn(),
     setActiveChapter: vi.fn(),
     setVerseSelection: vi.fn(),
     toggleVerseRef: vi.fn(),

@@ -17,6 +17,7 @@ import NoteCard from '../components/NoteCard';
 import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
 import { toPlainText } from '../utils/tiptapContent';
+import { buildBiblePath } from '../utils/bibleUtils';
 import { useBibleStore } from '../store';
 
 /**
@@ -67,7 +68,7 @@ export default function NoteDetailRoute() {
     chapter: number,
     verse: number,
   ) => {
-    navigate(`/bible/${book}/${chapter}.${verse}`);
+    navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
   };
 

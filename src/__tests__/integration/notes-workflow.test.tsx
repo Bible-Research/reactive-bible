@@ -12,7 +12,7 @@ describe.skip('Notes Workflow Integration Test', () => {
     const user = userEvent.setup();
     const { mockStore } = renderWithProviders(<App />, {
       storeOverrides: {
-        activeBook: 'John',
+        activeBookId: 'JHN',
         activeChapter: 3,
       },
     });

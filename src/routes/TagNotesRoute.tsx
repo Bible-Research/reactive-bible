@@ -30,6 +30,8 @@ import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 import {
   BOOK_NAME_TO_ORDER,
+  buildBiblePath,
+  toUsfmCode,
 } from '../utils/bibleUtils';
 import { verseDomId } from '../utils/verseRefs';
 
@@ -225,7 +227,7 @@ export default function TagNotesRoute() {
     chapter: number,
     verse: number
   ) => {
-    navigate(`/bible/${book}/${chapter}.${verse}`);
+    navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
   };
 
@@ -533,7 +535,7 @@ export default function TagNotesRoute() {
           (startVerse !== endVerse ? `-${endVerse}` : '');
         return {
           itemId: note.id,
-          book: firstVerse.book,
+          bookId: toUsfmCode(firstVerse.book) ?? firstVerse.book,
           chapter: firstVerse.chapter,
           startVerse,
           endVerse,

@@ -16,8 +16,7 @@ let cleanup: (() => void) | undefined;
 beforeEach(() => {
   // Reset store to John 1 with KJV (tests expect KJV verse text)
   useBibleStore.setState({
-    activeBook: "John",
-    activeBookShort: "Joh",
+    activeBookId: "JHN",
     activeChapter: 1,
     verseSelection: null,
     bibleVersion: "KJV",
@@ -28,7 +27,7 @@ beforeEach(() => {
   // render() already wraps in act(), no need for explicit act()
   const result = render(
     <React.StrictMode>
-      <MemoryRouter initialEntries={['/bible/John/1']}>
+      <MemoryRouter initialEntries={['/bible/JHN.1']}>
         <App />
       </MemoryRouter>
     </React.StrictMode>
