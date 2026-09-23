@@ -7,7 +7,7 @@ import {
   verseDomId,
   verseNumbersFor,
 } from "../utils/verseRefs";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { VerseRef, VerseScope } from "../types";
 
 const useStyles = createStyles((theme) => ({
@@ -80,10 +80,14 @@ const Verse = ({
     audioActiveVerse.verse === verse;
 
   // Track touch state to differentiate tap from scroll
-  const [touchStartPos, setTouchStartPos] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(
+    null
+  );
+
+  // Mobile browsers fire a synthetic `click` after `touchend`.
+  // Track handled taps so that click can be ignored — otherwise
+  // the selection toggles twice (select then instantly unselect).
+  const lastTouchTapRef = useRef(0);
 
   // Track if verse was just clicked to prevent scroll jump
   const userClickedRef = useRef(false);
@@ -108,6 +112,9 @@ const Verse = ({
 
   const handleVerseClick = (event: React.MouseEvent) => {
     if (!selectable) return;
+
+    // Ignore the synthetic click fired after a handled touch tap
+    if (Date.now() - lastTouchTapRef.current < 700) return;
 
     // Only handle click if no text is selected (allow users to copy text)
     const selection = window.getSelection();
@@ -142,19 +149,22 @@ const Verse = ({
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
-    setTouchStartPos({ x: touch.clientX, y: touch.clientY });
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStartPos) return;
+    if (!touchStartPos.current) return;
 
     const touch = e.changedTouches[0];
-    const deltaX = Math.abs(touch.clientX - touchStartPos.x);
-    const deltaY = Math.abs(touch.clientY - touchStartPos.y);
+    const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
 
     // Only trigger click if movement is minimal (< 10px)
     // This prevents selection during scroll
     if (deltaX < 10 && deltaY < 10) {
+      lastTouchTapRef.current = Date.now();
+      // Suppress the synthetic click where the browser allows it
+      e.preventDefault();
       // Use setTimeout to allow text selection to register
       setTimeout(() => {
         const selection = window.getSelection();
@@ -164,7 +174,7 @@ const Verse = ({
       }, 50);
     }
 
-    setTouchStartPos(null);
+    touchStartPos.current = null;
   };
 
   const handleTouchClick = () => {

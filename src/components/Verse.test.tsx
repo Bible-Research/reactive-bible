@@ -1,4 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useNavigate } from 'react-router-dom';
@@ -223,6 +228,41 @@ describe('Verse Component', () => {
     expect(cardOne).toHaveAttribute('data-audio-active', 'true');
     expect(cardTwo).toHaveAttribute('data-audio-active', 'false');
   });
+
+  it('should not double-toggle when a tap fires touch + click',
+    () => {
+      vi.useFakeTimers();
+      try {
+        renderVerse();
+        const el = verseContainer('5');
+        const touch = { clientX: 10, clientY: 10 };
+        const dispatchTouch = (type: string) => {
+          const evt = new Event(type, { bubbles: true });
+          Object.assign(evt, {
+            touches: [touch],
+            changedTouches: [touch],
+          });
+          el.dispatchEvent(evt);
+        };
+
+        act(() => {
+          dispatchTouch('touchstart');
+          dispatchTouch('touchend');
+        });
+        // Synthetic click the browser fires after a tap
+        fireEvent.click(el);
+        act(() => {
+          vi.advanceTimersByTime(100);
+        });
+
+        expect(useBibleStore.getState().verseSelection).toEqual({
+          scope: 'bible',
+          refs: [JOHN_3_5],
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
   it('should not have the active class when not active', () => {
     renderVerse({ verse: 1 });
