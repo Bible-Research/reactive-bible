@@ -75,6 +75,11 @@ const Audio = () => {
     blobUrl: string | null;
   } | null>(null);
   const preloadTokenRef = useRef(0);
+  // Invalidates in-flight chapter loads. Bumped on chapter end,
+  // navigation, and when a newer load supersedes an older one — a
+  // stale fetch can then never materialize a Howl.
+  const loadSeqRef = useRef(0);
+  const loadInFlightRef = useRef(false);
   const activeBlobUrlRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,10 +191,13 @@ const Audio = () => {
   const disposeHowl = useCallback(
     (howl: Howl | null, blobUrl: string | null = null) => {
       if (howl) {
-        // stop() halts playback immediately; unload() alone can let
-        // the underlying html5 <audio> element keep playing for a
-        // few seconds until the next chapter finishes loading.
+        // mute() guarantees silence even if the pooled <audio>
+        // element drains buffered audio; stop() halts playback
+        // immediately — unload() alone can let the underlying html5
+        // <audio> element keep playing for a few seconds until the
+        // next chapter finishes loading.
         try {
+          howl.mute(true);
           howl.stop();
           howl.unload();
         } catch (err) {
@@ -332,6 +340,10 @@ const Audio = () => {
       // Defensive: onend shouldn't fire when looping.
       if (finished.loop()) return;
 
+      // Invalidate any load still in flight — the advance below
+      // supersedes whatever passage it was fetching.
+      loadSeqRef.current += 1;
+
       const state = useBibleStore.getState();
       const { next } = getAdjacentChapters(
         state.activeBookId,
@@ -402,6 +414,10 @@ const Audio = () => {
   // Reset chapter audio when chapter/book/version changes
   // (non-playlist only)
   useEffect(() => {
+    // Every run means the passage or mode changed — supersede any
+    // chapter load still in flight; its post-await token check
+    // will discard the result.
+    loadSeqRef.current += 1;
     if (isPlaylistMode) return;
     const key = chapterKey(
       resolveFilesetFor(activeBookId, activeAudioFilesetId),
@@ -676,6 +692,24 @@ const Audio = () => {
         setLoading(true);
         setError(null);
 
+        // Read live store state — this render's closure can lag the
+        // store by a commit when a chapter ends (its setAudio(null)
+        // lands before the book/chapter advance), and a stale render
+        // must never fetch the just-ended chapter.
+        const {
+          activeBookId,
+          activeChapter,
+          activeAudioFilesetId,
+        } = useBibleStore.getState();
+
+        // A fetch still in flight from a previous run loses to this
+        // one — its post-await token check discards the Howl.
+        if (loadInFlightRef.current) {
+          loadSeqRef.current += 1;
+        }
+        loadInFlightRef.current = true;
+        const seq = loadSeqRef.current;
+
         try {
           const filesetId = resolveFilesetFor(
             activeBookId,
@@ -712,6 +746,11 @@ const Audio = () => {
               filesetId,
             );
 
+            // A teardown/advance (or a newer load) superseded this
+            // fetch while it was in flight — do not materialize
+            // its Howl.
+            if (seq !== loadSeqRef.current) return;
+
             // Validate audio URL
             if (!audioUrl || typeof audioUrl !== 'string') {
               throw new Error(
@@ -737,6 +776,10 @@ const Audio = () => {
           setAudio(audioHowl);
           audioRef.current = audioHowl;
         } catch (err) {
+          // A superseded load must not surface errors or flip
+          // playback state — the winning run owns both.
+          if (seq !== loadSeqRef.current) return;
+
           console.error('Error loading audio:', err);
 
           // Extract user-friendly error message
@@ -788,6 +831,12 @@ const Audio = () => {
           setIsPlaying(false);
           setLoading(false);
           setShowPlayer(false);
+        } finally {
+          // Only the run still owning the sequence clears the flag
+          // — a superseded run must not mask a newer load.
+          if (seq === loadSeqRef.current) {
+            loadInFlightRef.current = false;
+          }
         }
       }
     };
@@ -884,7 +933,8 @@ const Audio = () => {
           onFocus={
             playlist.currentItem
               ? () => {
-                  const item = playlist.currentItem!;
+                  const item = playlist.currentItem;
+                  if (!item) return;
                   navigate(
                     buildBiblePath(
                       item.bookId,
