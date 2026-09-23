@@ -44,7 +44,6 @@ describe('multi verse selection in full App', () => {
     await waitFor(() => expect(sel()?.refs).toHaveLength(1));
     await user.click(screen.getByTitle('passage-verse-1-5'));
     await waitFor(() => {
-      // eslint-disable-next-line no-console
       console.log('SEL', JSON.stringify(sel()));
       expect(sel()?.refs).toHaveLength(2);
     });
@@ -52,7 +51,6 @@ describe('multi verse selection in full App', () => {
       .parentElement as HTMLElement;
     const v5 = screen.getByTitle('passage-verse-1-5')
       .parentElement as HTMLElement;
-    // eslint-disable-next-line no-console
     console.log(
       'v3 active=',
       v3.dataset.active,

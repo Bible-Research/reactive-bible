@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -101,14 +100,12 @@ describe('note-card multi verse selection', () => {
 
       await user.click(v16);
       await waitFor(() => {
-        // eslint-disable-next-line no-console
         console.log('SEL1', JSON.stringify(sel()));
         expect(sel()?.refs).toHaveLength(1);
       });
 
       await user.click(v18);
       await waitFor(() => {
-        // eslint-disable-next-line no-console
         console.log('SEL2', JSON.stringify(sel()));
         expect(sel()?.refs).toHaveLength(2);
       });
