@@ -37,8 +37,8 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
-
+      # ubuntu-latest already ships the Android SDK; setup-android@v3
+      # is broken on new cmdline-tools (runs `sdkmanager tools`).
       - name: Install Android SDK components
         run: |
           yes | sdkmanager --licenses > /dev/null
