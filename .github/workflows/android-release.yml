@@ -16,6 +16,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # GITHUB_TOKEN needs write to create the release + upload the APK.
+    permissions:
+      contents: write
     env:
       NODE_OPTIONS: --max-old-space-size=8192
 
