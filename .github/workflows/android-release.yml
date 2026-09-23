@@ -41,8 +41,10 @@ jobs:
       # is broken on new cmdline-tools (runs `sdkmanager tools`).
       - name: Install Android SDK components
         run: |
-          yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager \
+            | sort -V | tail -1)
+          yes | "$SDKM" --licenses > /dev/null
+          "$SDKM" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Build debug APK
         working-directory: android
