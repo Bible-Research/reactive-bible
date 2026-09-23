@@ -101,6 +101,44 @@ describe('API Functions', () => {
       );
     });
 
+    it('getVersesFromApi should throw RateLimitError when a ' +
+      'non-OK error body mentions rate limiting', async () => {
+      localStorage.clear();
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json(
+            { error: '(429) Reason: Too Many Requests' },
+            { status: 400 }
+          );
+        })
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow(api.RateLimitError);
+    });
+
+    it('getVersesFromApi should throw ProviderError when the ' +
+      'API wraps a provider failure in a 200 response',
+      async () => {
+      localStorage.clear();
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json({
+            book: 'JHN',
+            book_name: 'John',
+            chapter: 3,
+            verses: [],
+            message: 'No verses found for the specified passage',
+          });
+        })
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow(api.ProviderError);
+    });
+
     it('getBibleAudioUrl should fetch from API when not cached', async () => {
       const mockUrl = 'http://audio.url/test.mp3';
       const url = await api.getBibleAudioUrl('GEN', 1, 'ESVDA');

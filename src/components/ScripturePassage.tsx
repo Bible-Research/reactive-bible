@@ -42,7 +42,13 @@ const ScripturePassage = ({
         );
       } catch (err) {
         console.error('Failed to load passage', err);
-        if (!cancelled) setError('Failed to load passage');
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to load passage'
+          );
+        }
       }
     };
 

@@ -19,6 +19,7 @@ import {
   getChapters,
   type SectionHeading,
   RateLimitError,
+  ProviderError,
 } from "../api";
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
@@ -67,6 +68,7 @@ const PassageView = () => {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isRateLimitError, setIsRateLimitError] = useState(false);
+  const [isProviderError, setIsProviderError] = useState(false);
 
   const getTestamentMismatchHint = (
     filesetId: string | null,
@@ -184,6 +186,7 @@ const PassageView = () => {
     setLoading(true);
     setFetchError(null);
     setIsRateLimitError(false);
+    setIsProviderError(false);
     getVersesInChapter(
       activeBookId, activeChapter, activeTextFilesetId
     )
@@ -223,6 +226,7 @@ const PassageView = () => {
         console.error(error);
         const isRateLimit = error instanceof RateLimitError;
         setIsRateLimitError(isRateLimit);
+        setIsProviderError(error instanceof ProviderError);
         setFetchError(
           error instanceof Error ? error.message : 'Failed to load text'
         );
@@ -254,6 +258,11 @@ const PassageView = () => {
       'The translation provider has temporarily rate-limited ' +
       'requests. Please wait a few moments and try again, or ' +
       'switch to KJV which is always available offline.';
+    const providerHint =
+      'The translation provider could not deliver this ' +
+      'text. Its resources are likely exhausted (rate ' +
+      'limited). Try again in a few moments, or switch ' +
+      'to KJV which is always available offline.';
     const genericHint =
       'Try selecting a different text version in the ' +
       'Translation Settings ("Change Translation" button).';
@@ -265,12 +274,18 @@ const PassageView = () => {
             title={
               isRateLimitError
                 ? 'Rate Limit Reached'
+                : isProviderError
+                ? 'Provider Unavailable'
                 : fetchError
                 ? 'Failed to load text'
                 : `No content for ` +
                   `${activeBookName} ${activeChapter}`
             }
-            color={isRateLimitError ? 'yellow' : 'orange'}
+            color={
+              isRateLimitError || isProviderError
+                ? 'yellow'
+                : 'orange'
+            }
           >
             <Stack spacing="xs">
               {fetchError && (
@@ -279,7 +294,10 @@ const PassageView = () => {
               <Text size="sm">
                 {isRateLimitError
                   ? rateLimitHint
-                  : (mismatchHint ?? genericHint)}
+                  : (mismatchHint ??
+                      (isProviderError
+                        ? providerHint
+                        : genericHint))}
               </Text>
             </Stack>
           </Alert>
