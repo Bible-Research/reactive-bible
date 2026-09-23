@@ -64,22 +64,26 @@ jobs:
           -PversionCode=${{ github.run_number }}
           -PversionName=${GITHUB_REF_NAME#v}
 
+      # PKCS12 keystore (generated with openssl — no JKS needed);
+      # signed with apksigner, which auto-detects the store type.
       - name: Sign release APK
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: android/app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Stage signed APK with fixed name
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          APK=$(find android/app/build/outputs/apk/release \
-            -name '*-signed.apk' | head -1)
-          cp "$APK" reactive-bible.apk
+          set -e
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | \
+            base64 -d > release-key.p12
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          UNSIGNED=$(find android/app/build/outputs/apk/release \
+            -name '*-unsigned.apk' | head -1)
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" aligned.apk
+          "$BT/apksigner" sign \
+            --ks release-key.p12 \
+            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+            --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+            --out reactive-bible.apk \
+            aligned.apk
+          rm release-key.p12
 
       - name: Attach APK to GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
