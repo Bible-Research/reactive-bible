@@ -185,11 +185,31 @@ export const getVersesFromApi = async (
       const errorData = await response.json().catch(() => ({}));
       const errorMsg = errorData.error || errorData.detail ||
         `Failed to fetch verses (HTTP ${response.status})`;
+      // Provider rate limits can surface inside a wrapped
+      // error body rather than as a 429 status code.
+      if (isRateLimitMessage(errorMsg)) {
+        throw new RateLimitError(errorMsg);
+      }
       throw new Error(errorMsg);
     }
-    
+
     const data = await response.json();
-    const verses = data.verses?.map(
+
+    // The API wraps provider failures (including upstream
+    // rate limits) in a 200 response with empty verses and
+    // a `message` field — surface it instead of silently
+    // rendering an empty chapter.
+    if (
+      typeof data.message === 'string' &&
+      (!Array.isArray(data.verses) || data.verses.length === 0)
+    ) {
+      throw new ProviderError(data.message);
+    }
+    if (!Array.isArray(data.verses)) {
+      throw new Error('Malformed response from verse API');
+    }
+
+    const verses = data.verses.map(
       (v: { verse: number; text: string }) => (
         { verse: v.verse, text: v.text }
       )
@@ -309,6 +329,20 @@ export class RateLimitError extends Error {
     this.name = 'RateLimitError';
   }
 }
+
+export class ProviderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProviderError';
+  }
+}
+
+const RATE_LIMIT_PATTERN =
+  /\b429\b|too many requests|rate.?limit/i;
+
+const isRateLimitMessage = (
+  message: string
+): boolean => RATE_LIMIT_PATTERN.test(message);
 
 export interface NotePositionUpdate {
   note_id: string;
