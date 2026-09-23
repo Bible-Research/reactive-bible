@@ -95,8 +95,12 @@ describe.skip('NoteCard Component', () => {
       />
     );
 
-    expect(screen.getByRole('heading', { name: 'Genesis 1:1' })).toBeInTheDocument();
-    expect(screen.getByText('This is a single verse note.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Genesis 1:1' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a single verse note.')
+    ).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('In the beginning...')).toBeInTheDocument();
   });
@@ -111,10 +115,16 @@ describe.skip('NoteCard Component', () => {
       />
     );
 
-    expect(screen.getByRole('heading', { name: 'Genesis 1:1-2' })).toBeInTheDocument();
-    expect(screen.getByText('This is a multi-verse note.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Genesis 1:1-2' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a multi-verse note.')
+    ).toBeInTheDocument();
     expect(screen.getByText('In the beginning...')).toBeInTheDocument();
-    expect(screen.getByText('The earth was without form...')).toBeInTheDocument();
+    expect(
+      screen.getByText('The earth was without form...')
+    ).toBeInTheDocument();
   });
 
   it('should call onEdit when the edit button is clicked', async () => {
@@ -149,7 +159,8 @@ describe.skip('NoteCard Component', () => {
     expect(mockOnViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);
   });
 
-  it('should call handleDeleteNode when the remove button is clicked', async () => {
+  it('should call handleDeleteNode on remove click',
+    async () => {
     window.confirm = vi.fn(() => true);
 
     renderWithProviders(
@@ -186,5 +197,57 @@ describe.skip('NoteCard Component', () => {
     const passageContainer = screen.getByTestId('passage-container');
     fireEvent.click(openButton);
     expect(passageContainer).toBeInTheDocument();
+  });
+});
+
+describe('NoteCard empty verse text fallback', () => {
+  it('shows an unavailable notice when every verse ' +
+    'text is empty', () => {
+    const note = createMockNote({
+      id: 'n-empty',
+      note_text: '',
+      verses: [
+        createMockVerse({
+          book: 'John', chapter: 1, verse: 1, text: '',
+        }),
+        createMockVerse({
+          book: 'John', chapter: 1, verse: 2, text: '',
+        }),
+      ],
+    });
+
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    expect(
+      screen.getByText(/temporarily unavailable/i)
+    ).toBeInTheDocument();
+  });
+
+  it('renders verses normally when text is present', () => {
+    const note = createMockNote({
+      id: 'n-ok',
+      note_text: '',
+      verses: [
+        createMockVerse({
+          book: 'John',
+          chapter: 1,
+          verse: 1,
+          text: 'In the beginning was the Word',
+        }),
+      ],
+    });
+
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    expect(
+      screen.getByText(/In the beginning was the Word/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/temporarily unavailable/i)
+    ).not.toBeInTheDocument();
   });
 });

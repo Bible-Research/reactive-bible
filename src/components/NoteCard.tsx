@@ -72,6 +72,12 @@ const NoteCard = ({
   // Use headings from the note (provided by backend)
   const noteHeadings = note.headings || [];
 
+  // The notes API returns text:'' for every verse when the
+  // upstream Bible provider fails (e.g. rate limiting).
+  const versesMissingText =
+    !!note?.verses?.length &&
+    note.verses.every((v) => !v.text);
+
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
@@ -425,7 +431,13 @@ const NoteCard = ({
         sx={{ position: 'relative', zIndex: 0 }}
         data-verse-scope={scope}
       >
-        {versesFolded
+        {versesMissingText ? (
+          <Text color="red" size="sm" mt={8}>
+            Verse text is temporarily unavailable — the
+            translation provider may be rate-limited. Try
+            reloading in a few moments.
+          </Text>
+        ) : versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
               const heading = noteHeadings.find(
