@@ -17,6 +17,10 @@ import {
   findTestamentFallback,
 } from '../utils/bibleUtils';
 import { useVerseHighlighter } from './useVerseHighlighter';
+import {
+  getHtml5AudioNode,
+  getPlayPosition,
+} from '../utils/audioUtils';
 
 export interface UseAudioPlaylistReturn {
   isActive: boolean;
@@ -94,8 +98,18 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
       const item = allItems[index];
 
-      if (!item.bookId || item.startVerse == null) {
+      // Guards against double-advance: Howler emits 'end' when a
+      // playing sound is unloaded, so advancing from the bounds
+      // checker and then unloading would otherwise skip an item.
+      let advanced = false;
+      const advanceNext = () => {
+        if (advanced || stoppedRef.current) return;
+        advanced = true;
         playIndex(allItems, index + 1);
+      };
+
+      if (!item.bookId || item.startVerse == null) {
+        advanceNext();
         return;
       }
 
@@ -132,7 +146,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             color: 'orange',
             autoClose: 5000,
           });
-          playIndex(allItems, index + 1);
+          advanceNext();
           return;
         }
       }
@@ -256,9 +270,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             setIsPlaying(false);
           },
           onend: () => {
-            if (stoppedRef.current) return;
-            if (endTs !== null) return; // poll handles advancement
-            playIndex(allItems, index + 1);
+            // Always advance on the media `end` event. When the
+            // page is frozen the 100 ms poll never fires; reaching
+            // the real file end means we are past any verse-bound
+            // end timestamp anyway.
+            advanceNext();
           },
           onloaderror: (_id, err) => {
             console.error('Playlist audio load error:', err);
@@ -268,9 +284,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               color: 'orange',
               autoClose: 5000,
             });
-            if (!stoppedRef.current) {
-              playIndex(allItems, index + 1);
-            }
+            advanceNext();
           },
           onplayerror: (_id, err) => {
             console.error('Playlist audio play error:', err);
@@ -280,64 +294,76 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               color: 'orange',
               autoClose: 5000,
             });
-            if (!stoppedRef.current) {
-              playIndex(allItems, index + 1);
-            }
+            advanceNext();
           },
         });
 
         if (endTs !== null || item.verseNumbers) {
           const EPSILON = 0.2;
-          let poll: ReturnType<typeof setInterval> | null = null;
-          const startPoll = () => {
-            poll = setInterval(() => {
-              if (!howl || stoppedRef.current) {
-                if (poll) clearInterval(poll);
-                return;
-              }
-              const pos = howl.seek() as number;
-              if (typeof pos !== 'number') return;
-              if (endTs !== null && pos >= endTs - EPSILON) {
-                if (poll) clearInterval(poll);
-                if (!stoppedRef.current) {
-                  playIndex(allItems, index + 1);
-                }
-                return;
-              }
-              if (item.verseNumbers) {
-                const currentVerse = fetchedTimestamps.find(
-                  (t, i) => {
-                    const nextT = fetchedTimestamps[i + 1];
-                    return (
-                      t.timestamp <= pos &&
-                      (!nextT || pos < nextT.timestamp)
-                    );
-                  },
-                );
-                if (
-                  currentVerse &&
-                  !item.verseNumbers.includes(currentVerse.verse_start)
-                ) {
-                  const nextIncludedVerse = fetchedTimestamps.find(
-                    (t) =>
-                      t.timestamp > pos &&
-                      item.verseNumbers!.includes(t.verse_start),
+          // Returns true when the checker should stop (item
+          // advanced or playback halted).
+          const checkBounds = (): boolean => {
+            if (!howl || stoppedRef.current) return true;
+            const pos = getPlayPosition(howl);
+            if (pos === null) return false;
+            if (endTs !== null && pos >= endTs - EPSILON) {
+              advanceNext();
+              return true;
+            }
+            if (item.verseNumbers) {
+              const currentVerse = fetchedTimestamps.find(
+                (t, i) => {
+                  const nextT = fetchedTimestamps[i + 1];
+                  return (
+                    t.timestamp <= pos &&
+                    (!nextT || pos < nextT.timestamp)
                   );
-                  if (nextIncludedVerse) {
-                    howl.seek(nextIncludedVerse.timestamp);
-                  } else if (endTs !== null) {
-                    if (poll) clearInterval(poll);
-                    if (!stoppedRef.current) {
-                      playIndex(allItems, index + 1);
-                    }
-                  }
+                },
+              );
+              if (
+                currentVerse &&
+                !item.verseNumbers.includes(currentVerse.verse_start)
+              ) {
+                const nextIncludedVerse = fetchedTimestamps.find(
+                  (t) =>
+                    t.timestamp > pos &&
+                    item.verseNumbers!.includes(t.verse_start),
+                );
+                if (nextIncludedVerse) {
+                  howl.seek(nextIncludedVerse.timestamp);
+                } else if (endTs !== null) {
+                  advanceNext();
+                  return true;
                 }
               }
-            }, 100);
+            }
+            return false;
           };
-          howl.on('play', startPoll);
-          howl.on('end', () => { if (poll) clearInterval(poll); });
-          howl.on('stop', () => { if (poll) clearInterval(poll); });
+
+          // Advance on the <audio> element's timeupdate event as
+          // well as the poll: media events are still delivered to a
+          // backgrounded/frozen page when JS timers are suspended.
+          let node: HTMLAudioElement | null = null;
+          const attachNode = () => {
+            if (node) return;
+            node = getHtml5AudioNode(howl);
+            node?.addEventListener('timeupdate', checkBounds);
+          };
+          attachNode();
+          howl.on('play', attachNode);
+          howl.on('load', attachNode);
+
+          const poll = setInterval(() => {
+            if (checkBounds() && poll) clearInterval(poll);
+          }, 100);
+
+          const cleanup = () => {
+            clearInterval(poll);
+            node?.removeEventListener('timeupdate', checkBounds);
+            node = null;
+          };
+          howl.on('end', cleanup);
+          howl.on('stop', cleanup);
         }
 
         audioRef.current = howl;
@@ -350,9 +376,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           color: 'orange',
           autoClose: 5000,
         });
-        if (!stoppedRef.current) {
-          playIndex(allItems, index + 1);
-        }
+        advanceNext();
       }
     },
     [

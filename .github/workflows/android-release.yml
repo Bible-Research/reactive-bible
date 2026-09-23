@@ -1,0 +1,88 @@
+name: Android APK
+
+# Debug APK: every push to the `android` working branch and every
+# manual dispatch — the blind-development iteration artifact.
+# Signed release APK: only on `v*` tags, attached to the GitHub
+# release as `reactive-bible.apk` (fixed name keeps the download
+# URL stable: releases/latest/download/reactive-bible.apk).
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      # Capacitor 8 targets Java 21 / compileSdk 36.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: reactive-bible-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # ---------- Release (v* tags only) ----------
+
+      - name: Build release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: android
+        run: >-
+          ./gradlew assembleRelease
+          -PversionCode=${{ github.run_number }}
+          -PversionName=${GITHUB_REF_NAME#v}
+
+      - name: Sign release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Stage signed APK with fixed name
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          APK=$(find android/app/build/outputs/apk/release \
+            -name '*-signed.apk' | head -1)
+          cp "$APK" reactive-bible.apk
+
+      - name: Attach APK to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: reactive-bible.apk

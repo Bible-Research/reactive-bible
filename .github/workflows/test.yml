@@ -25,3 +25,28 @@ jobs:
         run: npx tsc --noEmit
 
       - run: npm test
+
+  cap-sync:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      - name: Check android/ is in sync
+        run: |
+          if [ -n "$(git status --porcelain android/)" ]; then
+            echo "::error::android/ out of sync — run npx cap sync"
+            git status --porcelain android/
+            exit 1
+          fi

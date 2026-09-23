@@ -9,13 +9,25 @@ import {
   ColorScheme,
   Divider,
 } from "@mantine/core";
-import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
+import {
+  IconX,
+  IconSun,
+  IconMoonStars,
+  IconBrandAndroid,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { buildBiblePath } from "../utils/bibleUtils";
+import { isNativeApp } from "../utils/nativeAudio";
 import { UserMenu } from "./UserMenu";
 import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
+
+// Fixed asset name on the latest GitHub release keeps this URL
+// stable across versions.
+const ANDROID_APK_URL =
+  'https://github.com/Bible-Research/reactive-bible/releases/' +
+  'latest/download/reactive-bible.apk';
 
 interface MainMenuProps {
   opened: boolean;
@@ -37,6 +49,13 @@ const MainMenu = ({
   // Get Bible state for navigation
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
+
+  // Offer the APK only on Android browsers — useless on iOS,
+  // desktop, and inside the native shell itself.
+  const showAndroidDownload =
+    !isNativeApp() &&
+    typeof navigator !== 'undefined' &&
+    /android/i.test(navigator.userAgent);
 
   return (
     <>
@@ -119,6 +138,34 @@ const MainMenu = ({
             Tag Management
           </Text>
         </Group>
+
+        {showAndroidDownload && (
+          <>
+            <Divider />
+            <Group spacing="xs" align="flex-start" noWrap>
+              <IconBrandAndroid
+                size={22}
+                style={{ marginTop: 4, flexShrink: 0 }}
+              />
+              <div>
+                <Text
+                  weight={500}
+                  size="lg"
+                  component="a"
+                  href={ANDROID_APK_URL}
+                  sx={{ cursor: "pointer", color: "inherit" }}
+                  title="Download Android app"
+                >
+                  Download Android App
+                </Text>
+                <Text size="xs" color="dimmed">
+                  For lock-screen audio playback. You may need to
+                  allow "install unknown apps" for your browser.
+                </Text>
+              </div>
+            </Group>
+          </>
+        )}
 
         <Divider />
 

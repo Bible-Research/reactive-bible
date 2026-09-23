@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
+import {
+  MediaSession as NativeMediaSession,
+} from '@capgo/capacitor-media-session';
+import type {
+  MediaSessionAction as NativeAction,
+} from '@capgo/capacitor-media-session';
 
 /**
  * Single, centralized owner of the global `navigator.mediaSession`.
@@ -19,6 +26,11 @@ import { useCallback, useEffect, useRef } from 'react';
  *    immediately and must never throw. Actual playback work is detached.
  * 3. Every MediaSession API call is wrapped in try/catch because some Android
  *    WebView versions throw `NotSupportedError` for certain actions.
+ *
+ * In the Capacitor shell the same calls are mirrored to the native
+ * Android MediaSession via @capgo/capacitor-media-session, so the
+ * lock-screen media notification and hardware buttons keep working
+ * even when the WebView's own media session is not surfaced by the OS.
  */
 
 export interface MediaSessionMetadata {
@@ -58,6 +70,17 @@ export interface UseMediaSessionParams {
 
 const isSupported = (): boolean =>
   typeof navigator !== 'undefined' && 'mediaSession' in navigator;
+
+const isNative = (): boolean => {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+};
+
+// Native plugin calls are best-effort — ignore rejections.
+const ignoreRejection = (): undefined => undefined;
 
 const safeSetHandler = (
   action: MediaSessionAction,
@@ -103,16 +126,20 @@ export const useMediaSession = ({
   // Push the latest position to the OS. Stable identity (reads from refs) so
   // it can be called from action handlers without re-registering them.
   const updatePositionState = useCallback(() => {
-    if (!isSupported()) return;
     const pos = getPositionRef.current?.();
     if (!pos) return;
     const { duration, position, playbackRate = 1 } = pos;
     if (
-      duration > 0 &&
-      Number.isFinite(position) &&
-      position >= 0 &&
-      position <= duration
+      !(
+        duration > 0 &&
+        Number.isFinite(position) &&
+        position >= 0 &&
+        position <= duration
+      )
     ) {
+      return;
+    }
+    if (isSupported()) {
       try {
         navigator.mediaSession.setPositionState({
           duration,
@@ -123,108 +150,145 @@ export const useMediaSession = ({
         // ignore invalid position states
       }
     }
+    if (isNative()) {
+      void NativeMediaSession.setPositionState({
+        duration,
+        playbackRate,
+        position,
+      }).catch(ignoreRejection);
+    }
   }, []);
 
   // Register action handlers once per active session.
   useEffect(() => {
-    if (!isSupported() || !active) return;
+    if (!active) return;
+    const native = isNative();
+    if (!isSupported() && !native) return;
 
-    const wrap = (
-      fn: (details: MediaSessionActionDetails) => void,
-    ): MediaSessionActionHandler => (details) => {
-      // Must return immediately and never throw: prevents Android ANR.
+    // Shared dispatch used by both the web Media Session handlers and
+    // the native plugin handlers. Must return immediately and never
+    // throw: prevents Android ANR.
+    const dispatch = (
+      action: MediaSessionAction,
+      details: { seekTime?: number | null; seekOffset?: number | null },
+    ): void => {
       try {
-        fn(details);
+        const c = controlsRef.current;
+        switch (action) {
+          case 'play':
+            c.play();
+            break;
+          case 'pause':
+            c.pause();
+            break;
+          case 'stop':
+            (c.stop ?? c.pause)();
+            break;
+          case 'previoustrack':
+            if (c.previousTrack) c.previousTrack();
+            else {
+              c.seekBy?.(-10);
+              updatePositionState();
+            }
+            break;
+          case 'nexttrack':
+            if (c.nextTrack) c.nextTrack();
+            else {
+              c.seekBy?.(10);
+              updatePositionState();
+            }
+            break;
+          case 'seekbackward':
+            c.seekBy?.(-(details.seekOffset ?? 10));
+            updatePositionState();
+            break;
+          case 'seekforward':
+            c.seekBy?.(details.seekOffset ?? 10);
+            updatePositionState();
+            break;
+          case 'seekto':
+            if (details.seekTime != null) {
+              c.seekTo?.(details.seekTime);
+              updatePositionState();
+            }
+            break;
+        }
       } catch (err) {
         console.warn('MediaSession handler error:', err);
       }
     };
 
-    safeSetHandler('play', wrap(() => controlsRef.current.play()));
-    safeSetHandler('pause', wrap(() => controlsRef.current.pause()));
-    safeSetHandler(
-      'stop',
-      wrap(() => {
-        const c = controlsRef.current;
-        (c.stop ?? c.pause)();
-      }),
-    );
+    if (isSupported()) {
+      const wrap = (
+        action: MediaSessionAction,
+      ): MediaSessionActionHandler => (details) =>
+        dispatch(action, details);
 
-    safeSetHandler(
-      'previoustrack',
-      wrap(() => {
-        const c = controlsRef.current;
-        if (c.previousTrack) c.previousTrack();
-        else {
-          c.seekBy?.(-10);
-          updatePositionState();
-        }
-      }),
-    );
+      safeSetHandler('play', wrap('play'));
+      safeSetHandler('pause', wrap('pause'));
+      safeSetHandler('stop', wrap('stop'));
+      safeSetHandler('previoustrack', wrap('previoustrack'));
+      safeSetHandler('nexttrack', wrap('nexttrack'));
+      safeSetHandler('seekbackward', wrap('seekbackward'));
+      safeSetHandler('seekforward', wrap('seekforward'));
+      safeSetHandler('seekto', wrap('seekto'));
+    }
 
-    safeSetHandler(
-      'nexttrack',
-      wrap(() => {
-        const c = controlsRef.current;
-        if (c.nextTrack) c.nextTrack();
-        else {
-          c.seekBy?.(10);
-          updatePositionState();
-        }
-      }),
-    );
-
-    safeSetHandler(
-      'seekbackward',
-      wrap((details) => {
-        controlsRef.current.seekBy?.(-(details.seekOffset ?? 10));
-        updatePositionState();
-      }),
-    );
-
-    safeSetHandler(
-      'seekforward',
-      wrap((details) => {
-        controlsRef.current.seekBy?.(details.seekOffset ?? 10);
-        updatePositionState();
-      }),
-    );
-
-    safeSetHandler(
-      'seekto',
-      wrap((details) => {
-        if (details.seekTime != null) {
-          controlsRef.current.seekTo?.(details.seekTime);
-          updatePositionState();
-        }
-      }),
-    );
+    if (native) {
+      ALL_ACTIONS.forEach((action) => {
+        void NativeMediaSession.setActionHandler(
+          { action: action as NativeAction },
+          (details) => dispatch(action, details),
+        ).catch(ignoreRejection);
+      });
+    }
 
     return () => {
-      ALL_ACTIONS.forEach((a) => safeSetHandler(a, null));
+      if (isSupported()) {
+        ALL_ACTIONS.forEach((a) => safeSetHandler(a, null));
+      }
+      if (native) {
+        ALL_ACTIONS.forEach((action) => {
+          void NativeMediaSession.setActionHandler(
+            { action: action as NativeAction },
+            null,
+          ).catch(ignoreRejection);
+        });
+      }
     };
   }, [active, updatePositionState]);
 
   // Metadata sync (only when the displayed values actually change).
   useEffect(() => {
-    if (!isSupported()) return;
     if (!active || !metadata) {
-      try {
-        navigator.mediaSession.metadata = null;
-      } catch {
-        // ignore
+      if (isSupported()) {
+        try {
+          navigator.mediaSession.metadata = null;
+        } catch {
+          // ignore
+        }
       }
       return;
     }
-    try {
-      navigator.mediaSession.metadata = new MediaMetadata({
+    if (isSupported()) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: metadata.title,
+          artist: metadata.artist,
+          album: metadata.album ?? 'Bible Audio',
+          artwork: metadata.artwork,
+        });
+      } catch (err) {
+        console.warn('MediaSession metadata error:', err);
+      }
+    }
+    if (isNative()) {
+      void NativeMediaSession.setMetadata({
         title: metadata.title,
         artist: metadata.artist,
         album: metadata.album ?? 'Bible Audio',
         artwork: metadata.artwork,
-      });
-    } catch (err) {
-      console.warn('MediaSession metadata error:', err);
+      }).catch(ignoreRejection);
     }
     // Intentionally key on primitive fields, not the `metadata` object
     // identity, so a new object with identical values does not re-run this.
@@ -238,22 +302,25 @@ export const useMediaSession = ({
 
   // Playback state sync.
   useEffect(() => {
-    if (!isSupported()) return;
-    try {
-      navigator.mediaSession.playbackState = !active
-        ? 'none'
-        : isPlaying
-          ? 'playing'
-          : 'paused';
-    } catch {
-      // ignore
+    const state = !active ? 'none' : isPlaying ? 'playing' : 'paused';
+    if (isSupported()) {
+      try {
+        navigator.mediaSession.playbackState = state;
+      } catch {
+        // ignore
+      }
+    }
+    if (isNative()) {
+      void NativeMediaSession.setPlaybackState({
+        playbackState: state,
+      }).catch(ignoreRejection);
     }
   }, [active, isPlaying]);
 
   // Position state sync: lightweight 1s poll while playing. Reads the latest
   // position from a ref so this effect never re-registers on track changes.
   useEffect(() => {
-    if (!isSupported() || !active) return;
+    if ((!isSupported() && !isNative()) || !active) return;
 
     updatePositionState();
     if (!isPlaying) return;

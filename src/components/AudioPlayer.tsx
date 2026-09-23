@@ -19,6 +19,7 @@ import {
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
+import { getPlayPosition } from '../utils/audioUtils';
 
 interface AudioPlayerProps {
   audio: Howl | null;
@@ -53,8 +54,8 @@ const AudioPlayer = ({
 
     const interval = setInterval(() => {
       if (!seeking) {
-        const seek = audio.seek() as number;
-        setCurrentTime(seek);
+        const seek = getPlayPosition(audio);
+        if (seek !== null) setCurrentTime(seek);
       }
     }, 100);
 
@@ -95,24 +96,23 @@ const AudioPlayer = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSeek = (value: number) => {
-    if (!audio) return;
+  const seekTo = (value: number) => {
+    // Seeking a not-yet-loaded Howl passes NaN through to the html5
+    // node and wedges it — only seek a loaded sound.
+    if (!audio || audio.state() !== 'loaded') return;
+    if (!Number.isFinite(value)) return;
     audio.seek(value);
     setCurrentTime(value);
   };
 
   const handleSkipBackward = () => {
-    if (!audio) return;
-    const newTime = Math.max(0, currentTime - 5);
-    audio.seek(newTime);
-    setCurrentTime(newTime);
+    const pos = getPlayPosition(audio) ?? currentTime;
+    seekTo(Math.max(0, pos - 5));
   };
 
   const handleSkipForward = () => {
-    if (!audio) return;
-    const newTime = Math.min(duration, currentTime + 5);
-    audio.seek(newTime);
-    setCurrentTime(newTime);
+    const pos = getPlayPosition(audio) ?? currentTime;
+    seekTo(Math.min(duration, pos + 5));
   };
 
   if (!audio) return null;
@@ -211,7 +211,7 @@ const AudioPlayer = ({
               setCurrentTime(value);
             }}
             onChangeEnd={(value) => {
-              handleSeek(value);
+              seekTo(value);
               setSeeking(false);
             }}
             label={null}

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
 import { VerseTimestamp, VerseScope } from '../types';
+import { getPlayPosition } from '../utils/audioUtils';
 
 /**
  * Polls audio playback position and sets the
@@ -30,8 +31,8 @@ export const useVerseHighlighter = (
     }
 
     intervalRef.current = setInterval(() => {
-      const currentTime = audio.seek() as number;
-      if (typeof currentTime !== 'number') return;
+      const currentTime = getPlayPosition(audio);
+      if (currentTime === null) return;
 
       // Binary search for the active verse
       let lo = 0;
