@@ -1,4 +1,4 @@
-import { Button, Select } from "@mantine/core";
+import { Box, Button, Select } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { Tag } from "../types";
 import RichTextEditor from "./RichTextEditor";
@@ -57,9 +57,28 @@ const NoteForm = ({
         value={noteText}
         onChange={setNoteText}
       />
-      <Button variant="transparent" type="submit">
-        {submitText}
-      </Button>
+      <Box
+        title="note-submit-bar"
+        sx={(theme) => ({
+          position: "sticky",
+          bottom: 0,
+          padding: theme.spacing.xs,
+          zIndex: 1,
+          backgroundColor:
+            theme.colorScheme === "dark"
+              ? theme.colors.dark[7]
+              : theme.white,
+          borderTop: `1px solid ${
+            theme.colorScheme === "dark"
+              ? theme.colors.dark[4]
+              : theme.colors.gray[3]
+          }`,
+        })}
+      >
+        <Button variant="transparent" type="submit" fullWidth>
+          {submitText}
+        </Button>
+      </Box>
     </form>
   );
 };

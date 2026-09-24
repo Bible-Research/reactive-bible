@@ -79,6 +79,23 @@ describe('NoteForm Component', () => {
     );
   });
 
+  it('should dock the submit button in a sticky bar', () => {
+    render(
+      <NoteForm
+        tags={mockTags}
+        onSubmit={mockOnSubmit}
+        submitText="Submit"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const submitBar = screen.getByTitle('note-submit-bar');
+    const submitButton = screen.getByRole('button', {
+      name: 'Submit',
+    });
+    expect(submitBar).toContainElement(submitButton);
+  });
+
   it('should not render create new tag button', () => {
     render(
       <NoteForm
