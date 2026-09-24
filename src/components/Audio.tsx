@@ -191,13 +191,15 @@ const Audio = () => {
   const disposeHowl = useCallback(
     (howl: Howl | null, blobUrl: string | null = null) => {
       if (howl) {
-        // mute() guarantees silence even if the pooled <audio>
-        // element drains buffered audio; stop() halts playback
-        // immediately — unload() alone can let the underlying html5
-        // <audio> element keep playing for a few seconds until the
-        // next chapter finishes loading.
+        // volume(0) silences the node even if the pooled <audio>
+        // element drains buffered audio after release — mute(true)
+        // would set node.muted, which the pool never resets and
+        // would silence the NEXT chapter's Howl. stop() halts
+        // playback immediately — unload() alone can let the
+        // underlying html5 <audio> element keep playing for a few
+        // seconds until the next chapter finishes loading.
         try {
-          howl.mute(true);
+          howl.volume(0);
           howl.stop();
           howl.unload();
         } catch (err) {
