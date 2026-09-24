@@ -185,20 +185,28 @@ export const getVersesFromApi = async (
       const errorData = await response.json().catch(() => ({}));
       const errorMsg = errorData.error || errorData.detail ||
         `Failed to fetch verses (HTTP ${response.status})`;
-      // Provider rate limits can surface inside a wrapped
-      // error body rather than as a 429 status code.
-      if (isRateLimitMessage(errorMsg)) {
+      if (
+        errorData.error_code === 'rate_limited' ||
+        isRateLimitMessage(errorMsg)
+      ) {
         throw new RateLimitError(errorMsg);
+      }
+      if (errorData.error_code) {
+        throw new ProviderError(errorMsg);
       }
       throw new Error(errorMsg);
     }
 
     const data = await response.json();
 
-    // The API wraps provider failures (including upstream
-    // rate limits) in a 200 response with empty verses and
-    // a `message` field — surface it instead of silently
-    // rendering an empty chapter.
+    // Provider failures carry `error`/`error_code` fields.
+    if (typeof data.error === 'string' && data.error) {
+      throw data.error_code === 'rate_limited'
+        ? new RateLimitError(data.error)
+        : new ProviderError(data.error);
+    }
+    // Older API versions wrapped provider failures in a 200
+    // response with empty verses and a `message` field.
     if (
       typeof data.message === 'string' &&
       (!Array.isArray(data.verses) || data.verses.length === 0)
@@ -559,9 +567,14 @@ export const getBibleAudioUrl = async (
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch audio for ${translation}: ${response.statusText}`
-      );
+      const errorData = await response.json().catch(() => ({}));
+      const errorMsg = errorData.error ||
+        `Failed to fetch audio for ${translation}: ` +
+        `${response.statusText}`;
+      if (errorData.error_code === 'rate_limited') {
+        throw new RateLimitError(errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     const data: any = await response.json();
