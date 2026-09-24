@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { API_BASE_URL } from '../config';
 
 // Define your request handlers
-const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const API_URL = `${API_BASE_URL}/api/v1`;
 const COMMENT_BASE = `${API_BASE_URL}/api/v1`;
 
 export const handlers = [
@@ -23,7 +23,9 @@ export const handlers = [
       verses: [
         {
           verse: 16,
-          text: 'For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.',
+          text: 'For God so loved the world, that he gave his only ' +
+            'begotten Son, that whosoever believeth in him should ' +
+            'not perish, but have everlasting life.',
         },
       ],
     });
@@ -37,7 +39,10 @@ export const handlers = [
   // --- Tags ---
   http.get(`${API_URL}/tags/`, () => {
     return HttpResponse.json([
-      { id: '1', name: 'Test Tag', parent_tag: null, created_at: '', updated_at: '' }
+      {
+        id: '1', name: 'Test Tag', parent_tag: null,
+        created_at: '', updated_at: ''
+      }
     ]);
   }),
 
@@ -47,7 +52,10 @@ export const handlers = [
     return HttpResponse.json({ 
       id: 'note-1',
       note_text: body.note_text,
-      tag: { id: body.tag, name: 'Test Tag', parent_tag: null, created_at: '', updated_at: '' },
+      tag: {
+        id: body.tag, name: 'Test Tag', parent_tag: null,
+        created_at: '', updated_at: ''
+      },
       public: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -61,11 +69,17 @@ export const handlers = [
       {
         id: 'note-1',
         note_text: 'This is a test note.',
-        tag: { id: '1', name: 'Test Tag', parent_tag: null, created_at: '', updated_at: '' },
+        tag: {
+          id: '1', name: 'Test Tag', parent_tag: null,
+          created_at: '', updated_at: ''
+        },
         public: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        verses: [{ book: 'John', chapter: 3, verse: 16, text: 'For God so loved the world...' }]
+        verses: [{
+          book: 'John', chapter: 3, verse: 16,
+          text: 'For God so loved the world...'
+        }]
       }
     ]);
   }),
@@ -159,13 +173,15 @@ export const handlers = [
               book_id: 'JHN',
               chapter: 3,
               verse_start: 16,
-              verse_text: 'For God so loved the world, that he gave his only Son.',
+              verse_text:
+                'For God so loved the world, that he gave his only Son.',
             },
             {
               book_id: 'ROM',
               chapter: 8,
               verse_start: 28,
-              verse_text: 'And we know that for those who love God all things work together for good.',
+              verse_text: 'And we know that for those who love ' +
+                'God all things work together for good.',
             }
           ],
           meta: {
@@ -189,7 +205,8 @@ export const handlers = [
             book_id: 'GEN',
             chapter: 1,
             verse_start: 1,
-            verse_text: 'In the beginning God created the heavens and the earth.',
+            verse_text:
+              'In the beginning God created the heavens and the earth.',
           }
         ],
         meta: {

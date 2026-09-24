@@ -3,8 +3,9 @@ import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
+import { API_BASE_URL } from './config';
 
-const API_URL = 'https://bible-research-489314.ey.r.appspot.com/api/v1';
+const API_URL = `${API_BASE_URL}/api/v1`;
 const COMMENT_BASE = `${API_URL}`;
 
 describe('API Functions', () => {
