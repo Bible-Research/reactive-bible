@@ -200,18 +200,17 @@ describe.skip('NoteCard Component', () => {
   });
 });
 
-describe('NoteCard empty verse text fallback', () => {
-  it('shows an unavailable notice when every verse ' +
-    'text is empty', () => {
+describe('NoteCard provider error display', () => {
+  it('shows the provider error when the API reports one',
+    () => {
     const note = createMockNote({
-      id: 'n-empty',
+      id: 'n-err',
       note_text: '',
+      error: 'Bible provider rate limit exceeded (HTTP 429)',
+      error_code: 'rate_limited',
       verses: [
         createMockVerse({
           book: 'John', chapter: 1, verse: 1, text: '',
-        }),
-        createMockVerse({
-          book: 'John', chapter: 1, verse: 2, text: '',
         }),
       ],
     });
@@ -221,7 +220,10 @@ describe('NoteCard empty verse text fallback', () => {
     );
 
     expect(
-      screen.getByText(/temporarily unavailable/i)
+      screen.getByText(/rate limit exceeded/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/reloading in a few moments/i)
     ).toBeInTheDocument();
   });
 
@@ -247,7 +249,7 @@ describe('NoteCard empty verse text fallback', () => {
       screen.getByText(/In the beginning was the Word/)
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(/temporarily unavailable/i)
+      screen.queryByText(/rate limit exceeded/i)
     ).not.toBeInTheDocument();
   });
 });

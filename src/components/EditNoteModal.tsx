@@ -41,11 +41,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const firstVerse = note?.verses?.[0];
   const lastVerse =
     note?.verses?.[(note.verses?.length ?? 0) - 1];
-  // The notes API returns text:'' for every verse when the
-  // upstream Bible provider fails (e.g. rate limiting).
-  const versesMissingText =
-    !!note?.verses?.length &&
-    note.verses.every((v) => !v.text);
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note?.error;
   const verseLabel = firstVerse
     ? firstVerse.verse === lastVerse?.verse
       ? `${firstVerse.book} ${firstVerse.chapter}:${firstVerse.verse}`
@@ -73,11 +71,12 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 label={verseLabel}
                 labelPosition="center"
               />
-              {versesMissingText ? (
+              {verseError ? (
                 <Text color="red" size="sm">
-                  Verse text is temporarily unavailable — the
-                  translation provider may be rate-limited.
-                  Try reloading in a few moments.
+                  {verseError}
+                  {note.error_code === 'rate_limited'
+                    ? ' Try reloading in a few moments.'
+                    : ''}
                 </Text>
               ) : (
                 note.verses.map((v) => (
