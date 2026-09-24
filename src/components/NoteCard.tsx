@@ -72,6 +72,10 @@ const NoteCard = ({
   // Use headings from the note (provided by backend)
   const noteHeadings = note.headings || [];
 
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note?.error;
+
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
@@ -425,7 +429,14 @@ const NoteCard = ({
         sx={{ position: 'relative', zIndex: 0 }}
         data-verse-scope={scope}
       >
-        {versesFolded
+        {verseError ? (
+          <Text color="red" size="sm" mt={8}>
+            {verseError}
+            {note.error_code === 'rate_limited'
+              ? ' Try reloading in a few moments.'
+              : ''}
+          </Text>
+        ) : versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
               const heading = noteHeadings.find(

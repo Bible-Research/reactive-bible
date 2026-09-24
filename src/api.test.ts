@@ -118,6 +118,52 @@ describe('API Functions', () => {
       ).rejects.toThrow(api.RateLimitError);
     });
 
+    it('getVersesFromApi should throw RateLimitError when a ' +
+      'response carries a rate_limited error_code',
+      async () => {
+      localStorage.clear();
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json(
+            {
+              error:
+                'Bible provider rate limit exceeded (HTTP 429)',
+              error_code: 'rate_limited',
+            },
+            { status: 429 }
+          );
+        })
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow(api.RateLimitError);
+    });
+
+    it('getVersesFromApi should throw ProviderError when a ' +
+      'response carries a provider_error error_code',
+      async () => {
+      localStorage.clear();
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json(
+            {
+              error: 'Bible provider error (HTTP 503)',
+              error_code: 'provider_error',
+            },
+            { status: 502 }
+          );
+        })
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow(api.ProviderError);
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow('Bible provider error (HTTP 503)');
+    });
+
     it('getVersesFromApi should throw ProviderError when the ' +
       'API wraps a provider failure in a 200 response',
       async () => {
