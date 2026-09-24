@@ -4,6 +4,7 @@ import { editNote } from "../api";
 import { useBibleStore } from "../store";
 import NoteForm from "./NoteForm";
 import { Note } from "../types";
+import { visibleNoteVerses } from "../utils/noteVerses";
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -46,6 +47,13 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const versesMissingText =
     !!note?.verses?.length &&
     note.verses.every((v) => !v.text);
+  // Provider text is capped at 500 verses for copyright
+  // reasons; render the truncated tail as a notice instead
+  // of empty verse rows.
+  const {
+    verses: displayedVerses,
+    truncated: versesTruncated,
+  } = visibleNoteVerses(note?.verses);
   const verseLabel = firstVerse
     ? firstVerse.verse === lastVerse?.verse
       ? `${firstVerse.book} ${firstVerse.chapter}:${firstVerse.verse}`
@@ -80,16 +88,24 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                   Try reloading in a few moments.
                 </Text>
               ) : (
-                note.verses.map((v) => (
-                  <Box key={v.verse} py={4} px={8}>
-                    <Text size="sm">
-                      <Text component="span" weight={700} mr={4}>
-                        {v.verse}
+                <>
+                  {displayedVerses.map((v) => (
+                    <Box key={v.verse} py={4} px={8}>
+                      <Text size="sm">
+                        <Text component="span" weight={700} mr={4}>
+                          {v.verse}
+                        </Text>
+                        {v.text}
                       </Text>
-                      {v.text}
+                    </Box>
+                  ))}
+                  {versesTruncated && (
+                    <Text color="red" size="sm">
+                      Cannot display more than 500 verses of
+                      the Bible due to copyright restrictions.
                     </Text>
-                  </Box>
-                ))
+                  )}
+                </>
               )}
             </Box>
           )}
