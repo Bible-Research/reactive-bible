@@ -252,4 +252,59 @@ describe('NoteCard provider error display', () => {
       screen.queryByText(/rate limit exceeded/i)
     ).not.toBeInTheDocument();
   });
+
+  it('shows a copyright notice instead of empty verses ' +
+    'beyond the 500 verse limit', () => {
+    const verses = Array.from({ length: 501 }, (_, i) =>
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: i + 1,
+        text: i < 500 ? `Verse ${i + 1} text` : '',
+      })
+    );
+    const note = createMockNote({ id: 'n-big', verses });
+
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    expect(
+      screen.getByText(
+        /cannot display more than 500 verses/i
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTitle('passage-verse-1-500')
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTitle('passage-verse-1-501')
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not show the copyright notice at or below ' +
+    'the 500 verse limit', () => {
+    const verses = Array.from({ length: 500 }, (_, i) =>
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: i + 1,
+        text: `Verse ${i + 1} text`,
+      })
+    );
+    const note = createMockNote({ id: 'n-max', verses });
+
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    expect(
+      screen.queryByText(
+        /cannot display more than 500 verses/i
+      )
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTitle('passage-verse-1-500')
+    ).toBeInTheDocument();
+  });
 });
