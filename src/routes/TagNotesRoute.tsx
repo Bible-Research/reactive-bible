@@ -572,6 +572,14 @@ export default function TagNotesRoute() {
   // Calculate total pages
   const totalPages = Math.ceil(notesCount / notesPageSize);
 
+  const pagination = totalPages > 1 ? (
+    <Pagination
+      currentPage={notesPage}
+      totalPages={totalPages}
+      onPageChange={handlePageChange}
+    />
+  ) : null;
+
   return (
     <Box p="md">
       <Stack spacing="sm" mb="md">
@@ -696,6 +704,7 @@ export default function TagNotesRoute() {
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
         {notes.length > 0 ? (
           <Stack spacing="md" pb="xl">
+            {pagination}
             <TagSection
               tagName={tag.name}
               notes={sortedNotes}
@@ -723,13 +732,7 @@ export default function TagNotesRoute() {
               pageSize={notesPageSize}
             />
             
-            {totalPages > 1 && (
-              <Pagination
-                currentPage={notesPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
-            )}
+            {pagination}
           </Stack>
         ) : (
           <Center style={{ height: 200 }}>
