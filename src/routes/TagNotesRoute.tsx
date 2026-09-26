@@ -111,6 +111,7 @@ export default function TagNotesRoute() {
 
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [commentCounts, setCommentCounts] =
     useState<CommentCounts>({});
@@ -362,13 +363,18 @@ export default function TagNotesRoute() {
         sortOrder !== 'custom_asc'
           ? getApiOrdering(sortOrder)
           : undefined;
-      
-      await fetchNotes(tagId, {
-        ordering: apiOrdering,
-        page: newPage,
-        append: false,
-      });
-      
+
+      setPageLoading(true);
+      try {
+        await fetchNotes(tagId, {
+          ordering: apiOrdering,
+          page: newPage,
+          append: false,
+        });
+      } finally {
+        setPageLoading(false);
+      }
+
       // Scroll to top of notes section
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -389,13 +395,18 @@ export default function TagNotesRoute() {
         sortOrder !== 'custom_asc'
           ? getApiOrdering(sortOrder)
           : undefined;
-      
-      await fetchNotes(tagId, {
-        ordering: apiOrdering,
-        page: 1,
-        append: false,
-      });
-      
+
+      setPageLoading(true);
+      try {
+        await fetchNotes(tagId, {
+          ordering: apiOrdering,
+          page: 1,
+          append: false,
+        });
+      } finally {
+        setPageLoading(false);
+      }
+
       // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -702,7 +713,11 @@ export default function TagNotesRoute() {
       </Stack>
 
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
-        {notes.length > 0 ? (
+        {pageLoading ? (
+          <Center style={{ height: 200 }}>
+            <Loader aria-label="loading" />
+          </Center>
+        ) : notes.length > 0 ? (
           <Stack spacing="md" pb="xl">
             {pagination}
             <TagSection
