@@ -867,6 +867,7 @@ const Audio = () => {
     setIsPlaying(false);
     isPlayingRef.current = false;
     setShowPlayer(false);
+    setAudioActiveVerse(null);
     discardPreloaded();
     disposeHowl(audio, activeBlobUrlRef.current);
     activeBlobUrlRef.current = null;
