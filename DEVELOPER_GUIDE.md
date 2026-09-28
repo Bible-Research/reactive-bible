@@ -1807,6 +1807,11 @@ Form for creating/editing notes.
 - Form validation
 - Submit handler
 
+Typing `@` in the editor opens a passage picker that inserts a
+`@USFM.C.V[-E]` reference token. Clicking a complete token once
+previews its passage below the editor (the note is NOT linked to
+it); a second click reopens the picker to edit the reference.
+
 #### `AddTagNoteModal.tsx`
 Modal for creating new notes.
 
