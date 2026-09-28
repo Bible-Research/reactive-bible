@@ -13,6 +13,7 @@ import PassagePicker from '../components/PassagePicker';
 import {
   buildScriptureToken,
   formatMentionPreview,
+  isTerminatedMentionQuery,
   isValidScriptureToken,
   parseMentionQuery,
 } from '../utils/scriptureMention';
@@ -296,17 +297,22 @@ export const ScriptureMention = Extension.create({
         allowedPrefixes: [' ', '('],
         items: () => [],
         allow: ({ state, range }) => {
-          if (suppressFrom === null) return true;
-          if (range.from !== suppressFrom) {
-            clearSuppression();
-            return true;
-          }
           const text = state.doc.textBetween(
             range.from,
             range.to,
             '\n',
             '\n'
           );
+          // A complete ref closed by '.' or ' ' means the user
+          // typed it out by hand — keep the picker dismissed.
+          if (isTerminatedMentionQuery(text.slice(1))) {
+            return false;
+          }
+          if (suppressFrom === null) return true;
+          if (range.from !== suppressFrom) {
+            clearSuppression();
+            return true;
+          }
           return !text.slice(1).startsWith(suppressQuery);
         },
         render: popupRenderer,

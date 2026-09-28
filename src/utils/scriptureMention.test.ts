@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildScriptureToken,
   formatMentionPreview,
+  isTerminatedMentionQuery,
   isValidScriptureToken,
   matchBookNames,
   parseMentionQuery,
@@ -192,6 +193,34 @@ describe('formatMentionPreview', () => {
       .toBe('John');
     expect(formatMentionPreview(parseMentionQuery('j')))
       .toBe('');
+  });
+});
+
+describe('isTerminatedMentionQuery', () => {
+  it('accepts a complete ref closed by space or period', () => {
+    expect(isTerminatedMentionQuery('JHN.3.16 ')).toBe(true);
+    expect(isTerminatedMentionQuery('JHN.3.16.')).toBe(true);
+    expect(isTerminatedMentionQuery('JHN.3.16-18 ')).toBe(true);
+  });
+
+  it('accepts space-separated refs with trailing prose', () => {
+    expect(isTerminatedMentionQuery('john 3 16 ')).toBe(true);
+    expect(
+      isTerminatedMentionQuery('JHN.3.16 is true')
+    ).toBe(true);
+  });
+
+  it('rejects refs that are still being typed', () => {
+    expect(isTerminatedMentionQuery('JHN.3.16')).toBe(false);
+    expect(isTerminatedMentionQuery('JHN.3.16-')).toBe(false);
+    expect(isTerminatedMentionQuery('JHN.3.')).toBe(false);
+    expect(isTerminatedMentionQuery('JHN')).toBe(false);
+  });
+
+  it('rejects incomplete refs followed by prose', () => {
+    expect(isTerminatedMentionQuery('JHN.3 and more'))
+      .toBe(false);
+    expect(isTerminatedMentionQuery('ZZZ.1.1 ')).toBe(false);
   });
 });
 
