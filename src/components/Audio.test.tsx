@@ -1,19 +1,33 @@
-import { screen } from '@testing-library/react';
+import {
+  act,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
+import { useBibleStore } from '../store';
 
 // Mock Howler
 vi.mock('howler', () => ({
-  Howl: vi.fn().mockImplementation(() => ({
-    play: vi.fn(),
-    pause: vi.fn(),
-    stop: vi.fn(),
-    unload: vi.fn(),
-    seek: vi.fn(),
-    duration: vi.fn().mockReturnValue(100),
-    loop: vi.fn(),
-  })),
+  Howl: vi.fn().mockImplementation(function () {
+    return {
+      play: vi.fn(),
+      pause: vi.fn(),
+      stop: vi.fn(),
+      unload: vi.fn(),
+      seek: vi.fn().mockReturnValue(0),
+      duration: vi.fn().mockReturnValue(100),
+      loop: vi.fn(),
+      state: vi.fn().mockReturnValue('loaded'),
+      playing: vi.fn().mockReturnValue(false),
+      volume: vi.fn(),
+      on: vi.fn(),
+      once: vi.fn(),
+      off: vi.fn(),
+    };
+  }),
 }));
 
 // Mock API
@@ -47,6 +61,41 @@ describe('Audio Component', () => {
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
   });
+
+  it('clears the audio-active verse when the player closes',
+    async () => {
+      renderWithProviders(<Audio />, {
+        storeOverrides: {
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          activeAudioFilesetId: 'ENGKJV',
+          showAudioPlayer: false,
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+      const closeButton = await screen.findByTitle(
+        'Close player'
+      );
+
+      // Simulate the highlighter marking the playing verse.
+      act(() => {
+        useBibleStore.getState().setAudioActiveVerse({
+          bookId: 'GEN',
+          chapter: 1,
+          verse: 3,
+          scope: 'bible',
+        });
+      });
+
+      fireEvent.click(closeButton);
+
+      await waitFor(() => {
+        expect(
+          useBibleStore.getState().audioActiveVerse
+        ).toBeNull();
+      });
+    });
 
   // Note: Full audio playback testing is extremely complex
   // due to Howler.js, Media Session API, and async state.
