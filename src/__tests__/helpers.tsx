@@ -41,6 +41,12 @@ export function createMockStore(overrides: Partial<BibleState> = {}) {
     setActiveTextFilesetId: vi.fn(),
     setActiveAudioFilesetId: vi.fn(),
     fetchNotes: vi.fn().mockResolvedValue(undefined),
+    setPendingScrollVerse: vi.fn(),
+    setActiveBookWithPosition:
+      vi.fn().mockResolvedValue(undefined),
+    syncReadingPosition: vi.fn(),
+    prefetchReadingPositions:
+      vi.fn().mockResolvedValue(undefined),
   };
 
   return {

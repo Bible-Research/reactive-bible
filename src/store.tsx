@@ -21,6 +21,7 @@ import {
   cacheNotes,
   clearNotesCache,
 } from './utils/cacheManager';
+import { useAuthStore } from './stores/authStore';
 
 export interface Fileset {
   id: string;
@@ -68,6 +69,21 @@ export interface BibleState {
   setAudioPlaylistEnded: (ended: boolean) => void;
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
+  /**
+   * Saved position per USFM book id. A missing key means the
+   * position was never fetched; a null value means it was fetched
+   * and the user has no saved position for that book.
+   */
+  readingPositions: Record<
+    string,
+    api.ReadingPositionValue | null
+  >;
+  /**
+   * Transient (not persisted): after switching books, the verse
+   * PassageView should scroll to once the chapter loads.
+   */
+  pendingScrollVerse: VerseRef | null;
+  setPendingScrollVerse: (ref: VerseRef | null) => void;
   setActiveBookAndChapter: (
     activeBookId: string,
     activeChapter: number
@@ -105,6 +121,15 @@ export interface BibleState {
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
   setNotesPageSize: (pageSize: number) => void;
+  setActiveBookWithPosition: (
+    activeBookId: string
+  ) => Promise<void>;
+  syncReadingPosition: (
+    bookId: string,
+    chapter: number,
+    verse?: number
+  ) => void;
+  prefetchReadingPositions: () => Promise<void>;
 }
 
 // Define and export the initial state for reusability and testing
@@ -132,6 +157,11 @@ export const initialState = {
   audioPlaylistStartIndex: null as number | null,
   audioPlaylistEnded: false,
   versesFolded: false,
+  readingPositions: {} as Record<
+    string,
+    api.ReadingPositionValue | null
+  >,
+  pendingScrollVerse: null as VerseRef | null,
 };
 
 const partializeState = (state: BibleState) => ({
@@ -146,7 +176,9 @@ const partializeState = (state: BibleState) => ({
   audioActiveVerse: state.audioActiveVerse,
   notes: state.notes,
   tags: state.tags,
+  readingPositions: state.readingPositions,
   // showAudioPlayer is NOT persisted
+  // pendingScrollVerse is NOT persisted
 });
 
 type PersistedBibleState = ReturnType<typeof partializeState>;
@@ -176,6 +208,9 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   book/chapter; `selectedVerses` is dropped entirely.
  * - pre-v3: `activeBook`/`activeBookShort` (display names) become
  *   `activeBookId` (USFM code); VerseRef/audio refs gain bookId.
+ * - pre-v4: `readingPositions` is introduced; any pre-existing
+ *   value is sanitized and name-keyed entries are re-keyed to
+ *   USFM codes.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -231,6 +266,33 @@ export const migratePersistedState = (
     };
     delete migrated.activeBook;
     delete migrated.activeBookShort;
+  }
+
+  if (version < 4) {
+    const raw = migrated.readingPositions;
+    const positions: Record<
+      string,
+      api.ReadingPositionValue | null
+    > = {};
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      for (const [key, value] of Object.entries(raw)) {
+        // Keys may be USFM codes or legacy book names.
+        const bookId = toUsfmCode(key);
+        if (!bookId) continue;
+        const entry = value as {
+          chapter?: unknown;
+          verse?: unknown;
+        } | null;
+        positions[bookId] =
+          entry !== null &&
+          typeof entry === 'object' &&
+          typeof entry.chapter === 'number' &&
+          typeof entry.verse === 'number'
+            ? { chapter: entry.chapter, verse: entry.verse }
+            : null;
+      }
+    }
+    migrated = { ...migrated, readingPositions: positions };
   }
 
   return migrated as PersistedBibleState;
@@ -503,11 +565,97 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setAudioPlaylistEnded: (audioPlaylistEnded) =>
         set({ audioPlaylistEnded }),
       setVersesFolded: (versesFolded) => set({ versesFolded }),
+      setPendingScrollVerse: (pendingScrollVerse) =>
+        set({ pendingScrollVerse }),
+      setActiveBookWithPosition: async (activeBookId) => {
+        const cached =
+          useBibleStore.getState().readingPositions[activeBookId];
+        // undefined = never fetched; null = fetched, nothing saved
+        let position = cached as
+          | api.ReadingPositionValue
+          | null
+          | undefined;
+        if (
+          position === undefined &&
+          useAuthStore.getState().isAuthenticated
+        ) {
+          const apiPosition =
+            await api.getReadingPosition(activeBookId);
+          const entry: api.ReadingPositionValue | null =
+            apiPosition
+              ? {
+                  chapter: apiPosition.chapter,
+                  verse: apiPosition.verse,
+                }
+              : null;
+          position = entry;
+          set((state) => ({
+            readingPositions: {
+              ...state.readingPositions,
+              [activeBookId]: entry,
+            },
+          }));
+        }
+        const chapter = position?.chapter ?? 1;
+        const verse = position?.verse ?? 1;
+        // Clear verseSelection: restoring a position must not
+        // select a verse or pop up the VerseActionToolbar.
+        set({
+          activeBookId,
+          activeChapter: chapter,
+          verseSelection: null,
+          audioActiveVerse: null,
+          pendingScrollVerse:
+            verse > 1
+              ? { bookId: activeBookId, chapter, verse }
+              : null,
+        });
+      },
+      syncReadingPosition: (bookId, chapter, verse = 1) => {
+        set((state) => ({
+          readingPositions: {
+            ...state.readingPositions,
+            [bookId]: { chapter, verse },
+          },
+        }));
+        // Anonymous sessions must not hit the API: session auth
+        // would land them in a shared auto-provisioned account.
+        if (useAuthStore.getState().isAuthenticated) {
+          api.updateReadingPosition(bookId, chapter, verse);
+        }
+      },
+      prefetchReadingPositions: async () => {
+        if (!useAuthStore.getState().isAuthenticated) return;
+        try {
+          const bookIds = api.getBooks().map((b) => b.book_id);
+          const positions =
+            await api.getBulkReadingPositions(bookIds);
+          // Keep explicit nulls: they mark books as checked so
+          // they are not refetched on every book click. A local
+          // non-null entry wins over a remote null (offline reads).
+          set((state) => {
+            const merged = { ...state.readingPositions };
+            for (const [bookId, pos] of Object.entries(
+              positions
+            )) {
+              if (merged[bookId] === undefined || pos !== null) {
+                merged[bookId] = pos;
+              }
+            }
+            return { readingPositions: merged };
+          });
+        } catch (error) {
+          console.error(
+            'Error prefetching reading positions:',
+            error
+          );
+        }
+      },
     }),
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

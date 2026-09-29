@@ -98,3 +98,12 @@ export interface AudioActiveVerse {
   verse: number;
   scope?: VerseScope; // 'bible' | PlaylistItem.itemId
 }
+
+export interface ReadingPosition {
+  id: string;
+  /** Backend book name (e.g. "John"), not a USFM code. */
+  book: string;
+  chapter: number;
+  verse: number;
+  last_accessed: string;
+}
