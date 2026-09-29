@@ -17,6 +17,7 @@ import {
   deleteComment,
   uploadCommentImage,
   deleteImage,
+  fetchCommentImages,
 } from '../api';
 import {
   insertReply,
@@ -35,6 +36,11 @@ const normalize = (
     images: c.images ?? [],
     replies: normalize(c.replies),
   }));
+
+// A comment's images are refetched at most this many times per
+// mount — bounds the retry loop when the backend keeps minting
+// signed URLs that still fail to load.
+const MAX_IMAGE_REFRESHES = 3;
 
 interface CommentThreadProps {
   noteId: string;
@@ -88,6 +94,42 @@ const CommentThread = ({
         // background refresh — don't surface errors
       });
   }, [noteId]);
+
+  const pendingImageRefresh = useRef(new Set<string>());
+  const imageRefreshCount = useRef(new Map<string, number>());
+
+  // Targeted refresh of one comment's images when a signed URL
+  // fails to load. Concurrent errors on the same comment collapse
+  // into a single fetch; retries are capped per comment.
+  const handleImageError = useCallback(
+    (commentId: string) => {
+      const attempts =
+        imageRefreshCount.current.get(commentId) ?? 0;
+      if (
+        attempts >= MAX_IMAGE_REFRESHES ||
+        pendingImageRefresh.current.has(commentId)
+      )
+        return;
+      pendingImageRefresh.current.add(commentId);
+      imageRefreshCount.current.set(commentId, attempts + 1);
+      fetchCommentImages(noteId, commentId)
+        .then((images) => {
+          setComments((prev) =>
+            updateNode(prev, commentId, (n) => ({
+              ...n,
+              images,
+            }))
+          );
+        })
+        .catch(() => {
+          // background refresh — don't surface errors
+        })
+        .finally(() => {
+          pendingImageRefresh.current.delete(commentId);
+        });
+    },
+    [noteId]
+  );
 
   useEffect(() => {
     load();
@@ -193,8 +235,9 @@ const CommentThread = ({
         }
       }
       setComments((prev) =>
-        updateNode(prev, id, () => ({
+        updateNode(prev, id, (n) => ({
           ...normalize([updated])[0],
+          replies: n.replies,
           images: newImages,
         }))
       );
@@ -311,7 +354,7 @@ const CommentThread = ({
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               onDeleteImage={handleDeleteImage}
-              onRequestRefresh={silentLoad}
+              onRequestRefresh={handleImageError}
             />
           ))}
         </Stack>

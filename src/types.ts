@@ -53,7 +53,8 @@ export interface CommentAuthor {
 
 export interface CommentImage {
   id: string;
-  signed_url: string;
+  storage_url: string;
+  signed_url: string | null;
   content_type: string;
   size_bytes: number;
   uploaded_by: number;

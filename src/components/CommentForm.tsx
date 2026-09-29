@@ -10,6 +10,7 @@ import {
 import { IconX, IconPhoto } from '@tabler/icons-react';
 import RichTextEditor from './RichTextEditor';
 import { toPlainText } from '../utils/tiptapContent';
+import { commentImageName } from '../utils/commentTree';
 import { CommentImage } from '../types';
 
 const ALLOWED_TYPES = [
@@ -21,6 +22,20 @@ const ALLOWED_TYPES = [
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGES = 5;
 
+const thumbStyle: React.CSSProperties = {
+  height: 56,
+  width: 56,
+  objectFit: 'cover',
+  borderRadius: 4,
+  display: 'block',
+};
+
+interface StagedFile {
+  id: number;
+  file: File;
+  url: string;
+}
+
 interface CommentFormProps {
   initialValue?: string;
   submitLabel?: string;
@@ -31,6 +46,7 @@ interface CommentFormProps {
   submitting?: boolean;
   existingImages?: CommentImage[];
   onDeleteImage?: (imageId: string) => Promise<void>;
+  onImageError?: (src: string) => void;
 }
 
 const CommentForm = ({
@@ -43,14 +59,15 @@ const CommentForm = ({
   submitting = false,
   existingImages = [],
   onDeleteImage,
+  onImageError,
 }: CommentFormProps) => {
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [localSubmitting, setLocalSubmitting] = useState(false);
-  const [staged, setStaged] = useState<File[]>([]);
-  const [stagedUrls, setStagedUrls] = useState<string[]>([]);
+  const [staged, setStaged] = useState<StagedFile[]>([]);
   const urlsRef = useRef<string[]>([]);
+  const nextStagedId = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -62,43 +79,42 @@ const CommentForm = ({
   const totalAttached = existingImages.length + staged.length;
 
   const handleFileSelect = (files: File[]) => {
-    setFileError(null);
-    const validFiles: File[] = [];
-    const newUrls: string[] = [];
+    const accepted: StagedFile[] = [];
+    const errors: string[] = [];
     for (const file of files) {
       if (!ALLOWED_TYPES.includes(file.type)) {
-        setFileError(`Unsupported file type: ${file.name}`);
+        errors.push(`Unsupported file type: ${file.name}`);
         continue;
       }
       if (file.size > MAX_BYTES) {
-        setFileError(`File too large (max 10 MiB): ${file.name}`);
+        errors.push(`File too large (max 10 MiB): ${file.name}`);
         continue;
       }
       if (
-        existingImages.length + staged.length + validFiles.length >=
+        existingImages.length + staged.length + accepted.length >=
         MAX_IMAGES
       ) {
-        setFileError('Maximum 5 images per comment.');
+        errors.push(`Maximum ${MAX_IMAGES} images per comment.`);
         break;
       }
       const url = URL.createObjectURL(file);
       urlsRef.current.push(url);
-      validFiles.push(file);
-      newUrls.push(url);
+      accepted.push({ id: nextStagedId.current++, file, url });
     }
-    if (validFiles.length > 0) {
-      setStaged((prev) => [...prev, ...validFiles]);
-      setStagedUrls((prev) => [...prev, ...newUrls]);
+    setFileError(errors.length > 0 ? errors.join(' ') : null);
+    if (accepted.length > 0) {
+      setStaged((prev) => [...prev, ...accepted]);
     }
   };
 
-  const removeStaged = (idx: number) => {
-    URL.revokeObjectURL(stagedUrls[idx]);
+  const removeStaged = (id: number) => {
+    const item = staged.find((s) => s.id === id);
+    if (!item) return;
+    URL.revokeObjectURL(item.url);
     urlsRef.current = urlsRef.current.filter(
-      (u) => u !== stagedUrls[idx]
+      (u) => u !== item.url
     );
-    setStaged((prev) => prev.filter((_, i) => i !== idx));
-    setStagedUrls((prev) => prev.filter((_, i) => i !== idx));
+    setStaged((prev) => prev.filter((s) => s.id !== id));
   };
 
   const handleSubmit = async () => {
@@ -110,12 +126,14 @@ const CommentForm = ({
     setError(null);
     setLocalSubmitting(true);
     try {
-      await onSubmit(value.trim(), staged);
+      await onSubmit(
+        value.trim(),
+        staged.map((s) => s.file)
+      );
       setValue('');
-      staged.forEach((_, i) => URL.revokeObjectURL(stagedUrls[i]));
+      staged.forEach((s) => URL.revokeObjectURL(s.url));
       urlsRef.current = [];
       setStaged([]);
-      setStagedUrls([]);
     } catch {
       // caller already surfaced the error via notification;
       // keep form state so the user can retry
@@ -142,59 +160,87 @@ const CommentForm = ({
 
       {(existingImages.length > 0 || staged.length > 0) && (
         <Group spacing={6} mb={6} align="flex-start">
-          {existingImages.map((img) => (
+          {existingImages.map((img) => {
+            const src = img.signed_url;
+            const name = commentImageName(img);
+            return (
+              <Box
+                key={img.id}
+                style={{
+                  position: 'relative',
+                  display: 'inline-block',
+                }}
+              >
+                {src ? (
+                  <img
+                    src={src}
+                    alt={name}
+                    onError={() => onImageError?.(src)}
+                    style={thumbStyle}
+                  />
+                ) : (
+                  <Box
+                    role="img"
+                    aria-label={`${name} (unavailable)`}
+                    sx={(theme) => ({
+                      height: 56,
+                      width: 56,
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor:
+                        theme.colorScheme === 'dark'
+                          ? theme.colors.dark[5]
+                          : theme.colors.gray[2],
+                      color:
+                        theme.colorScheme === 'dark'
+                          ? theme.colors.dark[2]
+                          : theme.colors.gray[6],
+                    })}
+                  >
+                    <IconPhoto size={14} />
+                  </Box>
+                )}
+                {onDeleteImage && (
+                  <ActionIcon
+                    size="xs"
+                    color="red"
+                    variant="filled"
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 2,
+                    }}
+                    onClick={() => onDeleteImage(img.id)}
+                    aria-label={`Remove image ${name}`}
+                  >
+                    <IconX size={10} />
+                  </ActionIcon>
+                )}
+              </Box>
+            );
+          })}
+          {staged.map((s) => (
             <Box
-              key={img.id}
-              style={{ position: 'relative', display: 'inline-block' }}
+              key={s.id}
+              style={{
+                position: 'relative',
+                display: 'inline-block',
+              }}
             >
               <img
-                src={img.signed_url}
-                alt="attached"
-                style={{
-                  height: 56,
-                  width: 56,
-                  objectFit: 'cover',
-                  borderRadius: 4,
-                  display: 'block',
-                }}
-              />
-              {onDeleteImage && (
-                <ActionIcon
-                  size="xs"
-                  color="red"
-                  variant="filled"
-                  style={{ position: 'absolute', top: 2, right: 2 }}
-                  onClick={() => onDeleteImage(img.id)}
-                  aria-label={`Remove image ${img.id}`}
-                >
-                  <IconX size={10} />
-                </ActionIcon>
-              )}
-            </Box>
-          ))}
-          {staged.map((file, idx) => (
-            <Box
-              key={idx}
-              style={{ position: 'relative', display: 'inline-block' }}
-            >
-              <img
-                src={stagedUrls[idx]}
-                alt={file.name}
-                style={{
-                  height: 56,
-                  width: 56,
-                  objectFit: 'cover',
-                  borderRadius: 4,
-                  display: 'block',
-                }}
+                src={s.url}
+                alt={s.file.name}
+                style={thumbStyle}
               />
               <ActionIcon
                 size="xs"
                 color="red"
                 variant="filled"
                 style={{ position: 'absolute', top: 2, right: 2 }}
-                onClick={() => removeStaged(idx)}
-                aria-label={`Remove staged image ${idx}`}
+                onClick={() => removeStaged(s.id)}
+                aria-label={`Remove staged image ${s.file.name}`}
               >
                 <IconX size={10} />
               </ActionIcon>
@@ -243,7 +289,9 @@ const CommentForm = ({
               disabled={isDisabled || totalAttached >= MAX_IMAGES}
               aria-label="Attach images"
             >
-              {totalAttached > 0 ? `${totalAttached}/5` : 'Images'}
+              {totalAttached > 0
+                ? `${totalAttached}/${MAX_IMAGES}`
+                : 'Images'}
             </Button>
           )}
         </FileButton>

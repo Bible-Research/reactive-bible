@@ -1076,7 +1076,7 @@ export const deleteImage = async (
     `${API_BASE_URL}/api/v1/images/${imageId}/`,
     { method: 'DELETE' },
   );
-  if (!response.ok && response.status !== 204) {
+  if (!response.ok) {
     throw new Error('Failed to delete image.');
   }
 };

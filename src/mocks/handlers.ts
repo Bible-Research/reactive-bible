@@ -155,6 +155,7 @@ export const handlers = [
     async ({ params }) => {
       return HttpResponse.json({
         id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
         signed_url: 'https://example.com/img-1.png',
         content_type: 'image/png',
         size_bytes: 1024,
@@ -179,6 +180,7 @@ export const handlers = [
       return HttpResponse.json([
         {
           id: 'img-1',
+          storage_url: 'gs://bucket/originals/img-1/img-1.png',
           signed_url: 'https://example.com/img-1.png',
           content_type: 'image/png',
           size_bytes: 1024,

@@ -11,6 +11,7 @@ import { CommentImage } from '../../types';
 
 const makeImage = (id: string): CommentImage => ({
   id,
+  storage_url: `gs://bucket/originals/${id}/${id}.png`,
   signed_url: `https://example.com/${id}.png`,
   content_type: 'image/png',
   size_bytes: 1024,

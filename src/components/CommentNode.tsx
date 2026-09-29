@@ -6,14 +6,16 @@ import {
   SimpleGrid,
   ActionIcon,
   Modal,
+  UnstyledButton,
 } from '@mantine/core';
 import { openConfirmModal } from '@mantine/modals';
-import { IconX } from '@tabler/icons-react';
+import { IconX, IconPhoto } from '@tabler/icons-react';
 import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
 import ScripturePassage from './ScripturePassage';
 import RichTextView from './RichTextView';
+import { commentImageName } from '../utils/commentTree';
 import {
   isSameScriptureRef,
   parseScriptureRef,
@@ -40,7 +42,7 @@ interface CommentNodeProps {
     commentId: string,
     imageId: string
   ) => Promise<void>;
-  onRequestRefresh?: () => void;
+  onRequestRefresh?: (commentId: string) => void;
 }
 
 const MAX_DEPTH = 6;
@@ -172,6 +174,11 @@ const CommentNode = ({
                       onDeleteImage(comment.id, imageId)
                   : undefined
               }
+              onImageError={
+                onRequestRefresh
+                  ? () => onRequestRefresh(comment.id)
+                  : undefined
+              }
             />
           ) : (
             <>
@@ -190,49 +197,87 @@ const CommentNode = ({
                   ]}
                   mt={4}
                 >
-                  {images.map((img) => (
-                    <Box
-                      key={img.id}
-                      style={{
-                        position: 'relative',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <img
-                        src={img.signed_url}
-                        loading="lazy"
-                        alt="comment attachment"
-                        onError={onRequestRefresh}
-                        onClick={() => setLightboxImageId(img.id)}
-                        style={{
-                          width: '100%',
-                          maxHeight: 200,
-                          objectFit: 'cover',
-                          borderRadius: 4,
-                          display: 'block',
-                        }}
-                      />
-                      {isAuthor && onDeleteImage && (
-                        <ActionIcon
-                          size="xs"
-                          color="red"
-                          variant="filled"
-                          style={{
-                            position: 'absolute',
-                            top: 4,
-                            right: 4,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteImage(comment.id, img.id);
-                          }}
-                          aria-label={`Delete image ${img.id}`}
-                        >
-                          <IconX size={10} />
-                        </ActionIcon>
-                      )}
-                    </Box>
-                  ))}
+                  {images.map((img) => {
+                    const src = img.signed_url;
+                    const name = commentImageName(img);
+                    return (
+                      <Box
+                        key={img.id}
+                        style={{ position: 'relative' }}
+                      >
+                        {src ? (
+                          <UnstyledButton
+                            onClick={() =>
+                              setLightboxImageId(img.id)
+                            }
+                            aria-label={`View image ${name}`}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                            }}
+                          >
+                            <img
+                              src={src}
+                              loading="lazy"
+                              alt={name}
+                              onError={() =>
+                                onRequestRefresh?.(comment.id)
+                              }
+                              style={{
+                                width: '100%',
+                                maxHeight: 200,
+                                objectFit: 'cover',
+                                borderRadius: 4,
+                                display: 'block',
+                              }}
+                            />
+                          </UnstyledButton>
+                        ) : (
+                          <Box
+                            role="img"
+                            aria-label={`${name} (unavailable)`}
+                            sx={(theme) => ({
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              height: 80,
+                              width: '100%',
+                              borderRadius: 4,
+                              backgroundColor:
+                                theme.colorScheme === 'dark'
+                                  ? theme.colors.dark[5]
+                                  : theme.colors.gray[2],
+                              color:
+                                theme.colorScheme === 'dark'
+                                  ? theme.colors.dark[2]
+                                  : theme.colors.gray[6],
+                            })}
+                          >
+                            <IconPhoto size={20} />
+                          </Box>
+                        )}
+                        {isAuthor && onDeleteImage && (
+                          <ActionIcon
+                            size="xs"
+                            color="red"
+                            variant="filled"
+                            style={{
+                              position: 'absolute',
+                              top: 4,
+                              right: 4,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteImage(comment.id, img.id);
+                            }}
+                            aria-label={`Delete image ${img.id}`}
+                          >
+                            <IconX size={10} />
+                          </ActionIcon>
+                        )}
+                      </Box>
+                    );
+                  })}
                 </SimpleGrid>
               )}
             </>
@@ -298,14 +343,19 @@ const CommentNode = ({
         title="Image"
         padding="xs"
       >
-        {lightboxImage && (
-          <img
-            src={lightboxImage.signed_url}
-            alt="full size"
-            onError={onRequestRefresh}
-            style={{ width: '100%', height: 'auto' }}
-          />
-        )}
+        {lightboxImage &&
+          (lightboxImage.signed_url ? (
+            <img
+              src={lightboxImage.signed_url}
+              alt="full size"
+              onError={() => onRequestRefresh?.(comment.id)}
+              style={{ width: '100%', height: 'auto' }}
+            />
+          ) : (
+            <Text size="sm" color="dimmed" ta="center" py="xl">
+              Image unavailable
+            </Text>
+          ))}
       </Modal>
     </Box>
   );

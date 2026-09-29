@@ -6,6 +6,7 @@ import { Comment, CommentImage } from '../../types';
 
 const makeImage = (id: string): CommentImage => ({
   id,
+  storage_url: `gs://bucket/originals/${id}/${id}.png`,
   signed_url: `https://example.com/${id}.png`,
   content_type: 'image/png',
   size_bytes: 1024,
@@ -169,7 +170,22 @@ describe('CommentNode', () => {
       />
     );
     expect(
-      document.querySelector('img[alt="comment attachment"]')
+      document.querySelector('img[alt="img-1.png"]')
+    ).toBeInTheDocument();
+  });
+
+  it('renders a placeholder when an image has no signed URL', () => {
+    const img = { ...makeImage('img-1'), signed_url: null };
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [img] })}
+        {...defaultProps}
+      />
+    );
+    expect(
+      screen.getByRole('img', {
+        name: 'img-1.png (unavailable)',
+      })
     ).toBeInTheDocument();
   });
 
@@ -208,11 +224,7 @@ describe('CommentNode', () => {
       />
     );
 
-    fireEvent.click(
-      document.querySelector(
-        'img[alt="comment attachment"]'
-      )!
-    );
+    fireEvent.click(screen.getByAltText('img-1.png'));
 
     const lightboxImg = screen.getByAltText(
       'full size'
@@ -247,14 +259,10 @@ describe('CommentNode', () => {
       />
     );
 
-    fireEvent.click(
-      document.querySelector(
-        'img[alt="comment attachment"]'
-      )!
-    );
+    fireEvent.click(screen.getByAltText('img-1.png'));
 
     fireEvent.error(screen.getByAltText('full size'));
 
-    expect(onRequestRefresh).toHaveBeenCalled();
+    expect(onRequestRefresh).toHaveBeenCalledWith('c1');
   });
 });
