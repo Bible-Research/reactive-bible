@@ -130,8 +130,7 @@ export const fetchHeadingsOnly = async (
     // The backend expects a book name in the passage param.
     const passage = `${toBookName(bookId) ?? bookId} ${chapter}`;
     const url =
-      `https://bible-research-489314.ey.r.appspot.com` +
-      `/api/v1/bible?passage=` +
+      `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const responseData = await response.json();
@@ -167,8 +166,7 @@ export const getVersesFromApi = async (
     const bookName = toBookName(bookId) ?? bookId;
     const passage = `${bookName} ${thechapter}`;
     const url =
-      `https://bible-research-489314.ey.r.appspot.com` +
-      `/api/v1/bible?passage=` +
+      `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     
@@ -500,7 +498,7 @@ export const getAvailableTranslations = async (
 
   try {
     const url =
-      `https://bible-research-489314.ey.r.appspot.com/api/v1/` +
+      `${API_BASE_URL}/api/v1/` +
       `bible/translations/?language_iso=${languageIso}`;
     const response = await fetch(url);
     const data = await response.json();
@@ -556,7 +554,7 @@ export const getBibleAudioUrl = async (
     const bookName = toBookName(bookId) ?? bookId;
     const passage = `${bookName} ${chapter}`;
     const url =
-      `https://bible-research-489314.ey.r.appspot.com/api/v1/bible` +
+      `${API_BASE_URL}/api/v1/bible` +
       `?passage=${encodeURIComponent(passage)}` +
       `&fileset_id=${filesetId}&response_format=audio`;
     const response = await fetch(url, {
