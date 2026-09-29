@@ -8,6 +8,7 @@ import {
   Comment,
   CommentAuthor,
   CommentCounts,
+  CommentImage,
 } from './types';
 
 import {
@@ -25,7 +26,11 @@ import {
   cacheCopyright,
 } from './utils/cacheManager';
 
-import { authenticatedFetch, publicFetch } from './utils/apiClient';
+import {
+  authenticatedFetch,
+  authenticatedUpload,
+  publicFetch,
+} from './utils/apiClient';
 import { API_BASE_URL } from './config';
 
 export type { SectionHeading };
@@ -951,7 +956,7 @@ export const getNote = async (noteId: string): Promise<Note> => {
 // COMMENT TYPES
 // ============================================
 
-export type { Comment, CommentAuthor, CommentCounts };
+export type { Comment, CommentAuthor, CommentCounts, CommentImage };
 
 // ============================================
 // COMMENT FUNCTIONS
@@ -1042,6 +1047,53 @@ export const deleteComment = async (
   }
 };
 
+export const uploadCommentImage = async (
+  noteId: string,
+  commentId: string,
+  file: File,
+): Promise<CommentImage> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const response = await authenticatedUpload(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+    fd,
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message =
+      data.detail ||
+      (Array.isArray(data.file) ? data.file[0] : data.file) ||
+      'Failed to upload image.';
+    throw new Error(message);
+  }
+  return response.json();
+};
+
+export const deleteImage = async (
+  imageId: string,
+): Promise<void> => {
+  const response = await authenticatedFetch(
+    `${API_BASE_URL}/api/v1/images/${imageId}/`,
+    { method: 'DELETE' },
+  );
+  if (!response.ok) {
+    throw new Error('Failed to delete image.');
+  }
+};
+
+export const fetchCommentImages = async (
+  noteId: string,
+  commentId: string,
+): Promise<CommentImage[]> => {
+  const response = await publicFetch(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch images.');
+  }
+  return response.json();
+};
+
 // ============================================
 // SEARCH FUNCTIONS
 // ============================================
@@ -1052,7 +1104,6 @@ export interface SearchVerse {
   verse_start: number;
   verse_text: string;
 }
-
 
 export interface SearchPagination {
   total: number;
@@ -1085,9 +1136,7 @@ export const searchBible = async (
     params.toString();
   const response = await fetch(url, { signal });
   if (!response.ok) {
-    throw new Error(
-      `Search failed: ${response.statusText}`
-    );
+    throw new Error(`Search failed: ${response.statusText}`);
   }
   const json = await response.json();
   return {

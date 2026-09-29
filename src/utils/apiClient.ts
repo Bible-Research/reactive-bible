@@ -114,6 +114,60 @@ export const authenticatedFetch = async (
 };
 
 /**
+ * Authenticated multipart upload.
+ * Sets only the Authorization header; lets the browser generate
+ * the multipart Content-Type with its boundary.
+ * Mirrors authenticatedFetch's 401 (logout + notification) and
+ * 403 (throw permission error) handling.
+ */
+export const authenticatedUpload = async (
+  url: string,
+  formData: FormData,
+  retries = 1,
+): Promise<Response> => {
+  const token = useAuthStore.getState().token;
+  const headers: HeadersInit = {};
+  if (token) headers['Authorization'] = `Token ${token}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      console.warn('401 Unauthorized - logging out user');
+      useAuthStore.getState().logout();
+      showNotification({
+        title: 'Session Expired',
+        message: 'Your session has expired. Please log in again.',
+        color: 'orange',
+        autoClose: 5000,
+      });
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    if (response.status === 403) {
+      throw new Error(
+        'You do not have permission to access this resource.',
+      );
+    }
+
+    return response;
+  } catch (error) {
+    if (retries > 0 && error instanceof TypeError) {
+      console.warn(
+        'Network error (authenticatedUpload), retrying...',
+        error,
+      );
+      return authenticatedUpload(url, formData, retries - 1);
+    }
+    throw error;
+  }
+};
+
+/**
  * Helper to check if user is authenticated
  * @returns boolean
  */
