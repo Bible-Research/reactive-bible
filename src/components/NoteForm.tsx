@@ -58,7 +58,7 @@ const NoteForm = ({
         onChange={setNoteText}
       />
       <Box
-        title="note-submit-bar"
+        data-testid="note-submit-bar"
         sx={(theme) => ({
           position: "sticky",
           bottom: 0,

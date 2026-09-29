@@ -89,7 +89,7 @@ describe('NoteForm Component', () => {
       />
     );
 
-    const submitBar = screen.getByTitle('note-submit-bar');
+    const submitBar = screen.getByTestId('note-submit-bar');
     const submitButton = screen.getByRole('button', {
       name: 'Submit',
     });
