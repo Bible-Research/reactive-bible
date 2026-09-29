@@ -41,6 +41,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const firstVerse = note?.verses?.[0];
   const lastVerse =
     note?.verses?.[(note.verses?.length ?? 0) - 1];
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note?.error;
   const verseLabel = firstVerse
     ? firstVerse.verse === lastVerse?.verse
       ? `${firstVerse.book} ${firstVerse.chapter}:${firstVerse.verse}`
@@ -68,16 +71,25 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 label={verseLabel}
                 labelPosition="center"
               />
-              {note.verses.map((v) => (
-                <Box key={v.verse} py={4} px={8}>
-                  <Text size="sm">
-                    <Text component="span" weight={700} mr={4}>
-                      {v.verse}
+              {verseError ? (
+                <Text color="red" size="sm">
+                  {verseError}
+                  {note.error_code === 'rate_limited'
+                    ? ' Try reloading in a few moments.'
+                    : ''}
+                </Text>
+              ) : (
+                note.verses.map((v) => (
+                  <Box key={v.verse} py={4} px={8}>
+                    <Text size="sm">
+                      <Text component="span" weight={700} mr={4}>
+                        {v.verse}
+                      </Text>
+                      {v.text}
                     </Text>
-                    {v.text}
-                  </Text>
-                </Box>
-              ))}
+                  </Box>
+                ))
+              )}
             </Box>
           )}
         </>
