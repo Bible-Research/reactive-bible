@@ -191,6 +191,11 @@ const Audio = () => {
   const disposeHowl = useCallback(
     (howl: Howl | null, blobUrl: string | null = null) => {
       if (howl) {
+        // Detach listeners first: clearing the node's src during
+        // unload() rejects a still-pending play() request, and
+        // the resulting playerror is teardown noise that must not
+        // surface as a user-facing playback error.
+        howl.off();
         // volume(0) silences the node even if the pooled <audio>
         // element drains buffered audio after release — mute(true)
         // would set node.muted, which the pool never resets and
@@ -231,7 +236,11 @@ const Audio = () => {
       );
       const target = direction === 1 ? next : previous;
       if (!target) return false;
-      state.setActiveBookAndChapter(target.bookId, target.chapter);
+      // Navigate only — BibleRoute syncs the store from the URL.
+      // Writing the store first would let a commit see the old URL
+      // with the new chapter; the route's URL->store sync would
+      // then revert the advance and tear down the adopted Howl
+      // mid-play.
       navigate(buildBiblePath(target.bookId, target.chapter), {
         replace: true,
       });
@@ -283,8 +292,19 @@ const Audio = () => {
           return;
         }
         discardPreloaded();
+        // A blob: URL carries no file extension, so Howler's
+        // codec sniffing fails and the Howl stays 'unloaded'
+        // forever. Pass the source URL's extension explicitly.
+        const base = url.split('?')[0].split('#')[0];
+        const dot = base.lastIndexOf('.');
+        const ext =
+          dot > -1 ? base.slice(dot + 1).toLowerCase() : '';
+        const format = /^[a-z0-9]{1,5}$/.test(ext)
+          ? [ext]
+          : undefined;
         const howl = new Howl({
           src: [src],
+          format,
           html5: true,
           pool: 1,
           preload: true,
