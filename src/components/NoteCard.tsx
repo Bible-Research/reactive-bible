@@ -74,7 +74,7 @@ const NoteCard = ({
 
   // The notes API sets error/error_code when the upstream
   // Bible provider fails to resolve verse text.
-  const verseError = note?.error;
+  const verseError = note.error;
 
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated

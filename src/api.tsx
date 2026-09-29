@@ -566,26 +566,35 @@ export const getBibleAudioUrl = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const errorMsg = errorData.error ||
+      const errorMsg = errorData.error || errorData.detail ||
         `Failed to fetch audio for ${translation}: ` +
         `${response.statusText}`;
-      if (errorData.error_code === 'rate_limited') {
+      if (
+        errorData.error_code === 'rate_limited' ||
+        isRateLimitMessage(errorMsg)
+      ) {
         throw new RateLimitError(errorMsg);
+      }
+      if (errorData.error_code) {
+        throw new ProviderError(errorMsg);
       }
       throw new Error(errorMsg);
     }
 
     const data: any = await response.json();
 
-    // Check if API returned an error
+    // Provider failures carry `error`/`error_code` fields.
     if (data.error) {
       const errorMsg = typeof data.error === 'string'
         ? data.error
         : data.error.message || 'Unknown error';
-      throw new Error(
+      const fullMsg =
         `Audio not available for ${translation} ${bookId} ` +
-        `${chapter}: ${errorMsg}`
-      );
+        `${chapter}: ${errorMsg}`;
+      throw data.error_code === 'rate_limited' ||
+        isRateLimitMessage(errorMsg)
+        ? new RateLimitError(fullMsg)
+        : new ProviderError(fullMsg);
     }
     // Validate audio_url exists and is a string
     if (!data.audio_url || typeof data.audio_url !== 'string') {
