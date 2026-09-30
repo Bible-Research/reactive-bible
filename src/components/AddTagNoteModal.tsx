@@ -121,11 +121,10 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
 
   const handleSubmit = async (tagId: string, text: string) => {
     try {
-      if (savedNoteIdRef.current) {
-        await editNote(savedNoteIdRef.current, tagId, text);
-      } else {
-        await addTagNote(tagId, text, verseReferences);
-      }
+      // Shares savedNoteIdRef with autosave: an existing draft is
+      // PATCHed, and a note created by submit is recorded so a
+      // late autosave tick PATCHes instead of POSTing a duplicate.
+      await handleAutoSave(tagId, text);
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
       setVerseTexts([]);

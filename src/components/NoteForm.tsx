@@ -24,6 +24,26 @@ interface NoteFormProps {
 const AUTOSAVE_INTERVAL_MS = 5000;
 const SAVED_FLASH_MS = 500;
 
+// Marks `save` as the in-flight write until it settles. The
+// tracked promise never rejects, so awaiting the lock stays safe
+// even when the underlying save fails.
+const trackInFlight = (
+  ref: React.MutableRefObject<Promise<void> | null>,
+  save: Promise<unknown>
+) => {
+  const tracked = save.then(
+    () => undefined,
+    () => undefined
+  );
+  ref.current = tracked;
+  void tracked.finally(() => {
+    if (ref.current === tracked) {
+      ref.current = null;
+    }
+  });
+  return save;
+};
+
 const NoteForm = ({
   tags,
   note,
@@ -37,11 +57,17 @@ const NoteForm = ({
   const [autoSave, setAutoSave] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const latest = useRef({ tagId: "", text: "" });
-  latest.current = { tagId: selectedTagId, text: noteText };
   const onAutoSaveRef = useRef(onAutoSave);
-  onAutoSaveRef.current = onAutoSave;
-  const savingRef = useRef(false);
+  // Shared save lock for autosave ticks and submit: overlapping
+  // writes could POST two notes for one draft (or let stale text
+  // win over a submit), so both paths must respect it.
+  const inFlightRef = useRef<Promise<void> | null>(null);
   const flashTimeout = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    latest.current = { tagId: selectedTagId, text: noteText };
+    onAutoSaveRef.current = onAutoSave;
+  });
 
   useEffect(() => {
     if (note) {
@@ -54,11 +80,10 @@ const NoteForm = ({
     if (!autoSave) return;
     const tick = () => {
       const save = onAutoSaveRef.current;
-      if (!save || savingRef.current) return;
+      if (!save || inFlightRef.current) return;
       const { tagId, text } = latest.current;
       if (!toPlainText(text).trim()) return;
-      savingRef.current = true;
-      save(tagId, text)
+      trackInFlight(inFlightRef, save(tagId, text))
         .then(() => {
           setSavedFlash(true);
           flashTimeout.current = window.setTimeout(
@@ -66,10 +91,7 @@ const NoteForm = ({
             SAVED_FLASH_MS
           );
         })
-        .catch((error) => console.error(error))
-        .finally(() => {
-          savingRef.current = false;
-        });
+        .catch((error) => console.error(error));
     };
     const interval = window.setInterval(tick, AUTOSAVE_INTERVAL_MS);
     return () => window.clearInterval(interval);
@@ -84,9 +106,23 @@ const NoteForm = ({
     []
   );
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
-    onSubmit(selectedTagId, noteText);
+    // Wait for an in-flight autosave first: the parent then sees
+    // the created note id and PATCHes instead of POSTing a
+    // duplicate. Holding the lock while submitting also keeps an
+    // interval tick from interleaving a write mid-submit.
+    await inFlightRef.current;
+    try {
+      await trackInFlight(
+        inFlightRef,
+        Promise.resolve(onSubmit(selectedTagId, noteText))
+      );
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const selectedTagName =
