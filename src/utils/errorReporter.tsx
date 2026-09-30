@@ -1,5 +1,7 @@
 import { showNotification } from '@mantine/notifications';
-import { ErrorNotificationContent } from '../components/ErrorNotificationContent';
+import {
+  ErrorNotificationContent,
+} from '../components/ErrorNotificationContent';
 
 const NOTIFICATION_ID = 'unhandled-error';
 
