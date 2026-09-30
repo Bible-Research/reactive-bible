@@ -86,7 +86,8 @@ reactive-bible/
 │   │   ├── bibleUtils.ts    # Bible book/testament helpers
 │   │   └── cacheManager.ts  # Caching logic
 │   ├── assets/         # Static assets
-│   │   └── kjv.json    # KJV Bible text (local)
+│   │   ├── kjv.json    # KJV verse text (lazy-loaded chunk)
+│   │   └── bibleStructure.json  # Book/chapter metadata (bundled)
 │   ├── api.tsx         # API functions
 │   ├── store.tsx       # Zustand state management
 │   ├── types.ts        # TypeScript interfaces
@@ -103,7 +104,10 @@ reactive-bible/
 ### Environment Variables
 
 No environment variables are required for local development. The app uses:
-- **Local KJV data**: Bundled in `src/assets/kjv.json`
+- **Local KJV data**: `src/assets/kjv.json`, lazy-loaded on demand
+  via `src/utils/kjvDataLoader.ts` (emitted as a separate bundle
+  chunk). `src/assets/bibleStructure.json` holds book/chapter/verse
+  metadata bundled in the entry chunk for synchronous navigation.
 - **Public APIs**: Bible Research API (no auth required)
 
 ### Deployment
@@ -129,7 +133,7 @@ The app is configured for deployment on **Vercel**:
 src/
 ├── components/          # React components
 ├── utils/              # Utility functions (caching, bible utils)
-├── assets/             # Static assets (kjv.json)
+├── assets/             # Static assets (kjv.json, bibleStructure)
 ├── api.tsx             # API functions and data access
 ├── store.tsx           # Zustand state management
 ├── App.tsx             # Main application component
@@ -1887,7 +1891,15 @@ Loading spinner component.
 #### KJV Bible JSON
 **Location**: `src/assets/kjv.json`
 
-Contains the complete King James Version Bible text stored locally for offline access.
+Contains the complete King James Version Bible text stored locally
+for offline access. It is **lazy-loaded** via
+`src/utils/kjvDataLoader.ts` (`import('../assets/kjv.json')`), so
+Vite emits it as a separate `kjv-*.js` chunk that is only fetched
+when verse text is requested. Book/chapter/verse-count metadata
+needed for navigation lives in `src/assets/bibleStructure.json`
+(bundled in the entry chunk), so helpers like `getBooks`,
+`getChapters`, `getVerses`, `getPassage`, `getAdjacentChapters`,
+and `getKjvAudioUrl` stay synchronous.
 
 **Structure**:
 ```typescript
@@ -2002,7 +2014,8 @@ Contains the complete King James Version Bible text stored locally for offline a
 
 **`getBooks()`**
 
-Returns list of all Bible books from local KJV data.
+Returns list of all Bible books from `bibleStructure.json`
+(synchronous; does not load verse text).
 
 ```typescript
 getBooks(): { book_name: string; book_id: string }[]
@@ -2024,30 +2037,35 @@ Returns verse numbers for a given chapter.
 getVerses(thebook: string, thechapter: number): number[]
 ```
 
-**`getVersesInChapter(thebook, thechapter, filesetId)`**
+**`getVersesInChapter(bookId, thechapter, filesetId)`**
 
-Fetches verse text for a chapter. Routes to KJV local data or API based on filesetId.
+Fetches verse text for a chapter. Routes to lazy-loaded KJV data
+or API based on filesetId.
 
 ```typescript
 getVersesInChapter(
-  thebook: string,
+  bookId: string,
   thechapter: number,
   filesetId: string
-): Promise<{ verse: number; text: string }[]>
+): Promise<{ verses: { verse: number; text: string }[];
+            headings: SectionHeading[] }>
 ```
 
-- If `filesetId === 'ENGKJV'`: Uses local KJV JSON
+- If `filesetId === 'ENGKJV'`: Lazy-loads the `kjv.json` chunk
+  (via `kjvDataLoader.loadKjvData()`) and filters locally
 - Otherwise: Fetches from Bible Research API with caching
 
-**`getVersesInKjvChapter(thebook, thechapter)`**
+**`getVersesInKjvChapter(bookId, thechapter)`**
 
-Returns KJV verses from local JSON file.
+Returns KJV verses from the lazily imported `kjv.json` chunk.
+KJV has no section headings, so `headings` is always `[]`.
 
 ```typescript
 getVersesInKjvChapter(
-  thebook: string,
+  bookId: string,
   thechapter: number
-): { verse: number; text: string }[]
+): Promise<{ verses: { verse: number; text: string }[];
+            headings: SectionHeading[] }>
 ```
 
 **`getVersesFromApi(thebook, thechapter, filesetId)`**
