@@ -1,15 +1,17 @@
-import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import NotesView from './NotesView';
-import { renderWithProviders, createMockNote, createMockTag } from '../__tests__/helpers';
+import {
+  renderWithProviders,
+  createMockNote,
+  createMockTag,
+} from '../__tests__/helpers';
 import { Note, Tag } from '../types';
 
 describe.skip('NotesView Component', () => {
-  const mockOnViewInBible = vi.fn();
 
   it('should display loading state initially', () => {
-    renderWithProviders(<NotesView onViewInBible={mockOnViewInBible} />);
+    renderWithProviders(<NotesView />);
     expect(screen.getByLabelText('loading')).toBeInTheDocument();
   });
 
@@ -21,7 +23,7 @@ describe.skip('NotesView Component', () => {
       tag: mockTag,
     });
 
-    renderWithProviders(<NotesView onViewInBible={mockOnViewInBible} />, {
+    renderWithProviders(<NotesView />, {
       storeOverrides: {
         tags: [mockTag] as Tag[],
         notes: [mockNote] as Note[],
@@ -37,10 +39,11 @@ describe.skip('NotesView Component', () => {
     });
   });
 
-  it('should display "No notes found" when no notes are available', async () => {
+  it('should display "No notes found" when no notes are ' +
+     'available', async () => {
     const mockTag = createMockTag({ id: '1', name: 'Faith' });
 
-    renderWithProviders(<NotesView onViewInBible={mockOnViewInBible} />, {
+    renderWithProviders(<NotesView />, {
       storeOverrides: {
         tags: [mockTag] as Tag[],
         notes: [] as Note[],
@@ -52,7 +55,8 @@ describe.skip('NotesView Component', () => {
     });
   });
 
-  it.skip('should refresh notes when the refresh button is clicked', async () => {
+  it.skip('should refresh notes when the refresh button is ' +
+          'clicked', async () => {
     // This test is skipped as it requires spying on store actions,
     // which can cause infinite loops and memory issues
   });

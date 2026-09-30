@@ -1,8 +1,16 @@
+import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from 
   '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NoteForm from './NoteForm';
 import { Tag } from '../types';
+
+// ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
+vi.mock('./RichTextEditor', async () => ({
+  default: (
+    await import('../__tests__/mocks/RichTextEditorStub')
+  ).default,
+}));
 
 describe('NoteForm Component', () => {
   const mockTags: Tag[] = [
@@ -71,7 +79,7 @@ describe('NoteForm Component', () => {
     );
   });
 
-  it('should render create new tag button', () => {
+  it('should not render create new tag button', () => {
     render(
       <NoteForm
         tags={mockTags}
@@ -82,8 +90,8 @@ describe('NoteForm Component', () => {
     );
 
     expect(
-      screen.getByText('Or create a new tag')
-    ).toBeInTheDocument();
+      screen.queryByText('Or create a new tag')
+    ).not.toBeInTheDocument();
   });
 
   // Note: Testing Select dropdown interactions is problematic

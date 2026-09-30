@@ -13,7 +13,7 @@ const localStorageMock = (() => {
   };
 })();
 
-global.localStorage = localStorageMock as Storage;
+vi.stubGlobal('localStorage', localStorageMock);
 
 // Mock Vercel Analytics and Speed Insights to prevent
 // external script loading errors in test environment

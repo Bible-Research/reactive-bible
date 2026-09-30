@@ -17,8 +17,9 @@ import {
 import { Button } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getPassage } from "../api";
+import { buildBiblePath } from "../utils/bibleUtils";
 import AddTagNoteModal from "./AddTagNoteModal";
 import Audio from "./Audio";
 
@@ -38,25 +39,24 @@ const SubHeader = ({
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const activeChapter = useBibleStore((state) => state.activeChapter);
-  const activeBookShort = useBibleStore((state) => state.activeBookShort);
-  const activeBook = useBibleStore((state) => state.activeBook);
-  const setActiveBookShort = useBibleStore((state) => state.setActiveBookShort);
-  const [passages, setPassages] = useState<{ book_name: string; book_id: string; chapter: number }[]>([]);
+  const activeBookId = useBibleStore((state) => state.activeBookId);
+  const getPassageResult = getPassage();
   const [opened, setOpened] = useState(false);
-
-  useEffect(() => {
-    getPassage().then(setPassages);
-  }, []);
-
   const checkNext = (): number | null => {
-    const index = passages.findIndex(
-      (book) => book.book_name === activeBook && book.chapter === activeChapter
+    const index = getPassageResult.findIndex(
+      (book) =>
+        book.book_id === activeBookId &&
+        book.chapter === activeChapter
     );
-    return index === -1 || index === passages.length - 1 ? null : index;
+    return index === -1 || index === getPassageResult.length - 1
+      ? null
+      : index;
   };
   const checkPrev = (): number | null => {
-    const index = passages.findIndex(
-      (book) => book.book_name === activeBook && book.chapter === activeChapter
+    const index = getPassageResult.findIndex(
+      (book) =>
+        book.book_id === activeBookId &&
+        book.chapter === activeChapter
     );
     return index === -1 || index === 0 ? null : index;
   };
@@ -65,13 +65,14 @@ const SubHeader = ({
     const index = checkNext();
     console.log('🔗 checkNext index:', index);
     if (index === null) return null;
-    if (passages) {
-      const next = passages[index + 1];
+    if (getPassageResult) {
+      const next = getPassageResult[index + 1];
       console.log('🔗 next passage:', next);
       if (next !== null) {
-        console.log(`🔗 Navigating to: /bible/${next.book_name}/${next.chapter}`);
-        setActiveBookShort(next.book_id);
-        navigate(`/bible/${next.book_name}/${next.chapter}`);
+        console.log(
+          `🔗 Navigating to: /bible/${next.book_id}.${next.chapter}`
+        );
+        navigate(buildBiblePath(next.book_id, next.chapter));
         console.log('🔗 navigate() called');
       }
     }
@@ -79,12 +80,13 @@ const SubHeader = ({
   const prevHandler = () => {
     const index = checkPrev();
     if (index === null) return null;
-    if (passages) {
-      const prev = passages[index - 1];
+    if (getPassageResult) {
+      const prev = getPassageResult[index - 1];
       if (prev !== null) {
-        console.log(`🔗 Prev: /bible/${prev.book_name}/${prev.chapter}`);
-        setActiveBookShort(prev.book_id);
-        navigate(`/bible/${prev.book_name}/${prev.chapter}`);
+        console.log(
+          `🔗 Prev: /bible/${prev.book_id}.${prev.chapter}`
+        );
+        navigate(buildBiblePath(prev.book_id, prev.chapter));
       }
     }
   };
@@ -120,7 +122,7 @@ const SubHeader = ({
           },
         }}
       >
-        {activeBookShort} {activeChapter}
+        {activeBookId} {activeChapter}
       </Title>
       <Button variant="transparent" onClick={() => setOpened(true)}>
         Add Note

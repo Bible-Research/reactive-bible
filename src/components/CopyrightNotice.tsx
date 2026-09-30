@@ -16,7 +16,23 @@ const CopyrightNotice = () => {
   const [copyright, setCopyright] = useState<string>('');
 
   useEffect(() => {
-    if (!activeTextFilesetId || translations.length === 0) {
+    if (!activeTextFilesetId) {
+      setCopyright('');
+      return;
+    }
+
+    if (activeTextFilesetId === 'ENGESV_API') {
+      setCopyright(
+        'Scripture quotations are from the ESV\u00ae Bible ' +
+        '(The Holy Bible, English Standard Version\u00ae), ' +
+        'copyright \u00a9 2001 by Crossway, a publishing ' +
+        'ministry of Good News Publishers. Used by ' +
+        'permission. All rights reserved.'
+      );
+      return;
+    }
+
+    if (translations.length === 0) {
       setCopyright('');
       return;
     }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ScrollArea,
   Stack,
@@ -12,40 +12,109 @@ import {
   ActionIcon,
   Tooltip,
 } from '@mantine/core';
-import { IconShare, IconRefresh } from '@tabler/icons-react';
+import {
+  IconShare,
+  IconRefresh,
+  IconArrowsMaximize,
+  IconArrowsMinimize,
+} from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
-import { Note, Tag } from '../types';
+import { Note, Tag, CommentCounts, PlaylistItem } from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
+import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
-import { deleteNote, getTag } from '../api';
+import { deleteNote, getTag, fetchCommentCounts } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
+import {
+  BOOK_NAME_TO_ORDER,
+  buildBiblePath,
+  toUsfmCode,
+} from '../utils/bibleUtils';
+import { verseDomId } from '../utils/verseRefs';
+
+// Type definition for sort orders
+type SortOrder =
+  | 'custom_asc'
+  | 'custom_desc'
+  | 'created_desc'
+  | 'created_asc'
+  | 'verse_asc'
+  | 'verse_desc';
+
+// Map frontend sort order to API ordering parameter
+// Moved outside component to prevent re-creation on every render
+const getApiOrdering = (sortOrder: SortOrder): string => {
+  const orderingMap: Record<SortOrder, string> = {
+    custom_asc: 'custom',
+    custom_desc: '-custom',
+    created_desc: '-created',
+    created_asc: 'created',
+    verse_asc: 'verse',
+    verse_desc: '-verse',
+  };
+  return orderingMap[sortOrder];
+};
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   
-  const notes = useBibleStore((state) => state.notes);
+  const notesFromStore = useBibleStore((state) => state.notes);
+  const notes = Array.isArray(notesFromStore) ? notesFromStore : [];
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
-  const setActiveBook = useBibleStore((state) => state.setActiveBook);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
+  const reorderNotes = useBibleStore((state) => state.reorderNotes);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
   );
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const notesCount = useBibleStore((state) => state.notesCount);
+  const notesPage = useBibleStore((state) => state.notesPage);
+  const notesPageSize = useBibleStore((state) => state.notesPageSize);
+  const setNotesPageSize = useBibleStore(
+    (state) => state.setNotesPageSize
+  );
+  const versesFolded = useBibleStore((state) => state.versesFolded);
+  const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
+  const setAudioPlaylistItems = useBibleStore(
+    (state) => state.setAudioPlaylistItems
+  );
+  const setAudioPlaylistStartIndex = useBibleStore(
+    (state) => state.setAudioPlaylistStartIndex
+  );
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
   
+  // Get sort order from URL, default to 'created_desc'
+  const urlSortOrder = searchParams.get('sort') as SortOrder | null;
+  const validSortOrders: SortOrder[] = [
+    'custom_asc',
+    'custom_desc',
+    'created_desc',
+    'created_asc',
+    'verse_asc',
+    'verse_desc',
+  ];
+  const sortOrder: SortOrder =
+    urlSortOrder && validSortOrders.includes(urlSortOrder)
+      ? urlSortOrder
+      : 'custom_asc';
+
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [commentCounts, setCommentCounts] =
+    useState<CommentCounts>({});
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -53,7 +122,11 @@ export default function TagNotesRoute() {
     if (tagId) {
       setLastSelectedTagId(tagId);
     }
-  }, [setShowNotes, setLastSelectedTagId, tagId]);
+    return () => {
+      setAudioPlaylistItems(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +148,16 @@ export default function TagNotesRoute() {
           try { await getTags(); } catch { /* ignore */ }
         }
 
-        await fetchNotes(tagId);
+        // Fetch notes with ordering if non-default sort
+        const apiOrdering =
+          sortOrder !== 'custom_asc'
+            ? getApiOrdering(sortOrder)
+            : undefined;
+        
+        await fetchNotes(tagId, {
+          ordering: apiOrdering,
+          page: 1,
+        });
         if (cancelled) return;
 
         const fetchedNotes = useBibleStore.getState().notes;
@@ -100,6 +182,12 @@ export default function TagNotesRoute() {
           setTag(resolvedTag);
         }
         setLoading(false);
+
+        if (!cancelled && tagId) {
+          fetchCommentCounts({ tagId }).then((counts) => {
+            if (!cancelled) setCommentCounts(counts);
+          }).catch(() => { /* ignore comment count errors */ });
+        }
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading tag notes:', err);
@@ -113,7 +201,7 @@ export default function TagNotesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [tagId, fetchNotes, getTags, isAuthenticated]);
+  }, [tagId, fetchNotes, getTags, isAuthenticated, sortOrder]);
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -136,20 +224,22 @@ export default function TagNotesRoute() {
   };
 
   const handleViewInBible = (
-    book: string, 
-    chapter: number, 
+    book: string,
+    chapter: number,
     verse: number
   ) => {
-    // Set the Bible context
-    setActiveBook(book);
-    setActiveChapter(chapter);
-    setActiveVerses([verse]);
-    
-    // Navigate to the Bible passage
-    navigate(`/bible/${book}/${chapter}`);
-    
-    // Switch to Bible view
+    navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
+  };
+
+  const handleCountChange = (
+    noteId: string,
+    delta: number
+  ) => {
+    setCommentCounts((prev) => ({
+      ...prev,
+      [noteId]: (prev[noteId] ?? 0) + delta,
+    }));
   };
 
   const handleTagChange = (value: string | null) => {
@@ -188,7 +278,9 @@ export default function TagNotesRoute() {
   const handleShare = async () => {
     const url = window.location.href;
     const title = `Notes: ${tag?.name || 'Tag'}`;
-    const text = `Check out these ${notes.length} note(s) tagged with "${tag?.name}"`;
+    const text =
+      `Check out these ${notes.length} note(s) ` +
+      `tagged with "${tag?.name}"`;
 
     // Try Web Share API first (mobile-friendly)
     if (navigator.share) {
@@ -229,6 +321,243 @@ export default function TagNotesRoute() {
     }
   };
 
+  const handleSortChange = useCallback(
+    async (newSortOrder: string) => {
+      if (!tagId) return;
+      
+      // Update URL
+      setSearchParams({ sort: newSortOrder });
+      
+      // Check if we can sort client-side
+      const canSortClientSide =
+        notesCount <= notesPageSize && notes.length > 0;
+      
+      if (canSortClientSide) {
+        // Client-side sort - no API call needed
+        console.log('📊 Sorting notes client-side');
+        // Notes will be sorted by the existing sortedNotes logic
+      } else {
+        // Server-side sort - fetch from API
+        console.log('📊 Fetching sorted notes from API');
+        const apiOrdering = getApiOrdering(
+          newSortOrder as SortOrder
+        );
+        await fetchNotes(tagId, { ordering: apiOrdering, page: 1 });
+      }
+    },
+    [
+      tagId,
+      setSearchParams,
+      notesCount,
+      notesPageSize,
+      notes.length,
+      fetchNotes,
+    ]
+  );
+
+  const handlePageChange = useCallback(
+    async (newPage: number) => {
+      if (!tagId) return;
+      
+      const apiOrdering =
+        sortOrder !== 'custom_asc'
+          ? getApiOrdering(sortOrder)
+          : undefined;
+
+      setPageLoading(true);
+      try {
+        await fetchNotes(tagId, {
+          ordering: apiOrdering,
+          page: newPage,
+          append: false,
+        });
+      } finally {
+        setPageLoading(false);
+      }
+
+      // Scroll to top of notes section
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [tagId, sortOrder, fetchNotes]
+  );
+
+  const handlePageSizeChange = useCallback(
+    async (newPageSize: string | null) => {
+      if (!newPageSize || !tagId) return;
+      
+      const pageSizeNum = parseInt(newPageSize, 10);
+      setNotesPageSize(pageSizeNum);
+      
+      // Clear cache and refetch from page 1
+      clearNotesCache(tagId);
+      
+      const apiOrdering =
+        sortOrder !== 'custom_asc'
+          ? getApiOrdering(sortOrder)
+          : undefined;
+
+      setPageLoading(true);
+      try {
+        await fetchNotes(tagId, {
+          ordering: apiOrdering,
+          page: 1,
+          append: false,
+        });
+      } finally {
+        setPageLoading(false);
+      }
+
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [tagId, sortOrder, setNotesPageSize, fetchNotes]
+  );
+
+  const sortedNotes = [...notes].sort((a, b) => {
+    switch (sortOrder) {
+      case 'custom_asc': {
+        const aPos = a.tag_position ?? 0;
+        const bPos = b.tag_position ?? 0;
+        if (aPos !== bPos) return aPos - bPos;
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      }
+      case 'custom_desc': {
+        const aPos = a.tag_position ?? 0;
+        const bPos = b.tag_position ?? 0;
+        if (aPos !== bPos) return bPos - aPos;
+        return (
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
+        );
+      }
+      case 'created_desc':
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      case 'created_asc':
+        return (
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
+        );
+      case 'verse_asc': {
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return aBook - bBook;
+        if (aV.chapter !== bV.chapter)
+          return aV.chapter - bV.chapter;
+        return aV.verse - bV.verse;
+      }
+      case 'verse_desc': {
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return bBook - aBook;
+        if (aV.chapter !== bV.chapter)
+          return bV.chapter - aV.chapter;
+        return bV.verse - aV.verse;
+      }
+      default:
+        return 0;
+    }
+  });
+
+  const handleToggleFolded = () => {
+    const next = !versesFolded;
+    setVersesFolded(next);
+    if (next) return; // Folding needs no scroll compensation.
+    // After unfolding, restore focus to the selected or
+    // currently-playing verse inside its note card.
+    setTimeout(() => {
+      const { verseSelection, audioActiveVerse } =
+        useBibleStore.getState();
+      const focus =
+        verseSelection && verseSelection.refs.length > 0
+          ? {
+              scope: verseSelection.scope,
+              ref: verseSelection.refs[0],
+            }
+          : audioActiveVerse?.scope
+            ? { scope: audioActiveVerse.scope, ref: audioActiveVerse }
+            : null;
+      if (focus) {
+        document
+          .getElementById(verseDomId(focus.scope, focus.ref))
+          ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }, 50);
+  };
+
+  const handlePlayFromNote = useCallback(
+    (noteId: string) => {
+      const noteIndex = sortedNotes.findIndex((n) => n.id === noteId);
+      
+      if (noteIndex >= 0) {
+        setAudioPlaylistStartIndex(noteIndex);
+        
+        showNotification({
+          title: 'Playlist Started',
+          message:
+            `Playing from note ${noteIndex + 1} ` +
+            `of ${sortedNotes.length}`,
+          color: 'blue',
+          autoClose: 3000,
+        });
+      }
+    },
+    [sortedNotes, setAudioPlaylistStartIndex]
+  );
+
+  useEffect(() => {
+    if (loading || notes.length === 0) {
+      setAudioPlaylistItems(null);
+      return;
+    }
+    const items: PlaylistItem[] = sortedNotes
+      .filter((n) => (n.verses?.length ?? 0) > 0)
+      .map((note, i, arr) => {
+        const firstVerse = note.verses![0];
+        const sameBlock = note.verses!.filter(
+          (v) =>
+            v.book === firstVerse.book &&
+            v.chapter === firstVerse.chapter,
+        );
+        const verseNumbers = sameBlock.map((v) => v.verse);
+        const startVerse = Math.min(...verseNumbers);
+        const endVerse = Math.max(...verseNumbers);
+        const label =
+          `Note ${i + 1}/${arr.length} ` +
+          `\u2013 ${firstVerse.book} ` +
+          `${firstVerse.chapter}:${startVerse}` +
+          (startVerse !== endVerse ? `-${endVerse}` : '');
+        return {
+          itemId: note.id,
+          bookId: toUsfmCode(firstVerse.book) ?? firstVerse.book,
+          chapter: firstVerse.chapter,
+          startVerse,
+          endVerse,
+          label,
+          verseNumbers,
+        };
+      });
+    setAudioPlaylistItems(items.length > 0 ? items : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes, sortOrder, loading, setAudioPlaylistItems]);
+
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
@@ -247,11 +576,24 @@ export default function TagNotesRoute() {
     );
   }
 
-  const sortedTags = [...storedTags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...storedTags].sort(
+    (a, b) => a.name.localeCompare(b.name)
+  );
+
+  // Calculate total pages
+  const totalPages = Math.ceil(notesCount / notesPageSize);
+
+  const pagination = totalPages > 1 ? (
+    <Pagination
+      currentPage={notesPage}
+      totalPages={totalPages}
+      onPageChange={handlePageChange}
+    />
+  ) : null;
 
   return (
     <Box p="md">
-      <Group mb="md" position="apart">
+      <Stack spacing="sm" mb="md">
         {isAuthenticated && sortedTags.length > 0 ? (
           <Select
             label="Filter by tag"
@@ -260,48 +602,152 @@ export default function TagNotesRoute() {
             onChange={handleTagChange}
             data={sortedTags.map(t => ({ value: t.id, label: t.name }))}
             searchable
-            style={{ flex: 1, minWidth: 200, maxWidth: 400 }}
+            style={{ maxWidth: 400 }}
           />
         ) : (
           <Text fw={500} size="lg">{tag.name}</Text>
         )}
-        <Group spacing="xs">
-          <Text color="dimmed" size="sm">
-            {notes.length} {notes.length === 1 ? 'note' : 'notes'}
-          </Text>
-          <Tooltip label="Refresh notes" position="left">
-            <ActionIcon
-              onClick={handleRefresh}
-              variant="subtle"
-              color="gray"
-              size="lg"
+        <Group spacing="xs" position="apart">
+          <Group spacing="xs" noWrap>
+            <Select
+              size="xs"
+              value={sortOrder}
+              onChange={(v) => {
+                if (v) {
+                  handleSortChange(v);
+                }
+              }}
+              data={[
+                {
+                  value: 'custom_asc',
+                  label: 'Custom: Ascending',
+                },
+                {
+                  value: 'custom_desc',
+                  label: 'Custom: Descending',
+                },
+                {
+                  value: 'created_desc',
+                  label: 'Date: Newest first',
+                },
+                {
+                  value: 'created_asc',
+                  label: 'Date: Oldest first',
+                },
+                {
+                  value: 'verse_asc',
+                  label: 'Verse: Ascending',
+                },
+                {
+                  value: 'verse_desc',
+                  label: 'Verse: Descending',
+                },
+              ]}
+              style={{ width: 170, flexShrink: 0 }}
+            />
+            <Select
+              size="xs"
+              value={String(notesPageSize)}
+              onChange={handlePageSizeChange}
+              data={[
+                { value: '5', label: '5' },
+                { value: '25', label: '25' },
+                { value: '50', label: '50' },
+                { value: '100', label: '100' },
+              ]}
+              style={{ width: 60, flexShrink: 0 }}
+            />
+          </Group>
+          <Group spacing="xs" noWrap>
+            <Text
+              color="dimmed"
+              size="sm"
+              sx={(theme) => ({
+                [theme.fn.smallerThan('sm')]: {
+                  display: 'none',
+                },
+              })}
             >
-              <IconRefresh size={20} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Share tag link" position="left">
-            <ActionIcon
-              onClick={handleShare}
-              variant="subtle"
-              color="blue"
-              size="lg"
+              {notes.length}
+              {notesCount > notes.length && ` of ${notesCount}`}
+              {' '}
+              {notes.length === 1 ? 'note' : 'notes'}
+            </Text>
+            <Tooltip
+              label={versesFolded ? "Unfold verses" : "Fold verses"}
+              position="left"
             >
-              <IconShare size={20} />
-            </ActionIcon>
-          </Tooltip>
+              <ActionIcon
+                onClick={handleToggleFolded}
+                variant="subtle"
+                color={versesFolded ? "blue" : "gray"}
+                size="lg"
+              >
+                {versesFolded
+                  ? <IconArrowsMaximize size={20} />
+                  : <IconArrowsMinimize size={20} />}
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Refresh notes" position="left">
+              <ActionIcon
+                onClick={handleRefresh}
+                variant="subtle"
+                color="gray"
+                size="lg"
+              >
+                <IconRefresh size={20} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Share tag link" position="left">
+              <ActionIcon
+                onClick={handleShare}
+                variant="subtle"
+                color="blue"
+                size="lg"
+              >
+                <IconShare size={20} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         </Group>
-      </Group>
+      </Stack>
 
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
-        {notes.length > 0 ? (
-          <Stack spacing="md">
+        {pageLoading ? (
+          <Center style={{ height: 200 }}>
+            <Loader aria-label="loading" />
+          </Center>
+        ) : notes.length > 0 ? (
+          <Stack spacing="md" pb="xl">
+            {pagination}
             <TagSection
               tagName={tag.name}
-              notes={notes}
+              notes={sortedNotes}
               onViewInBible={handleViewInBible}
-              onEditNote={isAuthenticated ? handleEditNote : undefined}
-              onDeleteNote={isAuthenticated ? handleDeleteNote : undefined}
+              onEditNote={
+                isAuthenticated ? handleEditNote : undefined
+              }
+              onDeleteNote={
+                isAuthenticated
+                  ? handleDeleteNote
+                  : undefined
+              }
+              onPlayFromNote={handlePlayFromNote}
+              commentCounts={commentCounts}
+              onCountChange={handleCountChange}
+              isDraggable={
+                (sortOrder === 'custom_asc' ||
+                  sortOrder === 'custom_desc') &&
+                isAuthenticated
+              }
+              tagId={tagId || ''}
+              onReorder={reorderNotes}
+              sortOrder={sortOrder}
+              currentPage={notesPage}
+              pageSize={notesPageSize}
             />
+            
+            {pagination}
           </Stack>
         ) : (
           <Center style={{ height: 200 }}>

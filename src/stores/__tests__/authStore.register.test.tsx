@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, waitFor, renderHook } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { createTestAuthStore } from '../authStore';
 
 describe.skip('authStore - Register', () => {
@@ -19,7 +20,6 @@ describe.skip('authStore - Register', () => {
 
   describe.skip('register', () => {
     it('should successfully register with valid data', async () => {
-      const useTestAuthStore = createTestAuthStore();
       const mockEmail = 'test@example.com';
       const mockResponse = {
         user: {
@@ -38,6 +38,7 @@ describe.skip('authStore - Register', () => {
         json: async () => mockResponse,
       });
 
+      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
@@ -56,7 +57,6 @@ describe.skip('authStore - Register', () => {
     });
 
     it('should register without email', async () => {
-      const useTestAuthStore = createTestAuthStore();
       const mockResponse = {
         user: {
           id: 1,
@@ -73,6 +73,7 @@ describe.skip('authStore - Register', () => {
         json: async () => mockResponse,
       });
 
+      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       await act(async () => {
@@ -98,7 +99,6 @@ describe.skip('authStore - Register', () => {
     });
 
     it('should handle username already exists error', async () => {
-      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -107,6 +107,7 @@ describe.skip('authStore - Register', () => {
         }),
       });
 
+      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
@@ -126,7 +127,6 @@ describe.skip('authStore - Register', () => {
     });
 
     it('should handle password validation errors', async () => {
-      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -135,6 +135,7 @@ describe.skip('authStore - Register', () => {
         }),
       });
 
+      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
@@ -149,7 +150,6 @@ describe.skip('authStore - Register', () => {
     });
 
     it('should handle password mismatch error', async () => {
-      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -158,6 +158,7 @@ describe.skip('authStore - Register', () => {
         }),
       });
 
+      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
@@ -172,7 +173,6 @@ describe.skip('authStore - Register', () => {
     });
 
     it('should handle email validation errors', async () => {
-      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -181,6 +181,7 @@ describe.skip('authStore - Register', () => {
         }),
       });
 
+      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       await expect(
@@ -196,7 +197,6 @@ describe.skip('authStore - Register', () => {
     });
 
     it('should set loading state during registration', async () => {
-      const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockImplementation(
         () =>
           new Promise((resolve) =>
@@ -215,6 +215,7 @@ describe.skip('authStore - Register', () => {
           )
       );
 
+      const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
 
       const registerPromise = act(async () => {

@@ -1,4 +1,3 @@
-import { vi } from 'vitest';
 import { Note, Tag } from '../../types';
 import { Translation } from '../../store';
 
@@ -47,6 +46,7 @@ export const createMockNote = (overrides: Partial<Note> = {}): Note => ({
   tag: createMockTag(),
   public: false,
   is_owner: true,
+  tag_position: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   verses: [],
@@ -95,21 +95,24 @@ export const createMockTranslations = (): Translation[] => [
     abbr: 'KJV',
     name: 'King James Version',
     filesets: [
-      { id: 'ENGKJV', type: 'text_plain', size: 'NT', codec: 'mp3', bitrate: '64' },
+      { id: 'ENGKJV', type: 'text_plain', size: 'NT',
+        codec: 'mp3', bitrate: '64' },
     ],
   }),
   createMockTranslation({
     abbr: 'NIV',
     name: 'New International Version',
     filesets: [
-      { id: 'ENGNIV', type: 'text_plain', size: 'NT', codec: 'mp3', bitrate: '64' },
+      { id: 'ENGNIV', type: 'text_plain', size: 'NT',
+        codec: 'mp3', bitrate: '64' },
     ],
   }),
   createMockTranslation({
     abbr: 'ESV',
     name: 'English Standard Version',
     filesets: [
-      { id: 'ENGESV', type: 'text_plain', size: 'NT', codec: 'mp3', bitrate: '64' },
+      { id: 'ENGESV', type: 'text_plain', size: 'NT',
+        codec: 'mp3', bitrate: '64' },
     ],
   }),
 ];
@@ -203,19 +206,4 @@ export const mockData = {
       text: 'Jesus wept.',
     }),
   },
-};
-
-/**
- * Mock KJV data loader
- */
-export const mockKjvDataLoader = () => {
-  vi.mock('../../utils/kjvDataLoader', () => ({
-    loadKjvData: vi.fn().mockResolvedValue([
-      // Minimal mock data for tests
-      { chapter: 1, verse: 1, text: 'In the beginning...', book_name: 'Genesis', book_id: 'Gen' },
-      // Add more as needed
-    ]),
-    isKjvDataLoaded: vi.fn().mockReturnValue(false),
-    clearKjvDataCache: vi.fn(),
-  }));
 };

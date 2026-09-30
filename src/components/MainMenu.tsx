@@ -9,10 +9,25 @@ import {
   ColorScheme,
   Divider,
 } from "@mantine/core";
-import { IconX, IconSun, IconMoonStars } from "@tabler/icons-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import {
+  IconX,
+  IconSun,
+  IconMoonStars,
+  IconBrandAndroid,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { buildBiblePath } from "../utils/bibleUtils";
+import { isNativeApp } from "../utils/nativeAudio";
 import { UserMenu } from "./UserMenu";
+import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
+
+// Fixed asset name on the latest GitHub release keeps this URL
+// stable across versions.
+const ANDROID_APK_URL =
+  'https://github.com/Bible-Research/reactive-bible/releases/' +
+  'latest/download/reactive-bible.apk';
 
 interface MainMenuProps {
   opened: boolean;
@@ -29,26 +44,29 @@ const MainMenu = ({
 }: MainMenuProps) => {
   const theme = useMantineTheme();
   const navigate = useNavigate();
-  const location = useLocation();
-  
-  // Determine current page based on route
-  const isOnNotesPage = location.pathname.startsWith('/notes');
-  const isOnAuthPage = location.pathname === '/login' || 
-                       location.pathname === '/register';
-  
+  const [newNoteOpened, setNewNoteOpened] = useState(false);
+
   // Get Bible state for navigation
-  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
+  // Offer the APK only on Android browsers — useless on iOS,
+  // desktop, and inside the native shell itself.
+  const showAndroidDownload =
+    !isNativeApp() &&
+    typeof navigator !== 'undefined' &&
+    /android/i.test(navigator.userAgent);
+
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      position="right"
-      size="100%"
-      withCloseButton={false}
-      padding="xl"
-    >
+    <>
+      <Drawer
+        opened={opened}
+        onClose={onClose}
+        position="right"
+        size="100%"
+        withCloseButton={false}
+        padding="xl"
+      >
       <ActionIcon
         onClick={onClose}
         size="lg"
@@ -67,30 +85,18 @@ const MainMenu = ({
         </Group>
         
         <Divider />
-        
+
         <Group position="apart" spacing="xs">
           <Text
             weight={500}
             size="lg"
             onClick={() => {
-              if (isOnNotesPage) {
-                // Navigate back to Bible from notes
-                console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
-                navigate(`/bible/${activeBook}/${activeChapter}`);
-              } else if (isOnAuthPage) {
-                // Navigate to Bible from login/register pages
-                console.log(`🔗 MainMenu: Navigate to Bible ${activeBook}/${activeChapter}`);
-                navigate(`/bible/${activeBook}/${activeChapter}`);
-              } else {
-                // Navigate to Notes from Bible (will redirect to login if not authenticated)
-                console.log('🔗 MainMenu: Navigate to /notes');
-                navigate('/notes');
-              }
+              navigate(buildBiblePath(activeBookId, activeChapter));
               onClose();
             }}
             sx={{ cursor: "pointer" }}
           >
-            {isOnNotesPage ? "View Bible" : isOnAuthPage ? "View Bible" : "View Notes"}
+            Read Bible
           </Text>
         </Group>
 
@@ -99,7 +105,31 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              console.log('🔗 MainMenu: Navigate to /tags');
+              navigate('/notes');
+              onClose();
+            }}
+            sx={{ cursor: "pointer" }}
+          >
+            View Notes
+          </Text>
+        </Group>
+
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => setNewNoteOpened(true)}
+            sx={{ cursor: "pointer" }}
+          >
+            New Note
+          </Text>
+        </Group>
+
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => {
               navigate('/tags');
               onClose();
             }}
@@ -108,6 +138,34 @@ const MainMenu = ({
             Tag Management
           </Text>
         </Group>
+
+        {showAndroidDownload && (
+          <>
+            <Divider />
+            <Group spacing="xs" align="flex-start" noWrap>
+              <IconBrandAndroid
+                size={22}
+                style={{ marginTop: 4, flexShrink: 0 }}
+              />
+              <div>
+                <Text
+                  weight={500}
+                  size="lg"
+                  component="a"
+                  href={ANDROID_APK_URL}
+                  sx={{ cursor: "pointer", color: "inherit" }}
+                  title="Download Android app"
+                >
+                  Download Android App
+                </Text>
+                <Text size="xs" color="dimmed">
+                  For lock-screen audio playback. You may need to
+                  allow "install unknown apps" for your browser.
+                </Text>
+              </div>
+            </Group>
+          </>
+        )}
 
         <Divider />
 
@@ -131,6 +189,11 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
+      <AddStandaloneNoteModal
+        opened={newNoteOpened}
+        onClose={() => setNewNoteOpened(false)}
+      />
+    </>
   );
 };
 

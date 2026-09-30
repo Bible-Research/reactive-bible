@@ -1,0 +1,97 @@
+name: Android APK
+
+# Debug APK: every push to the `android` working branch and every
+# manual dispatch — the blind-development iteration artifact.
+# Signed release APK: only on `v*` tags, attached to the GitHub
+# release as `reactive-bible.apk` (fixed name keeps the download
+# URL stable: releases/latest/download/reactive-bible.apk).
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # GITHUB_TOKEN needs write to create the release + upload the APK.
+    permissions:
+      contents: write
+    env:
+      NODE_OPTIONS: --max-old-space-size=8192
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+
+      # Capacitor 8 targets Java 21 / compileSdk 36.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # ubuntu-latest already ships the Android SDK; setup-android@v3
+      # is broken on new cmdline-tools (runs `sdkmanager tools`).
+      - name: Install Android SDK components
+        run: |
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager \
+            | sort -V | tail -1)
+          yes | "$SDKM" --licenses > /dev/null
+          "$SDKM" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: reactive-bible-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # ---------- Release (v* tags only) ----------
+
+      - name: Build release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: android
+        run: >-
+          ./gradlew assembleRelease
+          -PversionCode=${{ github.run_number }}
+          -PversionName=${GITHUB_REF_NAME#v}
+
+      # PKCS12 keystore (generated with openssl — no JKS needed);
+      # signed with apksigner, which auto-detects the store type.
+      - name: Sign release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -e
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | \
+            base64 -d > release-key.p12
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          UNSIGNED=$(find android/app/build/outputs/apk/release \
+            -name '*-unsigned.apk' | head -1)
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" aligned.apk
+          "$BT/apksigner" sign \
+            --ks release-key.p12 \
+            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+            --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+            --out reactive-bible.apk \
+            aligned.apk
+          rm release-key.p12
+
+      - name: Attach APK to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: reactive-bible.apk

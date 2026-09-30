@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   Modal,
   Button,
@@ -20,7 +21,9 @@ const useStyles = createStyles((theme) => ({
     marginTop: theme.spacing.md,
     marginBottom: theme.spacing.lg,
     border: `1px solid ${
-      theme.colorScheme === 'dark' ? theme.colors.dark[4] : theme.colors.gray[3]
+      theme.colorScheme === 'dark'
+        ? theme.colors.dark[4]
+        : theme.colors.gray[3]
     }`,
     borderRadius: theme.radius.sm,
     padding: theme.spacing.md,
@@ -30,6 +33,7 @@ const useStyles = createStyles((theme) => ({
 const TranslationSelector = () => {
   const { classes } = useStyles();
   const [opened, setOpened] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const {
     translations,
@@ -41,23 +45,27 @@ const TranslationSelector = () => {
   } = useBibleStore((state) => state);
 
   // Local state for selections within the modal
-  const [selectedTranslationAbbr, setSelectedTranslationAbbr] = useState<string | null>(null);
+  const [selectedTranslationAbbr, setSelectedTranslationAbbr] =
+    useState<string | null>(null);
   const [languageIso, setLanguageIso] = useState('eng');
-  const [selectedTextId, setSelectedTextId] = useState<string | null>(activeTextFilesetId);
-  const [selectedAudioId, setSelectedAudioId] = useState<string | null>(activeAudioFilesetId);
+  const [selectedTextId, setSelectedTextId] =
+    useState<string | null>(activeTextFilesetId);
+  const [selectedAudioId, setSelectedAudioId] =
+    useState<string | null>(activeAudioFilesetId);
 
   const handleAudioChange = (value: string) => {
     setSelectedAudioId(value === 'none' ? null : value);
   };
 
   const handleTextChange = async (filesetId: string) => {
-    // Preload KJV data if selecting KJV translation and it's not already loaded
+    // Preload KJV data when selecting the KJV text fileset and
+    // it is not already loaded.
     if (filesetId === 'ENGKJV' && !isKjvDataLoaded()) {
       notifications.show({
         id: 'kjv-loading',
         loading: true,
         title: 'Loading KJV Bible',
-        message: 'Downloading King James Version data (6.8MB)...',
+        message: 'Downloading King James Version data...',
         autoClose: false,
         withCloseButton: false,
       });
@@ -88,19 +96,37 @@ const TranslationSelector = () => {
   };
 
   useEffect(() => {
-    const fetchTranslations = async () => {
-      // Clear previous selections when language changes
-      setTranslations([]);
-      setSelectedTextId(null);
-      setSelectedAudioId(null);
+    let cancelled = false;
 
-      const fetched = await getAvailableTranslations(languageIso);
-      setTranslations(fetched);
+    const fetchTranslations = async () => {
+      // Show cached list immediately for snappy UX (stale)…
+      const cached = await getAvailableTranslations(languageIso);
+      if (!cancelled) {
+        setTranslations(cached);
+      }
+
+      // …then revalidate against the API so newly published
+      // translations show up without requiring a cache bust.
+      if (!opened) return;
+      const fresh = await getAvailableTranslations(languageIso, true);
+      if (!cancelled) {
+        setTranslations(fresh);
+      }
     };
 
     fetchTranslations();
-    // We only want this to run when the language changes.
+
+    return () => {
+      cancelled = true;
+    };
+    // We refetch whenever the modal is (re)opened or the language changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [languageIso, opened]);
+
+  useEffect(() => {
+    // Clear transient selections whenever the language changes.
+    setSelectedTextId(null);
+    setSelectedAudioId(null);
   }, [languageIso]);
 
   useEffect(() => {
@@ -124,8 +150,14 @@ const TranslationSelector = () => {
     (t) => t.abbr === selectedTranslationAbbr
   ) || null;
 
-  const textFilesets = selectedTranslation?.filesets.filter(f => f.type === 'text_plain') || [];
-  const audioFilesets = selectedTranslation?.filesets.filter(f => f.type.startsWith('audio')) || [];
+  const textFilesets =
+    selectedTranslation?.filesets.filter(
+      (f) => f.type === 'text_plain'
+    ) || [];
+  const audioFilesets =
+    selectedTranslation?.filesets.filter(
+      (f) => f.type.startsWith('audio')
+    ) || [];
 
   return (
     <>
@@ -134,12 +166,13 @@ const TranslationSelector = () => {
         onClose={() => setOpened(false)}
         title="Select Translation"
         size="lg"
+        fullScreen={isMobile}
       >
         <Stack>
           <SegmentedControl
             data={[
               { label: 'English', value: 'eng' },
-              { label: 'Latvian (audio only)', value: 'lvs' },
+              { label: 'Latvian', value: 'lvs' },
             ]}
             value={languageIso}
             onChange={setLanguageIso}
@@ -184,7 +217,13 @@ const TranslationSelector = () => {
                         <Radio
                           key={f.id}
                           value={f.id}
-                          label={`${f.type === 'audio_drama' ? 'Drama' : 'Audio'} ${f.size} (${f.id})`}
+                          label={
+                            `${
+                              f.type === 'audio_drama'
+                                ? 'Drama'
+                                : 'Audio'
+                            } ${f.size} (${f.id})`
+                          }
                         />
                       ))}
                     </Stack>
@@ -208,7 +247,7 @@ const TranslationSelector = () => {
         onClick={() => setOpened(true)}
         color="gray"
       >
-        Translations
+        Change Translation
       </Button>
     </>
   );

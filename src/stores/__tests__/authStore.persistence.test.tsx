@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { createTestAuthStore } from '../authStore';
 
 describe('authStore - Persistence', () => {

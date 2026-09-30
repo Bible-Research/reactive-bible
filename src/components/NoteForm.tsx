@@ -1,6 +1,7 @@
-import { Button, Select, TextInput } from "@mantine/core";
+import { Button, Select } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { Tag } from "../types";
+import RichTextEditor from "./RichTextEditor";
 
 interface NoteFormProps {
   tags: Tag[];
@@ -10,7 +11,13 @@ interface NoteFormProps {
   onTagDropdownOpen: () => void;
 }
 
-const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteFormProps) => {
+const NoteForm = ({
+  tags,
+  note,
+  onSubmit,
+  submitText,
+  onTagDropdownOpen,
+}: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
 
@@ -26,7 +33,8 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
     onSubmit(selectedTagId, noteText);
   };
 
-  const selectedTagName = tags.find((tag) => tag.id === selectedTagId)?.name || "";
+  const selectedTagName =
+    tags.find((tag) => tag.id === selectedTagId)?.name || "";
 
   return (
     <form onSubmit={handleSubmit}>
@@ -41,24 +49,16 @@ const NoteForm = ({ tags, note, onSubmit, submitText, onTagDropdownOpen }: NoteF
         onDropdownOpen={onTagDropdownOpen}
         data={tags.map((tag) => tag.name)}
         searchable
-        creatable
-        getCreateLabel={(query) => `+ Create ${query}`}
+        maxDropdownHeight={window.innerHeight * 0.7}
       />
-      <TextInput
-        variant="transparent"
+      <RichTextEditor
+        variant="note"
         label="Note"
         value={noteText}
-        onChange={(event) => setNoteText(event.currentTarget.value)}
+        onChange={setNoteText}
       />
       <Button variant="transparent" type="submit">
         {submitText}
-      </Button>
-      <Button
-        variant="transparent"
-        onClick={() => window.open('https://bible-research-489314.ey.r.appspot.com/api/v1/tags/', '_blank')}
-        style={{ width: '100%' }}
-      >
-        Or create a new tag
       </Button>
     </form>
   );

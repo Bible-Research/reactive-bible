@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    groups:
+      # Batch non-breaking updates into single PRs to avoid
+      # package-lock.json conflicts between Dependabot branches.
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Mantine v6 -> v7+ is a full migration (styles API replaced
+      # with CSS modules). All @mantine packages must move together;
+      # a partial major bump breaks npm ci via peer deps (see PR #76).
+      - dependency-name: "@mantine/*"
+        update-types:
+          - "version-update:semver-major"
+      # TipTap v3 requires @mantine/tiptap v7+, which requires
+      # Mantine v7+. Must be upgraded as one coordinated migration.
+      - dependency-name: "@tiptap/*"
+        update-types:
+          - "version-update:semver-major"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"

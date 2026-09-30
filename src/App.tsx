@@ -5,20 +5,21 @@ import {
   ColorScheme,
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
-import { useDisclosure, useLocalStorage, useWindowEvent } from "@mantine/hooks";
+import { ModalsProvider } from "@mantine/modals";
+import { useLocalStorage, useWindowEvent } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
 import BottomNav from "./components/BottomNav";
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AppRoutes } from "./routes";
-import { SearchModal } from "./components/SearchModal";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useAuthStore } from "./stores/authStore";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import VerseActionToolbar from "./components/VerseActionToolbar";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -34,7 +35,7 @@ export default function App() {
   // MainMenu state
   const [mainMenuOpened, setMainMenuOpened] = useState(false);
   
-  const [modalOpened, modalFn] = useDisclosure(false);
+  const navigate = useNavigate();
 
   // Check authentication on app load
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -48,16 +49,21 @@ export default function App() {
   
   // Check if we're on an auth page (login/register)
   const location = useLocation();
-  const isAuthPage = location.pathname === '/login' || 
+  const isAuthPage = location.pathname === '/login' ||
                      location.pathname === '/register';
+  const isSearchPage = location.pathname === '/search';
+  const isBibleView = location.pathname.startsWith('/bible');
+  const isNotesView = location.pathname.startsWith('/notes');
+  const showVerseToolbar = isBibleView || isNotesView;
   useWindowEvent("keydown", (event) => {
-    if (event.key === "/") {
+    const tag = (event.target as HTMLElement).tagName;
+    if (
+      event.key === "/" &&
+      tag !== "INPUT" &&
+      tag !== "TEXTAREA"
+    ) {
       event.preventDefault();
-      modalFn.open();
-    }
-    if (event.key === "Escape") {
-      event.preventDefault();
-      modalFn.close();
+      navigate("/search");
     }
   });
   return (
@@ -70,11 +76,12 @@ export default function App() {
         withGlobalStyles
         withNormalizeCSS
       >
+        <ModalsProvider>
         <Notifications position="top-right" zIndex={2077} />
         <AppShell
-          padding="md"
+          padding={0}
           navbar={
-            !isAuthPage ? (
+            isBibleView ? (
               <BibleSelector
                 opened={bibleSelectorOpened}
                 setOpened={setBibleSelectorOpened}
@@ -85,11 +92,10 @@ export default function App() {
             <MyHeader
               menuOpened={mainMenuOpened}
               setMenuOpened={setMainMenuOpened}
-              open={modalFn.open}
             />
           }
           footer={
-            !isAuthPage ? (
+            isBibleView ? (
               <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
             ) : undefined
           }
@@ -100,15 +106,15 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
-              // Allow scrolling on auth pages
-              overflow: isAuthPage ? "auto" : "hidden",
+              // Allow scrolling on auth and search pages
+              overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
             },
           })}
         >
           <ErrorBoundary>
             <AppRoutes />
           </ErrorBoundary>
-          <SearchModal opened={modalOpened} close={modalFn.close} />
+          {showVerseToolbar && <VerseActionToolbar />}
           <MainMenu
             opened={mainMenuOpened}
             onClose={() => setMainMenuOpened(false)}
@@ -118,6 +124,7 @@ export default function App() {
         </AppShell>
         <Analytics />
         <SpeedInsights />
+        </ModalsProvider>
       </MantineProvider>
     </ColorSchemeProvider>
   );

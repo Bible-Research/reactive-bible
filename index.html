@@ -2,8 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('color-scheme');
+          var scheme = raw ? JSON.parse(raw) : 'dark';
+          document.documentElement.style.backgroundColor =
+            scheme === 'light' ? '#f8f9fa' : '#141517';
+        } catch (e) {
+          document.documentElement.style.backgroundColor = '#141517';
+        }
+      })();
+    </script>
         <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141517">
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8f9fa">
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" /> <!-- Added base tag -->

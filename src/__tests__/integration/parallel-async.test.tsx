@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
-import { setupServer } from 'msw/node';
+import { describe, it, expect } from 'vitest';
 import { http, HttpResponse, delay } from 'msw';
+import { server } from '../../mocks/server';
 
 /**
  * Parallel Async Operations Tests
@@ -11,12 +11,6 @@ import { http, HttpResponse, delay } from 'msw';
  * These tests verify that independent async operations execute in parallel
  * rather than sequentially, which can cause 2-10× performance improvements.
  */
-
-const server = setupServer();
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
 
 describe('Parallel Async Operations', () => {
   it('should fetch multiple resources in parallel using Promise.all()', 

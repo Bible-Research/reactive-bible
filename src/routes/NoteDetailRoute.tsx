@@ -14,7 +14,10 @@ import { IconShare } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import { Note } from '../types';
 import NoteCard from '../components/NoteCard';
+import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
+import { toPlainText } from '../utils/tiptapContent';
+import { buildBiblePath } from '../utils/bibleUtils';
 import { useBibleStore } from '../store';
 
 /**
@@ -26,9 +29,6 @@ export default function NoteDetailRoute() {
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
 
-  const setActiveBook = useBibleStore((state) => state.setActiveBook);
-  const setActiveChapter = useBibleStore((state) => state.setActiveChapter);
-  const setActiveVerses = useBibleStore((state) => state.setActiveVerses);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
 
   const [note, setNote] = useState<Note | null>(null);
@@ -68,10 +68,7 @@ export default function NoteDetailRoute() {
     chapter: number,
     verse: number,
   ) => {
-    setActiveBook(book);
-    setActiveChapter(chapter);
-    setActiveVerses([verse]);
-    navigate(`/bible/${book}/${chapter}`);
+    navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
   };
 
@@ -81,7 +78,7 @@ export default function NoteDetailRoute() {
       ? `Note: ${note.tag.name}`
       : 'Shared note';
     const text = note?.note_text
-      ? note.note_text.slice(0, 140)
+      ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
     if (navigator.share) {
@@ -148,6 +145,7 @@ export default function NoteDetailRoute() {
           note={note}
           onViewInBible={handleViewInBible}
         />
+        <CommentThread noteId={note.id} />
       </Stack>
     </Box>
   );

@@ -1,37 +1,31 @@
-import { KjvBook } from '../api';
+import type { KjvBook } from '../api';
 
 let kjvDataCache: KjvBook[] | null = null;
 let loadingPromise: Promise<KjvBook[]> | null = null;
 
 /**
- * Lazy load KJV data using dynamic import
- * Returns cached data if already loaded
+ * Lazily load KJV verse text via dynamic import so it stays out
+ * of the entry chunk. Returns the cached data if already loaded;
+ * concurrent callers share the same in-flight promise.
  */
 export const loadKjvData = async (): Promise<KjvBook[]> => {
-  // Return cached data if available
   if (kjvDataCache) {
-    console.log('✅ KJV data loaded from memory cache');
     return kjvDataCache;
   }
 
-  // Return existing loading promise if already loading
   if (loadingPromise) {
-    console.log('⏳ KJV data already loading, waiting...');
     return loadingPromise;
   }
 
-  // Start loading
-  console.log('📥 Loading KJV data (6.8MB)...');
   loadingPromise = import('../assets/kjv.json')
     .then((module) => {
       kjvDataCache = module.default as KjvBook[];
       loadingPromise = null;
-      console.log('✅ KJV data loaded successfully');
       return kjvDataCache;
     })
     .catch((error) => {
       loadingPromise = null;
-      console.error('❌ Failed to load KJV data:', error);
+      console.error('Failed to load KJV data:', error);
       throw new Error('Failed to load KJV Bible data');
     });
 
@@ -51,5 +45,4 @@ export const isKjvDataLoaded = (): boolean => {
 export const clearKjvDataCache = (): void => {
   kjvDataCache = null;
   loadingPromise = null;
-  console.log('🗑️ KJV data cache cleared');
 };

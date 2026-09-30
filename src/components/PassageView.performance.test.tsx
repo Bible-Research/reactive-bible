@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, waitFor, act } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
@@ -20,6 +19,12 @@ vi.mock('../api', () => ({
   prefetchAudioUrl: (...args: any[]) => mockPrefetchAudioUrl(...args),
   prefetchAdjacentChapters: (...args: any[]) =>
     mockPrefetchAdjacentChapters(...args),
+  fetchHeadingsOnly: vi.fn().mockResolvedValue([]),
+  getChapters: vi.fn().mockReturnValue([1, 2, 3]),
+}));
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
 }));
 
 // Mock Verse component to isolate PassageView performance
@@ -35,8 +40,7 @@ describe('PassageView Component Performance Tests', () => {
 
     // Setup default store state
     useBibleStore.setState({
-      activeBook: 'Genesis',
-      activeBookShort: 'GEN',
+      activeBookId: 'GEN',
       activeChapter: 1,
       activeTextFilesetId: 'ENGKJV',
       activeAudioFilesetId: 'ENGKJVO2DA',
@@ -44,10 +48,13 @@ describe('PassageView Component Performance Tests', () => {
     });
 
     // Default mock implementation
-    mockGetVersesInChapter.mockResolvedValue([
-      { verse: 1, text: 'In the beginning...' },
-      { verse: 2, text: 'And the earth was...' },
-    ]);
+    mockGetVersesInChapter.mockResolvedValue({
+      verses: [
+        { verse: 1, text: 'In the beginning...' },
+        { verse: 2, text: 'And the earth was...' },
+      ],
+      headings: [],
+    });
   });
 
   describe('Render Performance', () => {
@@ -160,7 +167,16 @@ describe('PassageView Component Performance Tests', () => {
 
       // Change unrelated store state
       act(() => {
-        useBibleStore.setState({ activeVerses: [1, 2, 3] });
+        useBibleStore.setState({
+          verseSelection: {
+            scope: 'bible',
+            refs: [1, 2, 3].map((v) => ({
+              bookId: 'GEN',
+              chapter: 1,
+              verse: v,
+            })),
+          },
+        });
       });
 
       rerender(
@@ -175,7 +191,7 @@ describe('PassageView Component Performance Tests', () => {
       );
     });
 
-    it('should be optimized with React.memo and shallow equality', async () => {
+    it('should use React.memo with shallow equality', async () => {
       const verses = createLargeVerseData(10);
       mockGetVersesInChapter.mockResolvedValue(verses);
 
@@ -191,7 +207,7 @@ describe('PassageView Component Performance Tests', () => {
 
       const initialCallCount = mockGetVersesInChapter.mock.calls.length;
 
-      // Update completely unrelated state that PassageView doesn't subscribe to
+      // Update state that PassageView doesn't subscribe to
       act(() => {
         useBibleStore.setState({ showNotes: true });
       });
@@ -210,7 +226,9 @@ describe('PassageView Component Performance Tests', () => {
 
       await waitFor(() => {
         // Should trigger new API call because activeChapter changed
-        expect(mockGetVersesInChapter).toHaveBeenCalledTimes(initialCallCount + 1);
+        expect(mockGetVersesInChapter).toHaveBeenCalledTimes(
+          initialCallCount + 1
+        );
       });
     });
   });
@@ -412,12 +430,15 @@ describe('PassageView Component Performance Tests', () => {
 
     it('should handle verses with very long text', async () => {
       const longText = 'A'.repeat(1000); // 1000 character verse
-      const verses = Array.from({ length: 50 }, (_, i) => ({
+      const longVerses = Array.from({ length: 50 }, (_, i) => ({
         verse: i + 1,
         text: longText,
       }));
 
-      mockGetVersesInChapter.mockResolvedValue(verses);
+      mockGetVersesInChapter.mockResolvedValue({
+        verses: longVerses,
+        headings: [],
+      });
 
       const start = performance.now();
 

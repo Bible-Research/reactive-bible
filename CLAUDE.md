@@ -71,8 +71,10 @@ interface BibleState {
   activeBook: string           // "Genesis"
   activeBookShort: string      // "Gen"
   activeChapter: number        // 1
-  activeVerses: number[]       // [1, 2, 3]
-  selectedVerses: number[]     // For note creation
+  // Scoped selection: scope is 'bible' or `note:<id>`;
+  // refs carry { book, chapter, verse }
+  verseSelection: { scope: string; refs: VerseRef[] } | null
+  audioActiveVerse: (VerseRef & { scope: string }) | null
   bibleVersion: string         // "KJV", "ESV"
   translations: Translation[]
   activeTextFilesetId: string | null
@@ -132,12 +134,13 @@ test("should load verses", async () => {
   render(<App />)
   fireEvent.click(screen.getByTitle("nav-book-John"))
   await waitFor(() => {
-    expect(screen.getByTitle("passage-verse-16")).toBeInTheDocument()
+    expect(screen.getByTitle("passage-verse-3-16")).toBeInTheDocument()
   }, { timeout: 5000 })
 })
 ```
 
-**Test attributes**: `title="nav-book-{code}"`, `title="nav-chapter-{n}"`, `title="passage-verse-{n}"`
+**Test attributes**: `title="nav-book-{code}"`,
+`title="nav-chapter-{n}"`, `title="passage-verse-{chapter}-{n}"`
 
 ### Error Handling
 - API calls: try-catch with fallbacks

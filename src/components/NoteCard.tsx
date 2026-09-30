@@ -1,20 +1,100 @@
 import type { MouseEvent } from "react";
-import { Card, Title, Text, Group, Box } from "@mantine/core";
+import { useState } from "react";
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Card,
+  Group,
+  Text,
+  Title,
+  Tooltip,
+} from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
+import {
+  IconMessageCircle,
+  IconPlayerPlay,
+  IconBook,
+  IconShare,
+  IconEdit,
+  IconTrash,
+} from "@tabler/icons-react";
 import { Note } from "../types";
+import { useAuthStore } from "../stores/authStore";
+import { useBibleStore } from "../store";
 import Verse from "./Verse";
-import Button from "./Button";
+import CommentThread from "./CommentThread";
+import SectionHeadingComponent from "./SectionHeading";
+import ScripturePassage from "./ScripturePassage";
+import RichTextView from "./RichTextView";
+import { toPlainText } from "../utils/tiptapContent";
+import {
+  isSameScriptureRef,
+  parseScriptureRef,
+  ScriptureRef,
+} from "../utils/scriptureRef";
 
 interface NoteCardProps {
   note: Note;
   onViewInBible: (book: string, chapter: number, verse: number) => void;
   onEdit?: (note: Note) => void;
   onDelete?: (evt: MouseEvent<HTMLButtonElement>, note: Note) => void;
+  onPlayFromNote?: (noteId: string) => void;
+  commentCount?: number;
+  onCountChange?: (delta: number) => void;
+  /** Verse selection scope — defaults to the note id. The drag
+   *  overlay passes a distinct scope so it never shares DOM ids or
+   *  selection state with the real card. */
+  verseScope?: string;
+  dragHandleProps?: {
+    ref?: (element: HTMLElement | null) => void;
+    [key: string]: unknown;
+  };
 }
 
-const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {  
+const NoteCard = ({
+  note,
+  onViewInBible,
+  onEdit,
+  onDelete,
+  onPlayFromNote,
+  commentCount,
+  onCountChange,
+  verseScope,
+  dragHandleProps,
+}: NoteCardProps) => {
+  const scope = verseScope ?? note.id;
+  const [threadOpen, setThreadOpen] = useState(false);
+  const [passageContainer, setPassageContainer] =
+    useState<ScriptureRef | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Use headings from the note (provided by backend)
+  const noteHeadings = note.headings || [];
+
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
+
+  const onGrabBiblePassage = (hashtag: string): void => {
+    const result = parseScriptureRef(hashtag);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
+    setError(null);
+    setPassageContainer((current) =>
+      isSameScriptureRef(current, result.ref) ? null : result.ref
+    );
+  };
+
+  const versesFolded = useBibleStore((state) => state.versesFolded);
+
   const firstVerse = note?.verses?.[0]?.verse || 1;
-  const lastVerse = note?.verses?.[note.verses.length - 1]?.verse || 1;
+  const lastVerse =
+    note?.verses?.[(note.verses?.length ?? 0) - 1]?.verse || 1;
   const book = note?.verses?.[0]?.book || "";
   const chapter = note?.verses?.[0]?.chapter || 1;
 
@@ -33,7 +113,7 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
       ? `Note: ${note.tag.name}`
       : 'Shared note';
     const text = note.note_text
-      ? note.note_text.slice(0, 140)
+      ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
     if (navigator.share) {
@@ -58,72 +138,374 @@ const NoteCard = ({ note, onViewInBible, onEdit, onDelete }: NoteCardProps) => {
     }
   };
 
+  // commentCount is undefined on the detail route, which renders
+  // its own always-expanded CommentThread – no badge needed there.
+  const showCommentButton = commentCount === undefined
+    ? false
+    : commentCount > 0 || isAuthenticated;
+
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
-      <Group position="apart" mb={0}>
-        <Title order={4}>{heading}</Title>
-        <Group spacing="xs">
-          <Button
-            variant="subtle"
-            size="xs"
-            onClick={() => onViewInBible(book, chapter, firstVerse)}
+      {error && (
+        <Text color="red">{error}</Text>
+      )}
+      <Box
+        sx={!versesFolded ? (theme) => ({
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: theme.spacing.md,
+          marginBottom: 0,
+          overflow: 'hidden',
+        }) : undefined}
+      >
+        <Group
+          position="apart"
+          mb={0}
+          sx={!versesFolded
+            ? { flex: 1, minWidth: 0 }
+            : undefined}
+        >
+          <Title 
+            order={4} 
+            className="note-card-heading"
+            ref={dragHandleProps?.ref as any}
+            {...(dragHandleProps ? Object.fromEntries(
+              Object.entries(dragHandleProps).filter(([key]) => key !== 'ref')
+            ) : {})}
+            sx={dragHandleProps ? {
+              cursor: 'grab',
+              userSelect: 'none',
+              '&:active': {
+                cursor: 'grabbing',
+              },
+            } : undefined}
           >
-            View in Bible
-          </Button>
-          {canShare && (
-            <Button
-              variant="subtle"
-              size="xs"
-              onClick={handleShare}
-            >
-              Share
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              variant="subtle"
-              size="xs"
-              onClick={() => onEdit!(note)}
-            >
-              Edit
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="subtle"
-              size="xs"
-              onClick={
-                (evt: MouseEvent<HTMLButtonElement>) =>
-                  onDelete!(evt, note)
-              }
-            >
-              Remove
-            </Button>
+            {heading}
+          </Title>
+          {versesFolded && (
+            <Group spacing="xs" sx={{ position: 'relative', zIndex: 1 }}>
+              <Tooltip label="View in Bible" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => onViewInBible(book, chapter, firstVerse)}
+                    aria-label="view-in-bible"
+                  >
+                    <IconBook size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
+              {canShare && (
+                <Tooltip label="Share" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      onClick={handleShare}
+                      aria-label="share-note"
+                    >
+                      <IconShare size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
+              )}
+              {onPlayFromNote && (
+                <Tooltip label="Play from here" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      color="blue"
+                      onClick={() => onPlayFromNote(note.id)}
+                      aria-label={`play-from-${note.id}`}
+                    >
+                      <IconPlayerPlay size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
+              )}
+              {canEdit && (
+                <Tooltip label="Edit" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => onEdit!(note)}
+                      aria-label="edit-note"
+                    >
+                      <IconEdit size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
+              )}
+              {canDelete && (
+                <Tooltip label="Remove" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      color="red"
+                      onClick={
+                        (evt: MouseEvent<HTMLButtonElement>) =>
+                          onDelete!(evt, note)
+                      }
+                      aria-label="remove-note"
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
+              )}
+              {showCommentButton && (
+                <Tooltip
+                  label={
+                    commentCount === 0
+                      ? 'Add a comment'
+                      : `${commentCount} comment${
+                          commentCount === 1 ? '' : 's'
+                        }`
+                  }
+                  position="top"
+                >
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      compact
+                      leftIcon={
+                        <IconMessageCircle size={14} />
+                      }
+                      aria-label={
+                        commentCount === 0
+                          ? 'Add a comment'
+                          : undefined
+                      }
+                      aria-expanded={threadOpen}
+                      aria-controls={`comment-thread-${note.id}`}
+                      onClick={() =>
+                        setThreadOpen((o) => !o)
+                      }
+                    >
+                      {commentCount && commentCount > 0
+                        ? String(commentCount)
+                        : null}
+                    </Button>
+                  </Box>
+                </Tooltip>
+              )}
+            </Group>
           )}
         </Group>
-      </Group>
-
-      <Box mt={-10}>
-        {note?.verses?.map(v => (
-          <Verse key={v.verse} verse={v.verse} text={v.text} />
-        ))}
+        {!versesFolded && (
+          <Group
+            spacing="xs"
+            sx={{
+              flexShrink: 0,
+              position: 'relative',
+              zIndex: 1,
+            }}
+          >
+            <Tooltip label="View in Bible" position="top">
+              <Box component="span" sx={{ display: 'inline-block' }}>
+                <ActionIcon
+                  variant="subtle"
+                  size="sm"
+                  onClick={() => onViewInBible(book, chapter, firstVerse)}
+                  aria-label="view-in-bible"
+                >
+                  <IconBook size={16} />
+                </ActionIcon>
+              </Box>
+            </Tooltip>
+            {canShare && (
+              <Tooltip label="Share" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={handleShare}
+                    aria-label="share-note"
+                  >
+                    <IconShare size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
+            )}
+            {onPlayFromNote && (
+              <Tooltip label="Play from here" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    color="blue"
+                    onClick={() => onPlayFromNote(note.id)}
+                    aria-label={`play-from-${note.id}`}
+                  >
+                    <IconPlayerPlay size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
+            )}
+            {canEdit && (
+              <Tooltip label="Edit" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => onEdit!(note)}
+                    aria-label="edit-note"
+                  >
+                    <IconEdit size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
+            )}
+            {canDelete && (
+              <Tooltip label="Remove" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    color="red"
+                    onClick={
+                      (evt: MouseEvent<HTMLButtonElement>) =>
+                        onDelete!(evt, note)
+                    }
+                    aria-label="remove-note"
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
+            )}
+            {showCommentButton && (
+              <Tooltip
+                label={
+                  commentCount === 0
+                    ? 'Add a comment'
+                    : `${commentCount} comment${
+                        commentCount === 1 ? '' : 's'
+                      }`
+                }
+                position="top"
+              >
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <Button
+                    variant="subtle"
+                    size="xs"
+                    compact
+                    leftIcon={
+                      <IconMessageCircle size={14} />
+                    }
+                    aria-label={
+                      commentCount === 0
+                        ? 'Add a comment'
+                        : undefined
+                    }
+                    aria-expanded={threadOpen}
+                    aria-controls={`comment-thread-${note.id}`}
+                    onClick={() =>
+                      setThreadOpen((o) => !o)
+                    }
+                  >
+                    {commentCount && commentCount > 0
+                      ? String(commentCount)
+                      : null}
+                  </Button>
+                </Box>
+              </Tooltip>
+            )}
+          </Group>
+        )}
       </Box>
 
       <Box
-        mt={10}
-        p={10}
-        sx={(theme) => ({
-          backgroundColor:
-            theme.colorScheme === "dark"
-              ? theme.colors.dark[4]
-              : theme.colors.gray[4],
-          borderRadius: theme.radius.sm,
-        })}
+        mt={-10}
+        sx={{ position: 'relative', zIndex: 0 }}
+        data-verse-scope={scope}
       >
-        <Text fs="italic">
-          {note.note_text}
-        </Text>
+        {versesFolded
+          ? note?.verses?.slice(0, 1).map(v => {
+              // Check if there's a heading before this verse
+              const heading = noteHeadings.find(
+                h => h.before_verse === v.verse
+              );
+              return (
+                <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
+                  {heading && (
+                    <SectionHeadingComponent text={heading.text} />
+                  )}
+                  <Verse
+                    scope={scope}
+                    book={v.book}
+                    chapter={v.chapter}
+                    verse={v.verse}
+                    text={v.text}
+                    folded
+                    selectable={false}
+                  />
+                </Box>
+              );
+            })
+          : note?.verses?.map(v => {
+              // Check if there's a heading before this verse
+              const heading = noteHeadings.find(
+                h => h.before_verse === v.verse
+              );
+              return (
+                <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
+                  {heading && (
+                    <SectionHeadingComponent text={heading.text} />
+                  )}
+                  <Verse
+                    scope={scope}
+                    book={v.book}
+                    chapter={v.chapter}
+                    verse={v.verse}
+                    text={v.text}
+                  />
+                </Box>
+              );
+            })
+        }
       </Box>
+
+      {note.note_text && (
+        <Box
+          mt={10}
+          p={10}
+          sx={(theme) => ({
+            backgroundColor:
+              theme.colorScheme === "dark"
+                ? theme.colors.dark[4]
+                : theme.colors.gray[4],
+            borderRadius: theme.radius.sm,
+          })}
+        >
+          <Box sx={{ fontStyle: "italic" }}>
+            <RichTextView
+              content={note.note_text}
+              onScriptureRef={onGrabBiblePassage}
+            />
+          </Box>
+        </Box>
+      )}
+      {passageContainer && (
+        <ScripturePassage reference={passageContainer} />
+      )}
+
+      {threadOpen && (
+        <Box
+          id={`comment-thread-${note.id}`}
+          mt={8}
+        >
+          <CommentThread
+            noteId={note.id}
+            onCountChange={onCountChange}
+          />
+        </Box>
+      )}
     </Card>
   );
 };

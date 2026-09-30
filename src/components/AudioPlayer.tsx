@@ -15,9 +15,11 @@ import {
   IconPlayerSkipBack,
   IconPlayerSkipForward,
   IconRepeat,
+  IconFocus2,
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
+import { getPlayPosition } from '../utils/audioUtils';
 
 interface AudioPlayerProps {
   audio: Howl | null;
@@ -26,6 +28,8 @@ interface AudioPlayerProps {
   onPlayPause: () => void;
   onLoopToggle: () => void;
   onClose: () => void;
+  subtitle?: string;
+  onFocus?: () => void;
 }
 
 const AudioPlayer = ({
@@ -35,11 +39,13 @@ const AudioPlayer = ({
   onPlayPause,
   onLoopToggle,
   onClose,
+  subtitle,
+  onFocus,
 }: AudioPlayerProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seeking, setSeeking] = useState(false);
-  const activeBook = useBibleStore((state) => state.activeBook);
+  const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
 
   // Update current time
@@ -48,8 +54,8 @@ const AudioPlayer = ({
 
     const interval = setInterval(() => {
       if (!seeking) {
-        const seek = audio.seek() as number;
-        setCurrentTime(seek);
+        const seek = getPlayPosition(audio);
+        if (seek !== null) setCurrentTime(seek);
       }
     }, 100);
 
@@ -90,24 +96,23 @@ const AudioPlayer = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSeek = (value: number) => {
-    if (!audio) return;
+  const seekTo = (value: number) => {
+    // Seeking a not-yet-loaded Howl passes NaN through to the html5
+    // node and wedges it — only seek a loaded sound.
+    if (!audio || audio.state() !== 'loaded') return;
+    if (!Number.isFinite(value)) return;
     audio.seek(value);
     setCurrentTime(value);
   };
 
   const handleSkipBackward = () => {
-    if (!audio) return;
-    const newTime = Math.max(0, currentTime - 5);
-    audio.seek(newTime);
-    setCurrentTime(newTime);
+    const pos = getPlayPosition(audio) ?? currentTime;
+    seekTo(Math.max(0, pos - 5));
   };
 
   const handleSkipForward = () => {
-    if (!audio) return;
-    const newTime = Math.min(duration, currentTime + 5);
-    audio.seek(newTime);
-    setCurrentTime(newTime);
+    const pos = getPlayPosition(audio) ?? currentTime;
+    seekTo(Math.min(duration, pos + 5));
   };
 
   if (!audio) return null;
@@ -135,9 +140,21 @@ const AudioPlayer = ({
       })}
     >
       <Group position="apart" mb="xs">
-        <Text weight={500} size="sm">
-          {activeBook} {activeChapter}
-        </Text>
+        <Group spacing={4} sx={{ flex: 1, minWidth: 0 }}>
+          {onFocus && (
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              onClick={onFocus}
+              title="Go to passage"
+            >
+              <IconFocus2 size={16} />
+            </ActionIcon>
+          )}
+          <Text weight={500} size="sm" lineClamp={1}>
+            {subtitle ?? `${activeBookId} ${activeChapter}`}
+          </Text>
+        </Group>
         <CloseButton onClick={onClose} title="Close player" />
       </Group>
 
@@ -194,7 +211,7 @@ const AudioPlayer = ({
               setCurrentTime(value);
             }}
             onChangeEnd={(value) => {
-              handleSeek(value);
+              seekTo(value);
               setSeeking(false);
             }}
             label={null}
@@ -202,7 +219,11 @@ const AudioPlayer = ({
           />
         </Box>
 
-        <Text size="xs" color="dimmed" sx={{ minWidth: 80, textAlign: 'right' }}>
+        <Text
+          size="xs"
+          color="dimmed"
+          sx={{ minWidth: 80, textAlign: 'right' }}
+        >
           {formatTime(currentTime)} / {formatTime(duration)}
         </Text>
       </Group>

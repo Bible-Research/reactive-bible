@@ -1,7 +1,6 @@
 /**
  * @vitest-environment jsdom
  */
-import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect } from 'vitest';
@@ -13,7 +12,7 @@ describe.skip('Notes Workflow Integration Test', () => {
     const user = userEvent.setup();
     const { mockStore } = renderWithProviders(<App />, {
       storeOverrides: {
-        activeBook: 'John',
+        activeBookId: 'JHN',
         activeChapter: 3,
       },
     });
@@ -47,6 +46,6 @@ describe.skip('Notes Workflow Integration Test', () => {
     });
 
     // 6. Verify the selected verses are cleared
-    expect(mockStore.setActiveVerses).toHaveBeenCalledWith([]);
+    expect(mockStore.setVerseSelection).toHaveBeenCalledWith(null);
   });
 });

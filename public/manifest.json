@@ -3,8 +3,8 @@
   "short_name": "Bible",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#141517",
+  "theme_color": "#141517",
   "icons": [
     {
       "src": "/icon-192x192.png",

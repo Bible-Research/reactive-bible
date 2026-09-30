@@ -1,6 +1,12 @@
-import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  type Mock,
+} from 'vitest';
 import EditNoteModal from './EditNoteModal';
 import {
   renderWithProviders,
@@ -15,6 +21,13 @@ vi.mock('../api', () => ({
   editNote: vi.fn(),
 }));
 
+// ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
+vi.mock('./RichTextEditor', async () => ({
+  default: (
+    await import('../__tests__/mocks/RichTextEditorStub')
+  ).default,
+}));
+
 describe('EditNoteModal Component', () => {
   // Use factory function for cleaner test data
   const mockNote = createMockNote({
@@ -27,7 +40,7 @@ describe('EditNoteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    (api.getTags as vi.Mock).mockResolvedValue([
+    (api.getTags as Mock).mockResolvedValue([
       createMockTag({ id: '1', name: 'Faith' }),
     ]);
   });
