@@ -32,6 +32,29 @@ import {
   buildBiblePath,
   filesetCoversTestament,
 } from '../utils/bibleUtils';
+import { verseDomId } from '../utils/verseRefs';
+
+/**
+ * First 'bible'-scoped verse whose element is at least partially
+ * visible below the top edge of the scroll viewport. Verse ids
+ * look like `verse-bible-jhn-3-16` — the last segment is the
+ * verse number.
+ */
+const firstVisibleVerse = (
+  viewport: HTMLElement,
+): number | null => {
+  const top = viewport.getBoundingClientRect().top;
+  const elements = viewport.querySelectorAll(
+    '[id^="verse-bible-"]'
+  );
+  for (const el of Array.from(elements)) {
+    if (el.getBoundingClientRect().bottom > top) {
+      const verse = Number(el.id.split('-').pop());
+      return Number.isNaN(verse) ? null : verse;
+    }
+  }
+  return null;
+};
 
 const PassageView = () => {
   const {
@@ -64,6 +87,7 @@ const PassageView = () => {
   const [tocLoading, setTocLoading] = useState(false);
   const pendingScrollHeadingRef = useRef<number | null>(null);
   const tocAbortRef = useRef(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -205,6 +229,44 @@ const PassageView = () => {
           }, 50);
         }
 
+        // Consume a pending reading-position restore (set by
+        // setActiveBookWithPosition on book switch). The verse is
+        // scrolled into view without selecting it.
+        const pendingPosition =
+          useBibleStore.getState().pendingScrollVerse;
+        const restoreVerse =
+          pendingPosition &&
+          pendingPosition.bookId === activeBookId &&
+          pendingPosition.chapter === activeChapter
+            ? pendingPosition.verse
+            : null;
+        if (pendingPosition) {
+          useBibleStore.getState().setPendingScrollVerse(null);
+        }
+        if (restoreVerse !== null) {
+          setTimeout(() => {
+            document
+              .getElementById(
+                verseDomId('bible', {
+                  bookId: activeBookId,
+                  chapter: activeChapter,
+                  verse: restoreVerse,
+                })
+              )
+              ?.scrollIntoView({ block: 'start' });
+          }, 50);
+        }
+
+        // Persist the position the user landed on. Scroll events
+        // refine the verse afterwards.
+        useBibleStore
+          .getState()
+          .syncReadingPosition(
+            activeBookId,
+            activeChapter,
+            restoreVerse ?? 1
+          );
+
         // Prefetch current chapter audio (parallel)
         prefetchAudioUrl(
           activeBookId, activeChapter, activeAudioFilesetId
@@ -235,6 +297,39 @@ const PassageView = () => {
         setLoading(false);
       });
   }, [activeBookId, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
+
+  // Debounced first-verse-in-view tracking: keeps the saved
+  // reading position accurate enough for scroll restoration.
+  // The viewport only exists once the verse list is rendered.
+  useEffect(() => {
+    if (loading || headingsOnlyMode) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handleScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const verse = firstVisibleVerse(viewport);
+        if (verse === null) return;
+        const {
+          activeBookId: bookId,
+          activeChapter: chapter,
+        } = useBibleStore.getState();
+        useBibleStore
+          .getState()
+          .syncReadingPosition(bookId, chapter, verse);
+      }, 400);
+    };
+
+    viewport.addEventListener('scroll', handleScroll, {
+      passive: true,
+    });
+    return () => {
+      clearTimeout(timer);
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, [loading, headingsOnlyMode]);
 
   if (loading) {
     return (
@@ -349,7 +444,7 @@ const PassageView = () => {
   }
 
   return (
-    <ScrollArea h="calc(100vh - 112px)">
+    <ScrollArea h="calc(100vh - 112px)" viewportRef={viewportRef}>
       <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">
         {verses.map((verse) => {
           const heading = headings.find(

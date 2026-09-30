@@ -84,6 +84,8 @@ npm test -- --run  # vitest headless (389 tests, ~85s)
 
 ## Known gaps (do NOT "fix" without asking)
 
-- Backend image-upload + reading-positions endpoints are NOT
-  consumed yet — intentional, pending design.
+- Backend image-upload endpoints are NOT consumed yet —
+  intentional, pending design. (Reading positions ARE consumed:
+  book-name keyed, auth-gated; see `readingPositions` in
+  `src/store.tsx`.)
 - KJV audio is fetched from wordpocket.org directly, not the API.
