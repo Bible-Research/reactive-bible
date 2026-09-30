@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent } from 
+import { act, render, screen, fireEvent } from
   '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NoteForm from './NoteForm';
@@ -100,8 +100,119 @@ describe('NoteForm Component', () => {
     // This test is skipped due to Select portal rendering
   });
 
-  it.skip('should call onTagDropdownOpen when dropdown opens', 
+  it.skip('should call onTagDropdownOpen when dropdown opens',
     () => {
     // This test is skipped due to Select portal rendering
+  });
+
+  describe('auto save', () => {
+    it('hides the checkbox without onAutoSave', () => {
+      render(
+        <NoteForm
+          tags={mockTags}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      expect(
+        screen.queryByLabelText('Auto save')
+      ).not.toBeInTheDocument();
+    });
+
+    it('saves every 5s while enabled', async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+        expect(onAutoSave).toHaveBeenCalledWith('', 'Draft text');
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('skips saving while the note is empty', async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(15000);
+        });
+        expect(onAutoSave).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('stops saving when the checkbox is unchecked',
+      async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        const checkbox = screen.getByLabelText('Auto save');
+        fireEvent.click(checkbox);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(checkbox);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });
