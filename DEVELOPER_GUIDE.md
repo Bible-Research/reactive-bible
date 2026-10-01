@@ -1831,7 +1831,10 @@ Modal for editing existing notes.
 
 **Responsibilities**:
 - Display NoteForm pre-filled with note data
-- Handle note update to API
+- Edit the note's verse links via an embedded PassagePicker
+  (click toggles a verse, shift-click extends a range)
+- Preview the selected verses' text via `useVerseTexts`
+- Handle note update to API (PATCH incl. `verse_references`)
 - Close modal on success or cancel
 
 #### `TagSection.tsx`
@@ -1959,7 +1962,10 @@ Contains the complete King James Version Bible text stored locally for offline a
    PATCH /notes/{noteId}/
    Body: { 
      tag: string, 
-     note_text: string 
+     note_text: string,
+     verse_references: [         // optional; replaces links
+       { book: string, chapter: number, verse: number }
+     ]
    }
    Response: Note
    ```
@@ -2181,15 +2187,21 @@ addTagNote(
 ): Promise<Note>
 ```
 
-**`editNote(noteId, tagId, noteText)`**
+**`editNote(noteId, tagId, noteText, verseReferences?)`**
 
-Updates an existing note.
+Updates an existing note. When `verseReferences` is provided it is
+sent as `verse_references` and replaces the note's verse links.
 
 ```typescript
 editNote(
   noteId: string,
   tagId: string,
-  noteText: string
+  noteText: string,
+  verseReferences?: {
+    book: string;
+    chapter: number;
+    verse: number;
+  }[]
 ): Promise<Note>
 ```
 
