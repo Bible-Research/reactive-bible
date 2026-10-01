@@ -1,9 +1,11 @@
 import { Box, Divider, Modal, Text } from "@mantine/core";
-import { addTagNote, getVersesInChapter } from "../api";
+import { addTagNote, getLinkedNotes, getVersesInChapter } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useMemo, useState } from "react";
+import { Note } from "../types";
 import { groupRefsByChapter } from "../utils/verseRefs";
 import { toBookName } from "../utils/bibleUtils";
+import { toPlainText } from "../utils/tiptapContent";
 import NoteForm from "./NoteForm";
 
 interface AddTagNoteModalProps {
@@ -17,6 +19,19 @@ interface VerseText {
   verse: number;
   text: string;
 }
+
+const linkedNoteHeading = (note: Note): string => {
+  const verses = note.verses ?? [];
+  const first = verses[0];
+  if (!first) return note.tag?.name ?? "";
+  const last = verses[verses.length - 1];
+  const range =
+    first.verse === last.verse
+      ? `${first.verse}`
+      : `${first.verse}-${last.verse}`;
+  const ref = `${first.book} ${first.chapter}:${range}`;
+  return note.tag?.name ? `${ref} · ${note.tag.name}` : ref;
+};
 
 const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   const {
@@ -43,6 +58,10 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   );
 
   const [verseTexts, setVerseTexts] = useState<VerseText[]>([]);
+  // null = not loaded yet or no selection; count is shown only
+  // once the linked-notes query has resolved.
+  const [linkedNotes, setLinkedNotes] =
+    useState<Note[] | null>(null);
 
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
@@ -94,16 +113,43 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     };
   }, [opened, refs, activeTextFilesetId]);
 
-  const handleSubmit = async (tagId: string, text: string) => {
-    // The notes API expects book names (verses[].book).
-    const verseReferences = refs.map(
-      ({ bookId, chapter, verse }) => ({
+  // The notes API expects book names (verses[].book).
+  const verseReferences = useMemo(
+    () =>
+      refs.map(({ bookId, chapter, verse }) => ({
         book: toBookName(bookId) ?? bookId,
         chapter,
         verse,
-      })
-    );
+      })),
+    [refs]
+  );
 
+  useEffect(() => {
+    if (!opened || verseReferences.length === 0) {
+      setLinkedNotes(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchLinkedNotes = async () => {
+      try {
+        const result = await getLinkedNotes(
+          verseReferences,
+          activeTextFilesetId ?? undefined
+        );
+        if (!cancelled) {
+          setLinkedNotes(result.results);
+        }
+      } catch {
+        // Non-critical — linked notes are best-effort
+      }
+    };
+    void fetchLinkedNotes();
+    return () => {
+      cancelled = true;
+    };
+  }, [opened, verseReferences, activeTextFilesetId]);
+
+  const handleSubmit = async (tagId: string, text: string) => {
     try {
       await addTagNote(tagId, text, verseReferences);
       setLastSelectedTagId(tagId || null);
@@ -131,6 +177,14 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
 
   return (
     <Modal opened={opened} onClose={onClose} title="Add note" fullScreen>
+      {linkedNotes && (
+        <Text size="sm" color="dimmed" mb="sm">
+          {linkedNotes.length}{" "}
+          {linkedNotes.length === 1
+            ? "linked note"
+            : "linked notes"}
+        </Text>
+      )}
       <NoteForm
         tags={tags}
         onSubmit={handleSubmit}
@@ -157,6 +211,30 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
           ))}
         </Box>
       ))}
+      {linkedNotes && linkedNotes.length > 0 && (
+        <Box mt="xl">
+          <Divider
+            my="sm"
+            label="Linked notes"
+            labelPosition="center"
+          />
+          {linkedNotes.map((note) => (
+            <Box
+              key={note.id}
+              py={4}
+              px={8}
+              title={`linked-note-${note.id}`}
+            >
+              <Text size="sm">
+                <Text component="span" weight={700} mr={4}>
+                  {linkedNoteHeading(note)}
+                </Text>
+                {toPlainText(note.note_text)}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Modal>
   );
 };
