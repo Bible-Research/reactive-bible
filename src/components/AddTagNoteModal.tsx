@@ -1,21 +1,14 @@
 import { Box, Divider, Modal, Text } from "@mantine/core";
-import { addTagNote, getVersesInChapter } from "../api";
+import { addTagNote } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect, useMemo, useState } from "react";
-import { groupRefsByChapter } from "../utils/verseRefs";
+import { useEffect, useMemo } from "react";
 import { toBookName } from "../utils/bibleUtils";
+import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
 
 interface AddTagNoteModalProps {
   opened: boolean;
   onClose: () => void;
-}
-
-interface VerseText {
-  book: string;
-  chapter: number;
-  verse: number;
-  text: string;
 }
 
 const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
@@ -42,7 +35,9 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     [verseSelection]
   );
 
-  const [verseTexts, setVerseTexts] = useState<VerseText[]>([]);
+  // Selections may span chapters/books — the hook fetches each
+  // book/chapter group independently.
+  const verseTexts = useVerseTexts(refs, activeTextFilesetId, opened);
 
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
@@ -51,48 +46,6 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]); // Only run when opened changes
-
-  useEffect(() => {
-    if (!opened || !activeTextFilesetId || refs.length === 0) return;
-
-    let cancelled = false;
-
-    const fetchVerseTexts = async () => {
-      try {
-        // Selections may span chapters/books — fetch each
-        // book/chapter group independently.
-        const groups = groupRefsByChapter(refs);
-        const results = await Promise.all(
-          groups.map(async (group) => {
-            const result = await getVersesInChapter(
-              group.bookId,
-              group.chapter,
-              activeTextFilesetId
-            );
-            const wanted = new Set(group.verses);
-            return result.verses
-              .filter((v) => wanted.has(v.verse))
-              .map((v) => ({
-                book: toBookName(group.bookId) ?? group.bookId,
-                chapter: group.chapter,
-                verse: v.verse,
-                text: v.text,
-              }));
-          })
-        );
-        if (cancelled) return;
-        setVerseTexts(results.flat());
-      } catch {
-        // Non-critical — verse preview is best-effort
-      }
-    };
-
-    void fetchVerseTexts();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [opened, refs, activeTextFilesetId]);
 
   const handleSubmit = async (tagId: string, text: string) => {
     // The notes API expects book names (verses[].book).
@@ -108,26 +61,16 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
       await addTagNote(tagId, text, verseReferences);
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
-      setVerseTexts([]);
       onClose();
     } catch (error) {
       console.error(error);
     }
   };
 
-  const textGroups = useMemo(() => {
-    const groups = new Map<string, VerseText[]>();
-    for (const v of verseTexts) {
-      const key = `${v.book} ${v.chapter}`;
-      const group = groups.get(key);
-      if (group) {
-        group.push(v);
-      } else {
-        groups.set(key, [v]);
-      }
-    }
-    return [...groups.entries()];
-  }, [verseTexts]);
+  const textGroups = useMemo(
+    () => groupVerseTexts(verseTexts),
+    [verseTexts]
+  );
 
   return (
     <Modal opened={opened} onClose={onClose} title="Add note" fullScreen>

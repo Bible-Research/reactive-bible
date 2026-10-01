@@ -1,9 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Divider, Modal, Text } from "@mantine/core";
 import { editNote } from "../api";
 import { useBibleStore } from "../store";
+import { toBookName, toUsfmCode } from "../utils/bibleUtils";
+import { clearNotesCache } from "../utils/cacheManager";
+import {
+  refsInclude,
+  sameRef,
+  sortRefs,
+  verseNumbersFor,
+} from "../utils/verseRefs";
+import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
-import { Note } from "../types";
+import PassagePicker from "./PassagePicker";
+import { Note, VerseRef } from "../types";
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -12,43 +22,117 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
-  const { tags, getTags, fetchNotes } = useBibleStore((state) => ({
+  const {
+    tags,
+    getTags,
+    fetchNotes,
+    activeTextFilesetId,
+    activeBookId,
+    activeChapter,
+  } = useBibleStore((state) => ({
     tags: state.tags,
     getTags: state.getTags,
     fetchNotes: state.fetchNotes,
+    activeTextFilesetId: state.activeTextFilesetId,
+    activeBookId: state.activeBookId,
+    activeChapter: state.activeChapter,
   }));
 
+  // The note's verse links, editable via the picker below.
+  const [refs, setRefs] = useState<VerseRef[]>([]);
+  const [pickerBookId, setPickerBookId] = useState<string | null>(null);
+  const [pickerChapter, setPickerChapter] = useState<number | null>(
+    null
+  );
+  // Last plain-clicked verse; a shift-click extends a range from it.
+  const anchorRef = useRef<VerseRef | null>(null);
+
+  // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
-    if (opened) {
-      // Ensure tags are loaded (uses cache if available)
-      getTags();
-    }
+    if (!opened) return;
+    getTags(); // Uses cache if available
+    if (!note) return;
+    const initial = (note.verses ?? [])
+      .map((v) => ({
+        bookId: toUsfmCode(v.book) ?? "",
+        chapter: v.chapter,
+        verse: v.verse,
+      }))
+      .filter((r) => r.bookId !== "");
+    setRefs(initial);
+    anchorRef.current = null;
+    setPickerBookId(initial[0]?.bookId ?? activeBookId);
+    setPickerChapter(initial[0]?.chapter ?? activeChapter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened]); // Only run when modal opens
+  }, [opened, note]); // Only run when the modal opens / note changes
+
+  const pickerVerses =
+    pickerBookId && pickerChapter !== null
+      ? verseNumbersFor(refs, pickerBookId, pickerChapter)
+      : [];
+
+  const verseTexts = useVerseTexts(refs, activeTextFilesetId, opened);
+  const textGroups = useMemo(
+    () => groupVerseTexts(verseTexts),
+    [verseTexts]
+  );
+
+  const handleSelectVerse = (verse: number, extendRange: boolean) => {
+    if (!pickerBookId || pickerChapter === null) return;
+    const ref: VerseRef = {
+      bookId: pickerBookId,
+      chapter: pickerChapter,
+      verse,
+    };
+    const anchor = anchorRef.current;
+    if (
+      extendRange &&
+      anchor &&
+      anchor.bookId === ref.bookId &&
+      anchor.chapter === ref.chapter
+    ) {
+      // Range selection is constrained to a single book/chapter.
+      const start = Math.min(anchor.verse, ref.verse);
+      const end = Math.max(anchor.verse, ref.verse);
+      setRefs((current) => {
+        const merged = [...current];
+        for (let v = start; v <= end; v++) {
+          const rangeRef = { ...ref, verse: v };
+          if (!refsInclude(merged, rangeRef)) merged.push(rangeRef);
+        }
+        return merged;
+      });
+      return;
+    }
+    anchorRef.current = ref;
+    setRefs((current) =>
+      refsInclude(current, ref)
+        ? current.filter((r) => !sameRef(r, ref))
+        : [...current, ref]
+    );
+  };
 
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
 
+    // The notes API expects book names (verses[].book).
+    const verseReferences = sortRefs(refs).map(
+      ({ bookId, chapter, verse }) => ({
+        book: toBookName(bookId) ?? bookId,
+        chapter,
+        verse,
+      })
+    );
+
     try {
-      await editNote(note.id, tagId, text);
+      await editNote(note.id, tagId, text, verseReferences);
+      clearNotesCache(); // Cached pages hold stale verse links
       fetchNotes(tagId); // Refresh notes list
       onClose();
     } catch (error) {
       console.error(error);
     }
   };
-
-  const firstVerse = note?.verses?.[0];
-  const lastVerse =
-    note?.verses?.[(note.verses?.length ?? 0) - 1];
-  const verseLabel = firstVerse
-    ? firstVerse.verse === lastVerse?.verse
-      ? `${firstVerse.book} ${firstVerse.chapter}:${firstVerse.verse}`
-      : (
-        `${firstVerse.book} ${firstVerse.chapter}:` +
-        `${firstVerse.verse}–${lastVerse?.verse}`
-      )
-    : undefined;
 
   return (
     <Modal opened={opened} onClose={onClose} title="Edit note" fullScreen>
@@ -61,14 +145,34 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             onTagDropdownOpen={() => getTags()}
             note={{ tagId: note.tag.id, text: note.note_text }}
           />
-          {note.verses?.length > 0 && (
-            <Box mt="xl">
+          <Divider
+            mt="xl"
+            mb="sm"
+            label="Linked verses"
+            labelPosition="center"
+          />
+          <Box h={280}>
+            <PassagePicker
+              bookId={pickerBookId}
+              chapter={pickerChapter}
+              verses={pickerVerses}
+              titlePrefix="edit-note-"
+              onSelectBook={(bookId) => {
+                setPickerBookId(bookId);
+                setPickerChapter(null);
+              }}
+              onSelectChapter={setPickerChapter}
+              onSelectVerse={handleSelectVerse}
+            />
+          </Box>
+          {textGroups.map(([label, groupVerses]) => (
+            <Box key={label} mt="xl">
               <Divider
                 my="sm"
-                label={verseLabel}
+                label={label}
                 labelPosition="center"
               />
-              {note.verses.map((v) => (
+              {groupVerses.map((v) => (
                 <Box key={v.verse} py={4} px={8}>
                   <Text size="sm">
                     <Text component="span" weight={700} mr={4}>
@@ -79,7 +183,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 </Box>
               ))}
             </Box>
-          )}
+          ))}
         </>
       )}
     </Modal>

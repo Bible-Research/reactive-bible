@@ -272,11 +272,20 @@ export const addTagNote = async (
 };
 
 export const editNote = async (
-  noteId: string, 
-  tagId: string, 
-  noteText: string
+  noteId: string,
+  tagId: string,
+  noteText: string,
+  verseReferences?: { book: string; chapter: number; verse: number }[]
 ) => {
-  const body = JSON.stringify({ tag: tagId, note_text: noteText });
+  // verse_references replaces the note's verse links when present;
+  // omitting it leaves them untouched.
+  const body = JSON.stringify({
+    tag: tagId,
+    note_text: noteText,
+    ...(verseReferences !== undefined
+      ? { verse_references: verseReferences }
+      : {}),
+  });
   try {
     const response = await authenticatedFetch(
       `${API_BASE_URL}/api/v1/notes/${noteId}/`,
