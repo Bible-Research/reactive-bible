@@ -1260,6 +1260,8 @@ Create and organize notes with tags for Bible verses.
 - Navigate to verse from note
 - API integration for persistence
 - Auto-clear selected verses after note creation
+- Linked notes: the creation modal shows a count of existing
+  notes on the selected verses and lists them at the bottom
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -1286,6 +1288,13 @@ addTagNote(
   noteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[]
 )
+
+// Fetch the user's notes linked to any of the given verses
+// (POST /api/v1/notes/linked/)
+getLinkedNotes(
+  verseReferences: { book: string; chapter: number; verse: number }[],
+  filesetId?: string
+): Promise<LinkedNotesResponse>
 ```
 
 **Implementation Details**:

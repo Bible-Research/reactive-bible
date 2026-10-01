@@ -921,15 +921,49 @@ export const getAllNotes = async (
   const allNotes: Note[] = [];
   let page = 1;
   let hasMore = true;
-  
+
   while (hasMore) {
     const response = await getNotes(tagId, { page });
     allNotes.push(...response.results);
     hasMore = response.next !== null;
     page++;
   }
-  
+
   return allNotes;
+};
+
+export interface LinkedNotesResponse {
+  count: number;
+  results: Note[];
+}
+
+export const getLinkedNotes = async (
+  verseReferences: { book: string; chapter: number; verse: number }[],
+  filesetId?: string
+): Promise<LinkedNotesResponse> => {
+  const params = new URLSearchParams();
+  if (filesetId) {
+    params.append('fileset_id', filesetId);
+  }
+  const query = params.toString();
+  const url =
+    `${API_BASE_URL}/api/v1/notes/linked/` +
+    (query ? `?${query}` : '');
+  try {
+    const response = await authenticatedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        verse_references: verseReferences,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch linked notes');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching linked notes:', error);
+    throw error;
+  }
 };
 
 export const getNote = async (noteId: string): Promise<Note> => {
