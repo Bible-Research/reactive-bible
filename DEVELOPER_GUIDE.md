@@ -1647,11 +1647,15 @@ Three-column navigation sidebar for Books → Chapters → Verses.
 Top header bar with controls.
 
 **Responsibilities**:
-- Display burger menu for mobile navbar toggle
-- Show current book and chapter
-- Theme toggle button
+- Display burger menu for the main menu drawer
 - Search button
+- Audio controls (`Audio`)
 - Translation selector button
+- Auto-hide on scroll: a capture-phase `window` scroll listener
+  watches inner scroll containers (scroll events do not bubble).
+  The header slides up after ~150px of accumulated downward scroll
+  and slides back after ~150px of accumulated upward scroll; it is
+  shown again on every route change.
 
 ---
 
