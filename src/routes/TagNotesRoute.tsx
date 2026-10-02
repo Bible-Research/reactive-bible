@@ -127,6 +127,9 @@ export default function TagNotesRoute() {
   const lastLoadRef = useRef<{ key: string; page: number } | null>(
     null
   );
+  // Set while a delete is in flight; a second confirm + DELETE
+  // would 404 and surface a spurious error notification.
+  const deletingRef = useRef(false);
 
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
@@ -254,39 +257,54 @@ export default function TagNotesRoute() {
     note: Note
   ) => {
     evt.preventDefault();
-    if (!note.id) return;
+    if (!note.id || deletingRef.current) return;
     if (!window.confirm('Are you sure you want to delete this note?')) {
       return;
     }
+    deletingRef.current = true;
     try {
-      // The store action drops the card from state as soon as the
-      // DELETE resolves, so the list updates without waiting for
-      // the page refetch below.
-      await deleteNote(note.id);
-    } catch {
-      return; // Store already surfaced an error notification.
-    }
-    if (!tagId) return;
-    const apiOrdering =
-      sortOrder !== 'custom_asc'
-        ? getApiOrdering(sortOrder)
-        : undefined;
-    // Pull the latest server state for the page being viewed so
-    // it backfills; if this was its last note, fall back to the
-    // new last page.
-    const {
-      notesPage: currentPage,
-      notesCount: count,
-      notesPageSize: pageSize,
-    } = useBibleStore.getState();
-    const lastPage = Math.max(1, Math.ceil(count / pageSize));
-    try {
-      await fetchNotes(tagId, {
-        ordering: apiOrdering,
-        page: Math.min(currentPage, lastPage),
-      });
-    } catch {
-      // fetchNotes already surfaced an error notification.
+      try {
+        // The store action drops the card from state as soon as
+        // the DELETE resolves, so the list updates without
+        // waiting for the page refetch below.
+        await deleteNote(note.id);
+      } catch {
+        return; // Store already surfaced an error notification.
+      }
+      if (!tagId) return;
+      // The user may have navigated to a different tag while the
+      // DELETE was in flight; don't touch its notes list.
+      if (useBibleStore.getState().lastSelectedTagId !== tagId) {
+        return;
+      }
+      const apiOrdering =
+        sortOrder !== 'custom_asc'
+          ? getApiOrdering(sortOrder)
+          : undefined;
+      // Pull the latest server state for the page being viewed
+      // so it backfills; if this was its last note, fall back
+      // to the new last page.
+      const current = useBibleStore.getState();
+      const lastPage = Math.max(
+        1,
+        Math.ceil(current.notesCount / current.notesPageSize)
+      );
+      // An emptied list would flash "No notes found" while the
+      // backfill is in flight; show the page loader instead.
+      const emptied = current.notes.length === 0;
+      if (emptied) setPageLoading(true);
+      try {
+        await fetchNotes(tagId, {
+          ordering: apiOrdering,
+          page: Math.min(current.notesPage, lastPage),
+        });
+      } catch {
+        // fetchNotes already surfaced an error notification.
+      } finally {
+        if (emptied) setPageLoading(false);
+      }
+    } finally {
+      deletingRef.current = false;
     }
   };
 

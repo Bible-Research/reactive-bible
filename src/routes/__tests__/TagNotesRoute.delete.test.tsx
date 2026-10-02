@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
-import { renderWithProviders } from '../../__tests__/helpers';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { mockDomApis, renderWithProviders } from '../../__tests__/helpers';
 import TagNotesRoute from '../TagNotesRoute';
 import { useBibleStore, type BibleState } from '../../store';
+import { useAuthStore } from '../../stores/authStore';
 import * as api from '../../api';
 import { Note, Tag } from '../../types';
 
@@ -100,6 +108,17 @@ describe('TagNotesRoute note deletion', () => {
       });
       mockFetchNotes.mockClear();
 
+      // Keep the refetch pending so the card's removal can be
+      // observed while the latest page state is still being
+      // retrieved.
+      let resolveRefetch: (() => void) | undefined;
+      mockFetchNotes.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveRefetch = resolve;
+          })
+      );
+
       fireEvent.click(deleteButtons()[0]);
 
       // The card is removed as soon as the DELETE resolves,
@@ -113,11 +132,16 @@ describe('TagNotesRoute note deletion', () => {
       expect(screen.getByText('John 3:17')).toBeInTheDocument();
       expect(useBibleStore.getState().notesCount).toBe(39);
 
-      // Latest server state for the current page is retrieved.
+      // Latest server state for the current page is requested
+      // while the card is already gone.
       expect(mockFetchNotes).toHaveBeenCalledWith(
         'tag-123',
         expect.objectContaining({ page: 2 })
       );
+
+      await act(async () => {
+        resolveRefetch?.();
+      });
     });
 
   it('falls back to the last page when deleting the only note ' +
@@ -143,6 +167,87 @@ describe('TagNotesRoute note deletion', () => {
         'tag-123',
         expect.objectContaining({ page: 2 })
       );
+    });
+
+  it('refetches with the active ordering on sorted views',
+    async () => {
+      // Rendered directly (not via renderWithProviders) so the
+      // MemoryRouter can carry ?sort=created_desc.
+      useBibleStore.setState({
+        notes: [makeNote('note-1', 16)],
+        notesCount: 5,
+        notesPage: 1,
+        notesPageSize: 25,
+        lastSelectedTagId: 'tag-123',
+        tags: [tag],
+        fetchNotes: mockFetchNotes,
+        getTags: mockGetTags,
+        versesFolded: false,
+      });
+      useAuthStore.setState({
+        token: 't',
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      mockDomApis();
+      render(
+        <MemoryRouter
+          initialEntries={['/notes/tag/tag-123?sort=created_desc']}
+        >
+          <Routes>
+            <Route
+              path="/notes/tag/:tagId"
+              element={<TagNotesRoute />}
+            />
+          </Routes>
+        </MemoryRouter>
+      );
+      await waitFor(() => {
+        expect(screen.getByText('John 3:16')).toBeInTheDocument();
+      });
+      mockFetchNotes.mockClear();
+
+      fireEvent.click(deleteButtons()[0]);
+
+      await waitFor(() => {
+        expect(mockApi.deleteNote).toHaveBeenCalledWith('note-1');
+      });
+      expect(mockFetchNotes).toHaveBeenCalledWith(
+        'tag-123',
+        expect.objectContaining({ ordering: '-created', page: 1 })
+      );
+    });
+
+  it('ignores a second delete while one is in flight',
+    async () => {
+      // Hold the first DELETE open so a second click overlaps it.
+      let resolveDelete: ((value: string) => void) | undefined;
+      mockApi.deleteNote.mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveDelete = resolve;
+          })
+      );
+      renderRoute([makeNote('note-1', 16), makeNote('note-2', 17)]);
+      await waitFor(() => {
+        expect(screen.getByText('John 3:16')).toBeInTheDocument();
+      });
+
+      fireEvent.click(deleteButtons()[0]);
+      fireEvent.click(deleteButtons()[1]);
+
+      await waitFor(() => {
+        expect(mockApi.deleteNote).toHaveBeenCalledTimes(1);
+      });
+
+      await act(async () => {
+        resolveDelete?.('');
+      });
+      await waitFor(() => {
+        expect(
+          screen.queryByText('John 3:16')
+        ).not.toBeInTheDocument();
+      });
     });
 
   it('does nothing when the confirmation is cancelled',
