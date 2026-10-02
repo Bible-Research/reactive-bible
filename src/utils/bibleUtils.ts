@@ -321,15 +321,22 @@ export const sizeToCoverage = (
 ): SizeCoverage => {
   const s = (size ?? '').toUpperCase();
   const isPartial = s.includes('P');
-  if (s === '' || s === 'C') {
+  if (s === '') {
     return {
       testaments: ['OT', 'NT'],
       partial: { OT: false, NT: false },
     };
   }
+  // Backend parity (`fileset_groups.py`): a `C` anywhere in the
+  // size marks complete coverage of both testaments.
   const testaments: Testament[] = [];
-  if (s.includes('OT')) testaments.push('OT');
-  if (s.includes('NT')) testaments.push('NT');
+  if (s.includes('C')) testaments.push('OT', 'NT');
+  if (s.includes('OT') && !testaments.includes('OT')) {
+    testaments.push('OT');
+  }
+  if (s.includes('NT') && !testaments.includes('NT')) {
+    testaments.push('NT');
+  }
   if (testaments.length === 0) {
     testaments.push('OT', 'NT');
   }

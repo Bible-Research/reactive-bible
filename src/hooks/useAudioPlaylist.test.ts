@@ -378,6 +378,39 @@ describe('useAudioPlaylist', () => {
     },
   );
 
+  it('notifies and ends the item when a detached retry rejects',
+    async () => {
+      const { showNotification } =
+        await import('@mantine/notifications');
+      mockStoreState.translations = [eshTranslation];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      // The first candidate resolves; the detached retry after a
+      // Howler decode failure then hits a non-coverage error,
+      // which loadFromIndex rethrows. The retry must catch it,
+      // notify and advance — an unhandled rejection would stall
+      // the playlist silently.
+      vi.mocked(api.getBibleAudioUrl)
+        .mockResolvedValueOnce('http://audio.test/opus16.webm')
+        .mockRejectedValue(new Error('network boom'));
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([makeItem({ itemId: 'a' })]);
+      });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(0)
+      );
+      act(() => { mockHowlOnLoadError?.(0, 'decode error'); });
+      await waitFor(() =>
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Audio unavailable' }),
+        )
+      );
+      await waitFor(() =>
+        expect(result.current.isActive).toBe(false)
+      );
+    },
+  );
+
   it('notifies once after exhausting all candidates', async () => {
     const { BookNotInFilesetError } = await import('../api');
     const { showNotification } =

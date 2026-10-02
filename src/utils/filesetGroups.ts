@@ -25,7 +25,11 @@ export type CodecKey =
 export type CodecMap = Partial<Record<CodecKey, string>>;
 
 export interface FilesetOption {
-  /** Synthetic `${abbr}:${kind}:${n}` or backend-supplied id. */
+  /**
+   * Synthetic `${abbr}:${kind}:${n}` (1-based, encounter order —
+   * mirrors the backend numbering) or a backend-supplied id
+   * used verbatim.
+   */
   id: string;
   kind: OptionKind;
   /** testament → codec → concrete fileset id */
@@ -73,7 +77,9 @@ const CODEC_PREFERENCE: CodecKey[] = [
   'default',
 ];
 
-const splitCodec = (id: string): { baseId: string; codec: CodecKey } =>
+export const splitCodec = (
+  id: string,
+): { baseId: string; codec: CodecKey } =>
   id.endsWith(OPUS16_SUFFIX)
     ? {
         baseId: id.slice(0, -OPUS16_SUFFIX.length),
@@ -141,17 +147,19 @@ const slotsToByTestament = (
   return byTestament;
 };
 
+/**
+ * Backend parity (`fileset_groups.py`): a testament is partial
+ * when ANY codec-slot winner covering it is partial — a partial
+ * opus16 winner marks the testament partial even when a
+ * complete mp3 sibling exists (opus16 is the preferred codec).
+ */
 const optionPartial = (
-  members: MemberCandidate[],
+  slots: Map<string, MemberCandidate>,
 ): { OT: boolean; NT: boolean } => {
   const result = { OT: false, NT: false };
-  for (const t of ['OT', 'NT'] as Testament[]) {
-    const covering = members.filter((m) =>
-      m.coverage.testaments.includes(t),
-    );
-    result[t] =
-      covering.length > 0 &&
-      covering.every((m) => m.coverage.partial[t]);
+  for (const [key, member] of slots) {
+    const t = key.split(':')[0] as Testament;
+    if (member.coverage.partial[t]) result[t] = true;
   }
   return result;
 };
@@ -181,7 +189,7 @@ const buildOption = (
     }
   }
   const byTestament = slotsToByTestament(slots);
-  const partial = optionPartial(members);
+  const partial = optionPartial(slots);
   return {
     id,
     kind,
@@ -204,13 +212,6 @@ const audioKind = (
   }
   return 'audio';
 };
-
-const KIND_ORDER: OptionKind[] = [
-  'audio',
-  'audio_drama',
-  'generated',
-  'text',
-];
 
 const groupAudioFilesets = (
   filesets: Fileset[],
@@ -282,24 +283,17 @@ const groupAudioFilesets = (
     kinds.set(key, audioKind(f, match[2]));
   }
 
+  // Options keep encounter order (Map insertion order) and are
+  // numbered per kind starting at 1 — mirroring the backend's
+  // `fileset_groups.py` so a persisted client-side product id
+  // still matches once the backend serves `audio_options`.
   const counters = new Map<OptionKind, number>();
-  return [...groups.entries()]
-    .map(([key, members]) =>
-      buildOption(
-        `${abbr}:${kinds.get(key)}`,
-        kinds.get(key) ?? 'audio',
-        members,
-      ),
-    )
-    .sort(
-      (a, b) =>
-        KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind),
-    )
-    .map((option) => {
-      const n = counters.get(option.kind) ?? 0;
-      counters.set(option.kind, n + 1);
-      return { ...option, id: `${option.id}:${n}` };
-    });
+  return [...groups.entries()].map(([key, members]) => {
+    const kind = kinds.get(key) ?? 'audio';
+    const n = (counters.get(kind) ?? 0) + 1;
+    counters.set(kind, n);
+    return buildOption(`${abbr}:${kind}:${n}`, kind, members);
+  });
 };
 
 const groupTextFilesets = (
@@ -317,7 +311,7 @@ const groupTextFilesets = (
       partialId: /P\dDA$/.test(f.id),
     }));
   if (members.length === 0) return null;
-  return buildOption(`${abbr}:text:0`, 'text', members);
+  return buildOption(`${abbr}:text:1`, 'text', members);
 };
 
 /** Backend `audio_options`/`text_options` entry (snake_case). */
@@ -371,20 +365,23 @@ const normalizeBackendOption = (
   }
   if (members.length === 0) return null;
 
-  const partial =
-    typeof o.partial === 'object' && o.partial
-      ? {
-          OT: Boolean((o.partial as { OT?: unknown }).OT),
-          NT: Boolean((o.partial as { NT?: unknown }).NT),
-        }
-      : { OT: false, NT: false };
   const coverageField =
     typeof o.coverage === 'string'
       ? o.coverage
       : typeof o.coverage_label === 'string'
         ? o.coverage_label
         : null;
-  if (coverageField?.includes('partial')) {
+  // The backend's `partial` map is authoritative — only derive
+  // partiality from the coverage label when it is absent.
+  const hasBackendPartial =
+    typeof o.partial === 'object' && o.partial !== null;
+  const partial = hasBackendPartial
+    ? {
+        OT: Boolean((o.partial as { OT?: unknown }).OT),
+        NT: Boolean((o.partial as { NT?: unknown }).NT),
+      }
+    : { OT: false, NT: false };
+  if (!hasBackendPartial && coverageField?.includes('partial')) {
     if (byTestament.OT) partial.OT = true;
     if (byTestament.NT) partial.NT = true;
   }

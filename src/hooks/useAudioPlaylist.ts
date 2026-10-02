@@ -289,7 +289,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     // Release the failed Howl (stops its bounds
                     // poll) before retrying the next candidate.
                     try { howl.unload(); } catch { /* noop */ }
-                    void loadFromIndex(i + 1);
+                    retryNextCandidate(i + 1);
                     return;
                   }
                   showNotification({
@@ -309,7 +309,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   );
                   if (i + 1 < candidates.length) {
                     try { howl.unload(); } catch { /* noop */ }
-                    void loadFromIndex(i + 1);
+                    retryNextCandidate(i + 1);
                     return;
                   }
                   showNotification({
@@ -421,6 +421,26 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             autoClose: 5000,
           });
           advanceNext();
+        };
+
+        // Retries fired from Howler callbacks run detached —
+        // loadFromIndex rethrows non-coverage errors (network,
+        // rate limit), so an uncaught rejection would stall the
+        // playlist with no notification and no advance.
+        const retryNextCandidate = (startAt: number) => {
+          void loadFromIndex(startAt).catch((err) => {
+            if (stoppedRef.current) return;
+            console.error('Playlist retry failed:', err);
+            showNotification({
+              title: 'Audio unavailable',
+              message:
+                `Could not load audio for ` +
+                `${item.label}. Skipping.`,
+              color: 'orange',
+              autoClose: 5000,
+            });
+            advanceNext();
+          });
         };
 
         await loadFromIndex(0);

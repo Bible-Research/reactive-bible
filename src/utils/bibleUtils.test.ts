@@ -309,6 +309,20 @@ describe('Bible Utils', () => {
       expect(sizeToCoverage('OT1').testaments).toEqual(['OT']);
     });
 
+    it('treats any C in the size as complete both-testament ' +
+      'coverage', () => {
+      // Backend parity: `fileset_groups.py` checks for `C` as a
+      // substring, not `size === 'C'`.
+      expect(sizeToCoverage('CNT').testaments).toEqual([
+        'OT',
+        'NT',
+      ]);
+      expect(sizeToCoverage('CP').partial).toEqual({
+        OT: true,
+        NT: true,
+      });
+    });
+
     it('is permissive for empty or unknown sizes', () => {
       expect(sizeToCoverage(null).testaments).toEqual(['OT', 'NT']);
       expect(sizeToCoverage('').testaments).toEqual(['OT', 'NT']);

@@ -75,6 +75,14 @@ const AUSWBT = tr('AUSWBT', [
   fs('AUSWBTP1DA-opus16', 'audio', 'NTPOTP'),
 ]);
 
+// Mixed partiality per codec: a complete mp3 member and a
+// partial opus16 member both claim NT — the partial slot winner
+// marks the testament partial (backend `any()` semantics).
+const MIXEDPART = tr('MIXEDPART', [
+  fs('MIXEDPN1DA', 'audio', 'NT'),
+  fs('MIXEDPP1DA-opus16', 'audio', 'NTP'),
+]);
+
 // KJV with the injected bundled filesets.
 const ENGKJV = tr('ENGKJV', [
   fs('ENGKJVO_ET', 'text_plain', 'OT'),
@@ -104,6 +112,34 @@ describe('groupFilesets', () => {
     expect(audio[1].kind).toBe('audio_drama');
     expect(audio[1].byTestament.NT?.opus16).toBe('LATBSLN2DA-opus16');
   });
+
+  it('numbers options 1-based in encounter order', () => {
+    // Mirrors the backend's fileset_groups.py numbering so a
+    // persisted client-side product id still matches once the
+    // backend serves audio_options.
+    const { audio } = groupFilesets(LAVNLI);
+    expect(audio[0].id).toBe('LAVNLI:audio:1');
+    expect(audio[1].id).toBe('LAVNLI:audio_drama:1');
+    const glu8 = groupFilesets(GLU8);
+    expect(glu8.audio[0].id).toBe('GLU8:generated:1');
+    expect(glu8.text?.id).toBe('GLU8:text:1');
+  });
+
+  it('marks a testament partial when any slot winner is partial',
+    () => {
+      const { audio } = groupFilesets(MIXEDPART);
+      expect(audio[0].byTestament.NT).toEqual({
+        mp3: 'MIXEDPN1DA',
+        opus16: 'MIXEDPP1DA-opus16',
+      });
+      // mp3 winner is complete but the opus16 winner is partial
+      // — the backend flags the testament partial either way.
+      expect(audio[0].partial).toEqual({ OT: false, NT: true });
+      expect(audio[0].coverageLabel).toBe(
+        'New Testament only (partial)',
+      );
+    },
+  );
 
   it('treats LVSGLU8C1DA as a generated singleton option', () => {
     const { audio, text } = groupFilesets(GLU8);
@@ -154,7 +190,7 @@ describe('groupFilesets', () => {
       {
         audio_options: [
           {
-            id: 'LAVNLI:audio:0',
+            id: 'LAVNLI:audio:1',
             kind: 'audio',
             coverage: 'NT+OT-partial',
             by_testament: {
@@ -173,18 +209,49 @@ describe('groupFilesets', () => {
     );
     const { audio } = groupFilesets(backend);
     expect(audio).toHaveLength(1);
-    expect(audio[0].id).toBe('LAVNLI:audio:0');
+    expect(audio[0].id).toBe('LAVNLI:audio:1');
     expect(audio[0].byTestament.OT?.opus16).toBe(
       'LATBSLP1DA-opus16',
     );
     expect(audio[0].partial).toEqual({ OT: true, NT: true });
   });
+
+  it('prefers the backend partial map over the coverage label',
+    () => {
+      // The backend marks a testament partial when ANY covering
+      // member is partial — its `partial` map is authoritative
+      // and must not be widened by the "(partial)" label.
+      const backend = tr(
+        'LAVNLI',
+        [fs('LATBSLN1DA', 'audio', 'NT')],
+        {
+          audio_options: [
+            {
+              id: 'LAVNLI:audio:1',
+              kind: 'audio',
+              coverage_label: 'Full Bible (partial)',
+              partial: { OT: true, NT: false },
+              by_testament: {
+                OT: { mp3: 'LATBSLP1DA' },
+                NT: { mp3: 'LATBSLN1DA' },
+              },
+            },
+          ],
+        },
+      );
+      const { audio } = groupFilesets(backend);
+      expect(audio[0].partial).toEqual({ OT: true, NT: false });
+      expect(audio[0].coverageLabel).toBe(
+        'Full Bible (partial)',
+      );
+    },
+  );
 });
 
 describe('resolveAudioFileset', () => {
   it('prefers opus16 for the book testament', () => {
     const resolved = resolveAudioFileset(
-      'LAVNLI:audio:0',
+      'LAVNLI:audio:1',
       'JHN',
       [LAVNLI],
     );
@@ -322,7 +389,7 @@ describe('findTranslationByFilesetId', () => {
         ?.abbr,
     ).toBe('LAVNLI');
     expect(
-      findTranslationByFilesetId('LAVNLI:audio:0', [LAVNLI])?.abbr,
+      findTranslationByFilesetId('LAVNLI:audio:1', [LAVNLI])?.abbr,
     ).toBe('LAVNLI');
     expect(findTranslationByFilesetId('NOPE', [LAVNLI])).toBeNull();
   });
