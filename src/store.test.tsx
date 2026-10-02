@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useBibleStore, initialState } from './store';
 import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
@@ -32,8 +32,24 @@ describe('useBibleStore', () => {
   });
 
   describe('fetchNotes with caching', () => {
-    const tag: Tag = { id: 'TAG1', name: 'Test Tag', parent_tag: null, created_at: '', updated_at: '' };
-    const sampleNotes: Note[] = [{ id: 'note1', note_text: 'Cached note', tag, verses: [], public: false, is_owner: true, created_at: '', updated_at: '', tag_position: null }];
+    const tag: Tag = {
+      id: 'TAG1',
+      name: 'Test Tag',
+      parent_tag: null,
+      created_at: '',
+      updated_at: '',
+    };
+    const sampleNotes: Note[] = [{
+      id: 'note1',
+      note_text: 'Cached note',
+      tag,
+      verses: [],
+      public: false,
+      is_owner: true,
+      created_at: '',
+      updated_at: '',
+      tag_position: null,
+    }];
 
     it('should fetch notes from cache if available', async () => {
       mockCacheManager.getCachedNotes.mockReturnValue({
@@ -93,7 +109,13 @@ describe('useBibleStore', () => {
         notes: [{ 
           id: 'note1', 
           note_text: 'A note', 
-          tag: {id: 't1', name: 't1', parent_tag: null, created_at: '', updated_at: ''}, 
+          tag: {
+            id: 't1',
+            name: 't1',
+            parent_tag: null,
+            created_at: '',
+            updated_at: '',
+          },
           verses: [], 
           public: false, 
           is_owner: true,
@@ -108,6 +130,43 @@ describe('useBibleStore', () => {
       expect(mockApi.deleteNote).toHaveBeenCalledWith('note1');
       expect(mockCacheManager.clearNotesCache).toHaveBeenCalled();
       expect(useBibleStore.getState().notes).toEqual([]);
+    });
+
+    it('should decrement notesCount when the note is listed', async () => {
+      mockApi.deleteNote.mockResolvedValue('');
+      useBibleStore.setState({
+        notes: [{
+          id: 'note1',
+          note_text: 'A note',
+          tag: {
+            id: 't1',
+            name: 't1',
+            parent_tag: null,
+            created_at: '',
+            updated_at: '',
+          },
+          verses: [],
+          public: false,
+          is_owner: true,
+          created_at: '',
+          updated_at: '',
+          tag_position: null
+        }],
+        notesCount: 7,
+      });
+
+      await useBibleStore.getState().deleteNote('note1');
+
+      expect(useBibleStore.getState().notesCount).toBe(6);
+    });
+
+    it('should not change notesCount for unlisted notes', async () => {
+      mockApi.deleteNote.mockResolvedValue('');
+      useBibleStore.setState({ notes: [], notesCount: 7 });
+
+      await useBibleStore.getState().deleteNote('note9');
+
+      expect(useBibleStore.getState().notesCount).toBe(7);
     });
   });
 });

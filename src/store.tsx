@@ -424,7 +424,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           // tag this note belonged to
           clearNotesCache();
           set((state) => ({
-            notes: state.notes.filter((n) => n.id !== noteId)
+            notes: state.notes.filter((n) => n.id !== noteId),
+            notesCount: state.notes.some((n) => n.id === noteId)
+              ? Math.max(0, state.notesCount - 1)
+              : state.notesCount,
           }));
           showNotification({
             title: 'Success',

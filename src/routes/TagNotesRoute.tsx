@@ -25,7 +25,7 @@ import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
-import { deleteNote, getTag, fetchCommentCounts } from '../api';
+import { getTag, fetchCommentCounts } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 import {
@@ -72,6 +72,7 @@ export default function TagNotesRoute() {
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
   const reorderNotes = useBibleStore((state) => state.reorderNotes);
+  const deleteNote = useBibleStore((state) => state.deleteNote);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
@@ -253,27 +254,39 @@ export default function TagNotesRoute() {
     note: Note
   ) => {
     evt.preventDefault();
-    if (note.id) {
-      if (window.confirm('Are you sure you want to delete this note?')) {
-        await deleteNote(note.id);
-        if (tagId) {
-          clearNotesCache(tagId);
-          const apiOrdering =
-            sortOrder !== 'custom_asc'
-              ? getApiOrdering(sortOrder)
-              : undefined;
-          // Stay on the current page; if this was its last
-          // note, fall back to the new last page.
-          const lastPage = Math.max(
-            1,
-            Math.ceil((notesCount - 1) / notesPageSize)
-          );
-          await fetchNotes(tagId, {
-            ordering: apiOrdering,
-            page: Math.min(notesPage, lastPage),
-          });
-        }
-      }
+    if (!note.id) return;
+    if (!window.confirm('Are you sure you want to delete this note?')) {
+      return;
+    }
+    try {
+      // The store action drops the card from state as soon as the
+      // DELETE resolves, so the list updates without waiting for
+      // the page refetch below.
+      await deleteNote(note.id);
+    } catch {
+      return; // Store already surfaced an error notification.
+    }
+    if (!tagId) return;
+    const apiOrdering =
+      sortOrder !== 'custom_asc'
+        ? getApiOrdering(sortOrder)
+        : undefined;
+    // Pull the latest server state for the page being viewed so
+    // it backfills; if this was its last note, fall back to the
+    // new last page.
+    const {
+      notesPage: currentPage,
+      notesCount: count,
+      notesPageSize: pageSize,
+    } = useBibleStore.getState();
+    const lastPage = Math.max(1, Math.ceil(count / pageSize));
+    try {
+      await fetchNotes(tagId, {
+        ordering: apiOrdering,
+        page: Math.min(currentPage, lastPage),
+      });
+    } catch {
+      // fetchNotes already surfaced an error notification.
     }
   };
 
@@ -593,8 +606,8 @@ export default function TagNotesRoute() {
     const items: PlaylistItem[] = sortedNotes
       .filter((n) => (n.verses?.length ?? 0) > 0)
       .map((note, i, arr) => {
-        const firstVerse = note.verses![0];
-        const sameBlock = note.verses!.filter(
+        const firstVerse = note.verses[0];
+        const sameBlock = note.verses.filter(
           (v) =>
             v.book === firstVerse.book &&
             v.chapter === firstVerse.chapter,
