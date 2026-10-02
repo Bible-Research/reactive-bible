@@ -14,12 +14,14 @@ import {
   IconSun,
   IconMoonStars,
   IconBrandAndroid,
+  IconRefresh,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { isNativeApp } from "../utils/nativeAudio";
+import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
 import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
 
@@ -138,6 +140,29 @@ const MainMenu = ({
             Tag Management
           </Text>
         </Group>
+
+        {isNativeApp() && (
+          <Group spacing="xs" align="flex-start" noWrap>
+            <IconRefresh
+              size={22}
+              style={{ marginTop: 4, flexShrink: 0 }}
+            />
+            <div>
+              <Text
+                weight={500}
+                size="lg"
+                onClick={() => void checkForUpdatesManually()}
+                sx={{ cursor: "pointer" }}
+                title="Check for updates"
+              >
+                Check for updates
+              </Text>
+              <Text size="xs" color="dimmed">
+                Look for a newer build on GitHub Releases.
+              </Text>
+            </div>
+          </Group>
+        )}
 
         {showAndroidDownload && (
           <>

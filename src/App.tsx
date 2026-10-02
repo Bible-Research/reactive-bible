@@ -18,6 +18,7 @@ import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useAuthStore } from "./stores/authStore";
+import { useAppUpdate } from "./hooks/useAppUpdate";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
 
@@ -46,6 +47,10 @@ export default function App() {
     // Clean up expired audio URLs
     clearExpiredAudioUrls();
   }, [checkAuth]);
+
+  // Poll the rolling `continuous` release for a newer APK build
+  // (no-op outside the native Android shell).
+  useAppUpdate();
   
   // Check if we're on an auth page (login/register)
   const location = useLocation();

@@ -15,6 +15,7 @@
   "dependencies": {
     "@anuradev/capacitor-background-mode": "^8.1.0",
     "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.2",
     "@capgo/capacitor-media-session": "^8.0.31",
     "@dnd-kit/core": "^6.3.1",
