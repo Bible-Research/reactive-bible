@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { Text, Box } from '@mantine/core';
 import { useBibleStore } from '../store';
 import { getCopyrightInfo } from '../api';
+import {
+  findTranslationByFilesetId,
+  resolveTextFileset,
+} from '../utils/filesetGroups';
 import { shallow } from 'zustand/shallow';
 
 const CopyrightNotice = () => {
@@ -21,7 +25,15 @@ const CopyrightNotice = () => {
       return;
     }
 
-    if (activeTextFilesetId === 'ENGESV_API') {
+    // The stored id may be a grouped product id — resolve to a
+    // concrete member before comparing.
+    const resolvedId = resolveTextFileset(
+      activeTextFilesetId,
+      'JHN',
+      translations,
+    );
+
+    if (resolvedId === 'ENGESV_API') {
       setCopyright(
         'Scripture quotations are from the ESV\u00ae Bible ' +
         '(The Holy Bible, English Standard Version\u00ae), ' +
@@ -37,11 +49,11 @@ const CopyrightNotice = () => {
       return;
     }
 
-    // Find the bible_id (abbr) for the active text fileset
-    const translation = translations.find((t) =>
-      t.filesets.some(
-        (f) => f.id === activeTextFilesetId
-      )
+    // Find the bible_id (abbr) for the active text fileset —
+    // accepts product ids as well as raw member ids.
+    const translation = findTranslationByFilesetId(
+      activeTextFilesetId,
+      translations,
     );
     if (!translation) {
       setCopyright('');
@@ -56,7 +68,7 @@ const CopyrightNotice = () => {
 
       // Find the text fileset's copyright
       const textCr = data.find(
-        (c) => c.id === activeTextFilesetId
+        (c) => c.id === resolvedId
       );
       // Fallback: use first text_plain type, then first entry
       const cr =

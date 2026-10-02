@@ -1,17 +1,32 @@
-import { useEffect, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentPropsWithoutRef,
+} from 'react';
 import { useMediaQuery } from '@mantine/hooks';
 import {
-  Modal,
+  Accordion,
+  Badge,
   Button,
-  Select,
-  Radio,
   Group,
-  Stack,
+  Modal,
+  Radio,
   SegmentedControl,
+  Select,
+  Stack,
+  Text,
   createStyles,
 } from '@mantine/core';
-import { useBibleStore } from '../store';
+import { useBibleStore, type Translation } from '../store';
 import { getAvailableTranslations } from '../api';
+import {
+  findTranslationByFilesetId,
+  groupFilesets,
+  type FilesetOption,
+  type OptionKind,
+} from '../utils/filesetGroups';
 
 
 const useStyles = createStyles((theme) => ({
@@ -19,12 +34,94 @@ const useStyles = createStyles((theme) => ({
     marginTop: theme.spacing.md,
     marginBottom: theme.spacing.lg,
     border: `1px solid ${
-      theme.colorScheme === 'dark' ? theme.colors.dark[4] : theme.colors.gray[3]
+      theme.colorScheme === 'dark'
+        ? theme.colors.dark[4]
+        : theme.colors.gray[3]
     }`,
     borderRadius: theme.radius.sm,
     padding: theme.spacing.md,
   },
 }));
+
+type Capability = 'both' | 'text' | 'audio';
+
+const CAPABILITY_LABEL: Record<Capability, string> = {
+  both: 'Audio',
+  text: 'Text only',
+  audio: 'Audio only',
+};
+
+const AUDIO_KIND_LABEL: Record<OptionKind, string> = {
+  audio: 'Read aloud',
+  audio_drama: 'Dramatized',
+  generated: 'Generated voice',
+  text: 'Text',
+};
+
+/** Capability chip shown next to each version in the picker. */
+const capabilityOf = (translation: Translation): Capability => {
+  const { text, audio } = groupFilesets(translation);
+  if (text && audio.length > 0) return 'both';
+  if (text) return 'text';
+  return 'audio';
+};
+
+/** Resolved member ids per testament, e.g. "OT: X · NT: Y". */
+const testamentSummary = (option: FilesetOption): string =>
+  (['OT', 'NT'] as const)
+    .filter((testament) => option.byTestament[testament])
+    .map((testament) => {
+      const ids = [
+        ...new Set(Object.values(option.byTestament[testament] ?? {})),
+      ];
+      return `${testament}: ${ids.join(', ')}`;
+    })
+    .join(' · ');
+
+/**
+ * Fallback text translation for audio-only versions: same
+ * language, preferring complete (Full Bible) coverage.
+ */
+const pickTextTranslation = (
+  translations: Translation[],
+  languageIso: string,
+): Translation | null => {
+  const withText = translations.filter(
+    (t) => t.language_iso === languageIso && groupFilesets(t).text,
+  );
+  const complete = withText.find((t) => {
+    const text = groupFilesets(t).text;
+    return (
+      text !== null &&
+      Boolean(text.byTestament.OT) &&
+      Boolean(text.byTestament.NT) &&
+      !text.partial.OT &&
+      !text.partial.NT
+    );
+  });
+  return complete ?? withText[0] ?? null;
+};
+
+interface VersionItemProps extends ComponentPropsWithoutRef<'div'> {
+  label: string;
+  capability: Capability;
+}
+
+const VersionItem = forwardRef<HTMLDivElement, VersionItemProps>(
+  ({ label, capability, ...others }, ref) => (
+    <div ref={ref} {...others}>
+      <Group position="apart" noWrap>
+        <Text size="sm" truncate>
+          {label}
+        </Text>
+        <Badge size="xs" variant="light">
+          {CAPABILITY_LABEL[capability]}
+        </Badge>
+      </Group>
+    </div>
+  ),
+);
+VersionItem.displayName = 'VersionItem';
 
 const TranslationSelector = () => {
   const { classes } = useStyles();
@@ -41,13 +138,95 @@ const TranslationSelector = () => {
   } = useBibleStore((state) => state);
 
   // Local state for selections within the modal
-  const [selectedTranslationAbbr, setSelectedTranslationAbbr] = useState<string | null>(null);
+  const [selectedTranslationAbbr, setSelectedTranslationAbbr] =
+    useState<string | null>(null);
   const [languageIso, setLanguageIso] = useState('eng');
-  const [selectedTextId, setSelectedTextId] = useState<string | null>(activeTextFilesetId);
-  const [selectedAudioId, setSelectedAudioId] = useState<string | null>(activeAudioFilesetId);
+  const [selectedTextId, setSelectedTextId] =
+    useState<string | null>(null);
+  const [selectedAudioId, setSelectedAudioId] =
+    useState<string | null>(null);
+  // Info line for text that does not belong to the selected
+  // version (audio-only versions borrow a same-language text).
+  const [textNote, setTextNote] = useState<string | null>(null);
 
-  const handleAudioChange = (value: string) => {
-    setSelectedAudioId(value === 'none' ? null : value);
+  /**
+   * Selects a version and derives the text/audio selections:
+   * text resolves to the version's grouped text product (or a
+   * same-language fallback for audio-only versions); audio keeps
+   * the active product when this version owns it, defaults to the
+   * first option for audio-only versions, else None.
+   */
+  const applyVersionSelection = (abbr: string | null) => {
+    setSelectedTranslationAbbr(abbr);
+    setTextNote(null);
+    const translation = translations.find((t) => t.abbr === abbr);
+    if (!translation) {
+      setSelectedTextId(null);
+      setSelectedAudioId(null);
+      return;
+    }
+    const grouped = groupFilesets(translation);
+    if (grouped.text) {
+      setSelectedTextId(grouped.text.id);
+    } else {
+      // Audio-only version: keep the active text when it belongs
+      // to a same-language translation; otherwise auto-select a
+      // same-language text version (preferring full coverage) so
+      // the reader never spins on a stale foreign-language id.
+      const owner = findTranslationByFilesetId(
+        activeTextFilesetId,
+        translations,
+      );
+      if (
+        owner &&
+        owner.language_iso === translation.language_iso
+      ) {
+        setSelectedTextId(activeTextFilesetId);
+        setTextNote(`Text: ${owner.name}`);
+      } else {
+        const candidate = pickTextTranslation(
+          translations,
+          translation.language_iso,
+        );
+        const candidateText = candidate
+          ? groupFilesets(candidate).text
+          : null;
+        if (candidate && candidateText) {
+          setSelectedTextId(candidateText.id);
+          setTextNote(`Text: ${candidate.name} — auto-selected`);
+        } else {
+          setSelectedTextId(activeTextFilesetId);
+          setTextNote(
+            'Text: no text version in this language — ' +
+              'keeping current',
+          );
+        }
+      }
+    }
+    // Normalize a legacy member id to its product id — playback
+    // resolves both, but new selections store the product id.
+    const audioOption = grouped.audio.find(
+      (o) =>
+        o.id === activeAudioFilesetId ||
+        (activeAudioFilesetId !== null &&
+          o.members.includes(activeAudioFilesetId)),
+    );
+    if (audioOption) {
+      setSelectedAudioId(audioOption.id);
+    } else if (!grouped.text && grouped.audio.length > 0) {
+      // Audio-only versions default to their primary audio.
+      setSelectedAudioId(grouped.audio[0].id);
+    } else {
+      setSelectedAudioId(null);
+    }
+  };
+
+  const openModal = () => {
+    setSelectedTranslationAbbr(null);
+    setSelectedTextId(null);
+    setSelectedAudioId(null);
+    setTextNote(null);
+    setOpened(true);
   };
 
   useEffect(() => {
@@ -80,20 +259,46 @@ const TranslationSelector = () => {
 
   useEffect(() => {
     // Clear transient selections whenever the language changes.
+    setSelectedTranslationAbbr(null);
     setSelectedTextId(null);
     setSelectedAudioId(null);
+    setTextNote(null);
   }, [languageIso]);
 
   useEffect(() => {
-    if (activeTextFilesetId) {
-      const currentTranslation = translations.find(t => 
-        t.filesets.some(f => f.id === activeTextFilesetId)
-      );
-      setSelectedTranslationAbbr(currentTranslation?.abbr || null);
-      setSelectedTextId(activeTextFilesetId);
-      setSelectedAudioId(activeAudioFilesetId);
+    if (!opened) return;
+    // The fresh translation list can drop the chosen version
+    // (e.g. after a language switch) — clear it so the effect can
+    // re-derive from the active filesets.
+    if (
+      selectedTranslationAbbr !== null &&
+      !translations.some((t) => t.abbr === selectedTranslationAbbr)
+    ) {
+      setSelectedTranslationAbbr(null);
+      setSelectedTextId(null);
+      setSelectedAudioId(null);
+      setTextNote(null);
+      return;
     }
-  }, [opened, translations, activeTextFilesetId, activeAudioFilesetId]);
+    // Until the user picks a version, mirror the currently active
+    // filesets (translations may arrive after the modal opens).
+    if (selectedTranslationAbbr !== null) return;
+    const owner =
+      findTranslationByFilesetId(
+        activeTextFilesetId,
+        translations,
+      ) ??
+      findTranslationByFilesetId(
+        activeAudioFilesetId,
+        translations,
+      );
+    if (owner) applyVersionSelection(owner.abbr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, translations, selectedTranslationAbbr]);
+
+  const handleAudioChange = (value: string) => {
+    setSelectedAudioId(value === 'none' ? null : value);
+  };
 
   const handleSave = () => {
     setActiveTextFilesetId(selectedTextId);
@@ -101,12 +306,58 @@ const TranslationSelector = () => {
     setOpened(false);
   };
 
-  const selectedTranslation = translations.find(
-    (t) => t.abbr === selectedTranslationAbbr
-  ) || null;
+  const selectedTranslation =
+    translations.find((t) => t.abbr === selectedTranslationAbbr) ||
+    null;
 
-  const textFilesets = selectedTranslation?.filesets.filter(f => f.type === 'text_plain') || [];
-  const audioFilesets = selectedTranslation?.filesets.filter(f => f.type.startsWith('audio')) || [];
+  const grouped = selectedTranslation
+    ? groupFilesets(selectedTranslation)
+    : { text: null, audio: [] };
+
+  // The product radio stays selected when the stored value is a
+  // raw member id (chosen in Advanced or persisted legacy id).
+  const audioGroupValue = (() => {
+    if (!selectedAudioId) return 'none';
+    const owning = grouped.audio.find(
+      (o) =>
+        o.id === selectedAudioId ||
+        o.members.includes(selectedAudioId),
+    );
+    return owning?.id ?? 'none';
+  })();
+
+  const versionData = useMemo(
+    () =>
+      translations.map((t) => ({
+        value: t.abbr,
+        label: `${t.name} (${t.abbr})`,
+        capability: capabilityOf(t),
+      })),
+    [translations],
+  );
+
+  // Raw fileset radios (Advanced/debug). opus16 variants are
+  // hidden: opus16 is the default codec and mp3 the automatic
+  // fallback, so codec selection is never exposed.
+  const rawFilesets = (selectedTranslation?.filesets ?? []).filter(
+    (f) => !f.id.endsWith('-opus16'),
+  );
+  const rawTextFilesets = rawFilesets.filter(
+    (f) => f.type === 'text_plain',
+  );
+  const rawAudioFilesets = rawFilesets.filter((f) =>
+    f.type.startsWith('audio'),
+  );
+  const rawTextValue = rawTextFilesets.some(
+    (f) => f.id === selectedTextId,
+  )
+    ? selectedTextId ?? ''
+    : '';
+  const rawAudioValue = rawAudioFilesets.some(
+    (f) => f.id === selectedAudioId,
+  )
+    ? selectedAudioId ?? ''
+    : '';
 
   return (
     <>
@@ -128,50 +379,110 @@ const TranslationSelector = () => {
             fullWidth
           />
           <Select
-            label="Bible Version"
+            label="Version"
             placeholder="Choose a version"
-            data={translations.map((t) => ({ value: t.abbr, label: t.name }))}
+            data={versionData}
+            itemComponent={VersionItem}
             value={selectedTranslationAbbr}
-            onChange={setSelectedTranslationAbbr}
+            onChange={applyVersionSelection}
             searchable
             dropdownPosition="bottom"
           />
 
           {selectedTranslation && (
             <>
-              {textFilesets.length > 0 && (
-                <div className={classes.groupWrapper}>
-                  <Radio.Group
-                    value={selectedTextId ?? ''}
-                    onChange={setSelectedTextId}
-                    label="Text Version"
-                  >
-                    {textFilesets.map((f) => (
-                      <Radio key={f.id} value={f.id} label={f.id} />
-                    ))}
-                  </Radio.Group>
-                </div>
-              )}
+              <div className={classes.groupWrapper}>
+                <Text size="sm" weight={500} mb={4}>
+                  Text
+                </Text>
+                {grouped.text ? (
+                  <Text size="xs" color="dimmed">
+                    Auto-resolved per testament:{' '}
+                    {testamentSummary(grouped.text)}
+                  </Text>
+                ) : (
+                  <Text size="xs" color="dimmed" italic>
+                    {textNote ?? 'No text version available'}
+                  </Text>
+                )}
+              </div>
 
-              {audioFilesets.length > 0 && (
+              {grouped.audio.length > 0 && (
                 <div className={classes.groupWrapper}>
                   <Radio.Group
-                    value={selectedAudioId ?? 'none'}
+                    value={audioGroupValue}
                     onChange={handleAudioChange}
-                    label="Audio Version"
+                    label="Audio"
                   >
-                    <Stack spacing="xs">
+                    <Stack spacing="xs" mt="xs">
                       <Radio value="none" label="None" />
-                      {audioFilesets.map((f) => (
+                      {grouped.audio.map((option) => (
                         <Radio
-                          key={f.id}
-                          value={f.id}
-                          label={`${f.type === 'audio_drama' ? 'Drama' : 'Audio'} ${f.size} (${f.id})`}
+                          key={option.id}
+                          value={option.id}
+                          label={
+                            `${AUDIO_KIND_LABEL[option.kind]} — ` +
+                            `${option.coverageLabel}`
+                          }
                         />
                       ))}
                     </Stack>
                   </Radio.Group>
                 </div>
+              )}
+
+              {rawFilesets.length > 0 && (
+                <Accordion variant="contained">
+                  <Accordion.Item value="advanced">
+                    <Accordion.Control>
+                      Advanced — raw filesets
+                    </Accordion.Control>
+                    <Accordion.Panel>
+                      <Stack spacing="md">
+                        {rawTextFilesets.length > 0 && (
+                          <Radio.Group
+                            value={rawTextValue}
+                            onChange={setSelectedTextId}
+                            label="Text filesets"
+                          >
+                            <Stack spacing="xs" mt="xs">
+                              {rawTextFilesets.map((f) => (
+                                <Radio
+                                  key={f.id}
+                                  value={f.id}
+                                  label={f.id}
+                                />
+                              ))}
+                            </Stack>
+                          </Radio.Group>
+                        )}
+                        {rawAudioFilesets.length > 0 && (
+                          <Radio.Group
+                            value={rawAudioValue}
+                            onChange={setSelectedAudioId}
+                            label="Audio filesets"
+                          >
+                            <Stack spacing="xs" mt="xs">
+                              {rawAudioFilesets.map((f) => (
+                                <Radio
+                                  key={f.id}
+                                  value={f.id}
+                                  label={
+                                    `${
+                                      f.type === 'audio_drama'
+                                        ? 'Drama'
+                                        : 'Audio'
+                                    } ${f.size} (${f.id})`
+                                  }
+                                />
+                              ))}
+                            </Stack>
+                          </Radio.Group>
+                        )}
+                      </Stack>
+                    </Accordion.Panel>
+                  </Accordion.Item>
+                </Accordion>
               )}
             </>
           )}
@@ -187,7 +498,7 @@ const TranslationSelector = () => {
 
       <Button
         variant="subtle"
-        onClick={() => setOpened(true)}
+        onClick={openModal}
         color="gray"
       >
         Change Translation
