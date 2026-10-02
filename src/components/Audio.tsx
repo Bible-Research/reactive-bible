@@ -61,6 +61,9 @@ const MEDIA_ARTWORK: MediaImage[] = [
   { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
 ];
 
+// Brief silence between chapters on auto-advance.
+const INTER_CHAPTER_GAP_MS = 2000;
+
 const Audio = () => {
   const playlist = useAudioPlaylist();
   const audioPlaylistItems = useBibleStore(
@@ -94,6 +97,13 @@ const Audio = () => {
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const activeBlobUrlRef = useRef<string | null>(null);
+  // Delay timer for the auto-advance inter-chapter gap, plus a
+  // flag telling the load effect to schedule the next chapter's
+  // play() instead of starting it immediately.
+  const advanceTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const pendingGapRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLooping, setIsLooping] = useState(false);
@@ -238,6 +248,32 @@ const Audio = () => {
     if (pre) disposeHowl(pre.howl, pre.blobUrl);
   }, [disposeHowl]);
 
+  const clearAdvanceTimer = useCallback(() => {
+    if (advanceTimerRef.current !== null) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+  }, []);
+
+  // Start `howl` after the inter-chapter gap. The guard keeps a
+  // Howl torn down during the pause from resurrecting.
+  const scheduleChapterPlay = useCallback(
+    (howl: Howl) => {
+      clearAdvanceTimer();
+      advanceTimerRef.current = setTimeout(() => {
+        advanceTimerRef.current = null;
+        if (
+          audioRef.current !== howl ||
+          howl.state() === 'unloaded'
+        ) {
+          return;
+        }
+        howl.play();
+      }, INTER_CHAPTER_GAP_MS);
+    },
+    [clearAdvanceTimer],
+  );
+
   // Navigate one chapter forward/backward. Returns false when there
   // is no adjacent chapter in that direction.
   const advanceChapter = useCallback(
@@ -378,10 +414,10 @@ const Audio = () => {
   );
 
   // Chapter ended. Prefer the pre-created next-chapter Howl:
-  // starting it inside the `ended` event chain keeps the media
-  // pipeline alive and needs neither a fetch nor a new <audio>
-  // element — the two things that break auto-advance on a frozen
-  // lock screen.
+  // adopting it needs neither a fetch nor a new <audio> element —
+  // the two things that break auto-advance on a frozen lock
+  // screen. play() itself is deferred by the inter-chapter gap
+  // (INTER_CHAPTER_GAP_MS) via pendingGapRef.
   const onChapterEnd = useCallback(
     (finished: Howl) => {
       // Defensive: onend shouldn't fire when looping.
@@ -415,8 +451,10 @@ const Audio = () => {
           nextHowl.loop(isLoopingRef.current);
           audioRef.current = nextHowl;
           audioChapterKeyRef.current = pre.key;
+          // The load effect consumes this flag and schedules the
+          // adopted Howl's play() after the inter-chapter gap.
+          pendingGapRef.current = true;
           setAudio(nextHowl);
-          nextHowl.play();
           // Update book/chapter state + URL. The reset effect sees
           // audioChapterKeyRef match and keeps this Howl playing.
           advanceChapter(1);
@@ -434,8 +472,11 @@ const Audio = () => {
       audioChapterKeyRef.current = null;
       setAudio(null);
 
+      // The next chapter's fresh load must honor the gap too.
+      pendingGapRef.current = true;
       if (!advanceChapter(1)) {
         // No next chapter — stop playing.
+        pendingGapRef.current = false;
         setIsPlaying(false);
       }
     },
@@ -485,6 +526,10 @@ const Audio = () => {
       audioRef.current = null;
       audioChapterKeyRef.current = null;
       isPlayingRef.current = false;
+      // User navigated mid-gap — cancel the scheduled play so the
+      // new chapter starts promptly.
+      clearAdvanceTimer();
+      pendingGapRef.current = false;
       setAudio(null);
     }
     discardPreloaded();
@@ -498,6 +543,7 @@ const Audio = () => {
     resolveFilesetFor,
     disposeHowl,
     discardPreloaded,
+    clearAdvanceTimer,
     setAudioActiveVerse,
   ]);
 
@@ -567,6 +613,11 @@ const Audio = () => {
   }, []);
 
   const safePause = useCallback(() => {
+    // Pausing during the inter-chapter gap must also cancel the
+    // scheduled play — otherwise the next chapter starts despite
+    // the pause.
+    clearAdvanceTimer();
+    pendingGapRef.current = false;
     const currentAudio = audioRef.current;
     if (!currentAudio || !currentAudio.playing()) return;
     try {
@@ -576,7 +627,7 @@ const Audio = () => {
     } catch (err) {
       console.warn('Pause operation failed:', err);
     }
-  }, []);
+  }, [clearAdvanceTimer]);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -725,7 +776,17 @@ const Audio = () => {
   useEffect(() => {
     const loadAndPlayAudio = async () => {
       if (isPlaying && audio !== null) {
-        safePlay();
+        if (pendingGapRef.current) {
+          // This chapter arrived via auto-advance — start it
+          // after the inter-chapter gap, not immediately.
+          pendingGapRef.current = false;
+          scheduleChapterPlay(audio);
+        } else if (advanceTimerRef.current === null) {
+          // Skip safePlay while a scheduled play is pending —
+          // store-sync re-runs of this effect must not jump the
+          // gap.
+          safePlay();
+        }
         return;
       }
 
@@ -894,6 +955,7 @@ const Audio = () => {
     audio,
     safePlay,
     safePause,
+    scheduleChapterPlay,
     activeBookId,
     activeChapter,
     activeAudioFilesetId,
@@ -912,6 +974,8 @@ const Audio = () => {
     setIsPlaying(false);
     isPlayingRef.current = false;
     setShowPlayer(false);
+    clearAdvanceTimer();
+    pendingGapRef.current = false;
     discardPreloaded();
     disposeHowl(audio, activeBlobUrlRef.current);
     activeBlobUrlRef.current = null;

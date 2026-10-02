@@ -228,15 +228,21 @@ describe('Audio chapter auto-advance', () => {
     expect(transitions).toEqual([3, 4]);
     expect(useBibleStore.getState().activeChapter).toBe(4);
 
-    // The adopted Howl was not unloaded mid-play and is playing.
+    // The adopted Howl was not unloaded mid-play. Its play() is
+    // deferred by the inter-chapter gap — not yet playing.
     expect(preloaded._state).toBe('loaded');
-    await waitFor(() => expect(preloaded._playing).toBe(true));
+    expect(preloaded._playing).toBe(false);
+    await waitFor(
+      () => expect(preloaded._playing).toBe(true),
+      { timeout: 4000 },
+    );
 
     // The adopted Howl's play event preloads the chapter after
     // the one ACTUALLY playing (JHN 5) — not a duplicate of JHN 4
     // from a store still catching up to the navigation.
-    await waitFor(() =>
-      expect(FakeHowl.instances.length).toBe(3),
+    await waitFor(
+      () => expect(FakeHowl.instances.length).toBe(3),
+      { timeout: 4000 },
     );
     expect(FakeHowl.instances[2].src).toBe(
       'http://kjv.test/JHN/5.mp3',
