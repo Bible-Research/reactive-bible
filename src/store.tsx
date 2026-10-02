@@ -374,11 +374,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           if (page > 1) {
             // The requested page may no longer exist (e.g. notes
             // were deleted); fall back to the first page.
-            return useBibleStore.getState().fetchNotes(tagId, {
+            await useBibleStore.getState().fetchNotes(tagId, {
               ordering,
               page: 1,
               append,
             });
+            return;
           }
           console.error('Error fetching notes:', error);
           showNotification({
