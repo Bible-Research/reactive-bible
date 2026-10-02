@@ -282,10 +282,10 @@ describe('TranslationSelector Component', () => {
 
       save();
       expect(useBibleStore.getState().activeTextFilesetId).toBe(
-        'ENGESV:text:0',
+        'ENGESV:text:1',
       );
       expect(useBibleStore.getState().activeAudioFilesetId).toBe(
-        'ENGCSB:audio:0',
+        'ENGCSB:audio:1',
       );
     });
 
@@ -360,10 +360,10 @@ describe('TranslationSelector Component', () => {
 
       save();
       expect(useBibleStore.getState().activeTextFilesetId).toBe(
-        'ENGESV:text:0',
+        'ENGESV:text:1',
       );
       expect(useBibleStore.getState().activeAudioFilesetId).toBe(
-        'ENGESV:audio:0',
+        'ENGESV:audio:1',
       );
     });
 
@@ -455,7 +455,7 @@ describe('TranslationSelector Component', () => {
         save();
         expect(
           useBibleStore.getState().activeAudioFilesetId,
-        ).toBe('ENGCSB:audio:0');
+        ).toBe('ENGCSB:audio:1');
         expect(
           useBibleStore.getState().activeTextFilesetId,
         ).toBe('ENGNIVN_ET');

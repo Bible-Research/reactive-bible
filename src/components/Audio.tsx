@@ -29,6 +29,8 @@ import {
   findTranslationByFilesetId,
   resolveAudioFileset,
   resolveTextFileset,
+  splitCodec,
+  type CodecKey,
 } from "../utils/filesetGroups";
 import { getPlayPosition } from "../utils/audioUtils";
 import { verseDomId } from "../utils/verseRefs";
@@ -94,6 +96,11 @@ const Audio = () => {
     nextIndex: number;
   } | null>(null);
   const tryNextFallbackRef = useRef<() => boolean>(() => false);
+  // Remembers the codec that last played per audio selection —
+  // a codec that failed to decode (e.g. opus16 on an old
+  // device) must not be re-picked for the next chapter's
+  // preload or fallback walk.
+  const workingCodecRef = useRef(new Map<string, CodecKey>());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLooping, setIsLooping] = useState(false);
@@ -177,14 +184,46 @@ const Audio = () => {
     [],
   );
 
+  // Ordered candidates for a book with the codec that last
+  // played for this selection moved to the front — after an
+  // opus16 decode failure the mp3 sibling leads the next
+  // chapter's load and preload instead of re-picking opus16.
+  const resolveCandidates = useCallback(
+    (
+      bookId: string,
+      filesetId: string | null,
+    ): { filesetId: string; candidates: string[] } | null => {
+      const resolved = resolveAudio(bookId, filesetId);
+      if (!resolved) return null;
+      const candidates = [
+        resolved.filesetId,
+        ...resolved.alternates,
+      ];
+      const remembered = filesetId
+        ? workingCodecRef.current.get(filesetId)
+        : undefined;
+      if (remembered) {
+        const i = candidates.findIndex(
+          (id) => splitCodec(id).codec === remembered,
+        );
+        if (i > 0) candidates.unshift(candidates.splice(i, 1)[0]);
+      }
+      return { filesetId: candidates[0], candidates };
+    },
+    [resolveAudio],
+  );
+
   // Primary concrete fileset id for a book — used where only the
   // first candidate is needed (chapter keys, preloading).
   const resolveFilesetFor = useCallback(
     (bookId: string, filesetId: string | null): string | null => {
       if (!filesetId) return filesetId;
-      return resolveAudio(bookId, filesetId)?.filesetId ?? filesetId;
+      return (
+        resolveCandidates(bookId, filesetId)?.filesetId ??
+        filesetId
+      );
     },
-    [resolveAudio],
+    [resolveCandidates],
   );
 
   const resolveAudioUrl = useCallback(
@@ -313,6 +352,18 @@ const Audio = () => {
   const handleChapterPlay = useCallback(() => {
     setIsPlaying(true);
     setLoading(false);
+    // Remember the codec that actually played for this audio
+    // selection so a codec that keeps failing to decode is not
+    // re-picked for the next chapter's preload.
+    const selection =
+      useBibleStore.getState().activeAudioFilesetId;
+    const playingId = audioChapterKeyRef.current?.split(':')[0];
+    if (selection && playingId && playingId !== 'none') {
+      workingCodecRef.current.set(
+        selection,
+        splitCodec(playingId).codec,
+      );
+    }
     preloadNextChapter();
   }, [preloadNextChapter]);
 
@@ -432,21 +483,97 @@ const Audio = () => {
     handleChapterPlayError,
   ]);
 
+  // Reports a chapter audio failure the same way from the
+  // initial load and the fallback walk: a coverage miss that
+  // exhausted every alternate gets the book/translation hint,
+  // any other failure (rate limit, provider, network) keeps its
+  // own message instead of a generic 'Audio unavailable'.
+  const reportChapterAudioFailure = useCallback(
+    (err: unknown, bookId: string) => {
+      let errorMsg = 'Audio unavailable';
+      if (err instanceof Error) {
+        // Extract just the key part of the error
+        if (err.message.includes('not available')) {
+          errorMsg = 'Audio not available';
+        } else if (err.message.includes('No Fileset')) {
+          errorMsg = 'Audio not available for this chapter';
+        } else {
+          errorMsg = err.message.split(':')[0]; // Get first part
+        }
+      }
+
+      const state = useBibleStore.getState();
+      const filesetId = state.activeAudioFilesetId;
+      let hint =
+        'Try selecting a different audio version in the ' +
+        'Translation Settings ("Change Translation" button).';
+      if (err instanceof BookNotInFilesetError) {
+        const bookLabel = toBookName(bookId) ?? bookId;
+        const owner = findTranslationByFilesetId(
+          filesetId,
+          state.translations,
+        );
+        hint =
+          `No audio for ${bookLabel} in ` +
+          `${owner?.name ?? filesetId}.`;
+      }
+
+      showNotification({
+        title: errorMsg,
+        message: hint,
+        color: 'orange',
+        autoClose: 8000,
+      });
+      setError(errorMsg);
+      setIsPlaying(false);
+      setLoading(false);
+      setShowPlayer(false);
+    },
+    [setShowPlayer],
+  );
+
   // Loads the next fallback candidate for the current chapter.
   // Returns false when no candidates remain (or the load it
   // belongs to was superseded) so error handlers know whether
   // to surface a failure.
   useEffect(() => {
     tryNextFallbackRef.current = () => {
-      const pending = fallbackRef.current;
+      const state = useBibleStore.getState();
+      let pending = fallbackRef.current;
       if (!pending || pending.seq !== loadSeqRef.current) {
-        return false;
+        // A Howl adopted from the preload path never armed a
+        // fallback record (or the record belongs to the previous
+        // chapter) — re-resolve this chapter's candidates so a
+        // decode failure walks THIS product's alternates. The
+        // chapter-key check stops a superseded load's late
+        // error from starting a fallback for a passage the user
+        // already navigated away from.
+        const keyNow = audioChapterKeyRef.current;
+        if (!keyNow) return false;
+        const [playingId, bookId, chapter] = keyNow.split(':');
+        if (
+          bookId !== state.activeBookId ||
+          Number(chapter) !== state.activeChapter
+        ) {
+          return false;
+        }
+        const resolved = resolveCandidates(
+          state.activeBookId,
+          state.activeAudioFilesetId,
+        );
+        if (!resolved) return false;
+        const i = resolved.candidates.indexOf(playingId);
+        pending = {
+          seq: loadSeqRef.current,
+          ids: resolved.candidates,
+          nextIndex: i >= 0 ? i + 1 : 1,
+        };
+        fallbackRef.current = pending;
       }
       const nextId = pending.ids[pending.nextIndex];
       if (!nextId) return false;
       pending.nextIndex += 1;
-      const { activeBookId, activeChapter } =
-        useBibleStore.getState();
+      const { activeBookId, activeChapter } = state;
       void (async () => {
         try {
           const url = await resolveAudioUrl(
@@ -482,16 +609,18 @@ const Audio = () => {
           setAudio(howl);
           // isPlaying is still true — the load effect's
           // `audio !== null` branch drives play via safePlay.
-        } catch {
+        } catch (err) {
+          if (pending.seq !== loadSeqRef.current) return;
+          // Coverage misses keep walking the alternates; any
+          // other failure surfaces its own message rather than
+          // being masked as a generic 'Audio unavailable'.
           if (
-            !tryNextFallbackRef.current() &&
-            pending.seq === loadSeqRef.current
+            err instanceof BookNotInFilesetError &&
+            tryNextFallbackRef.current()
           ) {
-            setError('Audio unavailable');
-            setIsPlaying(false);
-            setLoading(false);
-            setShowPlayer(false);
+            return;
           }
+          reportChapterAudioFailure(err, activeBookId);
         }
       })();
       return true;
@@ -817,7 +946,7 @@ const Audio = () => {
         const seq = loadSeqRef.current;
 
         try {
-          const resolved = resolveAudio(
+          const resolved = resolveCandidates(
             activeBookId,
             activeAudioFilesetId,
           );
@@ -827,10 +956,7 @@ const Audio = () => {
             setLoading(false);
             return;
           }
-          const candidates = [
-            resolved.filesetId,
-            ...resolved.alternates,
-          ];
+          const candidates = resolved.candidates;
 
           let key = chapterKey(
             resolved.filesetId,
@@ -852,6 +978,15 @@ const Audio = () => {
             activeBlobUrlRef.current = pre.blobUrl;
             wireChapterHowlRef.current(audioHowl);
             audioHowl.loop(isLoopingRef.current);
+            // Arm fallback for the adopted chapter too — a decode
+            // failure on it must walk this product's candidates,
+            // not the previous chapter's (already consumed) list.
+            const adopted = candidates.indexOf(resolved.filesetId);
+            fallbackRef.current = {
+              seq,
+              ids: candidates,
+              nextIndex: adopted >= 0 ? adopted + 1 : 1,
+            };
           } else {
             if (pre) discardPreloaded();
 
@@ -924,49 +1059,9 @@ const Audio = () => {
           if (seq !== loadSeqRef.current) return;
 
           console.error('Error loading audio:', err);
-
-          // Extract user-friendly error message
-          let errorMsg = 'Audio unavailable';
-          if (err instanceof Error) {
-            // Extract just the key part of the error
-            if (err.message.includes('not available')) {
-              errorMsg = 'Audio not available';
-            } else if (err.message.includes('No Fileset')) {
-              errorMsg = 'Audio not available for this chapter';
-            } else {
-              errorMsg = err.message.split(':')[0]; // Get first part
-            }
-          }
-
           // Coverage gaps only surface here after every resolved
           // alternate was tried — report the book/translation pair.
-          const state = useBibleStore.getState();
-          let hint =
-            'Try selecting a different audio version in the ' +
-            'Translation Settings ("Change Translation" button).';
-          if (err instanceof BookNotInFilesetError) {
-            const bookLabel =
-              toBookName(activeBookId) ?? activeBookId;
-            const owner = findTranslationByFilesetId(
-              activeAudioFilesetId,
-              state.translations,
-            );
-            hint =
-              `No audio for ${bookLabel} in ` +
-              `${owner?.name ?? activeAudioFilesetId}.`;
-          }
-
-          showNotification({
-            title: errorMsg,
-            message: hint,
-            color: 'orange',
-            autoClose: 8000,
-          });
-
-          setError(errorMsg);
-          setIsPlaying(false);
-          setLoading(false);
-          setShowPlayer(false);
+          reportChapterAudioFailure(err, activeBookId);
         } finally {
           // Only the run still owning the sequence clears the flag
           // — a superseded run must not mask a newer load.
@@ -986,7 +1081,7 @@ const Audio = () => {
     activeBookId,
     activeChapter,
     activeAudioFilesetId,
-    resolveAudio,
+    resolveCandidates,
     resolveAudioUrl,
     discardPreloaded,
     onChapterEnd,
@@ -994,6 +1089,7 @@ const Audio = () => {
     handleChapterPause,
     handleChapterLoadError,
     handleChapterPlayError,
+    reportChapterAudioFailure,
     setShowPlayer,
   ]);
 
