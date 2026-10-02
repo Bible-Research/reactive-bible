@@ -28,3 +28,8 @@ dist-ssr
 *.sln
 *.sw?
 PR_DESCRIPTION.md
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts

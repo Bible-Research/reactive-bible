@@ -2,9 +2,12 @@ name: Android APK
 
 # Debug APK: every push to the `android` working branch and every
 # manual dispatch — the blind-development iteration artifact.
-# Signed release APK: only on `v*` tags, attached to the GitHub
+# Signed release APK: on `v*` tags, attached to the tag's GitHub
 # release as `reactive-bible.apk` (fixed name keeps the download
-# URL stable: releases/latest/download/reactive-bible.apk).
+# URL stable: releases/latest/download/reactive-bible.apk), and on
+# every push to `main`, attached to the rolling `continuous`
+# prerelease together with `update.json` — the manifest installed
+# apps poll to detect a newer build.
 on:
   workflow_dispatch:
   push:
@@ -12,6 +15,7 @@ on:
       - 'v*'
     branches:
       - android
+      - main
 
 jobs:
   build:
@@ -49,30 +53,44 @@ jobs:
           yes | "$SDKM" --licenses > /dev/null
           "$SDKM" "platforms;android-36" "build-tools;36.0.0"
 
+      # Skipped on main pushes — the signed release APK below is the
+      # artifact that matters there.
       - name: Build debug APK
+        if: github.ref != 'refs/heads/main'
         working-directory: android
         run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
 
       - uses: actions/upload-artifact@v5
+        if: github.ref != 'refs/heads/main'
         with:
           name: reactive-bible-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      # ---------- Release (v* tags only) ----------
+      # ---------- Release (v* tags and main pushes) ----------
 
       - name: Build release APK
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          github.ref == 'refs/heads/main'
         working-directory: android
-        run: >-
-          ./gradlew assembleRelease
-          -PversionCode=${{ github.run_number }}
-          -PversionName=${GITHUB_REF_NAME#v}
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            VNAME="${GITHUB_REF_NAME#v}"
+          else
+            VNAME="0.0.${{ github.run_number }}"
+          fi
+          echo "APP_VERSION_NAME=$VNAME" >> "$GITHUB_ENV"
+          ./gradlew assembleRelease \
+            -PversionCode=${{ github.run_number }} \
+            -PversionName="$VNAME"
 
       # PKCS12 keystore (generated with openssl — no JKS needed);
       # signed with apksigner, which auto-detects the store type.
       - name: Sign release APK
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          github.ref == 'refs/heads/main'
         run: |
           set -e
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | \
@@ -95,3 +113,63 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: reactive-bible.apk
+
+      # ---------- Rolling `continuous` channel (main only) ----------
+
+      # Sanity check: the APK's real versionCode must equal the
+      # run_number baked into update.json, or installed apps would
+      # compare against a stale number.
+      - name: Verify APK versionCode
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -e
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          AAPT="$BT/aapt"; [ -x "$AAPT" ] || AAPT="$BT/aapt2"
+          VC=$("$AAPT" dump badging reactive-bible.apk | \
+            sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
+          test "$VC" = "${{ github.run_number }}"
+
+      - name: Generate update.json
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -e
+          APK_SHA=$(sha256sum reactive-bible.apk | cut -d' ' -f1)
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
+          APK_URL="$BASE/continuous/reactive-bible.apk"
+          jq -n \
+            --argjson versionCode "${{ github.run_number }}" \
+            --arg versionName "$APP_VERSION_NAME" \
+            --arg apkUrl "$APK_URL" \
+            --arg apkSha256 "$APK_SHA" \
+            --argjson minShellBuild "${{ github.run_number }}" \
+            --arg commitSha "${{ github.sha }}" \
+            --arg releasedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{versionCode: $versionCode, versionName: $versionName,
+              apkUrl: $apkUrl, apkSha256: $apkSha256,
+              minShellBuild: $minShellBuild, commitSha: $commitSha,
+              releasedAt: $releasedAt}' > update.json
+          cat update.json
+
+      # Move the rolling tag so the release page shows the commit it
+      # was built from.
+      - name: Retag continuous
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git tag -f continuous "${{ github.sha }}"
+          git push -f origin continuous
+
+      # Fixed tag keeps the asset URL stable for the in-app updater:
+      # releases/download/continuous/update.json. `prerelease` +
+      # `make_latest: false` keep `releases/latest` pointing at real
+      # v* milestones.
+      - name: Publish continuous release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build (main)
+          prerelease: true
+          make_latest: false
+          files: |
+            reactive-bible.apk
+            update.json
