@@ -146,6 +146,8 @@ const partializeState = (state: BibleState) => ({
   audioActiveVerse: state.audioActiveVerse,
   notes: state.notes,
   tags: state.tags,
+  notesPage: state.notesPage,
+  notesPageSize: state.notesPageSize,
   // showAudioPlayer is NOT persisted
 });
 
@@ -176,6 +178,8 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   book/chapter; `selectedVerses` is dropped entirely.
  * - pre-v3: `activeBook`/`activeBookShort` (display names) become
  *   `activeBookId` (USFM code); VerseRef/audio refs gain bookId.
+ * - pre-v4: `notesPage`/`notesPageSize` are newly persisted;
+ *   absent values fall back to defaults, no migration needed.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -301,8 +305,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string, options = {}) => {
+        const { ordering, page = 1, append = false } = options;
         try {
-          const { ordering, page = 1, append = false } = options;
           const {
             notesPageSize,
             activeTextFilesetId
@@ -367,6 +371,16 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             lastSelectedTagId: tagId || null,
           }));
         } catch (error) {
+          if (page > 1) {
+            // The requested page may no longer exist (e.g. notes
+            // were deleted); fall back to the first page.
+            await useBibleStore.getState().fetchNotes(tagId, {
+              ordering,
+              page: 1,
+              append,
+            });
+            return;
+          }
           console.error('Error fetching notes:', error);
           showNotification({
             title: 'Error',
@@ -507,7 +521,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 3,
+      version: 4,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

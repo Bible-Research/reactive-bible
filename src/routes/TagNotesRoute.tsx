@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ScrollArea,
@@ -109,6 +109,24 @@ export default function TagNotesRoute() {
       ? urlSortOrder
       : 'custom_asc';
 
+  // Page to restore on the first load, captured during render
+  // before the mount effect writes lastSelectedTagId (which
+  // would make the same-tag check below always true).
+  const initialPageRef = useRef<number | null>(null);
+  if (initialPageRef.current === null) {
+    const stored = useBibleStore.getState();
+    initialPageRef.current =
+      stored.lastSelectedTagId === tagId && stored.notesPage > 1
+        ? stored.notesPage
+        : 1;
+  }
+  // The load effect re-runs on mount (StrictMode, auth
+  // hydration); remember the last requested query so repeats
+  // refetch the current page instead of resetting to page 1.
+  const lastLoadRef = useRef<{ key: string; page: number } | null>(
+    null
+  );
+
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
   const [pageLoading, setPageLoading] = useState(false);
@@ -153,10 +171,32 @@ export default function TagNotesRoute() {
           sortOrder !== 'custom_asc'
             ? getApiOrdering(sortOrder)
             : undefined;
-        
+
+        // Restore the stored page on the first load; re-runs
+        // for the same tag+sort (StrictMode remount, auth
+        // hydration) refetch the page the user is on instead
+        // of bouncing back to page 1.
+        const queryKey = `${tagId}:${sortOrder}`;
+        let page: number;
+        if (lastLoadRef.current?.key === queryKey) {
+          // notesPage reflects this tag only once its notes are
+          // in the store; before that, reuse the last request.
+          const current = useBibleStore.getState();
+          const ownsPage = current.notes.some(
+            (n) => n.tag?.id === tagId
+          );
+          page = ownsPage
+            ? current.notesPage
+            : lastLoadRef.current.page;
+        } else {
+          page = initialPageRef.current ?? 1;
+          initialPageRef.current = 1;
+        }
+        lastLoadRef.current = { key: queryKey, page };
+
         await fetchNotes(tagId, {
           ordering: apiOrdering,
-          page: 1,
+          page,
         });
         if (cancelled) return;
 
@@ -217,7 +257,21 @@ export default function TagNotesRoute() {
       if (window.confirm('Are you sure you want to delete this note?')) {
         await deleteNote(note.id);
         if (tagId) {
-          await fetchNotes(tagId);
+          clearNotesCache(tagId);
+          const apiOrdering =
+            sortOrder !== 'custom_asc'
+              ? getApiOrdering(sortOrder)
+              : undefined;
+          // Stay on the current page; if this was its last
+          // note, fall back to the new last page.
+          const lastPage = Math.max(
+            1,
+            Math.ceil((notesCount - 1) / notesPageSize)
+          );
+          await fetchNotes(tagId, {
+            ordering: apiOrdering,
+            page: Math.min(notesPage, lastPage),
+          });
         }
       }
     }
@@ -254,9 +308,18 @@ export default function TagNotesRoute() {
     try {
       // Clear cache for this tag
       clearNotesCache(tagId);
-      
-      // Refetch notes from API
-      await fetchNotes(tagId);
+
+      // Refetch only the page the user is currently on so
+      // they keep their place after refreshing
+      const apiOrdering =
+        sortOrder !== 'custom_asc'
+          ? getApiOrdering(sortOrder)
+          : undefined;
+
+      await fetchNotes(tagId, {
+        ordering: apiOrdering,
+        page: notesPage,
+      });
 
       await getTags();
       
