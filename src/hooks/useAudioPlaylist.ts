@@ -17,6 +17,7 @@ import {
 import {
   findTranslationByFilesetId,
   resolveAudioFileset,
+  resolveTextFileset,
 } from '../utils/filesetGroups';
 import { useVerseHighlighter } from './useVerseHighlighter';
 import {
@@ -156,7 +157,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         }
         const tsId = resolveTimestampsFilesetId(
           nextFilesetId,
-          activeTextFilesetId,
+          resolveTextFileset(
+            activeTextFilesetId,
+            next.bookId,
+            translations,
+          ),
           next.bookId,
         );
         if (tsId) {
@@ -201,7 +206,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               if (candidateId !== 'ENGKJV') {
                 const tsId = resolveTimestampsFilesetId(
                   candidateId,
-                  activeTextFilesetId,
+                  resolveTextFileset(
+                    activeTextFilesetId,
+                    item.bookId,
+                    translations,
+                  ),
                   item.bookId,
                 );
                 if (tsId) {

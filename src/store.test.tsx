@@ -83,6 +83,49 @@ describe('useBibleStore', () => {
       );
       expect(useBibleStore.getState().notes).toEqual(sampleNotes);
     });
+
+    it('resolves a stored product id before sending fileset_id',
+      async () => {
+        mockCacheManager.getCachedNotes.mockReturnValue(null);
+        mockApi.getNotes.mockResolvedValue({
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        });
+        // The selector persists grouped product ids like
+        // `ENGESV:text:0` — the API only understands concrete
+        // fileset ids.
+        useBibleStore.setState({
+          activeTextFilesetId: 'ENGESV:text:0',
+          activeBookId: 'JHN',
+          translations: [
+            {
+              abbr: 'ENGESV',
+              name: 'English Standard Version',
+              language: 'English',
+              language_iso: 'eng',
+              filesets: [
+                { id: 'ENGESV_API', type: 'text_plain', size: 'C',
+                  codec: null, bitrate: null },
+                { id: 'ENGESVO_ET', type: 'text_plain', size: 'OT',
+                  codec: null, bitrate: null },
+                { id: 'ENGESVN_ET', type: 'text_plain', size: 'NT',
+                  codec: null, bitrate: null },
+              ],
+            },
+          ],
+        });
+
+        await useBibleStore.getState().fetchNotes('TAG1');
+
+        expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1', {
+          ordering: undefined,
+          page: 1,
+          pageSize: 25,
+          filesetId: 'ENGESV_API',
+        });
+      });
   });
 
   describe('deleteNote with cache clearing', () => {

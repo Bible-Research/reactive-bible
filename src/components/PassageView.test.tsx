@@ -7,9 +7,7 @@ import PassageView from './PassageView';
 import { renderWithProviders } from '../__tests__/helpers';
 import type { Translation } from '../store';
 
-// NT-only member selection on a split-testament translation —
-// requesting GEN (OT) makes the backend answer 404 with
-// `book_not_in_fileset`.
+// Split-testament translation — both members are present.
 const splitTranslation: Translation = {
   abbr: 'ENGWWH',
   name: 'World English Test',
@@ -18,6 +16,17 @@ const splitTranslation: Translation = {
   filesets: [
     { id: 'EN1WEBO_ET', type: 'text_plain', size: 'OT',
       codec: null, bitrate: null },
+    { id: 'EN1WEBN_ET', type: 'text_plain', size: 'NT',
+      codec: null, bitrate: null },
+  ],
+};
+
+// NT-only translation: the resolver has no OT member to hop to,
+// so requesting GEN (OT) is a genuine coverage miss — the
+// backend answers 404 with `book_not_in_fileset`.
+const ntOnlyTranslation: Translation = {
+  ...splitTranslation,
+  filesets: [
     { id: 'EN1WEBN_ET', type: 'text_plain', size: 'NT',
       codec: null, bitrate: null },
   ],
@@ -54,7 +63,7 @@ describe('PassageView error display', () => {
           activeBookId: 'GEN',
           activeChapter: 1,
           activeTextFilesetId: 'EN1WEBN_ET',
-          translations: [splitTranslation],
+          translations: [ntOnlyTranslation],
         },
       });
 

@@ -1084,9 +1084,29 @@ getVersesInChapter(
 
 **Data Flow**:
 1. `TranslationSelector` fetches available translations and stores them in Zustand.
-2. User selects a translation, text fileset, and audio fileset in the modal.
-3. Selections are saved to the Zustand store (`activeTextFilesetId`, `activeAudioFilesetId`).
-4. Components like `PassageView` and `Audio` react to state changes, fetching content using the selected fileset IDs.
+2. User picks a version; its filesets are grouped into
+   product-like options (see below). The text fileset is
+   auto-resolved per testament — no picker; audio is offered as
+   product radios ("Read aloud", "Dramatized", "Generated
+   voice", or None). A collapsed "Advanced" section exposes raw
+   fileset ids for debugging (opus16 codec variants are hidden —
+   opus16 is the default and mp3 the automatic fallback).
+3. Selections are saved to the Zustand store —
+   `activeAudioFilesetId` stores the product id (e.g.
+   `ENGESV:audio:0`), `activeTextFilesetId` the text product or a
+   member id; the resolvers below accept either form, so legacy
+   persisted ids keep working.
+4. Components like `PassageView` and `Audio` react to state
+   changes, resolving the stored id to the concrete fileset that
+   covers each book's testament.
+
+**Audio-only versions**: when a version has no text option and
+the active text fileset belongs to another language, the
+selector auto-selects a same-language text version (preferring
+full coverage) and shows a "Text: {name} — auto-selected" note.
+If the active text is already same-language it is kept; if no
+same-language text exists the current text is kept with an info
+note.
 
 **Fileset groups & resolution** (`src/utils/filesetGroups.ts`):
 
@@ -1107,6 +1127,13 @@ pairs and testament-split members into `FilesetOption`s
   same-kind options → any audio option. Playback walks this list
   on `BookNotInFilesetError` or Howler load/play errors before
   notifying.
+- A stored `{abbr}:{kind}:{n}` product id that matches neither a
+  product id nor a member falls back to the nth option of that
+  kind owned by that translation — covers the 0-based
+  (client-minted) vs 1-based (backend-minted) index drift across
+  the backend `audio_options`/`text_options` rollout. Callers
+  must resolve stored ids before sending them as `fileset_id`
+  (SearchRoute, AddTagNoteModal, notes fetching, etc.).
 - Coverage comes from `sizeToCoverage(size)` in `bibleUtils.ts`
   (`C`, `NT`/`OT`, partial `NTP`/`OTP`/`NTPOTP`, `NT1`-style).
 - Special ids: `ENGKJV` (local text bundle + wordpocket audio),
@@ -1587,9 +1614,11 @@ Fetch translations for language
     ↓
 User selects translation (e.g., ESV)
     ↓
-User selects text fileset
+Text fileset auto-resolves per testament (no picker)
     ↓
-User selects audio fileset (or None)
+User selects audio product (Read aloud / Dramatized /
+Generated voice) or None — Advanced section offers raw
+fileset ids for debugging
     ↓
 User clicks Save
     ↓
@@ -1882,16 +1911,21 @@ Modal for selecting Bible translations.
 **Responsibilities**:
 - Fetch available translations from API
 - Language selector (English, Latvian)
-- Translation dropdown (searchable)
-- Text fileset selection (radio buttons)
-- Audio fileset selection (radio buttons, including "None")
-- Save selections to Zustand store
-- Display fileset details (type, size, codec)
+- Version dropdown (searchable, capability chips: "Audio",
+  "Text only", "Audio only")
+- Text auto-resolution per testament (dimmed info line; no
+  picker) with same-language fallback for audio-only versions
+- Audio product selection (radio buttons, including "None")
+- Collapsed Advanced section with raw fileset radios
+  (debugging; opus16 variants hidden)
+- Save selections to Zustand store (product ids)
 
 **Features**:
 - Segmented control for language switching
-- Separate text and audio fileset selection
-- Shows audio type (Audio vs Drama) and quality
+- Groups filesets via `groupFilesets` — codec pairs and
+  testament splits collapse into one product each
+- Shows audio kind ("Read aloud" / "Dramatized" /
+  "Generated voice") and coverage label
 - Cancel and Save buttons
 
 ---
