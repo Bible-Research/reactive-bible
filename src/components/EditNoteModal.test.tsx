@@ -117,6 +117,30 @@ describe('EditNoteModal Component', () => {
     expect(screen.getByDisplayValue('Original note text')).toBeInTheDocument();
   });
 
+  it('should keep verse references collapsed by default', async () => {
+    renderWithProviders(
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={noteWithVerses}
+      />
+    );
+
+    const toggle = await screen.findByTitle('toggle-verse-references');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.getByTitle('edit-note-verse-16')
+    ).not.toBeVisible();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await waitFor(() => {
+      expect(
+        screen.getByTitle('edit-note-verse-16')
+      ).toBeVisible();
+    });
+  });
+
   it('should render the verse picker seeded from the note', async () => {
     renderWithProviders(
       <EditNoteModal
@@ -124,6 +148,10 @@ describe('EditNoteModal Component', () => {
         onClose={vi.fn()}
         note={noteWithVerses}
       />
+    );
+
+    fireEvent.click(
+      await screen.findByTitle('toggle-verse-references')
     );
 
     // John 3:16 is linked, so the picker shows chapter 3 verses
@@ -144,6 +172,9 @@ describe('EditNoteModal Component', () => {
       />
     );
 
+    fireEvent.click(
+      await screen.findByTitle('toggle-verse-references')
+    );
     const verse17 = await screen.findByTitle('edit-note-verse-17');
     fireEvent.click(verse17);
     expect(verse17).toHaveAttribute('data-active', 'true');
@@ -162,6 +193,9 @@ describe('EditNoteModal Component', () => {
     );
 
     // Add John 3:17 to the note's linked verses.
+    fireEvent.click(
+      await screen.findByTitle('toggle-verse-references')
+    );
     fireEvent.click(await screen.findByTitle('edit-note-verse-17'));
     const form = screen
       .getByText('Submit changes')

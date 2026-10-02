@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Divider, Modal, Text } from "@mantine/core";
+import {
+  Badge,
+  Box,
+  Collapse,
+  Divider,
+  Group,
+  Modal,
+  Text,
+  UnstyledButton,
+} from "@mantine/core";
+import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { editNote } from "../api";
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
@@ -40,6 +50,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
 
   // The note's verse links, editable via the picker below.
   const [refs, setRefs] = useState<VerseRef[]>([]);
+  // The verse reference section stays collapsed until expanded.
+  const [versesOpen, setVersesOpen] = useState(false);
   const [pickerBookId, setPickerBookId] = useState<string | null>(null);
   const [pickerChapter, setPickerChapter] = useState<number | null>(
     null
@@ -51,6 +63,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   useEffect(() => {
     if (!opened) return;
     getTags(); // Uses cache if available
+    setVersesOpen(false);
     if (!note) return;
     const initial = (note.verses ?? [])
       .map((v) => ({
@@ -145,45 +158,64 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             onTagDropdownOpen={() => getTags()}
             note={{ tagId: note.tag.id, text: note.note_text }}
           />
-          <Divider
-            mt="xl"
-            mb="sm"
-            label="Linked verses"
-            labelPosition="center"
-          />
-          <Box h={280}>
-            <PassagePicker
-              bookId={pickerBookId}
-              chapter={pickerChapter}
-              verses={pickerVerses}
-              titlePrefix="edit-note-"
-              onSelectBook={(bookId) => {
-                setPickerBookId(bookId);
-                setPickerChapter(null);
-              }}
-              onSelectChapter={setPickerChapter}
-              onSelectVerse={handleSelectVerse}
-            />
-          </Box>
-          {textGroups.map(([label, groupVerses]) => (
-            <Box key={label} mt="xl">
-              <Divider
-                my="sm"
-                label={label}
-                labelPosition="center"
+          <Divider mt="xl" mb="sm" />
+          <UnstyledButton
+            w="100%"
+            title="toggle-verse-references"
+            aria-expanded={versesOpen}
+            onClick={() => setVersesOpen((open) => !open)}
+          >
+            <Group spacing="xs">
+              {versesOpen ? (
+                <IconChevronDown size={16} />
+              ) : (
+                <IconChevronRight size={16} />
+              )}
+              <Text size="sm" weight={600}>
+                Verse references
+              </Text>
+              {refs.length > 0 && (
+                <Badge size="sm" variant="light" color="blue">
+                  {refs.length}
+                </Badge>
+              )}
+            </Group>
+          </UnstyledButton>
+          <Collapse in={versesOpen}>
+            <Box h={280} mt="sm">
+              <PassagePicker
+                bookId={pickerBookId}
+                chapter={pickerChapter}
+                verses={pickerVerses}
+                titlePrefix="edit-note-"
+                onSelectBook={(bookId) => {
+                  setPickerBookId(bookId);
+                  setPickerChapter(null);
+                }}
+                onSelectChapter={setPickerChapter}
+                onSelectVerse={handleSelectVerse}
               />
-              {groupVerses.map((v) => (
-                <Box key={v.verse} py={4} px={8}>
-                  <Text size="sm">
-                    <Text component="span" weight={700} mr={4}>
-                      {v.verse}
-                    </Text>
-                    {v.text}
-                  </Text>
-                </Box>
-              ))}
             </Box>
-          ))}
+            {textGroups.map(([label, groupVerses]) => (
+              <Box key={label} mt="xl">
+                <Divider
+                  my="sm"
+                  label={label}
+                  labelPosition="center"
+                />
+                {groupVerses.map((v) => (
+                  <Box key={v.verse} py={4} px={8}>
+                    <Text size="sm">
+                      <Text component="span" weight={700} mr={4}>
+                        {v.verse}
+                      </Text>
+                      {v.text}
+                    </Text>
+                  </Box>
+                ))}
+              </Box>
+            ))}
+          </Collapse>
         </>
       )}
     </Modal>
