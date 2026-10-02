@@ -257,6 +257,21 @@ describe('API Functions', () => {
       },
     ];
 
+    // `getAvailableTranslations` injects the bundled `ENGKJV`
+    // audio pseudo-fileset into any translation that owns
+    // `ENGKJV*` filesets, so the expected result carries it.
+    const kjvAudioFileset = {
+      id: 'ENGKJV', type: 'audio', size: 'C',
+      codec: null, bitrate: null,
+    };
+    const cachedInjected = [
+      {
+        ...cached[0],
+        filesets: [...cached[0].filesets, kjvAudioFileset],
+      },
+    ];
+    const freshInjected = [cachedInjected[0], fresh[1]];
+
     beforeEach(() => {
       vi.spyOn(cacheManager, 'getCachedTranslations');
       vi.spyOn(cacheManager, 'cacheTranslations');
@@ -269,7 +284,7 @@ describe('API Functions', () => {
 
       const result = await api.getAvailableTranslations('eng');
 
-      expect(result).toEqual(cached);
+      expect(result).toEqual(cachedInjected);
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
@@ -285,9 +300,9 @@ describe('API Functions', () => {
 
       const result = await api.getAvailableTranslations('eng', true);
 
-      expect(result).toEqual(fresh);
+      expect(result).toEqual(freshInjected);
       expect(cacheManager.cacheTranslations)
-        .toHaveBeenCalledWith('eng', fresh);
+        .toHaveBeenCalledWith('eng', freshInjected);
     });
   });
 
