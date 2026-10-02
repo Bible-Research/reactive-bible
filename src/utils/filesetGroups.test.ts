@@ -327,3 +327,105 @@ describe('findTranslationByFilesetId', () => {
     expect(findTranslationByFilesetId('NOPE', [LAVNLI])).toBeNull();
   });
 });
+
+describe('product id prefix fallback (index drift)', () => {
+  // The backend mints `{abbr}:{kind}:{n}` ids 1-based while ids
+  // persisted by this client are 0-based — a stored `*:kind:0`
+  // must still resolve once backend options ship.
+
+  // ENGNIV as the backend would describe it post-rollout.
+  const backendNiv = tr(
+    'ENGNIV',
+    [fs('ENGNIVO_ET', 'text_plain', 'OT'),
+     fs('ENGNIVN_ET', 'text_plain', 'NT')],
+    {
+      text_options: [
+        {
+          id: 'ENGNIV:text:1',
+          kind: 'text',
+          by_testament: {
+            OT: { default: 'ENGNIVO_ET' },
+            NT: { default: 'ENGNIVN_ET' },
+          },
+          members: ['ENGNIVO_ET', 'ENGNIVN_ET'],
+        },
+      ],
+    },
+  );
+
+  // LAVNLI with 1-based backend option ids.
+  const backendLavnli = tr('LAVNLI', LAVNLI.filesets, {
+    audio_options: [
+      {
+        id: 'LAVNLI:audio:1',
+        kind: 'audio',
+        by_testament: {
+          OT: { mp3: 'LATBSLP1DA', opus16: 'LATBSLP1DA-opus16' },
+          NT: { mp3: 'LATBSLN1DA', opus16: 'LATBSLN1DA-opus16' },
+        },
+      },
+      {
+        id: 'LAVNLI:audio_drama:1',
+        kind: 'audio_drama',
+        by_testament: {
+          NT: { mp3: 'LATBSLN2DA', opus16: 'LATBSLN2DA-opus16' },
+        },
+      },
+    ],
+  });
+
+  it('resolves a drifted text product id to its option', () => {
+    expect(
+      resolveTextFileset('ENGNIV:text:0', 'JHN', [backendNiv]),
+    ).toBe('ENGNIVN_ET');
+    expect(
+      resolveTextFileset('ENGNIV:text:0', 'GEN', [backendNiv]),
+    ).toBe('ENGNIVO_ET');
+  });
+
+  it('resolves a drifted audio product id to its option', () => {
+    const resolved = resolveAudioFileset(
+      'LAVNLI:audio:0',
+      'JHN',
+      [backendLavnli],
+    );
+    expect(resolved?.filesetId).toBe('LATBSLN1DA-opus16');
+    expect(resolved?.alternates).toContain('LATBSLN2DA-opus16');
+  });
+
+  it('keeps kinds separate in the prefix fallback', () => {
+    const resolved = resolveAudioFileset(
+      'LAVNLI:audio_drama:0',
+      'JHN',
+      [backendLavnli],
+    );
+    expect(resolved?.filesetId).toBe('LATBSLN2DA-opus16');
+  });
+
+  it('finds the owning translation for drifted ids', () => {
+    expect(
+      findTranslationByFilesetId('ENGNIV:text:0', [backendNiv])
+        ?.abbr,
+    ).toBe('ENGNIV');
+    expect(
+      findTranslationByFilesetId('LAVNLI:audio:0', [backendLavnli])
+        ?.abbr,
+    ).toBe('LAVNLI');
+  });
+
+  it('never borrows another translation via prefix fallback', () => {
+    expect(
+      resolveTextFileset('ENGNIV:text:0', 'JHN', [backendLavnli]),
+    ).toBe('ENGNIV:text:0');
+  });
+
+  it('collapses ENGKJV product ids to the offline bundle id', () => {
+    // Works even before the translations list is loaded.
+    expect(resolveTextFileset('ENGKJV:text:0', 'GEN', [])).toBe(
+      'ENGKJV',
+    );
+    expect(
+      resolveAudioFileset('ENGKJV:audio:0', 'GEN', [])?.filesetId,
+    ).toBe('ENGKJV');
+  });
+});

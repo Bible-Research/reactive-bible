@@ -412,6 +412,166 @@ describe('TranslationSelector Component', () => {
       );
     });
 
+    it('reopens on the audio owner when the text is borrowed',
+      async () => {
+        // CSB audio + auto-borrowed NIV text: reopening must show
+        // CSB — the version the user picked — not NIV, and a
+        // no-op Save must keep the audio selection.
+        const niv = {
+          abbr: 'ENGNIV',
+          name: 'New International Version',
+          language: 'English',
+          language_iso: 'eng',
+          filesets: [
+            textFs('ENGNIVO_ET', 'OT'),
+            textFs('ENGNIVN_ET', 'NT'),
+          ],
+        };
+        useRealStore({
+          translations: [csb, niv],
+          activeTextFilesetId: 'ENGNIVN_ET',
+          activeAudioFilesetId: 'ENGCSB:audio:0',
+        });
+        (api.getAvailableTranslations as Mock).mockResolvedValue([
+          csb,
+          niv,
+        ]);
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Change Translation' }),
+        );
+
+        await waitFor(() => {
+          expect(
+            screen.getByPlaceholderText('Choose a version'),
+          ).toHaveValue('Christian Standard Bible (ENGCSB)');
+        });
+        expect(
+          screen.getByRole('radio', {
+            name: 'Read aloud — New Testament only',
+          }),
+        ).toBeChecked();
+
+        save();
+        expect(
+          useBibleStore.getState().activeAudioFilesetId,
+        ).toBe('ENGCSB:audio:0');
+        expect(
+          useBibleStore.getState().activeTextFilesetId,
+        ).toBe('ENGNIVN_ET');
+      });
+
+    it('seeds the language tab from the active selection',
+      async () => {
+        const lavnli = {
+          abbr: 'LAVNLI',
+          name: 'Latvian New Interconfessional',
+          language: 'Latvian',
+          language_iso: 'lvs',
+          filesets: [
+            audioFs('LATBSLN1DA', 'NT'),
+            audioFs('LATBSLN1DA-opus16', 'NT'),
+          ],
+        };
+        useRealStore({
+          activeTextFilesetId: null,
+          activeAudioFilesetId: 'LAVNLI:audio:0',
+        });
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(iso === 'lvs' ? [lavnli] : engTranslations),
+        );
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Change Translation' }),
+        );
+
+        await waitFor(() => {
+          expect(
+            screen.getByRole('radio', { name: 'Latvian' }),
+          ).toBeChecked();
+        });
+      });
+
+    it('disables Save until a version is selected', async () => {
+      // A stale selection with no owning translation must not be
+      // wiped by a no-op Save.
+      useRealStore({
+        activeTextFilesetId: 'STALE_ID',
+        activeAudioFilesetId: null,
+      });
+      render(<TranslationSelector />);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Change Translation' }),
+      );
+
+      const saveButton = await screen.findByRole('button', {
+        name: 'Save',
+      });
+      expect(saveButton).toBeDisabled();
+
+      await userEvent.click(
+        await screen.findByPlaceholderText('Choose a version'),
+      );
+      await userEvent.click(
+        await screen.findByText('English Standard Version (ENGESV)'),
+      );
+      expect(saveButton).toBeEnabled();
+    });
+
+    it('normalizes a drifted product id to the backend option',
+      async () => {
+        // Pre-rollout persisted ids are 0-based; a backend that
+        // mints 1-based ids makes `ENGESV:audio:0` drift — reopen
+        // resolves it via the `{abbr}:{kind}` prefix fallback and
+        // Save re-persists the canonical id.
+        const esvBackend = {
+          ...esv,
+          text_options: [
+            {
+              id: 'ENGESV:text:1',
+              kind: 'text',
+              by_testament: { OT: 'ENGESV_API', NT: 'ENGESV_API' },
+              members: ['ENGESV_API'],
+            },
+          ],
+          audio_options: [
+            {
+              id: 'ENGESV:audio:1',
+              kind: 'audio',
+              by_testament: { OT: 'ENGESV_API', NT: 'ENGESV_API' },
+              members: ['ENGESV_API'],
+            },
+          ],
+        };
+        useRealStore({
+          translations: [esvBackend],
+          activeTextFilesetId: 'ENGESV:text:0',
+          activeAudioFilesetId: 'ENGESV:audio:0',
+        });
+        (api.getAvailableTranslations as Mock).mockResolvedValue([
+          esvBackend,
+        ]);
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Change Translation' }),
+        );
+
+        expect(
+          await screen.findByRole('radio', {
+            name: 'Read aloud — Full Bible',
+          }),
+        ).toBeChecked();
+
+        save();
+        expect(useBibleStore.getState().activeTextFilesetId).toBe(
+          'ENGESV:text:1',
+        );
+        expect(useBibleStore.getState().activeAudioFilesetId).toBe(
+          'ENGESV:audio:1',
+        );
+      });
+
     it('stores null when audio is set to None', async () => {
       useRealStore({
         translations: [esv],

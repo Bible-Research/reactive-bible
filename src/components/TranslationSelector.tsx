@@ -2,6 +2,7 @@ import {
   forwardRef,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentPropsWithoutRef,
 } from 'react';
@@ -22,6 +23,7 @@ import {
 import { useBibleStore, type Translation } from '../store';
 import { getAvailableTranslations } from '../api';
 import {
+  findAudioOption,
   findTranslationByFilesetId,
   groupFilesets,
   type FilesetOption,
@@ -42,6 +44,12 @@ const useStyles = createStyles((theme) => ({
     padding: theme.spacing.md,
   },
 }));
+
+/** Language tabs offered by the selector. */
+const LANGUAGES = [
+  { label: 'English', value: 'eng' },
+  { label: 'Latvian', value: 'lvs' },
+];
 
 type Capability = 'both' | 'text' | 'audio';
 
@@ -148,6 +156,9 @@ const TranslationSelector = () => {
   // Info line for text that does not belong to the selected
   // version (audio-only versions borrow a same-language text).
   const [textNote, setTextNote] = useState<string | null>(null);
+  // Tracks manual interaction so async language seeding never
+  // stomps a pick the user just made.
+  const userInteractedRef = useRef(false);
 
   /**
    * Selects a version and derives the text/audio selections:
@@ -181,7 +192,17 @@ const TranslationSelector = () => {
         owner &&
         owner.language_iso === translation.language_iso
       ) {
-        setSelectedTextId(activeTextFilesetId);
+        // Keep concrete member ids verbatim; a product id is
+        // normalized to the owner's current text product so a
+        // drifted id isn't re-persisted on save.
+        const ownerText = groupFilesets(owner).text;
+        const keepStored =
+          !ownerText ||
+          (activeTextFilesetId !== null &&
+            ownerText.members.includes(activeTextFilesetId));
+        setSelectedTextId(
+          keepStored ? activeTextFilesetId : ownerText.id,
+        );
         setTextNote(`Text: ${owner.name}`);
       } else {
         const candidate = pickTextTranslation(
@@ -203,14 +224,18 @@ const TranslationSelector = () => {
         }
       }
     }
-    // Normalize a legacy member id to its product id — playback
-    // resolves both, but new selections store the product id.
-    const audioOption = grouped.audio.find(
-      (o) =>
-        o.id === activeAudioFilesetId ||
-        (activeAudioFilesetId !== null &&
-          o.members.includes(activeAudioFilesetId)),
+    // Normalize a stored member id (or a drifted product id via
+    // the `{abbr}:{kind}` prefix fallback) to the product id —
+    // new selections store the product id.
+    const audioOwner = findAudioOption(
+      activeAudioFilesetId,
+      translations,
     );
+    const audioOption =
+      audioOwner &&
+      audioOwner.translation.abbr === translation.abbr
+        ? audioOwner.option
+        : undefined;
     if (audioOption) {
       setSelectedAudioId(audioOption.id);
     } else if (!grouped.text && grouped.audio.length > 0) {
@@ -226,6 +251,7 @@ const TranslationSelector = () => {
     setSelectedTextId(null);
     setSelectedAudioId(null);
     setTextNote(null);
+    userInteractedRef.current = false;
     setOpened(true);
   };
 
@@ -258,6 +284,46 @@ const TranslationSelector = () => {
   }, [languageIso, opened]);
 
   useEffect(() => {
+    if (!opened) return;
+    let cancelled = false;
+    // Seed the language tab from the active selection — without
+    // it a foreign-language (e.g. Latvian) selection would show
+    // the English tab and a no-op Save would wipe the stored
+    // ids. The store's `translations` only ever holds the
+    // current tab's list, so look the owner up across every tab,
+    // preferring the audio owner (that's the version the user
+    // picked when text is borrowed from another version).
+    const seedLanguageTab = async () => {
+      const {
+        activeAudioFilesetId: audioId,
+        activeTextFilesetId: textId,
+      } = useBibleStore.getState();
+      const findOwnerIso = async (
+        filesetId: string | null,
+      ): Promise<string | null> => {
+        if (!filesetId) return null;
+        for (const { value: iso } of LANGUAGES) {
+          const list = await getAvailableTranslations(iso);
+          if (cancelled || userInteractedRef.current) return null;
+          if (findTranslationByFilesetId(filesetId, list)) {
+            return iso;
+          }
+        }
+        return null;
+      };
+      const iso =
+        (await findOwnerIso(audioId)) ?? (await findOwnerIso(textId));
+      if (!cancelled && !userInteractedRef.current && iso) {
+        setLanguageIso(iso);
+      }
+    };
+    void seedLanguageTab();
+    return () => {
+      cancelled = true;
+    };
+  }, [opened]);
+
+  useEffect(() => {
     // Clear transient selections whenever the language changes.
     setSelectedTranslationAbbr(null);
     setSelectedTextId(null);
@@ -283,13 +349,18 @@ const TranslationSelector = () => {
     // Until the user picks a version, mirror the currently active
     // filesets (translations may arrive after the modal opens).
     if (selectedTranslationAbbr !== null) return;
+    // The audio owner wins when it differs: for an audio-only
+    // version with a borrowed same-language text, the audio owner
+    // is the version the user actually picked — otherwise reopen
+    // would show the borrowed text version and a Save would drop
+    // the audio selection.
     const owner =
       findTranslationByFilesetId(
-        activeTextFilesetId,
+        activeAudioFilesetId,
         translations,
       ) ??
       findTranslationByFilesetId(
-        activeAudioFilesetId,
+        activeTextFilesetId,
         translations,
       );
     if (owner) applyVersionSelection(owner.abbr);
@@ -315,15 +386,16 @@ const TranslationSelector = () => {
     : { text: null, audio: [] };
 
   // The product radio stays selected when the stored value is a
-  // raw member id (chosen in Advanced or persisted legacy id).
+  // raw member id (chosen in Advanced or persisted legacy id) or
+  // a drifted `{abbr}:{kind}:{n}` product id — the resolver's
+  // prefix fallback maps it to the current option id instead of
+  // displaying a stale id as "None" while re-persisting it.
   const audioGroupValue = (() => {
     if (!selectedAudioId) return 'none';
-    const owning = grouped.audio.find(
-      (o) =>
-        o.id === selectedAudioId ||
-        o.members.includes(selectedAudioId),
-    );
-    return owning?.id ?? 'none';
+    const found = findAudioOption(selectedAudioId, translations);
+    return found?.translation.abbr === selectedTranslationAbbr
+      ? found.option.id
+      : 'none';
   })();
 
   const versionData = useMemo(
@@ -370,12 +442,12 @@ const TranslationSelector = () => {
       >
         <Stack>
           <SegmentedControl
-            data={[
-              { label: 'English', value: 'eng' },
-              { label: 'Latvian', value: 'lvs' },
-            ]}
+            data={LANGUAGES}
             value={languageIso}
-            onChange={setLanguageIso}
+            onChange={(iso) => {
+              userInteractedRef.current = true;
+              setLanguageIso(iso);
+            }}
             fullWidth
           />
           <Select
@@ -384,7 +456,10 @@ const TranslationSelector = () => {
             data={versionData}
             itemComponent={VersionItem}
             value={selectedTranslationAbbr}
-            onChange={applyVersionSelection}
+            onChange={(abbr) => {
+              userInteractedRef.current = true;
+              applyVersionSelection(abbr);
+            }}
             searchable
             dropdownPosition="bottom"
           />
@@ -491,7 +566,14 @@ const TranslationSelector = () => {
             <Button variant="default" onClick={() => setOpened(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save</Button>
+            {/* Disabled until a version resolves — saving with
+                none selected would wipe the stored ids. */}
+            <Button
+              onClick={handleSave}
+              disabled={!selectedTranslationAbbr}
+            >
+              Save
+            </Button>
           </Group>
         </Stack>
       </Modal>

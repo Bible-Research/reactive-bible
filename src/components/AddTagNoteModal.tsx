@@ -4,6 +4,7 @@ import { useBibleStore } from "../store";
 import { useEffect, useMemo, useState } from "react";
 import { groupRefsByChapter } from "../utils/verseRefs";
 import { toBookName } from "../utils/bibleUtils";
+import { resolveTextFileset } from "../utils/filesetGroups";
 import NoteForm from "./NoteForm";
 
 interface AddTagNoteModalProps {
@@ -25,6 +26,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection,
     setVerseSelection,
     activeTextFilesetId,
+    translations,
     lastSelectedTagId,
     setLastSelectedTagId,
   } = useBibleStore((state) => ({
@@ -33,6 +35,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection: state.verseSelection,
     setVerseSelection: state.setVerseSelection,
     activeTextFilesetId: state.activeTextFilesetId,
+    translations: state.translations,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
   }));
@@ -64,10 +67,19 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         const groups = groupRefsByChapter(refs);
         const results = await Promise.all(
           groups.map(async (group) => {
+            // The stored id may be a product id — resolve per
+            // book so `_ET` splits (and the ENGKJV offline
+            // fast-path via `ENGKJV:text:0` → `ENGKJV`) work.
+            const filesetId =
+              resolveTextFileset(
+                activeTextFilesetId,
+                group.bookId,
+                translations,
+              ) ?? activeTextFilesetId;
             const result = await getVersesInChapter(
               group.bookId,
               group.chapter,
-              activeTextFilesetId
+              filesetId
             );
             const wanted = new Set(group.verses);
             return result.verses
@@ -92,7 +104,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     return () => {
       cancelled = true;
     };
-  }, [opened, refs, activeTextFilesetId]);
+  }, [opened, refs, activeTextFilesetId, translations]);
 
   const handleSubmit = async (tagId: string, text: string) => {
     // The notes API expects book names (verses[].book).

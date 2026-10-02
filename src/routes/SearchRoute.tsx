@@ -33,6 +33,7 @@ import {
   BOOK_CODE_TO_ORDER,
   buildBiblePath,
 } from '../utils/bibleUtils';
+import { resolveTextFileset } from '../utils/filesetGroups';
 
 const VERSE_PREVIEW_LIMIT = 5;
 
@@ -109,6 +110,8 @@ export default function SearchRoute() {
   const activeTextFilesetId = useBibleStore(
     (s) => s.activeTextFilesetId,
   );
+  const activeBookId = useBibleStore((s) => s.activeBookId);
+  const translations = useBibleStore((s) => s.translations);
   const setAudioPlaylistItems = useBibleStore(
     (s) => s.setAudioPlaylistItems,
   );
@@ -146,7 +149,15 @@ export default function SearchRoute() {
   }, [inputValue, setSearchParams]);
 
   useEffect(() => {
-    if (!q.trim() || !activeTextFilesetId) {
+    // The stored id may be a grouped product id (`{abbr}:text:n`)
+    // — resolve to the concrete fileset for the active book's
+    // testament before sending it as `fileset_id`.
+    const filesetId = resolveTextFileset(
+      activeTextFilesetId,
+      activeBookId,
+      translations,
+    );
+    if (!q.trim() || !filesetId) {
       setVerses([]);
       setSearched(false);
       return;
@@ -154,7 +165,7 @@ export default function SearchRoute() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    searchBible(q, activeTextFilesetId, page, 50, controller.signal)
+    searchBible(q, filesetId, page, 50, controller.signal)
       .then((res) => {
         setVerses(res.verses);
         setTotalPages(res.meta.pagination?.total_pages ?? 1);
@@ -167,7 +178,7 @@ export default function SearchRoute() {
         setLoading(false);
       });
     return () => controller.abort();
-  }, [q, activeTextFilesetId, page]);
+  }, [q, activeTextFilesetId, activeBookId, translations, page]);
 
   const groups = useMemo(() => groupByBook(verses), [verses]);
 

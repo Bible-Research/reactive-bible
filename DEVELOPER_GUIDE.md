@@ -1096,7 +1096,9 @@ getVersesInChapter(
    `ENGESV:audio:0`), `activeTextFilesetId` the text product or a
    member id; the resolvers below accept either form, so legacy
    persisted ids keep working.
-4. Components like `PassageView` and `Audio` react to state changes, resolving the stored id to the concrete fileset that covers each book's testament.
+4. Components like `PassageView` and `Audio` react to state
+   changes, resolving the stored id to the concrete fileset that
+   covers each book's testament.
 
 **Audio-only versions**: when a version has no text option and
 the active text fileset belongs to another language, the
@@ -1125,6 +1127,13 @@ pairs and testament-split members into `FilesetOption`s
   same-kind options → any audio option. Playback walks this list
   on `BookNotInFilesetError` or Howler load/play errors before
   notifying.
+- A stored `{abbr}:{kind}:{n}` product id that matches neither a
+  product id nor a member falls back to the nth option of that
+  kind owned by that translation — covers the 0-based
+  (client-minted) vs 1-based (backend-minted) index drift across
+  the backend `audio_options`/`text_options` rollout. Callers
+  must resolve stored ids before sending them as `fileset_id`
+  (SearchRoute, AddTagNoteModal, notes fetching, etc.).
 - Coverage comes from `sizeToCoverage(size)` in `bibleUtils.ts`
   (`C`, `NT`/`OT`, partial `NTP`/`OTP`/`NTPOTP`, `NT1`-style).
 - Special ids: `ENGKJV` (local text bundle + wordpocket audio),

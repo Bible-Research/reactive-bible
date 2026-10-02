@@ -9,11 +9,12 @@ import {
 import { shallow } from 'zustand/shallow';
 
 const CopyrightNotice = () => {
-  const { activeTextFilesetId, translations } =
+  const { activeTextFilesetId, translations, activeBookId } =
     useBibleStore(
       (state) => ({
         activeTextFilesetId: state.activeTextFilesetId,
         translations: state.translations,
+        activeBookId: state.activeBookId,
       }),
       shallow
     );
@@ -29,7 +30,7 @@ const CopyrightNotice = () => {
     // concrete member before comparing.
     const resolvedId = resolveTextFileset(
       activeTextFilesetId,
-      'JHN',
+      activeBookId,
       translations,
     );
 
@@ -86,7 +87,7 @@ const CopyrightNotice = () => {
     });
 
     return () => { stale = true; };
-  }, [activeTextFilesetId, translations]);
+  }, [activeTextFilesetId, activeBookId, translations]);
 
   if (!copyright) return null;
 
