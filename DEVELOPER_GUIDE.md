@@ -84,6 +84,7 @@ reactive-bible/
 │   ├── components/      # React components (18 files)
 │   ├── utils/          # Utility functions
 │   │   ├── bibleUtils.ts    # Bible book/testament helpers
+│   │   ├── filesetGroups.ts # Fileset grouping + resolution
 │   │   └── cacheManager.ts  # Caching logic
 │   ├── assets/         # Static assets
 │   │   └── kjv.json    # KJV Bible text (local)
@@ -1086,6 +1087,34 @@ getVersesInChapter(
 2. User selects a translation, text fileset, and audio fileset in the modal.
 3. Selections are saved to the Zustand store (`activeTextFilesetId`, `activeAudioFilesetId`).
 4. Components like `PassageView` and `Audio` react to state changes, fetching content using the selected fileset IDs.
+
+**Fileset groups & resolution** (`src/utils/filesetGroups.ts`):
+
+A translation's raw `filesets` are normalized into product-like
+options: `groupFilesets(translation)` merges opus16/mp3 codec
+pairs and testament-split members into `FilesetOption`s
+(`byTestament[OT|NT][codec] -> concrete fileset id`, kind
+`audio`/`audio_drama`/`generated`/`text`). Backend-provided
+`audio_options`/`text_options` take precedence when present.
+
+- `resolveTextFileset(storedId, bookId, translations)` resolves
+  a stored id (product or member) to the concrete `text_plain`
+  fileset covering the book's testament — `_ET` splits are
+  handled transparently; unknown ids pass through.
+- `resolveAudioFileset(storedId, bookId, translations)` returns
+  `{ filesetId, codec, alternates }`: opus16 is preferred, and
+  `alternates` is ordered mp3 sibling → other-testament member →
+  same-kind options → any audio option. Playback walks this list
+  on `BookNotInFilesetError` or Howler load/play errors before
+  notifying.
+- Coverage comes from `sizeToCoverage(size)` in `bibleUtils.ts`
+  (`C`, `NT`/`OT`, partial `NTP`/`OTP`/`NTPOTP`, `NT1`-style).
+- Special ids: `ENGKJV` (local text bundle + wordpocket audio),
+  `LVSGLU8C1DA` (generated SWORD TTS), `ENGESV_API` (esv.org
+  proxy) — each a single-variant option.
+- `getAvailableTranslations` injects the `ENGKJV` text/audio
+  pseudo-filesets into the ENGKJV translation so the bundled KJV
+  stays selectable.
 
 ### 3. Advanced Search
 

@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { API_BASE_URL } from '../config';
+import { mockTranslations } from '../__tests__/mocks/data';
 
 // Define your request handlers
 const API_URL = `${API_BASE_URL}/api/v1`;
@@ -10,10 +11,14 @@ export const handlers = [
   http.get(`${API_URL}/bible`, ({ request }) => {
     const url = new URL(request.url);
     const filesetId = url.searchParams.get('fileset_id');
+    const isAudio =
+      url.searchParams.get('response_format') === 'audio' ||
+      (filesetId != null && filesetId.endsWith('DA'));
 
-    // Check if it's an audio request (audio filesets are suffixed with 'DA')
-    if (filesetId && filesetId.endsWith('DA')) {
-      // This is the success case for audio URLs
+    // Audio requests return a playable URL — a missing
+    // `audio_url` is the coverage-miss contract
+    // (`book_not_in_fileset`), exercised by dedicated tests.
+    if (isAudio) {
       return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
     }
 
@@ -33,7 +38,7 @@ export const handlers = [
 
   // --- Translations ---
   http.get(`${API_URL}/bible/translations`, () => {
-    return HttpResponse.json({ results: [] });
+    return HttpResponse.json({ results: mockTranslations });
   }),
 
   // --- Tags ---
