@@ -240,6 +240,11 @@ export const migratePersistedState = (
   return migrated as PersistedBibleState;
 };
 
+// Monotonic id for fetchNotes calls; a response that resolves
+// after a newer request started is dropped instead of
+// overwriting fresher state or the notes cache.
+let notesRequestSeq = 0;
+
 export const useBibleStore = createWithEqualityFn<BibleState>()(
   persist(
     (set) => ({
@@ -306,6 +311,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string, options = {}) => {
         const { ordering, page = 1, append = false } = options;
+        const requestId = ++notesRequestSeq;
         try {
           const {
             notesPageSize,
@@ -348,7 +354,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             pageSize: notesPageSize,
             filesetId: activeTextFilesetId || undefined,
           });
-          
+
+          // A newer request superseded this one while it was in
+          // flight; drop the stale response so it cannot
+          // overwrite fresher state or poison the notes cache.
+          if (requestId !== notesRequestSeq) return;
+
           // Cache all page results
           if (tagId) {
             cacheNotes(tagId, response.results, {
@@ -371,6 +382,9 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             lastSelectedTagId: tagId || null,
           }));
         } catch (error) {
+          // Superseded requests must not trigger the page-1
+          // fallback or surface errors.
+          if (requestId !== notesRequestSeq) return;
           if (page > 1) {
             // The requested page may no longer exist (e.g. notes
             // were deleted); fall back to the first page.
@@ -424,7 +438,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           // tag this note belonged to
           clearNotesCache();
           set((state) => ({
-            notes: state.notes.filter((n) => n.id !== noteId)
+            notes: state.notes.filter((n) => n.id !== noteId),
+            notesCount: state.notes.some((n) => n.id === noteId)
+              ? Math.max(0, state.notesCount - 1)
+              : state.notesCount,
           }));
           showNotification({
             title: 'Success',
