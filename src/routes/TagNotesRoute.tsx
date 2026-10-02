@@ -120,6 +120,12 @@ export default function TagNotesRoute() {
         ? stored.notesPage
         : 1;
   }
+  // The load effect re-runs on mount (StrictMode, auth
+  // hydration); remember the last requested query so repeats
+  // refetch the current page instead of resetting to page 1.
+  const lastLoadRef = useRef<{ key: string; page: number } | null>(
+    null
+  );
 
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,10 +172,27 @@ export default function TagNotesRoute() {
             ? getApiOrdering(sortOrder)
             : undefined;
 
-        // Restore the user's stored page on first load; later
-        // effect runs (e.g. a sort change) start from page 1.
-        const page = initialPageRef.current ?? 1;
-        initialPageRef.current = 1;
+        // Restore the stored page on the first load; re-runs
+        // for the same tag+sort (StrictMode remount, auth
+        // hydration) refetch the page the user is on instead
+        // of bouncing back to page 1.
+        const queryKey = `${tagId}:${sortOrder}`;
+        let page: number;
+        if (lastLoadRef.current?.key === queryKey) {
+          // notesPage reflects this tag only once its notes are
+          // in the store; before that, reuse the last request.
+          const current = useBibleStore.getState();
+          const ownsPage = current.notes.some(
+            (n) => n.tag?.id === tagId
+          );
+          page = ownsPage
+            ? current.notesPage
+            : lastLoadRef.current.page;
+        } else {
+          page = initialPageRef.current ?? 1;
+          initialPageRef.current = 1;
+        }
+        lastLoadRef.current = { key: queryKey, page };
 
         await fetchNotes(tagId, {
           ordering: apiOrdering,
