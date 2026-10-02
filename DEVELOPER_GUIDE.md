@@ -16,8 +16,9 @@
 13. [Testing](#testing)
 14. [Browser Compatibility](#browser-compatibility)
 15. [Performance Considerations](#performance-considerations)
-16. [Contributing Guidelines](#contributing-guidelines)
-17. [Keeping Documentation Updated](#keeping-documentation-updated)
+16. [Android App & Release Channels](#android-app--release-channels)
+17. [Contributing Guidelines](#contributing-guidelines)
+18. [Keeping Documentation Updated](#keeping-documentation-updated)
 
 ---
 
@@ -2878,6 +2879,62 @@ useEffect(() => {
 3. **Service Worker**: For true offline support
 4. **Image Optimization**: If images are added
 5. **Debounced Search**: Already implemented in SearchModal
+
+---
+
+## Android App & Release Channels
+
+The Capacitor shell (`android/`, `webDir: 'dist'`) is distributed by
+sideloading APKs from GitHub Releases — there is no Play Store
+listing. `.github/workflows/android-release.yml` has three channels:
+
+| Trigger              | Output                                        |
+|----------------------|-----------------------------------------------|
+| push `android`       | debug APK → workflow artifact (30 days)       |
+| `workflow_dispatch`  | debug APK → workflow artifact                 |
+| push `v*` tag        | signed APK → that tag's GitHub Release asset  |
+| push `main`          | signed APK + `update.json` → rolling          |
+|                      | `continuous` prerelease                       |
+
+- Signing uses `ANDROID_KEYSTORE_BASE64`, `KEY_ALIAS`,
+  `KEYSTORE_PASSWORD`, `KEY_PASSWORD` secrets. The same keystore
+  must sign every build or sideloaded updates will fail to install.
+- `versionCode` is always `github.run_number` (monotonic across all
+  builds) so Android accepts every newer build as an in-place
+  update. `versionName` is the tag name for `v*` builds and
+  `0.0.<run_number>` on `main`.
+- The `continuous` tag is force-moved to each `main` commit;
+  `prerelease: true` + `make_latest: false` keep
+  `releases/latest` pointing at real milestones.
+
+### In-app update check
+
+`src/utils/appUpdate.ts` + `src/hooks/useAppUpdate.tsx`: on app
+start (native shell only, throttled to once per hour via the
+`app_update_last_check` localStorage key) the app fetches
+`releases/download/continuous/update.json` and compares
+`versionCode` against `App.getInfo().build`. A newer build opens a
+Mantine confirm modal whose "Update" button hands `apkUrl` to the
+system browser — Android always requires user consent for
+sideloaded installs. The MainMenu has a "Check for updates" row
+(native only) that forces a check.
+
+`update.json` schema (generated in-workflow):
+
+```json
+{
+  "versionCode": 123,
+  "versionName": "0.0.123",
+  "apkUrl": "<.../releases/download/continuous/reactive-bible.apk>",
+  "apkSha256": "<sha256 of the signed APK>",
+  "minShellBuild": 123,
+  "commitSha": "<commit the build was cut from>",
+  "releasedAt": "<ISO-8601 UTC>"
+}
+```
+
+`minShellBuild` is reserved for a future OTA web-bundle path — a
+bundle may only be applied when `installedBuild >= minShellBuild`.
 
 ---
 
