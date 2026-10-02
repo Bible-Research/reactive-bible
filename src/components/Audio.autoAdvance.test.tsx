@@ -232,6 +232,16 @@ describe('Audio chapter auto-advance', () => {
     expect(preloaded._state).toBe('loaded');
     await waitFor(() => expect(preloaded._playing).toBe(true));
 
+    // The adopted Howl's play event preloads the chapter after
+    // the one ACTUALLY playing (JHN 5) — not a duplicate of JHN 4
+    // from a store still catching up to the navigation.
+    await waitFor(() =>
+      expect(FakeHowl.instances.length).toBe(3),
+    );
+    expect(FakeHowl.instances[2].src).toBe(
+      'http://kjv.test/JHN/5.mp3',
+    );
+
     // No error state on the play button.
     expect(
       screen.queryByTitle('Failed to play audio'),

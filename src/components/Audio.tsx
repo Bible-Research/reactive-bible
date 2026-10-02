@@ -44,6 +44,19 @@ const chapterKey = (
   chapter: number,
 ): string => `${filesetId ?? 'none'}:${bookId}:${chapter}`;
 
+// Inverse of chapterKey's trailing bookId:chapter — the filesetId
+// segment is not needed by callers.
+const parseChapterKey = (
+  key: string,
+): { bookId: string; chapter: number } | null => {
+  const parts = key.split(':');
+  const chapter = Number(parts[parts.length - 1]);
+  const bookId = parts[parts.length - 2];
+  return bookId && Number.isInteger(chapter)
+    ? { bookId, chapter }
+    : null;
+};
+
 const MEDIA_ARTWORK: MediaImage[] = [
   { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png' },
 ];
@@ -195,7 +208,6 @@ const Audio = () => {
         // unload() rejects a still-pending play() request, and
         // the resulting playerror is teardown noise that must not
         // surface as a user-facing playback error.
-        howl.off();
         // volume(0) silences the node even if the pooled <audio>
         // element drains buffered audio after release — mute(true)
         // would set node.muted, which the pool never resets and
@@ -204,6 +216,7 @@ const Audio = () => {
         // underlying html5 <audio> element keep playing for a few
         // seconds until the next chapter finishes loading.
         try {
+          howl.off();
           howl.volume(0);
           howl.stop();
           howl.unload();
@@ -253,15 +266,27 @@ const Audio = () => {
   // while the current chapter is still playing.
   const preloadNextChapter = useCallback(() => {
     const state = useBibleStore.getState();
+    // "Next" must follow the chapter actually playing, not the
+    // store: right after an auto-advance the store can still show
+    // the previous chapter (BibleRoute's URL->store sync lands a
+    // commit later), which would re-preload the just-adopted
+    // chapter and leave the real next one unprepared.
+    const playing = audioChapterKeyRef.current
+      ? parseChapterKey(audioChapterKeyRef.current)
+      : null;
+    const { next } = getAdjacentChapters(
+      playing?.bookId ?? state.activeBookId,
+      playing?.chapter ?? state.activeChapter,
+    );
+    if (!next) return;
+    // Resolve against the NEXT book so this key matches the one
+    // onChapterEnd computes — testament-split filesets like
+    // ENGESV resolve differently per testament.
     const filesetId = resolveFilesetFor(
-      state.activeBookId,
+      next.bookId,
       state.activeAudioFilesetId,
     );
-    const { next } = getAdjacentChapters(
-      state.activeBookId,
-      state.activeChapter,
-    );
-    if (!next || !filesetId) return;
+    if (!filesetId) return;
     const key = chapterKey(filesetId, next.bookId, next.chapter);
     if (preloadedRef.current?.key === key) return;
     const token = ++preloadTokenRef.current;
