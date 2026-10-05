@@ -21,31 +21,48 @@ vi.mock('../../api', async () => {
   const actual = await vi.importActual<
     typeof import('../../api')
   >('../../api');
-  return { ...actual, searchBible: vi.fn() };
+  return { ...actual, searchBibleGrouped: vi.fn() };
 });
 
-const mockSearchBible = vi.mocked(api.searchBible);
+const mockSearchBibleGrouped = vi.mocked(api.searchBibleGrouped);
 
-const MOCK_VERSES = [
+const MOCK_GROUPS = [
+  {
+    book_id: 'JHN',
+    count: 2,
+    verses: [
+      {
+        book_id: 'JHN',
+        chapter: 1,
+        verse_start: 1,
+        verse_text: 'In the beginning was the Word',
+      },
+      {
+        book_id: 'JHN',
+        chapter: 3,
+        verse_start: 16,
+        verse_text: 'For God so loved the world',
+      },
+    ],
+  },
   {
     book_id: 'ROM',
-    chapter: 3,
-    verse_start: 23,
-    verse_text: 'for all have sinned',
-  },
-  {
-    book_id: 'JHN',
-    chapter: 3,
-    verse_start: 16,
-    verse_text: 'For God so loved the world',
-  },
-  {
-    book_id: 'JHN',
-    chapter: 1,
-    verse_start: 1,
-    verse_text: 'In the beginning was the Word',
+    count: 1,
+    verses: [
+      {
+        book_id: 'ROM',
+        chapter: 3,
+        verse_start: 23,
+        verse_text: 'for all have sinned',
+      },
+    ],
   },
 ];
+
+const EMPTY_RESULT = {
+  groups: [],
+  meta: { total: 0, truncated: false },
+};
 
 function renderSearch(search = '?q=grace') {
   useBibleStore.setState({
@@ -97,54 +114,53 @@ describe('SearchRoute', () => {
   });
 
   it('renders search input on empty route', () => {
-    mockSearchBible.mockResolvedValue({ verses: [], meta: {} });
+    mockSearchBibleGrouped.mockResolvedValue(EMPTY_RESULT);
     renderSearch('');
     expect(screen.getByRole('textbox')).toBeInTheDocument();
     expect(screen.getByText('Search Bible')).toBeInTheDocument();
   });
 
-  it('calls searchBible when q param is present on mount', async () => {
-    mockSearchBible.mockResolvedValue({ verses: [], meta: {} });
+  it('calls searchBibleGrouped when q param is present', async () => {
+    mockSearchBibleGrouped.mockResolvedValue(EMPTY_RESULT);
     renderSearch('?q=grace');
     await waitFor(() => {
-      expect(mockSearchBible).toHaveBeenCalledWith(
+      expect(mockSearchBibleGrouped).toHaveBeenCalledWith(
         'grace',
         'ENGESH',
-        1,
-        50,
         expect.any(AbortSignal),
       );
     });
   });
 
-  it('does not search while typing; searches on button click', async () => {
-    mockSearchBible.mockResolvedValue({ verses: [], meta: {} });
+  it('does not search while typing; searches on click', async () => {
+    mockSearchBibleGrouped.mockResolvedValue(EMPTY_RESULT);
     renderSearch('');
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'faith' } });
-    expect(mockSearchBible).not.toHaveBeenCalled();
+    expect(mockSearchBibleGrouped).not.toHaveBeenCalled();
     fireEvent.click(screen.getByLabelText('search-button'));
     await waitFor(() => {
-      expect(mockSearchBible).toHaveBeenCalledWith(
+      expect(mockSearchBibleGrouped).toHaveBeenCalledWith(
         'faith',
         'ENGESH',
-        1,
-        50,
         expect.any(AbortSignal),
       );
     });
   });
 
-  it('groups results by book in canonical order', async () => {
-    mockSearchBible.mockResolvedValue({
-      verses: MOCK_VERSES,
-      meta: {},
+  it('renders a group header per book with its count', async () => {
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: MOCK_GROUPS,
+      meta: { total: 3, truncated: false },
     });
     renderSearch();
     await waitFor(() => {
       expect(screen.getByText('John')).toBeInTheDocument();
       expect(screen.getByText('Romans')).toBeInTheDocument();
     });
+    expect(screen.getByText('(2)')).toBeInTheDocument();
+    expect(screen.getByText('(1)')).toBeInTheDocument();
+    // Backend order is canonical: John group before Romans group
     const allText = screen.getAllByRole('button').map(
       (b) => b.textContent ?? '',
     );
@@ -154,70 +170,105 @@ describe('SearchRoute', () => {
   });
 
   it(
-    'populates audioPlaylistItems with all results in canonical order',
+    'populates audioPlaylistItems flattened across groups in ' +
+      'canonical order',
     async () => {
-      mockSearchBible.mockResolvedValue({
-        verses: MOCK_VERSES,
-        meta: {},
+      mockSearchBibleGrouped.mockResolvedValue({
+        groups: MOCK_GROUPS,
+        meta: { total: 3, truncated: false },
       });
       renderSearch();
       await waitFor(() => {
         const items = useBibleStore.getState().audioPlaylistItems;
         expect(items?.length).toBe(3);
-        expect(items?.[0].bookId).toBe('ROM');
+        expect(items?.[0].bookId).toBe('JHN');
+        expect(items?.[0].chapter).toBe(1);
         expect(items?.[1].bookId).toBe('JHN');
+        expect(items?.[2].bookId).toBe('ROM');
       });
     },
   );
 
-  it('shows "Show N more" button when book has > 5 results', async () => {
-    const manyVerses = Array.from({ length: 7 }, (_, i) => ({
+  it('previews 3 verses and expands via "Show N more"', async () => {
+    const manyVerses = Array.from({ length: 5 }, (_, i) => ({
       book_id: 'JHN',
       chapter: 1,
       verse_start: i + 1,
       verse_text: `Verse ${i + 1}`,
     }));
-    mockSearchBible.mockResolvedValue({
-      verses: manyVerses,
-      meta: {},
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: [{ book_id: 'JHN', count: 5, verses: manyVerses }],
+      meta: { total: 5, truncated: false },
     });
     renderSearch();
     await waitFor(() =>
-      expect(screen.getByText(/Show 2 more verses/)).toBeInTheDocument(),
+      expect(screen.getByText('Verse 3')).toBeInTheDocument(),
     );
+    expect(screen.queryByText('Verse 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText(/Show 2 more verses/));
     await waitFor(() => {
+      expect(screen.getByText('Verse 4')).toBeInTheDocument();
+      expect(screen.getByText('Verse 5')).toBeInTheDocument();
       expect(
         screen.queryByText(/Show.*more verse/),
       ).not.toBeInTheDocument();
     });
   });
 
-  it('clicking a verse play button sets single-item playlist', async () => {
-    mockSearchBible.mockResolvedValue({
-      verses: [MOCK_VERSES[1]],
-      meta: {},
+  it('does not render pagination controls', async () => {
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: MOCK_GROUPS,
+      meta: { total: 100, truncated: false },
+    });
+    renderSearch();
+    await waitFor(() => {
+      expect(screen.getByText('John')).toBeInTheDocument();
+    });
+    const pageBtn = screen
+      .getAllByRole('button')
+      .find((b) => b.textContent?.trim() === '2');
+    expect(pageBtn).toBeUndefined();
+  });
+
+  it('shows a truncated notice when meta.truncated is true', async () => {
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: MOCK_GROUPS,
+      meta: { total: 770, truncated: true },
+    });
+    renderSearch();
+    await waitFor(() => {
+      expect(
+        screen.getByText('Showing first 3 of 770 results'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('clicking a verse play button sets the playlist index', async () => {
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: [MOCK_GROUPS[0]],
+      meta: { total: 2, truncated: false },
     });
     renderSearch();
     const playBtn = await screen.findByLabelText('play-JHN-3-16');
     await act(async () => {
       fireEvent.click(playBtn);
     });
-    const items = useBibleStore.getState().audioPlaylistItems;
-    expect(items).toHaveLength(1);
-    expect(items?.[0]).toMatchObject({
+    const state = useBibleStore.getState();
+    expect(state.audioPlaylistItems).toHaveLength(2);
+    expect(state.audioPlaylistItems?.[1]).toMatchObject({
       itemId: 'search-JHN-3-16',
       bookId: 'JHN',
       chapter: 3,
       startVerse: 16,
       endVerse: 16,
     });
+    expect(state.audioPlaylistStartIndex).toBe(1);
   });
 
   it('clicking a verse navigates to chapter.verse URL', async () => {
-    mockSearchBible.mockResolvedValue({
-      verses: [MOCK_VERSES[1]],
-      meta: {},
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: [MOCK_GROUPS[0]],
+      meta: { total: 2, truncated: false },
     });
     renderSearch();
     await waitFor(() =>
@@ -232,7 +283,7 @@ describe('SearchRoute', () => {
   });
 
   it('shows no-results message for empty response', async () => {
-    mockSearchBible.mockResolvedValue({ verses: [], meta: {} });
+    mockSearchBibleGrouped.mockResolvedValue(EMPTY_RESULT);
     renderSearch('?q=xyzzy');
     await waitFor(() => {
       expect(
@@ -242,7 +293,7 @@ describe('SearchRoute', () => {
   });
 
   it('shows error message on fetch failure', async () => {
-    mockSearchBible.mockRejectedValue(
+    mockSearchBibleGrouped.mockRejectedValue(
       new Error('Network error'),
     );
     renderSearch();
@@ -253,33 +304,10 @@ describe('SearchRoute', () => {
     });
   });
 
-  it('shows pagination when total_pages > 1', async () => {
-    mockSearchBible.mockResolvedValue({
-      verses: MOCK_VERSES,
-      meta: {
-        pagination: {
-          total: 100,
-          count: 3,
-          per_page: 50,
-          current_page: 1,
-          total_pages: 3,
-        },
-      },
-    });
-    renderSearch();
-    await waitFor(() => {
-      expect(screen.getByText('John')).toBeInTheDocument();
-    });
-    const pageBtn = screen
-      .getAllByRole('button')
-      .find((b) => b.textContent?.trim() === '2');
-    expect(pageBtn).toBeDefined();
-  });
-
   it('clears audioPlaylistItems on unmount', async () => {
-    mockSearchBible.mockResolvedValue({
-      verses: MOCK_VERSES,
-      meta: {},
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: MOCK_GROUPS,
+      meta: { total: 3, truncated: false },
     });
 
     const { unmount } = renderSearch();

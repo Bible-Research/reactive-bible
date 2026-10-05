@@ -275,10 +275,14 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - `/notes` - Auto-redirects to first tag
 - `/notes/tag/:tagId` - Displays notes filtered by specific tag
 
+**Search Routes** (✅ Implemented):
+- `/search?q=<query>` - Book-grouped search results
+
 **Components**:
 - `BibleRoute` - Handles Bible navigation, syncs URL params to store
 - `NotesRoute` - Loads tags and redirects to first tag
 - `TagNotesRoute` - Displays notes for specific tag with CRUD operations
+- `SearchRoute` - Book-grouped search results accordion
 
 ### Route Implementation Details
 
@@ -323,7 +327,6 @@ navigate('/notes/tag/:newTagId');
 **Phase 4**:
 - `/tags` - Tags list
 - `/tags/:tagId` - Tag detail
-- `/search` - Search results
 
 ---
 
@@ -1090,34 +1093,31 @@ getVersesInChapter(
 
 ### 3. Advanced Search
 
-**Location**: `src/components/SearchModal.tsx`
+**Location**: `src/routes/SearchRoute.tsx`
 
-Full-text search across the entire Bible with autocomplete.
+Full-text search across the Bible via the backend
+`/api/v1/bible/search/` endpoint with `group_by=book`.
 
 **Features**:
-- Real-time search as you type
-- Searches verse text across all books
-- Displays verse reference (Book Chapter:Verse)
-- Keyboard shortcuts: `/` to open, `Escape` to close
-- Limit of 7 results shown at once
+- Searches the active text fileset via `searchBibleGrouped()`
+- Results arrive grouped by book in canonical order
+- Each book is an accordion group (open by default) showing
+  up to 3 verse previews, expandable via "Show N more verses"
+- No pagination - the backend returns all matches
+- Dimmed "Showing first N of M results" notice when the
+  backend reports `meta.truncated`
+- Per-verse play button feeds a flattened playlist of all
+  results into the audio player
 
 **Implementation**:
 ```typescript
-// Search data prepared at module load
-const searchData = data.map((book: KjvBook) => 
-  ({ ...book, value: book.text })
+const res = await searchBibleGrouped(
+  query,
+  filesetId,
+  signal,
 );
-
-// Mantine Autocomplete component handles fuzzy matching
-<Autocomplete
-  data={searchData}
-  onItemSubmit={(item) => {
-    // Navigate to selected verse
-    setActiveBook(item.book_name);
-    setActiveChapter(item.chapter);
-    setActiveVerses([item.verse]);
-  }}
-/>
+// res.groups: [{ book_id, count, verses: SearchVerse[] }]
+// res.meta:   { total: number, truncated: boolean }
 ```
 
 ### 4. Audio Bible Playback
@@ -1503,21 +1503,18 @@ On end → Auto-advance to next chapter
 
 ### Search Flow
 ```
-User Types in Search
+User submits query on /search
     ↓
-Autocomplete filters searchData (KJV verses)
+searchBibleGrouped(query, filesetId) hits
+/api/v1/bible/search/?group_by=book
     ↓
-Display matching verses (limit 7)
+Render accordion: one group per book (canonical order),
+3-verse preview each, "Show N more verses" expands
     ↓
-User selects result
+All results flattened into audioPlaylistItems
     ↓
-Update Zustand store (book, chapter, verse)
-    ↓
-Navigate to verse
-    ↓
-Auto-scroll to verse
-    ↓
-Close modal
+User clicks verse → navigate to /bible/{USFM ref}
+or clicks play → playlist starts at that verse
 ```
 
 ### Note Creation Flow
@@ -1749,26 +1746,22 @@ Floating audio player UI at bottom of screen.
 
 ### Search Components
 
-#### `SearchModal.tsx`
-Full-screen search modal with autocomplete.
+#### `SearchRoute.tsx` (`src/routes/`)
+Search results page at `/search?q=<query>`.
 
 **Responsibilities**:
-- Display search input with icon
-- Filter KJV verses in real-time
-- Show up to 7 results with verse references
-- Navigate to selected verse
-- Close on selection or Escape key
+- Call `searchBibleGrouped()` on query/fileset change
+- Render book-grouped accordion results (3-verse preview,
+  expandable per book, all groups open by default)
+- Show truncated notice when backend caps results
+- Feed flattened results into `audioPlaylistItems`
+- Navigate to `/bible/{ref}` on verse click
 
-**Features**:
-- Custom autocomplete item component showing verse text and reference
-- Blur overlay background
-- Keyboard accessible
-
-#### `SearchControl.tsx`
-Search button/control in header.
+#### `MyHeader.tsx` search icon
+Search button in the header.
 
 **Responsibilities**:
-- Trigger search modal open
+- Navigate to `/search`
 - Display search icon
 
 ---

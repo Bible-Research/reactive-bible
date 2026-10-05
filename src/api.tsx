@@ -1105,6 +1105,43 @@ export const searchBible = async (
   };
 };
 
+export interface SearchVerseGroup {
+  book_id: string;
+  count: number;
+  verses: SearchVerse[];
+}
+
+export interface GroupedSearchResponse {
+  groups: SearchVerseGroup[];
+  meta: { total: number; truncated: boolean };
+}
+
+export const searchBibleGrouped = async (
+  query: string,
+  filesetId: string,
+  signal?: AbortSignal,
+): Promise<GroupedSearchResponse> => {
+  const params = new URLSearchParams({
+    query,
+    fileset_id: filesetId,
+    group_by: 'book',
+  });
+  const url =
+    `${API_BASE_URL}/api/v1/bible/search/?` +
+    params.toString();
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(
+      `Search failed: ${response.statusText}`
+    );
+  }
+  const json = await response.json();
+  return {
+    groups: json.data?.groups ?? [],
+    meta: json.data?.meta ?? { total: 0, truncated: false },
+  };
+};
+
 export const fetchCommentCounts = async (params: {
   tagId?: string;
   noteIds?: string[];

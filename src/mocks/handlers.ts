@@ -163,7 +163,70 @@ export const handlers = [
   http.get(`${API_URL}/bible/search/`, ({ request }) => {
     const url = new URL(request.url);
     const filesetId = url.searchParams.get('fileset_id');
-    
+    const groupBy = url.searchParams.get('group_by');
+
+    // Grouped mode: book-grouped results, no pagination
+    if (groupBy === 'book') {
+      if (filesetId === 'ENGESV_API') {
+        return HttpResponse.json({
+          data: {
+            groups: [
+              {
+                book_id: 'JHN',
+                count: 1,
+                verses: [
+                  {
+                    book_id: 'JHN',
+                    chapter: 3,
+                    verse_start: 16,
+                    verse_text:
+                      'For God so loved the world, that he gave ' +
+                      'his only Son.',
+                  },
+                ],
+              },
+              {
+                book_id: 'ROM',
+                count: 1,
+                verses: [
+                  {
+                    book_id: 'ROM',
+                    chapter: 8,
+                    verse_start: 28,
+                    verse_text:
+                      'And we know that for those who love God ' +
+                      'all things work together for good.',
+                  },
+                ],
+              },
+            ],
+            meta: { total: 2, truncated: false },
+          },
+        });
+      }
+      return HttpResponse.json({
+        data: {
+          groups: [
+            {
+              book_id: 'GEN',
+              count: 1,
+              verses: [
+                {
+                  book_id: 'GEN',
+                  chapter: 1,
+                  verse_start: 1,
+                  verse_text:
+                    'In the beginning God created the heavens ' +
+                    'and the earth.',
+                },
+              ],
+            },
+          ],
+          meta: { total: 1, truncated: false },
+        },
+      });
+    }
+
     // Mock ESV API search results for ENGESV_API
     if (filesetId === 'ENGESV_API') {
       return HttpResponse.json({
