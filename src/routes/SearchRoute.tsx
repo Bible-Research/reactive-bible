@@ -101,6 +101,7 @@ export default function SearchRoute() {
         } else {
           next.delete('q');
         }
+        next.delete('page');
         return next;
       },
       { replace: true },
@@ -110,6 +111,8 @@ export default function SearchRoute() {
   useEffect(() => {
     if (!q.trim() || !activeTextFilesetId) {
       setGroups([]);
+      setTotal(0);
+      setTruncated(false);
       setSearched(false);
       return;
     }
@@ -126,6 +129,9 @@ export default function SearchRoute() {
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
+        setGroups([]);
+        setTotal(0);
+        setTruncated(false);
         setError(err.message);
         setLoading(false);
       });

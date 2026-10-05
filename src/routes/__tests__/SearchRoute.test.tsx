@@ -12,7 +12,12 @@ import {
   fireEvent,
   act,
 } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import SearchRoute from '../SearchRoute';
 import { useBibleStore, initialState } from '../../store';
 import * as api from '../../api';
@@ -64,6 +69,11 @@ const EMPTY_RESULT = {
   meta: { total: 0, truncated: false },
 };
 
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location-search">{location.search}</div>;
+}
+
 function renderSearch(search = '?q=grace') {
   useBibleStore.setState({
     ...initialState,
@@ -79,6 +89,7 @@ function renderSearch(search = '?q=grace') {
           element={<div data-testid="bible-page" />}
         />
       </Routes>
+      <LocationDisplay />
     </MemoryRouter>,
   );
 }
@@ -302,6 +313,48 @@ describe('SearchRoute', () => {
         screen.getByText('Network error'),
       ).toBeInTheDocument();
     });
+  });
+
+  it('removes a stale page param from the URL on submit', () => {
+    mockSearchBibleGrouped.mockResolvedValue(EMPTY_RESULT);
+    renderSearch('?q=grace&page=3');
+    expect(
+      screen.getByTestId('location-search').textContent,
+    ).toContain('page=3');
+    fireEvent.click(screen.getByLabelText('search-button'));
+    const search =
+      screen.getByTestId('location-search').textContent ?? '';
+    expect(search).toContain('q=grace');
+    expect(search).not.toContain('page');
+  });
+
+  it('clears stale groups when a later search fails', async () => {
+    mockSearchBibleGrouped.mockResolvedValue({
+      groups: MOCK_GROUPS,
+      meta: { total: 3, truncated: false },
+    });
+    renderSearch();
+    await waitFor(() => {
+      expect(screen.getByText('John')).toBeInTheDocument();
+      expect(screen.getByText('Romans')).toBeInTheDocument();
+    });
+    mockSearchBibleGrouped.mockRejectedValue(
+      new Error('Network error'),
+    );
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'hope' },
+    });
+    fireEvent.click(screen.getByLabelText('search-button'));
+    await waitFor(() => {
+      expect(
+        screen.getByText('Network error'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText('John')).not.toBeInTheDocument();
+    expect(screen.queryByText('Romans')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('For God so loved the world'),
+    ).not.toBeInTheDocument();
   });
 
   it('clears audioPlaylistItems on unmount', async () => {
