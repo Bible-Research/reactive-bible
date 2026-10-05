@@ -113,6 +113,7 @@ export default function SearchRoute() {
       setGroups([]);
       setTotal(0);
       setTruncated(false);
+      setError(null);
       setSearched(false);
       return;
     }
