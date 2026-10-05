@@ -1140,6 +1140,19 @@ Streams audio Bible chapters with full playback controls.
 - Loading states and error handling
 - Persistent audio player UI
 
+**Hardware controls** (car stereo / headphone buttons, wired in
+`Audio.tsx` via `useMediaSession`):
+- Play/Pause/Stop: control the current Howl
+- Seek Forward/Backward: ±10 seconds (or the OS-provided offset)
+- Next Track: seek to the next verse's start from the chapter's
+  verse timestamps; past the last verse, advances to the next
+  chapter
+- Previous Track: restarts the current verse when more than 2s
+  into it, otherwise jumps to the previous verse's start; at
+  verse 1, goes to the previous chapter
+- When no verse timestamps are available (e.g. KJV), Next/
+  Previous Track fall back to a ±10 second seek
+
 **Audio Sources**:
 - **KJV**: wordpocket.org (direct URL generation)
 - **ESV**: Bible Research API (CloudFront URLs) with dynamic `fileset_id` based on the testament (Old or New).

@@ -724,16 +724,53 @@ const Audio = () => {
         void safePause();
       },
       nextTrack: () => {
+        const pos = getPlayPosition(audioRef.current);
+        if (pos === null) return;
+        if (timestamps.length === 0) {
+          // No verse timestamps (e.g. KJV) — seek forward 10s.
+          safeSeek(pos + 10);
+          return;
+        }
+        // Jump to the next verse's start. The 0.5s epsilon means
+        // a press right on a verse boundary still lands on the
+        // following verse.
+        const nextVerse = timestamps.find(
+          (t) => t.timestamp > pos + 0.5,
+        );
+        if (nextVerse) {
+          safeSeek(nextVerse.timestamp);
+          return;
+        }
+        // Already in the last verse — next chapter.
         advanceChapter(1);
       },
       previousTrack: () => {
         const pos = getPlayPosition(audioRef.current);
-        // Media-player convention: restart the chapter unless we
-        // are already at (or near) the beginning.
-        if (pos !== null && pos > 3) {
-          safeSeek(0);
+        if (pos === null) return;
+        if (timestamps.length === 0) {
+          // No verse timestamps (e.g. KJV) — seek backward 10s.
+          safeSeek(pos - 10);
           return;
         }
+        // Index of the verse currently playing; -1 when the
+        // position precedes verse 1 (e.g. a chapter
+        // announcement).
+        const idx = timestamps.reduce(
+          (acc, t, i) => (t.timestamp <= pos ? i : acc),
+          -1,
+        );
+        // Media-player convention: restart the verse when we are
+        // more than 2s into it.
+        if (idx >= 0 && pos - timestamps[idx].timestamp > 2) {
+          safeSeek(timestamps[idx].timestamp);
+          return;
+        }
+        // Near a verse boundary — jump to the previous verse.
+        if (idx > 0) {
+          safeSeek(timestamps[idx - 1].timestamp);
+          return;
+        }
+        // At (or before) verse 1 — previous chapter.
         advanceChapter(-1);
       },
       seekBy: (offset) => {
@@ -752,6 +789,7 @@ const Audio = () => {
     safePause,
     safeSeek,
     advanceChapter,
+    timestamps,
   ]);
 
   const getMediaPosition = useCallback((): MediaSessionPosition | null => {
