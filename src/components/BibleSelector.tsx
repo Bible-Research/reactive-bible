@@ -39,6 +39,7 @@ const BibleSelector = ({
           chapter={activeChapter}
           verses={pickerVerses}
           titlePrefix="nav-"
+          scrollSignal={opened}
           onSelectBook={(bookId) => {
             console.log(`🔗 Navigating to: /bible/${bookId}.1`);
             navigate(buildBiblePath(bookId, 1));
