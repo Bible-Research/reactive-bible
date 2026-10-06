@@ -80,4 +80,48 @@ describe('BibleSelector Component', () => {
     expect(bookScroll).toHaveBeenCalledWith({ block: 'nearest' });
     expect(chapterScroll).toHaveBeenCalledWith({ block: 'nearest' });
   });
+
+  const mockLandscapeMatchMedia = () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query: string) =>
+        ({
+          matches: query ===
+            '(orientation: landscape) and (max-height: 500px)',
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as unknown as MediaQueryList
+    );
+  };
+
+  // renderWithProviders installs an always-false matchMedia mock,
+  // so the landscape mock must be applied after render and the
+  // component remounted (new key) to re-run the media query.
+  it('should not render the picker on landscape mobile', () => {
+    const { rerender } = renderWithProviders(
+      <BibleSelector key="a" opened={false} setOpened={noop} />
+    );
+    mockLandscapeMatchMedia();
+    rerender(
+      <BibleSelector key="b" opened={false} setOpened={noop} />
+    );
+    expect(
+      screen.queryByTitle('nav-book-GEN')
+    ).not.toBeInTheDocument();
+  });
+
+  it('should still open the picker on landscape mobile', () => {
+    const { rerender } = renderWithProviders(
+      <BibleSelector key="a" opened={true} setOpened={noop} />
+    );
+    mockLandscapeMatchMedia();
+    rerender(
+      <BibleSelector key="b" opened={true} setOpened={noop} />
+    );
+    expect(screen.getByTitle('nav-book-GEN')).toBeInTheDocument();
+  });
 });
