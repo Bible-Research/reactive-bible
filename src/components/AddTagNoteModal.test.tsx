@@ -1,5 +1,10 @@
 import '@testing-library/jest-dom';
-import { screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import {
   describe,
   it,
@@ -15,7 +20,9 @@ import * as api from '../api';
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
   getTags: vi.fn(),
+  getVersesInChapter: vi.fn(),
   addTagNote: vi.fn(),
+  editNote: vi.fn(),
 }));
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
@@ -91,6 +98,62 @@ describe('AddTagNoteModal Component', () => {
       expect(screen.getByLabelText('Note')).toBeInTheDocument();
     });
   });
+
+  it('PATCHes the autosaved note when submit races autosave',
+    async () => {
+      // Autosave POST stays in flight while Submit is clicked;
+      // submit must wait for it, then PATCH — never a second POST.
+      let resolvePost: (value: { id: string }) => void =
+        () => undefined;
+      (api.addTagNote as Mock).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolvePost = resolve;
+          })
+      );
+      (api.editNote as Mock).mockResolvedValue({});
+
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Draft' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // Submit while the autosave POST is still pending.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Submit' })
+      );
+      await act(async () => {
+        resolvePost({ id: 'n1' });
+      });
+
+      await waitFor(() => {
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      });
+      expect(api.editNote).toHaveBeenCalledWith('n1', '', 'Draft');
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    });
 
   // Note: Full modal interaction testing is problematic
   // due to portal rendering. See SKIPPED_TESTS.md.

@@ -1,7 +1,7 @@
 import { Box, Divider, Modal, Text } from "@mantine/core";
-import { addTagNote } from "../api";
+import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { toBookName } from "../utils/bibleUtils";
 import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
@@ -39,26 +39,45 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   // book/chapter group independently.
   const verseTexts = useVerseTexts(refs, activeTextFilesetId, opened);
 
+  // Once autosave creates the note, later saves (and Submit)
+  // must PATCH that note instead of POSTing duplicates.
+  const savedNoteIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
       getTags();
+      savedNoteIdRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]); // Only run when opened changes
 
-  const handleSubmit = async (tagId: string, text: string) => {
-    // The notes API expects book names (verses[].book).
-    const verseReferences = refs.map(
-      ({ bookId, chapter, verse }) => ({
+  // The notes API expects book names (verses[].book).
+  const verseReferences = useMemo(
+    () =>
+      refs.map(({ bookId, chapter, verse }) => ({
         book: toBookName(bookId) ?? bookId,
         chapter,
         verse,
-      })
-    );
+      })),
+    [refs]
+  );
 
+  const handleAutoSave = async (tagId: string, text: string) => {
+    if (savedNoteIdRef.current) {
+      await editNote(savedNoteIdRef.current, tagId, text);
+      return;
+    }
+    const created = await addTagNote(tagId, text, verseReferences);
+    savedNoteIdRef.current = created?.id ?? null;
+  };
+
+  const handleSubmit = async (tagId: string, text: string) => {
     try {
-      await addTagNote(tagId, text, verseReferences);
+      // Shares savedNoteIdRef with autosave: an existing draft is
+      // PATCHed, and a note created by submit is recorded so a
+      // late autosave tick PATCHes instead of POSTing a duplicate.
+      await handleAutoSave(tagId, text);
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
       onClose();
@@ -79,6 +98,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         onSubmit={handleSubmit}
         submitText="Submit"
         onTagDropdownOpen={() => getTags()}
+        onAutoSave={handleAutoSave}
         note={
           lastSelectedTagId
             ? { tagId: lastSelectedTagId, text: "" }

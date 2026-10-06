@@ -1274,6 +1274,10 @@ Create and organize notes with tags for Bible verses.
 - Navigate to verse from note
 - API integration for persistence
 - Auto-clear selected verses after note creation
+- Optional "Auto save" checkbox in note editors: saves every
+  5s (first tick creates the note, later ticks PATCH it) and
+  flashes a green checkmark at the top-right corner for 0.5s
+  after each successful save
 
 **Workflow**:
 1. User selects one or more verses by clicking them
