@@ -95,8 +95,12 @@ describe.skip('NoteCard Component', () => {
       />
     );
 
-    expect(screen.getByRole('heading', { name: 'Genesis 1:1' })).toBeInTheDocument();
-    expect(screen.getByText('This is a single verse note.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Genesis 1:1' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a single verse note.')
+    ).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('In the beginning...')).toBeInTheDocument();
   });
@@ -111,10 +115,16 @@ describe.skip('NoteCard Component', () => {
       />
     );
 
-    expect(screen.getByRole('heading', { name: 'Genesis 1:1-2' })).toBeInTheDocument();
-    expect(screen.getByText('This is a multi-verse note.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Genesis 1:1-2' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('This is a multi-verse note.')
+    ).toBeInTheDocument();
     expect(screen.getByText('In the beginning...')).toBeInTheDocument();
-    expect(screen.getByText('The earth was without form...')).toBeInTheDocument();
+    expect(
+      screen.getByText('The earth was without form...')
+    ).toBeInTheDocument();
   });
 
   it('should call onEdit when the edit button is clicked', async () => {
@@ -149,7 +159,8 @@ describe.skip('NoteCard Component', () => {
     expect(mockOnViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);
   });
 
-  it('should call handleDeleteNode when the remove button is clicked', async () => {
+  it('should call handleDeleteNode on remove click',
+    async () => {
     window.confirm = vi.fn(() => true);
 
     renderWithProviders(
@@ -186,5 +197,59 @@ describe.skip('NoteCard Component', () => {
     const passageContainer = screen.getByTestId('passage-container');
     fireEvent.click(openButton);
     expect(passageContainer).toBeInTheDocument();
+  });
+});
+
+describe('NoteCard provider error display', () => {
+  it('shows the provider error when the API reports one',
+    () => {
+    const note = createMockNote({
+      id: 'n-err',
+      note_text: '',
+      error: 'Bible provider rate limit exceeded (HTTP 429)',
+      error_code: 'rate_limited',
+      verses: [
+        createMockVerse({
+          book: 'John', chapter: 1, verse: 1, text: '',
+        }),
+      ],
+    });
+
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    expect(
+      screen.getByText(/rate limit exceeded/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/reloading in a few moments/i)
+    ).toBeInTheDocument();
+  });
+
+  it('renders verses normally when text is present', () => {
+    const note = createMockNote({
+      id: 'n-ok',
+      note_text: '',
+      verses: [
+        createMockVerse({
+          book: 'John',
+          chapter: 1,
+          verse: 1,
+          text: 'In the beginning was the Word',
+        }),
+      ],
+    });
+
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    expect(
+      screen.getByText(/In the beginning was the Word/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/rate limit exceeded/i)
+    ).not.toBeInTheDocument();
   });
 });

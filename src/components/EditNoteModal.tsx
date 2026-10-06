@@ -147,6 +147,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     }
   };
 
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note?.error;
+
   return (
     <Modal opened={opened} onClose={onClose} title="Edit note" fullScreen>
       {note && (
@@ -196,25 +200,34 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 onSelectVerse={handleSelectVerse}
               />
             </Box>
-            {textGroups.map(([label, groupVerses]) => (
-              <Box key={label} mt="xl">
-                <Divider
-                  my="sm"
-                  label={label}
-                  labelPosition="center"
-                />
-                {groupVerses.map((v) => (
-                  <Box key={v.verse} py={4} px={8}>
-                    <Text size="sm">
-                      <Text component="span" weight={700} mr={4}>
-                        {v.verse}
+            {verseError ? (
+              <Text color="red" size="sm" mt="sm">
+                {verseError}
+                {note.error_code === "rate_limited"
+                  ? " Try reloading in a few moments."
+                  : ""}
+              </Text>
+            ) : (
+              textGroups.map(([label, groupVerses]) => (
+                <Box key={label} mt="xl">
+                  <Divider
+                    my="sm"
+                    label={label}
+                    labelPosition="center"
+                  />
+                  {groupVerses.map((v) => (
+                    <Box key={v.verse} py={4} px={8}>
+                      <Text size="sm">
+                        <Text component="span" weight={700} mr={4}>
+                          {v.verse}
+                        </Text>
+                        {v.text}
                       </Text>
-                      {v.text}
-                    </Text>
-                  </Box>
-                ))}
-              </Box>
-            ))}
+                    </Box>
+                  ))}
+                </Box>
+              ))
+            )}
           </Collapse>
         </>
       )}
