@@ -2049,6 +2049,28 @@ and `getKjvAudioUrl` stay synchronous.
    Response: Tag[]
    ```
 
+8. **Comments**
+   ```
+   GET    /notes/{noteId}/comments/
+   POST   /notes/{noteId}/comments/
+   PATCH  /notes/{noteId}/comments/{commentId}/
+   DELETE /notes/{noteId}/comments/{commentId}/
+   GET    /comments/counts/
+   Response: Comment[]  // threaded via `replies`, `images` embedded
+   ```
+
+9. **Comment Images**
+   ```
+   POST   /notes/{noteId}/comments/{commentId}/images/
+   // multipart form field "file"; ≤5 images, ≤10 MiB each
+   GET    /notes/{noteId}/comments/{commentId}/images/
+   DELETE /images/{imageId}/
+   Response: CommentImage { id, storage_url, signed_url|null,
+     content_type, size_bytes, uploaded_by, created_at }
+   // signed_url is short-lived; img onError triggers a targeted
+   // refetch (bounded per comment), see CommentThread
+   ```
+
 #### Wordpocket Audio API
 **Base URL**: `https://wordpocket.org/bibles/app/audio/1`
 
