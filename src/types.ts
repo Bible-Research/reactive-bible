@@ -25,6 +25,10 @@ export interface Note {
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;
+  /** Set when the provider failed to resolve verse text. */
+  error?: string;
+  /** 'rate_limited' | 'provider_error' — see `error`. */
+  error_code?: string;
 }
 
 export interface SectionHeading {

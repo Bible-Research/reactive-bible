@@ -1,5 +1,6 @@
 import {
   Affix,
+  Box,
   Button,
   Checkbox,
   Group,
@@ -149,20 +150,39 @@ const NoteForm = ({
         value={noteText}
         onChange={setNoteText}
       />
-      <Group mt="md" spacing="xs">
-        <Button variant="transparent" type="submit">
-          {submitText}
-        </Button>
-        {onAutoSave && (
-          <Checkbox
-            label="Auto save"
-            checked={autoSave}
-            onChange={(event) =>
-              setAutoSave(event.currentTarget.checked)
-            }
-          />
-        )}
-      </Group>
+      <Box
+        data-testid="note-submit-bar"
+        sx={(theme) => ({
+          position: "sticky",
+          bottom: 0,
+          padding: theme.spacing.xs,
+          zIndex: 1,
+          backgroundColor:
+            theme.colorScheme === "dark"
+              ? theme.colors.dark[7]
+              : theme.white,
+          borderTop: `1px solid ${
+            theme.colorScheme === "dark"
+              ? theme.colors.dark[4]
+              : theme.colors.gray[3]
+          }`,
+        })}
+      >
+        <Group spacing="xs">
+          <Button variant="transparent" type="submit" fullWidth>
+            {submitText}
+          </Button>
+          {onAutoSave && (
+            <Checkbox
+              label="Auto save"
+              checked={autoSave}
+              onChange={(event) =>
+                setAutoSave(event.currentTarget.checked)
+              }
+            />
+          )}
+        </Group>
+      </Box>
       {savedFlash && (
         <Affix position={{ top: 20, right: 20 }}>
           <ThemeIcon color="green" variant="filled" radius="xl">

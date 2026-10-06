@@ -1906,6 +1906,14 @@ Individual note display card.
 - Edit and delete buttons
 - "View in Bible" button
 
+Note verses are capped at 500 displayed verses
+(`visibleNoteVerses` in `src/utils/noteVerses.ts`) because
+Bible providers limit passage text to 500 verses for
+copyright compliance. Verses beyond the limit arrive with
+empty text, so a red notice ("Cannot display more than 500
+verses of the Bible due to copyright restrictions.") is
+rendered in place of the truncated tail.
+
 #### `NoteForm.tsx`
 Form for creating/editing notes.
 
@@ -1950,6 +1958,8 @@ Modal for editing existing notes.
 - Preview the selected verses' text via `useVerseTexts`
 - Handle note update to API (PATCH incl. `verse_references`)
 - Close modal on success or cancel
+- Show at most 500 verse previews (same
+  `visibleNoteVerses` copyright cap as NoteCard)
 
 #### `TagSection.tsx`
 Tag management UI.
