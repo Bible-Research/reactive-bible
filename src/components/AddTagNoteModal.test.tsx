@@ -15,6 +15,8 @@ import * as api from '../api';
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
   getTags: vi.fn(),
+  getVersesInChapter: vi.fn(),
+  getLinkedNotes: vi.fn(),
   addTagNote: vi.fn(),
 }));
 
@@ -33,6 +35,11 @@ describe('AddTagNoteModal Component', () => {
       { id: '1', name: 'Faith', parent_tag: null,
         created_at: '', updated_at: '' },
     ]);
+
+    (api.getLinkedNotes as Mock).mockResolvedValue({
+      count: 0,
+      results: [],
+    });
   });
 
   const genesisSelection = {
@@ -91,6 +98,78 @@ describe('AddTagNoteModal Component', () => {
       expect(screen.getByLabelText('Note')).toBeInTheDocument();
     });
   });
+
+  it('shows the count and the linked notes for the selection',
+    async () => {
+      (api.getLinkedNotes as Mock).mockResolvedValue({
+        count: 1,
+        results: [
+          {
+            id: 'NOT1',
+            note_text: 'Already noted this passage',
+            public: false,
+            is_owner: true,
+            created_at: '',
+            updated_at: '',
+            tag: {
+              id: '1', name: 'Faith', parent_tag: null,
+              created_at: '', updated_at: '',
+            },
+            verses: [
+              {
+                book: 'Genesis', chapter: 1, verse: 1,
+                text: 'In the beginning...',
+              },
+            ],
+            tag_position: null,
+          },
+        ],
+      });
+
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+            activeTextFilesetId: 'ENGKJV',
+          },
+        }
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('1 linked note')
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText('Already noted this passage')
+      ).toBeInTheDocument();
+      expect(api.getLinkedNotes).toHaveBeenCalledWith(
+        [
+          { book: 'Genesis', chapter: 1, verse: 1 },
+          { book: 'Genesis', chapter: 1, verse: 2 },
+        ],
+        'ENGKJV'
+      );
+    });
+
+  it('queries linked notes only when opened with a selection',
+    async () => {
+      renderWithProviders(
+        <AddTagNoteModal opened={false} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+          },
+        }
+      );
+      await Promise.resolve();
+      expect(api.getLinkedNotes).not.toHaveBeenCalled();
+    });
 
   // Note: Full modal interaction testing is problematic
   // due to portal rendering. See SKIPPED_TESTS.md.

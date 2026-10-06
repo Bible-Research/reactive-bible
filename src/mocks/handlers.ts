@@ -84,6 +84,11 @@ export const handlers = [
     ]);
   }),
 
+  // --- Linked Notes ---
+  http.post(`${API_URL}/notes/linked/`, () => {
+    return HttpResponse.json({ count: 0, results: [] });
+  }),
+
   // --- Delete Note ---
   http.delete(`${API_URL}/notes/:id`, () => {
     return HttpResponse.text('Deleted');
