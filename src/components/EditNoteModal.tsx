@@ -39,6 +39,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     activeTextFilesetId,
     activeBookId,
     activeChapter,
+    translations,
   } = useBibleStore((state) => ({
     tags: state.tags,
     getTags: state.getTags,
@@ -46,6 +47,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     activeTextFilesetId: state.activeTextFilesetId,
     activeBookId: state.activeBookId,
     activeChapter: state.activeChapter,
+    translations: state.translations,
   }));
 
   // The note's verse links, editable via the picker below.
@@ -84,7 +86,12 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
       ? verseNumbersFor(refs, pickerBookId, pickerChapter)
       : [];
 
-  const verseTexts = useVerseTexts(refs, activeTextFilesetId, opened);
+  const verseTexts = useVerseTexts(
+    refs,
+    activeTextFilesetId,
+    translations,
+    opened
+  );
   const textGroups = useMemo(
     () => groupVerseTexts(verseTexts),
     [verseTexts]

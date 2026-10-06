@@ -462,10 +462,88 @@ const pickCodec = (
   return first ? { id: first, codec: 'default' } : null;
 };
 
-const findAudioOption = (
+/** Product ids are minted as `{abbr}:{kind}:{n}`. */
+const PRODUCT_ID_PATTERN =
+  /^(.*):(audio|audio_drama|generated|text):(\d+)$/;
+
+const parseProductId = (
+  id: string,
+): { abbr: string; kind: OptionKind; index: number } | null => {
+  const match = id.match(PRODUCT_ID_PATTERN);
+  if (!match) return null;
+  return {
+    abbr: match[1],
+    kind: match[2] as OptionKind,
+    index: Number(match[3]),
+  };
+};
+
+const textOptions = (t: Translation): FilesetOption[] => {
+  const { text } = groupFilesets(t);
+  return text ? [text] : [];
+};
+
+/**
+ * Fallback matcher for drifted product ids: selections persisted
+ * before the backend `audio_options`/`text_options` rollout were
+ * minted client-side with 0-based per-kind indexes while the
+ * backend mints 1-based ids, so a stored `{abbr}:{kind}:{n}` id
+ * can match neither `option.id` nor `members` after the rollout.
+ * Treat it as "the nth option of that kind owned by the
+ * translation" (index clamped to the available candidates).
+ */
+const findOptionByProductPrefix = (
+  storedId: string,
+  optionsOf: (t: Translation) => FilesetOption[],
+  translations: Translation[],
+): { translation: Translation; option: FilesetOption } | null => {
+  const parsed = parseProductId(storedId);
+  if (!parsed) return null;
+  for (const translation of translations) {
+    if (translation.abbr !== parsed.abbr) continue;
+    const candidates = optionsOf(translation).filter(
+      (o) => o.kind === parsed.kind,
+    );
+    if (candidates.length === 0) continue;
+    return {
+      translation,
+      option: candidates[parsed.index] ?? candidates[0],
+    };
+  }
+  return null;
+};
+
+const findTextOption = (
   storedId: string,
   translations: Translation[],
 ): { translation: Translation; option: FilesetOption } | null => {
+  for (const translation of translations) {
+    for (const option of textOptions(translation)) {
+      if (
+        option.id === storedId ||
+        option.members.includes(storedId)
+      ) {
+        return { translation, option };
+      }
+    }
+  }
+  return findOptionByProductPrefix(
+    storedId,
+    textOptions,
+    translations,
+  );
+};
+
+/**
+ * Finds the audio option owning a stored selection — a product
+ * id, any member id, or a drifted `{abbr}:{kind}:{n}` product id
+ * (client 0-based vs backend 1-based index drift).
+ */
+export const findAudioOption = (
+  storedId: string | null,
+  translations: Translation[],
+): { translation: Translation; option: FilesetOption } | null => {
+  if (!storedId) return null;
   for (const translation of translations) {
     for (const option of groupFilesets(translation).audio) {
       if (
@@ -476,7 +554,11 @@ const findAudioOption = (
       }
     }
   }
-  return null;
+  return findOptionByProductPrefix(
+    storedId,
+    (t) => groupFilesets(t).audio,
+    translations,
+  );
 };
 
 /**
@@ -494,7 +576,16 @@ export const findTranslationByFilesetId = (
     if (text?.id === storedId) return t;
     if (audio.some((o) => o.id === storedId)) return t;
   }
-  return null;
+  // Drifted product id (see findOptionByProductPrefix): resolve
+  // by `{abbr}:{kind}` prefix so pre-rollout selections still
+  // find their owning translation.
+  return (
+    findOptionByProductPrefix(
+      storedId,
+      (t) => [...textOptions(t), ...groupFilesets(t).audio],
+      translations,
+    )?.translation ?? null
+  );
 };
 
 /**
@@ -516,8 +607,10 @@ export const resolveAudioFileset = (
 
   // The bundled KJV translation streams audio from
   // wordpocket.org — pass the id through untouched so the
-  // `filesetId === 'ENGKJV'` fast paths keep working.
-  if (storedId === 'ENGKJV') {
+  // `filesetId === 'ENGKJV'` fast paths keep working. Product
+  // ids (`ENGKJV:audio:1`) collapse to the bare id as well —
+  // they must not depend on the translations list being loaded.
+  if (storedId === 'ENGKJV' || storedId.startsWith('ENGKJV:')) {
     return { filesetId: 'ENGKJV', codec: 'mp3', alternates: [] };
   }
 
@@ -601,28 +694,26 @@ export const resolveTextFileset = (
   translations: Translation[],
 ): string | null => {
   if (!storedId) return null;
-  if (storedId === 'ENGKJV') return 'ENGKJV';
-
-  for (const translation of translations) {
-    const { text } = groupFilesets(translation);
-    if (!text) continue;
-    if (text.id !== storedId && !text.members.includes(storedId)) {
-      continue;
-    }
-    const testament = getTestament(bookId);
-    const other: Testament = testament === 'OT' ? 'NT' : 'OT';
-    const pick = (t: Testament | null): string | undefined => {
-      if (!t) return undefined;
-      const map = text.byTestament[t];
-      return map?.default ?? Object.values(map ?? {})[0];
-    };
-    return (
-      pick(testament) ??
-      pick(other) ??
-      text.members[0] ??
-      storedId
-    );
+  // Product ids minted for the bundled KJV (`ENGKJV:text:1`)
+  // resolve to the offline bundle even before the translations
+  // list is loaded — the `filesetId === 'ENGKJV'` fast paths in
+  // api.tsx must keep working.
+  if (storedId === 'ENGKJV' || storedId.startsWith('ENGKJV:')) {
+    return 'ENGKJV';
   }
 
-  return storedId;
+  const found = findTextOption(storedId, translations);
+  if (!found) return storedId;
+
+  const text = found.option;
+  const testament = getTestament(bookId);
+  const other: Testament = testament === 'OT' ? 'NT' : 'OT';
+  const pick = (t: Testament | null): string | undefined => {
+    if (!t) return undefined;
+    const map = text.byTestament[t];
+    return map?.default ?? Object.values(map ?? {})[0];
+  };
+  return (
+    pick(testament) ?? pick(other) ?? text.members[0] ?? storedId
+  );
 };

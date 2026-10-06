@@ -18,6 +18,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection,
     setVerseSelection,
     activeTextFilesetId,
+    translations,
     lastSelectedTagId,
     setLastSelectedTagId,
   } = useBibleStore((state) => ({
@@ -26,6 +27,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection: state.verseSelection,
     setVerseSelection: state.setVerseSelection,
     activeTextFilesetId: state.activeTextFilesetId,
+    translations: state.translations,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
   }));
@@ -37,7 +39,12 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
 
   // Selections may span chapters/books — the hook fetches each
   // book/chapter group independently.
-  const verseTexts = useVerseTexts(refs, activeTextFilesetId, opened);
+  const verseTexts = useVerseTexts(
+    refs,
+    activeTextFilesetId,
+    translations,
+    opened
+  );
 
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)

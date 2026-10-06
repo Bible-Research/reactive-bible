@@ -28,6 +28,7 @@ import {
 import {
   findTranslationByFilesetId,
   resolveAudioFileset,
+  resolveTextFileset,
   splitCodec,
   type CodecKey,
 } from "../utils/filesetGroups";
@@ -760,9 +761,20 @@ const Audio = () => {
   // Fetch timestamps when audio or text fileset changes
   useEffect(() => {
     if (!activeAudioFilesetId) return;
+    // Stored ids may be grouped product ids — resolve to the
+    // concrete members so the ENGESV_API timestamp special cases
+    // keep matching.
+    const resolvedAudioId = resolveFilesetFor(
+      activeBookId,
+      activeAudioFilesetId,
+    );
     const tsFilesetId = resolveTimestampsFilesetId(
-      resolveFilesetFor(activeBookId, activeAudioFilesetId),
-      activeTextFilesetId,
+      resolvedAudioId,
+      resolveTextFileset(
+        activeTextFilesetId,
+        activeBookId,
+        translations,
+      ),
       activeBookId,
     );
     if (!tsFilesetId) return;
@@ -773,7 +785,7 @@ const Audio = () => {
     ).then((ts) => {
       const adjusted = adjustTimestampsForENGESV(
         ts,
-        activeAudioFilesetId,
+        resolvedAudioId,
       );
       setTimestamps(adjusted);
     });
@@ -782,6 +794,7 @@ const Audio = () => {
     activeChapter,
     activeAudioFilesetId,
     activeTextFilesetId,
+    translations,
     resolveFilesetFor,
   ]);
 

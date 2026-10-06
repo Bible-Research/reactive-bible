@@ -323,14 +323,21 @@ const PassageView = () => {
     );
   }
 
+  // The stored id may be a grouped product id — resolve to the
+  // concrete member before the ENGKJV/coverage checks.
+  const resolvedTextFilesetId = resolveTextFileset(
+    activeTextFilesetId,
+    activeBookId,
+    translations,
+  );
   const isNonKjv =
-    activeTextFilesetId && activeTextFilesetId !== 'ENGKJV';
+    resolvedTextFilesetId && resolvedTextFilesetId !== 'ENGKJV';
   const showEmptyHint =
     isNonKjv && (fetchError !== null || verses.length === 0);
 
   if (showEmptyHint) {
     const mismatchHint = getTestamentMismatchHint(
-      activeTextFilesetId,
+      resolvedTextFilesetId,
       translations,
     );
     const rateLimitHint =

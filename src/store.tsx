@@ -16,6 +16,7 @@ import {
   toBookName,
   toUsfmCode,
 } from './utils/bibleUtils';
+import { resolveTextFileset } from './utils/filesetGroups';
 import {
   getCachedNotes,
   cacheNotes,
@@ -317,8 +318,21 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         try {
           const {
             notesPageSize,
-            activeTextFilesetId
+            activeTextFilesetId,
+            activeBookId,
+            translations,
           } = useBibleStore.getState();
+
+          // The stored id may be a grouped product id
+          // (`{abbr}:text:n`) — resolve to a concrete fileset
+          // before sending it as `fileset_id`.
+          const filesetId = activeTextFilesetId
+            ? resolveTextFileset(
+                activeTextFilesetId,
+                activeBookId,
+                translations,
+              ) ?? activeTextFilesetId
+            : undefined;
           
           // Check cache for any page/ordering combination
           if (!append && tagId) {
@@ -347,14 +361,14 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             `📝 Fetching notes from API for tag: ` +
             `${tagId || 'all'} ` +
             `(page ${page}, ordering: ${ordering || 'default'}, ` +
-            `fileset: ${activeTextFilesetId || 'default'})`
+            `fileset: ${filesetId || 'default'})`
           );
-          
+
           const response = await api.getNotes(tagId, {
             ordering,
             page,
             pageSize: notesPageSize,
-            filesetId: activeTextFilesetId || undefined,
+            filesetId,
           });
           
           // Cache all page results
