@@ -94,4 +94,16 @@ jobs:
         if: >
           steps.metadata.outputs.update-type !=
           'version-update:semver-major'
-        run: gh pr merge "$PR_URL" --squash
+        run: |
+          out=$(gh pr merge "$PR_URL" --squash 2>&1) || {
+            echo "$out"
+            if echo "$out" | grep -q "not up to date"; then
+              # Protection requires up-to-date branches: update
+              # from base; the synchronize event re-runs this
+              # job, which then merges.
+              gh pr update-branch "$PR_URL"
+              exit 0
+            fi
+            exit 1
+          }
+          echo "$out"
