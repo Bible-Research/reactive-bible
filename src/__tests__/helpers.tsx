@@ -41,6 +41,12 @@ export function createMockStore(overrides: Partial<BibleState> = {}) {
     setActiveTextFilesetId: vi.fn(),
     setActiveAudioFilesetId: vi.fn(),
     fetchNotes: vi.fn().mockResolvedValue(undefined),
+    setPendingScrollVerse: vi.fn(),
+    setActiveBookWithPosition:
+      vi.fn().mockResolvedValue(undefined),
+    syncReadingPosition: vi.fn(),
+    prefetchReadingPositions:
+      vi.fn().mockResolvedValue(undefined),
   };
 
   return {
@@ -107,6 +113,11 @@ export function mockDomApis() {
       disconnect: vi.fn(),
     };
   });
+
+  // Mock URL.createObjectURL / revokeObjectURL — happy-dom
+  // doesn't support File as a Blob subclass
+  global.URL.createObjectURL = vi.fn(() => 'blob:test-url');
+  global.URL.revokeObjectURL = vi.fn();
 }
 
 /**

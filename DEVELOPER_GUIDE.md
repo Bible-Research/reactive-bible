@@ -87,7 +87,8 @@ reactive-bible/
 │   │   ├── bibleUtils.ts    # Bible book/testament helpers
 │   │   └── cacheManager.ts  # Caching logic
 │   ├── assets/         # Static assets
-│   │   └── kjv.json    # KJV Bible text (local)
+│   │   ├── kjv.json    # KJV verse text (lazy-loaded chunk)
+│   │   └── bibleStructure.json  # Book/chapter metadata (bundled)
 │   ├── api.tsx         # API functions
 │   ├── store.tsx       # Zustand state management
 │   ├── types.ts        # TypeScript interfaces
@@ -104,7 +105,10 @@ reactive-bible/
 ### Environment Variables
 
 No environment variables are required for local development. The app uses:
-- **Local KJV data**: Bundled in `src/assets/kjv.json`
+- **Local KJV data**: `src/assets/kjv.json`, lazy-loaded on demand
+  via `src/utils/kjvDataLoader.ts` (emitted as a separate bundle
+  chunk). `src/assets/bibleStructure.json` holds book/chapter/verse
+  metadata bundled in the entry chunk for synchronous navigation.
 - **Public APIs**: Bible Research API (no auth required)
 
 ### Deployment
@@ -130,7 +134,7 @@ The app is configured for deployment on **Vercel**:
 src/
 ├── components/          # React components
 ├── utils/              # Utility functions (caching, bible utils)
-├── assets/             # Static assets (kjv.json)
+├── assets/             # Static assets (kjv.json, bibleStructure)
 ├── api.tsx             # API functions and data access
 ├── store.tsx           # Zustand state management
 ├── App.tsx             # Main application component
@@ -1132,12 +1136,12 @@ getVersesInChapter(
 
 **Data Flow**:
 1. `TranslationSelector` fetches available translations and stores them in
-Zustand.
+   Zustand.
 2. User selects a translation, text fileset, and audio fileset in the modal.
 3. Selections are saved to the Zustand store (`activeTextFilesetId`,
-`activeAudioFilesetId`).
+   `activeAudioFilesetId`).
 4. Components like `PassageView` and `Audio` react to state changes, fetching
-content using the selected fileset IDs.
+   content using the selected fileset IDs.
 
 ### 3. Advanced Search
 
@@ -1222,9 +1226,10 @@ const audioHowl = new Howl({
 });
 
 // Media Session API for hardware controls
-const translationName = translations.find(
-  t => t.filesets.some(f => f.id === activeTextFilesetId)
-)?.name || 'Unknown';
+const translationName =
+  translations.find(
+    t => t.filesets.some(f => f.id === activeTextFilesetId)
+  )?.name || 'Unknown';
 navigator.mediaSession.metadata = new MediaMetadata({
   title: `${activeBook} ${activeChapter}`,
   artist: translationName,
@@ -1932,6 +1937,11 @@ Form for creating/editing notes.
 - Form validation
 - Submit handler
 
+Typing `@` in the editor opens a passage picker that inserts a
+`@USFM.C.V[-E]` reference token. Clicking a complete token once
+previews its passage below the editor (the note is NOT linked to
+it); a second click reopens the picker to edit the reference.
+
 #### `AddTagNoteModal.tsx`
 Modal for creating new notes.
 
@@ -2017,8 +2027,15 @@ Loading spinner component.
 #### KJV Bible JSON
 **Location**: `src/assets/kjv.json`
 
-Contains the complete King James Version Bible text stored locally for offline
-access.
+Contains the complete King James Version Bible text stored locally
+for offline access. It is **lazy-loaded** via
+`src/utils/kjvDataLoader.ts` (`import('../assets/kjv.json')`), so
+Vite emits it as a separate `kjv-*.js` chunk that is only fetched
+when verse text is requested. Book/chapter/verse-count metadata
+needed for navigation lives in `src/assets/bibleStructure.json`
+(bundled in the entry chunk), so helpers like `getBooks`,
+`getChapters`, `getVerses`, `getPassage`, `getAdjacentChapters`,
+and `getKjvAudioUrl` stay synchronous.
 
 **Structure**:
 ```typescript
@@ -2104,6 +2121,52 @@ access.
    Response: Tag[]
    ```
 
+8. **Comments**
+   ```
+   GET    /notes/{noteId}/comments/
+   POST   /notes/{noteId}/comments/
+   PATCH  /notes/{noteId}/comments/{commentId}/
+   DELETE /notes/{noteId}/comments/{commentId}/
+   GET    /comments/counts/
+   Response: Comment[]  // threaded via `replies`, `images` embedded
+   ```
+
+9. **Comment Images**
+   ```
+   POST   /notes/{noteId}/comments/{commentId}/images/
+   // multipart form field "file"; ≤5 images, ≤10 MiB each
+   GET    /notes/{noteId}/comments/{commentId}/images/
+   DELETE /images/{imageId}/
+   Response: CommentImage { id, storage_url, signed_url|null,
+     content_type, size_bytes, uploaded_by, created_at }
+   // signed_url is short-lived; img onError triggers a targeted
+   // refetch (bounded per comment), see CommentThread
+   ```
+
+10. **Get Reading Positions**
+    ```
+    GET /reading-positions/
+    GET /reading-positions/?book={book name}  // filtered list
+    Response: ReadingPosition[]
+    ```
+    Authenticated only. `book` is a display name (e.g. "John"),
+    not a USFM code — the backend validates it via
+    `get_dbt_book_id`.
+
+11. **Upsert Reading Position**
+    ```
+    POST /reading-positions/
+    Body: { book: string, chapter: number, verse: number }
+    Response: ReadingPosition
+    ```
+
+12. **Bulk Reading Positions**
+    ```
+    POST /reading-positions/bulk/
+    Body: { books: string[] }  // book names
+    Response: { [book name]: { chapter, verse } | null }
+    ```
+
 #### Wordpocket Audio API
 **Base URL**: `https://wordpocket.org/bibles/app/audio/1`
 
@@ -2136,7 +2199,8 @@ access.
 
 **`getBooks()`**
 
-Returns list of all Bible books from local KJV data.
+Returns list of all Bible books from `bibleStructure.json`
+(synchronous; does not load verse text).
 
 ```typescript
 getBooks(): { book_name: string; book_id: string }[]
@@ -2158,31 +2222,35 @@ Returns verse numbers for a given chapter.
 getVerses(thebook: string, thechapter: number): number[]
 ```
 
-**`getVersesInChapter(thebook, thechapter, filesetId)`**
+**`getVersesInChapter(bookId, thechapter, filesetId)`**
 
-Fetches verse text for a chapter. Routes to KJV local data or API based on
-filesetId.
+Fetches verse text for a chapter. Routes to lazy-loaded KJV data
+or API based on filesetId.
 
 ```typescript
 getVersesInChapter(
-  thebook: string,
+  bookId: string,
   thechapter: number,
   filesetId: string
-): Promise<{ verse: number; text: string }[]>
+): Promise<{ verses: { verse: number; text: string }[];
+            headings: SectionHeading[] }>
 ```
 
-- If `filesetId === 'ENGKJV'`: Uses local KJV JSON
+- If `filesetId === 'ENGKJV'`: Lazy-loads the `kjv.json` chunk
+  (via `kjvDataLoader.loadKjvData()`) and filters locally
 - Otherwise: Fetches from Bible Research API with caching
 
-**`getVersesInKjvChapter(thebook, thechapter)`**
+**`getVersesInKjvChapter(bookId, thechapter)`**
 
-Returns KJV verses from local JSON file.
+Returns KJV verses from the lazily imported `kjv.json` chunk.
+KJV has no section headings, so `headings` is always `[]`.
 
 ```typescript
 getVersesInKjvChapter(
-  thebook: string,
+  bookId: string,
   thechapter: number
-): { verse: number; text: string }[]
+): Promise<{ verses: { verse: number; text: string }[];
+            headings: SectionHeading[] }>
 ```
 
 **`getVersesFromApi(thebook, thechapter, filesetId)`**
@@ -2349,6 +2417,60 @@ Fetches all available tags from API.
 ```typescript
 getTags(): Promise<Tag[]>
 ```
+
+#### Reading Position Functions
+
+Reading positions track the user's last location per book and
+restore it on book switch. All functions take USFM book codes
+and map to backend book names internally; all calls are gated
+on `useAuthStore.getState().isAuthenticated` (anonymous sessions
+would otherwise write to a shared auto-provisioned account).
+
+**`getReadingPosition(bookId)`**
+
+Fetches the saved position for one book (`?book=` is a filtered
+list endpoint, not a single object).
+
+```typescript
+getReadingPosition(bookId: string): Promise<ReadingPosition | null>
+```
+
+**`updateReadingPosition(bookId, chapter, verse)`**
+
+Upserts the position for a book.
+
+```typescript
+updateReadingPosition(
+  bookId: string,
+  chapter: number,
+  verse?: number
+): Promise<void>
+```
+
+**`getBulkReadingPositions(bookIds)`**
+
+Bulk-fetches positions; returns a map keyed by USFM code with
+explicit nulls for books that have no saved position (marks
+them as checked so they are not refetched).
+
+```typescript
+getBulkReadingPositions(
+  bookIds: string[]
+): Promise<Record<string, { chapter: number; verse: number } | null>>
+```
+
+**Store integration** (`src/store.tsx`):
+- `readingPositions` — persisted per-book cache
+  (`Record<bookId, { chapter, verse } | null>`)
+- `setActiveBookWithPosition(bookId)` — restores the saved
+  chapter (and queues scroll restoration via the transient,
+  non-persisted `pendingScrollVerse`) without selecting verses
+- `syncReadingPosition(bookId, chapter, verse)` — updates the
+  local cache and pushes to the API when authenticated; driven
+  by chapter loads and debounced first-verse-in-view scroll
+  tracking in `PassageView`
+- `prefetchReadingPositions()` — bulk-fetches all positions on
+  app load for authenticated users (`App.tsx`)
 
 ---
 
@@ -2625,7 +2747,7 @@ Depending on your changes, update the relevant sections:
 4. **State Changes**: Update [State Management](#state-management)
 5. **Cache Changes**: Update [Caching System](#caching-system)
 6. **Architecture Changes**: Update [Architecture](#architecture) and [Data
-Flow](#data-flow)
+   Flow](#data-flow)
 
 ### Documentation Update Checklist
 
@@ -2642,7 +2764,7 @@ Before submitting a PR with functionality changes:
 
 **🤖 AI Instruction**: When making code changes to this project:
 1. After implementing any functionality update, automatically update the
-DEVELOPER_GUIDE.md
+   DEVELOPER_GUIDE.md
 2. Ensure the documentation accurately reflects the new implementation
 3. Add code examples for new patterns or features
 4. Update the Table of Contents if adding new sections
@@ -2913,11 +3035,11 @@ on-screen controls.
 ### Known Limitations
 
 1. **Audio Autoplay**: Most browsers block autoplay. User must click play
-button.
+   button.
 2. **localStorage Limits**: ~5-10MB per domain (sufficient for our caching
-needs)
+   needs)
 3. **Offline Mode**: Only KJV is available offline. Other translations require
-internet.
+   internet.
 
 ---
 

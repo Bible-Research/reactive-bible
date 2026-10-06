@@ -1,6 +1,7 @@
-import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
-import { toBookName } from "./utils/bibleUtils";
+import { loadKjvData } from './utils/kjvDataLoader';
+import bibleStructure from './assets/bibleStructure.json';
+import { toBookName, toUsfmCode } from "./utils/bibleUtils";
 import {
   VerseTimestamp,
   FilesetCopyright,
@@ -8,6 +9,8 @@ import {
   Comment,
   CommentAuthor,
   CommentCounts,
+  CommentImage,
+  ReadingPosition,
 } from './types';
 
 import {
@@ -25,12 +28,25 @@ import {
   cacheCopyright,
 } from './utils/cacheManager';
 
-import { authenticatedFetch, publicFetch } from './utils/apiClient';
+import {
+  authenticatedFetch,
+  authenticatedUpload,
+  publicFetch,
+} from './utils/apiClient';
 import { API_BASE_URL } from './config';
 
 export type { SectionHeading };
 
-export const data = bibleJson as KjvBook[];
+interface BibleStructureEntry {
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  max_verse: number;
+}
+
+// Book/chapter/verse-count metadata only — verse text is
+// lazy-loaded from kjv.json via kjvDataLoader.
+const structure = bibleStructure as BibleStructureEntry[];
 
 export interface KjvBook {
   chapter: number;
@@ -41,44 +57,39 @@ export interface KjvBook {
   book_name: string;
 }
 
+/**
+ * Get list of all Bible books from lightweight structure data
+ */
 export const getBooks = (): { book_name: string; book_id: string }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
+  const bookMap = new Map<string, { book_name: string; book_id: string }>();
+  structure.forEach((entry) => {
+    if (!bookMap.has(entry.book_id)) {
+      bookMap.set(entry.book_id, {
+        book_name: entry.book_name,
+        book_id: entry.book_id,
+      });
+    }
   });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as {
-    book_name: string;
-    book_id: string;
-  }[];
+  return Array.from(bookMap.values());
 };
 
 export const getChapters = (bookId: string): number[] => {
-  return [
-    ...new Set<number>(
-      data
-        .filter((book: KjvBook) => book.book_id === bookId)
-        .map((book: KjvBook) => book.chapter)
-    ),
-  ];
+  return structure
+    .filter((entry) => entry.book_id === bookId)
+    .map((entry) => entry.chapter);
 };
 
 export const getVerses = (
   bookId: string,
   thechapter: number
 ): number[] => {
-  return data
-    .filter(
-      (book: KjvBook) =>
-        book.book_id === bookId && book.chapter === thechapter
-    )
-    .map((book: KjvBook) => book.verse);
+  // KJV verse numbering is contiguous, so verse numbers can be
+  // synthesized as 1..max_verse from structure data.
+  const entry = structure.find(
+    (e) => e.book_id === bookId && e.chapter === thechapter
+  );
+  if (!entry) return [];
+  return Array.from({ length: entry.max_verse }, (_, i) => i + 1);
 };
 
 type VerseResult = {
@@ -97,11 +108,12 @@ export const getVersesInChapter = async (
   return await getVersesFromApi(bookId, thechapter, filesetId);
 };
 
-export const getVersesInKjvChapter = (
+export const getVersesInKjvChapter = async (
   bookId: string,
   thechapter: number
-): VerseResult => {
-  const verses = data
+): Promise<VerseResult> => {
+  const kjvData = await loadKjvData();
+  const verses = kjvData
     .filter(
       (book: KjvBook) =>
         book.book_id === bookId &&
@@ -236,19 +248,11 @@ export const getPassage = (): {
   book_id: string;
   chapter: number;
 }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-      chapter: book.chapter,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
-  });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as { book_name: string; book_id: string; chapter: number }[];
+  return structure.map((entry) => ({
+    book_name: entry.book_name,
+    book_id: entry.book_id,
+    chapter: entry.chapter,
+  }));
 };
 
 export const addTagNote = async (
@@ -1016,7 +1020,7 @@ export const getNote = async (noteId: string): Promise<Note> => {
 // COMMENT TYPES
 // ============================================
 
-export type { Comment, CommentAuthor, CommentCounts };
+export type { Comment, CommentAuthor, CommentCounts, CommentImage };
 
 // ============================================
 // COMMENT FUNCTIONS
@@ -1107,6 +1111,53 @@ export const deleteComment = async (
   }
 };
 
+export const uploadCommentImage = async (
+  noteId: string,
+  commentId: string,
+  file: File,
+): Promise<CommentImage> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const response = await authenticatedUpload(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+    fd,
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message =
+      data.detail ||
+      (Array.isArray(data.file) ? data.file[0] : data.file) ||
+      'Failed to upload image.';
+    throw new Error(message);
+  }
+  return response.json();
+};
+
+export const deleteImage = async (
+  imageId: string,
+): Promise<void> => {
+  const response = await authenticatedFetch(
+    `${API_BASE_URL}/api/v1/images/${imageId}/`,
+    { method: 'DELETE' },
+  );
+  if (!response.ok) {
+    throw new Error('Failed to delete image.');
+  }
+};
+
+export const fetchCommentImages = async (
+  noteId: string,
+  commentId: string,
+): Promise<CommentImage[]> => {
+  const response = await publicFetch(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch images.');
+  }
+  return response.json();
+};
+
 // ============================================
 // SEARCH FUNCTIONS
 // ============================================
@@ -1117,7 +1168,6 @@ export interface SearchVerse {
   verse_start: number;
   verse_text: string;
 }
-
 
 export interface SearchPagination {
   total: number;
@@ -1150,9 +1200,7 @@ export const searchBible = async (
     params.toString();
   const response = await fetch(url, { signal });
   if (!response.ok) {
-    throw new Error(
-      `Search failed: ${response.statusText}`
-    );
+    throw new Error(`Search failed: ${response.statusText}`);
   }
   const json = await response.json();
   return {
@@ -1254,5 +1302,117 @@ export const fetchCommentCounts = async (params: {
   } catch (error) {
     console.error('Error fetching comment counts:', error);
     throw error;
+  }
+};
+
+// ============================================
+// READING POSITION FUNCTIONS
+// ============================================
+//
+// The backend stores positions keyed by book NAME (validated via
+// get_dbt_book_id), so every function below maps the USFM bookId
+// to a display name before calling the API and maps names back
+// to USFM codes in responses.
+/* eslint-disable react-refresh/only-export-components --
+   api.tsx is a pure API module; it exports no components. */
+
+export type ReadingPositionValue = {
+  chapter: number;
+  verse: number;
+};
+
+/**
+ * Get the saved reading position for a book. `bookId` is a USFM
+ * code; the backend `?book=` filter expects the book name and
+ * returns a (filtered) list, not a single object.
+ */
+export const getReadingPosition = async (
+  bookId: string
+): Promise<ReadingPosition | null> => {
+  const bookName = toBookName(bookId);
+  if (!bookName) return null;
+  try {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/` +
+        `?book=${encodeURIComponent(bookName)}`
+    );
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error('Failed to fetch reading position');
+    }
+    const data: ReadingPosition[] = await response.json();
+    return data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error('Error fetching reading position:', error);
+    return null;
+  }
+};
+
+/**
+ * Upsert the reading position for a book (USFM `bookId`; the
+ * backend expects the book name).
+ */
+export const updateReadingPosition = async (
+  bookId: string,
+  chapter: number,
+  verse = 1
+): Promise<void> => {
+  const bookName = toBookName(bookId);
+  if (!bookName) return;
+  try {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          book: bookName,
+          chapter,
+          verse,
+        }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to update reading position');
+    }
+  } catch (error) {
+    console.error('Error updating reading position:', error);
+  }
+};
+
+/**
+ * Bulk-fetch reading positions for USFM `bookIds`. The backend
+ * request and response are keyed by book name; the returned map
+ * is re-keyed by USFM code and keeps explicit nulls for books
+ * with no saved position so callers can tell "checked, empty"
+ * from "never fetched".
+ */
+export const getBulkReadingPositions = async (
+  bookIds: string[]
+): Promise<Record<string, ReadingPositionValue | null>> => {
+  try {
+    const bookNames = bookIds
+      .map((id) => toBookName(id))
+      .filter((n): n is string => n !== null);
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/bulk/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ books: bookNames }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to fetch bulk reading positions');
+    }
+    const byName: Record<string, ReadingPositionValue | null> =
+      await response.json();
+    const byId: Record<string, ReadingPositionValue | null> = {};
+    for (const [name, position] of Object.entries(byName)) {
+      const code = toUsfmCode(name);
+      if (code) byId[code] = position;
+    }
+    return byId;
+  } catch (error) {
+    console.error('Error fetching bulk reading positions:', error);
+    return {};
   }
 };

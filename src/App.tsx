@@ -19,6 +19,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useAuthStore } from "./stores/authStore";
 import { useAppUpdate } from "./hooks/useAppUpdate";
+import { useBibleStore } from "./store";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
 
@@ -40,7 +41,10 @@ export default function App() {
 
   // Check authentication on app load
   const checkAuth = useAuthStore((state) => state.checkAuth);
-  
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
+
   useEffect(() => {
     // Check if user is authenticated from localStorage
     checkAuth();
@@ -51,6 +55,14 @@ export default function App() {
   // Poll the rolling `continuous` release for a newer APK build
   // (no-op outside the native Android shell).
   useAppUpdate();
+
+  // Reading positions are only synced for authenticated users;
+  // anonymous sessions share a server-side guest account.
+  useEffect(() => {
+    if (isAuthenticated) {
+      useBibleStore.getState().prefetchReadingPositions();
+    }
+  }, [isAuthenticated]);
   
   // Check if we're on an auth page (login/register)
   const location = useLocation();

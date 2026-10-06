@@ -21,6 +21,9 @@ const BibleSelector = ({
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const verseSelection = useBibleStore((state) => state.verseSelection);
   const isMobileLandscape = useMediaQuery(MOBILE_LANDSCAPE_QUERY);
+  const setActiveBookWithPosition = useBibleStore(
+    (state) => state.setActiveBookWithPosition
+  );
   const pickerVerses =
     verseSelection?.scope === 'bible'
       ? verseNumbersFor(
@@ -49,9 +52,11 @@ const BibleSelector = ({
           verses={pickerVerses}
           titlePrefix="nav-"
           scrollSignal={opened}
-          onSelectBook={(bookId) => {
-            console.log(`🔗 Navigating to: /bible/${bookId}.1`);
-            navigate(buildBiblePath(bookId, 1));
+          onSelectBook={async (bookId) => {
+            await setActiveBookWithPosition(bookId);
+            const chapter =
+              useBibleStore.getState().activeChapter;
+            navigate(buildBiblePath(bookId, chapter));
           }}
           onSelectChapter={(chapter) => {
             console.log(

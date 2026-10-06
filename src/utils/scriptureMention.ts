@@ -20,7 +20,7 @@ interface BookEntry {
   book_id: string;
 }
 
-// getBooks() scans all of kjv.json — memoize once.
+// getBooks() scans the bundled structure data — memoize once.
 let booksCache: BookEntry[] | null = null;
 export const getAllBooks = (): BookEntry[] => {
   if (!booksCache) booksCache = getBooks();
@@ -70,7 +70,8 @@ const emptyParsed = (): ParsedMention => ({
  * Lenient live parser for the text after '@'. ' ', '.' and ':' are
  * equivalent segment separators; '+' escapes spaces inside book
  * names; the longest unique book prefix wins. Chapter/verse bounds
- * are validated against bundled kjv.json via getChapters/getVerses.
+ * are validated against bundled bibleStructure.json via
+ * getChapters/getVerses.
  */
 export const parseMentionQuery = (raw: string): ParsedMention => {
   const result = emptyParsed();
