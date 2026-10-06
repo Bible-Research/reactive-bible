@@ -1,5 +1,6 @@
-import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
+import { loadKjvData } from './utils/kjvDataLoader';
+import bibleStructure from './assets/bibleStructure.json';
 import { toBookName } from "./utils/bibleUtils";
 import {
   VerseTimestamp,
@@ -30,7 +31,16 @@ import { API_BASE_URL } from './config';
 
 export type { SectionHeading };
 
-export const data = bibleJson as KjvBook[];
+interface BibleStructureEntry {
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  max_verse: number;
+}
+
+// Book/chapter/verse-count metadata only — verse text is
+// lazy-loaded from kjv.json via kjvDataLoader.
+const structure = bibleStructure as BibleStructureEntry[];
 
 export interface KjvBook {
   chapter: number;
@@ -41,44 +51,39 @@ export interface KjvBook {
   book_name: string;
 }
 
+/**
+ * Get list of all Bible books from lightweight structure data
+ */
 export const getBooks = (): { book_name: string; book_id: string }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
+  const bookMap = new Map<string, { book_name: string; book_id: string }>();
+  structure.forEach((entry) => {
+    if (!bookMap.has(entry.book_id)) {
+      bookMap.set(entry.book_id, {
+        book_name: entry.book_name,
+        book_id: entry.book_id,
+      });
+    }
   });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as {
-    book_name: string;
-    book_id: string;
-  }[];
+  return Array.from(bookMap.values());
 };
 
 export const getChapters = (bookId: string): number[] => {
-  return [
-    ...new Set<number>(
-      data
-        .filter((book: KjvBook) => book.book_id === bookId)
-        .map((book: KjvBook) => book.chapter)
-    ),
-  ];
+  return structure
+    .filter((entry) => entry.book_id === bookId)
+    .map((entry) => entry.chapter);
 };
 
 export const getVerses = (
   bookId: string,
   thechapter: number
 ): number[] => {
-  return data
-    .filter(
-      (book: KjvBook) =>
-        book.book_id === bookId && book.chapter === thechapter
-    )
-    .map((book: KjvBook) => book.verse);
+  // KJV verse numbering is contiguous, so verse numbers can be
+  // synthesized as 1..max_verse from structure data.
+  const entry = structure.find(
+    (e) => e.book_id === bookId && e.chapter === thechapter
+  );
+  if (!entry) return [];
+  return Array.from({ length: entry.max_verse }, (_, i) => i + 1);
 };
 
 type VerseResult = {
@@ -97,11 +102,12 @@ export const getVersesInChapter = async (
   return await getVersesFromApi(bookId, thechapter, filesetId);
 };
 
-export const getVersesInKjvChapter = (
+export const getVersesInKjvChapter = async (
   bookId: string,
   thechapter: number
-): VerseResult => {
-  const verses = data
+): Promise<VerseResult> => {
+  const kjvData = await loadKjvData();
+  const verses = kjvData
     .filter(
       (book: KjvBook) =>
         book.book_id === bookId &&
@@ -228,19 +234,11 @@ export const getPassage = (): {
   book_id: string;
   chapter: number;
 }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-      chapter: book.chapter,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
-  });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as { book_name: string; book_id: string; chapter: number }[];
+  return structure.map((entry) => ({
+    book_name: entry.book_name,
+    book_id: entry.book_id,
+    chapter: entry.chapter,
+  }));
 };
 
 export const addTagNote = async (
