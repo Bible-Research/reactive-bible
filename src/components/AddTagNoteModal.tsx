@@ -1,7 +1,7 @@
 import { Box, Divider, Modal, Text } from "@mantine/core";
-import { addTagNote, getLinkedNotes } from "../api";
+import { addTagNote, editNote, getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Note } from "../types";
 import { toBookName } from "../utils/bibleUtils";
 import { toPlainText } from "../utils/tiptapContent";
@@ -61,10 +61,15 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   const [linkedNotes, setLinkedNotes] =
     useState<Note[] | null>(null);
 
+  // Once autosave creates the note, later saves (and Submit)
+  // must PATCH that note instead of POSTing duplicates.
+  const savedNoteIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
       getTags();
+      savedNoteIdRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]); // Only run when opened changes
@@ -105,9 +110,21 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     };
   }, [opened, verseReferences, activeTextFilesetId]);
 
+  const handleAutoSave = async (tagId: string, text: string) => {
+    if (savedNoteIdRef.current) {
+      await editNote(savedNoteIdRef.current, tagId, text);
+      return;
+    }
+    const created = await addTagNote(tagId, text, verseReferences);
+    savedNoteIdRef.current = created?.id ?? null;
+  };
+
   const handleSubmit = async (tagId: string, text: string) => {
     try {
-      await addTagNote(tagId, text, verseReferences);
+      // Shares savedNoteIdRef with autosave: an existing draft is
+      // PATCHed, and a note created by submit is recorded so a
+      // late autosave tick PATCHes instead of POSTing a duplicate.
+      await handleAutoSave(tagId, text);
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
       onClose();
@@ -136,6 +153,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         onSubmit={handleSubmit}
         submitText="Submit"
         onTagDropdownOpen={() => getTags()}
+        onAutoSave={handleAutoSave}
         note={
           lastSelectedTagId
             ? { tagId: lastSelectedTagId, text: "" }

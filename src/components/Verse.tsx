@@ -94,6 +94,11 @@ const Verse = ({
   // the selection toggles twice (select then instantly unselect).
   const lastTouchTapRef = useRef(0);
 
+  // Snapshot of the selected text at touchstart. A tap while an
+  // unchanged selection exists dismisses it; a selection created
+  // during the touch itself (long-press) must be left intact.
+  const selectionAtTouchStart = useRef<string | null>(null);
+
   // Track if verse was just clicked to prevent scroll jump
   const userClickedRef = useRef(false);
 
@@ -150,6 +155,8 @@ const Verse = ({
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    const text = window.getSelection()?.toString() ?? "";
+    selectionAtTouchStart.current = text.length > 0 ? text : null;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -168,9 +175,19 @@ const Verse = ({
       // Use setTimeout to allow text selection to register
       setTimeout(() => {
         const selection = window.getSelection();
-        if (!selection || selection.toString().length === 0) {
+        const selectedText = selection?.toString() ?? "";
+        if (selectedText.length === 0) {
           handleTouchClick();
+        } else if (
+          selectedText === selectionAtTouchStart.current
+        ) {
+          // Tap while a text selection already existed — the
+          // preventDefault above stopped the browser from
+          // collapsing it, so dismiss it ourselves.
+          selection?.removeAllRanges();
         }
+        // Otherwise the selection was created during this touch
+        // (long-press) — leave it alone.
       }, 50);
     }
 

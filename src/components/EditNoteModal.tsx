@@ -24,6 +24,7 @@ import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
 import PassagePicker from "./PassagePicker";
 import { Note, VerseRef } from "../types";
+import { visibleNoteVerses } from "../utils/noteVerses";
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -125,6 +126,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     );
   };
 
+  const handleAutoSave = async (tagId: string, text: string) => {
+    if (!note) return;
+    await editNote(note.id, tagId, text);
+  };
+
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
 
@@ -147,6 +153,16 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     }
   };
 
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note?.error;
+  // Provider text is capped at 500 verses for copyright
+  // reasons; render the truncated tail as a notice instead
+  // of empty verse rows.
+  const { truncated: versesTruncated } = visibleNoteVerses(
+    note?.verses
+  );
+
   return (
     <Modal opened={opened} onClose={onClose} title="Edit note" fullScreen>
       {note && (
@@ -156,6 +172,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             onSubmit={handleSubmit}
             submitText="Submit changes"
             onTagDropdownOpen={() => getTags()}
+            onAutoSave={handleAutoSave}
             note={{ tagId: note.tag.id, text: note.note_text }}
           />
           <Divider mt="xl" mb="sm" />
@@ -196,25 +213,46 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 onSelectVerse={handleSelectVerse}
               />
             </Box>
-            {textGroups.map(([label, groupVerses]) => (
-              <Box key={label} mt="xl">
-                <Divider
-                  my="sm"
-                  label={label}
-                  labelPosition="center"
-                />
-                {groupVerses.map((v) => (
-                  <Box key={v.verse} py={4} px={8}>
-                    <Text size="sm">
-                      <Text component="span" weight={700} mr={4}>
-                        {v.verse}
-                      </Text>
-                      {v.text}
-                    </Text>
+            {verseError ? (
+              <Text color="red" size="sm" mt="sm">
+                {verseError}
+                {note.error_code === "rate_limited"
+                  ? " Try reloading in a few moments."
+                  : ""}
+              </Text>
+            ) : (
+              <>
+                {textGroups.map(([label, groupVerses]) => (
+                  <Box key={label} mt="xl">
+                    <Divider
+                      my="sm"
+                      label={label}
+                      labelPosition="center"
+                    />
+                    {groupVerses.map((v) => (
+                      <Box key={v.verse} py={4} px={8}>
+                        <Text size="sm">
+                          <Text
+                            component="span"
+                            weight={700}
+                            mr={4}
+                          >
+                            {v.verse}
+                          </Text>
+                          {v.text}
+                        </Text>
+                      </Box>
+                    ))}
                   </Box>
                 ))}
-              </Box>
-            ))}
+                {versesTruncated && (
+                  <Text color="red" size="sm" mt="sm">
+                    Cannot display more than 500 verses of the
+                    Bible due to copyright restrictions.
+                  </Text>
+                )}
+              </>
+            )}
           </Collapse>
         </>
       )}
