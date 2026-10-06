@@ -1014,6 +1014,7 @@ const Audio = () => {
     setShowPlayer(false);
     clearAdvanceTimer();
     pendingGapRef.current = false;
+    setAudioActiveVerse(null);
     discardPreloaded();
     disposeHowl(audio, activeBlobUrlRef.current);
     activeBlobUrlRef.current = null;
