@@ -1,7 +1,7 @@
 import { Translation } from "./store";
 import { loadKjvData } from './utils/kjvDataLoader';
 import bibleStructure from './assets/bibleStructure.json';
-import { toBookName } from "./utils/bibleUtils";
+import { toBookName, toUsfmCode } from "./utils/bibleUtils";
 import {
   VerseTimestamp,
   FilesetCopyright,
@@ -10,6 +10,7 @@ import {
   CommentAuthor,
   CommentCounts,
   CommentImage,
+  ReadingPosition,
 } from './types';
 
 import {
@@ -1245,5 +1246,117 @@ export const fetchCommentCounts = async (params: {
   } catch (error) {
     console.error('Error fetching comment counts:', error);
     throw error;
+  }
+};
+
+// ============================================
+// READING POSITION FUNCTIONS
+// ============================================
+//
+// The backend stores positions keyed by book NAME (validated via
+// get_dbt_book_id), so every function below maps the USFM bookId
+// to a display name before calling the API and maps names back
+// to USFM codes in responses.
+/* eslint-disable react-refresh/only-export-components --
+   api.tsx is a pure API module; it exports no components. */
+
+export type ReadingPositionValue = {
+  chapter: number;
+  verse: number;
+};
+
+/**
+ * Get the saved reading position for a book. `bookId` is a USFM
+ * code; the backend `?book=` filter expects the book name and
+ * returns a (filtered) list, not a single object.
+ */
+export const getReadingPosition = async (
+  bookId: string
+): Promise<ReadingPosition | null> => {
+  const bookName = toBookName(bookId);
+  if (!bookName) return null;
+  try {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/` +
+        `?book=${encodeURIComponent(bookName)}`
+    );
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error('Failed to fetch reading position');
+    }
+    const data: ReadingPosition[] = await response.json();
+    return data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error('Error fetching reading position:', error);
+    return null;
+  }
+};
+
+/**
+ * Upsert the reading position for a book (USFM `bookId`; the
+ * backend expects the book name).
+ */
+export const updateReadingPosition = async (
+  bookId: string,
+  chapter: number,
+  verse = 1
+): Promise<void> => {
+  const bookName = toBookName(bookId);
+  if (!bookName) return;
+  try {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          book: bookName,
+          chapter,
+          verse,
+        }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to update reading position');
+    }
+  } catch (error) {
+    console.error('Error updating reading position:', error);
+  }
+};
+
+/**
+ * Bulk-fetch reading positions for USFM `bookIds`. The backend
+ * request and response are keyed by book name; the returned map
+ * is re-keyed by USFM code and keeps explicit nulls for books
+ * with no saved position so callers can tell "checked, empty"
+ * from "never fetched".
+ */
+export const getBulkReadingPositions = async (
+  bookIds: string[]
+): Promise<Record<string, ReadingPositionValue | null>> => {
+  try {
+    const bookNames = bookIds
+      .map((id) => toBookName(id))
+      .filter((n): n is string => n !== null);
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/bulk/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ books: bookNames }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to fetch bulk reading positions');
+    }
+    const byName: Record<string, ReadingPositionValue | null> =
+      await response.json();
+    const byId: Record<string, ReadingPositionValue | null> = {};
+    for (const [name, position] of Object.entries(byName)) {
+      const code = toUsfmCode(name);
+      if (code) byId[code] = position;
+    }
+    return byId;
+  } catch (error) {
+    console.error('Error fetching bulk reading positions:', error);
+    return {};
   }
 };

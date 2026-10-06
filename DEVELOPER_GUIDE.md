@@ -2071,6 +2071,30 @@ and `getKjvAudioUrl` stay synchronous.
    // refetch (bounded per comment), see CommentThread
    ```
 
+10. **Get Reading Positions**
+    ```
+    GET /reading-positions/
+    GET /reading-positions/?book={book name}  // filtered list
+    Response: ReadingPosition[]
+    ```
+    Authenticated only. `book` is a display name (e.g. "John"),
+    not a USFM code — the backend validates it via
+    `get_dbt_book_id`.
+
+11. **Upsert Reading Position**
+    ```
+    POST /reading-positions/
+    Body: { book: string, chapter: number, verse: number }
+    Response: ReadingPosition
+    ```
+
+12. **Bulk Reading Positions**
+    ```
+    POST /reading-positions/bulk/
+    Body: { books: string[] }  // book names
+    Response: { [book name]: { chapter, verse } | null }
+    ```
+
 #### Wordpocket Audio API
 **Base URL**: `https://wordpocket.org/bibles/app/audio/1`
 
@@ -2321,6 +2345,60 @@ Fetches all available tags from API.
 ```typescript
 getTags(): Promise<Tag[]>
 ```
+
+#### Reading Position Functions
+
+Reading positions track the user's last location per book and
+restore it on book switch. All functions take USFM book codes
+and map to backend book names internally; all calls are gated
+on `useAuthStore.getState().isAuthenticated` (anonymous sessions
+would otherwise write to a shared auto-provisioned account).
+
+**`getReadingPosition(bookId)`**
+
+Fetches the saved position for one book (`?book=` is a filtered
+list endpoint, not a single object).
+
+```typescript
+getReadingPosition(bookId: string): Promise<ReadingPosition | null>
+```
+
+**`updateReadingPosition(bookId, chapter, verse)`**
+
+Upserts the position for a book.
+
+```typescript
+updateReadingPosition(
+  bookId: string,
+  chapter: number,
+  verse?: number
+): Promise<void>
+```
+
+**`getBulkReadingPositions(bookIds)`**
+
+Bulk-fetches positions; returns a map keyed by USFM code with
+explicit nulls for books that have no saved position (marks
+them as checked so they are not refetched).
+
+```typescript
+getBulkReadingPositions(
+  bookIds: string[]
+): Promise<Record<string, { chapter: number; verse: number } | null>>
+```
+
+**Store integration** (`src/store.tsx`):
+- `readingPositions` — persisted per-book cache
+  (`Record<bookId, { chapter, verse } | null>`)
+- `setActiveBookWithPosition(bookId)` — restores the saved
+  chapter (and queues scroll restoration via the transient,
+  non-persisted `pendingScrollVerse`) without selecting verses
+- `syncReadingPosition(bookId, chapter, verse)` — updates the
+  local cache and pushes to the API when authenticated; driven
+  by chapter loads and debounced first-verse-in-view scroll
+  tracking in `PassageView`
+- `prefetchReadingPositions()` — bulk-fetches all positions on
+  app load for authenticated users (`App.tsx`)
 
 ---
 
