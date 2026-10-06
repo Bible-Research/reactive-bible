@@ -98,6 +98,9 @@ const PassageView = () => {
   >([]);
   const [tocLoading, setTocLoading] = useState(false);
   const pendingScrollHeadingRef = useRef<number | null>(null);
+  // True until the first chapter fetch succeeds — reading-position
+  // restore from persisted state only applies to that load.
+  const initialLoadRef = useRef(true);
   const tocAbortRef = useRef(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -316,7 +319,7 @@ const PassageView = () => {
         // scrolled into view without selecting it.
         const pendingPosition =
           useBibleStore.getState().pendingScrollVerse;
-        const restoreVerse =
+        let restoreVerse =
           pendingPosition &&
           pendingPosition.bookId === activeBookId &&
           pendingPosition.chapter === activeChapter
@@ -325,6 +328,27 @@ const PassageView = () => {
         if (pendingPosition) {
           useBibleStore.getState().setPendingScrollVerse(null);
         }
+        // Cold load (reload / direct URL): nothing queued a
+        // scroll, so restore the persisted position — but only
+        // on the first chapter rendered after mount. Later
+        // navigations within this mount (next/prev chapter)
+        // must land at the top, and a URL-selected verse
+        // already scrolls itself into view.
+        if (restoreVerse === null && initialLoadRef.current) {
+          const state = useBibleStore.getState();
+          const hasUrlSelection =
+            state.verseSelection?.scope === 'bible' &&
+            state.verseSelection.refs.length > 0;
+          const saved = state.readingPositions[activeBookId];
+          if (
+            !hasUrlSelection &&
+            saved?.chapter === activeChapter &&
+            saved.verse > 1
+          ) {
+            restoreVerse = saved.verse;
+          }
+        }
+        initialLoadRef.current = false;
         if (restoreVerse !== null) {
           setTimeout(() => {
             document
