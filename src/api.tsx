@@ -1448,7 +1448,9 @@ export const getReadingPosition = async (
     return data.length > 0 ? data[0] : null;
   } catch (error) {
     console.error('Error fetching reading position:', error);
-    return null;
+    // Rethrow so callers can distinguish "fetch failed" (retry
+    // later) from "no saved position" (returned as null above).
+    throw error;
   }
 };
 

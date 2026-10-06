@@ -126,6 +126,9 @@ export default function SearchRoute() {
       setTruncated(false);
       setError(null);
       setSearched(false);
+      // A cleared query aborts the in-flight search (swallowed
+      // above) — reset loading or the spinner never clears.
+      setLoading(false);
       return;
     }
     const controller = new AbortController();

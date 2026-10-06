@@ -81,6 +81,7 @@ const RichTextEditor = forwardRef<
   const onRefPreview = (token: string) => {
     const result = parseScriptureRef(token);
     if (!result.ok) {
+      setPreviewRef(null);
       setPreviewError(result.error);
       return;
     }

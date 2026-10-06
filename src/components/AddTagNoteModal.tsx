@@ -4,6 +4,7 @@ import { useBibleStore } from "../store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Note } from "../types";
 import { toBookName } from "../utils/bibleUtils";
+import { resolveTextFileset } from "../utils/filesetGroups";
 import { toPlainText } from "../utils/tiptapContent";
 import {
   groupVerseTexts,
@@ -36,6 +37,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection,
     setVerseSelection,
     activeTextFilesetId,
+    activeBookId,
     translations,
     lastSelectedTagId,
     setLastSelectedTagId,
@@ -45,6 +47,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection: state.verseSelection,
     setVerseSelection: state.setVerseSelection,
     activeTextFilesetId: state.activeTextFilesetId,
+    activeBookId: state.activeBookId,
     translations: state.translations,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
@@ -100,9 +103,17 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     let cancelled = false;
     const fetchLinkedNotes = async () => {
       try {
+        // The stored id may be a grouped product id — resolve to
+        // the concrete member for the selected book's testament,
+        // like every other `fileset_id` call site.
+        const filesetId = resolveTextFileset(
+          activeTextFilesetId,
+          refs[0]?.bookId ?? activeBookId,
+          translations
+        );
         const result = await getLinkedNotes(
           verseReferences,
-          activeTextFilesetId ?? undefined
+          filesetId ?? undefined
         );
         if (!cancelled) {
           setLinkedNotes(result.results);
@@ -115,7 +126,14 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     return () => {
       cancelled = true;
     };
-  }, [opened, verseReferences, activeTextFilesetId]);
+  }, [
+    opened,
+    verseReferences,
+    activeTextFilesetId,
+    activeBookId,
+    translations,
+    refs,
+  ]);
 
   const handleAutoSave = async (tagId: string, text: string) => {
     if (savedNoteIdRef.current) {

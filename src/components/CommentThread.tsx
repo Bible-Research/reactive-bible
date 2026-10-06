@@ -9,7 +9,7 @@ import {
 } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { Link } from 'react-router-dom';
-import { Comment } from '../types';
+import { Comment, CommentImage } from '../types';
 import {
   fetchComments,
   createComment,
@@ -163,7 +163,7 @@ const CommentThread = ({
         content,
         parentId
       );
-      const uploadedImages = [];
+      const uploadedImages: CommentImage[] = [];
       for (const file of files) {
         try {
           const img = await uploadCommentImage(
@@ -212,8 +212,7 @@ const CommentThread = ({
   ) => {
     try {
       const updated = await updateComment(noteId, id, content);
-      const existingImages = updated.images ?? [];
-      const newImages = [...existingImages];
+      const uploadedImages: CommentImage[] = [];
       for (const file of files) {
         try {
           const img = await uploadCommentImage(
@@ -221,7 +220,7 @@ const CommentThread = ({
             id,
             file
           );
-          newImages.push(img);
+          uploadedImages.push(img);
         } catch (err: unknown) {
           const msg =
             err instanceof Error
@@ -238,7 +237,9 @@ const CommentThread = ({
         updateNode(prev, id, (n) => ({
           ...normalize([updated])[0],
           replies: n.replies,
-          images: newImages,
+          // Keep the node's current images as the base — the
+          // PATCH response may omit or stale the list.
+          images: [...(n.images ?? []), ...uploadedImages],
         }))
       );
       silentLoad();

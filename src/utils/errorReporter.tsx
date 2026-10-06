@@ -5,7 +5,10 @@ import {
 
 const NOTIFICATION_ID = 'unhandled-error';
 
-const RESOURCE_TAGS = ['IMG', 'SCRIPT', 'LINK', 'AUDIO', 'VIDEO'];
+// Media elements are excluded: audio/video sources routinely
+// fail and are retried by the app's own fallback chains, so
+// reporting them would surface expected noise as fatal errors.
+const RESOURCE_TAGS = ['IMG', 'SCRIPT', 'LINK'];
 
 function toError(error: unknown): Error {
   if (error instanceof Error) {
@@ -79,25 +82,49 @@ function handleGlobalError(event: Event): void {
 function handleUnhandledRejection(
   event: PromiseRejectionEvent
 ): void {
+  // Aborted fetches are routine cancellations (navigation
+  // races, superseded searches), not failures.
+  if (
+    event.reason instanceof Error &&
+    event.reason.name === 'AbortError'
+  ) {
+    return;
+  }
   reportError(event.reason, 'Unhandled promise rejection');
+}
+
+// Survives module replacement: Vite HMR re-executes main.tsx on
+// every edit, and without a window-level marker each reload would
+// stack another pair of listeners, duplicating every report.
+declare global {
+  interface Window {
+    __globalErrorCleanup?: () => void;
+  }
 }
 
 /**
  * Installs window-level handlers for uncaught exceptions,
  * unhandled promise rejections, and resource load failures.
- * Returns a cleanup function that removes the listeners.
+ * Idempotent — a previous installation (e.g. after HMR) is
+ * removed first. Returns a cleanup function.
  */
 export function initGlobalErrorHandlers(): () => void {
+  window.__globalErrorCleanup?.();
   window.addEventListener('error', handleGlobalError, true);
   window.addEventListener(
     'unhandledrejection',
     handleUnhandledRejection
   );
-  return () => {
+  const cleanup = () => {
     window.removeEventListener('error', handleGlobalError, true);
     window.removeEventListener(
       'unhandledrejection',
       handleUnhandledRejection
     );
+    if (window.__globalErrorCleanup === cleanup) {
+      delete window.__globalErrorCleanup;
+    }
   };
+  window.__globalErrorCleanup = cleanup;
+  return cleanup;
 }

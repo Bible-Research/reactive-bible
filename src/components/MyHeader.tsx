@@ -49,6 +49,21 @@ const MyHeader = ({
         : document.documentElement.scrollTop;
 
     const handleScroll = (event: Event) => {
+      // Only the main content scroll should toggle the header.
+      // Scrolling inside the Bible selector navbar, menus,
+      // dropdowns or modals must not hide the header buttons.
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest(
+          '.mantine-Navbar-root, [role="dialog"], ' +
+            '[role="menu"], .mantine-Menu-dropdown, ' +
+            '.mantine-Select-dropdown, .mantine-Popover-dropdown'
+        )
+      ) {
+        return;
+      }
+
       const state = scroll.current;
       const top = getScrollTop(event.target);
 

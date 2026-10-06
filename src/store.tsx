@@ -221,8 +221,9 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   `activeBookId` (USFM code); VerseRef/audio refs gain bookId.
  * - pre-v4: `notesPage`/`notesPageSize` are newly persisted;
  *   absent values fall back to defaults, no migration needed.
- *   `readingPositions` is introduced; any pre-existing value is
- *   sanitized and name-keyed entries are re-keyed to USFM codes.
+ * - pre-v5: `readingPositions` is introduced; any pre-existing
+ *   value is sanitized and name-keyed entries are re-keyed to
+ *   USFM codes.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -280,7 +281,7 @@ export const migratePersistedState = (
     delete migrated.activeBookShort;
   }
 
-  if (version < 4) {
+  if (version < 5) {
     const raw = migrated.readingPositions;
     const positions: Record<
       string,
@@ -612,24 +613,31 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           | undefined;
         if (
           position === undefined &&
-          useAuthStore.getState().isAuthenticated
+          useAuthStore.getState().isAuthenticated &&
+          (typeof navigator === 'undefined' || navigator.onLine)
         ) {
-          const apiPosition =
-            await api.getReadingPosition(activeBookId);
-          const entry: api.ReadingPositionValue | null =
-            apiPosition
-              ? {
-                  chapter: apiPosition.chapter,
-                  verse: apiPosition.verse,
-                }
-              : null;
-          position = entry;
-          set((state) => ({
-            readingPositions: {
-              ...state.readingPositions,
-              [activeBookId]: entry,
-            },
-          }));
+          try {
+            const apiPosition =
+              await api.getReadingPosition(activeBookId);
+            const entry: api.ReadingPositionValue | null =
+              apiPosition
+                ? {
+                    chapter: apiPosition.chapter,
+                    verse: apiPosition.verse,
+                  }
+                : null;
+            position = entry;
+            set((state) => ({
+              readingPositions: {
+                ...state.readingPositions,
+                [activeBookId]: entry,
+              },
+            }));
+          } catch {
+            // A failed lookup stays `undefined` — never cached
+            // as "no position", so the next book click retries
+            // instead of permanently landing on chapter 1.
+          }
         }
         const chapter = position?.chapter ?? 1;
         const verse = position?.verse ?? 1;
@@ -690,7 +698,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 4,
+      version: 5,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

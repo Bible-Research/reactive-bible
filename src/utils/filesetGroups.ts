@@ -606,16 +606,21 @@ export const resolveAudioFileset = (
   if (!storedId) return null;
 
   // The bundled KJV translation streams audio from
-  // wordpocket.org — pass the id through untouched so the
-  // `filesetId === 'ENGKJV'` fast paths keep working. Product
-  // ids (`ENGKJV:audio:1`) collapse to the bare id as well —
-  // they must not depend on the translations list being loaded.
-  if (storedId === 'ENGKJV' || storedId.startsWith('ENGKJV:')) {
+  // wordpocket.org — pass the bare id through untouched so the
+  // `filesetId === 'ENGKJV'` fast paths keep working even before
+  // the translations list loads.
+  if (storedId === 'ENGKJV') {
     return { filesetId: 'ENGKJV', codec: 'mp3', alternates: [] };
   }
 
   const found = findAudioOption(storedId, translations);
   if (!found) {
+    // KJV product ids (`ENGKJV:audio:n`) that can't be matched —
+    // e.g. the translations list has not loaded yet — fall back
+    // to the bundled wordpocket audio instead of erroring.
+    if (storedId.startsWith('ENGKJV:')) {
+      return { filesetId: 'ENGKJV', codec: 'mp3', alternates: [] };
+    }
     // Unknown or stale persisted id — pass it through so legacy
     // selections keep working exactly as before.
     return {

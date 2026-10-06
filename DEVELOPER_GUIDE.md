@@ -1136,7 +1136,10 @@ getVersesInChapter(
 ```
 
 **Data Flow**:
-1. `TranslationSelector` fetches available translations and stores them in Zustand.
+1. `TranslationSelector` fetches available translations for the
+   selected language and merges them by `abbr` into the Zustand
+   store (per-language lists accumulate — stored product ids may
+   reference translations outside the active language tab).
 2. User picks a version; its filesets are grouped into
    product-like options (see below). The text fileset is
    auto-resolved per testament — no picker; audio is offered as
@@ -1546,16 +1549,20 @@ pasting into a GitHub issue.
 **Coverage**:
 - **Uncaught exceptions**: `window` `error` listener installed in
   the capture phase, so resource load failures (img, script,
-  audio, ...) are reported in addition to script errors.
+  link) are reported in addition to script errors. Audio/video
+  element failures are excluded — the app's own fallback chains
+  retry them, so reporting them would surface expected noise.
 - **Unhandled promise rejections**: `unhandledrejection`
-  listener.
+  listener; `AbortError` rejections are ignored (routine
+  fetch cancellations on navigation races).
 - **React render errors**: `ErrorBoundary` wraps the routed
   content in `App.tsx` and reports through the same path; its
   fallback UI also offers "Copy error details".
 
 **Implementation**:
 ```typescript
-// main.tsx - installed once before the app renders
+// main.tsx - installed once before the app renders;
+// idempotent (safe under Vite HMR re-execution)
 initGlobalErrorHandlers();
 ```
 

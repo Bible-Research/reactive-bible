@@ -158,6 +158,10 @@ const TranslationSelector = () => {
   // Info line for text that does not belong to the selected
   // version (audio-only versions borrow a same-language text).
   const [textNote, setTextNote] = useState<string | null>(null);
+  // True while a text selection is resolving asynchronously
+  // (e.g. the lazy KJV chunk download). Saving in that window
+  // would persist a `null` text selection and blank the reader.
+  const [textResolving, setTextResolving] = useState(false);
   // Tracks manual interaction so async language seeding never
   // stomps a pick the user just made.
   const userInteractedRef = useRef(false);
@@ -278,6 +282,7 @@ const TranslationSelector = () => {
         withCloseButton: false,
       });
 
+      setTextResolving(true);
       try {
         await loadKjvData();
         notifications.update({
@@ -298,6 +303,8 @@ const TranslationSelector = () => {
           autoClose: 5000,
         });
         return; // Prevent switching to KJV if the data fails to load
+      } finally {
+        setTextResolving(false);
       }
     }
     setSelectedTextId(filesetId);
@@ -307,10 +314,26 @@ const TranslationSelector = () => {
     let cancelled = false;
 
     const fetchTranslations = async () => {
+      // Merge by abbr instead of replacing: the store's
+      // `translations` may hold other languages that the active
+      // selection depends on (resolveTextFileset/AudioFileset
+      // look up product ids there); overwriting it with a single
+      // language's list would strand stored `{abbr}:{kind}:{n}`
+      // ids so they pass through unresolved.
+      const merge = (incoming: Translation[]) => {
+        const current =
+          useBibleStore.getState().translations;
+        const byAbbr = new Map(
+          current.map((t) => [t.abbr, t])
+        );
+        for (const t of incoming) byAbbr.set(t.abbr, t);
+        setTranslations([...byAbbr.values()]);
+      };
+
       // Show cached list immediately for snappy UX (stale)…
       const cached = await getAvailableTranslations(languageIso);
       if (!cancelled) {
-        setTranslations(cached);
+        merge(cached);
       }
 
       // …then revalidate against the API so newly published
@@ -318,7 +341,7 @@ const TranslationSelector = () => {
       if (!opened) return;
       const fresh = await getAvailableTranslations(languageIso, true);
       if (!cancelled) {
-        setTranslations(fresh);
+        merge(fresh);
       }
     };
 
@@ -420,7 +443,10 @@ const TranslationSelector = () => {
   };
 
   const handleSave = () => {
-    setActiveTextFilesetId(selectedTextId);
+    // Never write `null` over a valid stored selection — a null
+    // text id leaves the reader blank. `null` audio is the
+    // legitimate "None" choice, so it is stored verbatim.
+    setActiveTextFilesetId(selectedTextId ?? activeTextFilesetId);
     setActiveAudioFilesetId(selectedAudioId);
     setOpened(false);
   };
@@ -448,12 +474,17 @@ const TranslationSelector = () => {
 
   const versionData = useMemo(
     () =>
-      translations.map((t) => ({
-        value: t.abbr,
-        label: `${t.name} (${t.abbr})`,
-        capability: capabilityOf(t),
-      })),
-    [translations],
+      translations
+        // The store's list may hold several languages (merged
+        // per-language fetches) — the dropdown only offers the
+        // selected language's versions.
+        .filter((t) => t.language_iso === languageIso)
+        .map((t) => ({
+          value: t.abbr,
+          label: `${t.name} (${t.abbr})`,
+          capability: capabilityOf(t),
+        })),
+    [translations, languageIso],
   );
 
   // Raw fileset radios (Advanced/debug). opus16 variants are
@@ -617,10 +648,12 @@ const TranslationSelector = () => {
               Cancel
             </Button>
             {/* Disabled until a version resolves — saving with
-                none selected would wipe the stored ids. */}
+                none selected would wipe the stored ids — and
+                while a text selection is still resolving (KJV
+                chunk download), which would persist `null`. */}
             <Button
               onClick={handleSave}
-              disabled={!selectedTranslationAbbr}
+              disabled={!selectedTranslationAbbr || textResolving}
             >
               Save
             </Button>

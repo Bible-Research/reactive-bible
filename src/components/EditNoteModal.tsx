@@ -133,9 +133,23 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     );
   };
 
+  // Set when autosave wrote to the server — the cached notes
+  // list is then stale and must be refreshed on close.
+  const autosavedRef = useRef(false);
+
   const handleAutoSave = async (tagId: string, text: string) => {
     if (!note) return;
     await editNote(note.id, tagId, text);
+    autosavedRef.current = true;
+    clearNotesCache();
+  };
+
+  const handleClose = () => {
+    if (autosavedRef.current && note) {
+      fetchNotes(note.tag.id);
+    }
+    autosavedRef.current = false;
+    onClose();
   };
 
   const handleSubmit = async (tagId: string, text: string) => {
@@ -171,7 +185,12 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   );
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit note" fullScreen>
+    <Modal
+      opened={opened}
+      onClose={handleClose}
+      title="Edit note"
+      fullScreen
+    >
       {note && (
         <>
           <NoteForm

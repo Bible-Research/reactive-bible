@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ScrollArea,
   Center,
@@ -238,15 +243,32 @@ const PassageView = () => {
     }
   };
 
+  // The stored selections may be grouped product ids — resolve
+  // them to the concrete fileset covering this book's testament.
+  // These are memoized strings: depending on the raw
+  // `translations` array instead would refire the chapter fetch
+  // on every translation-list refresh (new array identity).
+  const resolvedTextFilesetId = useMemo(
+    () =>
+      resolveTextFileset(
+        activeTextFilesetId,
+        activeBookId,
+        translations,
+      ),
+    [activeTextFilesetId, activeBookId, translations]
+  );
+  const resolvedAudioFilesetId = useMemo(
+    () =>
+      resolveAudioFileset(
+        activeAudioFilesetId,
+        activeBookId,
+        translations,
+      )?.filesetId ?? activeAudioFilesetId,
+    [activeAudioFilesetId, activeBookId, translations]
+  );
+
   useEffect(() => {
-    // Resolve the stored selection to the concrete fileset
-    // covering this book's testament — handles `_ET` testament
-    // splits transparently; unknown ids pass through unchanged.
-    const textFilesetId = resolveTextFileset(
-      activeTextFilesetId,
-      activeBookId,
-      translations,
-    );
+    const textFilesetId = resolvedTextFilesetId;
     if (!textFilesetId) {
       // No text selection at all (audio-only translation) —
       // stop the spinner instead of waiting on a fetch that
@@ -327,12 +349,7 @@ const PassageView = () => {
             restoreVerse ?? 1
           );
 
-        const audioFilesetId =
-          resolveAudioFileset(
-            activeAudioFilesetId,
-            activeBookId,
-            translations,
-          )?.filesetId ?? activeAudioFilesetId;
+        const audioFilesetId = resolvedAudioFilesetId;
 
         // Prefetch current chapter audio (parallel)
         prefetchAudioUrl(
@@ -346,15 +363,17 @@ const PassageView = () => {
 
         // Prefetch adjacent chapters (parallel) — the resolver
         // handles adjacent chapters that cross a book boundary.
+        // Read the latest selection straight from the store so
+        // `translations` doesn't need to be an effect dep.
+        const {
+          activeTextFilesetId: storedTextId,
+          translations: tls,
+        } = useBibleStore.getState();
         prefetchAdjacentChapters(
           activeBookId,
           activeChapter,
           textFilesetId,
-          (b) => resolveTextFileset(
-            activeTextFilesetId,
-            b,
-            translations,
-          ),
+          (b) => resolveTextFileset(storedTextId, b, tls),
         );
       })
       .catch((error) => {
@@ -382,9 +401,8 @@ const PassageView = () => {
   }, [
     activeBookId,
     activeChapter,
-    activeTextFilesetId,
-    activeAudioFilesetId,
-    translations,
+    resolvedTextFilesetId,
+    resolvedAudioFilesetId,
   ]);
 
   // Debounced first-verse-in-view tracking: keeps the saved
@@ -428,13 +446,6 @@ const PassageView = () => {
     );
   }
 
-  // The stored id may be a grouped product id — resolve to the
-  // concrete member before the ENGKJV/coverage checks.
-  const resolvedTextFilesetId = resolveTextFileset(
-    activeTextFilesetId,
-    activeBookId,
-    translations,
-  );
   const isNonKjv =
     resolvedTextFilesetId && resolvedTextFilesetId !== 'ENGKJV';
   const showEmptyHint =

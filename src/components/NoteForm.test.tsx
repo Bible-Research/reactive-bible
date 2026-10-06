@@ -163,10 +163,24 @@ describe('NoteForm Component', () => {
         expect(onAutoSave).toHaveBeenCalledTimes(1);
         expect(onAutoSave).toHaveBeenCalledWith('', 'Draft text');
 
+        // Unchanged content is not re-saved.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+
+        // The next edit is picked up on the following tick.
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text updated' },
+        });
         await act(async () => {
           await vi.advanceTimersByTimeAsync(5000);
         });
         expect(onAutoSave).toHaveBeenCalledTimes(2);
+        expect(onAutoSave).toHaveBeenLastCalledWith(
+          '',
+          'Draft text updated'
+        );
       } finally {
         vi.useRealTimers();
       }

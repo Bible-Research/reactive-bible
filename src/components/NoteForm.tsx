@@ -70,12 +70,24 @@ const NoteForm = ({
     onAutoSaveRef.current = onAutoSave;
   });
 
+  // Sync on the primitive fields, not the `note` object itself:
+  // every call site passes a fresh inline object each render, so
+  // keying on identity would wipe in-progress edits whenever the
+  // parent re-renders (linked-notes fetches, verse picker, etc.).
+  const noteTagId = note?.tagId;
+  const noteTextProp = note?.text;
   useEffect(() => {
-    if (note) {
-      setSelectedTagId(note.tagId);
-      setNoteText(note.text);
+    if (noteTagId !== undefined && noteTextProp !== undefined) {
+      setSelectedTagId(noteTagId);
+      setNoteText(noteTextProp);
     }
-  }, [note]);
+  }, [noteTagId, noteTextProp]);
+
+  // The last content autosave persisted — ticks that would write
+  // the same payload again are skipped.
+  const lastSavedRef = useRef<{ tagId: string; text: string } | null>(
+    null
+  );
 
   useEffect(() => {
     if (!autoSave) return;
@@ -84,8 +96,13 @@ const NoteForm = ({
       if (!save || inFlightRef.current) return;
       const { tagId, text } = latest.current;
       if (!toPlainText(text).trim()) return;
+      const last = lastSavedRef.current;
+      if (last && last.tagId === tagId && last.text === text) {
+        return;
+      }
       trackInFlight(inFlightRef, save(tagId, text))
         .then(() => {
+          lastSavedRef.current = { tagId, text };
           setSavedFlash(true);
           flashTimeout.current = window.setTimeout(
             () => setSavedFlash(false),
