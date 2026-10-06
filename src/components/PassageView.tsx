@@ -20,6 +20,7 @@ import {
   type SectionHeading,
   RateLimitError,
   ProviderError,
+  BookNotInFilesetError,
 } from "../api";
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
@@ -30,8 +31,14 @@ import {
   getTestament,
   toBookName,
   buildBiblePath,
-  filesetCoversTestament,
+  sizeToCoverage,
+  type Testament,
 } from '../utils/bibleUtils';
+import {
+  groupFilesets,
+  resolveAudioFileset,
+  resolveTextFileset,
+} from '../utils/filesetGroups';
 
 const PassageView = () => {
   const {
@@ -80,18 +87,44 @@ const PassageView = () => {
     const fileset = tls
       .flatMap((t) => t.filesets)
       .find((f) => f.id === filesetId);
-    if (!fileset) return null;
-    if (filesetCoversTestament(fileset.size, testament)) return null;
-    const covered =
-      fileset.size.toUpperCase().startsWith('NT')
-        ? 'New Testament'
-        : 'Old Testament';
+    let coveredTestaments: Testament[] | null = null;
+    let selectionLabel = filesetId;
+    if (fileset) {
+      coveredTestaments = sizeToCoverage(fileset.size).testaments;
+    } else {
+      // The stored id may be a grouped product id — read the
+      // option's byTestament coverage for the hint instead.
+      for (const t of tls) {
+        const text = groupFilesets(t).text;
+        if (
+          text &&
+          (text.id === filesetId ||
+            text.members.includes(filesetId))
+        ) {
+          coveredTestaments = (
+            ['OT', 'NT'] as Testament[]
+          ).filter((x) => text.byTestament[x]);
+          selectionLabel = t.name;
+          break;
+        }
+      }
+    }
+    if (
+      !coveredTestaments ||
+      coveredTestaments.length === 0 ||
+      coveredTestaments.includes(testament)
+    ) {
+      return null;
+    }
+    const covered = coveredTestaments.includes('NT')
+      ? 'New Testament'
+      : 'Old Testament';
     const needed =
       testament === 'OT' ? 'Old Testament' : 'New Testament';
     return (
-      `The selected text version (${filesetId}) only covers the ` +
-      `${covered}. Try selecting a ${needed} text version in the ` +
-      `Translation Settings.`
+      `The selected text version (${selectionLabel}) only ` +
+      `covers the ${covered}. Try selecting a ${needed} text ` +
+      `version in the Translation Settings.`
     );
   };
 
@@ -102,7 +135,12 @@ const PassageView = () => {
     setHeadingsOnlyMode(true);
     setTocEntries([{ chapter: activeChapter, headings: currentHeadings }]);
 
-    if (!activeTextFilesetId || activeTextFilesetId === 'ENGKJV') return;
+    const textFilesetId = resolveTextFileset(
+      activeTextFilesetId,
+      activeBookId,
+      translations,
+    );
+    if (!textFilesetId || textFilesetId === 'ENGKJV') return;
 
     setTocLoading(true);
     const allChapters = getChapters(activeBookId);
@@ -116,7 +154,7 @@ const PassageView = () => {
       }
       try {
         const h = await fetchHeadingsOnly(
-          activeBookId, ch, activeTextFilesetId
+          activeBookId, ch, textFilesetId
         );
         if (tocAbortRef.current) {
           setTocLoading(false);
@@ -138,7 +176,7 @@ const PassageView = () => {
       }
       try {
         const h = await fetchHeadingsOnly(
-          activeBookId, ch, activeTextFilesetId
+          activeBookId, ch, textFilesetId
         );
         if (tocAbortRef.current) {
           setTocLoading(false);
@@ -177,7 +215,23 @@ const PassageView = () => {
   };
 
   useEffect(() => {
-    if (!activeTextFilesetId) return;
+    // Resolve the stored selection to the concrete fileset
+    // covering this book's testament — handles `_ET` testament
+    // splits transparently; unknown ids pass through unchanged.
+    const textFilesetId = resolveTextFileset(
+      activeTextFilesetId,
+      activeBookId,
+      translations,
+    );
+    if (!textFilesetId) {
+      // No text selection at all (audio-only translation) —
+      // stop the spinner instead of waiting on a fetch that
+      // can never run.
+      setVerses([]);
+      setHeadings([]);
+      setLoading(false);
+      return;
+    }
 
     tocAbortRef.current = true;
     setHeadingsOnlyMode(false);
@@ -188,7 +242,7 @@ const PassageView = () => {
     setIsRateLimitError(false);
     setIsProviderError(false);
     getVersesInChapter(
-      activeBookId, activeChapter, activeTextFilesetId
+      activeBookId, activeChapter, textFilesetId
     )
       .then((result) => {
         setVerses(result.verses);
@@ -205,28 +259,47 @@ const PassageView = () => {
           }, 50);
         }
 
+        const audioFilesetId =
+          resolveAudioFileset(
+            activeAudioFilesetId,
+            activeBookId,
+            translations,
+          )?.filesetId ?? activeAudioFilesetId;
+
         // Prefetch current chapter audio (parallel)
         prefetchAudioUrl(
-          activeBookId, activeChapter, activeAudioFilesetId
+          activeBookId, activeChapter, audioFilesetId
         );
 
         // Prefetch next chapter audio (parallel)
         prefetchAudioUrl(
-          activeBookId, activeChapter + 1, activeAudioFilesetId
+          activeBookId, activeChapter + 1, audioFilesetId
         );
 
-        // Prefetch adjacent chapters (parallel)
+        // Prefetch adjacent chapters (parallel) — the resolver
+        // handles adjacent chapters that cross a book boundary.
         prefetchAdjacentChapters(
           activeBookId,
           activeChapter,
-          activeTextFilesetId
+          textFilesetId,
+          (b) => resolveTextFileset(
+            activeTextFilesetId,
+            b,
+            translations,
+          ),
         );
       })
       .catch((error) => {
         console.error(error);
         const isRateLimit = error instanceof RateLimitError;
         setIsRateLimitError(isRateLimit);
-        setIsProviderError(error instanceof ProviderError);
+        // BookNotInFilesetError is a ProviderError subclass but
+        // means a coverage gap — it must show the mismatch hint,
+        // not the "Provider Unavailable" title.
+        setIsProviderError(
+          error instanceof ProviderError &&
+            !(error instanceof BookNotInFilesetError),
+        );
         setFetchError(
           error instanceof Error ? error.message : 'Failed to load text'
         );
@@ -234,7 +307,13 @@ const PassageView = () => {
         setHeadings([]);
         setLoading(false);
       });
-  }, [activeBookId, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
+  }, [
+    activeBookId,
+    activeChapter,
+    activeTextFilesetId,
+    activeAudioFilesetId,
+    translations,
+  ]);
 
   if (loading) {
     return (

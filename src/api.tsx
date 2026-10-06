@@ -181,6 +181,12 @@ export const getVersesFromApi = async (
     // Handle other HTTP errors
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      if (isBookNotInFilesetBody(errorData)) {
+        throw new BookNotInFilesetError(
+          errorData.error ||
+            'Book not available in this fileset'
+        );
+      }
       const errorMsg = errorData.error || errorData.detail ||
         `Failed to fetch verses (HTTP ${response.status})`;
       // Provider rate limits can surface inside a wrapped
@@ -192,6 +198,14 @@ export const getVersesFromApi = async (
     }
 
     const data = await response.json();
+
+    if (isBookNotInFilesetBody(data)) {
+      throw new BookNotInFilesetError(
+        typeof data.error === 'string'
+          ? data.error
+          : 'Book not available in this fileset'
+      );
+    }
 
     // The API wraps provider failures (including upstream
     // rate limits) in a 200 response with empty verses and
@@ -344,6 +358,25 @@ export class ProviderError extends Error {
   }
 }
 
+/**
+ * The requested book is not covered by the selected fileset.
+ * Thrown when the backend reports
+ * `error_code === 'book_not_in_fileset'` (HTTP 404), or — for
+ * backwards compatibility — when an audio response arrives as
+ * HTTP 200 with empty verses/a `message` and no `audio_url`.
+ * Callers walk `resolveAudioFileset` alternates on this error.
+ */
+export class BookNotInFilesetError extends ProviderError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BookNotInFilesetError';
+  }
+}
+
+const isBookNotInFilesetBody = (
+  body: { error_code?: unknown } | null | undefined,
+): boolean => body?.error_code === 'book_not_in_fileset';
+
 const RATE_LIMIT_PATTERN =
   /\b429\b|too many requests|rate.?limit/i;
 
@@ -485,6 +518,50 @@ export const deleteTag = async (tagId: string): Promise<void> => {
 // TRANSLATION FUNCTIONS
 // ============================================
 
+/**
+ * Keeps the locally bundled KJV reachable: the API lists an
+ * ENGKJV translation but only exposes the DBT-backed
+ * `ENGKJV?_ET` split filesets, so we inject the `ENGKJV`
+ * pseudo-fileset (text served from assets/kjv.json, audio from
+ * wordpocket.org — both keyed on `filesetId === 'ENGKJV'`).
+ */
+const injectBundledKjv = (
+  translations: Translation[]
+): Translation[] =>
+  translations.map((t) => {
+    const filesets = [...(t.filesets ?? [])];
+    const isKjv =
+      t.abbr === 'ENGKJV' ||
+      filesets.some((f) => f.id.startsWith('ENGKJV'));
+    if (!isKjv) return t;
+    const has = (type: string) =>
+      filesets.some(
+        (f) => f.id === 'ENGKJV' && f.type === type
+      );
+    const missingText = !has('text_plain');
+    const missingAudio = !has('audio');
+    if (!missingText && !missingAudio) return t;
+    if (missingText) {
+      filesets.push({
+        id: 'ENGKJV',
+        type: 'text_plain',
+        size: 'C',
+        codec: null,
+        bitrate: null,
+      });
+    }
+    if (missingAudio) {
+      filesets.push({
+        id: 'ENGKJV',
+        type: 'audio',
+        size: 'C',
+        codec: null,
+        bitrate: null,
+      });
+    }
+    return { ...t, filesets };
+  });
+
 export const getAvailableTranslations = async (
   languageIso = "eng",
   forceRefresh = false
@@ -493,7 +570,7 @@ export const getAvailableTranslations = async (
     const cached = getCachedTranslations(languageIso);
     if (cached) {
       console.log(`✅ Translations for ${languageIso} loaded from cache`);
-      return cached;
+      return injectBundledKjv(cached);
     }
   }
 
@@ -505,7 +582,8 @@ export const getAvailableTranslations = async (
     const data = await response.json();
 
     // The actual translations are in the 'results' property
-    const translations: Translation[] = data.results;
+    const translations: Translation[] =
+      injectBundledKjv(data.results ?? []);
 
     cacheTranslations(languageIso, translations);
     console.log(`💾 Translations for ${languageIso} cached`);
@@ -566,12 +644,32 @@ export const getBibleAudioUrl = async (
     });
 
     if (!response.ok) {
+      const errorData = await response
+        .json()
+        .catch(() => ({}));
+      if (isBookNotInFilesetBody(errorData)) {
+        throw new BookNotInFilesetError(
+          typeof errorData.error === 'string'
+            ? errorData.error
+            : `Audio not available for ${translation} ` +
+              `${bookId} ${chapter}`
+        );
+      }
       throw new Error(
         `Failed to fetch audio for ${translation}: ${response.statusText}`
       );
     }
 
     const data: any = await response.json();
+
+    if (isBookNotInFilesetBody(data)) {
+      throw new BookNotInFilesetError(
+        typeof data.error === 'string'
+          ? data.error
+          : `Audio not available for ${translation} ` +
+            `${bookId} ${chapter}`
+      );
+    }
 
     // Check if API returned an error
     if (data.error) {
@@ -583,9 +681,11 @@ export const getBibleAudioUrl = async (
         `${chapter}: ${errorMsg}`
       );
     }
-    // Validate audio_url exists and is a string
+    // A missing audio_url means the book is outside the
+    // fileset's coverage (backwards compat: older backends
+    // answer 200 with empty `verses`/`message` for audio).
     if (!data.audio_url || typeof data.audio_url !== 'string') {
-      throw new Error(
+      throw new BookNotInFilesetError(
         `No audio URL in API response for ${translation} ` +
         `${bookId} ${chapter}`
       );
@@ -728,11 +828,15 @@ export const prefetchAudioUrl = async (
  * @param bookId - Current USFM book code
  * @param chapter - Current chapter number
  * @param filesetId - The fileset ID for the translation to prefetch
+ * @param resolveFilesetId - Optional per-book resolver (adjacent
+ *   chapters can cross a book boundary, and text filesets split
+ *   by testament need the member for THAT book).
  */
 export const prefetchAdjacentChapters = async (
   bookId: string,
   chapter: number,
-  filesetId: string
+  filesetId: string,
+  resolveFilesetId?: (bookId: string) => string | null
 ): Promise<void> => {
   const { previous, next } = getAdjacentChapters(bookId, chapter);
 
@@ -743,8 +847,9 @@ export const prefetchAdjacentChapters = async (
     label: string
   ) => {
     try {
+      const resolvedId = resolveFilesetId?.(b) ?? id;
       // We don't need the result, just to trigger the fetch and cache
-      await getVersesInChapter(b, c, id);
+      await getVersesInChapter(b, c, resolvedId);
       console.log(`📚 Prefetched ${label} chapter: ${b} ${c}`);
     } catch (error) {
       // Silent fail

@@ -26,6 +26,12 @@ vi.mock('../api', () => ({
     chapter: 1,
   }),
   getAudioTimestamps: vi.fn().mockResolvedValue([]),
+  getAdjacentChapters: vi.fn().mockReturnValue({
+    previous: null,
+    next: null,
+  }),
+  BookNotInFilesetError: class BookNotInFilesetError
+    extends Error {},
 }));
 
 // Note: AudioPlayer component is now used as-is (no mock)

@@ -36,6 +36,14 @@ export interface Translation {
   language: string;
   language_iso: string;
   filesets: Fileset[];
+  /**
+   * Normalized audio/text options supplied by newer backends
+   * (`by_testament` member maps). When present they take
+   * precedence over client-side grouping of `filesets` — see
+   * `src/utils/filesetGroups.ts`.
+   */
+  audio_options?: unknown[];
+  text_options?: unknown[];
 }
 
 export interface BibleState {

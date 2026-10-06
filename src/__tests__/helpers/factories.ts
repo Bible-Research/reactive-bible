@@ -66,23 +66,27 @@ export const createMockNotes = (count: number): Note[] => {
 };
 
 /**
- * Create a mock Translation
+ * Create a mock Translation. Defaults mirror the real API shape
+ * for ENGKJV after the bundled-KJV injection in
+ * `getAvailableTranslations` (`_ET` splits + `ENGKJV`
+ * text/audio pseudo-filesets).
  */
 export const createMockTranslation = (
   overrides: Partial<Translation> = {}
 ): Translation => ({
-  abbr: 'KJV',
+  abbr: 'ENGKJV',
   name: 'King James Version',
   language: 'English',
   language_iso: 'eng',
   filesets: [
-    {
-      id: 'ENGKJV',
-      type: 'text_plain',
-      size: 'NT',
-      codec: 'mp3',
-      bitrate: '64',
-    },
+    { id: 'ENGKJVO_ET', type: 'text_plain', size: 'OT',
+      codec: null, bitrate: null },
+    { id: 'ENGKJVN_ET', type: 'text_plain', size: 'NT',
+      codec: null, bitrate: null },
+    { id: 'ENGKJV', type: 'text_plain', size: 'C',
+      codec: null, bitrate: null },
+    { id: 'ENGKJV', type: 'audio', size: 'C',
+      codec: null, bitrate: null },
   ],
   ...overrides,
 });
@@ -91,28 +95,29 @@ export const createMockTranslation = (
  * Create multiple mock translations
  */
 export const createMockTranslations = (): Translation[] => [
+  createMockTranslation(),
   createMockTranslation({
-    abbr: 'KJV',
-    name: 'King James Version',
-    filesets: [
-      { id: 'ENGKJV', type: 'text_plain', size: 'NT',
-        codec: 'mp3', bitrate: '64' },
-    ],
-  }),
-  createMockTranslation({
-    abbr: 'NIV',
+    abbr: 'ENGNIV',
     name: 'New International Version',
     filesets: [
-      { id: 'ENGNIV', type: 'text_plain', size: 'NT',
-        codec: 'mp3', bitrate: '64' },
+      { id: 'ENGNIVO_ET', type: 'text_plain', size: 'OT',
+        codec: null, bitrate: null },
+      { id: 'ENGNIVN_ET', type: 'text_plain', size: 'NT',
+        codec: null, bitrate: null },
     ],
   }),
   createMockTranslation({
-    abbr: 'ESV',
+    abbr: 'ENGESV',
     name: 'English Standard Version',
     filesets: [
-      { id: 'ENGESV', type: 'text_plain', size: 'NT',
-        codec: 'mp3', bitrate: '64' },
+      { id: 'ENGESVO_ET', type: 'text_plain', size: 'OT',
+        codec: null, bitrate: null },
+      { id: 'ENGESVN_ET', type: 'text_plain', size: 'NT',
+        codec: null, bitrate: null },
+      { id: 'ENGESV_API', type: 'text_plain', size: 'C',
+        codec: null, bitrate: null },
+      { id: 'ENGESV_API', type: 'audio', size: 'C',
+        codec: null, bitrate: null },
     ],
   }),
 ];
