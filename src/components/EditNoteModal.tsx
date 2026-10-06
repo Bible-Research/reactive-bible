@@ -126,6 +126,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     );
   };
 
+  const handleAutoSave = async (tagId: string, text: string) => {
+    if (!note) return;
+    await editNote(note.id, tagId, text);
+  };
+
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
 
@@ -167,6 +172,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             onSubmit={handleSubmit}
             submitText="Submit changes"
             onTagDropdownOpen={() => getTags()}
+            onAutoSave={handleAutoSave}
             note={{ tagId: note.tag.id, text: note.note_text }}
           />
           <Divider mt="xl" mb="sm" />

@@ -1327,6 +1327,10 @@ Create and organize notes with tags for Bible verses.
 - Navigate to verse from note
 - API integration for persistence
 - Auto-clear selected verses after note creation
+- Optional "Auto save" checkbox in note editors: saves every
+  5s (first tick creates the note, later ticks PATCH it) and
+  flashes a green checkmark at the top-right corner for 0.5s
+  after each successful save
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -1460,6 +1464,46 @@ export default function App() {
 **Note**: Analytics data is only collected in production 
 deployments on Vercel. No data is tracked during local 
 development.
+
+### 9. Global Error Reporting
+
+**Location**: `src/utils/errorReporter.tsx`,
+`src/utils/errorReportDetails.ts`,
+`src/components/ErrorNotificationContent.tsx`,
+`src/components/ErrorBoundary.tsx`
+
+Uncaught errors surface a persistent Mantine notification with a
+"Copy error details" button that produces a markdown report for
+pasting into a GitHub issue.
+
+**Coverage**:
+- **Uncaught exceptions**: `window` `error` listener installed in
+  the capture phase, so resource load failures (img, script,
+  audio, ...) are reported in addition to script errors.
+- **Unhandled promise rejections**: `unhandledrejection`
+  listener.
+- **React render errors**: `ErrorBoundary` wraps the routed
+  content in `App.tsx` and reports through the same path; its
+  fallback UI also offers "Copy error details".
+
+**Implementation**:
+```typescript
+// main.tsx - installed once before the app renders
+initGlobalErrorHandlers();
+```
+
+`reportError()` normalizes any thrown value to an `Error` and
+shows a red, non-dismissible notification (`autoClose: false`).
+A shared notification id (`unhandled-error`) makes repeated
+errors replace the existing notification instead of stacking.
+The notification body (`ErrorNotificationContent`) renders the
+message plus the "Copy error details" button.
+
+`copyErrorDetails()` builds the markdown report - error name,
+message, optional context label, page URL, timestamp, user
+agent, and stack trace - and writes it to the clipboard.
+Reporting never throws: failures inside the handler are logged,
+not re-raised.
 
 ---
 
