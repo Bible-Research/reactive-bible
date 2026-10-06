@@ -75,4 +75,35 @@ describe('RichTextEditor', () => {
     );
     expect(screen.getByText('Note')).toBeInTheDocument();
   });
+
+  it('note editor grows up to 60vh then scrolls', () => {
+    const { container } = renderEditor(
+      <RichTextEditor
+        variant="note"
+        value=""
+        onChange={vi.fn()}
+      />
+    );
+    const proseMirror = container.querySelector<HTMLElement>(
+      '.ProseMirror'
+    );
+    expect(proseMirror?.style.maxHeight).toBe('60vh');
+    expect(proseMirror?.style.overflowY).toBe('auto');
+    expect(proseMirror?.style.minHeight).toBe('');
+  });
+
+  it('comment editor keeps its fixed min height', () => {
+    const { container } = renderEditor(
+      <RichTextEditor
+        variant="comment"
+        value=""
+        onChange={vi.fn()}
+      />
+    );
+    const proseMirror = container.querySelector<HTMLElement>(
+      '.ProseMirror'
+    );
+    expect(proseMirror?.style.minHeight).toBeTruthy();
+    expect(proseMirror?.style.maxHeight).toBe('');
+  });
 });

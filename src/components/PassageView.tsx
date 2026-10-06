@@ -203,6 +203,11 @@ const PassageView = () => {
   useEffect(() => {
     if (!activeTextFilesetId) return;
 
+    // Guard against out-of-order responses: jumping ch1 -> ch4 ->
+    // ch3 fires overlapping requests and the last one to resolve
+    // must not render over the currently selected chapter.
+    let cancelled = false;
+
     tocAbortRef.current = true;
     setHeadingsOnlyMode(false);
     setTocEntries([]);
@@ -215,6 +220,7 @@ const PassageView = () => {
       activeBookId, activeChapter, activeTextFilesetId
     )
       .then((result) => {
+        if (cancelled) return;
         setVerses(result.verses);
         setHeadings(result.headings);
         setLoading(false);
@@ -285,6 +291,7 @@ const PassageView = () => {
         );
       })
       .catch((error) => {
+        if (cancelled) return;
         console.error(error);
         const isRateLimit = error instanceof RateLimitError;
         setIsRateLimitError(isRateLimit);
@@ -296,6 +303,9 @@ const PassageView = () => {
         setHeadings([]);
         setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [activeBookId, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
 
   // Debounced first-verse-in-view tracking: keeps the saved
@@ -444,7 +454,11 @@ const PassageView = () => {
   }
 
   return (
-    <ScrollArea h="calc(100vh - 112px)" viewportRef={viewportRef}>
+    <ScrollArea
+      key={`${activeBookId}:${activeChapter}`}
+      h="calc(100vh - 112px)"
+      viewportRef={viewportRef}
+    >
       <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">
         {verses.map((verse) => {
           const heading = headings.find(

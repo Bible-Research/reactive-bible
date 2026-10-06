@@ -90,6 +90,8 @@ const RichTextEditor = forwardRef<
     );
   };
 
+  const note = variant === 'note';
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -106,6 +108,15 @@ const RichTextEditor = forwardRef<
     content: valueToContent(value),
     autofocus: autoFocus ? 'end' : false,
     editable: !disabled,
+    // Note editors start one line high and grow with content up
+    // to 60% of the viewport height, then scroll internally.
+    editorProps: {
+      attributes: {
+        style: note
+          ? 'max-height: 60vh; overflow-y: auto;'
+          : `min-height: ${rem(76)};`,
+      },
+    },
     onUpdate: ({ editor: e }) => {
       const json = JSON.stringify(e.getJSON());
       lastEmitted.current = json;
@@ -128,8 +139,6 @@ const RichTextEditor = forwardRef<
   useEffect(() => {
     editor?.setEditable(!disabled);
   }, [editor, disabled]);
-
-  const note = variant === 'note';
 
   return (
     <Input.Wrapper label={label}>
@@ -154,9 +163,6 @@ const RichTextEditor = forwardRef<
       <MantineRichTextEditor
         editor={editor}
         sx={(theme) => ({
-          '.ProseMirror': {
-            minHeight: note ? '70vh' : rem(76),
-          },
           '.ProseMirror p.is-editor-empty:first-of-type::before':
             {
               content: 'attr(data-placeholder)',

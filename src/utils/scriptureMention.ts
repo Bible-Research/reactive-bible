@@ -174,6 +174,24 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
 const FULL_REF_PREFIX = /^[a-zA-Z0-9+]+\.\d+[.:]\d+(?:-\d+)?/;
 
 /**
+ * True when the query begins with a complete ref closed by '.'
+ * or ' ' — i.e. the user finished typing the ref by hand. The
+ * suggestion should stay dismissed while they keep typing
+ * after it ('JHN.3.16 is true' must not reopen the picker).
+ */
+export const isTerminatedMentionQuery = (
+  query: string
+): boolean => {
+  for (let i = 0; i < query.length; i++) {
+    if (query[i] !== '.' && query[i] !== ' ') continue;
+    if (parseMentionQuery(query.slice(0, i)).complete) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
  * True when a '@…' token resolves to a complete, in-range
  * scripture ref. Trailing punctuation after a full ref
  * ('@JHN.3.16.') doesn't invalidate it — callers split it off.

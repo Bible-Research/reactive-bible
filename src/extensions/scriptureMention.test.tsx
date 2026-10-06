@@ -125,6 +125,44 @@ describe('ScriptureMention suggestion', () => {
     expect(editor?.getText()).toContain('and more text');
   });
 
+  it('dismisses the popup when a period ends a complete ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.16');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+    editor?.commands.insertContent('.');
+    await waitFor(() => expect(popupOpen()).toBe(false));
+    expect(editor?.getText()).toBe('@JHN.3.16.');
+  });
+
+  it('dismisses the popup when a space ends a complete ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.16');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+    editor?.commands.insertContent(' ');
+    await waitFor(() => expect(popupOpen()).toBe(false));
+    expect(editor?.getText()).toBe('@JHN.3.16 ');
+  });
+
+  it('stays closed while typing prose after a hand-typed ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.16 ');
+    await waitFor(() => expect(popupOpen()).toBe(false));
+    editor?.commands.insertContent('is true');
+    // Give the plugin a tick to (not) reactivate.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(popupOpen()).toBe(false);
+    expect(editor?.getText()).toBe('@JHN.3.16 is true');
+  });
+
+  it('keeps the popup open for a period after a partial ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+    // Still open — the user is mid-ref, picking a verse.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(popupOpen()).toBe(true);
+  });
+
   it('dismisses the popup on Escape', async () => {
     await renderEditor();
     editor?.commands.insertContent('@JHN');
