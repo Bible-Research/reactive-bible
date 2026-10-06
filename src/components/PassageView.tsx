@@ -349,7 +349,10 @@ const PassageView = () => {
   }
 
   return (
-    <ScrollArea h="calc(100vh - 112px)">
+    <ScrollArea
+      key={`${activeBookId}:${activeChapter}`}
+      h="calc(100vh - 112px)"
+    >
       <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">
         {verses.map((verse) => {
           const heading = headings.find(
