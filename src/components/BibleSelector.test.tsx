@@ -63,4 +63,21 @@ describe('BibleSelector Component', () => {
     // Verse clicking navigates to the verse URL (URL is source of truth)
     expect(mockNavigate).toHaveBeenCalledWith('/bible/JHN.1.5');
   });
+
+  it('should scroll to the active book and chapter on open', () => {
+    const { rerender } = renderWithProviders(
+      <BibleSelector opened={false} setOpened={noop} />
+    );
+    // scrollIntoView is a no-op while the selector is hidden, so
+    // spy on the active items and only then toggle `opened`.
+    const bookLink = screen.getByTitle('nav-book-JHN');
+    const chapterLink = screen.getByTitle('nav-chapter-1');
+    const bookScroll = vi.fn();
+    const chapterScroll = vi.fn();
+    bookLink.scrollIntoView = bookScroll;
+    chapterLink.scrollIntoView = chapterScroll;
+    rerender(<BibleSelector opened={true} setOpened={noop} />);
+    expect(bookScroll).toHaveBeenCalledWith({ block: 'nearest' });
+    expect(chapterScroll).toHaveBeenCalledWith({ block: 'nearest' });
+  });
 });
