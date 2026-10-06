@@ -328,6 +328,10 @@ export const ScriptureMention = Extension.create<
           range,
         }: SuggestionKeyDownProps) => {
           if (event.key === 'Escape') {
+            // Keep the keypress from bubbling to window — the
+            // enclosing Mantine Modal would otherwise also see it
+            // and close, discarding the in-progress note.
+            event.stopPropagation();
             const state = pluginKey.getState(view.state);
             suppress(range.from, state?.query ?? '');
             // Empty transaction re-runs `apply`, which deactivates
