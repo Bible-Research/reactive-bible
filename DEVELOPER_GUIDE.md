@@ -299,7 +299,9 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - Provides full CRUD operations:
   - View note in Bible passage
   - Edit note (opens modal)
-  - Delete note (with confirmation)
+  - Delete note (with confirmation; the card is removed from
+    state as soon as the DELETE resolves, then the current page
+    is refetched to backfill the latest server state)
 - Handles "View in Bible" navigation
 - Updates URL when switching tags
 
