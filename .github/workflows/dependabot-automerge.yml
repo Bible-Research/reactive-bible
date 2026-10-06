@@ -1,0 +1,64 @@
+name: Dependabot auto-merge
+
+on:
+  pull_request_target:
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+
+concurrency:
+  group: dependabot-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PR_URL: ${{ github.event.pull_request.html_url }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Majors stay manual; minor/patch (incl. grouped PRs, where
+      # update-type reports the highest bump in the group) auto-merge.
+      - name: Wait for all checks to go green
+        if: >
+          steps.metadata.outputs.update-type !=
+          'version-update:semver-major'
+        run: |
+          # CI registers check runs a few seconds after PR open;
+          # wait for at least one before --watch so a zero-check
+          # first poll can't slip a merge through untested.
+          sha=$(gh pr view "$PR_URL" --json headRefOid \
+            -q .headRefOid)
+          for i in 1 2 3 4 5 6; do
+            count=$(gh api \
+              "repos/$REPO/commits/$sha/check-runs" \
+              -q .total_count)
+            [ "$count" -gt 0 ] && break
+            sleep 10
+          done
+          gh pr checks "$PR_URL" --watch
+
+      - name: Approve PR
+        if: >
+          steps.metadata.outputs.update-type !=
+          'version-update:semver-major'
+        run: gh pr review --approve "$PR_URL"
+
+      - name: Squash merge
+        if: >
+          steps.metadata.outputs.update-type !=
+          'version-update:semver-major'
+        run: gh pr merge "$PR_URL" --squash
