@@ -21,6 +21,7 @@ import * as api from '../api';
 vi.mock('../api', () => ({
   getTags: vi.fn(),
   getVersesInChapter: vi.fn(),
+  getLinkedNotes: vi.fn(),
   addTagNote: vi.fn(),
   editNote: vi.fn(),
 }));
@@ -43,6 +44,11 @@ describe('AddTagNoteModal Component', () => {
     (api.getVersesInChapter as Mock).mockResolvedValue({
       verses: [],
       headings: [],
+    });
+
+    (api.getLinkedNotes as Mock).mockResolvedValue({
+      count: 0,
+      results: [],
     });
   });
 
@@ -173,6 +179,78 @@ describe('AddTagNoteModal Component', () => {
           'ENGKJV',
         );
       });
+    });
+
+  it('shows the count and the linked notes for the selection',
+    async () => {
+      (api.getLinkedNotes as Mock).mockResolvedValue({
+        count: 1,
+        results: [
+          {
+            id: 'NOT1',
+            note_text: 'Already noted this passage',
+            public: false,
+            is_owner: true,
+            created_at: '',
+            updated_at: '',
+            tag: {
+              id: '1', name: 'Faith', parent_tag: null,
+              created_at: '', updated_at: '',
+            },
+            verses: [
+              {
+                book: 'Genesis', chapter: 1, verse: 1,
+                text: 'In the beginning...',
+              },
+            ],
+            tag_position: null,
+          },
+        ],
+      });
+
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+            activeTextFilesetId: 'ENGKJV',
+          },
+        }
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('1 linked note')
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText('Already noted this passage')
+      ).toBeInTheDocument();
+      expect(api.getLinkedNotes).toHaveBeenCalledWith(
+        [
+          { book: 'Genesis', chapter: 1, verse: 1 },
+          { book: 'Genesis', chapter: 1, verse: 2 },
+        ],
+        'ENGKJV'
+      );
+    });
+
+  it('queries linked notes only when opened with a selection',
+    async () => {
+      renderWithProviders(
+        <AddTagNoteModal opened={false} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+          },
+        }
+      );
+      await Promise.resolve();
+      expect(api.getLinkedNotes).not.toHaveBeenCalled();
     });
 
   it('PATCHes the autosaved note when submit races autosave',

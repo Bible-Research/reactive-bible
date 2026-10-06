@@ -1385,6 +1385,8 @@ Create and organize notes with tags for Bible verses.
 - Navigate to verse from note
 - API integration for persistence
 - Auto-clear selected verses after note creation
+- Linked notes: the creation modal shows a count of existing
+  notes on the selected verses and lists them at the bottom
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
@@ -1415,6 +1417,13 @@ addTagNote(
   noteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[]
 )
+
+// Fetch the user's notes linked to any of the given verses
+// (POST /api/v1/notes/linked/)
+getLinkedNotes(
+  verseReferences: { book: string; chapter: number; verse: number }[],
+  filesetId?: string
+): Promise<LinkedNotesResponse>
 ```
 
 **Implementation Details**:
@@ -1815,11 +1824,15 @@ Three-column navigation sidebar for Books → Chapters → Verses.
 Top header bar with controls.
 
 **Responsibilities**:
-- Display burger menu for mobile navbar toggle
-- Show current book and chapter
-- Theme toggle button
+- Display burger menu for the main menu drawer
 - Search button
+- Audio controls (`Audio`)
 - Translation selector button
+- Auto-hide on scroll: a capture-phase `window` scroll listener
+  watches inner scroll containers (scroll events do not bubble).
+  The header slides up after ~150px of accumulated downward scroll
+  and slides back after ~150px of accumulated upward scroll; it is
+  shown again on every route change.
 
 ---
 
