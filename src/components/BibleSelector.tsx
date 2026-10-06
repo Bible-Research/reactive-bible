@@ -1,9 +1,13 @@
 import { Navbar } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { verseNumbersFor } from "../utils/verseRefs";
 import PassagePicker from "./PassagePicker";
+
+const MOBILE_LANDSCAPE_QUERY =
+  "(orientation: landscape) and (max-height: 500px)";
 
 const BibleSelector = ({
   opened,
@@ -16,12 +20,17 @@ const BibleSelector = ({
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const verseSelection = useBibleStore((state) => state.verseSelection);
+  const isMobileLandscape = useMediaQuery(MOBILE_LANDSCAPE_QUERY);
   const pickerVerses =
     verseSelection?.scope === 'bible'
       ? verseNumbersFor(
           verseSelection.refs, activeBookId, activeChapter
         )
       : [];
+
+  if (isMobileLandscape && !opened) {
+    return null;
+  }
 
   return (
     <Navbar
