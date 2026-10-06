@@ -20,7 +20,7 @@ interface BookEntry {
   book_id: string;
 }
 
-// getBooks() scans all of kjv.json — memoize once.
+// getBooks() scans the bundled structure data — memoize once.
 let booksCache: BookEntry[] | null = null;
 export const getAllBooks = (): BookEntry[] => {
   if (!booksCache) booksCache = getBooks();
@@ -70,7 +70,8 @@ const emptyParsed = (): ParsedMention => ({
  * Lenient live parser for the text after '@'. ' ', '.' and ':' are
  * equivalent segment separators; '+' escapes spaces inside book
  * names; the longest unique book prefix wins. Chapter/verse bounds
- * are validated against bundled kjv.json via getChapters/getVerses.
+ * are validated against bundled bibleStructure.json via
+ * getChapters/getVerses.
  */
 export const parseMentionQuery = (raw: string): ParsedMention => {
   const result = emptyParsed();
@@ -171,6 +172,24 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
 
 // Longest leading 'book.chap.verse[-end]' segment of a '@…' body.
 const FULL_REF_PREFIX = /^[a-zA-Z0-9+]+\.\d+[.:]\d+(?:-\d+)?/;
+
+/**
+ * True when the query begins with a complete ref closed by '.'
+ * or ' ' — i.e. the user finished typing the ref by hand. The
+ * suggestion should stay dismissed while they keep typing
+ * after it ('JHN.3.16 is true' must not reopen the picker).
+ */
+export const isTerminatedMentionQuery = (
+  query: string
+): boolean => {
+  for (let i = 0; i < query.length; i++) {
+    if (query[i] !== '.' && query[i] !== ' ') continue;
+    if (parseMentionQuery(query.slice(0, i)).complete) {
+      return true;
+    }
+  }
+  return false;
+};
 
 /**
  * True when a '@…' token resolves to a complete, in-range

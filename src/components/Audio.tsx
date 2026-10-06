@@ -193,6 +193,20 @@ const Audio = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [audioPlaylistStartIndex]);
 
+  // Stop an orphaned playlist. The route that built it (notes,
+  // search) clears `audioPlaylistItems` on unmount — without this
+  // the hook keeps playing invisibly, and the auto-navigation
+  // effect above pulls the user back to the playing item's chapter
+  // on every advance, so a manual chapter click only seemed to
+  // take effect once the current item finished.
+  const playlistActive = playlist.isActive;
+  const stopPlaylist = playlist.stop;
+  useEffect(() => {
+    if (!isPlaylistMode && playlistActive) {
+      stopPlaylist();
+    }
+  }, [isPlaylistMode, playlistActive, stopPlaylist]);
+
   // Resolve which audio fileset actually serves a book through
   // the grouped "audio product" (testament splits, opus16/mp3
   // codec pairs, generated voices). Reads store state so it is
@@ -1241,6 +1255,7 @@ const Audio = () => {
     setShowPlayer(false);
     clearAdvanceTimer();
     pendingGapRef.current = false;
+    setAudioActiveVerse(null);
     discardPreloaded();
     disposeHowl(audio, activeBlobUrlRef.current);
     activeBlobUrlRef.current = null;

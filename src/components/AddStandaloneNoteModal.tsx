@@ -1,7 +1,7 @@
 import { Modal } from "@mantine/core";
-import { addTagNote } from "../api";
+import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import NoteForm from "./NoteForm";
 
 interface AddStandaloneNoteModalProps {
@@ -25,16 +25,33 @@ const AddStandaloneNoteModal = ({
     setLastSelectedTagId: state.setLastSelectedTagId,
   }));
 
+  // Once autosave creates the note, later saves (and Submit)
+  // must PATCH that note instead of POSTing duplicates.
+  const savedNoteIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (opened) {
       getTags();
+      savedNoteIdRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]);
 
+  const handleAutoSave = async (tagId: string, text: string) => {
+    if (savedNoteIdRef.current) {
+      await editNote(savedNoteIdRef.current, tagId, text);
+      return;
+    }
+    const created = await addTagNote(tagId, text, []);
+    savedNoteIdRef.current = created?.id ?? null;
+  };
+
   const handleSubmit = async (tagId: string, text: string) => {
     try {
-      await addTagNote(tagId, text, []);
+      // Shares savedNoteIdRef with autosave: an existing draft is
+      // PATCHed, and a note created by submit is recorded so a
+      // late autosave tick PATCHes instead of POSTing a duplicate.
+      await handleAutoSave(tagId, text);
       setLastSelectedTagId(tagId || null);
       onClose();
     } catch (error) {
@@ -49,6 +66,7 @@ const AddStandaloneNoteModal = ({
         onSubmit={handleSubmit}
         submitText="Submit"
         onTagDropdownOpen={() => getTags()}
+        onAutoSave={handleAutoSave}
         note={
           lastSelectedTagId
             ? { tagId: lastSelectedTagId, text: "" }

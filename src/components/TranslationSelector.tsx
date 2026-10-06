@@ -20,6 +20,8 @@ import {
   Text,
   createStyles,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { loadKjvData, isKjvDataLoaded } from '../utils/kjvDataLoader';
 import { useBibleStore, type Translation } from '../store';
 import { getAvailableTranslations } from '../api';
 import {
@@ -178,7 +180,7 @@ const TranslationSelector = () => {
     }
     const grouped = groupFilesets(translation);
     if (grouped.text) {
-      setSelectedTextId(grouped.text.id);
+      void handleTextChange(grouped.text.id);
     } else {
       // Audio-only version: keep the active text when it belongs
       // to a same-language translation; otherwise auto-select a
@@ -200,7 +202,7 @@ const TranslationSelector = () => {
           !ownerText ||
           (activeTextFilesetId !== null &&
             ownerText.members.includes(activeTextFilesetId));
-        setSelectedTextId(
+        void handleTextChange(
           keepStored ? activeTextFilesetId : ownerText.id,
         );
         setTextNote(`Text: ${owner.name}`);
@@ -213,10 +215,10 @@ const TranslationSelector = () => {
           ? groupFilesets(candidate).text
           : null;
         if (candidate && candidateText) {
-          setSelectedTextId(candidateText.id);
+          void handleTextChange(candidateText.id);
           setTextNote(`Text: ${candidate.name} — auto-selected`);
         } else {
-          setSelectedTextId(activeTextFilesetId);
+          void handleTextChange(activeTextFilesetId);
           setTextNote(
             'Text: no text version in this language — ' +
               'keeping current',
@@ -253,6 +255,52 @@ const TranslationSelector = () => {
     setTextNote(null);
     userInteractedRef.current = false;
     setOpened(true);
+  };
+
+  const handleTextChange = async (filesetId: string | null) => {
+    if (filesetId === null) {
+      setSelectedTextId(null);
+      return;
+    }
+    // Preload KJV data when selecting the KJV text fileset (raw
+    // id or `{abbr}:text:{n}` product id) and it is not already
+    // loaded.
+    if (
+      (filesetId === 'ENGKJV' || filesetId.startsWith('ENGKJV:')) &&
+      !isKjvDataLoaded()
+    ) {
+      notifications.show({
+        id: 'kjv-loading',
+        loading: true,
+        title: 'Loading KJV Bible',
+        message: 'Downloading King James Version data...',
+        autoClose: false,
+        withCloseButton: false,
+      });
+
+      try {
+        await loadKjvData();
+        notifications.update({
+          id: 'kjv-loading',
+          color: 'green',
+          title: 'KJV Bible Loaded',
+          message: 'King James Version is ready to use.',
+          loading: false,
+          autoClose: 3000,
+        });
+      } catch (error) {
+        notifications.update({
+          id: 'kjv-loading',
+          color: 'red',
+          title: 'Failed to Load KJV Bible',
+          message: 'Please check your connection and try again.',
+          loading: false,
+          autoClose: 5000,
+        });
+        return; // Prevent switching to KJV if the data fails to load
+      }
+    }
+    setSelectedTextId(filesetId);
   };
 
   useEffect(() => {
@@ -517,7 +565,9 @@ const TranslationSelector = () => {
                         {rawTextFilesets.length > 0 && (
                           <Radio.Group
                             value={rawTextValue}
-                            onChange={setSelectedTextId}
+                            onChange={(id) =>
+                              void handleTextChange(id)
+                            }
                             label="Text filesets"
                           >
                             <Stack spacing="xs" mt="xs">

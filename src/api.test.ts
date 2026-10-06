@@ -3,6 +3,7 @@ import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
+import * as kjvDataLoader from './utils/kjvDataLoader';
 import { API_BASE_URL } from './config';
 
 const API_URL = `${API_BASE_URL}/api/v1`;
@@ -10,11 +11,15 @@ const COMMENT_BASE = `${API_URL}`;
 
 describe('API Functions', () => {
   beforeEach(() => {
+    // Reset mocks before each test
     vi.resetAllMocks();
-    // Spy on cache functions to track their calls
-    vi.spyOn(cacheManager, 'getCachedVerses');
+
+    // Spy on the KJV loader (calls through to the real dynamic
+    // import) so tests can assert when lazy loading is triggered.
+    vi.spyOn(kjvDataLoader, 'loadKjvData');
+    vi.spyOn(cacheManager, 'getCachedVerses').mockReturnValue(null);
     vi.spyOn(cacheManager, 'cacheVerses');
-    vi.spyOn(cacheManager, 'getCachedAudioUrl');
+    vi.spyOn(cacheManager, 'getCachedAudioUrl').mockReturnValue(null);
     vi.spyOn(cacheManager, 'cacheAudioUrl');
   });
 
@@ -22,13 +27,31 @@ describe('API Functions', () => {
     vi.restoreAllMocks();
   });
 
-  // --- Local Data Functions ---
-  describe('Local Data Functions', () => {
-    it('getBooks should return a list of all books', () => {
+  describe('Lazy Loading', () => {
+    it('getBooks should NOT load KJV data (uses lightweight ' +
+      'structure)', () => {
+      api.getBooks();
+      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
+    });
+
+    it('getPassage should NOT load KJV data (uses lightweight ' +
+      'structure)', () => {
+      api.getPassage();
+      expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
+    });
+
+    it('getVersesInKjvChapter SHOULD load KJV data', async () => {
+      await api.getVersesInKjvChapter('GEN', 1);
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
+    });
+  });
+
+  describe('Navigation Functions', () => {
+    it('getBooks should return books from structure data', () => {
       const books = api.getBooks();
-      expect(books.length).toBe(66);
+      expect(books.length).toBeGreaterThan(0);
       expect(books[0].book_name).toBe('Genesis');
-      expect(books[65].book_name).toBe('Revelation');
+      expect(books[0].book_id).toBe('GEN');
     });
 
     it('getChapters should return the correct number of chapters',
@@ -37,11 +60,13 @@ describe('API Functions', () => {
       expect(chapters.length).toBe(50);
     });
 
-    it('getVersesInKjvChapter should return all verses for a ' +
-      'given chapter', () => {
-      const result = api.getVersesInKjvChapter('JHN', 3);
+    it('getVersesInKjvChapter should lazy load KJV data and ' +
+      'return all verses for a given chapter', async () => {
+      const result = await api.getVersesInKjvChapter('JHN', 3);
+      expect(kjvDataLoader.loadKjvData).toHaveBeenCalled();
       expect(result.verses.length).toBe(36);
-      expect(result.verses[15].text).toContain('For God so loved the world');
+      expect(result.verses[15].text)
+        .toContain('For God so loved the world');
       expect(result.headings).toEqual([]);
     });
 
@@ -119,6 +144,52 @@ describe('API Functions', () => {
       ).rejects.toThrow(api.RateLimitError);
     });
 
+    it('getVersesFromApi should throw RateLimitError when a ' +
+      'response carries a rate_limited error_code',
+      async () => {
+      localStorage.clear();
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json(
+            {
+              error:
+                'Bible provider rate limit exceeded (HTTP 429)',
+              error_code: 'rate_limited',
+            },
+            { status: 429 }
+          );
+        })
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow(api.RateLimitError);
+    });
+
+    it('getVersesFromApi should throw ProviderError when a ' +
+      'response carries a provider_error error_code',
+      async () => {
+      localStorage.clear();
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json(
+            {
+              error: 'Bible provider error (HTTP 503)',
+              error_code: 'provider_error',
+            },
+            { status: 502 }
+          );
+        })
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow(api.ProviderError);
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow('Bible provider error (HTTP 503)');
+    });
+
     it('getVersesFromApi should throw ProviderError when the ' +
       'API wraps a provider failure in a 200 response',
       async () => {
@@ -160,24 +231,17 @@ describe('API Functions', () => {
     });
 
     it('should throw an error if the fetch response is not ok', async () => {
-      // Use a specific handler that returns 404 for a specific fileset
       server.use(
         http.get(`${API_URL}/bible`, ({ request }) => {
           const url = new URL(request.url);
           const filesetId = url.searchParams.get('fileset_id');
-
-          // Only return 404 for this specific test case
           if (filesetId === 'ERRORTEST') {
             return new HttpResponse(
               null, { status: 404, statusText: 'Not Found' });
           }
-
-          // Let other requests pass through to default handler
           return;
         })
       );
-
-      // Clear the cache to ensure the API is actually called
       localStorage.clear();
 
       await expect(

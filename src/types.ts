@@ -25,6 +25,10 @@ export interface Note {
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;
+  /** Set when the provider failed to resolve verse text. */
+  error?: string;
+  /** 'rate_limited' | 'provider_error' — see `error`. */
+  error_code?: string;
 }
 
 export interface SectionHeading {
@@ -51,6 +55,16 @@ export interface CommentAuthor {
   username: string;
 }
 
+export interface CommentImage {
+  id: string;
+  storage_url: string;
+  signed_url: string | null;
+  content_type: string;
+  size_bytes: number;
+  uploaded_by: number;
+  created_at: string;
+}
+
 export interface Comment {
   id: string;
   author: CommentAuthor;
@@ -60,6 +74,7 @@ export interface Comment {
   timestamp: string;
   is_deleted: boolean;
   replies: Comment[] | undefined;
+  images: CommentImage[];
 }
 
 export type CommentCounts = Record<string, number>;
@@ -97,4 +112,13 @@ export interface AudioActiveVerse {
   chapter: number;
   verse: number;
   scope?: VerseScope; // 'bible' | PlaylistItem.itemId
+}
+
+export interface ReadingPosition {
+  id: string;
+  /** Backend book name (e.g. "John"), not a USFM code. */
+  book: string;
+  chapter: number;
+  verse: number;
+  last_accessed: string;
 }

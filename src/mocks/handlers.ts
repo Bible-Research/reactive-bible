@@ -106,6 +106,7 @@ export const handlers = [
         timestamp: new Date().toISOString(),
         is_deleted: false,
         replies: [],
+        images: [],
       },
     ]);
   }),
@@ -123,6 +124,7 @@ export const handlers = [
         timestamp: new Date().toISOString(),
         is_deleted: false,
         replies: [],
+        images: [],
       }, { status: 201 });
     }
   ),
@@ -140,6 +142,7 @@ export const handlers = [
         timestamp: new Date().toISOString(),
         is_deleted: false,
         replies: [],
+        images: [],
       });
     }
   ),
@@ -148,6 +151,50 @@ export const handlers = [
     `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
     () => {
       return new HttpResponse(null, { status: 204 });
+    }
+  ),
+
+  // --- Comment Images ---
+  http.post(
+    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/images/`,
+    async ({ params }) => {
+      return HttpResponse.json({
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: params.commentId,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      }, { status: 201 });
+    }
+  ),
+
+  http.delete(
+    `${COMMENT_BASE}/images/:imageId/`,
+    () => {
+      return new HttpResponse(null, { status: 204 });
+    }
+  ),
+
+  http.get(
+    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/images/`,
+    ({ params }) => {
+      return HttpResponse.json([
+        {
+          id: 'img-1',
+          storage_url: 'gs://bucket/originals/img-1/img-1.png',
+          signed_url: 'https://example.com/img-1.png',
+          content_type: 'image/png',
+          size_bytes: 1024,
+          uploaded_by: 1,
+          comment: params.commentId,
+          note: params.noteId,
+          created_at: new Date().toISOString(),
+        },
+      ]);
     }
   ),
 

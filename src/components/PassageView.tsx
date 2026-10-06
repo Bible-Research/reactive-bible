@@ -39,6 +39,29 @@ import {
   resolveAudioFileset,
   resolveTextFileset,
 } from '../utils/filesetGroups';
+import { verseDomId } from '../utils/verseRefs';
+
+/**
+ * First 'bible'-scoped verse whose element is at least partially
+ * visible below the top edge of the scroll viewport. Verse ids
+ * look like `verse-bible-jhn-3-16` — the last segment is the
+ * verse number.
+ */
+const firstVisibleVerse = (
+  viewport: HTMLElement,
+): number | null => {
+  const top = viewport.getBoundingClientRect().top;
+  const elements = viewport.querySelectorAll(
+    '[id^="verse-bible-"]'
+  );
+  for (const el of Array.from(elements)) {
+    if (el.getBoundingClientRect().bottom > top) {
+      const verse = Number(el.id.split('-').pop());
+      return Number.isNaN(verse) ? null : verse;
+    }
+  }
+  return null;
+};
 
 const PassageView = () => {
   const {
@@ -71,6 +94,7 @@ const PassageView = () => {
   const [tocLoading, setTocLoading] = useState(false);
   const pendingScrollHeadingRef = useRef<number | null>(null);
   const tocAbortRef = useRef(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -233,6 +257,11 @@ const PassageView = () => {
       return;
     }
 
+    // Guard against out-of-order responses: jumping ch1 -> ch4 ->
+    // ch3 fires overlapping requests and the last one to resolve
+    // must not render over the currently selected chapter.
+    let cancelled = false;
+
     tocAbortRef.current = true;
     setHeadingsOnlyMode(false);
     setTocEntries([]);
@@ -245,6 +274,7 @@ const PassageView = () => {
       activeBookId, activeChapter, textFilesetId
     )
       .then((result) => {
+        if (cancelled) return;
         setVerses(result.verses);
         setHeadings(result.headings);
         setLoading(false);
@@ -258,6 +288,44 @@ const PassageView = () => {
               ?.scrollIntoView({ block: "start", behavior: "smooth" });
           }, 50);
         }
+
+        // Consume a pending reading-position restore (set by
+        // setActiveBookWithPosition on book switch). The verse is
+        // scrolled into view without selecting it.
+        const pendingPosition =
+          useBibleStore.getState().pendingScrollVerse;
+        const restoreVerse =
+          pendingPosition &&
+          pendingPosition.bookId === activeBookId &&
+          pendingPosition.chapter === activeChapter
+            ? pendingPosition.verse
+            : null;
+        if (pendingPosition) {
+          useBibleStore.getState().setPendingScrollVerse(null);
+        }
+        if (restoreVerse !== null) {
+          setTimeout(() => {
+            document
+              .getElementById(
+                verseDomId('bible', {
+                  bookId: activeBookId,
+                  chapter: activeChapter,
+                  verse: restoreVerse,
+                })
+              )
+              ?.scrollIntoView({ block: 'start' });
+          }, 50);
+        }
+
+        // Persist the position the user landed on. Scroll events
+        // refine the verse afterwards.
+        useBibleStore
+          .getState()
+          .syncReadingPosition(
+            activeBookId,
+            activeChapter,
+            restoreVerse ?? 1
+          );
 
         const audioFilesetId =
           resolveAudioFileset(
@@ -290,6 +358,7 @@ const PassageView = () => {
         );
       })
       .catch((error) => {
+        if (cancelled) return;
         console.error(error);
         const isRateLimit = error instanceof RateLimitError;
         setIsRateLimitError(isRateLimit);
@@ -307,6 +376,9 @@ const PassageView = () => {
         setHeadings([]);
         setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeBookId,
     activeChapter,
@@ -314,6 +386,39 @@ const PassageView = () => {
     activeAudioFilesetId,
     translations,
   ]);
+
+  // Debounced first-verse-in-view tracking: keeps the saved
+  // reading position accurate enough for scroll restoration.
+  // The viewport only exists once the verse list is rendered.
+  useEffect(() => {
+    if (loading || headingsOnlyMode) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handleScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const verse = firstVisibleVerse(viewport);
+        if (verse === null) return;
+        const {
+          activeBookId: bookId,
+          activeChapter: chapter,
+        } = useBibleStore.getState();
+        useBibleStore
+          .getState()
+          .syncReadingPosition(bookId, chapter, verse);
+      }, 400);
+    };
+
+    viewport.addEventListener('scroll', handleScroll, {
+      passive: true,
+    });
+    return () => {
+      clearTimeout(timer);
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, [loading, headingsOnlyMode]);
 
   if (loading) {
     return (
@@ -435,7 +540,11 @@ const PassageView = () => {
   }
 
   return (
-    <ScrollArea h="calc(100vh - 112px)">
+    <ScrollArea
+      key={`${activeBookId}:${activeChapter}`}
+      h="calc(100vh - 112px)"
+      viewportRef={viewportRef}
+    >
       <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">
         {verses.map((verse) => {
           const heading = headings.find(

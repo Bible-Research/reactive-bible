@@ -3,8 +3,9 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
 } from 'react';
-import { Global, Input, rem } from '@mantine/core';
+import { Global, Input, Text, rem } from '@mantine/core';
 import { RichTextEditor as MantineRichTextEditor } from '@mantine/tiptap';
 import { useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -13,7 +14,13 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import ScriptureMention from '../extensions/scriptureMention';
+import ScripturePassage from './ScripturePassage';
 import { isTiptapDocString } from '../utils/tiptapContent';
+import {
+  isSameScriptureRef,
+  parseScriptureRef,
+} from '../utils/scriptureRef';
+import type { ScriptureRef } from '../utils/scriptureRef';
 
 interface RichTextEditorProps {
   /** Doc-JSON string or legacy plain text. */
@@ -64,6 +71,27 @@ const RichTextEditor = forwardRef<
   // value changes (reload/reset) from the editor's own edits.
   const lastEmitted = useRef<string | null>(null);
 
+  // Single click on a '@…' ref reveals the passage below the
+  // editor — a preview only, it does not link the note.
+  const [previewRef, setPreviewRef] =
+    useState<ScriptureRef | null>(null);
+  const [previewError, setPreviewError] =
+    useState<string | null>(null);
+
+  const onRefPreview = (token: string) => {
+    const result = parseScriptureRef(token);
+    if (!result.ok) {
+      setPreviewError(result.error);
+      return;
+    }
+    setPreviewError(null);
+    setPreviewRef((current) =>
+      isSameScriptureRef(current, result.ref) ? null : result.ref
+    );
+  };
+
+  const note = variant === 'note';
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -75,11 +103,20 @@ const RichTextEditor = forwardRef<
         protocols: ['http', 'https', 'mailto'],
       }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
-      ScriptureMention,
+      ScriptureMention.configure({ onRefPreview }),
     ],
     content: valueToContent(value),
     autofocus: autoFocus ? 'end' : false,
     editable: !disabled,
+    // Note editors start one line high and grow with content up
+    // to 60% of the viewport height, then scroll internally.
+    editorProps: {
+      attributes: {
+        style: note
+          ? 'max-height: 60vh; overflow-y: auto;'
+          : `min-height: ${rem(76)};`,
+      },
+    },
     onUpdate: ({ editor: e }) => {
       const json = JSON.stringify(e.getJSON());
       lastEmitted.current = json;
@@ -102,8 +139,6 @@ const RichTextEditor = forwardRef<
   useEffect(() => {
     editor?.setEditable(!disabled);
   }, [editor, disabled]);
-
-  const note = variant === 'note';
 
   return (
     <Input.Wrapper label={label}>
@@ -128,9 +163,6 @@ const RichTextEditor = forwardRef<
       <MantineRichTextEditor
         editor={editor}
         sx={(theme) => ({
-          '.ProseMirror': {
-            minHeight: note ? '70vh' : rem(76),
-          },
           '.ProseMirror p.is-editor-empty:first-of-type::before':
             {
               content: 'attr(data-placeholder)',
@@ -179,6 +211,12 @@ const RichTextEditor = forwardRef<
         </MantineRichTextEditor.Toolbar>
         <MantineRichTextEditor.Content />
       </MantineRichTextEditor>
+      {previewError && (
+        <Text color="red" size="sm" mt={4}>
+          {previewError}
+        </Text>
+      )}
+      {previewRef && <ScripturePassage reference={previewRef} />}
     </Input.Wrapper>
   );
 });
