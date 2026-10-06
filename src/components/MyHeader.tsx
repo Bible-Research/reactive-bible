@@ -7,10 +7,17 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
+
+const HEADER_HEIGHT = 56;
+// px of accumulated scroll in one direction needed to toggle the
+// header — roughly "two swipes". Small scrolls are ignored so the
+// header does not flicker while reading.
+const HIDE_SCROLL_DELTA = 150;
+const SHOW_SCROLL_DELTA = 150;
 
 const MyHeader = ({
   menuOpened,
@@ -21,41 +28,87 @@ const MyHeader = ({
 }) => {
   const theme = useMantineTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [visible, setVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const scroll = useRef({
+    target: null as EventTarget | null,
+    top: 0,
+    down: 0,
+    up: 0,
+  });
+
+  // Show the header again whenever the route changes.
+  useEffect(() => {
+    setVisible(true);
+  }, [location.pathname]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      if (currentScrollY > lastScrollY && currentScrollY > 50) {
-        // Scrolling down and past threshold
-        setVisible(false);
-      } else if (currentScrollY < lastScrollY) {
-        // Scrolling up
-        setVisible(true);
+    const getScrollTop = (target: EventTarget | null): number =>
+      target instanceof HTMLElement
+        ? target.scrollTop
+        : document.documentElement.scrollTop;
+
+    const handleScroll = (event: Event) => {
+      const state = scroll.current;
+      const top = getScrollTop(event.target);
+
+      // A different element started scrolling (e.g. after a route
+      // change) — treat its position as the new baseline.
+      if (event.target !== state.target) {
+        state.target = event.target;
+        state.top = top;
+        state.down = 0;
+        state.up = 0;
+        return;
       }
-      
-      setLastScrollY(currentScrollY);
+
+      const delta = top - state.top;
+      state.top = top;
+
+      if (delta > 0) {
+        state.down += delta;
+        state.up = 0;
+        if (state.down >= HIDE_SCROLL_DELTA && top > HEADER_HEIGHT) {
+          setVisible(false);
+        }
+      } else if (delta < 0) {
+        state.up -= delta;
+        state.down = 0;
+        if (state.up >= SHOW_SCROLL_DELTA) {
+          setVisible(true);
+        }
+      }
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+    // The app scrolls inside nested containers (the passage view,
+    // Mantine ScrollArea), not on window. Scroll events do not
+    // bubble, so listen in the capture phase to catch them all.
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+      capture: true,
+    });
+    return () =>
+      window.removeEventListener("scroll", handleScroll, true);
+  }, []);
 
   return (
     <Header
-      height={56}
+      height={HEADER_HEIGHT}
+      data-header-visible={visible}
       sx={{
-        transform: visible ? 'translateY(0)' : 'translateY(-100%)',
-        transition: 'transform 0.3s ease-in-out',
+        transform: visible ? "translateY(0)" : "translateY(-100%)",
+        transition: "transform 0.3s ease-in-out",
       }}
     >
       <Center
-        h={56}
+        h={HEADER_HEIGHT}
         px={10}
         mx="auto"
-        sx={{ display: "flex", justifyContent: "center", position: "relative" }}
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          position: "relative",
+        }}
       >
         <Box
           sx={{
@@ -69,7 +122,10 @@ const MyHeader = ({
             width: "100%",
           }}
         >
-          <ActionIcon variant="transparent" onClick={() => navigate('/search')}>
+          <ActionIcon
+            variant="transparent"
+            onClick={() => navigate('/search')}
+          >
             <IconSearch />
           </ActionIcon>
           <Audio />
