@@ -1,29 +1,35 @@
 name: Dependabot auto-merge
 
+# pull_request_target runs in the base-repo context with a writable
+# GITHUB_TOKEN, which Dependabot's regular pull_request runs do not
+# get. Safe here because the PR code is never checked out.
 on:
   pull_request_target:
+    branches: [main]
 
 permissions:
   contents: write
   pull-requests: write
-  issues: write
   checks: read
   statuses: read
 
-concurrency:
-  group: dependabot-automerge-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   automerge:
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    concurrency:
+      group: >-
+        dependabot-automerge-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     env:
       PR_URL: ${{ github.event.pull_request.html_url }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
-
+      # Optional: a PAT stored as AUTOMERGE_TOKEN lets branch
+      # updates pushed by this job re-trigger CI (a GITHUB_TOKEN
+      # push cannot). Without it, Dependabot's own rebases drive
+      # the retry loop.
+      GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
@@ -32,8 +38,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Majors stay manual; minor/patch (incl. grouped PRs, where
-      # update-type reports the highest bump in the group) auto-merge.
-      - name: Wait for all checks to go green
+      # update-type reports the highest bump in the group)
+      # auto-merge. For requirement-range PRs update-type is
+      # null; CI gates those.
+      - name: Wait for checks to pass
         if: >
           steps.metadata.outputs.update-type !=
           'version-update:semver-major'
@@ -80,17 +88,6 @@ jobs:
             echo "Timed out waiting for checks"; exit 1
           fi
 
-      # Approval is best-effort: it needs the repo setting
-      # "Allow GitHub Actions to create and approve pull
-      # requests". Merge still runs — it fails visibly only if
-      # branch protection truly requires a review.
-      - name: Approve PR
-        if: >
-          steps.metadata.outputs.update-type !=
-          'version-update:semver-major'
-        continue-on-error: true
-        run: gh pr review --approve "$PR_URL"
-
       - name: Squash merge
         if: >
           steps.metadata.outputs.update-type !=
@@ -101,13 +98,13 @@ jobs:
             exit 0
           fi
           echo "$out"
-          if echo "$out" | grep -q "not up to date"; then
-            # Protection requires an up-to-date branch. Ask
-            # Dependabot to rebase: its push re-triggers this
-            # job via synchronize, which then merges. (A bot
-            # push via update-branch would hold CI as
-            # action_required.)
-            gh pr comment "$PR_URL" -b "@dependabot rebase"
+          status=$(gh pr view "$PR_URL" --json mergeStateStatus \
+            -q .mergeStateStatus)
+          if [ "$status" = "BEHIND" ]; then
+            # Protection requires an up-to-date branch. Update it;
+            # the push re-triggers this job (with AUTOMERGE_TOKEN)
+            # or Dependabot's own rebase does.
+            gh pr update-branch "$PR_URL" || true
             exit 0
           fi
           exit 1
