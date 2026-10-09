@@ -65,7 +65,7 @@ describe('reportFums', () => {
       expect(t).toHaveBeenCalledWith('token-2');
     });
 
-  it('falls back to meta.fums when fumsId is absent',
+  it('extracts the token from meta.fums when fumsId is absent',
     async () => {
       const { reportFums } = await importFums();
       const appended = captureScripts();
@@ -73,10 +73,48 @@ describe('reportFums', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any)._BAPI = { t };
 
-      reportFums({ fums: 'legacy-token' });
+      // API.Bible's schema: `fums` is a script snippet, not a
+      // bare token.
+      reportFums({
+        fums: "<script>_BAPI.t('snippet-token')</script>",
+      });
+      expect(appended).toHaveLength(1);
       appended[0].onload?.(new Event('load'));
       await flushPromises();
-      expect(t).toHaveBeenCalledWith('legacy-token');
+      expect(t).toHaveBeenCalledWith('snippet-token');
+    });
+
+  it('prefers fumsId over the meta.fums snippet', async () => {
+    const { reportFums } = await importFums();
+    const appended = captureScripts();
+    const t = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any)._BAPI = { t };
+
+    reportFums({
+      fumsId: 'direct-token',
+      fums: "<script>_BAPI.t('snippet-token')</script>",
+    });
+    appended[0].onload?.(new Event('load'));
+    await flushPromises();
+    expect(t).toHaveBeenCalledWith('direct-token');
+    expect(t).not.toHaveBeenCalledWith('snippet-token');
+  });
+
+  it('does nothing when meta.fums embeds no token',
+    async () => {
+      const { reportFums } = await importFums();
+      const appended = captureScripts();
+      const t = vi.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any)._BAPI = { t };
+
+      // A bare string must never reach _BAPI.t.
+      reportFums({ fums: 'legacy-token' });
+      reportFums({ fums: '<script>no token here</script>' });
+
+      expect(appended).toHaveLength(0);
+      expect(t).not.toHaveBeenCalled();
     });
 
   it('is silent when the tracker script fails to load',
