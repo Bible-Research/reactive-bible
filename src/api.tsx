@@ -26,6 +26,7 @@ import {
 } from './utils/cacheManager';
 
 import { authenticatedFetch, publicFetch } from './utils/apiClient';
+import { reportFums } from './utils/fums';
 import { API_BASE_URL } from './config';
 
 export type { SectionHeading };
@@ -134,6 +135,9 @@ export const fetchHeadingsOnly = async (
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await fetch(url);
     const responseData = await response.json();
+    // API.Bible responses carry a FUMS token in `meta` that must
+    // be reported per their license terms (silent on failure).
+    reportFums(responseData.meta);
     const headings: SectionHeading[] =
       responseData.headings ?? [];
     cacheHeadings(bookId, chapter, filesetId, headings);
@@ -214,6 +218,9 @@ export const getVersesFromApi = async (
     );
     const headings: SectionHeading[] =
       data.headings ?? [];
+    // API.Bible responses carry a FUMS token in `meta` that must
+    // be reported per their license terms (silent on failure).
+    reportFums(data.meta);
     cacheVerses(bookId, thechapter, filesetId, verses);
     cacheHeadings(bookId, thechapter, filesetId, headings);
     return { verses, headings };

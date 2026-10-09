@@ -438,6 +438,57 @@ export const getCachedAudioUrl = (
   return audioData.audioUrl;
 };
 
+/**
+ * Parse the expiry of a presigned audio URL.
+ *
+ * Supported signatures:
+ * - CloudFront / SigV2: `Expires` (or `expires`) = epoch seconds
+ * - AWS SigV4 (API.Bible `resourceUrl`): `X-Amz-Date` +
+ *   `X-Amz-Expires` — expiry is the request time plus the
+ *   max-age in seconds
+ *
+ * @returns epoch ms, or null when the URL carries no parseable
+ *   expiry
+ */
+const parseAudioUrlExpiry = (audioUrl: string): number | null => {
+  try {
+    const url = new URL(audioUrl);
+    const expiresParam =
+      url.searchParams.get('Expires') ??
+      url.searchParams.get('expires');
+    if (expiresParam) {
+      const epoch = parseInt(expiresParam, 10);
+      if (!Number.isNaN(epoch)) {
+        return epoch * 1000; // Convert seconds to ms
+      }
+    }
+    const amzDate = url.searchParams.get('X-Amz-Date');
+    const amzExpires = url.searchParams.get('X-Amz-Expires');
+    if (amzDate && amzExpires) {
+      // X-Amz-Date is ISO basic: YYYYMMDD'T'HHMMSS'Z'
+      const match =
+        /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(
+          amzDate
+        );
+      const seconds = parseInt(amzExpires, 10);
+      if (match && !Number.isNaN(seconds)) {
+        const signedAt = Date.UTC(
+          Number(match[1]),
+          Number(match[2]) - 1,
+          Number(match[3]),
+          Number(match[4]),
+          Number(match[5]),
+          Number(match[6])
+        );
+        return signedAt + seconds * 1000;
+      }
+    }
+  } catch (error) {
+    console.error('Error parsing audio URL expiration:', error);
+  }
+  return null;
+};
+
 export const cacheAudioUrl = (
   book: string,
   chapter: number,
@@ -449,18 +500,12 @@ export const cacheAudioUrl = (
   const cache = getAudioCache();
   const cacheKey = `${bibleVersion}:${book}:${chapter}`;
 
-  // Parse expiration from URL (CloudFront URLs have Expires param)
-  let expiresAt = Date.now() + 24 * 60 * 60 * 1000; // Default: 24h
-
-  try {
-    const url = new URL(audioUrl);
-    const expiresParam = url.searchParams.get('Expires');
-    if (expiresParam) {
-      expiresAt = parseInt(expiresParam) * 1000; // Convert to ms
-    }
-  } catch (error) {
-    console.error('Error parsing audio URL expiration:', error);
-  }
+  // Parse expiration from URL (CloudFront `Expires`, or AWS
+  // SigV4 `X-Amz-Date`/`X-Amz-Expires` for API.Bible URLs).
+  // Default: 24h when the URL carries no parseable expiry.
+  const expiresAt =
+    parseAudioUrlExpiry(audioUrl) ??
+    Date.now() + 24 * 60 * 60 * 1000;
 
   cache[cacheKey] = {
     audioUrl,
