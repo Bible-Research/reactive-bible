@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
+import * as fums from './utils/fums';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 import { API_BASE_URL } from './config';
@@ -149,6 +150,26 @@ describe('API Functions', () => {
       expect(cacheManager.cacheAudioUrl).toHaveBeenCalledWith(
         'GEN', 1, 'ESVDA', mockUrl, 0, 0);
       expect(url).toBe(mockUrl);
+    });
+
+    it('getBibleAudioUrl should report FUMS meta from the ' +
+      'response', async () => {
+      vi.spyOn(cacheManager, 'getCachedAudioUrl')
+        .mockReturnValue(null);
+      const reportFumsSpy = vi.spyOn(fums, 'reportFums');
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json({
+            audio_url: 'http://audio.url/fums.mp3',
+            meta: { fumsId: 'audio-fums-token' },
+          });
+        })
+      );
+
+      await api.getBibleAudioUrl('EXO', 2, 'FUMSDA');
+
+      expect(reportFumsSpy).toHaveBeenCalledWith(
+        { fumsId: 'audio-fums-token' });
     });
 
     it.skip('addTagNote should make a POST request with the ' +

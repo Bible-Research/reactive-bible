@@ -458,10 +458,10 @@ const parseAudioUrlExpiry = (audioUrl: string): number | null => {
       url.searchParams.get('expires');
     if (expiresParam && /^\d+$/.test(expiresParam)) {
       // `Expires` is epoch seconds in CloudFront/SigV2 signed
-      // URLs. Reject values outside a plausible epoch range so
-      // junk like "2025-01-01" (parseInt → 2025 → epoch 1970)
-      // or epoch milliseconds (~1.7e12) is ignored in favor of
-      // the default expiry.
+      // URLs. The range guard rejects numeric values that
+      // aren't plausible epoch seconds — e.g. epoch
+      // milliseconds (~1.7e12) — so they fall back to the
+      // default expiry.
       const epoch = parseInt(expiresParam, 10);
       if (epoch >= 1e9 && epoch < 1e11) {
         return epoch * 1000; // Convert seconds to ms

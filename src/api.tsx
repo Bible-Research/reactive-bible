@@ -598,6 +598,10 @@ export const getBibleAudioUrl = async (
       );
     }
 
+    // API.Bible responses carry a FUMS token in `meta` that must
+    // be reported per their license terms (silent on failure).
+    reportFums(data.meta);
+
     // Cache the audio URL
     cacheAudioUrl(
       bookId,
