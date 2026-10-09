@@ -11,7 +11,12 @@ export default function NotesRoute() {
     lastSelectedTagId: state.lastSelectedTagId,
     getTags: state.getTags,
   }));
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  // Read `token`, not `isAuthenticated`: the token rehydrates
+  // synchronously from localStorage, while `isAuthenticated` only
+  // flips once App's mount effect calls checkAuth — child effects
+  // run first, so a cold /notes load would see `false` and bounce
+  // logged-in users to /bible.
+  const token = useAuthStore((state) => state.token);
 
   useEffect(() => {
     // Prevent double-navigation in React Strict Mode
@@ -20,7 +25,7 @@ export default function NotesRoute() {
     // Anonymous visitors have no "default tag" to land on and no way to
     // browse tags. Send them to the bible page; direct share links to
     // /notes/:noteId or /notes/tag/:tagId still work for them.
-    if (!isAuthenticated) {
+    if (!token) {
       hasNavigatedRef.current = true;
       navigate('/bible', { replace: true });
       return;
@@ -40,9 +45,12 @@ export default function NotesRoute() {
         }
 
         // Navigate to last selected tag or first tag
-        const sorted = [...currentTags].sort((a, b) => a.name.localeCompare(b.name));
-        const targetTagId = 
-          lastSelectedTagId && currentTags.some((t) => t.id === lastSelectedTagId)
+        const sorted = [...currentTags].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+        const targetTagId =
+          lastSelectedTagId &&
+          currentTags.some((t) => t.id === lastSelectedTagId)
             ? lastSelectedTagId
             : sorted[0].id;
         

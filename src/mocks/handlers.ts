@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { API_BASE_URL } from '../config';
+import { mockTranslations } from '../__tests__/mocks/data';
 
 // Define your request handlers
 const API_URL = `${API_BASE_URL}/api/v1`;
@@ -10,10 +11,14 @@ export const handlers = [
   http.get(`${API_URL}/bible`, ({ request }) => {
     const url = new URL(request.url);
     const filesetId = url.searchParams.get('fileset_id');
+    const isAudio =
+      url.searchParams.get('response_format') === 'audio' ||
+      (filesetId != null && filesetId.endsWith('DA'));
 
-    // Check if it's an audio request (audio filesets are suffixed with 'DA')
-    if (filesetId && filesetId.endsWith('DA')) {
-      // This is the success case for audio URLs
+    // Audio requests return a playable URL — a missing
+    // `audio_url` is the coverage-miss contract
+    // (`book_not_in_fileset`), exercised by dedicated tests.
+    if (isAudio) {
       return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
     }
 
@@ -33,7 +38,7 @@ export const handlers = [
 
   // --- Translations ---
   http.get(`${API_URL}/bible/translations`, () => {
-    return HttpResponse.json({ results: [] });
+    return HttpResponse.json({ results: mockTranslations });
   }),
 
   // --- Tags ---
@@ -84,6 +89,11 @@ export const handlers = [
     ]);
   }),
 
+  // --- Linked Notes ---
+  http.post(`${API_URL}/notes/linked/`, () => {
+    return HttpResponse.json({ count: 0, results: [] });
+  }),
+
   // --- Delete Note ---
   http.delete(`${API_URL}/notes/:id`, () => {
     return HttpResponse.text('Deleted');
@@ -101,6 +111,7 @@ export const handlers = [
         timestamp: new Date().toISOString(),
         is_deleted: false,
         replies: [],
+        images: [],
       },
     ]);
   }),
@@ -118,6 +129,7 @@ export const handlers = [
         timestamp: new Date().toISOString(),
         is_deleted: false,
         replies: [],
+        images: [],
       }, { status: 201 });
     }
   ),
@@ -135,6 +147,7 @@ export const handlers = [
         timestamp: new Date().toISOString(),
         is_deleted: false,
         replies: [],
+        images: [],
       });
     }
   ),
@@ -143,6 +156,50 @@ export const handlers = [
     `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
     () => {
       return new HttpResponse(null, { status: 204 });
+    }
+  ),
+
+  // --- Comment Images ---
+  http.post(
+    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/images/`,
+    async ({ params }) => {
+      return HttpResponse.json({
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: params.commentId,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      }, { status: 201 });
+    }
+  ),
+
+  http.delete(
+    `${COMMENT_BASE}/images/:imageId/`,
+    () => {
+      return new HttpResponse(null, { status: 204 });
+    }
+  ),
+
+  http.get(
+    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/images/`,
+    ({ params }) => {
+      return HttpResponse.json([
+        {
+          id: 'img-1',
+          storage_url: 'gs://bucket/originals/img-1/img-1.png',
+          signed_url: 'https://example.com/img-1.png',
+          content_type: 'image/png',
+          size_bytes: 1024,
+          uploaded_by: 1,
+          comment: params.commentId,
+          note: params.noteId,
+          created_at: new Date().toISOString(),
+        },
+      ]);
     }
   ),
 

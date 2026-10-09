@@ -74,11 +74,15 @@ function LocationDisplay() {
   return <div data-testid="location-search">{location.search}</div>;
 }
 
-function renderSearch(search = '?q=grace') {
+function renderSearch(
+  search = '?q=grace',
+  overrides: Record<string, unknown> = {},
+) {
   useBibleStore.setState({
     ...initialState,
     activeTextFilesetId: 'ENGESH',
     audioPlaylistItems: null,
+    ...overrides,
   });
   return render(
     <MemoryRouter initialEntries={[`/search${search}`]}>
@@ -138,6 +142,52 @@ describe('SearchRoute', () => {
       expect(mockSearchBibleGrouped).toHaveBeenCalledWith(
         'grace',
         'ENGESH',
+        expect.any(AbortSignal),
+      );
+    });
+  });
+
+  it('resolves a stored text product id before searching', async () => {
+    mockSearchBibleGrouped.mockResolvedValue(EMPTY_RESULT);
+    // The selector persists grouped product ids like
+    // `ENGESV:text:0` — the raw id must never reach the API.
+    const esv = {
+      abbr: 'ENGESV',
+      name: 'English Standard Version',
+      language: 'English',
+      language_iso: 'eng',
+      filesets: [
+        {
+          id: 'ENGESV_API',
+          type: 'text_plain' as const,
+          size: 'C',
+          codec: null,
+          bitrate: null,
+        },
+        {
+          id: 'ENGESVO_ET',
+          type: 'text_plain' as const,
+          size: 'OT',
+          codec: null,
+          bitrate: null,
+        },
+        {
+          id: 'ENGESVN_ET',
+          type: 'text_plain' as const,
+          size: 'NT',
+          codec: null,
+          bitrate: null,
+        },
+      ],
+    };
+    renderSearch('?q=grace', {
+      activeTextFilesetId: 'ENGESV:text:0',
+      translations: [esv],
+    });
+    await waitFor(() => {
+      expect(mockSearchBibleGrouped).toHaveBeenCalledWith(
+        'grace',
+        'ENGESV_API',
         expect.any(AbortSignal),
       );
     });

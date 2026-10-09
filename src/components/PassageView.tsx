@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import {
   ScrollArea,
   Center,
@@ -20,6 +25,7 @@ import {
   type SectionHeading,
   RateLimitError,
   ProviderError,
+  BookNotInFilesetError,
 } from "../api";
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
@@ -30,8 +36,37 @@ import {
   getTestament,
   toBookName,
   buildBiblePath,
-  filesetCoversTestament,
+  sizeToCoverage,
+  type Testament,
 } from '../utils/bibleUtils';
+import {
+  groupFilesets,
+  resolveAudioFileset,
+  resolveTextFileset,
+} from '../utils/filesetGroups';
+import { verseDomId } from '../utils/verseRefs';
+
+/**
+ * First 'bible'-scoped verse whose element is at least partially
+ * visible below the top edge of the scroll viewport. Verse ids
+ * look like `verse-bible-jhn-3-16` — the last segment is the
+ * verse number.
+ */
+const firstVisibleVerse = (
+  viewport: HTMLElement,
+): number | null => {
+  const top = viewport.getBoundingClientRect().top;
+  const elements = viewport.querySelectorAll(
+    '[id^="verse-bible-"]'
+  );
+  for (const el of Array.from(elements)) {
+    if (el.getBoundingClientRect().bottom > top) {
+      const verse = Number(el.id.split('-').pop());
+      return Number.isNaN(verse) ? null : verse;
+    }
+  }
+  return null;
+};
 
 const PassageView = () => {
   const {
@@ -63,7 +98,11 @@ const PassageView = () => {
   >([]);
   const [tocLoading, setTocLoading] = useState(false);
   const pendingScrollHeadingRef = useRef<number | null>(null);
+  // True until the first chapter fetch succeeds — reading-position
+  // restore from persisted state only applies to that load.
+  const initialLoadRef = useRef(true);
   const tocAbortRef = useRef(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -80,18 +119,44 @@ const PassageView = () => {
     const fileset = tls
       .flatMap((t) => t.filesets)
       .find((f) => f.id === filesetId);
-    if (!fileset) return null;
-    if (filesetCoversTestament(fileset.size, testament)) return null;
-    const covered =
-      fileset.size.toUpperCase().startsWith('NT')
-        ? 'New Testament'
-        : 'Old Testament';
+    let coveredTestaments: Testament[] | null = null;
+    let selectionLabel = filesetId;
+    if (fileset) {
+      coveredTestaments = sizeToCoverage(fileset.size).testaments;
+    } else {
+      // The stored id may be a grouped product id — read the
+      // option's byTestament coverage for the hint instead.
+      for (const t of tls) {
+        const text = groupFilesets(t).text;
+        if (
+          text &&
+          (text.id === filesetId ||
+            text.members.includes(filesetId))
+        ) {
+          coveredTestaments = (
+            ['OT', 'NT'] as Testament[]
+          ).filter((x) => text.byTestament[x]);
+          selectionLabel = t.name;
+          break;
+        }
+      }
+    }
+    if (
+      !coveredTestaments ||
+      coveredTestaments.length === 0 ||
+      coveredTestaments.includes(testament)
+    ) {
+      return null;
+    }
+    const covered = coveredTestaments.includes('NT')
+      ? 'New Testament'
+      : 'Old Testament';
     const needed =
       testament === 'OT' ? 'Old Testament' : 'New Testament';
     return (
-      `The selected text version (${filesetId}) only covers the ` +
-      `${covered}. Try selecting a ${needed} text version in the ` +
-      `Translation Settings.`
+      `The selected text version (${selectionLabel}) only ` +
+      `covers the ${covered}. Try selecting a ${needed} text ` +
+      `version in the Translation Settings.`
     );
   };
 
@@ -102,7 +167,12 @@ const PassageView = () => {
     setHeadingsOnlyMode(true);
     setTocEntries([{ chapter: activeChapter, headings: currentHeadings }]);
 
-    if (!activeTextFilesetId || activeTextFilesetId === 'ENGKJV') return;
+    const textFilesetId = resolveTextFileset(
+      activeTextFilesetId,
+      activeBookId,
+      translations,
+    );
+    if (!textFilesetId || textFilesetId === 'ENGKJV') return;
 
     setTocLoading(true);
     const allChapters = getChapters(activeBookId);
@@ -116,7 +186,7 @@ const PassageView = () => {
       }
       try {
         const h = await fetchHeadingsOnly(
-          activeBookId, ch, activeTextFilesetId
+          activeBookId, ch, textFilesetId
         );
         if (tocAbortRef.current) {
           setTocLoading(false);
@@ -138,7 +208,7 @@ const PassageView = () => {
       }
       try {
         const h = await fetchHeadingsOnly(
-          activeBookId, ch, activeTextFilesetId
+          activeBookId, ch, textFilesetId
         );
         if (tocAbortRef.current) {
           setTocLoading(false);
@@ -176,8 +246,46 @@ const PassageView = () => {
     }
   };
 
+  // The stored selections may be grouped product ids — resolve
+  // them to the concrete fileset covering this book's testament.
+  // These are memoized strings: depending on the raw
+  // `translations` array instead would refire the chapter fetch
+  // on every translation-list refresh (new array identity).
+  const resolvedTextFilesetId = useMemo(
+    () =>
+      resolveTextFileset(
+        activeTextFilesetId,
+        activeBookId,
+        translations,
+      ),
+    [activeTextFilesetId, activeBookId, translations]
+  );
+  const resolvedAudioFilesetId = useMemo(
+    () =>
+      resolveAudioFileset(
+        activeAudioFilesetId,
+        activeBookId,
+        translations,
+      )?.filesetId ?? activeAudioFilesetId,
+    [activeAudioFilesetId, activeBookId, translations]
+  );
+
   useEffect(() => {
-    if (!activeTextFilesetId) return;
+    const textFilesetId = resolvedTextFilesetId;
+    if (!textFilesetId) {
+      // No text selection at all (audio-only translation) —
+      // stop the spinner instead of waiting on a fetch that
+      // can never run.
+      setVerses([]);
+      setHeadings([]);
+      setLoading(false);
+      return;
+    }
+
+    // Guard against out-of-order responses: jumping ch1 -> ch4 ->
+    // ch3 fires overlapping requests and the last one to resolve
+    // must not render over the currently selected chapter.
+    let cancelled = false;
 
     tocAbortRef.current = true;
     setHeadingsOnlyMode(false);
@@ -188,9 +296,10 @@ const PassageView = () => {
     setIsRateLimitError(false);
     setIsProviderError(false);
     getVersesInChapter(
-      activeBookId, activeChapter, activeTextFilesetId
+      activeBookId, activeChapter, textFilesetId
     )
       .then((result) => {
+        if (cancelled) return;
         setVerses(result.verses);
         setHeadings(result.headings);
         setLoading(false);
@@ -205,28 +314,104 @@ const PassageView = () => {
           }, 50);
         }
 
+        // Consume a pending reading-position restore (set by
+        // setActiveBookWithPosition on book switch). The verse is
+        // scrolled into view without selecting it.
+        const pendingPosition =
+          useBibleStore.getState().pendingScrollVerse;
+        let restoreVerse =
+          pendingPosition &&
+          pendingPosition.bookId === activeBookId &&
+          pendingPosition.chapter === activeChapter
+            ? pendingPosition.verse
+            : null;
+        if (pendingPosition) {
+          useBibleStore.getState().setPendingScrollVerse(null);
+        }
+        // Cold load (reload / direct URL): nothing queued a
+        // scroll, so restore the persisted position — but only
+        // on the first chapter rendered after mount. Later
+        // navigations within this mount (next/prev chapter)
+        // must land at the top, and a URL-selected verse
+        // already scrolls itself into view.
+        if (restoreVerse === null && initialLoadRef.current) {
+          const state = useBibleStore.getState();
+          const hasUrlSelection =
+            state.verseSelection?.scope === 'bible' &&
+            state.verseSelection.refs.length > 0;
+          const saved = state.readingPositions[activeBookId];
+          if (
+            !hasUrlSelection &&
+            saved?.chapter === activeChapter &&
+            saved.verse > 1
+          ) {
+            restoreVerse = saved.verse;
+          }
+        }
+        initialLoadRef.current = false;
+        if (restoreVerse !== null) {
+          setTimeout(() => {
+            document
+              .getElementById(
+                verseDomId('bible', {
+                  bookId: activeBookId,
+                  chapter: activeChapter,
+                  verse: restoreVerse,
+                })
+              )
+              ?.scrollIntoView({ block: 'start' });
+          }, 50);
+        }
+
+        // Persist the position the user landed on. Scroll events
+        // refine the verse afterwards.
+        useBibleStore
+          .getState()
+          .syncReadingPosition(
+            activeBookId,
+            activeChapter,
+            restoreVerse ?? 1
+          );
+
+        const audioFilesetId = resolvedAudioFilesetId;
+
         // Prefetch current chapter audio (parallel)
         prefetchAudioUrl(
-          activeBookId, activeChapter, activeAudioFilesetId
+          activeBookId, activeChapter, audioFilesetId
         );
 
         // Prefetch next chapter audio (parallel)
         prefetchAudioUrl(
-          activeBookId, activeChapter + 1, activeAudioFilesetId
+          activeBookId, activeChapter + 1, audioFilesetId
         );
 
-        // Prefetch adjacent chapters (parallel)
+        // Prefetch adjacent chapters (parallel) — the resolver
+        // handles adjacent chapters that cross a book boundary.
+        // Read the latest selection straight from the store so
+        // `translations` doesn't need to be an effect dep.
+        const {
+          activeTextFilesetId: storedTextId,
+          translations: tls,
+        } = useBibleStore.getState();
         prefetchAdjacentChapters(
           activeBookId,
           activeChapter,
-          activeTextFilesetId
+          textFilesetId,
+          (b) => resolveTextFileset(storedTextId, b, tls),
         );
       })
       .catch((error) => {
+        if (cancelled) return;
         console.error(error);
         const isRateLimit = error instanceof RateLimitError;
         setIsRateLimitError(isRateLimit);
-        setIsProviderError(error instanceof ProviderError);
+        // BookNotInFilesetError is a ProviderError subclass but
+        // means a coverage gap — it must show the mismatch hint,
+        // not the "Provider Unavailable" title.
+        setIsProviderError(
+          error instanceof ProviderError &&
+            !(error instanceof BookNotInFilesetError),
+        );
         setFetchError(
           error instanceof Error ? error.message : 'Failed to load text'
         );
@@ -234,7 +419,48 @@ const PassageView = () => {
         setHeadings([]);
         setLoading(false);
       });
-  }, [activeBookId, activeChapter, activeTextFilesetId, activeAudioFilesetId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeBookId,
+    activeChapter,
+    resolvedTextFilesetId,
+    resolvedAudioFilesetId,
+  ]);
+
+  // Debounced first-verse-in-view tracking: keeps the saved
+  // reading position accurate enough for scroll restoration.
+  // The viewport only exists once the verse list is rendered.
+  useEffect(() => {
+    if (loading || headingsOnlyMode) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handleScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const verse = firstVisibleVerse(viewport);
+        if (verse === null) return;
+        const {
+          activeBookId: bookId,
+          activeChapter: chapter,
+        } = useBibleStore.getState();
+        useBibleStore
+          .getState()
+          .syncReadingPosition(bookId, chapter, verse);
+      }, 400);
+    };
+
+    viewport.addEventListener('scroll', handleScroll, {
+      passive: true,
+    });
+    return () => {
+      clearTimeout(timer);
+      viewport.removeEventListener('scroll', handleScroll);
+    };
+  }, [loading, headingsOnlyMode]);
 
   if (loading) {
     return (
@@ -245,13 +471,13 @@ const PassageView = () => {
   }
 
   const isNonKjv =
-    activeTextFilesetId && activeTextFilesetId !== 'ENGKJV';
+    resolvedTextFilesetId && resolvedTextFilesetId !== 'ENGKJV';
   const showEmptyHint =
     isNonKjv && (fetchError !== null || verses.length === 0);
 
   if (showEmptyHint) {
     const mismatchHint = getTestamentMismatchHint(
-      activeTextFilesetId,
+      resolvedTextFilesetId,
       translations,
     );
     const rateLimitHint =
@@ -349,7 +575,11 @@ const PassageView = () => {
   }
 
   return (
-    <ScrollArea h="calc(100vh - 112px)">
+    <ScrollArea
+      key={`${activeBookId}:${activeChapter}`}
+      h="calc(100vh - 112px)"
+      viewportRef={viewportRef}
+    >
       <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">
         {verses.map((verse) => {
           const heading = headings.find(

@@ -244,4 +244,265 @@ describe('CommentThread', () => {
       expect(onCountChange).toHaveBeenCalledWith(1);
     });
   });
+
+  it('removes image from comment after delete-image', async () => {
+    server.use(
+      http.get(
+        `${API_URL}/notes/${NOTE_ID}/comments/`,
+        () =>
+          HttpResponse.json([
+            {
+              id: 'comment-1',
+              author: { id: 1, username: 'testuser' },
+              note_id: NOTE_ID,
+              parent_comment: null,
+              content: 'Test comment',
+              timestamp: new Date().toISOString(),
+              is_deleted: false,
+              replies: [],
+              images: [
+                {
+                  id: 'img-1',
+                  storage_url:
+                    'gs://bucket/originals/img-1/img-1.png',
+                  signed_url: 'https://example.com/img-1.png',
+                  content_type: 'image/png',
+                  size_bytes: 1024,
+                  uploaded_by: 1,
+                  created_at: new Date().toISOString(),
+                },
+              ],
+            },
+          ])
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('img[alt="img-1.png"]')
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete image img-1' })
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('img[alt="img-1.png"]')
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('retains form content when createComment fails', async () => {
+    server.use(
+      http.post(
+        `${API_URL}/notes/${NOTE_ID}/comments/`,
+        () => HttpResponse.error()
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('Add a comment…')
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Add a comment…'),
+      { target: { value: 'Keep me on failure' } }
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Post' })
+    );
+
+    await waitFor(() => {
+      expect(
+        (screen.getByPlaceholderText(
+          'Add a comment…'
+        ) as HTMLTextAreaElement).value
+      ).toBe('Keep me on failure');
+    });
+  });
+
+  it('uploads staged images after creating the comment', async () => {
+    let uploadCalled = false;
+    server.use(
+      http.post(
+        `${API_URL}/notes/${NOTE_ID}/comments/:commentId/images/`,
+        async () => {
+          uploadCalled = true;
+          return HttpResponse.json(
+            {
+              id: 'img-new',
+              storage_url:
+                'gs://bucket/originals/img-new/img-new.png',
+              signed_url: 'https://example.com/img-new.png',
+              content_type: 'image/png',
+              size_bytes: 100,
+              uploaded_by: 1,
+              created_at: new Date().toISOString(),
+            },
+            { status: 201 }
+          );
+        }
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('Add a comment…')
+      ).toBeInTheDocument();
+    });
+
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+    const file = new File(['x'], 'test.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', {
+      value: [file],
+      configurable: true,
+    });
+    fireEvent.change(input);
+
+    fireEvent.change(
+      screen.getByPlaceholderText('Add a comment…'),
+      { target: { value: 'Comment with image' } }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+
+    await waitFor(() => {
+      expect(uploadCalled).toBe(true);
+    });
+  });
+
+  const useStaleImageThread = (onImagesFetch: () => void) => {
+    const staleImg = {
+      id: 'img-1',
+      storage_url: 'gs://bucket/originals/img-1/pic.png',
+      signed_url: 'https://example.com/stale.png',
+      content_type: 'image/png',
+      size_bytes: 1024,
+      uploaded_by: 1,
+      created_at: new Date().toISOString(),
+    };
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () =>
+        HttpResponse.json([
+          {
+            id: 'comment-1',
+            author: { id: 1, username: 'testuser' },
+            note_id: NOTE_ID,
+            parent_comment: null,
+            content: 'Test comment',
+            timestamp: new Date().toISOString(),
+            is_deleted: false,
+            replies: [],
+            images: [staleImg],
+          },
+        ])
+      ),
+      http.get(
+        `${API_URL}/notes/${NOTE_ID}/comments/comment-1/images/`,
+        () => {
+          onImagesFetch();
+          return HttpResponse.json([
+            {
+              ...staleImg,
+              signed_url: 'https://example.com/fresh.png',
+            },
+          ]);
+        }
+      )
+    );
+  };
+
+  const staleThumb = () =>
+    document.querySelector(
+      'img[alt="pic.png"]'
+    ) as HTMLImageElement;
+
+  it('refreshes only the failing comment\'s images', async () => {
+    let fetchCalls = 0;
+    useStaleImageThread(() => {
+      fetchCalls += 1;
+    });
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />
+    );
+    await waitFor(() => {
+      expect(staleThumb()).toBeInTheDocument();
+    });
+
+    fireEvent.error(staleThumb());
+
+    await waitFor(() => {
+      expect(staleThumb().src).toBe(
+        'https://example.com/fresh.png'
+      );
+    });
+    expect(fetchCalls).toBe(1);
+  });
+
+  it('caps image refreshes per comment', async () => {
+    let fetchCalls = 0;
+    useStaleImageThread(() => {
+      fetchCalls += 1;
+    });
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />
+    );
+    await waitFor(() => {
+      expect(staleThumb()).toBeInTheDocument();
+    });
+
+    for (let i = 0; i < 5; i++) {
+      fireEvent.error(staleThumb());
+      await waitFor(() => {
+        expect(fetchCalls).toBe(Math.min(i + 1, 3));
+      });
+    }
+    expect(fetchCalls).toBe(3);
+  });
 });

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { resolveTimestampsFilesetId } from '../utils/bibleUtils';
 import type { PlaylistItem } from '../types';
+import type { Translation } from '../store';
 
 // ---------------------------------------------------------------------------
 // 1. resolveTimestampsFilesetId unit tests
@@ -49,16 +50,27 @@ describe('resolveTimestampsFilesetId', () => {
 // 2. useAudioPlaylist hook tests
 // ---------------------------------------------------------------------------
 
-vi.mock('../api', () => ({
-  getBibleAudioUrl: vi.fn().mockResolvedValue('http://audio.test/file.mp3'),
-  getKjvAudioUrl: vi.fn().mockReturnValue('http://kjv.test/file.mp3'),
-  getAudioTimestamps: vi.fn().mockResolvedValue([
-    { verse_start: 1, timestamp: 0 },
-    { verse_start: 2, timestamp: 5 },
-    { verse_start: 3, timestamp: 10 },
-    { verse_start: 4, timestamp: 15 },
-  ]),
-}));
+vi.mock('../api', () => {
+  class BookNotInFilesetError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'BookNotInFilesetError';
+    }
+  }
+  return {
+    getBibleAudioUrl:
+      vi.fn().mockResolvedValue('http://audio.test/file.mp3'),
+    getKjvAudioUrl:
+      vi.fn().mockReturnValue('http://kjv.test/file.mp3'),
+    getAudioTimestamps: vi.fn().mockResolvedValue([
+      { verse_start: 1, timestamp: 0 },
+      { verse_start: 2, timestamp: 5 },
+      { verse_start: 3, timestamp: 10 },
+      { verse_start: 4, timestamp: 15 },
+    ]),
+    BookNotInFilesetError,
+  };
+});
 
 let mockHowlOnLoad: (() => void) | null = null;
 let mockHowlOnEnd: (() => void) | null = null;
@@ -110,12 +122,32 @@ vi.mock('./useVerseHighlighter', () => ({
   useVerseHighlighter: vi.fn(),
 }));
 
+// Split-testament audio translation used by the resolver tests:
+// {OT: ENGESHO1DA, NT: ENGESHN1DA} in both codecs.
+const eshTranslation: Translation = {
+  abbr: 'ENGESH',
+  name: 'English Test Version',
+  language: 'English',
+  language_iso: 'eng',
+  filesets: [
+    { id: 'ENGESHO1DA', type: 'audio', size: 'OT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'ENGESHO1DA-opus16', type: 'audio', size: 'OT',
+      codec: 'opus', bitrate: '16' },
+    { id: 'ENGESHN1DA', type: 'audio', size: 'NT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'ENGESHN1DA-opus16', type: 'audio', size: 'NT',
+      codec: 'opus', bitrate: '16' },
+  ],
+};
+
 const mockStoreState = {
   activeAudioFilesetId: 'ENGESHN1DA-opus16',
   activeTextFilesetId: 'ENGESH',
-  translations: [],
+  translations: [] as Translation[],
   setAudioActiveVerse: vi.fn(),
   setShowAudioPlayer: vi.fn(),
+  setAudioPlaylistEnded: vi.fn(),
 };
 
 vi.mock('../store', () => ({
@@ -150,6 +182,11 @@ beforeEach(() => {
   mockStoreState.setShowAudioPlayer.mockReset();
   mockStoreState.activeAudioFilesetId = 'ENGESHN1DA-opus16';
   mockStoreState.activeTextFilesetId = 'ENGESH';
+  mockStoreState.translations = [];
+  // vi.clearAllMocks keeps mockImplementation — restore the
+  // default so per-test overrides cannot leak.
+  vi.mocked(api.getBibleAudioUrl)
+    .mockResolvedValue('http://audio.test/file.mp3');
 });
 
 describe('useAudioPlaylist', () => {
@@ -291,5 +328,108 @@ describe('useAudioPlaylist', () => {
       expect(result.current.currentIndex).toBe(0)
     );
     expect(result.current.currentItem?.itemId).toBe('result-0');
+  });
+
+  it('auto-switches to the OT member of the same audio product',
+    async () => {
+      mockStoreState.translations = [eshTranslation];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ bookId: 'GEN', chapter: 1 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(api.getBibleAudioUrl).toHaveBeenCalledWith(
+          'GEN',
+          1,
+          'ENGESHO1DA-opus16',
+        )
+      );
+    },
+  );
+
+  it('retries the mp3 sibling after a codec fetch failure',
+    async () => {
+      const { BookNotInFilesetError } = await import('../api');
+      mockStoreState.translations = [eshTranslation];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      vi.mocked(api.getBibleAudioUrl).mockImplementation(
+        async (_book, _chapter, filesetId) =>
+          filesetId.endsWith('-opus16')
+            ? Promise.reject(
+                new BookNotInFilesetError('not covered'),
+              )
+            : Promise.resolve('http://audio.test/mp3.mp3'),
+      );
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([makeItem({ bookId: 'JHN' })]);
+      });
+      await waitFor(() =>
+        expect(api.getBibleAudioUrl).toHaveBeenCalledWith(
+          'JHN',
+          3,
+          'ENGESHN1DA',
+        )
+      );
+      expect(result.current.currentIndex).toBe(0);
+    },
+  );
+
+  it('notifies and ends the item when a detached retry rejects',
+    async () => {
+      const { showNotification } =
+        await import('@mantine/notifications');
+      mockStoreState.translations = [eshTranslation];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      // The first candidate resolves; the detached retry after a
+      // Howler decode failure then hits a non-coverage error,
+      // which loadFromIndex rethrows. The retry must catch it,
+      // notify and advance — an unhandled rejection would stall
+      // the playlist silently.
+      vi.mocked(api.getBibleAudioUrl)
+        .mockResolvedValueOnce('http://audio.test/opus16.webm')
+        .mockRejectedValue(new Error('network boom'));
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([makeItem({ itemId: 'a' })]);
+      });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(0)
+      );
+      act(() => { mockHowlOnLoadError?.(0, 'decode error'); });
+      await waitFor(() =>
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Audio unavailable' }),
+        )
+      );
+      await waitFor(() =>
+        expect(result.current.isActive).toBe(false)
+      );
+    },
+  );
+
+  it('notifies once after exhausting all candidates', async () => {
+    const { BookNotInFilesetError } = await import('../api');
+    const { showNotification } =
+      await import('@mantine/notifications');
+    mockStoreState.translations = [eshTranslation];
+    mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+    vi.mocked(api.getBibleAudioUrl).mockRejectedValue(
+      new BookNotInFilesetError('not covered'),
+    );
+    const { result } = renderHook(() => useAudioPlaylist());
+    act(() => {
+      result.current.start([makeItem(), makeItem()]);
+    });
+    await waitFor(() =>
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Audio not available',
+        }),
+      )
+    );
   });
 });

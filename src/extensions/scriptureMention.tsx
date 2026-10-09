@@ -13,6 +13,7 @@ import PassagePicker from '../components/PassagePicker';
 import {
   buildScriptureToken,
   formatMentionPreview,
+  isTerminatedMentionQuery,
   isValidScriptureToken,
   parseMentionQuery,
 } from '../utils/scriptureMention';
@@ -25,6 +26,18 @@ import { findVersesInBetween } from '../utils/findVersesInBetween';
 
 const POPUP_HEIGHT = 280;
 const POPUP_OFFSET = 4;
+// Delay before a lone click on a '@…' token fires the passage
+// preview — a second click within the window edits instead.
+const PREVIEW_CLICK_MS = 300;
+
+export interface ScriptureMentionOptions {
+  /**
+   * Single click/tap on a complete '@USFM.C.V[-E]' token.
+   * Intended to reveal the passage — it does NOT link the note
+   * to that passage.
+   */
+  onRefPreview: (token: string) => void;
+}
 
 interface PopupActions {
   /** Replace the live '@query' range, keeping the suggestion open. */
@@ -112,11 +125,18 @@ const ScriptureMentionPopup = ({
  * Inserts plain-text '@USFM.C.V[-E]' tokens which the existing
  * linkify pipeline already renders.
  */
-export const ScriptureMention = Extension.create({
+export const ScriptureMention = Extension.create<
+  ScriptureMentionOptions
+>({
   name: 'scriptureMention',
+
+  addOptions() {
+    return { onRefPreview: () => undefined };
+  },
 
   addProseMirrorPlugins() {
     const editor = this.editor;
+    const onRefPreview = this.options.onRefPreview;
     const pluginKey = new PluginKey('scriptureMention');
 
     // After inserting a token the '@…' text still matches the
@@ -177,6 +197,60 @@ export const ScriptureMention = Extension.create({
         }
       });
       return DecorationSet.create(state.doc, decorations);
+    };
+
+    // The '@…' token covering `pos`, if it resolves to a
+    // complete, in-range ref. Same exclusions as
+    // invalidRefDecorations: code is never clickable.
+    const tokenAtPos = (
+      state: EditorState,
+      pos: number
+    ): { from: number; to: number; token: string } | null => {
+      const $pos = state.doc.resolve(pos);
+      const parent = $pos.parent;
+      if (
+        !parent.isTextblock ||
+        parent.type.name === 'codeBlock'
+      ) {
+        return null;
+      }
+      const blockStart = $pos.start();
+      let hit: { from: number; to: number; token: string } | null =
+        null;
+      parent.forEach((node, offset) => {
+        if (hit || !node.isText || !node.text) return;
+        if (node.marks.some((m) => m.type.name === 'code')) {
+          return;
+        }
+        SCRIPTURE_TOKEN_REGEX.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = SCRIPTURE_TOKEN_REGEX.exec(node.text))) {
+          const candidate =
+            match[1].match(VALID_REF_PREFIX)?.[1] ?? match[1];
+          const from = blockStart + offset + match.index;
+          const to = from + candidate.length;
+          if (
+            pos >= from &&
+            pos <= to &&
+            isValidScriptureToken(candidate)
+          ) {
+            hit = { from, to, token: candidate };
+            return;
+          }
+        }
+      });
+      return hit;
+    };
+
+    // Single vs double click on a '@…' token: a lone click
+    // previews the passage; a second click reopens the picker
+    // to edit the reference instead.
+    let previewTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearPreviewTimer = () => {
+      if (previewTimer !== null) {
+        clearTimeout(previewTimer);
+        previewTimer = null;
+      }
     };
 
     const popupRenderer = () => {
@@ -254,6 +328,10 @@ export const ScriptureMention = Extension.create({
           range,
         }: SuggestionKeyDownProps) => {
           if (event.key === 'Escape') {
+            // Keep the keypress from bubbling to window — the
+            // enclosing Mantine Modal would otherwise also see it
+            // and close, discarding the in-progress note.
+            event.stopPropagation();
             const state = pluginKey.getState(view.state);
             suppress(range.from, state?.query ?? '');
             // Empty transaction re-runs `apply`, which deactivates
@@ -296,17 +374,22 @@ export const ScriptureMention = Extension.create({
         allowedPrefixes: [' ', '('],
         items: () => [],
         allow: ({ state, range }) => {
-          if (suppressFrom === null) return true;
-          if (range.from !== suppressFrom) {
-            clearSuppression();
-            return true;
-          }
           const text = state.doc.textBetween(
             range.from,
             range.to,
             '\n',
             '\n'
           );
+          // A complete ref closed by '.' or ' ' means the user
+          // typed it out by hand — keep the picker dismissed.
+          if (isTerminatedMentionQuery(text.slice(1))) {
+            return false;
+          }
+          if (suppressFrom === null) return true;
+          if (range.from !== suppressFrom) {
+            clearSuppression();
+            return true;
+          }
           return !text.slice(1).startsWith(suppressQuery);
         },
         render: popupRenderer,
@@ -314,6 +397,41 @@ export const ScriptureMention = Extension.create({
       new Plugin({
         key: new PluginKey('scriptureRefInvalid'),
         props: { decorations: invalidRefDecorations },
+      }),
+      new Plugin({
+        key: new PluginKey('scriptureRefClick'),
+        props: {
+          handleDOMEvents: {
+            mousedown: (view, event) => {
+              const mouse = event as MouseEvent;
+              if (mouse.button !== 0) return false;
+              const pos = view.posAtCoords({
+                left: mouse.clientX,
+                top: mouse.clientY,
+              })?.pos;
+              if (pos === undefined) return false;
+              const hit = tokenAtPos(view.state, pos);
+              if (!hit) return false;
+              mouse.preventDefault();
+              if (mouse.detail > 1) {
+                // Double click: caret lands at the token end so
+                // the suggestion range covers the whole '@…'
+                // token and the picker reopens for editing.
+                clearPreviewTimer();
+                editor.commands.setTextSelection(hit.to);
+                return true;
+              }
+              const { token } = hit;
+              clearPreviewTimer();
+              previewTimer = setTimeout(() => {
+                previewTimer = null;
+                onRefPreview(token);
+              }, PREVIEW_CLICK_MS);
+              return true;
+            },
+          },
+        },
+        view: () => ({ destroy: clearPreviewTimer }),
       }),
     ];
   },

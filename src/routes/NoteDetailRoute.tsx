@@ -4,6 +4,7 @@ import {
   Box,
   Center,
   Loader,
+  ScrollArea,
   Stack,
   Text,
   Group,
@@ -123,30 +124,34 @@ export default function NoteDetailRoute() {
   }
 
   return (
-    <Box p="md">
-      <Group position="apart" mb="md">
-        <Text fw={500} size="lg">
-          {note.tag?.name || 'Shared note'}
-        </Text>
-        <Tooltip label="Share note link" position="left">
-          <ActionIcon
-            onClick={handleShare}
-            variant="subtle"
-            color="blue"
-            size="lg"
-          >
-            <IconShare size={20} />
-          </ActionIcon>
-        </Tooltip>
-      </Group>
+    // The AppShell main area is `overflow: hidden` — give this route
+    // its own scroll container so long notes can be read to the end.
+    <ScrollArea style={{ height: '100%' }} type="auto">
+      <Box p="md">
+        <Group position="apart" mb="md">
+          <Text fw={500} size="lg">
+            {note.tag?.name || 'Shared note'}
+          </Text>
+          <Tooltip label="Share note link" position="left">
+            <ActionIcon
+              onClick={handleShare}
+              variant="subtle"
+              color="blue"
+              size="lg"
+            >
+              <IconShare size={20} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
 
-      <Stack spacing="md">
-        <NoteCard
-          note={note}
-          onViewInBible={handleViewInBible}
-        />
-        <CommentThread noteId={note.id} />
-      </Stack>
-    </Box>
+        <Stack spacing="md">
+          <NoteCard
+            note={note}
+            onViewInBible={handleViewInBible}
+          />
+          <CommentThread noteId={note.id} />
+        </Stack>
+      </Box>
+    </ScrollArea>
   );
 }

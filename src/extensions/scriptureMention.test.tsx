@@ -125,6 +125,44 @@ describe('ScriptureMention suggestion', () => {
     expect(editor?.getText()).toContain('and more text');
   });
 
+  it('dismisses the popup when a period ends a complete ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.16');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+    editor?.commands.insertContent('.');
+    await waitFor(() => expect(popupOpen()).toBe(false));
+    expect(editor?.getText()).toBe('@JHN.3.16.');
+  });
+
+  it('dismisses the popup when a space ends a complete ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.16');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+    editor?.commands.insertContent(' ');
+    await waitFor(() => expect(popupOpen()).toBe(false));
+    expect(editor?.getText()).toBe('@JHN.3.16 ');
+  });
+
+  it('stays closed while typing prose after a hand-typed ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.16 ');
+    await waitFor(() => expect(popupOpen()).toBe(false));
+    editor?.commands.insertContent('is true');
+    // Give the plugin a tick to (not) reactivate.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(popupOpen()).toBe(false);
+    expect(editor?.getText()).toBe('@JHN.3.16 is true');
+  });
+
+  it('keeps the popup open for a period after a partial ref', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+    // Still open — the user is mid-ref, picking a verse.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(popupOpen()).toBe(true);
+  });
+
   it('dismisses the popup on Escape', async () => {
     await renderEditor();
     editor?.commands.insertContent('@JHN');
@@ -209,5 +247,79 @@ describe('ScriptureMention suggestion', () => {
       expect(editor?.getText()).toBe('@JHN.3.16 ')
     );
     await waitFor(() => expect(popupOpen()).toBe(false));
+  });
+
+  // jsdom has no layout — posAtCoords is stubbed to report the
+  // click position directly.
+  const mouseDownAtPos = (pos: number, detail = 1) => {
+    const view = editor?.view;
+    if (!view) return;
+    vi.spyOn(view, 'posAtCoords').mockReturnValue({
+      pos,
+      inside: pos,
+    });
+    fireEvent.mouseDown(view.dom, {
+      button: 0,
+      detail,
+      clientX: 0,
+      clientY: 0,
+    });
+    vi.restoreAllMocks();
+  };
+
+  const previewOpen = () =>
+    !!document.querySelector('[data-testid="passage-container"]');
+
+  it('reveals a passage preview on a single ref click', async () => {
+    await renderEditor();
+    // Token lives in the first paragraph; the caret lands in the
+    // second so the suggestion stays out of the way.
+    editor?.commands.setContent(
+      '<p>See @JHN.3.16.</p><p>tail</p>'
+    );
+    expect(popupOpen()).toBe(false);
+
+    // '@' sits at doc pos 5 — pos 8 is inside '@JHN.3.16'.
+    mouseDownAtPos(8);
+
+    await waitFor(() => expect(previewOpen()).toBe(true), {
+      timeout: 1500,
+    });
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(
+        'For God so loved the world'
+      )
+    );
+    expect(popupOpen()).toBe(false);
+    // The token text is untouched by a preview click.
+    expect(editor?.getText()).toContain('@JHN.3.16');
+  });
+
+  it('reopens the picker on a double ref click', async () => {
+    await renderEditor();
+    editor?.commands.setContent(
+      '<p>See @JHN.3.16.</p><p>tail</p>'
+    );
+
+    mouseDownAtPos(8, 1);
+    mouseDownAtPos(8, 2);
+
+    await waitFor(() => expect(popupOpen()).toBe(true));
+    // The cancelled preview timer must not fire afterwards.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(previewOpen()).toBe(false);
+  });
+
+  it('ignores clicks on invalid refs', async () => {
+    await renderEditor();
+    editor?.commands.setContent(
+      '<p>See @JHN.99.1.</p><p>tail</p>'
+    );
+
+    mouseDownAtPos(8);
+
+    await new Promise((r) => setTimeout(r, 400));
+    expect(previewOpen()).toBe(false);
+    expect(popupOpen()).toBe(false);
   });
 });
