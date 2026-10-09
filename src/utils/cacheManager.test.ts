@@ -635,4 +635,32 @@ describe('Audio Cache Manager', () => {
 
     expect(getCachedAudioUrl('JHN', 3, 'NIV')).toBeNull();
   });
+
+  it('should honor a lowercase expires epoch param', () => {
+    const now = Date.now();
+    const expires = Math.floor((now + 3600 * 1000) / 1000);
+    const audioUrl = `http://audio.url/1?expires=${expires}`;
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+
+  it('should ignore a non-epoch Expires param', () => {
+    // parseInt('2025-01-01') would yield 2025 (epoch 1970 →
+    // always expired); reject it and use the 24h default.
+    const audioUrl = 'http://audio.url/1?Expires=2025-01-01';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+
+  it('should ignore an epoch-milliseconds Expires param', () => {
+    // 1.7e12 is epoch ms, not seconds — must not be treated as
+    // epoch seconds (~60k years out → never expires).
+    const audioUrl =
+      'http://audio.url/1?Expires=1893456000000';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
 });
