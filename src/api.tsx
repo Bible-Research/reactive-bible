@@ -835,9 +835,12 @@ export const getAudioTimestamps = async (
     }
     const data = await response.json();
     const timestamps: VerseTimestamp[] = (data.data || []).map(
-      (item: { verse_start: string | number; timestamp: number }) => ({
+      (item: {
+        verse_start: string | number;
+        timestamp: string | number;
+      }) => ({
         verse_start: Number(item.verse_start),
-        timestamp: item.timestamp,
+        timestamp: Number(item.timestamp),
       })
     );
     cacheTimestamps(filesetId, bookId, chapter, timestamps);
