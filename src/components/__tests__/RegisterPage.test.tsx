@@ -270,6 +270,18 @@ describe('RegisterPage', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
+  it('clears a stale error on mount', () => {
+    // A failed login followed by navigating to /register used
+    // to flash the old error — the mount effect clears it.
+    renderWithProviders(<RegisterPage />, {
+      authStoreState: { error: 'Stale error' },
+    });
+    expect(useAuthStore.getState().error).toBeNull();
+    expect(
+      screen.queryByRole('alert')
+    ).not.toBeInTheDocument();
+  });
+
   it('should clear the error when the alert is dismissed', async () => {
     const user = userEvent.setup();
     renderWithProviders(<RegisterPage />, {
