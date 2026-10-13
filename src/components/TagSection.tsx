@@ -17,7 +17,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
-import { Note, CommentCounts } from "../types";
+import { Note, CommentCounts, NoteOrderMenuData } from "../types";
 import NoteCard from "./NoteCard";
 import SortableNoteCard from "./SortableNoteCard";
 
@@ -48,6 +48,8 @@ interface TagSectionProps {
   sortOrder?: string;
   currentPage?: number;
   pageSize?: number;
+  /** Order-badge dropdown data (custom sorts + auth only). */
+  orderMenu?: NoteOrderMenuData;
 }
 
 const TagSection = ({
@@ -65,6 +67,7 @@ const TagSection = ({
   sortOrder,
   currentPage = 1,
   pageSize = 25,
+  orderMenu,
 }: TagSectionProps) => {
   const [localNotes, setLocalNotes] = useState(notes);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -140,6 +143,7 @@ const TagSection = ({
                 ? (delta) => onCountChange(note.id, delta)
                 : undefined
             }
+            orderMenu={orderMenu}
           />
         ))}
       </Stack>
@@ -175,6 +179,7 @@ const TagSection = ({
                   ? (delta) => onCountChange(note.id, delta)
                   : undefined
               }
+              orderMenu={orderMenu}
             />
           ))}
         </Stack>

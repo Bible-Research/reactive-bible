@@ -134,6 +134,12 @@ export interface BibleState {
     currentPage: number,
     pageSize: number
   ) => Promise<void>;
+  moveNoteAfter: (
+    tagId: string,
+    noteId: string,
+    targetNoteId: string,
+    placement: api.MovePlacement
+  ) => Promise<void>;
   setShowNotes: (show: boolean) => void;
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
@@ -321,6 +327,29 @@ export const migratePersistedState = (
   return migrated as PersistedBibleState;
 };
 
+/**
+ * Latest-call-wins guard for `fetchNotes`: rapid moves, or a
+ * move-refresh racing a page change, can resolve out of order.
+ * Only the most recently issued request may write `notes`.
+ */
+let fetchNotesRequestSeq = 0;
+
+/**
+ * Refetches the tag's current page preserving ordering+page so
+ * page membership is re-derived from the server — a cross-page
+ * move changes which notes are visible, and a stale page would
+ * let a later drag reassign sequential positions that silently
+ * undo the move.
+ */
+const refreshNotesPage = async (tagId: string): Promise<void> => {
+  const { notesOrdering, notesPage } = useBibleStore.getState();
+  clearNotesCache(tagId);
+  await useBibleStore.getState().fetchNotes(tagId, {
+    ordering: notesOrdering ?? undefined,
+    page: notesPage,
+  });
+};
+
 export const useBibleStore = createWithEqualityFn<BibleState>()(
   persist(
     (set) => ({
@@ -387,6 +416,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string, options = {}) => {
         const { ordering, page = 1, append = false } = options;
+        const requestId = ++fetchNotesRequestSeq;
         try {
           const {
             notesPageSize,
@@ -452,7 +482,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
               ordering,
             });
           }
-          
+
+          // A response resolving after a newer fetchNotes call
+          // was issued is stale — drop it rather than resurrect
+          // an older page/order on top of the current one.
+          if (requestId !== fetchNotesRequestSeq) return;
+
           set((state) => ({
             notes: append
               ? [...state.notes, ...response.results]
@@ -465,6 +500,9 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             lastSelectedTagId: tagId || null,
           }));
         } catch (error) {
+          // A superseded request owns no state: no retry and
+          // no error toast — the newer request decides the UI.
+          if (requestId !== fetchNotesRequestSeq) return;
           if (page > 1) {
             // The requested page may no longer exist (e.g. notes
             // were deleted); fall back to the first page.
@@ -585,12 +623,85 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
               ),
               color: 'orange',
             });
-            // Refresh notes from server
-            await useBibleStore.getState().fetchNotes(tagId);
+            // Refresh the page the user is on — a bare
+            // fetchNotes(tagId) would bounce to page 1 and
+            // null notesOrdering, corrupting a later move's
+            // refreshCurrentPage arguments. Best-effort: a
+            // refresh failure must not mask the ConflictError.
+            await refreshNotesPage(tagId).catch(() => {
+              /* fetchNotes already notified the failure */
+            });
           } else {
             showNotification({
               title: 'Error',
               message: 'Failed to reorder notes',
+              color: 'red',
+            });
+          }
+          throw error;
+        }
+      },
+      moveNoteAfter: async (
+        tagId: string,
+        noteId: string,
+        targetNoteId: string,
+        placement: api.MovePlacement
+      ) => {
+        try {
+          const result = await api.moveNote(
+            tagId,
+            noteId,
+            targetNoteId,
+            placement
+          );
+
+          if (!result.rebalanced) {
+            // Instant feedback: patch the moved note's
+            // position locally while the authoritative
+            // refetch below resolves. A rebalance renumbers
+            // every position, so skip the patch then.
+            set((state) => ({
+              notes: state.notes.map((n) =>
+                n.id === noteId
+                  ? { ...n, tag_position: result.tag_position }
+                  : n
+              ),
+            }));
+          }
+          // Every move can change page membership, so the
+          // server refetch — not the local patch — is
+          // authoritative. It is isolated: a refresh failure
+          // must not flip this into the 'Failed to move' path
+          // (the move succeeded; fetchNotes already shows its
+          // own error notification).
+          await refreshNotesPage(tagId).catch(() => {
+            /* fetchNotes already notified the failure */
+          });
+
+          showNotification({
+            title: 'Success',
+            message: 'Note moved',
+            color: 'green',
+          });
+        } catch (error) {
+          if (error instanceof api.ConflictError) {
+            showNotification({
+              title: 'Conflict',
+              message: (
+                'Another user modified these notes. ' +
+                'Refreshing...'
+              ),
+              color: 'orange',
+            });
+            // Best-effort resync — a refresh failure must not
+            // mask the original ConflictError.
+            await refreshNotesPage(tagId).catch(() => {
+              /* fetchNotes already notified the failure */
+            });
+          } else {
+            showNotification({
+              title: 'Error',
+              message: 'Failed to move note',
               color: 'red',
             });
           }

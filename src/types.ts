@@ -36,6 +36,49 @@ export interface SectionHeading {
   text: string;
 }
 
+/**
+ * One row of `GET /api/v1/notes/order-index/` — a compact,
+ * unpaginated listing of every note in a tag in canonical
+ * ascending order (`tag_position` ASC, `-created_at` tiebreak).
+ * The order ID shown to users is the 1-based array index.
+ */
+export interface NoteOrderIndexEntry {
+  id: string;
+  tag_position: number | null;
+  book: string | null;
+  chapter: number | null;
+  verse_start: number | null;
+  verse_end: number | null;
+}
+
+/** An order-index row with its precomputed dropdown label —
+ *  built once by `TagNotesRoute` and shared by every mounted
+ *  `NoteOrderMenu` instead of each re-mapping the full index. */
+export interface LabeledNoteOrderEntry {
+  entry: NoteOrderIndexEntry;
+  label: string;
+}
+
+/**
+ * Everything a `NoteOrderMenu` needs, bundled so it can be
+ * threaded through `TagSection` → `SortableNoteCard`/`NoteCard`
+ * as a single prop. Built by `TagNotesRoute`.
+ */
+export interface NoteOrderMenuData {
+  /** All tag notes, pre-labeled, in display order — canonical
+   *  ascending, reversed under custom_desc. */
+  labeledEntries: LabeledNoteOrderEntry[];
+  /** note id → 1-based order ID (canonical index + 1). */
+  orderIdByNoteId: Map<string, number>;
+  /** Order ID of the visually topmost entry — 1 in
+   *  custom_asc, the highest order ID in custom_desc. */
+  topOrderId: number;
+  /** Move `noteId` to just after `targetNoteId` (display order). */
+  onMoveAfter: (noteId: string, targetNoteId: string) => void;
+  /** Move `noteId` to the visual top of the list. */
+  onMoveToTop: (noteId: string) => void;
+}
+
 export interface VerseTimestamp {
   verse_start: number;
   timestamp: number;
