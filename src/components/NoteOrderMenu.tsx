@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import {
+  Box,
   Button,
   Menu,
-  ScrollArea,
   Text,
   TextInput,
 } from "@mantine/core";
@@ -75,7 +75,7 @@ const NoteOrderMenu = ({
           Move to top
         </Menu.Item>
         <Menu.Divider />
-        <ScrollArea mah={320}>
+        <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
           {visibleEntries.length === 0 ? (
             <Text size="xs" color="dimmed" p="xs">
               No matching notes
@@ -91,7 +91,7 @@ const NoteOrderMenu = ({
               </Menu.Item>
             ))
           )}
-        </ScrollArea>
+        </Box>
       </Menu.Dropdown>
     </Menu>
   );
