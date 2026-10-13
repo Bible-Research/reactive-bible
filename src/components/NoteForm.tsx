@@ -20,6 +20,8 @@ const NoteForm = ({
 }: NoteFormProps) => {
   // Parents pass a fresh `note` object each render, so depend on
   // its values — object identity would re-seed and wipe edits.
+  // Notes with identical tagId/text won't re-seed; pass an id or
+  // use `key` if strict reset is ever needed.
   const initialTagId = note?.tagId;
   const initialText = note?.text;
 

@@ -106,9 +106,39 @@ describe('NoteForm Component', () => {
       />
     );
 
-    expect((noteInput as HTMLInputElement).value).toBe(
+    expect((noteInput as HTMLTextAreaElement).value).toBe(
       'Edited text'
     );
+  });
+
+  it('should re-seed inputs when a different note arrives', () => {
+    const { rerender } = render(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '1', text: 'Initial text' }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    // Switching to a different note must re-seed the form.
+    rerender(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '2', text: 'Other text' }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const noteInput = screen.getByLabelText('Note') as
+      HTMLTextAreaElement;
+    expect(noteInput.value).toBe('Other text');
+    const tagInput = screen.getByLabelText('Tag') as
+      HTMLInputElement;
+    expect(tagInput.value).toBe('Hope');
   });
 
   it('should not render create new tag button', () => {

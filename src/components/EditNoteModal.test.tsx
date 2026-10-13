@@ -182,7 +182,7 @@ describe('EditNoteModal Component', () => {
     expect(verse17).not.toHaveAttribute('data-active');
   });
 
-  it('should keep note edits when verse references change', 
+  it('should keep note edits when verse references change',
     async () => {
     renderWithProviders(
       <EditNoteModal
