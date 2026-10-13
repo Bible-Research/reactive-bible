@@ -156,9 +156,27 @@ describe('errorReporter', () => {
       window.dispatchEvent(event);
 
       expect(mockShowNotification).toHaveBeenCalledTimes(1);
-      expect(notificationContent().error.message).toContain(
-        'Failed to load resource'
-      );
+      const call = mockShowNotification.mock.calls[0][0];
+      expect(call.title).toBe('Resource failed to load');
+      expect(call.color).toBe('yellow');
+      expect(call.autoClose).not.toBe(false);
+      expect(call.message).toContain('Failed to load resource');
+    });
+
+    it('dedupes repeat failures for the same resource', () => {
+      cleanup = initGlobalErrorHandlers();
+      const img = document.createElement('img');
+      img.src = 'https://example.com/missing.png';
+      const makeEvent = () => {
+        const event = new Event('error');
+        Object.defineProperty(event, 'target', { value: img });
+        return event;
+      };
+
+      window.dispatchEvent(makeEvent());
+      window.dispatchEvent(makeEvent());
+
+      expect(mockShowNotification).toHaveBeenCalledTimes(1);
     });
 
     it('stops reporting after cleanup', () => {
