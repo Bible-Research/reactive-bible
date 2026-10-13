@@ -56,6 +56,38 @@ interface NoteWriteBody {
 }
 
 export const handlers = [
+  // --- Auth ---
+  http.post(`${API_BASE_URL}/api/token/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+      password?: string;
+    };
+    if (!body.username || !body.password) {
+      return HttpResponse.json(
+        {
+          non_field_errors: [
+            'Unable to log in with provided credentials.',
+          ],
+        },
+        { status: 400 }
+      );
+    }
+    return HttpResponse.json({ token: 'mock-token' });
+  }),
+
+  http.post(`${API_URL}/users/register/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+    };
+    return HttpResponse.json(
+      {
+        token: 'mock-token',
+        user: { id: 1, username: body.username ?? 'newuser' },
+      },
+      { status: 201 }
+    );
+  }),
+
   // --- Single /bible Endpoint Handler ---
   http.get(`${API_URL}/bible`, ({ request }) => {
     const url = new URL(request.url);
@@ -158,7 +190,10 @@ export const handlers = [
       ...mockTag,
       id: params.id,
       name: body.name ?? mockTag.name,
-      parent_tag: body.parent_tag ?? null,
+      parent_tag:
+        body.parent_tag !== undefined
+          ? body.parent_tag
+          : mockTag.parent_tag,
     });
   }),
   http.patch(`${API_URL}/tags/:id/`, async ({ params, request }) => {
@@ -170,7 +205,10 @@ export const handlers = [
       ...mockTag,
       id: params.id,
       name: body.name ?? mockTag.name,
-      parent_tag: body.parent_tag ?? null,
+      parent_tag:
+        body.parent_tag !== undefined
+          ? body.parent_tag
+          : mockTag.parent_tag,
     });
   }),
 
