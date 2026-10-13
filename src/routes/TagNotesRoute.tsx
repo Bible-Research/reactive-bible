@@ -79,9 +79,9 @@ const getApiOrdering = (sortOrder: SortOrder): string => {
  *  notes. `k` is the canonical 1-based order ID. */
 const entryLabel = (
   entry: NoteOrderIndexEntry,
-  orderId: number | undefined
+  orderId: number
 ): string => {
-  const idPart = `#${orderId ?? '?'}`;
+  const idPart = `#${orderId}`;
   if (
     !entry.book ||
     entry.chapter === null ||
@@ -437,9 +437,11 @@ export default function TagNotesRoute() {
                 : orderIndex
             ).map((entry) => ({
               entry,
+              // Built from this same array, so every entry
+              // is guaranteed an order ID.
               label: entryLabel(
                 entry,
-                orderIdByNoteId.get(entry.id)
+                orderIdByNoteId.get(entry.id) as number
               ),
             })),
             orderIdByNoteId,
@@ -492,6 +494,11 @@ export default function TagNotesRoute() {
             ordering: apiOrdering,
             page: Math.min(notesPage, lastPage),
           });
+          // Resync badges/menu labels — the deleted note's
+          // rank shifts every entry below it.
+          if (orderMenuEnabled) {
+            await loadOrderIndex();
+          }
         }
       }
     }
@@ -542,7 +549,13 @@ export default function TagNotesRoute() {
       });
 
       await getTags();
-      
+
+      // Keep the order index current with whatever the
+      // refetch brought back.
+      if (orderMenuEnabled) {
+        await loadOrderIndex();
+      }
+
       showNotification({
         title: 'Refreshed!',
         message: 'Notes updated from server',

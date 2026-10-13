@@ -626,8 +626,11 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             // Refresh the page the user is on — a bare
             // fetchNotes(tagId) would bounce to page 1 and
             // null notesOrdering, corrupting a later move's
-            // refreshCurrentPage arguments.
-            await refreshNotesPage(tagId);
+            // refreshCurrentPage arguments. Best-effort: a
+            // refresh failure must not mask the ConflictError.
+            await refreshNotesPage(tagId).catch(() => {
+              /* fetchNotes already notified the failure */
+            });
           } else {
             showNotification({
               title: 'Error',

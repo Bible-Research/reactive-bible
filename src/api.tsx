@@ -453,7 +453,12 @@ export const getNoteOrderIndex = async (
     );
   }
 
-  return await response.json();
+  const data: unknown = await response.json();
+  // A malformed non-array 200 must not crash the
+  // order-index memo at render — treat it as empty.
+  return Array.isArray(data)
+    ? (data as NoteOrderIndexEntry[])
+    : [];
 };
 
 export type MovePlacement = 'before' | 'after';
