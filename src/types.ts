@@ -51,19 +51,30 @@ export interface NoteOrderIndexEntry {
   verse_end: number | null;
 }
 
+/** An order-index row with its precomputed dropdown label —
+ *  built once by `TagNotesRoute` and shared by every mounted
+ *  `NoteOrderMenu` instead of each re-mapping the full index. */
+export interface LabeledNoteOrderEntry {
+  entry: NoteOrderIndexEntry;
+  label: string;
+}
+
 /**
  * Everything a `NoteOrderMenu` needs, bundled so it can be
  * threaded through `TagSection` → `SortableNoteCard`/`NoteCard`
  * as a single prop. Built by `TagNotesRoute`.
  */
 export interface NoteOrderMenuData {
-  /** All tag notes in canonical ascending order. */
-  entries: NoteOrderIndexEntry[];
-  /** note id → 1-based order ID (index + 1 in `entries`). */
+  /** All tag notes in canonical ascending order, pre-labeled. */
+  labeledEntries: LabeledNoteOrderEntry[];
+  /** note id → 1-based order ID (canonical index + 1). */
   orderIdByNoteId: Map<string, number>;
+  /** Order ID of the visually topmost entry — 1 in
+   *  custom_asc, the highest order ID in custom_desc. */
+  topOrderId: number;
   /** Move `noteId` to just after `targetNoteId` (display order). */
   onMoveAfter: (noteId: string, targetNoteId: string) => void;
-  /** Move `noteId` to the top of the canonical order. */
+  /** Move `noteId` to the visual top of the list. */
   onMoveToTop: (noteId: string) => void;
 }
 

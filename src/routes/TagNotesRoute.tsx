@@ -75,6 +75,28 @@ const getApiOrdering = (sortOrder: SortOrder): string => {
   return orderingMap[sortOrder];
 };
 
+/** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
+ *  notes. `k` is the canonical 1-based order ID. */
+const entryLabel = (
+  entry: NoteOrderIndexEntry,
+  orderId: number | undefined
+): string => {
+  const idPart = `#${orderId ?? '?'}`;
+  if (
+    !entry.book ||
+    entry.chapter === null ||
+    entry.verse_start === null
+  ) {
+    return `${idPart} — no passage`;
+  }
+  const range =
+    entry.verse_end !== null &&
+    entry.verse_end !== entry.verse_start
+      ? `${entry.verse_start}-${entry.verse_end}`
+      : `${entry.verse_start}`;
+  return `${idPart} — ${entry.book} ${entry.chapter}:${range}`;
+};
+
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
   const navigate = useNavigate();
@@ -159,6 +181,10 @@ export default function TagNotesRoute() {
   // the move dropdown.
   const [orderIndex, setOrderIndex] =
     useState<NoteOrderIndexEntry[] | null>(null);
+  // Latest-call-wins guard for `loadOrderIndex`: overlapping
+  // fetches (rapid moves, tag switch mid-flight) must not
+  // apply out of order.
+  const orderIndexRequestRef = useRef(0);
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -277,9 +303,14 @@ export default function TagNotesRoute() {
 
   const loadOrderIndex = useCallback(async () => {
     if (!tagId) return;
+    const requestId = ++orderIndexRequestRef.current;
     try {
       const entries = await getNoteOrderIndex(tagId);
-      setOrderIndex(entries);
+      // A stale response (a newer fetch already started, or
+      // the tag/sort changed) is dropped — latest wins.
+      if (requestId === orderIndexRequestRef.current) {
+        setOrderIndex(entries);
+      }
     } catch (err) {
       // A missing/failed endpoint leaves the index null so the
       // badge stays hidden — the rest of the page still works.
@@ -294,6 +325,8 @@ export default function TagNotesRoute() {
     if (orderMenuEnabled) {
       loadOrderIndex();
     } else {
+      // Invalidate any in-flight fetch before clearing.
+      orderIndexRequestRef.current += 1;
       setOrderIndex(null);
     }
   }, [orderMenuEnabled, loadOrderIndex]);
@@ -334,12 +367,18 @@ export default function TagNotesRoute() {
       if (!tagId || !orderIndex || orderIndex.length === 0) {
         return;
       }
+      // Visual top is the canonical first entry ascending but
+      // the canonical last entry descending.
+      const descending = sortOrder === 'custom_desc';
+      const target = descending
+        ? orderIndex[orderIndex.length - 1]
+        : orderIndex[0];
       try {
         await moveNoteAfter(
           tagId,
           noteId,
-          orderIndex[0].id,
-          'before'
+          target.id,
+          descending ? 'after' : 'before'
         );
       } catch {
         // The store action already showed a notification.
@@ -347,15 +386,36 @@ export default function TagNotesRoute() {
         await loadOrderIndex();
       }
     },
-    [tagId, orderIndex, moveNoteAfter, loadOrderIndex]
+    [
+      tagId,
+      sortOrder,
+      orderIndex,
+      moveNoteAfter,
+      loadOrderIndex,
+    ]
   );
 
   const orderMenu = useMemo(
     () =>
       orderMenuEnabled && orderIndex
         ? {
-            entries: orderIndex,
+            // Labels are computed once here so ~100 mounted
+            // menus share them instead of each re-mapping the
+            // full index on every render.
+            labeledEntries: orderIndex.map((entry) => ({
+              entry,
+              label: entryLabel(
+                entry,
+                orderIdByNoteId.get(entry.id)
+              ),
+            })),
             orderIdByNoteId,
+            // Visual top is canonical #1 ascending but the
+            // highest order ID descending.
+            topOrderId:
+              sortOrder === 'custom_desc'
+                ? orderIndex.length
+                : 1,
             onMoveAfter: handleMoveAfter,
             onMoveToTop: handleMoveToTop,
           }
@@ -364,6 +424,7 @@ export default function TagNotesRoute() {
       orderMenuEnabled,
       orderIndex,
       orderIdByNoteId,
+      sortOrder,
       handleMoveAfter,
       handleMoveToTop,
     ]

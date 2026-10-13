@@ -37,7 +37,22 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-vi.mock('../../api');
+// Automock every api function but keep the real ConflictError
+// class — the store's moveNoteAfter relies on `instanceof`.
+vi.mock('../../api', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../api')>();
+  const mocked: Record<string, unknown> = { ...actual };
+  for (const [key, value] of Object.entries(actual)) {
+    if (
+      typeof value === 'function' &&
+      key !== 'ConflictError'
+    ) {
+      mocked[key] = vi.fn();
+    }
+  }
+  return mocked;
+});
 vi.mock('../../utils/cacheManager');
 
 const mockApi = vi.mocked(api);
@@ -106,9 +121,14 @@ const storeOverrides = {
 
 const renderRoute = (
   route = '/notes/tag/tag-123',
-  isAuthenticated = true
+  isAuthenticated = true,
+  extraStoreOverrides = {}
 ) => {
-  useBibleStore.setState({ ...initialState, ...storeOverrides });
+  useBibleStore.setState({
+    ...initialState,
+    ...storeOverrides,
+    ...extraStoreOverrides,
+  });
   useAuthStore.setState({
     ...authInitialState,
     isAuthenticated,
@@ -243,6 +263,148 @@ describe('TagNotesRoute order menu', () => {
       );
     });
   });
+
+  it('moves to visual top via the last index entry with ' +
+    'after placement in custom_desc', async () => {
+    renderRoute('/notes/tag/tag-123?sort=custom_desc');
+    await openOrderMenu('note-1');
+    fireEvent.click(await screen.findByText('Move to top'));
+
+    await waitFor(() => {
+      expect(mockApi.moveNote).toHaveBeenCalledWith(
+        'tag-123',
+        'note-1',
+        'note-2',
+        'after'
+      );
+    });
+  });
+
+  it('disables move-to-top for the visually first note ' +
+    'in custom_desc', async () => {
+    // note-2 is canonical last = visual top in desc.
+    renderRoute('/notes/tag/tag-123?sort=custom_desc');
+    await openOrderMenu('note-2');
+
+    const item = await screen.findByText('Move to top');
+    expect(item.closest('button')).toBeDisabled();
+  });
+
+  it('refetches the current page after a plain move so ' +
+    'page membership stays authoritative', async () => {
+    renderRoute();
+    await waitFor(() => {
+      expect(mockFetchNotes).toHaveBeenCalledTimes(1);
+    });
+
+    await openOrderMenu('note-1');
+    fireEvent.click(await screen.findByText('#2 — Genesis 1:1'));
+
+    await waitFor(() => {
+      expect(mockFetchNotes).toHaveBeenCalledTimes(2);
+    });
+    expect(mockFetchNotes).toHaveBeenLastCalledWith(
+      'tag-123',
+      { ordering: undefined, page: 1 }
+    );
+  });
+
+  it('refetches the current ordering and page when the ' +
+    'server rebalances', async () => {
+    mockApi.moveNote.mockResolvedValue({
+      note_id: 'note-1',
+      tag_position: 7,
+      rebalanced: true,
+    });
+    renderRoute(
+      '/notes/tag/tag-123?sort=custom_desc',
+      true,
+      { notesOrdering: '-custom', notesPage: 2 }
+    );
+    await waitFor(() => {
+      expect(mockFetchNotes).toHaveBeenCalledTimes(1);
+    });
+
+    await openOrderMenu('note-1');
+    fireEvent.click(
+      await screen.findByText('#2 — Genesis 1:1')
+    );
+
+    await waitFor(() => {
+      expect(mockFetchNotes).toHaveBeenCalledTimes(2);
+    });
+    expect(mockFetchNotes).toHaveBeenLastCalledWith(
+      'tag-123',
+      { ordering: '-custom', page: 2 }
+    );
+  });
+
+  it('refetches the current page after a ConflictError',
+    async () => {
+      mockApi.moveNote.mockRejectedValue(
+        new api.ConflictError('stale positions')
+      );
+      renderRoute(
+        '/notes/tag/tag-123',
+        true,
+        { notesPage: 2 }
+      );
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledTimes(1);
+      });
+
+      await openOrderMenu('note-1');
+      fireEvent.click(
+        await screen.findByText('#2 — Genesis 1:1')
+      );
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledTimes(2);
+      });
+      expect(mockFetchNotes).toHaveBeenLastCalledWith(
+        'tag-123',
+        { ordering: undefined, page: 2 }
+      );
+    });
+
+  it('renders no badge for a note missing from the index',
+    async () => {
+      const extraNotes = [...notes, makeNote('note-3', 3)];
+      renderRoute('/notes/tag/tag-123', true, {
+        notes: extraNotes,
+        notesCount: extraNotes.length,
+      });
+
+      expect(
+        await screen.findByLabelText('note-order-note-1')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByLabelText('note-order-note-3')
+      ).not.toBeInTheDocument();
+    });
+
+  it('renders notes without badges when the order index ' +
+    'fails to load', async () => {
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      mockApi.getNoteOrderIndex.mockRejectedValue(
+        new Error('boom')
+      );
+      renderRoute();
+
+      await waitFor(() => {
+        expect(mockApi.getNoteOrderIndex).toHaveBeenCalled();
+      });
+      await waitFor(() => {
+        expect(
+          screen.getAllByText('John 3:16').length
+        ).toBeGreaterThan(0);
+      });
+      expect(
+        screen.queryByLabelText('note-order-note-1')
+      ).not.toBeInTheDocument();
+    });
 
   it('refetches the order index after a move', async () => {
     renderRoute();

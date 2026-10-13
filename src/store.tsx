@@ -609,9 +609,11 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         targetNoteId: string,
         placement: api.MovePlacement
       ) => {
-        // Refetch the current page preserving ordering+page —
-        // used when the server rebalanced positions or the
-        // move conflicted with a concurrent change.
+        // Refetch the current page preserving ordering+page so
+        // page membership is re-derived from the server — a
+        // cross-page move changes which notes are visible, and
+        // a stale page would let a later drag reassign
+        // sequential positions that silently undo the move.
         const refreshCurrentPage = async () => {
           const { notesOrdering, notesPage } =
             useBibleStore.getState();
@@ -629,14 +631,11 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             placement
           );
 
-          if (result.rebalanced) {
-            // Every position was renumbered server-side;
-            // local midpoint math can't reflect that.
-            await refreshCurrentPage();
-          } else {
-            // Keep the notes cache consistent with the new
-            // position so stale order isn't served later.
-            clearNotesCache(tagId);
+          if (!result.rebalanced) {
+            // Instant feedback: patch the moved note's
+            // position locally while the authoritative
+            // refetch below resolves. A rebalance renumbers
+            // every position, so skip the patch then.
             set((state) => ({
               notes: state.notes.map((n) =>
                 n.id === noteId
@@ -645,6 +644,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
               ),
             }));
           }
+          // Every move can change page membership, so the
+          // server refetch — not the local patch — is
+          // authoritative.
+          await refreshCurrentPage();
 
           showNotification({
             title: 'Success',

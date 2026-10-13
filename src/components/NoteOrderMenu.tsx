@@ -6,10 +6,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import {
-  NoteOrderIndexEntry,
-  NoteOrderMenuData,
-} from "../types";
+import { NoteOrderMenuData } from "../types";
 
 interface NoteOrderMenuProps {
   /** The note this badge/menu belongs to. */
@@ -19,28 +16,6 @@ interface NoteOrderMenuProps {
   data: NoteOrderMenuData;
 }
 
-/** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
- *  notes. `k` is the canonical 1-based order ID. */
-const entryLabel = (
-  entry: NoteOrderIndexEntry,
-  orderId: number | undefined
-): string => {
-  const idPart = `#${orderId ?? '?'}`;
-  if (
-    !entry.book ||
-    entry.chapter === null ||
-    entry.verse_start === null
-  ) {
-    return `${idPart} — no passage`;
-  }
-  const range =
-    entry.verse_end !== null &&
-    entry.verse_end !== entry.verse_start
-      ? `${entry.verse_start}-${entry.verse_end}`
-      : `${entry.verse_start}`;
-  return `${idPart} — ${entry.book} ${entry.chapter}:${range}`;
-};
-
 const NoteOrderMenu = ({
   noteId,
   orderId,
@@ -48,35 +23,29 @@ const NoteOrderMenu = ({
 }: NoteOrderMenuProps) => {
   const [filter, setFilter] = useState('');
 
-  // Labels are precomputed once per index refresh so each
+  // Labels are precomputed once per index refresh in
+  // TagNotesRoute and shared by every mounted menu, so each
   // keystroke only runs a substring check per row — cheap
   // even at the ~2000-note ceiling (js-index-maps).
-  const labeledEntries = useMemo(
-    () =>
-      data.entries.map((entry) => {
-        const entryOrderId = data.orderIdByNoteId.get(entry.id);
-        return {
-          entry,
-          orderId: entryOrderId,
-          label: entryLabel(entry, entryOrderId),
-        };
-      }),
-    [data.entries, data.orderIdByNoteId]
-  );
-
   const needle = filter.trim().toLowerCase();
   const visibleEntries = useMemo(
     () =>
       needle
-        ? labeledEntries.filter((item) =>
+        ? data.labeledEntries.filter((item) =>
             item.label.toLowerCase().includes(needle)
           )
-        : labeledEntries,
-    [labeledEntries, needle]
+        : data.labeledEntries,
+    [data.labeledEntries, needle]
   );
 
   return (
-    <Menu withinPortal position="bottom-end" shadow="md" width={280}>
+    <Menu
+      withinPortal
+      position="bottom-end"
+      shadow="md"
+      width={280}
+      onClose={() => setFilter('')}
+    >
       <Menu.Target>
         <Button
           variant="subtle"
@@ -100,7 +69,7 @@ const NoteOrderMenu = ({
           aria-label="filter-note-order"
         />
         <Menu.Item
-          disabled={orderId === 1}
+          disabled={orderId === data.topOrderId}
           onClick={() => data.onMoveToTop(noteId)}
         >
           Move to top

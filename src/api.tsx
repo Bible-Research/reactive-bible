@@ -447,7 +447,9 @@ export const getNoteOrderIndex = async (
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      error.detail || 'Failed to fetch note order index'
+      error.message ||
+        error.detail ||
+        'Failed to fetch note order index'
     );
   }
 
@@ -494,7 +496,9 @@ export const moveNote = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || 'Move failed');
+    throw new Error(
+      error.message || error.detail || 'Move failed'
+    );
   }
 
   return await response.json();

@@ -1464,8 +1464,12 @@ moveNote(
 - The order index is fetched per tag via `getNoteOrderIndex`,
   kept in route state (never persisted), and refetched after
   every move; `moveNoteAfter` in the store patches
-  `tag_position` locally or refetches the current page when
-  the server rebalanced or reports a `ConflictError`.
+  `tag_position` locally for instant feedback, then always
+  refetches the current page (cross-page moves change page
+  membership).
+- Pre-existing quirk: notes with `null` `tag_position` sort
+  first client-side (`sortedNotes` `?? 0`) but last in the
+  backend order index (highest order IDs).
 - The badge/menu is threaded as a single `orderMenu` prop
   (`NoteOrderMenuData`) through `TagSection` →
   `SortableNoteCard`/`NoteCard`; it is opt-in, so
