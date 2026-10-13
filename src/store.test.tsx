@@ -5,8 +5,25 @@ import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { Note, Tag } from './types';
 
-// Mock dependencies
-vi.mock('./api');
+// Mock dependencies — every api function is stubbed, but the
+// error classes stay real because store actions branch on
+// `instanceof` (e.g. ConflictError).
+vi.mock('./api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api')>();
+  const mocked: Record<string, unknown> = { ...actual };
+  const realClasses = new Set([
+    'ConflictError',
+    'RateLimitError',
+    'ProviderError',
+    'BookNotInFilesetError',
+  ]);
+  for (const [key, value] of Object.entries(actual)) {
+    if (typeof value === 'function' && !realClasses.has(key)) {
+      mocked[key] = vi.fn();
+    }
+  }
+  return mocked;
+});
 vi.mock('./utils/cacheManager');
 
 const mockApi = vi.mocked(api);
@@ -243,5 +260,115 @@ describe('useBibleStore', () => {
         expect(mockApi.updateReadingPosition)
           .toHaveBeenCalledWith('MRK', 3, 7);
       });
+  });
+
+  describe('note move/reorder refresh handling', () => {
+    const tag: Tag = {
+      id: 'TAG1', name: 'Test Tag', parent_tag: null,
+      created_at: '', updated_at: '',
+    };
+    const makeNote = (id: string): Note => ({
+      id, note_text: `Note ${id}`, tag, verses: [],
+      public: false, is_owner: true, created_at: '',
+      updated_at: '', tag_position: null,
+    });
+    const pageOf = (
+      results: Note[]
+    ): api.PaginatedNotesResponse => ({
+      count: results.length,
+      next: null,
+      previous: null,
+      results,
+    });
+
+    it('drops a stale fetchNotes response superseded by a ' +
+      'newer request', async () => {
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      let resolveStale: (
+        value: api.PaginatedNotesResponse
+      ) => void = () => undefined;
+      mockApi.getNotes
+        .mockImplementationOnce(
+          () =>
+            new Promise<api.PaginatedNotesResponse>((res) => {
+              resolveStale = res;
+            })
+        )
+        .mockResolvedValueOnce(pageOf([makeNote('fresh')]));
+
+      const staleCall =
+        useBibleStore.getState().fetchNotes('TAG1');
+      const freshCall =
+        useBibleStore.getState().fetchNotes('TAG1');
+      // Resolve the older request last — latest call wins.
+      resolveStale(pageOf([makeNote('stale')]));
+      await Promise.all([staleCall, freshCall]);
+
+      expect(useBibleStore.getState().notes).toEqual([
+        makeNote('fresh'),
+      ]);
+    });
+
+    it('still reports success when the post-move refetch ' +
+      'fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.moveNote.mockResolvedValue({
+        note_id: 'n1',
+        tag_position: 1.5,
+        rebalanced: false,
+      });
+      mockApi.getNotes.mockRejectedValue(
+        new Error('refresh failed')
+      );
+      useBibleStore.setState({
+        notes: [makeNote('n1'), makeNote('n2')],
+        notesPage: 1,
+        notesOrdering: null,
+      });
+
+      // The move itself succeeded — a failed refresh must not
+      // reject as 'Failed to move note'.
+      await expect(
+        useBibleStore.getState().moveNoteAfter(
+          'TAG1', 'n1', 'n2', 'after'
+        )
+      ).resolves.toBeUndefined();
+    });
+
+    it('refreshes the current ordering and page after a ' +
+      'reorder conflict', async () => {
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.reorderNotes.mockRejectedValue(
+        new api.ConflictError('stale positions')
+      );
+      mockApi.getNotes.mockResolvedValue(pageOf([]));
+      useBibleStore.setState({
+        notesPage: 3,
+        notesOrdering: 'custom',
+      });
+
+      await expect(
+        useBibleStore.getState().reorderNotes(
+          'TAG1', ['n1', 'n2'], 3, 25
+        )
+      ).rejects.toBeInstanceOf(api.ConflictError);
+
+      // The refresh keeps the user on their page/ordering
+      // instead of bouncing to page 1 with ordering reset.
+      expect(mockCacheManager.clearNotesCache)
+        .toHaveBeenCalledWith('TAG1');
+      expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1', {
+        ordering: 'custom',
+        page: 3,
+        pageSize: 25,
+        filesetId: 'ENGESV_API',
+      });
+      expect(useBibleStore.getState().notesPage).toBe(3);
+      expect(useBibleStore.getState().notesOrdering)
+        .toBe('custom');
+    });
   });
 });

@@ -395,14 +395,47 @@ export default function TagNotesRoute() {
     ]
   );
 
+  // A drag-reorder must re-pull the order index once the store
+  // action settles — otherwise badges, topOrderId and the menu
+  // labels keep their pre-drag values (and Move-to-top can aim
+  // at an entry that is no longer canonical-first).
+  const handleReorder = useCallback(
+    async (
+      reorderTagId: string,
+      noteIds: string[],
+      currentPage: number,
+      pageSize: number
+    ) => {
+      try {
+        await reorderNotes(
+          reorderTagId,
+          noteIds,
+          currentPage,
+          pageSize
+        );
+      } catch {
+        // The store action already showed a notification.
+      } finally {
+        await loadOrderIndex();
+      }
+    },
+    [reorderNotes, loadOrderIndex]
+  );
+
   const orderMenu = useMemo(
     () =>
       orderMenuEnabled && orderIndex
         ? {
             // Labels are computed once here so ~100 mounted
             // menus share them instead of each re-mapping the
-            // full index on every render.
-            labeledEntries: orderIndex.map((entry) => ({
+            // full index on every render. Under custom_desc the
+            // page displays the index reversed, so the picker
+            // lists entries in that same visual order.
+            labeledEntries: (
+              sortOrder === 'custom_desc'
+                ? [...orderIndex].reverse()
+                : orderIndex
+            ).map((entry) => ({
               entry,
               label: entryLabel(
                 entry,
@@ -991,7 +1024,7 @@ export default function TagNotesRoute() {
                 isAuthenticated
               }
               tagId={tagId || ''}
-              onReorder={reorderNotes}
+              onReorder={handleReorder}
               sortOrder={sortOrder}
               currentPage={notesPage}
               pageSize={notesPageSize}

@@ -290,6 +290,21 @@ describe('TagNotesRoute order menu', () => {
     expect(item.closest('button')).toBeDisabled();
   });
 
+  it('lists entries in display order under custom_desc',
+    async () => {
+      renderRoute('/notes/tag/tag-123?sort=custom_desc');
+      await openOrderMenu('note-1');
+
+      // custom_desc displays the index reversed on the page,
+      // so the picker lists #2 ahead of #1.
+      const high = await screen.findByText('#2 — Genesis 1:1');
+      const low = screen.getByText('#1 — John 3:16-18');
+      expect(
+        high.compareDocumentPosition(low) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    });
+
   it('refetches the current page after a plain move so ' +
     'page membership stays authoritative', async () => {
     renderRoute();

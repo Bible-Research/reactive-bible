@@ -65,7 +65,8 @@ export interface LabeledNoteOrderEntry {
  * as a single prop. Built by `TagNotesRoute`.
  */
 export interface NoteOrderMenuData {
-  /** All tag notes in canonical ascending order, pre-labeled. */
+  /** All tag notes, pre-labeled, in display order — canonical
+   *  ascending, reversed under custom_desc. */
   labeledEntries: LabeledNoteOrderEntry[];
   /** note id → 1-based order ID (canonical index + 1). */
   orderIdByNoteId: Map<string, number>;
