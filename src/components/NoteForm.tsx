@@ -18,15 +18,22 @@ const NoteForm = ({
   submitText,
   onTagDropdownOpen,
 }: NoteFormProps) => {
-  const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
-  const [noteText, setNoteText] = useState(note?.text || "");
+  // Parents pass a fresh `note` object each render, so depend on
+  // its values — object identity would re-seed and wipe edits.
+  const initialTagId = note?.tagId;
+  const initialText = note?.text;
+
+  const [selectedTagId, setSelectedTagId] = useState(
+    initialTagId || ""
+  );
+  const [noteText, setNoteText] = useState(initialText || "");
 
   useEffect(() => {
-    if (note) {
-      setSelectedTagId(note.tagId);
-      setNoteText(note.text);
+    if (initialTagId !== undefined && initialText !== undefined) {
+      setSelectedTagId(initialTagId);
+      setNoteText(initialText);
     }
-  }, [note]);
+  }, [initialTagId, initialText]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

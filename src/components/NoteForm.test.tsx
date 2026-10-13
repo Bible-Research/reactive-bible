@@ -79,6 +79,38 @@ describe('NoteForm Component', () => {
     );
   });
 
+  it('should keep edits when note prop is re-created', () => {
+    const note = { tagId: '1', text: 'Initial text' };
+    const { rerender } = render(
+      <NoteForm
+        tags={mockTags}
+        note={note}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const noteInput = screen.getByLabelText('Note');
+    fireEvent.change(noteInput,
+      { target: { value: 'Edited text' } });
+
+    // Parents pass a fresh object literal on every render.
+    rerender(
+      <NoteForm
+        tags={mockTags}
+        note={{ ...note }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    expect((noteInput as HTMLInputElement).value).toBe(
+      'Edited text'
+    );
+  });
+
   it('should not render create new tag button', () => {
     render(
       <NoteForm
