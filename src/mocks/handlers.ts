@@ -6,7 +6,66 @@ import { mockTranslations } from '../__tests__/mocks/data';
 const API_URL = `${API_BASE_URL}/api/v1`;
 const COMMENT_BASE = `${API_BASE_URL}/api/v1`;
 
+const mockTag = {
+  id: '1',
+  name: 'Test Tag',
+  parent_tag: null,
+  created_at: '',
+  updated_at: '',
+};
+
+const mockNote = {
+  id: 'note-1',
+  note_text: 'This is a test note.',
+  tag: mockTag,
+  public: false,
+  is_owner: true,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  verses: [
+    {
+      book: 'John',
+      chapter: 3,
+      verse: 16,
+      text: 'For God so loved the world...',
+    },
+  ],
+  tag_position: null,
+};
+
 export const handlers = [
+  // --- Auth ---
+  http.post(`${API_BASE_URL}/api/token/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+      password?: string;
+    };
+    if (!body.username || !body.password) {
+      return HttpResponse.json(
+        {
+          non_field_errors: [
+            'Unable to log in with provided credentials.',
+          ],
+        },
+        { status: 400 }
+      );
+    }
+    return HttpResponse.json({ token: 'mock-token' });
+  }),
+
+  http.post(`${API_URL}/users/register/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+    };
+    return HttpResponse.json(
+      {
+        token: 'mock-token',
+        user: { id: 1, username: body.username ?? 'newuser' },
+      },
+      { status: 201 }
+    );
+  }),
+
   // --- Single /bible Endpoint Handler ---
   http.get(`${API_URL}/bible`, ({ request }) => {
     const url = new URL(request.url);
@@ -43,49 +102,97 @@ export const handlers = [
 
   // --- Tags ---
   http.get(`${API_URL}/tags/`, () => {
-    return HttpResponse.json([
+    return HttpResponse.json([mockTag]);
+  }),
+
+  http.get(`${API_URL}/tags/:tagId/`, ({ params }) => {
+    return HttpResponse.json({ ...mockTag, id: params.tagId });
+  }),
+
+  http.post(`${API_URL}/tags/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      parent_tag?: string | null;
+    };
+    return HttpResponse.json(
       {
-        id: '1', name: 'Test Tag', parent_tag: null,
-        created_at: '', updated_at: ''
-      }
-    ]);
+        ...mockTag,
+        id: 'tag-new',
+        name: body.name ?? 'New Tag',
+        parent_tag: body.parent_tag ?? null,
+      },
+      { status: 201 }
+    );
+  }),
+
+  http.patch(
+    `${API_URL}/tags/:tagId/`,
+    async ({ params, request }) => {
+      const body = (await request.json()) as {
+        name?: string;
+        parent_tag?: string | null;
+      };
+      return HttpResponse.json({
+        ...mockTag,
+        id: params.tagId,
+        name: body.name ?? mockTag.name,
+        parent_tag:
+          body.parent_tag !== undefined
+            ? body.parent_tag
+            : mockTag.parent_tag,
+      });
+    }
+  ),
+
+  http.delete(`${API_URL}/tags/:tagId/`, () => {
+    return new HttpResponse(null, { status: 204 });
   }),
 
   // --- Notes ---
   http.post(`${API_URL}/notes/`, async ({ request }) => {
-    const body = await request.json() as any;
-    return HttpResponse.json({ 
-      id: 'note-1',
-      note_text: body.note_text,
-      tag: {
-        id: body.tag, name: 'Test Tag', parent_tag: null,
-        created_at: '', updated_at: ''
+    const body = (await request.json()) as {
+      tag?: string;
+      note_text?: string;
+      verse_references?: unknown[];
+    };
+    return HttpResponse.json(
+      {
+        ...mockNote,
+        note_text: body.note_text,
+        tag: { ...mockTag, id: String(body.tag ?? mockTag.id) },
+        verses: body.verse_references || [],
       },
-      public: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      verses: body.verse_references || []
-    });
+      { status: 201 }
+    );
   }),
 
   // --- Get Notes ---
-  http.get(`${API_URL}/notes`, () => {
+  // NOTE: the API always calls `/notes/` with a trailing slash —
+  // a bare `/notes` pattern would never match and the handler
+  // would be dead.
+  http.get(`${API_URL}/notes/`, () => {
+    return HttpResponse.json({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [mockNote],
+    });
+  }),
+
+  // --- Note ordering ---
+  // Static segments (`order-index`, `linked`, `reorder`, `move`)
+  // must be registered before `/notes/:noteId/` or the param
+  // pattern swallows them.
+  http.get(`${API_URL}/notes/order-index/`, () => {
     return HttpResponse.json([
       {
         id: 'note-1',
-        note_text: 'This is a test note.',
-        tag: {
-          id: '1', name: 'Test Tag', parent_tag: null,
-          created_at: '', updated_at: ''
-        },
-        public: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        verses: [{
-          book: 'John', chapter: 3, verse: 16,
-          text: 'For God so loved the world...'
-        }]
-      }
+        tag_position: 1,
+        book: 'John',
+        chapter: 3,
+        verse_start: 16,
+        verse_end: 16,
+      },
     ]);
   }),
 
@@ -94,9 +201,93 @@ export const handlers = [
     return HttpResponse.json({ count: 0, results: [] });
   }),
 
+  http.post(`${API_URL}/notes/reorder/`, () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(`${API_URL}/notes/move/`, async ({ request }) => {
+    const body = (await request.json()) as { note_id?: string };
+    return HttpResponse.json({
+      note_id: body.note_id ?? 'note-1',
+      tag_position: 1,
+      rebalanced: false,
+    });
+  }),
+
+  // --- Note detail ---
+  http.get(`${API_URL}/notes/:noteId/`, ({ params }) => {
+    return HttpResponse.json({ ...mockNote, id: params.noteId });
+  }),
+
+  http.patch(
+    `${API_URL}/notes/:noteId/`,
+    async ({ params, request }) => {
+      const body = (await request.json()) as {
+        tag?: string;
+        note_text?: string;
+        verse_references?: unknown[];
+      };
+      return HttpResponse.json({
+        ...mockNote,
+        id: params.noteId,
+        note_text: body.note_text ?? mockNote.note_text,
+        tag:
+          body.tag !== undefined
+            ? { ...mockTag, id: String(body.tag) }
+            : mockNote.tag,
+        verses: body.verse_references ?? mockNote.verses,
+      });
+    }
+  ),
+
   // --- Delete Note ---
-  http.delete(`${API_URL}/notes/:id`, () => {
-    return HttpResponse.text('Deleted');
+  http.delete(`${API_URL}/notes/:noteId/`, () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // --- Reading positions ---
+  http.get(`${API_URL}/reading-positions/`, () => {
+    return HttpResponse.json([]);
+  }),
+
+  http.post(`${API_URL}/reading-positions/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      book?: string;
+      chapter?: number;
+      verse?: number;
+    };
+    return HttpResponse.json(
+      {
+        id: 'rp-1',
+        book: body.book ?? 'John',
+        chapter: body.chapter ?? 1,
+        verse: body.verse ?? 1,
+        last_accessed: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
+  }),
+
+  http.post(
+    `${API_URL}/reading-positions/bulk/`,
+    async ({ request }) => {
+      const body = (await request.json()) as {
+        books?: string[];
+      };
+      const positions: Record<
+        string,
+        { chapter: number; verse: number } | null
+      > = {};
+      for (const book of body.books ?? []) {
+        positions[book] = null;
+      }
+      return HttpResponse.json(positions);
+    }
+  ),
+
+  // --- Audio timestamps ---
+  http.get(`${API_URL}/bible/timestamps/`, () => {
+    return HttpResponse.json({ data: [] });
   }),
 
   // --- Comments ---
@@ -119,7 +310,10 @@ export const handlers = [
   http.post(
     `${COMMENT_BASE}/notes/:noteId/comments/`,
     async ({ params, request }) => {
-      const body = await request.json() as any;
+      const body = (await request.json()) as {
+        parent_comment?: string | null;
+        content?: string;
+      };
       return HttpResponse.json({
         id: 'comment-new',
         author: { id: 1, username: 'testuser' },
@@ -137,7 +331,9 @@ export const handlers = [
   http.patch(
     `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
     async ({ params, request }) => {
-      const body = await request.json() as any;
+      const body = (await request.json()) as {
+        content?: string;
+      };
       return HttpResponse.json({
         id: params.commentId,
         author: { id: 1, username: 'testuser' },
