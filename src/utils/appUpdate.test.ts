@@ -115,6 +115,34 @@ describe('fetchUpdateManifest', () => {
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
+  it('rejects manifests with an untrusted apkUrl', async () => {
+    mockFetchOk(manifest({ apkUrl: 'javascript:alert(1)' }));
+    expect(await fetchUpdateManifest()).toBeNull();
+
+    mockFetchOk(
+      manifest({ apkUrl: 'http://github.com/x/y/a.apk' }),
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
+
+    mockFetchOk(
+      manifest({ apkUrl: 'https://evil.example.com/a.apk' }),
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
+  });
+
+  it('accepts GitHub release and asset hosts', async () => {
+    mockFetchOk(manifest());
+    expect(await fetchUpdateManifest()).not.toBeNull();
+
+    mockFetchOk(
+      manifest({
+        apkUrl:
+          'https://objects.githubusercontent.com/x/y/a.apk',
+      }),
+    );
+    expect(await fetchUpdateManifest()).not.toBeNull();
+  });
+
   it('returns null when fetch rejects', async () => {
     vi.stubGlobal(
       'fetch',
@@ -209,24 +237,23 @@ describe('checkForUpdates', () => {
     expect(await checkForUpdates()).toEqual({ kind: 'error' });
   });
 
-  it('stamps the throttle even when the check fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('offline')),
-    );
+  it('does not burn the throttle on a failed check', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve(manifest({ versionCode: 41 })),
+      });
+    vi.stubGlobal('fetch', fetchSpy);
 
-    const before = Date.now();
     expect(await checkForUpdates()).toEqual({ kind: 'error' });
-
-    // FIXME: markUpdateChecked() runs before the fetch, so a
-    // transient network failure stamps `app_update_last_check`
-    // and suppresses automatic checks for the next hour. The
-    // stamp arguably belongs after a successful fetch.
-    const stamp = Number(
-      localStorage.getItem('app_update_last_check')
-    );
-    expect(stamp).toBeGreaterThanOrEqual(before);
-    expect(shouldCheckForUpdates()).toBe(false);
+    // The failed check left no throttle mark, so the next call
+    // retries immediately instead of waiting an hour.
+    expect(shouldCheckForUpdates()).toBe(true);
+    expect((await checkForUpdates()).kind).toBe('update');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it('force bypasses the throttle', async () => {
