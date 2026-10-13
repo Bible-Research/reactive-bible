@@ -93,6 +93,14 @@ export interface BibleState {
    */
   pendingScrollVerse: VerseRef | null;
   setPendingScrollVerse: (ref: VerseRef | null) => void;
+  /**
+   * Transient (not persisted): whether the top header is shown.
+   * MyHeader hides it on a deliberate downward scroll; the
+   * AppShell collapses the reserved padding in sync so the
+   * passage reclaims the freed space.
+   */
+  headerVisible: boolean;
+  setHeaderVisible: (visible: boolean) => void;
   setActiveBookAndChapter: (
     activeBookId: string,
     activeChapter: number
@@ -171,6 +179,7 @@ export const initialState = {
     api.ReadingPositionValue | null
   >,
   pendingScrollVerse: null as VerseRef | null,
+  headerVisible: true,
 };
 
 const partializeState = (state: BibleState) => ({
@@ -190,6 +199,7 @@ const partializeState = (state: BibleState) => ({
   readingPositions: state.readingPositions,
   // showAudioPlayer is NOT persisted
   // pendingScrollVerse is NOT persisted
+  // headerVisible is NOT persisted
 });
 
 type PersistedBibleState = ReturnType<typeof partializeState>;
@@ -603,6 +613,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setVersesFolded: (versesFolded) => set({ versesFolded }),
       setPendingScrollVerse: (pendingScrollVerse) =>
         set({ pendingScrollVerse }),
+      setHeaderVisible: (headerVisible) => set({ headerVisible }),
       setActiveBookWithPosition: async (activeBookId) => {
         const cached =
           useBibleStore.getState().readingPositions[activeBookId];

@@ -493,7 +493,7 @@ const PassageView = () => {
       'Try selecting a different text version in the ' +
       'Translation Settings ("Change Translation" button).';
     return (
-      <ScrollArea h="calc(100vh - 112px)">
+      <ScrollArea h="100%">
         <Box p="md">
           <Alert
             icon={<IconAlertCircle size={16} />}
@@ -534,7 +534,7 @@ const PassageView = () => {
 
   if (headingsOnlyMode) {
     return (
-      <ScrollArea h="calc(100vh - 112px)">
+      <ScrollArea h="100%">
         <Box pb={showAudioPlayer ? 120 : 0} px={10} pt="md">
           <Title order={5} color="dimmed" mb="xs">
             {activeBookName} — Section Outline
@@ -577,7 +577,7 @@ const PassageView = () => {
   return (
     <ScrollArea
       key={`${activeBookId}:${activeChapter}`}
-      h="calc(100vh - 112px)"
+      h="100%"
       viewportRef={viewportRef}
     >
       <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">

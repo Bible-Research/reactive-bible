@@ -1,6 +1,7 @@
 import { screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import MyHeader from './MyHeader';
+import { useBibleStore } from '../store';
 import { renderWithProviders } from '../__tests__/helpers';
 
 // Creates a fake scroll container attached to the document so the
@@ -104,6 +105,20 @@ describe('MyHeader', () => {
     // Pushing the accumulated upward delta past the threshold.
     scroller.scrollTo(30);
     expect(isVisible()).toBe(true);
+  });
+
+  it('drives headerVisible in the store so the AppShell can ' +
+    'reclaim the reserved space', () => {
+    renderHeader();
+    const scroller = createScroller();
+    scrollers.push(scroller);
+
+    scroller.scrollTo(0);
+    scroller.scrollTo(200);
+    expect(useBibleStore.getState().headerVisible).toBe(false);
+
+    scroller.scrollTo(0);
+    expect(useBibleStore.getState().headerVisible).toBe(true);
   });
 
   it('resets the accumulated delta when direction changes', () => {

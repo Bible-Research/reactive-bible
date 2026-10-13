@@ -7,8 +7,9 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useBibleStore } from "../store";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
 
@@ -29,7 +30,13 @@ const MyHeader = ({
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const [visible, setVisible] = useState(true);
+  // Visibility lives in the store so the AppShell can collapse
+  // the padding it reserves for this header at the same time the
+  // header slides away.
+  const visible = useBibleStore((state) => state.headerVisible);
+  const setVisible = useBibleStore(
+    (state) => state.setHeaderVisible
+  );
   const scroll = useRef({
     target: null as EventTarget | null,
     top: 0,
@@ -40,7 +47,7 @@ const MyHeader = ({
   // Show the header again whenever the route changes.
   useEffect(() => {
     setVisible(true);
-  }, [location.pathname]);
+  }, [location.pathname, setVisible]);
 
   useEffect(() => {
     const getScrollTop = (target: EventTarget | null): number =>
@@ -104,7 +111,7 @@ const MyHeader = ({
     });
     return () =>
       window.removeEventListener("scroll", handleScroll, true);
-  }, []);
+  }, [setVisible]);
 
   return (
     <Header
