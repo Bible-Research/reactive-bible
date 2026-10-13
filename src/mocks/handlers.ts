@@ -86,7 +86,28 @@ export const handlers = [
 
   // --- Linked Notes ---
   http.post(`${API_URL}/notes/linked/`, () => {
-    return HttpResponse.json({ count: 0, results: [] });
+    return HttpResponse.json({
+      count: 1,
+      results: [
+        {
+          id: 'note-linked-1',
+          note_text: 'This linked note is already on the passage.',
+          tag: {
+            id: '1', name: 'Test Tag', parent_tag: null,
+            created_at: '', updated_at: ''
+          },
+          public: false,
+          is_owner: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          verses: [{
+            book: 'John', chapter: 3, verse: 16,
+            text: 'For God so loved the world...'
+          }],
+          tag_position: null,
+        }
+      ]
+    });
   }),
 
   // --- Delete Note ---

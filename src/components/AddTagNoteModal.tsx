@@ -1,4 +1,17 @@
-import { Box, Divider, Modal, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Collapse,
+  Divider,
+  Group,
+  Modal,
+  Text,
+} from "@mantine/core";
+import {
+  IconChevronDown,
+  IconChevronRight,
+} from "@tabler/icons-react";
 import { addTagNote, getLinkedNotes, getVersesInChapter } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useMemo, useState } from "react";
@@ -20,7 +33,7 @@ interface VerseText {
   text: string;
 }
 
-const linkedNoteHeading = (note: Note): string => {
+const linkedNoteRef = (note: Note): string => {
   const verses = note.verses ?? [];
   const first = verses[0];
   if (!first) return note.tag?.name ?? "";
@@ -29,8 +42,7 @@ const linkedNoteHeading = (note: Note): string => {
     first.verse === last.verse
       ? `${first.verse}`
       : `${first.verse}-${last.verse}`;
-  const ref = `${first.book} ${first.chapter}:${range}`;
-  return note.tag?.name ? `${ref} · ${note.tag.name}` : ref;
+  return `${first.book} ${first.chapter}:${range}`;
 };
 
 const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
@@ -62,6 +74,21 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   // once the linked-notes query has resolved.
   const [linkedNotes, setLinkedNotes] =
     useState<Note[] | null>(null);
+  // Ids of linked notes whose details are expanded.
+  const [expandedNotes, setExpandedNotes] =
+    useState<Set<string>>(new Set());
+
+  const toggleLinkedNote = (noteId: string) => {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) {
+        next.delete(noteId);
+      } else {
+        next.add(noteId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
@@ -218,21 +245,51 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
             label="Linked notes"
             labelPosition="center"
           />
-          {linkedNotes.map((note) => (
-            <Box
-              key={note.id}
-              py={4}
-              px={8}
-              title={`linked-note-${note.id}`}
-            >
-              <Text size="sm">
-                <Text component="span" weight={700} mr={4}>
-                  {linkedNoteHeading(note)}
-                </Text>
-                {toPlainText(note.note_text)}
-              </Text>
-            </Box>
-          ))}
+          {linkedNotes.map((note) => {
+            const isExpanded = expandedNotes.has(note.id);
+            return (
+              <Box
+                key={note.id}
+                py={4}
+                px={8}
+                title={`linked-note-${note.id}`}
+              >
+                <Group spacing="xs" noWrap>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    title={`linked-note-toggle-${note.id}`}
+                    aria-expanded={isExpanded}
+                    onClick={() => toggleLinkedNote(note.id)}
+                  >
+                    {isExpanded ? (
+                      <IconChevronDown size={16} />
+                    ) : (
+                      <IconChevronRight size={16} />
+                    )}
+                  </ActionIcon>
+                  <Text size="sm" weight={700}>
+                    {linkedNoteRef(note)}
+                  </Text>
+                </Group>
+                <Collapse in={isExpanded}>
+                  {note.tag?.name && (
+                    <Badge
+                      size="sm"
+                      variant="light"
+                      color="blue"
+                      mt={4}
+                    >
+                      {note.tag.name}
+                    </Badge>
+                  )}
+                  <Text size="sm" mt={4}>
+                    {toPlainText(note.note_text)}
+                  </Text>
+                </Collapse>
+              </Box>
+            );
+          })}
         </Box>
       )}
     </Modal>
