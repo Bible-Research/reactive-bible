@@ -1,6 +1,7 @@
-import bibleJson from "./assets/kjv.json";
 import { Translation } from "./store";
-import { toBookName } from "./utils/bibleUtils";
+import { loadKjvData } from './utils/kjvDataLoader';
+import bibleStructure from './assets/bibleStructure.json';
+import { toBookName, toUsfmCode } from "./utils/bibleUtils";
 import {
   VerseTimestamp,
   FilesetCopyright,
@@ -8,6 +9,8 @@ import {
   Comment,
   CommentAuthor,
   CommentCounts,
+  CommentImage,
+  ReadingPosition,
 } from './types';
 
 import {
@@ -25,12 +28,25 @@ import {
   cacheCopyright,
 } from './utils/cacheManager';
 
-import { authenticatedFetch, publicFetch } from './utils/apiClient';
+import {
+  authenticatedFetch,
+  authenticatedUpload,
+  publicFetch,
+} from './utils/apiClient';
 import { API_BASE_URL } from './config';
 
 export type { SectionHeading };
 
-export const data = bibleJson as KjvBook[];
+interface BibleStructureEntry {
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  max_verse: number;
+}
+
+// Book/chapter/verse-count metadata only — verse text is
+// lazy-loaded from kjv.json via kjvDataLoader.
+const structure = bibleStructure as BibleStructureEntry[];
 
 export interface KjvBook {
   chapter: number;
@@ -41,44 +57,39 @@ export interface KjvBook {
   book_name: string;
 }
 
+/**
+ * Get list of all Bible books from lightweight structure data
+ */
 export const getBooks = (): { book_name: string; book_id: string }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
+  const bookMap = new Map<string, { book_name: string; book_id: string }>();
+  structure.forEach((entry) => {
+    if (!bookMap.has(entry.book_id)) {
+      bookMap.set(entry.book_id, {
+        book_name: entry.book_name,
+        book_id: entry.book_id,
+      });
+    }
   });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as {
-    book_name: string;
-    book_id: string;
-  }[];
+  return Array.from(bookMap.values());
 };
 
 export const getChapters = (bookId: string): number[] => {
-  return [
-    ...new Set<number>(
-      data
-        .filter((book: KjvBook) => book.book_id === bookId)
-        .map((book: KjvBook) => book.chapter)
-    ),
-  ];
+  return structure
+    .filter((entry) => entry.book_id === bookId)
+    .map((entry) => entry.chapter);
 };
 
 export const getVerses = (
   bookId: string,
   thechapter: number
 ): number[] => {
-  return data
-    .filter(
-      (book: KjvBook) =>
-        book.book_id === bookId && book.chapter === thechapter
-    )
-    .map((book: KjvBook) => book.verse);
+  // KJV verse numbering is contiguous, so verse numbers can be
+  // synthesized as 1..max_verse from structure data.
+  const entry = structure.find(
+    (e) => e.book_id === bookId && e.chapter === thechapter
+  );
+  if (!entry) return [];
+  return Array.from({ length: entry.max_verse }, (_, i) => i + 1);
 };
 
 type VerseResult = {
@@ -97,11 +108,12 @@ export const getVersesInChapter = async (
   return await getVersesFromApi(bookId, thechapter, filesetId);
 };
 
-export const getVersesInKjvChapter = (
+export const getVersesInKjvChapter = async (
   bookId: string,
   thechapter: number
-): VerseResult => {
-  const verses = data
+): Promise<VerseResult> => {
+  const kjvData = await loadKjvData();
+  const verses = kjvData
     .filter(
       (book: KjvBook) =>
         book.book_id === bookId &&
@@ -181,21 +193,45 @@ export const getVersesFromApi = async (
     // Handle other HTTP errors
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      if (isBookNotInFilesetBody(errorData)) {
+        throw new BookNotInFilesetError(
+          errorData.error ||
+            'Book not available in this fileset'
+        );
+      }
       const errorMsg = errorData.error || errorData.detail ||
         `Failed to fetch verses (HTTP ${response.status})`;
-      // Provider rate limits can surface inside a wrapped
-      // error body rather than as a 429 status code.
-      if (isRateLimitMessage(errorMsg)) {
+      if (
+        errorData.error_code === 'rate_limited' ||
+        isRateLimitMessage(errorMsg)
+      ) {
         throw new RateLimitError(errorMsg);
+      }
+      if (errorData.error_code) {
+        throw new ProviderError(errorMsg);
       }
       throw new Error(errorMsg);
     }
 
     const data = await response.json();
 
-    // The API wraps provider failures (including upstream
-    // rate limits) in a 200 response with empty verses and
-    // a `message` field — surface it instead of silently
+    if (isBookNotInFilesetBody(data)) {
+      throw new BookNotInFilesetError(
+        typeof data.error === 'string'
+          ? data.error
+          : 'Book not available in this fileset'
+      );
+    }
+
+    // Provider failures carry `error`/`error_code` fields.
+    if (typeof data.error === 'string' && data.error) {
+      throw data.error_code === 'rate_limited'
+        ? new RateLimitError(data.error)
+        : new ProviderError(data.error);
+    }
+    // The API may also wrap provider failures (including
+    // upstream rate limits) in a 200 response with empty verses
+    // and a `message` field — surface it instead of silently
     // rendering an empty chapter.
     if (
       typeof data.message === 'string' &&
@@ -228,19 +264,11 @@ export const getPassage = (): {
   book_id: string;
   chapter: number;
 }[] => {
-  const set = new Set<string>();
-  data.map((book: KjvBook) => {
-    const obj = {
-      book_name: book.book_name,
-      book_id: book.book_id,
-      chapter: book.chapter,
-    };
-    set.add(JSON.stringify(obj, Object.keys(obj).sort()));
-  });
-  return [...set].map((item) => {
-    if (typeof item === "string") return JSON.parse(item);
-    else if (typeof item === "object") return item;
-  }) as { book_name: string; book_id: string; chapter: number }[];
+  return structure.map((entry) => ({
+    book_name: entry.book_name,
+    book_id: entry.book_id,
+    chapter: entry.chapter,
+  }));
 };
 
 export const addTagNote = async (
@@ -343,6 +371,25 @@ export class ProviderError extends Error {
     this.name = 'ProviderError';
   }
 }
+
+/**
+ * The requested book is not covered by the selected fileset.
+ * Thrown when the backend reports
+ * `error_code === 'book_not_in_fileset'` (HTTP 404), or — for
+ * backwards compatibility — when an audio response arrives as
+ * HTTP 200 with empty verses/a `message` and no `audio_url`.
+ * Callers walk `resolveAudioFileset` alternates on this error.
+ */
+export class BookNotInFilesetError extends ProviderError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BookNotInFilesetError';
+  }
+}
+
+const isBookNotInFilesetBody = (
+  body: { error_code?: unknown } | null | undefined,
+): boolean => body?.error_code === 'book_not_in_fileset';
 
 const RATE_LIMIT_PATTERN =
   /\b429\b|too many requests|rate.?limit/i;
@@ -485,6 +532,50 @@ export const deleteTag = async (tagId: string): Promise<void> => {
 // TRANSLATION FUNCTIONS
 // ============================================
 
+/**
+ * Keeps the locally bundled KJV reachable: the API lists an
+ * ENGKJV translation but only exposes the DBT-backed
+ * `ENGKJV?_ET` split filesets, so we inject the `ENGKJV`
+ * pseudo-fileset (text served from assets/kjv.json, audio from
+ * wordpocket.org — both keyed on `filesetId === 'ENGKJV'`).
+ */
+const injectBundledKjv = (
+  translations: Translation[]
+): Translation[] =>
+  translations.map((t) => {
+    const filesets = [...(t.filesets ?? [])];
+    const isKjv =
+      t.abbr === 'ENGKJV' ||
+      filesets.some((f) => f.id.startsWith('ENGKJV'));
+    if (!isKjv) return t;
+    const has = (type: string) =>
+      filesets.some(
+        (f) => f.id === 'ENGKJV' && f.type === type
+      );
+    const missingText = !has('text_plain');
+    const missingAudio = !has('audio');
+    if (!missingText && !missingAudio) return t;
+    if (missingText) {
+      filesets.push({
+        id: 'ENGKJV',
+        type: 'text_plain',
+        size: 'C',
+        codec: null,
+        bitrate: null,
+      });
+    }
+    if (missingAudio) {
+      filesets.push({
+        id: 'ENGKJV',
+        type: 'audio',
+        size: 'C',
+        codec: null,
+        bitrate: null,
+      });
+    }
+    return { ...t, filesets };
+  });
+
 export const getAvailableTranslations = async (
   languageIso = "eng",
   forceRefresh = false
@@ -493,7 +584,7 @@ export const getAvailableTranslations = async (
     const cached = getCachedTranslations(languageIso);
     if (cached) {
       console.log(`✅ Translations for ${languageIso} loaded from cache`);
-      return cached;
+      return injectBundledKjv(cached);
     }
   }
 
@@ -505,7 +596,8 @@ export const getAvailableTranslations = async (
     const data = await response.json();
 
     // The actual translations are in the 'results' property
-    const translations: Translation[] = data.results;
+    const translations: Translation[] =
+      injectBundledKjv(data.results ?? []);
 
     cacheTranslations(languageIso, translations);
     console.log(`💾 Translations for ${languageIso} cached`);
@@ -566,26 +658,59 @@ export const getBibleAudioUrl = async (
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Failed to fetch audio for ${translation}: ${response.statusText}`
-      );
+      const errorData = await response.json().catch(() => ({}));
+      if (isBookNotInFilesetBody(errorData)) {
+        throw new BookNotInFilesetError(
+          typeof errorData.error === 'string'
+            ? errorData.error
+            : `Audio not available for ${translation} ` +
+              `${bookId} ${chapter}`
+        );
+      }
+      const errorMsg = errorData.error || errorData.detail ||
+        `Failed to fetch audio for ${translation}: ` +
+        `${response.statusText}`;
+      if (
+        errorData.error_code === 'rate_limited' ||
+        isRateLimitMessage(errorMsg)
+      ) {
+        throw new RateLimitError(errorMsg);
+      }
+      if (errorData.error_code) {
+        throw new ProviderError(errorMsg);
+      }
+      throw new Error(errorMsg);
     }
 
     const data: any = await response.json();
 
-    // Check if API returned an error
+    if (isBookNotInFilesetBody(data)) {
+      throw new BookNotInFilesetError(
+        typeof data.error === 'string'
+          ? data.error
+          : `Audio not available for ${translation} ` +
+            `${bookId} ${chapter}`
+      );
+    }
+
+    // Provider failures carry `error`/`error_code` fields.
     if (data.error) {
       const errorMsg = typeof data.error === 'string'
         ? data.error
         : data.error.message || 'Unknown error';
-      throw new Error(
+      const fullMsg =
         `Audio not available for ${translation} ${bookId} ` +
-        `${chapter}: ${errorMsg}`
-      );
+        `${chapter}: ${errorMsg}`;
+      throw data.error_code === 'rate_limited' ||
+        isRateLimitMessage(errorMsg)
+        ? new RateLimitError(fullMsg)
+        : new ProviderError(fullMsg);
     }
-    // Validate audio_url exists and is a string
+    // A missing audio_url means the book is outside the
+    // fileset's coverage (backwards compat: older backends
+    // answer 200 with empty `verses`/`message` for audio).
     if (!data.audio_url || typeof data.audio_url !== 'string') {
-      throw new Error(
+      throw new BookNotInFilesetError(
         `No audio URL in API response for ${translation} ` +
         `${bookId} ${chapter}`
       );
@@ -728,11 +853,15 @@ export const prefetchAudioUrl = async (
  * @param bookId - Current USFM book code
  * @param chapter - Current chapter number
  * @param filesetId - The fileset ID for the translation to prefetch
+ * @param resolveFilesetId - Optional per-book resolver (adjacent
+ *   chapters can cross a book boundary, and text filesets split
+ *   by testament need the member for THAT book).
  */
 export const prefetchAdjacentChapters = async (
   bookId: string,
   chapter: number,
-  filesetId: string
+  filesetId: string,
+  resolveFilesetId?: (bookId: string) => string | null
 ): Promise<void> => {
   const { previous, next } = getAdjacentChapters(bookId, chapter);
 
@@ -743,8 +872,9 @@ export const prefetchAdjacentChapters = async (
     label: string
   ) => {
     try {
+      const resolvedId = resolveFilesetId?.(b) ?? id;
       // We don't need the result, just to trigger the fetch and cache
-      await getVersesInChapter(b, c, id);
+      await getVersesInChapter(b, c, resolvedId);
       console.log(`📚 Prefetched ${label} chapter: ${b} ${c}`);
     } catch (error) {
       // Silent fail
@@ -930,15 +1060,49 @@ export const getAllNotes = async (
   const allNotes: Note[] = [];
   let page = 1;
   let hasMore = true;
-  
+
   while (hasMore) {
     const response = await getNotes(tagId, { page });
     allNotes.push(...response.results);
     hasMore = response.next !== null;
     page++;
   }
-  
+
   return allNotes;
+};
+
+export interface LinkedNotesResponse {
+  count: number;
+  results: Note[];
+}
+
+export const getLinkedNotes = async (
+  verseReferences: { book: string; chapter: number; verse: number }[],
+  filesetId?: string
+): Promise<LinkedNotesResponse> => {
+  const params = new URLSearchParams();
+  if (filesetId) {
+    params.append('fileset_id', filesetId);
+  }
+  const query = params.toString();
+  const url =
+    `${API_BASE_URL}/api/v1/notes/linked/` +
+    (query ? `?${query}` : '');
+  try {
+    const response = await authenticatedFetch(url, {
+      method: 'POST',
+      body: JSON.stringify({
+        verse_references: verseReferences,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch linked notes');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching linked notes:', error);
+    throw error;
+  }
 };
 
 export const getNote = async (noteId: string): Promise<Note> => {
@@ -960,7 +1124,7 @@ export const getNote = async (noteId: string): Promise<Note> => {
 // COMMENT TYPES
 // ============================================
 
-export type { Comment, CommentAuthor, CommentCounts };
+export type { Comment, CommentAuthor, CommentCounts, CommentImage };
 
 // ============================================
 // COMMENT FUNCTIONS
@@ -1051,6 +1215,53 @@ export const deleteComment = async (
   }
 };
 
+export const uploadCommentImage = async (
+  noteId: string,
+  commentId: string,
+  file: File,
+): Promise<CommentImage> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const response = await authenticatedUpload(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+    fd,
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message =
+      data.detail ||
+      (Array.isArray(data.file) ? data.file[0] : data.file) ||
+      'Failed to upload image.';
+    throw new Error(message);
+  }
+  return response.json();
+};
+
+export const deleteImage = async (
+  imageId: string,
+): Promise<void> => {
+  const response = await authenticatedFetch(
+    `${API_BASE_URL}/api/v1/images/${imageId}/`,
+    { method: 'DELETE' },
+  );
+  if (!response.ok) {
+    throw new Error('Failed to delete image.');
+  }
+};
+
+export const fetchCommentImages = async (
+  noteId: string,
+  commentId: string,
+): Promise<CommentImage[]> => {
+  const response = await publicFetch(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+  );
+  if (!response.ok) {
+    throw new Error('Failed to fetch images.');
+  }
+  return response.json();
+};
+
 // ============================================
 // SEARCH FUNCTIONS
 // ============================================
@@ -1061,7 +1272,6 @@ export interface SearchVerse {
   verse_start: number;
   verse_text: string;
 }
-
 
 export interface SearchPagination {
   total: number;
@@ -1094,9 +1304,7 @@ export const searchBible = async (
     params.toString();
   const response = await fetch(url, { signal });
   if (!response.ok) {
-    throw new Error(
-      `Search failed: ${response.statusText}`
-    );
+    throw new Error(`Search failed: ${response.statusText}`);
   }
   const json = await response.json();
   return {
@@ -1198,5 +1406,119 @@ export const fetchCommentCounts = async (params: {
   } catch (error) {
     console.error('Error fetching comment counts:', error);
     throw error;
+  }
+};
+
+// ============================================
+// READING POSITION FUNCTIONS
+// ============================================
+//
+// The backend stores positions keyed by book NAME (validated via
+// get_dbt_book_id), so every function below maps the USFM bookId
+// to a display name before calling the API and maps names back
+// to USFM codes in responses.
+/* eslint-disable react-refresh/only-export-components --
+   api.tsx is a pure API module; it exports no components. */
+
+export type ReadingPositionValue = {
+  chapter: number;
+  verse: number;
+};
+
+/**
+ * Get the saved reading position for a book. `bookId` is a USFM
+ * code; the backend `?book=` filter expects the book name and
+ * returns a (filtered) list, not a single object.
+ */
+export const getReadingPosition = async (
+  bookId: string
+): Promise<ReadingPosition | null> => {
+  const bookName = toBookName(bookId);
+  if (!bookName) return null;
+  try {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/` +
+        `?book=${encodeURIComponent(bookName)}`
+    );
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error('Failed to fetch reading position');
+    }
+    const data: ReadingPosition[] = await response.json();
+    return data.length > 0 ? data[0] : null;
+  } catch (error) {
+    console.error('Error fetching reading position:', error);
+    // Rethrow so callers can distinguish "fetch failed" (retry
+    // later) from "no saved position" (returned as null above).
+    throw error;
+  }
+};
+
+/**
+ * Upsert the reading position for a book (USFM `bookId`; the
+ * backend expects the book name).
+ */
+export const updateReadingPosition = async (
+  bookId: string,
+  chapter: number,
+  verse = 1
+): Promise<void> => {
+  const bookName = toBookName(bookId);
+  if (!bookName) return;
+  try {
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          book: bookName,
+          chapter,
+          verse,
+        }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to update reading position');
+    }
+  } catch (error) {
+    console.error('Error updating reading position:', error);
+  }
+};
+
+/**
+ * Bulk-fetch reading positions for USFM `bookIds`. The backend
+ * request and response are keyed by book name; the returned map
+ * is re-keyed by USFM code and keeps explicit nulls for books
+ * with no saved position so callers can tell "checked, empty"
+ * from "never fetched".
+ */
+export const getBulkReadingPositions = async (
+  bookIds: string[]
+): Promise<Record<string, ReadingPositionValue | null>> => {
+  try {
+    const bookNames = bookIds
+      .map((id) => toBookName(id))
+      .filter((n): n is string => n !== null);
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/v1/reading-positions/bulk/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ books: bookNames }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to fetch bulk reading positions');
+    }
+    const byName: Record<string, ReadingPositionValue | null> =
+      await response.json();
+    const byId: Record<string, ReadingPositionValue | null> = {};
+    for (const [name, position] of Object.entries(byName)) {
+      const code = toUsfmCode(name);
+      if (code) byId[code] = position;
+    }
+    return byId;
+  } catch (error) {
+    console.error('Error fetching bulk reading positions:', error);
+    return {};
   }
 };

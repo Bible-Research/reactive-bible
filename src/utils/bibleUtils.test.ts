@@ -6,12 +6,12 @@ import {
   OLD_TESTAMENT_BOOKS,
   NEW_TESTAMENT_BOOKS,
   adjustTimestampsForENGESV,
-  findTestamentFallback,
+  filesetCoversTestament,
+  sizeToCoverage,
   toUsfmCode,
   toBookName,
   parseBibleRef,
   buildBiblePath,
-  type Fileset,
 } from './bibleUtils';
 
 describe('Bible Utils', () => {
@@ -275,122 +275,84 @@ describe('Bible Utils', () => {
     });
   });
 
-  describe('findTestamentFallback', () => {
-    const mockFilesets: Fileset[] = [
-      {
-        id: 'ENGESHO1DA',
-        type: 'audio',
-        size: 'OT',
-        codec: null,
-        bitrate: null,
-      },
-      {
-        id: 'ENGESHN1DA',
-        type: 'audio',
-        size: 'NT',
-        codec: null,
-        bitrate: null,
-      },
-      {
-        id: 'ENGESHO1DA-opus16',
-        type: 'audio',
-        size: 'OT',
-        codec: 'opus',
-        bitrate: '16',
-      },
-      {
-        id: 'ENGESHN1DA-opus16',
-        type: 'audio',
-        size: 'NT',
-        codec: 'opus',
-        bitrate: '16',
-      },
-      {
-        id: 'LATBSLN2DA',
-        type: 'audio',
-        size: 'NT',
-        codec: null,
-        bitrate: null,
-      },
-      {
-        id: 'LATBSLP2DA',
-        type: 'audio',
-        size: 'P',
-        codec: null,
-        bitrate: null,
-      },
-    ];
-
-    it('finds OT fallback for NT fileset', () => {
-      const result = findTestamentFallback(
-        'ENGESHN1DA',
-        'OT',
-        mockFilesets
-      );
-      expect(result).toBe('ENGESHO1DA');
+  describe('sizeToCoverage', () => {
+    it('parses C as complete coverage of both testaments', () => {
+      expect(sizeToCoverage('C')).toEqual({
+        testaments: ['OT', 'NT'],
+        partial: { OT: false, NT: false },
+      });
     });
 
-    it('finds NT fallback for OT fileset', () => {
-      const result = findTestamentFallback(
-        'ENGESHO1DA',
+    it('parses NT and OT as single-testament coverage', () => {
+      expect(sizeToCoverage('NT').testaments).toEqual(['NT']);
+      expect(sizeToCoverage('OT').testaments).toEqual(['OT']);
+      expect(sizeToCoverage('NT').partial.NT).toBe(false);
+    });
+
+    it('parses partial codes NTP, OTP and NTPOTP', () => {
+      expect(sizeToCoverage('NTP')).toEqual({
+        testaments: ['NT'],
+        partial: { OT: false, NT: true },
+      });
+      expect(sizeToCoverage('OTP')).toEqual({
+        testaments: ['OT'],
+        partial: { OT: true, NT: false },
+      });
+      expect(sizeToCoverage('NTPOTP')).toEqual({
+        testaments: ['OT', 'NT'],
+        partial: { OT: true, NT: true },
+      });
+    });
+
+    it('parses numbered NT1-style codes', () => {
+      expect(sizeToCoverage('NT1').testaments).toEqual(['NT']);
+      expect(sizeToCoverage('OT1').testaments).toEqual(['OT']);
+    });
+
+    it('treats any C in the size as complete both-testament ' +
+      'coverage', () => {
+      // Backend parity: `fileset_groups.py` checks for `C` as a
+      // substring, not `size === 'C'`.
+      expect(sizeToCoverage('CNT').testaments).toEqual([
+        'OT',
         'NT',
-        mockFilesets
-      );
-      expect(result).toBe('ENGESHN1DA');
+      ]);
+      expect(sizeToCoverage('CP').partial).toEqual({
+        OT: true,
+        NT: true,
+      });
     });
 
-    it('preserves codec suffix when finding fallback', () => {
-      const result = findTestamentFallback(
-        'ENGESHN1DA-opus16',
-        'OT',
-        mockFilesets
-      );
-      expect(result).toBe('ENGESHO1DA-opus16');
+    it('is permissive for empty or unknown sizes', () => {
+      expect(sizeToCoverage(null).testaments).toEqual(['OT', 'NT']);
+      expect(sizeToCoverage('').testaments).toEqual(['OT', 'NT']);
+      expect(sizeToCoverage('X').testaments).toEqual(['OT', 'NT']);
+    });
+  });
+
+  describe('filesetCoversTestament', () => {
+    it('covers both testaments for C', () => {
+      expect(filesetCoversTestament('C', 'OT')).toBe(true);
+      expect(filesetCoversTestament('C', 'NT')).toBe(true);
     });
 
-    it('returns null when no matching fallback exists', () => {
-      const result = findTestamentFallback(
-        'LATBSLN2DA',
-        'OT',
-        mockFilesets
-      );
-      expect(result).toBeNull();
+    it('matches single-testament codes', () => {
+      expect(filesetCoversTestament('NT', 'NT')).toBe(true);
+      expect(filesetCoversTestament('NT', 'OT')).toBe(false);
+      expect(filesetCoversTestament('OT', 'OT')).toBe(true);
+      expect(filesetCoversTestament('OT', 'NT')).toBe(false);
     });
 
-    it('returns null for partial coverage filesets', () => {
-      const result = findTestamentFallback(
-        'LATBSLP2DA',
-        'OT',
-        mockFilesets
-      );
-      expect(result).toBeNull();
+    it('handles combined partial codes', () => {
+      expect(filesetCoversTestament('NTPOTP', 'OT')).toBe(true);
+      expect(filesetCoversTestament('NTPOTP', 'NT')).toBe(true);
+      expect(filesetCoversTestament('OTP', 'NT')).toBe(false);
+      expect(filesetCoversTestament('NTP', 'OT')).toBe(false);
     });
 
-    it('handles case-insensitive matching', () => {
-      const result = findTestamentFallback(
-        'engeshn1da',
-        'OT',
-        mockFilesets
-      );
-      expect(result).toBe('engesho1da');
-    });
-
-    it('returns null when fileset has no testament indicator', () => {
-      const result = findTestamentFallback(
-        'ENGKJV',
-        'OT',
-        mockFilesets
-      );
-      expect(result).toBeNull();
-    });
-
-    it('returns null when available filesets is empty', () => {
-      const result = findTestamentFallback(
-        'ENGESHN1DA',
-        'OT',
-        []
-      );
-      expect(result).toBeNull();
+    it('returns true for null/ambiguous input', () => {
+      expect(filesetCoversTestament(null, 'OT')).toBe(true);
+      expect(filesetCoversTestament('NT', null)).toBe(true);
     });
   });
 });

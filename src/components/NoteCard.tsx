@@ -28,6 +28,7 @@ import SectionHeadingComponent from "./SectionHeading";
 import ScripturePassage from "./ScripturePassage";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
+import { visibleNoteVerses } from "../utils/noteVerses";
 import {
   isSameScriptureRef,
   parseScriptureRef,
@@ -71,6 +72,18 @@ const NoteCard = ({
 
   // Use headings from the note (provided by backend)
   const noteHeadings = note.headings || [];
+
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note.error;
+
+  // Provider text is capped at 500 verses for copyright
+  // reasons; render the truncated tail as a notice instead
+  // of empty verse rows.
+  const {
+    verses: displayedVerses,
+    truncated: versesTruncated,
+  } = visibleNoteVerses(note?.verses);
 
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
@@ -425,7 +438,14 @@ const NoteCard = ({
         sx={{ position: 'relative', zIndex: 0 }}
         data-verse-scope={scope}
       >
-        {versesFolded
+        {verseError ? (
+          <Text color="red" size="sm" mt={8}>
+            {verseError}
+            {note.error_code === 'rate_limited'
+              ? ' Try reloading in a few moments.'
+              : ''}
+          </Text>
+        ) : versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
               const heading = noteHeadings.find(
@@ -448,26 +468,38 @@ const NoteCard = ({
                 </Box>
               );
             })
-          : note?.verses?.map(v => {
-              // Check if there's a heading before this verse
-              const heading = noteHeadings.find(
-                h => h.before_verse === v.verse
-              );
-              return (
-                <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
-                  {heading && (
-                    <SectionHeadingComponent text={heading.text} />
-                  )}
-                  <Verse
-                    scope={scope}
-                    book={v.book}
-                    chapter={v.chapter}
-                    verse={v.verse}
-                    text={v.text}
-                  />
-                </Box>
-              );
-            })
+          : (
+            <>
+              {displayedVerses.map(v => {
+                // Check if there's a heading before this verse
+                const heading = noteHeadings.find(
+                  h => h.before_verse === v.verse
+                );
+                return (
+                  <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
+                    {heading && (
+                      <SectionHeadingComponent
+                        text={heading.text}
+                      />
+                    )}
+                    <Verse
+                      scope={scope}
+                      book={v.book}
+                      chapter={v.chapter}
+                      verse={v.verse}
+                      text={v.text}
+                    />
+                  </Box>
+                );
+              })}
+              {versesTruncated && (
+                <Text color="red" size="sm" mt={8}>
+                  Cannot display more than 500 verses of the
+                  Bible due to copyright restrictions.
+                </Text>
+              )}
+            </>
+          )
         }
       </Box>
 

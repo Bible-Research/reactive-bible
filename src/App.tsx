@@ -19,6 +19,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useAuthStore } from "./stores/authStore";
 import { useAppUpdate } from "./hooks/useAppUpdate";
+import { useBibleStore } from "./store";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
 
@@ -40,7 +41,10 @@ export default function App() {
 
   // Check authentication on app load
   const checkAuth = useAuthStore((state) => state.checkAuth);
-  
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
+
   useEffect(() => {
     // Check if user is authenticated from localStorage
     checkAuth();
@@ -51,6 +55,14 @@ export default function App() {
   // Poll the rolling `continuous` release for a newer APK build
   // (no-op outside the native Android shell).
   useAppUpdate();
+
+  // Reading positions are only synced for authenticated users;
+  // anonymous sessions share a server-side guest account.
+  useEffect(() => {
+    if (isAuthenticated) {
+      useBibleStore.getState().prefetchReadingPositions();
+    }
+  }, [isAuthenticated]);
   
   // Check if we're on an auth page (login/register)
   const location = useLocation();
@@ -60,6 +72,11 @@ export default function App() {
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
+  // MyHeader slides away on downward scroll; drop the padding
+  // the AppShell reserves for it so content reclaims the space.
+  const headerVisible = useBibleStore(
+    (state) => state.headerVisible
+  );
   useWindowEvent("keydown", (event) => {
     const tag = (event.target as HTMLElement).tagName;
     if (
@@ -111,6 +128,10 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
+              paddingTop: headerVisible
+                ? "var(--mantine-header-height, 0px)"
+                : 0,
+              transition: "padding-top 0.3s ease-in-out",
               // Allow scrolling on auth and search pages
               overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
             },
