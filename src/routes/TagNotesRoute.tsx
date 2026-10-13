@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ScrollArea,
@@ -20,12 +26,23 @@ import {
 } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import type { MouseEvent } from 'react';
-import { Note, Tag, CommentCounts, PlaylistItem } from '../types';
+import {
+  Note,
+  Tag,
+  CommentCounts,
+  PlaylistItem,
+  NoteOrderIndexEntry,
+} from '../types';
 import TagSection from '../components/TagSection';
 import EditNoteModal from '../components/EditNoteModal';
 import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
-import { deleteNote, getTag, fetchCommentCounts } from '../api';
+import {
+  deleteNote,
+  getTag,
+  fetchCommentCounts,
+  getNoteOrderIndex,
+} from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 import {
@@ -72,6 +89,9 @@ export default function TagNotesRoute() {
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
   const reorderNotes = useBibleStore((state) => state.reorderNotes);
+  const moveNoteAfter = useBibleStore(
+    (state) => state.moveNoteAfter
+  );
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
@@ -133,6 +153,12 @@ export default function TagNotesRoute() {
   const [error, setError] = useState<string | null>(null);
   const [commentCounts, setCommentCounts] =
     useState<CommentCounts>({});
+  // Compact index of every note in the tag, in canonical
+  // ascending order. Derived data — deliberately kept out of
+  // the persisted store — that powers the order-ID badges and
+  // the move dropdown.
+  const [orderIndex, setOrderIndex] =
+    useState<NoteOrderIndexEntry[] | null>(null);
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -242,6 +268,106 @@ export default function TagNotesRoute() {
       cancelled = true;
     };
   }, [tagId, fetchNotes, getTags, isAuthenticated, sortOrder]);
+
+  // The order badge/menu is gated exactly like `isDraggable`:
+  // custom sort + authenticated.
+  const orderMenuEnabled =
+    (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
+    isAuthenticated;
+
+  const loadOrderIndex = useCallback(async () => {
+    if (!tagId) return;
+    try {
+      const entries = await getNoteOrderIndex(tagId);
+      setOrderIndex(entries);
+    } catch (err) {
+      // A missing/failed endpoint leaves the index null so the
+      // badge stays hidden — the rest of the page still works.
+      console.error('Error loading note order index:', err);
+    }
+  }, [tagId]);
+
+  // Fetch the index once a custom sort + auth is active; it
+  // covers every note in the tag, not just the current page.
+  // Refetched after every move via the handlers below.
+  useEffect(() => {
+    if (orderMenuEnabled) {
+      loadOrderIndex();
+    } else {
+      setOrderIndex(null);
+    }
+  }, [orderMenuEnabled, loadOrderIndex]);
+
+  // Order ID = 1-based rank in canonical ascending order —
+  // identical IDs in both custom sort directions.
+  const orderIdByNoteId = useMemo(() => {
+    const map = new Map<string, number>();
+    orderIndex?.forEach((entry, index) => {
+      map.set(entry.id, index + 1);
+    });
+    return map;
+  }, [orderIndex]);
+
+  // Display-order "after" translates to canonical placement:
+  // in custom_desc visual after = canonical before.
+  const handleMoveAfter = useCallback(
+    async (noteId: string, targetNoteId: string) => {
+      if (!tagId) return;
+      try {
+        await moveNoteAfter(
+          tagId,
+          noteId,
+          targetNoteId,
+          sortOrder === 'custom_desc' ? 'before' : 'after'
+        );
+      } catch {
+        // The store action already showed a notification.
+      } finally {
+        await loadOrderIndex();
+      }
+    },
+    [tagId, sortOrder, moveNoteAfter, loadOrderIndex]
+  );
+
+  const handleMoveToTop = useCallback(
+    async (noteId: string) => {
+      if (!tagId || !orderIndex || orderIndex.length === 0) {
+        return;
+      }
+      try {
+        await moveNoteAfter(
+          tagId,
+          noteId,
+          orderIndex[0].id,
+          'before'
+        );
+      } catch {
+        // The store action already showed a notification.
+      } finally {
+        await loadOrderIndex();
+      }
+    },
+    [tagId, orderIndex, moveNoteAfter, loadOrderIndex]
+  );
+
+  const orderMenu = useMemo(
+    () =>
+      orderMenuEnabled && orderIndex
+        ? {
+            entries: orderIndex,
+            orderIdByNoteId,
+            onMoveAfter: handleMoveAfter,
+            onMoveToTop: handleMoveToTop,
+          }
+        : undefined,
+    [
+      orderMenuEnabled,
+      orderIndex,
+      orderIdByNoteId,
+      handleMoveAfter,
+      handleMoveToTop,
+    ]
+  );
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -808,6 +934,7 @@ export default function TagNotesRoute() {
               sortOrder={sortOrder}
               currentPage={notesPage}
               pageSize={notesPageSize}
+              orderMenu={orderMenu}
             />
             
             {pagination}

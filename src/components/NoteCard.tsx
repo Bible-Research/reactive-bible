@@ -19,10 +19,11 @@ import {
   IconEdit,
   IconTrash,
 } from "@tabler/icons-react";
-import { Note } from "../types";
+import { Note, NoteOrderMenuData } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
 import Verse from "./Verse";
+import NoteOrderMenu from "./NoteOrderMenu";
 import CommentThread from "./CommentThread";
 import SectionHeadingComponent from "./SectionHeading";
 import ScripturePassage from "./ScripturePassage";
@@ -51,6 +52,9 @@ interface NoteCardProps {
     ref?: (element: HTMLElement | null) => void;
     [key: string]: unknown;
   };
+  /** When present (custom sort + authenticated), renders the
+   *  `#k` order badge + move dropdown in the action group. */
+  orderMenu?: NoteOrderMenuData;
 }
 
 const NoteCard = ({
@@ -63,6 +67,7 @@ const NoteCard = ({
   onCountChange,
   verseScope,
   dragHandleProps,
+  orderMenu,
 }: NoteCardProps) => {
   const scope = verseScope ?? note.id;
   const [threadOpen, setThreadOpen] = useState(false);
@@ -157,6 +162,19 @@ const NoteCard = ({
     ? false
     : commentCount > 0 || isAuthenticated;
 
+  // The order badge is opt-in: notes missing from the index
+  // (and callers that never pass `orderMenu`, e.g.
+  // NoteDetailRoute) simply render no badge.
+  const orderId = orderMenu?.orderIdByNoteId.get(note.id);
+  const orderMenuNode =
+    orderMenu && orderId !== undefined ? (
+      <NoteOrderMenu
+        noteId={note.id}
+        orderId={orderId}
+        data={orderMenu}
+      />
+    ) : null;
+
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
       {error && (
@@ -197,6 +215,7 @@ const NoteCard = ({
           </Title>
           {versesFolded && (
             <Group spacing="xs" sx={{ position: 'relative', zIndex: 1 }}>
+              {orderMenuNode}
               <Tooltip label="View in Bible" position="top">
                 <Box component="span" sx={{ display: 'inline-block' }}>
                   <ActionIcon
@@ -319,6 +338,7 @@ const NoteCard = ({
               zIndex: 1,
             }}
           >
+            {orderMenuNode}
             <Tooltip label="View in Bible" position="top">
               <Box component="span" sx={{ display: 'inline-block' }}>
                 <ActionIcon

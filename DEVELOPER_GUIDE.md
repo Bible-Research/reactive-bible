@@ -316,6 +316,13 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
   - Delete note (with confirmation)
 - Handles "View in Bible" navigation
 - Updates URL when switching tags
+- Sort order comes from the `?sort=` URL param
+  (`custom_asc` default; custom orders enable dnd-kit
+  drag-and-drop reordering when authenticated)
+- In custom sort + authenticated, each note card shows a
+  `#k` order badge (`NoteOrderMenu`) that opens a dropdown
+  of every note in the tag — see "Note order badges & moves"
+  under Note Taking & Tagging
 
 **Navigation Pattern**:
 ```typescript
@@ -1427,7 +1434,43 @@ getLinkedNotes(
   verseReferences: { book: string; chapter: number; verse: number }[],
   filesetId?: string
 ): Promise<LinkedNotesResponse>
+
+// Compact index of every note in a tag, canonical ascending
+// order (GET /api/v1/notes/order-index/?tag_id=…)
+getNoteOrderIndex(tagId: string): Promise<NoteOrderIndexEntry[]>
+
+// Move a single note before/after another in canonical order
+// (POST /api/v1/notes/move/ — returns 200, not 204)
+moveNote(
+  tagId: string,
+  noteId: string,
+  targetNoteId: string,
+  placement: 'before' | 'after'
+): Promise<MoveNoteResponse> // {note_id, tag_position, rebalanced}
 ```
+
+**Note order badges & moves** (`NoteOrderMenu.tsx`):
+- In `custom_asc`/`custom_desc` + authenticated, each
+  `NoteCard` renders a `#k` badge where `k` is the note's
+  1-based rank in the canonical ascending order (same IDs in
+  both sort directions — `custom_desc` only reverses display).
+- Clicking the badge opens a dropdown listing **all** notes
+  in the tag (`#k — Book C:V[-V]`, or `#k — no passage`), with
+  a filter input and a "Move to top" item — built for tags
+  with up to ~2000 notes.
+- Picking an entry moves the note just after it in *display*
+  order; the route translates to canonical placement
+  (`custom_asc` → `after`, `custom_desc` → `before`).
+- The order index is fetched per tag via `getNoteOrderIndex`,
+  kept in route state (never persisted), and refetched after
+  every move; `moveNoteAfter` in the store patches
+  `tag_position` locally or refetches the current page when
+  the server rebalanced or reports a `ConflictError`.
+- The badge/menu is threaded as a single `orderMenu` prop
+  (`NoteOrderMenuData`) through `TagSection` →
+  `SortableNoteCard`/`NoteCard`; it is opt-in, so
+  `NoteDetailRoute` and non-custom sorts are unaffected, and
+  the dnd-kit `DragOverlay` card deliberately gets no badge.
 
 **Implementation Details**:
 ```typescript

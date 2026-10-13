@@ -10,6 +10,7 @@ import {
   CommentAuthor,
   CommentCounts,
   CommentImage,
+  NoteOrderIndexEntry,
   ReadingPosition,
 } from './types';
 
@@ -426,6 +427,77 @@ export const reorderNotes = async (
     const error = await response.json();
     throw new Error(error.detail || 'Reorder failed');
   }
+};
+
+/**
+ * Compact, unpaginated index of every note in a tag in
+ * canonical ascending order. Powers the order-ID badge
+ * dropdown; the order ID is the 1-based array index.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export const getNoteOrderIndex = async (
+  tagId: string
+): Promise<NoteOrderIndexEntry[]> => {
+  const url =
+    `${API_BASE_URL}/api/v1/notes/order-index/` +
+    `?tag_id=${encodeURIComponent(tagId)}`;
+
+  const response = await authenticatedFetch(url);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      error.detail || 'Failed to fetch note order index'
+    );
+  }
+
+  return await response.json();
+};
+
+export type MovePlacement = 'before' | 'after';
+
+export interface MoveNoteResponse {
+  note_id: string;
+  tag_position: number;
+  rebalanced: boolean;
+}
+
+/**
+ * Move a single note to before/after `targetNoteId` in
+ * canonical ascending order. The server computes the midpoint
+ * (and rebalances when the float gap is exhausted); unlike
+ * `reorderNotes` it returns 200 with the new position.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export const moveNote = async (
+  tagId: string,
+  noteId: string,
+  targetNoteId: string,
+  placement: MovePlacement
+): Promise<MoveNoteResponse> => {
+  const url = `${API_BASE_URL}/api/v1/notes/move/`;
+
+  const response = await authenticatedFetch(url, {
+    method: 'POST',
+    body: JSON.stringify({
+      tag_id: tagId,
+      note_id: noteId,
+      target_note_id: targetNoteId,
+      placement,
+    }),
+  });
+
+  if (response.status === 409) {
+    const error = await response.json();
+    throw new ConflictError(error.message);
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'Move failed');
+  }
+
+  return await response.json();
 };
 
 export const getTags = async (): Promise<Tag[]> => {

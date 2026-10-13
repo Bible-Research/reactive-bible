@@ -1,0 +1,260 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { mockDomApis } from '../../__tests__/helpers';
+import TagNotesRoute from '../TagNotesRoute';
+import {
+  useBibleStore,
+  initialState,
+} from '../../store';
+import {
+  useAuthStore,
+  initialState as authInitialState,
+} from '../../stores/authStore';
+import * as api from '../../api';
+import {
+  Note,
+  NoteOrderIndexEntry,
+  Tag,
+} from '../../types';
+
+const mockNavigate = vi.fn();
+const mockUseParams = vi.fn();
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<
+    typeof import('react-router-dom')
+  >('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+    useParams: () => mockUseParams(),
+  };
+});
+
+vi.mock('../../api');
+vi.mock('../../utils/cacheManager');
+
+const mockApi = vi.mocked(api);
+
+const tag: Tag = {
+  id: 'tag-123',
+  name: 'Bible Study',
+  parent_tag: null,
+  created_at: '',
+  updated_at: '',
+};
+
+const makeNote = (id: string, position: number): Note => ({
+  id,
+  note_text: `Note ${id}`,
+  public: true,
+  is_owner: true,
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '',
+  tag,
+  verses: [
+    {
+      book: 'John',
+      chapter: 3,
+      verse: 16,
+      text: 'For God so loved the world',
+    },
+  ],
+  tag_position: position,
+});
+
+const notes = [makeNote('note-1', 1), makeNote('note-2', 2)];
+
+const orderIndex: NoteOrderIndexEntry[] = [
+  {
+    id: 'note-1',
+    tag_position: 1,
+    book: 'John',
+    chapter: 3,
+    verse_start: 16,
+    verse_end: 18,
+  },
+  {
+    id: 'note-2',
+    tag_position: 2,
+    book: 'Genesis',
+    chapter: 1,
+    verse_start: 1,
+    verse_end: 1,
+  },
+];
+
+const mockFetchNotes = vi.fn();
+const mockGetTags = vi.fn();
+
+const storeOverrides = {
+  notes,
+  notesCount: notes.length,
+  notesPage: 1,
+  notesPageSize: 25,
+  lastSelectedTagId: 'tag-123',
+  tags: [tag],
+  fetchNotes: mockFetchNotes,
+  getTags: mockGetTags,
+};
+
+const renderRoute = (
+  route = '/notes/tag/tag-123',
+  isAuthenticated = true
+) => {
+  useBibleStore.setState({ ...initialState, ...storeOverrides });
+  useAuthStore.setState({
+    ...authInitialState,
+    isAuthenticated,
+  });
+  mockDomApis();
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <TagNotesRoute />
+    </MemoryRouter>
+  );
+};
+
+const openOrderMenu = async (noteId: string) => {
+  const badge = await screen.findByLabelText(`note-order-${noteId}`);
+  fireEvent.click(badge);
+};
+
+describe('TagNotesRoute order menu', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseParams.mockReturnValue({ tagId: 'tag-123' });
+    mockFetchNotes.mockResolvedValue(undefined);
+    mockGetTags.mockResolvedValue(undefined);
+    mockApi.getTag.mockResolvedValue(tag);
+    mockApi.fetchCommentCounts.mockResolvedValue({});
+    mockApi.getNoteOrderIndex.mockResolvedValue(orderIndex);
+    mockApi.moveNote.mockResolvedValue({
+      note_id: 'note-1',
+      tag_position: 1.5,
+      rebalanced: false,
+    });
+  });
+
+  it('shows order badges in custom_asc when authenticated', async () => {
+    renderRoute();
+
+    const badge1 = await screen.findByLabelText(
+      'note-order-note-1'
+    );
+    const badge2 = await screen.findByLabelText(
+      'note-order-note-2'
+    );
+    expect(badge1).toHaveTextContent('#1');
+    expect(badge2).toHaveTextContent('#2');
+  });
+
+  it('hides badges when not authenticated', async () => {
+    renderRoute('/notes/tag/tag-123', false);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText('John 3:16').length
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      screen.queryByLabelText('note-order-note-1')
+    ).not.toBeInTheDocument();
+    expect(mockApi.getNoteOrderIndex).not.toHaveBeenCalled();
+  });
+
+  it('hides badges for non-custom sort orders', async () => {
+    renderRoute('/notes/tag/tag-123?sort=created_desc');
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText('John 3:16').length
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      screen.queryByLabelText('note-order-note-1')
+    ).not.toBeInTheDocument();
+    expect(mockApi.getNoteOrderIndex).not.toHaveBeenCalled();
+  });
+
+  it('lists index entries with passage labels', async () => {
+    renderRoute();
+    await openOrderMenu('note-1');
+
+    expect(
+      await screen.findByText('#1 — John 3:16-18')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('#2 — Genesis 1:1')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Move to top')).toBeInTheDocument();
+  });
+
+  it('moves after the picked entry with after placement ' +
+    'in custom_asc', async () => {
+    renderRoute();
+    await openOrderMenu('note-1');
+    fireEvent.click(await screen.findByText('#2 — Genesis 1:1'));
+
+    await waitFor(() => {
+      expect(mockApi.moveNote).toHaveBeenCalledWith(
+        'tag-123',
+        'note-1',
+        'note-2',
+        'after'
+      );
+    });
+  });
+
+  it('translates display after to canonical before ' +
+    'in custom_desc', async () => {
+    renderRoute('/notes/tag/tag-123?sort=custom_desc');
+    await openOrderMenu('note-1');
+    fireEvent.click(await screen.findByText('#2 — Genesis 1:1'));
+
+    await waitFor(() => {
+      expect(mockApi.moveNote).toHaveBeenCalledWith(
+        'tag-123',
+        'note-1',
+        'note-2',
+        'before'
+      );
+    });
+  });
+
+  it('moves to top via the first index entry with ' +
+    'before placement', async () => {
+    renderRoute();
+    await openOrderMenu('note-2');
+    fireEvent.click(await screen.findByText('Move to top'));
+
+    await waitFor(() => {
+      expect(mockApi.moveNote).toHaveBeenCalledWith(
+        'tag-123',
+        'note-2',
+        'note-1',
+        'before'
+      );
+    });
+  });
+
+  it('refetches the order index after a move', async () => {
+    renderRoute();
+    await waitFor(() => {
+      expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(1);
+    });
+
+    await openOrderMenu('note-1');
+    fireEvent.click(await screen.findByText('#2 — Genesis 1:1'));
+
+    await waitFor(() => {
+      expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(2);
+    });
+  });
+});

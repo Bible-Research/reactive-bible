@@ -36,6 +36,37 @@ export interface SectionHeading {
   text: string;
 }
 
+/**
+ * One row of `GET /api/v1/notes/order-index/` — a compact,
+ * unpaginated listing of every note in a tag in canonical
+ * ascending order (`tag_position` ASC, `-created_at` tiebreak).
+ * The order ID shown to users is the 1-based array index.
+ */
+export interface NoteOrderIndexEntry {
+  id: string;
+  tag_position: number | null;
+  book: string | null;
+  chapter: number | null;
+  verse_start: number | null;
+  verse_end: number | null;
+}
+
+/**
+ * Everything a `NoteOrderMenu` needs, bundled so it can be
+ * threaded through `TagSection` → `SortableNoteCard`/`NoteCard`
+ * as a single prop. Built by `TagNotesRoute`.
+ */
+export interface NoteOrderMenuData {
+  /** All tag notes in canonical ascending order. */
+  entries: NoteOrderIndexEntry[];
+  /** note id → 1-based order ID (index + 1 in `entries`). */
+  orderIdByNoteId: Map<string, number>;
+  /** Move `noteId` to just after `targetNoteId` (display order). */
+  onMoveAfter: (noteId: string, targetNoteId: string) => void;
+  /** Move `noteId` to the top of the canonical order. */
+  onMoveToTop: (noteId: string) => void;
+}
+
 export interface VerseTimestamp {
   verse_start: number;
   timestamp: number;

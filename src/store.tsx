@@ -134,6 +134,12 @@ export interface BibleState {
     currentPage: number,
     pageSize: number
   ) => Promise<void>;
+  moveNoteAfter: (
+    tagId: string,
+    noteId: string,
+    targetNoteId: string,
+    placement: api.MovePlacement
+  ) => Promise<void>;
   setShowNotes: (show: boolean) => void;
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
@@ -591,6 +597,75 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             showNotification({
               title: 'Error',
               message: 'Failed to reorder notes',
+              color: 'red',
+            });
+          }
+          throw error;
+        }
+      },
+      moveNoteAfter: async (
+        tagId: string,
+        noteId: string,
+        targetNoteId: string,
+        placement: api.MovePlacement
+      ) => {
+        // Refetch the current page preserving ordering+page —
+        // used when the server rebalanced positions or the
+        // move conflicted with a concurrent change.
+        const refreshCurrentPage = async () => {
+          const { notesOrdering, notesPage } =
+            useBibleStore.getState();
+          clearNotesCache(tagId);
+          await useBibleStore.getState().fetchNotes(tagId, {
+            ordering: notesOrdering ?? undefined,
+            page: notesPage,
+          });
+        };
+        try {
+          const result = await api.moveNote(
+            tagId,
+            noteId,
+            targetNoteId,
+            placement
+          );
+
+          if (result.rebalanced) {
+            // Every position was renumbered server-side;
+            // local midpoint math can't reflect that.
+            await refreshCurrentPage();
+          } else {
+            // Keep the notes cache consistent with the new
+            // position so stale order isn't served later.
+            clearNotesCache(tagId);
+            set((state) => ({
+              notes: state.notes.map((n) =>
+                n.id === noteId
+                  ? { ...n, tag_position: result.tag_position }
+                  : n
+              ),
+            }));
+          }
+
+          showNotification({
+            title: 'Success',
+            message: 'Note moved',
+            color: 'green',
+          });
+        } catch (error) {
+          if (error instanceof api.ConflictError) {
+            showNotification({
+              title: 'Conflict',
+              message: (
+                'Another user modified these notes. ' +
+                'Refreshing...'
+              ),
+              color: 'orange',
+            });
+            await refreshCurrentPage();
+          } else {
+            showNotification({
+              title: 'Error',
+              message: 'Failed to move note',
               color: 'red',
             });
           }
