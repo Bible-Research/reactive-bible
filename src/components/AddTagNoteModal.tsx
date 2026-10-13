@@ -247,6 +247,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
           />
           {linkedNotes.map((note) => {
             const isExpanded = expandedNotes.has(note.id);
+            const ref = linkedNoteRef(note);
             return (
               <Box
                 key={note.id}
@@ -259,7 +260,13 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
                     size="sm"
                     variant="subtle"
                     title={`linked-note-toggle-${note.id}`}
+                    aria-label={
+                      ref
+                        ? `Toggle note details for ${ref}`
+                        : "Toggle note details"
+                    }
                     aria-expanded={isExpanded}
+                    aria-controls={`linked-note-details-${note.id}`}
                     onClick={() => toggleLinkedNote(note.id)}
                   >
                     {isExpanded ? (
@@ -269,10 +276,13 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
                     )}
                   </ActionIcon>
                   <Text size="sm" weight={700}>
-                    {linkedNoteRef(note)}
+                    {ref}
                   </Text>
                 </Group>
-                <Collapse in={isExpanded}>
+                <Collapse
+                  in={isExpanded}
+                  id={`linked-note-details-${note.id}`}
+                >
                   {note.tag?.name && (
                     <Badge
                       size="sm"
