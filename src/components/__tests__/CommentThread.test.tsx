@@ -1,4 +1,5 @@
 import {
+  act,
   screen,
   waitFor,
   fireEvent,
@@ -10,6 +11,10 @@ import {
   vi,
   beforeEach,
 } from 'vitest';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../../utils/tiptapContent';
 
 vi.mock('@mantine/modals', () => ({
   openConfirmModal: vi.fn(
@@ -173,6 +178,30 @@ describe('CommentThread', () => {
   });
 
   it('updates comment content after successful edit', async () => {
+    let patchContent: string | undefined;
+    server.use(
+      http.patch(
+        `${API_URL}/notes/${NOTE_ID}/comments/:commentId/`,
+        async ({ params, request }) => {
+          const body = (await request.json()) as {
+            content?: string;
+          };
+          patchContent = body.content;
+          return HttpResponse.json({
+            id: params.commentId,
+            author: { id: 1, username: 'testuser' },
+            note_id: NOTE_ID,
+            parent_comment: null,
+            content: body.content,
+            timestamp: new Date().toISOString(),
+            is_deleted: false,
+            replies: [],
+            images: [],
+          });
+        }
+      )
+    );
+
     renderWithProviders(
       <CommentThread noteId={NOTE_ID} />,
       {
@@ -208,9 +237,42 @@ describe('CommentThread', () => {
         screen.getByText('Updated content')
       ).toBeInTheDocument();
     });
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(patchContent).toBeDefined();
+    expect(isTiptapDocString(patchContent as string)).toBe(true);
+    expect(toPlainText(patchContent as string)).toBe(
+      'Updated content'
+    );
   });
 
   it('calls onCountChange with +1 after successful create', async () => {
+    let postContent: string | undefined;
+    server.use(
+      http.post(
+        `${API_URL}/notes/${NOTE_ID}/comments/`,
+        async ({ params, request }) => {
+          const body = (await request.json()) as {
+            content?: string;
+          };
+          postContent = body.content;
+          return HttpResponse.json(
+            {
+              id: 'comment-new',
+              author: { id: 1, username: 'testuser' },
+              note_id: params.noteId,
+              parent_comment: null,
+              content: body.content,
+              timestamp: new Date().toISOString(),
+              is_deleted: false,
+              replies: [],
+              images: [],
+            },
+            { status: 201 }
+          );
+        }
+      )
+    );
+
     const onCountChange = vi.fn();
     renderWithProviders(
       <CommentThread
@@ -243,6 +305,12 @@ describe('CommentThread', () => {
     await waitFor(() => {
       expect(onCountChange).toHaveBeenCalledWith(1);
     });
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(postContent).toBeDefined();
+    expect(isTiptapDocString(postContent as string)).toBe(true);
+    expect(toPlainText(postContent as string)).toBe(
+      'My new comment'
+    );
   });
 
   it('removes image from comment after delete-image', async () => {
@@ -505,4 +573,300 @@ describe('CommentThread', () => {
     }
     expect(fetchCalls).toBe(3);
   });
+
+  const commentsFixture = () => [
+    {
+      id: 'comment-1',
+      author: { id: 1, username: 'testuser' },
+      note_id: NOTE_ID,
+      parent_comment: null,
+      content: 'Test comment',
+      timestamp: new Date().toISOString(),
+      is_deleted: false,
+      replies: [],
+      images: [],
+    },
+  ];
+
+  it('polls for new comments every 30 seconds', async () => {
+    let fetches = 0;
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () => {
+        fetches += 1;
+        return HttpResponse.json(commentsFixture());
+      })
+    );
+
+    // Fake timers must be on before render so the component's
+    // interval is scheduled under them.
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(
+        <CommentThread noteId={NOTE_ID} />
+      );
+      // Flush the initial fetch — MSW resolves off microtasks,
+      // and a long vi.waitFor would advance fake time into a
+      // poll tick.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+      const baseline = fetches;
+      expect(baseline).toBe(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29999);
+      });
+      expect(fetches).toBe(baseline);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetches).toBe(baseline + 1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetches).toBe(baseline + 2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('re-polls when the tab becomes visible', async () => {
+    let fetches = 0;
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () => {
+        fetches += 1;
+        return HttpResponse.json(commentsFixture());
+      })
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+    });
+    const baseline = fetches;
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await waitFor(() => {
+      expect(fetches).toBe(baseline + 1);
+    });
+  });
+
+  it('ignores a stale fetch resolving after a newer load',
+    async () => {
+      let resolveFirst: (r: Response) => void =
+        () => undefined;
+      let resolveSecond: (r: Response) => void =
+        () => undefined;
+      // The MSW handler runs asynchronously after the fetch is
+      // issued — wait for the resolver before settling it.
+      let firstPending = false;
+      let secondPending = false;
+      const comment = (id: string, content: string) => ({
+        id,
+        author: { id: 1, username: 'testuser' },
+        note_id: 'x',
+        parent_comment: null,
+        content,
+        timestamp: new Date().toISOString(),
+        is_deleted: false,
+        replies: [],
+        images: [],
+      });
+      server.use(
+        http.get(`${API_URL}/notes/note-1/comments/`, () =>
+          new Promise<Response>((resolve) => {
+            firstPending = true;
+            resolveFirst = resolve;
+          })
+        ),
+        http.get(`${API_URL}/notes/note-2/comments/`, () =>
+          new Promise<Response>((resolve) => {
+            secondPending = true;
+            resolveSecond = resolve;
+          })
+        )
+      );
+
+      const { rerender } = renderWithProviders(
+        <CommentThread noteId="note-1" />
+      );
+      await waitFor(() => {
+        expect(firstPending).toBe(true);
+      });
+
+      // Switch note before the first fetch resolves — the new
+      // load bumps loadVersion, superseding the first.
+      rerender(<CommentThread noteId="note-2" />);
+      await waitFor(() => {
+        expect(secondPending).toBe(true);
+      });
+
+      await act(async () => {
+        resolveSecond(
+          HttpResponse.json([comment('c2', 'Newer comment')])
+        );
+      });
+      await waitFor(() => {
+        expect(
+          screen.getByText('Newer comment')
+        ).toBeInTheDocument();
+      });
+
+      // The stale first response must be dropped, not
+      // resurrected over the newer list.
+      await act(async () => {
+        resolveFirst(
+          HttpResponse.json([comment('c1', 'Stale comment')])
+        );
+      });
+      expect(
+        screen.queryByText('Stale comment')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Newer comment')
+      ).toBeInTheDocument();
+    });
+
+  it('keeps the new comment when one of two image uploads ' +
+    'fails', async () => {
+      const okImage = {
+        id: 'img-ok',
+        storage_url: 'gs://bucket/originals/img-ok/ok.png',
+        signed_url: 'https://example.com/ok.png',
+        content_type: 'image/png',
+        size_bytes: 100,
+        uploaded_by: 1,
+        created_at: new Date().toISOString(),
+      };
+      let created: Record<string, unknown> | null = null;
+      const uploads: string[] = [];
+      server.use(
+        http.get(
+          `${API_URL}/notes/${NOTE_ID}/comments/`,
+          () =>
+            HttpResponse.json(
+              created
+                ? [...commentsFixture(), created]
+                : commentsFixture()
+            )
+        ),
+        http.post(
+          `${API_URL}/notes/${NOTE_ID}/comments/`,
+          async ({ params, request }) => {
+            const body = (await request.json()) as {
+              content?: string;
+            };
+            created = {
+              id: 'comment-new',
+              author: { id: 1, username: 'testuser' },
+              note_id: params.noteId,
+              parent_comment: null,
+              content: body.content,
+              timestamp: new Date().toISOString(),
+              is_deleted: false,
+              replies: [],
+              images: [okImage],
+            };
+            return HttpResponse.json(created, { status: 201 });
+          }
+        ),
+        http.post(
+          `${API_URL}/notes/${NOTE_ID}/comments/` +
+            ':commentId/images/',
+          async ({ request }) => {
+            const fd = await request.formData();
+            const file = fd.get('file') as File | null;
+            uploads.push(file?.name ?? '?');
+            if (file?.name === 'bad.png') {
+              return HttpResponse.json(
+                { detail: 'Broken upload' },
+                { status: 500 }
+              );
+            }
+            return HttpResponse.json(okImage, { status: 201 });
+          }
+        )
+      );
+
+      const onCountChange = vi.fn();
+      renderWithProviders(
+        <CommentThread
+          noteId={NOTE_ID}
+          onCountChange={onCountChange}
+        />,
+        {
+          stores: {
+            auth: {
+              isAuthenticated: true,
+              user: { username: 'testuser' },
+              token: 'fake-token',
+            },
+          },
+        }
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByPlaceholderText('Add a comment…')
+        ).toBeInTheDocument();
+      });
+
+      const input = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      const good = new File(['x'], 'good.png', {
+        type: 'image/png',
+      });
+      const bad = new File(['x'], 'bad.png', {
+        type: 'image/png',
+      });
+      Object.defineProperty(input, 'files', {
+        value: [good, bad],
+        configurable: true,
+      });
+      fireEvent.change(input);
+
+      fireEvent.change(
+        screen.getByPlaceholderText('Add a comment…'),
+        { target: { value: 'Two images' } }
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Post' })
+      );
+
+      // Both uploads attempted; the failed one does not roll
+      // back the comment or the successful image.
+      await waitFor(() => {
+        expect(onCountChange).toHaveBeenCalledWith(1);
+      });
+      await vi.waitFor(() => {
+        expect(uploads.sort()).toEqual(['bad.png', 'good.png']);
+      });
+      await waitFor(() => {
+        expect(
+          screen.getByText('Two images')
+        ).toBeInTheDocument();
+      });
+      expect(
+        document.querySelector('img[alt="ok.png"]')
+      ).toBeInTheDocument();
+    });
 });

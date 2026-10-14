@@ -144,9 +144,25 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     clearNotesCache();
   };
 
+  // Refetch the tag page the route is actually showing. The
+  // note's own tag may have changed mid-edit (and the `note`
+  // prop is stale by then), and dropping the current page +
+  // ordering would bounce the user back to page 1.
+  const refreshViewedNotes = () => {
+    const {
+      lastSelectedTagId,
+      notesOrdering,
+      notesPage,
+    } = useBibleStore.getState();
+    return fetchNotes(lastSelectedTagId ?? note?.tag.id, {
+      ordering: notesOrdering ?? undefined,
+      page: notesPage,
+    });
+  };
+
   const handleClose = () => {
-    if (autosavedRef.current && note) {
-      fetchNotes(note.tag.id);
+    if (autosavedRef.current) {
+      void refreshViewedNotes();
     }
     autosavedRef.current = false;
     onClose();
@@ -167,7 +183,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     try {
       await editNote(note.id, tagId, text, verseReferences);
       clearNotesCache(); // Cached pages hold stale verse links
-      fetchNotes(tagId); // Refresh notes list
+      // Fire-and-forget like before — a failed refetch must not
+      // keep the modal open after the note was saved.
+      void refreshViewedNotes();
       onClose();
     } catch (error) {
       console.error(error);
