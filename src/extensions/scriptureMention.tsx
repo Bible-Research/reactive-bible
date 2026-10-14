@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core';
+import { Extension, Node } from '@tiptap/core';
 import { ReactRenderer } from '@tiptap/react';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorState } from '@tiptap/pm/state';
@@ -18,6 +18,7 @@ import {
   parseMentionQuery,
 } from '../utils/scriptureMention';
 import {
+  isRefAttempt,
   SCRIPTURE_TOKEN_REGEX,
   VALID_REF_PREFIX,
 } from '../utils/scriptureLinkify';
@@ -148,6 +149,11 @@ export const ScriptureMention = Extension.create<
     let suppressFrom: number | null = null;
     let suppressQuery = '';
 
+    // Double-click on a finished token sets this to the '@'
+    // position so the next allow() call force-opens the picker
+    // even though the ref looks terminated/suppressed.
+    let forceOpenAt: number | null = null;
+
     const suppress = (from: number, query: string) => {
       suppressFrom = from;
       suppressQuery = query;
@@ -160,7 +166,8 @@ export const ScriptureMention = Extension.create<
 
     // Marks '@…' tokens that don't resolve to a complete,
     // in-range ref with a red inline decoration. The live
-    // suggestion range and code-formatted text are skipped.
+    // suggestion range, code-formatted text, and tokens that
+    // aren't ref-shaped ('bob@example.com') are skipped.
     const invalidRefDecorations = (state: EditorState) => {
       const suggestion = pluginKey.getState(state) as
         | { active: boolean; range: { from: number; to: number } }
@@ -179,6 +186,7 @@ export const ScriptureMention = Extension.create<
           const token = match[1];
           const candidate =
             token.match(VALID_REF_PREFIX)?.[1] ?? token;
+          if (!isRefAttempt(candidate)) continue;
           if (isValidScriptureToken(candidate)) continue;
           const from = pos + match.index;
           const to = from + candidate.length;
@@ -365,6 +373,8 @@ export const ScriptureMention = Extension.create<
       };
     };
 
+    const invalidDecoKey = new PluginKey('scriptureRefInvalid');
+
     return [
       Suggestion({
         editor,
@@ -374,6 +384,13 @@ export const ScriptureMention = Extension.create<
         allowedPrefixes: [' ', '('],
         items: () => [],
         allow: ({ state, range }) => {
+          // An explicit reopen intent (double-click on a token)
+          // beats every dismissal heuristic below.
+          if (forceOpenAt !== null) {
+            const forced = forceOpenAt === range.from;
+            forceOpenAt = null;
+            if (forced) return true;
+          }
           const text = state.doc.textBetween(
             range.from,
             range.to,
@@ -395,8 +412,24 @@ export const ScriptureMention = Extension.create<
         render: popupRenderer,
       }),
       new Plugin({
-        key: new PluginKey('scriptureRefInvalid'),
-        props: { decorations: invalidRefDecorations },
+        key: invalidDecoKey,
+        // The doc walk is the expensive part — recompute only
+        // when the doc or the suggestion's active range changed;
+        // selection/store updates reuse the decoration set.
+        state: {
+          init: (_, state) => invalidRefDecorations(state),
+          apply: (tr, set, oldState, newState) => {
+            const suggestionChanged =
+              pluginKey.getState(oldState) !==
+              pluginKey.getState(newState);
+            if (!tr.docChanged && !suggestionChanged) return set;
+            return invalidRefDecorations(newState);
+          },
+        },
+        props: {
+          decorations: (state) =>
+            invalidDecoKey.getState(state) as DecorationSet,
+        },
       }),
       new Plugin({
         key: new PluginKey('scriptureRefClick'),
@@ -416,8 +449,10 @@ export const ScriptureMention = Extension.create<
               if (mouse.detail > 1) {
                 // Double click: caret lands at the token end so
                 // the suggestion range covers the whole '@…'
-                // token and the picker reopens for editing.
+                // token; forceOpenAt makes allow() reopen the
+                // picker for editing.
                 clearPreviewTimer();
+                forceOpenAt = hit.from;
                 editor.commands.setTextSelection(hit.to);
                 return true;
               }
@@ -435,6 +470,59 @@ export const ScriptureMention = Extension.create<
       }),
     ];
   },
+});
+
+// Display text for a stored scriptureRef/mention node's attrs —
+// mirrors the token fallback chain in RichTextView.
+const refNodeText = (a: Record<string, unknown>): string => {
+  if (a.code && a.chapter && a.verseStart) {
+    const end = a.verseEnd ? `-${a.verseEnd}` : '';
+    return `@${a.code}.${a.chapter}.${a.verseStart}${end}`;
+  }
+  if (typeof a.id === 'string' && a.id.startsWith('@')) {
+    return a.id;
+  }
+  if (typeof a.label === 'string' && a.label) return a.label;
+  return '@…';
+};
+
+const refNodeAttributes = () => ({
+  code: { default: null },
+  chapter: { default: null },
+  verseStart: { default: null },
+  verseEnd: { default: null },
+  id: { default: null },
+  label: { default: null },
+});
+
+/**
+ * Stored docs may contain inline 'scriptureRef'/'mention' nodes
+ * written by other clients (RichTextView renders them). Without
+ * a schema entry the editor silently strips them on load, so a
+ * save would lose data. This light atom spec preserves the node
+ * and its attrs through getJSON; it displays as its '@…' token.
+ */
+export const ScriptureRefNode = Node.create({
+  name: 'scriptureRef',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes: refNodeAttributes,
+  parseHTML() {
+    return [{ tag: 'span[data-scripture-ref]' }];
+  },
+  renderHTML({ node }) {
+    return [
+      'span',
+      { 'data-scripture-ref': '' },
+      refNodeText(node.attrs),
+    ];
+  },
+});
+
+export const ScriptureMentionNode = ScriptureRefNode.extend({
+  name: 'mention',
 });
 
 export default ScriptureMention;

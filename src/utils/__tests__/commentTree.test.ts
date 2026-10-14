@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  commentImageName,
+  findNode,
   insertReply,
   updateNode,
   pruneDeleted,
 } from '../commentTree';
-import { Comment } from '../../api';
+import { Comment, CommentImage } from '../../api';
 
 const makeComment = (
   id: string,
@@ -52,6 +54,53 @@ describe('insertReply', () => {
     const tree = [makeComment('1')];
     insertReply(tree, null, makeComment('2'));
     expect(tree).toHaveLength(1);
+  });
+
+  it('appends to root when the parent has vanished', () => {
+    // Parent deleted between fetch and submit — the reply must
+    // not be silently dropped.
+    const tree = [makeComment('1')];
+    const newC = makeComment('2', { parent_comment: 'gone' });
+    const result = insertReply(tree, 'gone', newC);
+    expect(result).toHaveLength(2);
+    expect(result[1].id).toBe('2');
+    expect(result[0].replies).toHaveLength(0);
+  });
+});
+
+describe('findNode', () => {
+  it('finds a nested node by id', () => {
+    const child = makeComment('2', { parent_comment: '1' });
+    const tree = [makeComment('1', { replies: [child] })];
+    expect(findNode(tree, '2')?.id).toBe('2');
+  });
+
+  it('returns null for a missing id', () => {
+    expect(findNode([makeComment('1')], 'x')).toBeNull();
+    expect(findNode([], 'x')).toBeNull();
+  });
+});
+
+describe('commentImageName', () => {
+  it('decodes percent-encoded file names', () => {
+    const img = {
+      storage_url:
+        'gs://bucket/originals/img-1/my%20pic%20%281%29.png',
+    } as CommentImage;
+    expect(commentImageName(img)).toBe('my pic (1).png');
+  });
+
+  it('keeps malformed escapes as-is', () => {
+    const img = {
+      storage_url: 'gs://bucket/originals/i/bad%zz.png',
+    } as CommentImage;
+    expect(commentImageName(img)).toBe('bad%zz.png');
+  });
+
+  it('falls back for a missing storage_url', () => {
+    expect(
+      commentImageName({} as CommentImage)
+    ).toBe('comment attachment');
   });
 });
 

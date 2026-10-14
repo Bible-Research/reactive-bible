@@ -2305,7 +2305,8 @@ and `getKjvAudioUrl` stay synchronous.
    Response: CommentImage { id, storage_url, signed_url|null,
      content_type, size_bytes, uploaded_by, created_at }
    // signed_url is short-lived; img onError triggers a targeted
-   // refetch (bounded per comment), see CommentThread
+   // refetch (bounded per image set — a refresh that mints new
+   // URLs resets the budget), see CommentThread
    ```
 
 10. **Get Reading Positions**
