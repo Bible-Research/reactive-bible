@@ -22,6 +22,7 @@ import {
   prefetchAudioUrl,
   prefetchAdjacentChapters,
   getChapters,
+  getAdjacentChapters,
   type SectionHeading,
   RateLimitError,
   ProviderError,
@@ -260,13 +261,16 @@ const PassageView = () => {
       ),
     [activeTextFilesetId, activeBookId, translations]
   );
+  // Fall back to null — not the raw selection — when the
+  // resolver fails: a stored grouped product id is not routable
+  // as a fileset_id (prefetchAudioUrl guards on null).
   const resolvedAudioFilesetId = useMemo(
     () =>
       resolveAudioFileset(
         activeAudioFilesetId,
         activeBookId,
         translations,
-      )?.filesetId ?? activeAudioFilesetId,
+      )?.filesetId ?? null,
     [activeAudioFilesetId, activeBookId, translations]
   );
 
@@ -316,16 +320,20 @@ const PassageView = () => {
 
         // Consume a pending reading-position restore (set by
         // setActiveBookWithPosition on book switch). The verse is
-        // scrolled into view without selecting it.
+        // scrolled into view without selecting it. Clear it only
+        // when it matches this book+chapter — a pending position
+        // for another book must survive an unrelated load that
+        // happens to resolve first.
         const pendingPosition =
           useBibleStore.getState().pendingScrollVerse;
-        let restoreVerse =
-          pendingPosition &&
+        const isPendingMatch =
+          pendingPosition !== null &&
           pendingPosition.bookId === activeBookId &&
-          pendingPosition.chapter === activeChapter
-            ? pendingPosition.verse
-            : null;
-        if (pendingPosition) {
+          pendingPosition.chapter === activeChapter;
+        let restoreVerse = isPendingMatch
+          ? pendingPosition.verse
+          : null;
+        if (isPendingMatch) {
           useBibleStore.getState().setPendingScrollVerse(null);
         }
         // Cold load (reload / direct URL): nothing queued a
@@ -373,18 +381,6 @@ const PassageView = () => {
             restoreVerse ?? 1
           );
 
-        const audioFilesetId = resolvedAudioFilesetId;
-
-        // Prefetch current chapter audio (parallel)
-        prefetchAudioUrl(
-          activeBookId, activeChapter, audioFilesetId
-        );
-
-        // Prefetch next chapter audio (parallel)
-        prefetchAudioUrl(
-          activeBookId, activeChapter + 1, audioFilesetId
-        );
-
         // Prefetch adjacent chapters (parallel) — the resolver
         // handles adjacent chapters that cross a book boundary.
         // Read the latest selection straight from the store so
@@ -426,8 +422,37 @@ const PassageView = () => {
     activeBookId,
     activeChapter,
     resolvedTextFilesetId,
-    resolvedAudioFilesetId,
   ]);
+
+  // Audio prefetch lives in its own effect: switching only the
+  // audio version must not refire the text fetch above (which
+  // would flash the loader, reset the scroll, and overwrite the
+  // saved reading position).
+  useEffect(() => {
+    // Prefetch current chapter audio.
+    prefetchAudioUrl(
+      activeBookId, activeChapter, resolvedAudioFilesetId
+    );
+
+    // Prefetch the next chapter's audio — via
+    // getAdjacentChapters so a book boundary (REV.22 → MAT.1)
+    // doesn't produce a bogus `REV.23` request. The audio
+    // fileset is re-resolved for the neighbor book since
+    // testament-split products need the member for THAT book.
+    const { next } = getAdjacentChapters(activeBookId, activeChapter);
+    if (next) {
+      const {
+        activeAudioFilesetId: storedAudioId,
+        translations: tls,
+      } = useBibleStore.getState();
+      prefetchAudioUrl(
+        next.bookId,
+        next.chapter,
+        resolveAudioFileset(storedAudioId, next.bookId, tls)
+          ?.filesetId ?? null,
+      );
+    }
+  }, [activeBookId, activeChapter, resolvedAudioFilesetId]);
 
   // Debounced first-verse-in-view tracking: keeps the saved
   // reading position accurate enough for scroll restoration.
@@ -470,10 +495,10 @@ const PassageView = () => {
     );
   }
 
-  const isNonKjv =
-    resolvedTextFilesetId && resolvedTextFilesetId !== 'ENGKJV';
+  // Not gated on a non-KJV fileset: a missing KJV chapter or a
+  // failed bundled load must show the hint too, not a blank page.
   const showEmptyHint =
-    isNonKjv && (fetchError !== null || verses.length === 0);
+    fetchError !== null || verses.length === 0;
 
   if (showEmptyHint) {
     const mismatchHint = getTestamentMismatchHint(
