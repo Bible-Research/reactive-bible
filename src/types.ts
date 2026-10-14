@@ -25,11 +25,58 @@ export interface Note {
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;
+  /** Set when the provider failed to resolve verse text. */
+  error?: string;
+  /** 'rate_limited' | 'provider_error' — see `error`. */
+  error_code?: string;
 }
 
 export interface SectionHeading {
   before_verse: number;
   text: string;
+}
+
+/**
+ * One row of `GET /api/v1/notes/order-index/` — a compact,
+ * unpaginated listing of every note in a tag in canonical
+ * ascending order (`tag_position` ASC, `-created_at` tiebreak).
+ * The order ID shown to users is the 1-based array index.
+ */
+export interface NoteOrderIndexEntry {
+  id: string;
+  tag_position: number | null;
+  book: string | null;
+  chapter: number | null;
+  verse_start: number | null;
+  verse_end: number | null;
+}
+
+/** An order-index row with its precomputed dropdown label —
+ *  built once by `TagNotesRoute` and shared by every mounted
+ *  `NoteOrderMenu` instead of each re-mapping the full index. */
+export interface LabeledNoteOrderEntry {
+  entry: NoteOrderIndexEntry;
+  label: string;
+}
+
+/**
+ * Everything a `NoteOrderMenu` needs, bundled so it can be
+ * threaded through `TagSection` → `SortableNoteCard`/`NoteCard`
+ * as a single prop. Built by `TagNotesRoute`.
+ */
+export interface NoteOrderMenuData {
+  /** All tag notes, pre-labeled, in display order — canonical
+   *  ascending, reversed under custom_desc. */
+  labeledEntries: LabeledNoteOrderEntry[];
+  /** note id → 1-based order ID (canonical index + 1). */
+  orderIdByNoteId: Map<string, number>;
+  /** Order ID of the visually topmost entry — 1 in
+   *  custom_asc, the highest order ID in custom_desc. */
+  topOrderId: number;
+  /** Move `noteId` to just after `targetNoteId` (display order). */
+  onMoveAfter: (noteId: string, targetNoteId: string) => void;
+  /** Move `noteId` to the visual top of the list. */
+  onMoveToTop: (noteId: string) => void;
 }
 
 export interface VerseTimestamp {
@@ -51,6 +98,16 @@ export interface CommentAuthor {
   username: string;
 }
 
+export interface CommentImage {
+  id: string;
+  storage_url: string;
+  signed_url: string | null;
+  content_type: string;
+  size_bytes: number;
+  uploaded_by: number;
+  created_at: string;
+}
+
 export interface Comment {
   id: string;
   author: CommentAuthor;
@@ -60,6 +117,7 @@ export interface Comment {
   timestamp: string;
   is_deleted: boolean;
   replies: Comment[] | undefined;
+  images: CommentImage[];
 }
 
 export type CommentCounts = Record<string, number>;
@@ -97,4 +155,13 @@ export interface AudioActiveVerse {
   chapter: number;
   verse: number;
   scope?: VerseScope; // 'bible' | PlaylistItem.itemId
+}
+
+export interface ReadingPosition {
+  id: string;
+  /** Backend book name (e.g. "John"), not a USFM code. */
+  book: string;
+  chapter: number;
+  verse: number;
+  last_accessed: string;
 }

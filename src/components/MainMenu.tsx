@@ -25,11 +25,11 @@ import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
 import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
 
-// Fixed asset name on the latest GitHub release keeps this URL
-// stable across versions.
+// The rolling `continuous` prerelease always serves the newest
+// main build; `releases/latest` would serve the stale v* tag.
 const ANDROID_APK_URL =
   'https://github.com/Bible-Research/reactive-bible/releases/' +
-  'latest/download/reactive-bible.apk';
+  'download/continuous/reactive-bible.apk';
 
 interface MainMenuProps {
   opened: boolean;

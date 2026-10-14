@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { getVersesInChapter } from '../api';
 import { groupRefsByChapter } from '../utils/verseRefs';
 import { toBookName } from '../utils/bibleUtils';
+import { resolveTextFileset } from '../utils/filesetGroups';
+import type { Translation } from '../store';
 import type { VerseRef } from '../types';
 
 export interface VerseText {
@@ -20,6 +22,7 @@ export interface VerseText {
 export const useVerseTexts = (
   refs: VerseRef[],
   filesetId: string | null,
+  translations: Translation[],
   enabled = true,
 ): VerseText[] => {
   const [verseTexts, setVerseTexts] = useState<VerseText[]>([]);
@@ -37,10 +40,19 @@ export const useVerseTexts = (
         const groups = groupRefsByChapter(refs);
         const results = await Promise.all(
           groups.map(async (group) => {
+            // The stored id may be a product/group id — resolve
+            // per book so `_ET` testament splits (and the ENGKJV
+            // offline fast-path) work.
+            const resolvedId =
+              resolveTextFileset(
+                filesetId,
+                group.bookId,
+                translations,
+              ) ?? filesetId;
             const result = await getVersesInChapter(
               group.bookId,
               group.chapter,
-              filesetId
+              resolvedId
             );
             const wanted = new Set(group.verses);
             return result.verses
@@ -64,7 +76,7 @@ export const useVerseTexts = (
     return () => {
       cancelled = true;
     };
-  }, [refs, filesetId, enabled]);
+  }, [refs, filesetId, translations, enabled]);
 
   return verseTexts;
 };

@@ -1,10 +1,10 @@
 # AGENTS.md — reactive-bible (React frontend)
 
 Guidance for AI agents working in this repository. Trust the code
-over docs that disagree — `CLAUDE.md` still lists components that
-no longer exist (e.g. MyNavbar, PassageView, Verse, SearchModal,
-TranslationSelector, AddTagNoteModal/EditNoteModal notes flow was
-reworked).
+over docs that disagree — `DEVELOPER_GUIDE.md` still lists
+components that no longer exist (e.g. MyNavbar, PassageView,
+Verse, SearchModal, TranslationSelector, AddTagNoteModal/
+EditNoteModal notes flow was reworked).
 
 ## What this is
 
@@ -78,12 +78,18 @@ npm test -- --run  # vitest headless (389 tests, ~85s)
 - Commit format `Type: Capitalized message`; never commit to `main`;
   stage only files you changed.
 - Components PascalCase, utils camelCase, constants UPPER_SNAKE.
+- Functional components + hooks only (no classes); `const` over
+  `let`; strict TypeScript — no `any`.
 - Zustand: select narrowly (`state => state.x`) to avoid rerenders.
 - Test hooks: `title="nav-book-{code}"`, `title="nav-chapter-{n}"`,
   `title="passage-verse-{chapter}-{n}"`.
+- Commit after each completed plan step; update
+  `DEVELOPER_GUIDE.md` after functionality changes.
 
 ## Known gaps (do NOT "fix" without asking)
 
-- Backend image-upload + reading-positions endpoints are NOT
-  consumed yet — intentional, pending design.
+- Comment image endpoints ARE consumed by
+  `CommentThread`/`CommentForm`/`CommentNode`; reading positions
+  are consumed too (book-name keyed, auth-gated; see
+  `readingPositions` in `src/store.tsx`).
 - KJV audio is fetched from wordpocket.org directly, not the API.
