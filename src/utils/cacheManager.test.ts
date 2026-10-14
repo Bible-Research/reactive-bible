@@ -285,14 +285,84 @@ describe('Notes Cache Manager', () => {
     cacheNotes('TAG1', notes);
     const afterCache = Date.now();
 
-    // Verify timestamp is stored (check localStorage directly)
-    const cacheStr = localStorageMock.getItem('bible_notes_cache');
+    // Verify timestamp is stored (check localStorage directly).
+    // Keys carry the request scope: auth discriminator, fileset,
+    // and page size.
+    const cacheStr =
+      localStorageMock.getItem('bible_notes_cache_v2');
     expect(cacheStr).toBeTruthy();
 
-    const cache = JSON.parse(cacheStr ?? '{}');
-    const entry = cache['TAG1:page1:default'];
-    expect(entry.timestamp).toBeGreaterThanOrEqual(beforeCache);
-    expect(entry.timestamp).toBeLessThanOrEqual(afterCache);
+    const cache = JSON.parse(cacheStr!);
+    const key =
+      'TAG1:anon:fs:default:ps:default:page1:default';
+    expect(cache[key].timestamp).toBeGreaterThanOrEqual(
+      beforeCache
+    );
+    expect(cache[key].timestamp).toBeLessThanOrEqual(afterCache);
+  });
+
+  it('separates cached pages by auth state, fileset, and ' +
+    'page size', () => {
+    const tag = makeTag('TAG1');
+
+    const base = { count: 1, hasMore: false, page: 1 };
+    cacheNotes('TAG1', [makeNote('anon', tag, 'anon')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: false,
+    });
+    cacheNotes('TAG1', [makeNote('authed', tag, 'authed')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: true,
+    });
+    cacheNotes('TAG1', [makeNote('other-fs', tag, 'other-fs')], {
+      ...base, filesetId: 'FS_B', pageSize: 25, authed: false,
+    });
+    cacheNotes('TAG1', [makeNote('other-ps', tag, 'other-ps')], {
+      ...base, filesetId: 'FS_A', pageSize: 50, authed: false,
+    });
+
+    const scope = (
+      authed: boolean,
+      filesetId = 'FS_A',
+      pageSize = 25
+    ) => ({ filesetId, pageSize, authed });
+
+    // A private-note page cached under an authed scope must not
+    // be served to anonymous readers (and vice versa).
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false))?.notes[0].id
+    ).toBe('anon');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(true))?.notes[0].id
+    ).toBe('authed');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false, 'FS_B'))
+        ?.notes[0].id
+    ).toBe('other-fs');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false, 'FS_A', 50))
+        ?.notes[0].id
+    ).toBe('other-ps');
+  });
+
+  it('clearNotesCache(tagId) clears every scoped page of the ' +
+    'tag', () => {
+    const tag = makeTag('TAG1');
+    const note = makeNote('n1', tag, 'n');
+    const base = { count: 1, hasMore: false, page: 1 };
+    cacheNotes('TAG1', [note], {
+      ...base, filesetId: 'FS_A', authed: false,
+    });
+    cacheNotes('TAG1', [note], {
+      ...base, filesetId: 'FS_B', authed: true,
+    });
+
+    clearNotesCache('TAG1');
+
+    expect(getCachedNotes('TAG1', 1, null, {
+      filesetId: 'FS_A', authed: false,
+    })).toBeNull();
+    expect(getCachedNotes('TAG1', 1, null, {
+      filesetId: 'FS_B', authed: true,
+    })).toBeNull();
   });
 
   it('should cache different pages independently', () => {

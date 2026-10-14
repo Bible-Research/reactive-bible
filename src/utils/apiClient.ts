@@ -5,18 +5,29 @@ import { showNotification } from '@mantine/notifications';
  * Helper function to get authentication headers
  * Returns headers with Authorization token if user is authenticated
  */
-const getAuthHeaders = (): HeadersInit => {
+const getAuthHeaders = (): Record<string, string> => {
   const token = useAuthStore.getState().token;
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  
+
   if (token) {
     // Django REST Framework uses "Token" prefix, not "Bearer"
     headers['Authorization'] = `Token ${token}`;
   }
-  
+
   return headers;
+};
+
+/**
+ * Network-error retries are only safe for idempotent reads: a
+ * TypeError can mean the request reached the server but the
+ * response was lost, so retrying a POST/PATCH/DELETE could
+ * double-create notes, tags, or comments.
+ */
+const isIdempotentRequest = (options: RequestInit): boolean => {
+  const method = (options.method ?? 'GET').toUpperCase();
+  return method === 'GET' || method === 'HEAD';
 };
 
 /**
@@ -25,6 +36,12 @@ const getAuthHeaders = (): HeadersInit => {
  * 401. Use for public-read endpoints (notes/tags list, detail, single
  * note share page) where a stray 401 should never destroy an existing
  * session.
+ *
+ * DRF runs authentication before permission checks, so an expired
+ * token makes even `AllowAny` endpoints return 401 — worse than
+ * anonymous. On a 401 with a token attached, the request is
+ * retried once without the Authorization header so public reads
+ * degrade to anonymous instead of breaking.
  *
  * @param url - The URL to fetch
  * @param options - Fetch options
@@ -35,18 +52,38 @@ export const publicFetch = async (
   options: RequestInit = {},
   retries = 1
 ): Promise<Response> => {
-  const headers = getAuthHeaders();
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+    ...(options.headers as Record<string, string> | undefined),
+  };
 
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       ...options,
-      headers: {
-        ...headers,
-        ...options.headers,
-      },
+      headers,
     });
+
+    // A dead token poisons even public reads — retry once
+    // anonymously. The token is deliberately kept: publicFetch
+    // must never destroy the session (that is
+    // authenticatedFetch's job).
+    if (response.status === 401 && headers['Authorization']) {
+      console.warn(
+        '401 with token on public endpoint - retrying ' +
+        'anonymously'
+      );
+      const anonHeaders = { ...headers };
+      delete anonHeaders['Authorization'];
+      return await fetch(url, { ...options, headers: anonHeaders });
+    }
+
+    return response;
   } catch (error) {
-    if (retries > 0 && error instanceof TypeError) {
+    if (
+      retries > 0 &&
+      error instanceof TypeError &&
+      isIdempotentRequest(options)
+    ) {
       console.warn('Network error (publicFetch), retrying...', error);
       return publicFetch(url, options, retries - 1);
     }
@@ -123,8 +160,13 @@ export const authenticatedFetch = async (
     
     return response;
   } catch (error) {
-    // Retry once on network errors
-    if (retries > 0 && error instanceof TypeError) {
+    // Retry once on network errors, but only for idempotent
+    // reads — a lost-response POST could double-create.
+    if (
+      retries > 0 &&
+      error instanceof TypeError &&
+      isIdempotentRequest(options)
+    ) {
       console.warn('Network error, retrying...', error);
       return authenticatedFetch(url, options, retries - 1);
     }
@@ -137,65 +179,55 @@ export const authenticatedFetch = async (
  * Sets only the Authorization header; lets the browser generate
  * the multipart Content-Type with its boundary.
  * Mirrors authenticatedFetch's 401 (logout + notification) and
- * 403 (throw permission error) handling.
+ * 403 (throw permission error) handling. There is no network-error
+ * retry: an upload is a non-idempotent POST, and retrying a
+ * lost-response request could double-upload the file.
  */
 export const authenticatedUpload = async (
   url: string,
   formData: FormData,
-  retries = 1,
 ): Promise<Response> => {
   const token = useAuthStore.getState().token;
   const headers: HeadersInit = {};
   if (token) headers['Authorization'] = `Token ${token}`;
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
 
-    if (response.status === 401) {
-      // Same rotation guard as authenticatedFetch: a 401 for
-      // a superseded token must not wipe the fresh session.
-      if (useAuthStore.getState().token !== token) {
-        throw new Error('Session expired. Please log in again.');
-      }
-      // Mirror authenticatedFetch: only toast on the
-      // first handler to expire the session.
-      const wasAuthenticated =
-        useAuthStore.getState().isAuthenticated;
-      console.warn('401 Unauthorized - logging out user');
-      useAuthStore.getState().logout();
-      if (wasAuthenticated) {
-        showNotification({
-          title: 'Session Expired',
-          message:
-            'Your session has expired. Please log in again.',
-          color: 'orange',
-          autoClose: 5000,
-        });
-      }
+  if (response.status === 401) {
+    // Same rotation guard as authenticatedFetch: a 401 for
+    // a superseded token must not wipe the fresh session.
+    if (useAuthStore.getState().token !== token) {
       throw new Error('Session expired. Please log in again.');
     }
-
-    if (response.status === 403) {
-      throw new Error(
-        'You do not have permission to access this resource.',
-      );
+    // Mirror authenticatedFetch: only toast on the first
+    // handler to expire the session.
+    const wasAuthenticated =
+      useAuthStore.getState().isAuthenticated;
+    console.warn('401 Unauthorized - logging out user');
+    useAuthStore.getState().logout();
+    if (wasAuthenticated) {
+      showNotification({
+        title: 'Session Expired',
+        message:
+          'Your session has expired. Please log in again.',
+        color: 'orange',
+        autoClose: 5000,
+      });
     }
-
-    return response;
-  } catch (error) {
-    if (retries > 0 && error instanceof TypeError) {
-      console.warn(
-        'Network error (authenticatedUpload), retrying...',
-        error,
-      );
-      return authenticatedUpload(url, formData, retries - 1);
-    }
-    throw error;
+    throw new Error('Session expired. Please log in again.');
   }
+
+  if (response.status === 403) {
+    throw new Error(
+      'You do not have permission to access this resource.',
+    );
+  }
+
+  return response;
 };
 
 /**
