@@ -6,10 +6,16 @@ import {
 } from './store';
 import * as api from './api';
 
-// Mock the API module
-vi.mock('./api', () => ({
-  getNotes: vi.fn(),
-}));
+// Selective mock: spread the real api module so error classes
+// and unstubbed functions stay real (store actions branch on
+// `instanceof`); only the calls under test are stubbed.
+vi.mock('./api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api')>();
+  return {
+    ...actual,
+    getNotes: vi.fn(),
+  };
+});
 
 const john316 = { bookId: 'JHN', chapter: 3, verse: 16 };
 
@@ -221,6 +227,61 @@ describe('Zustand Store (useBibleStore)', () => {
     expect(migrated.activeBookId).toBe('JHN');
     expect(migrated.verseSelection).toEqual(
       persisted.verseSelection
+    );
+  });
+
+  it('migratePersistedState re-keys v<5 readingPositions from ' +
+    'book names to USFM codes', () => {
+    // v<5 persisted positions keyed by book name (the backend's
+    // `book` field); v5 keys them by USFM code like everything
+    // else in the store.
+    const migrated = migratePersistedState(
+      {
+        readingPositions: {
+          John: { chapter: 3, verse: 16 },
+          MRK: { chapter: 2, verse: 1 },
+          '1 Corinthians': { chapter: 5, verse: 9 },
+        },
+      },
+      4
+    );
+    expect(migrated.readingPositions).toEqual({
+      JHN: { chapter: 3, verse: 16 },
+      MRK: { chapter: 2, verse: 1 },
+      '1CO': { chapter: 5, verse: 9 },
+    });
+  });
+
+  it('migratePersistedState maps malformed v<5 positions to ' +
+    'null and drops unknown books', () => {
+    const migrated = migratePersistedState(
+      {
+        readingPositions: {
+          JHN: { chapter: 'three', verse: 16 },
+          MRK: null,
+          Genesis: { chapter: 1 },
+          NotABook: { chapter: 1, verse: 1 },
+        },
+      },
+      4
+    );
+    // A null entry means "fetched, no saved position"; malformed
+    // entries degrade to the same value rather than crashing.
+    expect(migrated.readingPositions).toEqual({
+      JHN: null,
+      MRK: null,
+      GEN: null,
+    });
+  });
+
+  it('migratePersistedState does not re-key readingPositions ' +
+    'at v5', () => {
+    const persisted = {
+      readingPositions: { JHN: { chapter: 3, verse: 16 } },
+    };
+    const migrated = migratePersistedState(persisted, 5);
+    expect(migrated.readingPositions).toEqual(
+      persisted.readingPositions
     );
   });
 
