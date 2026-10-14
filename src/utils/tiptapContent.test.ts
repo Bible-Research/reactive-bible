@@ -113,6 +113,48 @@ describe('docToPlainText', () => {
   it('returns empty string for malformed JSON', () => {
     expect(docToPlainText('{bad json')).toBe('');
   });
+
+  it('ignores non-array content and non-object children', () => {
+    const s = doc([
+      { type: 'paragraph', content: 'oops' },
+      {
+        type: 'paragraph',
+        content: [
+          null,
+          42,
+          'loose string',
+          { type: 'text', text: 17 },
+          { type: 'text', text: 'survives' },
+        ],
+      },
+    ]);
+    expect(docToPlainText(s).trim()).toBe('survives');
+  });
+
+  it('caps recursion on crafted deeply nested docs', () => {
+    // Untrusted doc-JSON must not stack-overflow the walk.
+    let node: Record<string, unknown> = {
+      type: 'text',
+      text: 'deep',
+    };
+    for (let i = 0; i < 10000; i++) {
+      node = { type: 'paragraph', content: [node] };
+    }
+    const s = JSON.stringify({ type: 'doc', content: [node] });
+    expect(() => docToPlainText(s)).not.toThrow();
+  });
+
+  it('caps extraction on huge node counts', () => {
+    const s = doc(
+      Array.from({ length: 6000 }, (_, i) => ({
+        type: 'paragraph',
+        content: [{ type: 'text', text: `v${i}` }],
+      }))
+    );
+    const plain = docToPlainText(s);
+    expect(plain).toContain('v0');
+    expect(plain).not.toContain('v5999');
+  });
 });
 
 describe('toPlainText', () => {
