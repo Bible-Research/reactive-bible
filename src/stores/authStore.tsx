@@ -49,14 +49,15 @@ const createAuthStore = () => create<AuthState>()(
       // Login action
       login: async (username: string, password: string) => {
         set({ isLoading: true, error: null });
-        
+
         try {
           const requestBody = { username, password };
-          console.log('🔐 Login attempt:', { 
+          // Never log the plaintext password — mask like register.
+          console.log('🔐 Login attempt:', {
             url: `${API_BASE_URL}/api/token/`,
-            body: requestBody 
+            body: { username, password: '***' },
           });
-          
+
           const response = await fetch(`${API_BASE_URL}/api/token/`, {
             method: 'POST',
             headers: {
@@ -64,35 +65,42 @@ const createAuthStore = () => create<AuthState>()(
             },
             body: JSON.stringify(requestBody),
           });
-          
+
           console.log('🔐 Login response status:', response.status);
-          
+
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             console.error('🔐 Login error response:', errorData);
-            
+
             let errorMessage = 'Invalid username or password';
-            
+
             if (response.status === 400) {
               errorMessage = errorData.non_field_errors?.[0] ||
                 errorData.detail ||
-                'Invalid credentials. Please ensure you have a valid account with a password set via Django admin.';
+                'Invalid credentials. Please ensure you have a ' +
+                'valid account with a password set via Django ' +
+                'admin.';
             } else if (response.status === 401) {
               errorMessage = 'Invalid username or password';
             } else {
-              errorMessage = errorData.detail || 
-                errorData.non_field_errors?.[0] || 
+              errorMessage = errorData.detail ||
+                errorData.non_field_errors?.[0] ||
                 'Login failed. Please try again.';
             }
-            
+
             throw new Error(errorMessage);
           }
-          
+
           const data = await response.json();
-          
+
+          // Prefer the server's canonical username over the
+          // as-typed string so downstream ownership checks
+          // (comments, notes) match regardless of casing.
           set({
             token: data.token,
-            user: { username },
+            user: {
+              username: data.user?.username ?? username,
+            },
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -124,7 +132,12 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
-          const requestBody: any = {
+          const requestBody: {
+            username: string;
+            password: string;
+            password_confirm: string;
+            email?: string;
+          } = {
             username,
             password,
             password_confirm: passwordConfirm,
@@ -251,10 +264,27 @@ const createAuthStore = () => create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => localStorage),
+      // isAuthenticated is persisted alongside the token so the
+      // first render after rehydration already knows the session
+      // exists — otherwise pages that load data on the
+      // isAuthenticated flip would double-fetch.
       partialize: (state) => ({
         token: state.token,
         user: state.user,
+        isAuthenticated: state.isAuthenticated,
       }),
+      // isAuthenticated always derives from the token (the same
+      // rule checkAuth applies) — this covers blobs written
+      // before the field was persisted and keeps the two from
+      // ever disagreeing.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AuthState>;
+        return {
+          ...current,
+          ...p,
+          isAuthenticated: Boolean(p.token),
+        };
+      },
     }
   )
 );
