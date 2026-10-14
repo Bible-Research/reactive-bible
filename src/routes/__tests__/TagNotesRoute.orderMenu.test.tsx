@@ -6,6 +6,7 @@ import {
   fireEvent,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { showNotification } from '@mantine/notifications';
 import { mockDomApis } from '../../__tests__/helpers';
 import TagNotesRoute from '../TagNotesRoute';
 import {
@@ -54,6 +55,9 @@ vi.mock('../../api', async (importOriginal) => {
   return mocked;
 });
 vi.mock('../../utils/cacheManager');
+vi.mock('@mantine/notifications', () => ({
+  showNotification: vi.fn(),
+}));
 
 const mockApi = vi.mocked(api);
 
@@ -380,6 +384,37 @@ describe('TagNotesRoute order menu', () => {
         'tag-123',
         { ordering: undefined, page: 2 }
       );
+    });
+
+  it('shows a conflict toast and resyncs the order index ' +
+    'when a move hits a ConflictError', async () => {
+      mockApi.moveNote.mockRejectedValue(
+        new api.ConflictError('stale positions')
+      );
+      renderRoute();
+      await waitFor(() => {
+        expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(1);
+      });
+
+      await openOrderMenu('note-1');
+      fireEvent.click(
+        await screen.findByText('#2 — Genesis 1:1')
+      );
+
+      // The store surfaces a distinct conflict toast, and the
+      // route's finally-block refetches the order index so the
+      // badges resync with the post-conflict positions.
+      await waitFor(() => {
+        expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(2);
+      });
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Conflict',
+          color: 'orange',
+        })
+      );
+      // The page the user is on is also refreshed.
+      expect(mockFetchNotes).toHaveBeenCalledTimes(2);
     });
 
   it('renders no badge for a note missing from the index',
