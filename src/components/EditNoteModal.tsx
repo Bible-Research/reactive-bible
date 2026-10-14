@@ -239,6 +239,15 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               });
             }}
             onAutoSave={handleAutoSave}
+            onUnmountedSave={() => {
+              // A tail save finishing after unmount sets
+              // autosavedRef too late for handleClose's check —
+              // refetch the viewed tag here or the list shows
+              // the pre-edit text until the next load.
+              void refreshViewedNotes().catch(() => {
+                /* fetchNotes already notified the failure */
+              });
+            }}
             note={{
               tagId: note.tag?.id ?? "",
               text: note.note_text,

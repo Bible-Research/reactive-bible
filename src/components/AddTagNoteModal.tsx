@@ -256,9 +256,14 @@ const AddTagNoteModal = ({
           draftRef.current.text = text;
         }}
         note={
-          draftRef.current.savedNoteId
+          // Gate on draft content, not just savedNoteId: while
+          // the unmount flush's POST is still in flight the id
+          // is null but the typed text is already tracked —
+          // keying on the id alone would reopen a blank form.
+          draftRef.current.savedNoteId || draftRef.current.text
             ? {
-                tagId: draftRef.current.tagId,
+                tagId:
+                  draftRef.current.tagId || lastSelectedTagId || "",
                 text: draftRef.current.text,
               }
             : lastSelectedTagId
