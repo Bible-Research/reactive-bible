@@ -1,238 +1,230 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, waitFor } from '@testing-library/react';
-import { renderHook } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { createTestAuthStore } from '../authStore';
+import { server } from '../../mocks/server';
+import { API_BASE_URL } from '../../config';
 
-describe.skip('authStore - Register', () => {
+const REGISTER_URL = `${API_BASE_URL}/api/v1/users/register/`;
+
+// The auth store is a vanilla zustand store — tests exercise it
+// through getState() directly against the MSW register endpoint.
+describe('authStore - Register', () => {
   const mockToken = 'test-token-123';
   const mockUsername = 'testuser';
   const mockPassword = 'testpass123';
+  const mockEmail = 'test@example.com';
 
   beforeEach(() => {
-    localStorage.clear();
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    localStorage.removeItem('auth-storage');
     vi.restoreAllMocks();
   });
 
-  describe.skip('register', () => {
+  describe('register', () => {
     it('should successfully register with valid data', async () => {
-      const mockEmail = 'test@example.com';
-      const mockResponse = {
-        user: {
-          id: 1,
-          username: mockUsername,
-          email: mockEmail,
-          date_joined: '2026-03-01T05:18:57.243006Z',
-        },
-        token: mockToken,
-        message: 'User registered successfully',
-      };
+      let capturedBody: Record<string, unknown> = {};
+      server.use(
+        http.post(REGISTER_URL, async ({ request }) => {
+          capturedBody = (await request.json()) as Record<
+            string,
+            unknown
+          >;
+          return HttpResponse.json(
+            {
+              user: {
+                id: 1,
+                username: mockUsername,
+                email: mockEmail,
+                date_joined: '2026-03-01T05:18:57.243006Z',
+              },
+              token: mockToken,
+              message: 'User registered successfully',
+            },
+            { status: 201 }
+          );
+        })
+      );
+      const store = createTestAuthStore();
 
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => mockResponse,
+      await store
+        .getState()
+        .register(mockUsername, mockPassword, mockPassword, mockEmail);
+
+      const state = store.getState();
+      expect(state.token).toBe(mockToken);
+      expect(state.user).toEqual({ username: mockUsername });
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.isLoading).toBe(false);
+      expect(state.error).toBeNull();
+      expect(capturedBody).toEqual({
+        username: mockUsername,
+        password: mockPassword,
+        password_confirm: mockPassword,
+        email: mockEmail,
       });
-
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
-
-      await act(async () => {
-        await result.current.register(
-          mockUsername,
-          mockPassword,
-          mockPassword,
-          mockEmail
-        );
-      });
-
-      expect(result.current.token).toBe(mockToken);
-      expect(result.current.user).toEqual({ username: mockUsername });
-      expect(result.current.isAuthenticated).toBe(true);
-      expect(result.current.error).toBeNull();
     });
 
     it('should register without email', async () => {
-      const mockResponse = {
-        user: {
-          id: 1,
-          username: mockUsername,
-          date_joined: '2026-03-01T05:18:57.243006Z',
-        },
-        token: mockToken,
-        message: 'User registered successfully',
-      };
-
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => mockResponse,
-      });
-
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
-
-      await act(async () => {
-        await result.current.register(
-          mockUsername,
-          mockPassword,
-          mockPassword
-        );
-      });
-
-      expect(result.current.isAuthenticated).toBe(true);
-      expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/users/register/'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify({
-            username: mockUsername,
-            password: mockPassword,
-            password_confirm: mockPassword,
-          }),
+      let capturedBody: Record<string, unknown> = {};
+      server.use(
+        http.post(REGISTER_URL, async ({ request }) => {
+          capturedBody = (await request.json()) as Record<
+            string,
+            unknown
+          >;
+          return HttpResponse.json(
+            {
+              user: { id: 1, username: mockUsername },
+              token: mockToken,
+              message: 'User registered successfully',
+            },
+            { status: 201 }
+          );
         })
       );
+      const store = createTestAuthStore();
+
+      await store
+        .getState()
+        .register(mockUsername, mockPassword, mockPassword);
+
+      const state = store.getState();
+      expect(state.isAuthenticated).toBe(true);
+      expect(capturedBody).toEqual({
+        username: mockUsername,
+        password: mockPassword,
+        password_confirm: mockPassword,
+      });
+      expect(capturedBody).not.toHaveProperty('email');
     });
 
     it('should handle username already exists error', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          username: ['A user with that username already exists.'],
-        }),
-      });
-
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
+      server.use(
+        http.post(REGISTER_URL, () =>
+          HttpResponse.json(
+            {
+              username: [
+                'A user with that username already exists.',
+              ],
+            },
+            { status: 400 }
+          )
+        )
+      );
+      const store = createTestAuthStore();
 
       await expect(
-        act(async () => {
-          await result.current.register(
-            mockUsername,
-            mockPassword,
-            mockPassword
-          );
-        })
-      ).rejects.toThrow('A user with that username already exists.');
+        store
+          .getState()
+          .register(mockUsername, mockPassword, mockPassword)
+      ).rejects.toThrow(
+        'A user with that username already exists.'
+      );
 
-      expect(result.current.isAuthenticated).toBe(false);
-      expect(result.current.error).toBe(
+      const state = store.getState();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.error).toBe(
         'A user with that username already exists.'
       );
     });
 
     it('should handle password validation errors', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          password: ['This password is too short.'],
-        }),
-      });
-
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
+      server.use(
+        http.post(REGISTER_URL, () =>
+          HttpResponse.json(
+            { password: ['This password is too short.'] },
+            { status: 400 }
+          )
+        )
+      );
+      const store = createTestAuthStore();
 
       await expect(
-        act(async () => {
-          await result.current.register(
-            mockUsername,
-            'short',
-            'short'
-          );
-        })
+        store.getState().register(mockUsername, 'short', 'short')
       ).rejects.toThrow('This password is too short.');
+
+      const state = store.getState();
+      expect(state.error).toBe('This password is too short.');
+      expect(state.isAuthenticated).toBe(false);
     });
 
     it('should handle password mismatch error', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          password_confirm: ['Passwords do not match.'],
-        }),
-      });
-
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
+      server.use(
+        http.post(REGISTER_URL, () =>
+          HttpResponse.json(
+            { password_confirm: ['Passwords do not match.'] },
+            { status: 400 }
+          )
+        )
+      );
+      const store = createTestAuthStore();
 
       await expect(
-        act(async () => {
-          await result.current.register(
-            mockUsername,
-            mockPassword,
-            'differentpassword'
-          );
-        })
+        store
+          .getState()
+          .register(mockUsername, mockPassword, 'differentpassword')
       ).rejects.toThrow('Passwords do not match.');
+
+      expect(store.getState().error).toBe(
+        'Passwords do not match.'
+      );
     });
 
     it('should handle email validation errors', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({
-          email: ['Enter a valid email address.'],
-        }),
-      });
-
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
+      server.use(
+        http.post(REGISTER_URL, () =>
+          HttpResponse.json(
+            { email: ['Enter a valid email address.'] },
+            { status: 400 }
+          )
+        )
+      );
+      const store = createTestAuthStore();
 
       await expect(
-        act(async () => {
-          await result.current.register(
+        store
+          .getState()
+          .register(
             mockUsername,
             mockPassword,
             mockPassword,
             'invalid-email'
-          );
-        })
+          )
       ).rejects.toThrow('Enter a valid email address.');
+
+      expect(store.getState().error).toBe(
+        'Enter a valid email address.'
+      );
     });
 
     it('should set loading state during registration', async () => {
-      global.fetch = vi.fn().mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(
-              () =>
-                resolve({
-                  ok: true,
-                  status: 201,
-                  json: async () => ({
-                    user: { username: mockUsername },
-                    token: mockToken,
-                  }),
-                }),
-              100
-            )
-          )
+      server.use(
+        http.post(REGISTER_URL, async () => {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return HttpResponse.json(
+            {
+              user: { username: mockUsername },
+              token: mockToken,
+            },
+            { status: 201 }
+          );
+        })
       );
+      const store = createTestAuthStore();
 
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
+      const registerPromise = store
+        .getState()
+        .register(mockUsername, mockPassword, mockPassword);
 
-      const registerPromise = act(async () => {
-        await result.current.register(
-          mockUsername,
-          mockPassword,
-          mockPassword
-        );
-      });
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(true);
-      });
+      // isLoading flips synchronously at the start of register.
+      expect(store.getState().isLoading).toBe(true);
 
       await registerPromise;
 
-      expect(result.current.isLoading).toBe(false);
+      expect(store.getState().isLoading).toBe(false);
+      expect(store.getState().isAuthenticated).toBe(true);
     });
   });
 });
