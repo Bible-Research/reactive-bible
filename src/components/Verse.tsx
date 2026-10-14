@@ -77,6 +77,16 @@ const Verse = ({
   const isActive =
     verseSelection?.scope === scope &&
     refsInclude(verseSelection.refs, thisRef);
+  // Only the lowest selected verse in this chapter may scroll
+  // itself into view — otherwise every selected verse scrolls
+  // and the view settles on the last one, not the first.
+  const selectedNumbers = verseNumbersFor(
+    verseSelection?.refs ?? [],
+    bookId,
+    chapter,
+  );
+  const isFirstSelected =
+    isActive && selectedNumbers[0] === verse;
   const isAudioActive =
     audioActiveVerse !== null &&
     audioActiveVerse.scope === scope &&
@@ -115,25 +125,15 @@ const Verse = ({
     });
   };
 
-  const handleVerseClick = (event: React.MouseEvent) => {
-    if (!selectable) return;
-
-    // Ignore the synthetic click fired after a handled touch tap
-    if (Date.now() - lastTouchTapRef.current < 700) return;
-
-    // Only handle click if no text is selected (allow users to copy text)
-    const selection = window.getSelection();
-    if (selection && selection.toString().length > 0 && !event.shiftKey) {
-      return;
-    }
-
+  // Shared toggle/range logic for click and keyboard activation.
+  const applySelection = (shiftKey: boolean) => {
     userClickedRef.current = true;
 
     // Shift+click for range selection — only within the same scope
     // and same book/chapter.
     const anchor = lastClickedVerse;
     if (
-      event.shiftKey &&
+      shiftKey &&
       anchor !== null &&
       anchor.scope === scope &&
       anchor.ref.bookId === bookId &&
@@ -150,6 +150,29 @@ const Verse = ({
     if (scope === 'bible') {
       navigateForSelection();
     }
+  };
+
+  const handleVerseClick = (event: React.MouseEvent) => {
+    if (!selectable) return;
+
+    // Ignore the synthetic click fired after a handled touch tap
+    if (Date.now() - lastTouchTapRef.current < 700) return;
+
+    // Only handle click if no text is selected (allow users to copy text)
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0 && !event.shiftKey) {
+      return;
+    }
+
+    applySelection(event.shiftKey);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (!selectable) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    // Keep Space from scrolling the page.
+    event.preventDefault();
+    applySelection(event.shiftKey);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -206,14 +229,16 @@ const Verse = ({
   };
 
   useEffect(() => {
-    if (isActive && !userClickedRef.current) {
+    if (isActive && isFirstSelected && !userClickedRef.current) {
       // Only scroll if verse was selected programmatically
-      // (e.g., from notes view), not by user click
+      // (e.g., from notes view), not by user click — and only
+      // the first selected verse, so a multi-verse URL lands at
+      // its start instead of its last verse.
       ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
     }
     // Reset the flag after effect runs
     userClickedRef.current = false;
-  }, [isActive]);
+  }, [isActive, isFirstSelected]);
 
   useEffect(() => {
     if (isAudioActive) {
@@ -230,6 +255,10 @@ const Verse = ({
       display="flex"
       data-active={isActive}
       data-audio-active={isAudioActive}
+      role={selectable ? 'button' : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      aria-pressed={selectable ? isActive : undefined}
+      onKeyDown={handleKeyDown}
       className={cx({
         [classes.link]: selectable,
         [classes.linkReadOnly]: !selectable,
@@ -249,7 +278,14 @@ const Verse = ({
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onContextMenu={(e) => e.preventDefault()} // Prevent context menu
+      onContextMenu={(e) => {
+        // Only suppress the long-press context menu while a
+        // touch is in progress — mouse right-click keeps the
+        // standard menu so users can copy text.
+        if (touchStartPos.current !== null) {
+          e.preventDefault();
+        }
+      }}
       id={verseDomId(scope, thisRef)}
       ref={ref}
       sx={{
