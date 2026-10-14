@@ -189,6 +189,47 @@ describe('BibleRoute', () => {
       expect(state.activeChapter).toBe(1);
     });
   });
+
+  it('redirects out-of-range chapters to /bible', async () => {
+    // John has 21 chapters — /bible/JHN.999 must not render a
+    // blank page; it falls back like an unparseable ref.
+    renderRoutes(['/bible/JHN.999']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('passage')).toBeInTheDocument();
+      const state = useBibleStore.getState();
+      expect(state.activeBookId).toBe('JHN');
+      expect(state.activeChapter).toBe(1);
+    });
+  });
+
+  it('redirects refs whose verses are all out of range', async () => {
+    // John 3 has 36 verses.
+    renderRoutes(['/bible/JHN.3.999']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('passage')).toBeInTheDocument();
+      const state = useBibleStore.getState();
+      expect(state.activeBookId).toBe('JHN');
+      expect(state.activeChapter).toBe(1);
+    });
+  });
+
+  it('dedupes and clamps verses in non-canonical refs', async () => {
+    renderRoutes(['/bible/JHN.3.16,16,36-40']);
+
+    await waitFor(() => {
+      const state = useBibleStore.getState();
+      expect(state.verseSelection).toEqual({
+        scope: 'bible',
+        refs: [16, 36].map((verse) => ({
+          bookId: 'JHN',
+          chapter: 3,
+          verse,
+        })),
+      });
+    });
+  });
 });
 
 describe('LegacyBibleRedirect', () => {
@@ -247,6 +288,18 @@ describe('LegacyBibleRedirect', () => {
     await waitFor(() => {
       expect(screen.getByTestId('passage')).toBeInTheDocument();
       expect(useBibleStore.getState().activeBookId).toBe('JHN');
+    });
+  });
+
+  it('redirects out-of-range legacy chapters to /bible', async () => {
+    // Malachi has 4 chapters.
+    renderRoutes(['/bible/Malachi/5']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('passage')).toBeInTheDocument();
+      const state = useBibleStore.getState();
+      expect(state.activeBookId).toBe('JHN');
+      expect(state.activeChapter).toBe(1);
     });
   });
 });
