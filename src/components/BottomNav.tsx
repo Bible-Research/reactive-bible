@@ -91,6 +91,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
           order={4}
           role="button"
           tabIndex={0}
+          title="nav-current-passage"
           onClick={() => setBibleSelectorOpened(true)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
