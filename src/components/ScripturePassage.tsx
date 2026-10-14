@@ -24,6 +24,13 @@ const ScripturePassage = ({
   useEffect(() => {
     let cancelled = false;
 
+    // Reset up front: a transient failure must not brick the
+    // preview forever, and a ref change must not flash stale
+    // verses while the new passage loads.
+    setError(null);
+    setPassages([]);
+    setHeadings([]);
+
     const getPassage = async () => {
       try {
         // reference.book is a display name; the API helper
