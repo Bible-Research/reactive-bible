@@ -6,10 +6,6 @@ import { useBibleStore } from '../store';
 import { measureRenderTime } from '../__tests__/helpers/performance';
 
 // Mock child components to isolate Passage component performance
-vi.mock('./SubHeader', () => ({
-  default: () => <div data-testid="subheader">SubHeader</div>,
-}));
-
 vi.mock('./PassageView', () => ({
   default: () => <div data-testid="passage-view">PassageView</div>,
 }));
@@ -50,10 +46,6 @@ describe('Passage Component Performance Tests', () => {
 
       // Should render in less than 10ms on average
       expect(avgTime).toBeLessThan(10);
-
-      console.log(
-        `Passage component avg render time: ${avgTime.toFixed(2)}ms`
-      );
     });
 
     it('should handle view switching efficiently', () => {
@@ -81,10 +73,6 @@ describe('Passage Component Performance Tests', () => {
 
       // 20 re-renders should complete quickly
       expect(duration).toBeLessThan(200);
-
-      console.log(
-        `20 re-renders completed in ${duration.toFixed(2)}ms`
-      );
     });
   });
 
@@ -111,10 +99,6 @@ describe('Passage Component Performance Tests', () => {
 
       // Should handle 100 state updates quickly
       expect(duration).toBeLessThan(100);
-
-      console.log(
-        `100 store updates completed in ${duration.toFixed(2)}ms`
-      );
     });
 
     it('should handle handleViewInBible efficiently', () => {
@@ -151,10 +135,6 @@ describe('Passage Component Performance Tests', () => {
 
       // Should complete quickly
       expect(duration).toBeLessThan(100);
-
-      console.log(
-        `${iterations} verse navigations in ${duration.toFixed(2)}ms`
-      );
     });
   });
 
