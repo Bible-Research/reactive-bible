@@ -216,5 +216,9 @@ describe('Audio Component', () => {
       expect(FakeHowl.instances.length).toBe(1);
       expect(FakeHowl.instances[0].state()).toBe('unloaded');
       expect(screen.queryByTitle('Close player')).toBeNull();
+      // Closing also tears the media session down — no stray
+      // lock-screen handlers survive, and the late fallback must
+      // not re-register any.
+      expect(session.handlers.size).toBe(0);
     });
 });
