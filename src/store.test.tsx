@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useBibleStore, initialState } from './store';
 import { useAuthStore } from './stores/authStore';
 import * as api from './api';
@@ -199,6 +199,9 @@ describe('useBibleStore', () => {
         previous: null,
         results: sampleNotes,
       });
+      // Ownership (own tag list or is_owner notes) only counts
+      // for authenticated viewers.
+      useAuthStore.setState({ isAuthenticated: true });
       useBibleStore.setState({ lastSelectedTagId: null });
 
       await useBibleStore.getState().fetchNotes('TAG1');

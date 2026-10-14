@@ -165,10 +165,11 @@ const Audio = () => {
     if (location.pathname.startsWith('/notes')) {
       // Notes pages render note cards — scroll to the playing
       // card's first verse so the audio-follow highlight is
-      // visible.
+      // visible. `scope` (the note id) names the DOM ids;
+      // itemId is unique per chapter block.
       document
         .getElementById(
-          verseDomId(item.itemId, {
+          verseDomId(item.scope ?? item.itemId, {
             bookId: item.bookId,
             chapter: item.chapter,
             verse: item.startVerse,
@@ -319,7 +320,10 @@ const Audio = () => {
   // old URL with the new chapter and revert the advance,
   // tearing down the adopted Howl mid-play). Off the reader
   // (/search, /notes) a chapter boundary must not yank the user
-  // back — update the store directly like the sync would.
+  // back — update the store directly like the sync would. The
+  // URL stays stale meanwhile; that is intentional, and
+  // BibleRoute's sync picks the store position back up when the
+  // user returns to the reader.
   const goToChapter = useCallback(
     (target: { bookId: string; chapter: number }) => {
       if (location.pathname.startsWith('/bible')) {

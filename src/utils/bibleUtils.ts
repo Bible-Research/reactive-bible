@@ -89,7 +89,14 @@ export function decodeVerses(
     if (trimmed.includes('-')) {
       const [startStr, endStr] = trimmed.split('-');
       const start = parseInt(startStr, 10);
-      const end = parseInt(endStr, 10);
+      const parsedEnd = parseInt(endStr, 10);
+      // Clamp before looping — an unbounded end ("1-2147483647")
+      // would iterate billions of dead numbers; `push` filters
+      // them but the loop itself is the DoS.
+      const end =
+        maxVerse !== undefined
+          ? Math.min(parsedEnd, maxVerse)
+          : parsedEnd;
       if (!isNaN(start) && !isNaN(end) && start <= end) {
         for (let v = start; v <= end; v++) push(v);
       }

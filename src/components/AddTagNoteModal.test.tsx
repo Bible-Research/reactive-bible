@@ -14,6 +14,7 @@ import {
   type Mock,
 } from 'vitest';
 import AddTagNoteModal from './AddTagNoteModal';
+import { emptyNoteDraft } from './noteDraft';
 import { renderWithProviders } from '../__tests__/helpers';
 import * as api from '../api';
 
@@ -34,6 +35,10 @@ vi.mock('./RichTextEditor', async () => ({
 }));
 
 describe('AddTagNoteModal Component', () => {
+  // Fresh parent-owned draft per render — mirrors how
+  // VerseActionToolbar keeps the ref outside the modal.
+  const draftRef = () => ({ current: emptyNoteDraft() });
+
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -62,7 +67,11 @@ describe('AddTagNoteModal Component', () => {
 
   it('should not render when closed', () => {
     renderWithProviders(
-      <AddTagNoteModal opened={false} onClose={vi.fn()} />,
+      <AddTagNoteModal
+        opened={false}
+        onClose={vi.fn()}
+        draftRef={draftRef()}
+      />,
       {
         storeOverrides: {
           verseSelection: genesisSelection,
@@ -76,7 +85,11 @@ describe('AddTagNoteModal Component', () => {
 
   it('should render when opened', async () => {
     renderWithProviders(
-      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      <AddTagNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        draftRef={draftRef()}
+      />,
       {
         storeOverrides: {
           verseSelection: genesisSelection,
@@ -93,7 +106,11 @@ describe('AddTagNoteModal Component', () => {
 
   it('should render NoteForm when opened', async () => {
     renderWithProviders(
-      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      <AddTagNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        draftRef={draftRef()}
+      />,
       {
         storeOverrides: {
           verseSelection: genesisSelection,
@@ -138,7 +155,11 @@ describe('AddTagNoteModal Component', () => {
       };
 
       renderWithProviders(
-        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        <AddTagNoteModal
+          opened={true}
+          onClose={vi.fn()}
+          draftRef={draftRef()}
+        />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -160,7 +181,11 @@ describe('AddTagNoteModal Component', () => {
 
       (api.getVersesInChapter as Mock).mockClear();
       renderWithProviders(
-        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        <AddTagNoteModal
+          opened={true}
+          onClose={vi.fn()}
+          draftRef={draftRef()}
+        />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -209,7 +234,11 @@ describe('AddTagNoteModal Component', () => {
       });
 
       renderWithProviders(
-        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        <AddTagNoteModal
+          opened={true}
+          onClose={vi.fn()}
+          draftRef={draftRef()}
+        />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -240,7 +269,11 @@ describe('AddTagNoteModal Component', () => {
   it('queries linked notes only when opened with a selection',
     async () => {
       renderWithProviders(
-        <AddTagNoteModal opened={false} onClose={vi.fn()} />,
+        <AddTagNoteModal
+          opened={false}
+          onClose={vi.fn()}
+          draftRef={draftRef()}
+        />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -268,7 +301,11 @@ describe('AddTagNoteModal Component', () => {
       (api.editNote as Mock).mockResolvedValue({});
 
       renderWithProviders(
-        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        <AddTagNoteModal
+          opened={true}
+          onClose={vi.fn()}
+          draftRef={draftRef()}
+        />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -315,6 +352,85 @@ describe('AddTagNoteModal Component', () => {
       );
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
+
+  it('reopening after autosave PATCHes the draft instead ' +
+    'of POSTing a duplicate', async () => {
+    // Mantine unmounts the form on close — the shared draft
+    // carries the autosaved note id across the remount.
+    const sharedDraft = draftRef();
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n-draft' });
+    (api.editNote as Mock).mockResolvedValue({});
+
+    const overrides = {
+      verseSelection: genesisSelection,
+      activeBookId: 'GEN',
+      activeChapter: 1,
+      lastSelectedTagId: '1',
+    };
+
+    const { unmount } = renderWithProviders(
+      <AddTagNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        draftRef={sharedDraft}
+      />,
+      { storeOverrides: overrides }
+    );
+
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, { target: { value: 'Draft' } });
+    // Fake timers must be installed before the Auto save click —
+    // the interval registers on whichever clock is active.
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByLabelText('Auto save'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    expect(sharedDraft.current.savedNoteId).toBe('n-draft');
+
+    // Closing unmounts the form; the unmount flush may PATCH
+    // the latest text behind the draft queue.
+    unmount();
+
+    renderWithProviders(
+      <AddTagNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        draftRef={sharedDraft}
+      />,
+      { storeOverrides: overrides }
+    );
+
+    // The form restores the draft instead of starting blank.
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText('Note') as HTMLTextAreaElement)
+          .value
+      ).toBe('Draft');
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByLabelText('Auto save'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // Still exactly one POST — every later write PATCHes.
+    expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    expect(api.editNote).toHaveBeenCalled();
+    expect(vi.mocked(api.editNote).mock.calls[0][0]).toBe(
+      'n-draft'
+    );
+  });
 
   // Note: Full modal interaction testing is problematic
   // due to portal rendering. See SKIPPED_TESTS.md.

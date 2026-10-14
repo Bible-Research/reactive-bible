@@ -157,7 +157,6 @@ const mockStoreState = {
   translations: [] as Translation[],
   setAudioActiveVerse: vi.fn(),
   setShowAudioPlayer: vi.fn(),
-  setAudioPlaylistEnded: vi.fn(),
 };
 
 vi.mock('../store', () => ({

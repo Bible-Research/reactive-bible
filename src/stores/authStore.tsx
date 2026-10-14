@@ -3,6 +3,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { API_BASE_URL } from '../config';
 
 interface User {
+  /** Authoritative author identity (comments); absent for
+   *  login, whose /api/token/ response carries no user payload
+   *  — author matching falls back to the username. */
+  id?: number;
   username: string;
 }
 
@@ -93,12 +97,16 @@ const createAuthStore = () => create<AuthState>()(
 
           const data = await response.json();
 
-          // Prefer the server's canonical username over the
-          // as-typed string so downstream ownership checks
-          // (comments, notes) match regardless of casing.
+          // /api/token/ returns only `{ token }` — the as-typed
+          // username is the fallback identity; keep the
+          // defensive `data.user` read in case the endpoint
+          // ever grows a user payload.
           set({
             token: data.token,
             user: {
+              ...(typeof data.user?.id === 'number'
+                ? { id: data.user.id }
+                : {}),
               username: data.user?.username ?? username,
             },
             isAuthenticated: true,
@@ -205,10 +213,17 @@ const createAuthStore = () => create<AuthState>()(
           
           const data = await response.json();
           
-          // Registration successful, set token and user
+          // Registration successful — the response carries a
+          // `user` payload, so keep its numeric id for author
+          // matching (comments compare ids before usernames).
           set({
             token: data.token,
-            user: { username: data.user.username },
+            user: {
+              ...(typeof data.user?.id === 'number'
+                ? { id: data.user.id }
+                : {}),
+              username: data.user?.username ?? username,
+            },
             isAuthenticated: true,
             isLoading: false,
             error: null,

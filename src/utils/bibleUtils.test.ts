@@ -209,6 +209,14 @@ describe('Bible Utils', () => {
       expect(decodeVerses('36-40', 36)).toEqual([36]);
       expect(decodeVerses('37-40', 36)).toEqual([]);
     });
+
+    it('clamps the range end before iterating', () => {
+      // A hostile range end must not loop billions of dead
+      // numbers — the end is clamped to maxVerse up front.
+      expect(decodeVerses('1-2147483647', 36)).toEqual(
+        Array.from({ length: 36 }, (_, i) => i + 1)
+      );
+    });
   });
 
   describe('chapter/verse bounds', () => {

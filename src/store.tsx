@@ -63,6 +63,14 @@ export interface BibleState {
   activeAudioFilesetId: string | null;
   tags: Tag[];
   notes: Note[];
+  /**
+   * Transient (not persisted): the public note shown on
+   * /notes/:id. Kept out of `notes` — that list is the tag
+   * page's pagination state — but the share toolbar needs its
+   * verses so folded-note shares carry the full text.
+   */
+  detailNote: Note | null;
+  setDetailNote: (note: Note | null) => void;
   allNotesFetched: boolean;
   showNotes: boolean;
   lastSelectedTagId: string | null;
@@ -77,12 +85,6 @@ export interface BibleState {
   setAudioPlaylistItems: (items: PlaylistItem[] | null) => void;
   audioPlaylistStartIndex: number | null;
   setAudioPlaylistStartIndex: (index: number | null) => void;
-  /**
-   * @deprecated No-op retained for useAudioPlaylist — the
-   * `audioPlaylistEnded` flag it used to set was never read and
-   * has been removed. Drop this once the hook stops calling it.
-   */
-  setAudioPlaylistEnded: (ended: boolean) => void;
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
   /**
@@ -174,6 +176,7 @@ export const initialState = {
   activeAudioFilesetId: "ENGESV_API",
   tags: [] as Tag[],
   notes: [] as Note[],
+  detailNote: null as Note | null,
   allNotesFetched: false,
   showNotes: false,
   lastSelectedTagId: null,
@@ -216,6 +219,7 @@ const partializeState = (state: BibleState) => ({
   notesPageSize: state.notesPageSize,
   readingPositions: state.readingPositions,
   // showAudioPlayer is NOT persisted
+  // detailNote is NOT persisted (transient share context)
   // pendingScrollVerse is NOT persisted
   // headerVisible is NOT persisted
 });
@@ -386,18 +390,25 @@ const resolveNotesFilesetId = (
 };
 
 /**
- * True when `tagId` belongs to the current user — either it's in
- * the authenticated tag list, or fetched notes carry
- * `is_owner === true` for it. `lastSelectedTagId` must not be
- * hijacked by browsing someone else's public tag.
+ * True when `tagId` belongs to the current user: authenticated
+ * AND either the tag is in the user's own tag list, or fetched
+ * notes carry `is_owner === true` for it. The tag-list branch
+ * covers production, where notes do not send `is_owner` yet;
+ * the `is_owner` branch keeps foreign public tags read-only
+ * once the backend ships the field. `lastSelectedTagId` must
+ * not be hijacked by browsing someone else's public tag.
  */
 const isOwnedTag = (
   tagId: string,
   notes: Note[],
   tags: Tag[]
-): boolean =>
-  tags.some((t) => t.id === tagId) ||
-  notes.some((n) => n.tag?.id === tagId && n.is_owner === true);
+): boolean => {
+  if (!useAuthStore.getState().isAuthenticated) return false;
+  return (
+    tags.some((t) => t.id === tagId) ||
+    notes.some((n) => n.tag?.id === tagId && n.is_owner === true)
+  );
+};
 
 /**
  * Refetches the tag's current page preserving ordering+page so
@@ -503,7 +514,11 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           // The cache key scope mirrors exactly what shapes the
           // response: the fileset fills verse text, pageSize
           // shapes page membership, and auth decides visibility
-          // of private notes.
+          // of private notes. Residual edge: a token that is
+          // present but expired marks the scope `authed: true`
+          // even though publicFetch's anonymous retry fills the
+          // entry with the anonymous payload — logout clears the
+          // cache, so the stale view only lasts until then.
           const notesScope = {
             filesetId,
             pageSize: notesPageSize,
@@ -825,9 +840,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ audioPlaylistItems }),
       setAudioPlaylistStartIndex: (audioPlaylistStartIndex) =>
         set({ audioPlaylistStartIndex }),
-      // No-op: the audioPlaylistEnded flag was dead state.
-      // Kept until useAudioPlaylist stops calling it.
-      setAudioPlaylistEnded: () => undefined,
+      setDetailNote: (detailNote) => set({ detailNote }),
       setVersesFolded: (versesFolded) => set({ versesFolded }),
       setPendingScrollVerse: (pendingScrollVerse) =>
         set({ pendingScrollVerse }),

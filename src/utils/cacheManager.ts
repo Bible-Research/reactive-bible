@@ -309,7 +309,13 @@ export interface NotesCacheScope {
   filesetId?: string;
   /** Page size used for the request. */
   pageSize?: number;
-  /** True when the request carried an auth token. */
+  /**
+   * True when the request carried an auth token. Authenticated
+   * and anonymous reads must be keyed separately: an anon-keyed
+   * page filled while a token was expired would shadow the
+   * authed view (public vs owner visibility differs — private
+   * notes and `is_owner` only appear for the authed request).
+   */
   authed?: boolean;
 }
 

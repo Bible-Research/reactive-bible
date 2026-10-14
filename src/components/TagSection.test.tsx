@@ -66,7 +66,10 @@ describe('TagSection Component', () => {
         notes={mockNotes}
         onViewInBible={mockOnViewInBible}
         onEditNote={mockOnEditNote}
-      />
+        isTagOwner
+      />,
+      // Edit/delete affordances are auth-gated (fail closed).
+      { authStoreState: { isAuthenticated: true } }
     );
 
     const editButtons = screen.getAllByRole('button', { name: 'edit-note' });
@@ -85,7 +88,9 @@ describe('TagSection Component', () => {
       />
     );
 
-    const viewButtons = screen.getAllByRole('button', { name: 'view-in-bible' });
+    const viewButtons = screen.getAllByRole('button', {
+      name: 'view-in-bible',
+    });
     viewButtons[0].click();
 
     expect(mockOnViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);

@@ -20,11 +20,10 @@ export default function NotesRoute() {
     (state) => state.lastSelectedTagId
   );
   const getTags = useBibleStore((state) => state.getTags);
-  // Read `token`, not `isAuthenticated`: the token rehydrates
-  // synchronously from localStorage, while `isAuthenticated` only
-  // flips once App's mount effect calls checkAuth — child effects
-  // run first, so a cold /notes load would see `false` and bounce
-  // logged-in users to /bible.
+  // Read `token` for the anonymous check — it is the value that
+  // decides whether a session exists at all. (`isAuthenticated`
+  // would work too now: the persisted merge derives it from the
+  // token, so both rehydrate together.)
   const token = useAuthStore((state) => state.token);
 
   const [status, setStatus] = useState<NotesRouteStatus>('loading');

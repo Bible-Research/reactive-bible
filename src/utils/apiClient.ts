@@ -116,11 +116,20 @@ export const authenticatedFetch = async (
       },
     });
     
-    // Handle 401 Unauthorized - token expired or invalid
+    // Handle 401 Unauthorized - token expired or invalid. Only
+    // destroy the session when this request actually carried the
+    // token — an anonymous 401 (e.g. an auth-only endpoint hit
+    // on a public page) means "login required", not "your
+    // session expired", and must not log anyone out.
     if (response.status === 401) {
+      if (!headers['Authorization']) {
+        throw new Error(
+          'Authentication required for this request.'
+        );
+      }
       console.warn('401 Unauthorized - logging out user');
       useAuthStore.getState().logout();
-      
+
       // Show notification to user
       showNotification({
         title: 'Session Expired',
@@ -128,7 +137,7 @@ export const authenticatedFetch = async (
         color: 'orange',
         autoClose: 5000,
       });
-      
+
       throw new Error('Session expired. Please log in again.');
     }
     
@@ -178,7 +187,14 @@ export const authenticatedUpload = async (
     body: formData,
   });
 
+  // Same rule as authenticatedFetch: a 401 only ends the
+  // session when this request actually attached the token.
   if (response.status === 401) {
+    if (!token) {
+      throw new Error(
+        'Authentication required for this request.'
+      );
+    }
     console.warn('401 Unauthorized - logging out user');
     useAuthStore.getState().logout();
     showNotification({

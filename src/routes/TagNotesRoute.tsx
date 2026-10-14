@@ -381,14 +381,17 @@ export default function TagNotesRoute() {
     };
   }, [tagId, fetchNotes, getTags, isAuthenticated, sortOrder]);
 
-  // Ownership is reported per note: the tag's write affordances
-  // (drag handles, order badges, edit/delete) would only 403 for
-  // a logged-in non-owner, so they require every visible note to
-  // be owned — not just authentication.
+  // Ownership: the caller's own tag list is the primary signal —
+  // production notes do not send `is_owner` yet, so without the
+  // tags check an owner would lose drag/order/edit/delete on
+  // their own tag. For foreign public tags keep the strict
+  // every-note `is_owner === true` fallback so write affordances
+  // stay hidden once the backend ships the field.
   const isTagOwner =
     isAuthenticated &&
-    notes.length > 0 &&
-    notes.every((n) => n.is_owner === true);
+    (storedTags.some((t) => t.id === tagId) ||
+      (notes.length > 0 &&
+        notes.every((n) => n.is_owner === true)));
 
   // The order badge/menu is gated exactly like `isDraggable`:
   // custom sort + owner.
@@ -865,6 +868,8 @@ export default function TagNotesRoute() {
         }
         return [...blocks.values()].map((block) => {
           const firstVerse = block[0];
+          const bookId =
+            toUsfmCode(firstVerse.book) ?? firstVerse.book;
           const verseNumbers = block.map((v) => v.verse);
           const startVerse = Math.min(...verseNumbers);
           const endVerse = Math.max(...verseNumbers);
@@ -874,9 +879,14 @@ export default function TagNotesRoute() {
             `${firstVerse.chapter}:${startVerse}` +
             (startVerse !== endVerse ? `-${endVerse}` : '');
           return {
-            itemId: note.id,
-            bookId:
-              toUsfmCode(firstVerse.book) ?? firstVerse.book,
+            // Unique per block: Audio's navigation/highlight
+            // effects key on itemId, so a bare note.id would
+            // skip re-runs when playback moves between this
+            // note's chapter blocks. `scope` keeps the DOM and
+            // highlight identity at the note level.
+            itemId: `${note.id}:${bookId}:${firstVerse.chapter}`,
+            scope: note.id,
+            bookId,
             chapter: firstVerse.chapter,
             startVerse,
             endVerse,
@@ -893,8 +903,11 @@ export default function TagNotesRoute() {
       // The start index must come from the same filtered item
       // list handed to the playlist — a verse-less note earlier
       // in sortedNotes would otherwise shift it off by one.
+      // Match on `scope` (the note id), not itemId — multi-block
+      // notes carry suffixed itemIds and several entries share
+      // one scope; the first block is the right start index.
       const itemIndex = playlistItems.findIndex(
-        (item) => item.itemId === noteId
+        (item) => (item.scope ?? item.itemId) === noteId
       );
       if (itemIndex < 0) return;
       setAudioPlaylistStartIndex(itemIndex);
@@ -1103,6 +1116,7 @@ export default function TagNotesRoute() {
               onPlayFromNote={handlePlayFromNote}
               commentCounts={commentCounts}
               onCountChange={handleCountChange}
+              isTagOwner={isTagOwner}
               isDraggable={
                 (sortOrder === 'custom_asc' ||
                   sortOrder === 'custom_desc') &&

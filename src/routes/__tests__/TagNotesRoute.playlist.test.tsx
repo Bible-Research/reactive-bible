@@ -138,7 +138,7 @@ describe('TagNotesRoute playlist', () => {
       // `playable` -> one item, `spanning` -> two blocks.
       expect(items).toHaveLength(3);
       const spanningItems = items.filter(
-        (item) => item.itemId === 'note-spanning'
+        (item) => item.scope === 'note-spanning'
       );
       expect(
         spanningItems.map((item) => item.chapter).sort()
@@ -148,6 +148,18 @@ describe('TagNotesRoute playlist', () => {
       );
       expect(chapter5?.startVerse).toBe(1);
       expect(chapter5?.endVerse).toBe(1);
+      // itemId must be unique per block — Audio's navigation
+      // effect keys on it, so identical ids would skip the
+      // re-run when playback crosses to the second block.
+      // `scope` stays at the note level for DOM/highlight ids.
+      const itemIds = items.map((item) => item.itemId);
+      expect(new Set(itemIds).size).toBe(itemIds.length);
+      expect(
+        spanningItems.map((item) => item.itemId)
+      ).toEqual([
+        'note-spanning:JHN:3',
+        'note-spanning:JHN:5',
+      ]);
     });
 
   it('offers no play button on verse-less notes', async () => {

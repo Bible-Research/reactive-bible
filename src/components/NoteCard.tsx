@@ -49,6 +49,12 @@ interface NoteCardProps {
    *  overlay passes a distinct scope so it never shares DOM ids or
    *  selection state with the real card. */
   verseScope?: string;
+  /**
+   * True when the viewed tag is in the caller's own tag list.
+   * Production notes do not send `is_owner` yet — without this,
+   * owners could not edit/delete notes on their own tags.
+   */
+  isTagOwner?: boolean;
   dragHandleProps?: {
     ref?: (element: HTMLElement | null) => void;
     [key: string]: unknown;
@@ -67,6 +73,7 @@ const NoteCard = ({
   commentCount,
   onCountChange,
   verseScope,
+  isTagOwner,
   dragHandleProps,
   orderMenu,
 }: NoteCardProps) => {
@@ -162,10 +169,15 @@ const NoteCard = ({
     return map;
   })();
 
-  // `is_owner` may be absent on shared/public notes — fail
-  // closed rather than offering edit/delete that will 403.
-  const canEdit = note.is_owner === true && !!onEdit;
-  const canDelete = note.is_owner === true && !!onDelete;
+  // Ownership rule: authenticated AND (the viewed tag is one of
+  // the user's own OR the note itself reports is_owner). The
+  // tag-list half covers production, where notes omit
+  // `is_owner`; the strict `is_owner === true` half keeps
+  // foreign tags read-only once the backend ships the field —
+  // fail closed rather than offering edit/delete that will 403.
+  const ownsNote = isTagOwner === true || note.is_owner === true;
+  const canEdit = isAuthenticated && ownsNote && !!onEdit;
+  const canDelete = isAuthenticated && ownsNote && !!onDelete;
   const canShare = note.public;
 
   const handleShare = async () => {

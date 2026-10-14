@@ -125,6 +125,60 @@ describe('authStore', () => {
       });
     });
 
+    it('falls back to the as-typed username when ' +
+      '/api/token/ returns no user payload', async () => {
+      vi.spyOn(console, 'log').mockImplementation(
+        () => undefined
+      );
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ token: mockToken }),
+      });
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.login('typed-name', 'pw');
+      });
+
+      expect(result.current.user).toEqual({
+        username: 'typed-name',
+      });
+    });
+
+    it('stores the register response user id for comment ' +
+      'author matching', async () => {
+      vi.spyOn(console, 'log').mockImplementation(
+        () => undefined
+      );
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          token: mockToken,
+          user: { id: 7, username: 'newbie' },
+        }),
+      });
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.register(
+          'newbie',
+          'pw123456',
+          'pw123456'
+        );
+      });
+
+      expect(result.current.user).toEqual({
+        id: 7,
+        username: 'newbie',
+      });
+    });
+
     it('rehydrates isAuthenticated from a persisted token ' +
       'before checkAuth runs', () => {
       // A pre-change blob carries only token+user — merge must

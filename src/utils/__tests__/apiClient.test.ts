@@ -128,6 +128,27 @@ describe('apiClient', () => {
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
 
+    it('does not log out or toast on a 401 when no token ' +
+      'was attached', async () => {
+      // Anonymous reads that happen to go through
+      // authenticatedFetch must not flash a spurious
+      // "Session Expired" — there was no session.
+      const { showNotification } = await import(
+        '@mantine/notifications'
+      );
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      await expect(authenticatedFetch(mockUrl))
+        .rejects.toThrow('Authentication required');
+      expect(showNotification).not.toHaveBeenCalled();
+      expect(
+        useAuthStore.getState().isAuthenticated
+      ).toBe(false);
+    });
+
     it('should handle 403 response with permission error', async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
