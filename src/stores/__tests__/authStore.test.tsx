@@ -73,6 +73,83 @@ describe('authStore', () => {
     });
   });
 
+  describe('login security', () => {
+    it('never logs the plaintext password', async () => {
+      const logSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => undefined);
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          token: mockToken,
+          user: { username: 'canonical' },
+        }),
+      });
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.login('typed-name', 'secret-pw');
+      });
+
+      const logged = JSON.stringify(logSpy.mock.calls);
+      expect(logged).not.toContain('secret-pw');
+      expect(logged).toContain('***');
+    });
+
+    it('stores the server canonical username, not the ' +
+      'as-typed one', async () => {
+      vi.spyOn(console, 'log').mockImplementation(
+        () => undefined
+      );
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          token: mockToken,
+          user: { username: 'Canonical_Name' },
+        }),
+      });
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.login('canonical_name', 'pw');
+      });
+
+      expect(result.current.user).toEqual({
+        username: 'Canonical_Name',
+      });
+    });
+
+    it('rehydrates isAuthenticated from a persisted token ' +
+      'before checkAuth runs', () => {
+      // A pre-change blob carries only token+user — merge must
+      // still derive isAuthenticated so first-pass effects do
+      // not double-fetch.
+      localStorage.setItem(
+        'auth-storage',
+        JSON.stringify({
+          state: {
+            token: mockToken,
+            user: { username: mockUsername },
+          },
+          version: 0,
+        })
+      );
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      // No checkAuth() call — the flag is derived at
+      // rehydration.
+      expect(result.current.isAuthenticated).toBe(true);
+    });
+  });
+
   describe('checkAuth', () => {
     it('should set isAuthenticated to true if token exists', () => {
       const useTestAuthStore = createTestAuthStore();
