@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent } from 
+import { act, render, screen, fireEvent } from
   '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NoteForm from './NoteForm';
@@ -79,6 +79,85 @@ describe('NoteForm Component', () => {
     );
   });
 
+  it('should dock the submit button in a sticky bar', () => {
+    render(
+      <NoteForm
+        tags={mockTags}
+        onSubmit={mockOnSubmit}
+        submitText="Submit"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const submitBar = screen.getByTestId('note-submit-bar');
+    const submitButton = screen.getByRole('button', {
+      name: 'Submit',
+    });
+    expect(submitBar).toContainElement(submitButton);
+  });
+
+  it('should keep edits when note prop is re-created', () => {
+    const note = { tagId: '1', text: 'Initial text' };
+    const { rerender } = render(
+      <NoteForm
+        tags={mockTags}
+        note={note}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const noteInput = screen.getByLabelText('Note');
+    fireEvent.change(noteInput,
+      { target: { value: 'Edited text' } });
+
+    // Parents pass a fresh object literal on every render.
+    rerender(
+      <NoteForm
+        tags={mockTags}
+        note={{ ...note }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    expect((noteInput as HTMLTextAreaElement).value).toBe(
+      'Edited text'
+    );
+  });
+
+  it('should re-seed inputs when a different note arrives', () => {
+    const { rerender } = render(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '1', text: 'Initial text' }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    // Switching to a different note must re-seed the form.
+    rerender(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '2', text: 'Other text' }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const noteInput = screen.getByLabelText('Note') as
+      HTMLTextAreaElement;
+    expect(noteInput.value).toBe('Other text');
+    const tagInput = screen.getByLabelText('Tag') as
+      HTMLInputElement;
+    expect(tagInput.value).toBe('Hope');
+  });
+
   it('should not render create new tag button', () => {
     render(
       <NoteForm
@@ -100,8 +179,133 @@ describe('NoteForm Component', () => {
     // This test is skipped due to Select portal rendering
   });
 
-  it.skip('should call onTagDropdownOpen when dropdown opens', 
+  it.skip('should call onTagDropdownOpen when dropdown opens',
     () => {
     // This test is skipped due to Select portal rendering
+  });
+
+  describe('auto save', () => {
+    it('hides the checkbox without onAutoSave', () => {
+      render(
+        <NoteForm
+          tags={mockTags}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      expect(
+        screen.queryByLabelText('Auto save')
+      ).not.toBeInTheDocument();
+    });
+
+    it('saves every 5s while enabled', async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+        expect(onAutoSave).toHaveBeenCalledWith('', 'Draft text');
+
+        // Unchanged content is not re-saved.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+
+        // The next edit is picked up on the following tick.
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text updated' },
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(2);
+        expect(onAutoSave).toHaveBeenLastCalledWith(
+          '',
+          'Draft text updated'
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('skips saving while the note is empty', async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(15000);
+        });
+        expect(onAutoSave).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('stops saving when the checkbox is unchecked',
+      async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        const checkbox = screen.getByLabelText('Auto save');
+        fireEvent.click(checkbox);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(checkbox);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

@@ -59,6 +59,11 @@ interface PassagePickerProps {
   height?: number | string;
   /** 'nav-' for BibleSelector, 'mention-' for the picker popup. */
   titlePrefix?: string;
+  /**
+   * Toggling this re-runs the scroll-to-active effects — e.g. when
+   * the picker becomes visible again after display:none hid it.
+   */
+  scrollSignal?: boolean;
   onSelectBook: (bookId: string) => void;
   onSelectChapter: (chapter: number) => void;
   onSelectVerse: (verse: number, extendRange: boolean) => void;
@@ -71,6 +76,7 @@ const PassagePicker = ({
   bookFilter,
   height = "100%",
   titlePrefix = "nav-",
+  scrollSignal,
   onSelectBook,
   onSelectChapter,
   onSelectVerse,
@@ -108,19 +114,19 @@ const PassagePicker = ({
     booksRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [bookId, bookFilter]);
+  }, [bookId, bookFilter, scrollSignal]);
 
   useEffect(() => {
     chaptersRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [bookId, chapter]);
+  }, [bookId, chapter, scrollSignal]);
 
   useEffect(() => {
     versesRef.current
       ?.querySelector('[data-active="true"]')
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [bookId, chapter, verses]);
+  }, [bookId, chapter, verses, scrollSignal]);
 
   return (
     <Box

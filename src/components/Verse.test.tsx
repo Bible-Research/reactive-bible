@@ -264,6 +264,84 @@ describe('Verse Component', () => {
       }
     });
 
+  it('should dismiss an existing text selection on tap', () => {
+    vi.useFakeTimers();
+    const removeAllRanges = vi.fn();
+    const selection = {
+      toString: () => 'For God so loved',
+      removeAllRanges,
+    } as unknown as Selection;
+    vi.spyOn(window, 'getSelection').mockReturnValue(selection);
+    try {
+      renderVerse();
+      const el = verseContainer('5');
+      const touch = { clientX: 10, clientY: 10 };
+      const dispatchTouch = (type: string) => {
+        const evt = new Event(type, { bubbles: true });
+        Object.assign(evt, {
+          touches: [touch],
+          changedTouches: [touch],
+        });
+        el.dispatchEvent(evt);
+      };
+
+      act(() => {
+        dispatchTouch('touchstart');
+        dispatchTouch('touchend');
+      });
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(removeAllRanges).toHaveBeenCalled();
+      expect(useBibleStore.getState().verseSelection).toBeNull();
+    } finally {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('should keep a text selection created during the touch',
+    () => {
+      vi.useFakeTimers();
+      const removeAllRanges = vi.fn();
+      let selectedText = '';
+      const selection = {
+        toString: () => selectedText,
+        removeAllRanges,
+      } as unknown as Selection;
+      vi.spyOn(window, 'getSelection').mockReturnValue(selection);
+      try {
+        renderVerse();
+        const el = verseContainer('5');
+        const touch = { clientX: 10, clientY: 10 };
+        const dispatchTouch = (type: string) => {
+          const evt = new Event(type, { bubbles: true });
+          Object.assign(evt, {
+            touches: [touch],
+            changedTouches: [touch],
+          });
+          el.dispatchEvent(evt);
+        };
+
+        act(() => {
+          dispatchTouch('touchstart');
+          // Long-press creates a selection during the touch
+          selectedText = 'For God so loved';
+          dispatchTouch('touchend');
+        });
+        act(() => {
+          vi.advanceTimersByTime(100);
+        });
+
+        expect(removeAllRanges).not.toHaveBeenCalled();
+        expect(useBibleStore.getState().verseSelection).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+      }
+    });
+
   it('should not have the active class when not active', () => {
     renderVerse({ verse: 1 });
     expect(verseContainer('1')).toHaveAttribute(

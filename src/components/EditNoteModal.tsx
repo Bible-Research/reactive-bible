@@ -1,9 +1,30 @@
-import { useEffect } from "react";
-import { Box, Divider, Modal, Text } from "@mantine/core";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Badge,
+  Box,
+  Collapse,
+  Divider,
+  Group,
+  Modal,
+  Text,
+  UnstyledButton,
+} from "@mantine/core";
+import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { editNote } from "../api";
 import { useBibleStore } from "../store";
+import { toBookName, toUsfmCode } from "../utils/bibleUtils";
+import { clearNotesCache } from "../utils/cacheManager";
+import {
+  refsInclude,
+  sameRef,
+  sortRefs,
+  verseNumbersFor,
+} from "../utils/verseRefs";
+import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
-import { Note } from "../types";
+import PassagePicker from "./PassagePicker";
+import { Note, VerseRef } from "../types";
+import { visibleNoteVerses } from "../utils/noteVerses";
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -12,25 +33,140 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
-  const { tags, getTags, fetchNotes } = useBibleStore((state) => ({
+  const {
+    tags,
+    getTags,
+    fetchNotes,
+    activeTextFilesetId,
+    activeBookId,
+    activeChapter,
+    translations,
+  } = useBibleStore((state) => ({
     tags: state.tags,
     getTags: state.getTags,
     fetchNotes: state.fetchNotes,
+    activeTextFilesetId: state.activeTextFilesetId,
+    activeBookId: state.activeBookId,
+    activeChapter: state.activeChapter,
+    translations: state.translations,
   }));
 
+  // The note's verse links, editable via the picker below.
+  const [refs, setRefs] = useState<VerseRef[]>([]);
+  // The verse reference section stays collapsed until expanded.
+  const [versesOpen, setVersesOpen] = useState(false);
+  const [pickerBookId, setPickerBookId] = useState<string | null>(null);
+  const [pickerChapter, setPickerChapter] = useState<number | null>(
+    null
+  );
+  // Last plain-clicked verse; a shift-click extends a range from it.
+  const anchorRef = useRef<VerseRef | null>(null);
+
+  // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
-    if (opened) {
-      // Ensure tags are loaded (uses cache if available)
-      getTags();
-    }
+    if (!opened) return;
+    getTags(); // Uses cache if available
+    setVersesOpen(false);
+    if (!note) return;
+    const initial = (note.verses ?? [])
+      .map((v) => ({
+        bookId: toUsfmCode(v.book) ?? "",
+        chapter: v.chapter,
+        verse: v.verse,
+      }))
+      .filter((r) => r.bookId !== "");
+    setRefs(initial);
+    anchorRef.current = null;
+    setPickerBookId(initial[0]?.bookId ?? activeBookId);
+    setPickerChapter(initial[0]?.chapter ?? activeChapter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened]); // Only run when modal opens
+  }, [opened, note]); // Only run when the modal opens / note changes
+
+  const pickerVerses =
+    pickerBookId && pickerChapter !== null
+      ? verseNumbersFor(refs, pickerBookId, pickerChapter)
+      : [];
+
+  const verseTexts = useVerseTexts(
+    refs,
+    activeTextFilesetId,
+    translations,
+    opened
+  );
+  const textGroups = useMemo(
+    () => groupVerseTexts(verseTexts),
+    [verseTexts]
+  );
+
+  const handleSelectVerse = (verse: number, extendRange: boolean) => {
+    if (!pickerBookId || pickerChapter === null) return;
+    const ref: VerseRef = {
+      bookId: pickerBookId,
+      chapter: pickerChapter,
+      verse,
+    };
+    const anchor = anchorRef.current;
+    if (
+      extendRange &&
+      anchor &&
+      anchor.bookId === ref.bookId &&
+      anchor.chapter === ref.chapter
+    ) {
+      // Range selection is constrained to a single book/chapter.
+      const start = Math.min(anchor.verse, ref.verse);
+      const end = Math.max(anchor.verse, ref.verse);
+      setRefs((current) => {
+        const merged = [...current];
+        for (let v = start; v <= end; v++) {
+          const rangeRef = { ...ref, verse: v };
+          if (!refsInclude(merged, rangeRef)) merged.push(rangeRef);
+        }
+        return merged;
+      });
+      return;
+    }
+    anchorRef.current = ref;
+    setRefs((current) =>
+      refsInclude(current, ref)
+        ? current.filter((r) => !sameRef(r, ref))
+        : [...current, ref]
+    );
+  };
+
+  // Set when autosave wrote to the server — the cached notes
+  // list is then stale and must be refreshed on close.
+  const autosavedRef = useRef(false);
+
+  const handleAutoSave = async (tagId: string, text: string) => {
+    if (!note) return;
+    await editNote(note.id, tagId, text);
+    autosavedRef.current = true;
+    clearNotesCache();
+  };
+
+  const handleClose = () => {
+    if (autosavedRef.current && note) {
+      fetchNotes(note.tag.id);
+    }
+    autosavedRef.current = false;
+    onClose();
+  };
 
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
 
+    // The notes API expects book names (verses[].book).
+    const verseReferences = sortRefs(refs).map(
+      ({ bookId, chapter, verse }) => ({
+        book: toBookName(bookId) ?? bookId,
+        chapter,
+        verse,
+      })
+    );
+
     try {
-      await editNote(note.id, tagId, text);
+      await editNote(note.id, tagId, text, verseReferences);
+      clearNotesCache(); // Cached pages hold stale verse links
       fetchNotes(tagId); // Refresh notes list
       onClose();
     } catch (error) {
@@ -38,20 +174,23 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     }
   };
 
-  const firstVerse = note?.verses?.[0];
-  const lastVerse =
-    note?.verses?.[(note.verses?.length ?? 0) - 1];
-  const verseLabel = firstVerse
-    ? firstVerse.verse === lastVerse?.verse
-      ? `${firstVerse.book} ${firstVerse.chapter}:${firstVerse.verse}`
-      : (
-        `${firstVerse.book} ${firstVerse.chapter}:` +
-        `${firstVerse.verse}–${lastVerse?.verse}`
-      )
-    : undefined;
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note?.error;
+  // Provider text is capped at 500 verses for copyright
+  // reasons; render the truncated tail as a notice instead
+  // of empty verse rows.
+  const { truncated: versesTruncated } = visibleNoteVerses(
+    note?.verses
+  );
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit note" fullScreen>
+    <Modal
+      opened={opened}
+      onClose={handleClose}
+      title="Edit note"
+      fullScreen
+    >
       {note && (
         <>
           <NoteForm
@@ -59,27 +198,88 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             onSubmit={handleSubmit}
             submitText="Submit changes"
             onTagDropdownOpen={() => getTags()}
+            onAutoSave={handleAutoSave}
             note={{ tagId: note.tag.id, text: note.note_text }}
           />
-          {note.verses?.length > 0 && (
-            <Box mt="xl">
-              <Divider
-                my="sm"
-                label={verseLabel}
-                labelPosition="center"
+          <Divider mt="xl" mb="sm" />
+          <UnstyledButton
+            w="100%"
+            title="toggle-verse-references"
+            aria-expanded={versesOpen}
+            onClick={() => setVersesOpen((open) => !open)}
+          >
+            <Group spacing="xs">
+              {versesOpen ? (
+                <IconChevronDown size={16} />
+              ) : (
+                <IconChevronRight size={16} />
+              )}
+              <Text size="sm" weight={600}>
+                Verse references
+              </Text>
+              {refs.length > 0 && (
+                <Badge size="sm" variant="light" color="blue">
+                  {refs.length}
+                </Badge>
+              )}
+            </Group>
+          </UnstyledButton>
+          <Collapse in={versesOpen}>
+            <Box h={280} mt="sm">
+              <PassagePicker
+                bookId={pickerBookId}
+                chapter={pickerChapter}
+                verses={pickerVerses}
+                titlePrefix="edit-note-"
+                onSelectBook={(bookId) => {
+                  setPickerBookId(bookId);
+                  setPickerChapter(null);
+                }}
+                onSelectChapter={setPickerChapter}
+                onSelectVerse={handleSelectVerse}
               />
-              {note.verses.map((v) => (
-                <Box key={v.verse} py={4} px={8}>
-                  <Text size="sm">
-                    <Text component="span" weight={700} mr={4}>
-                      {v.verse}
-                    </Text>
-                    {v.text}
-                  </Text>
-                </Box>
-              ))}
             </Box>
-          )}
+            {verseError ? (
+              <Text color="red" size="sm" mt="sm">
+                {verseError}
+                {note.error_code === "rate_limited"
+                  ? " Try reloading in a few moments."
+                  : ""}
+              </Text>
+            ) : (
+              <>
+                {textGroups.map(([label, groupVerses]) => (
+                  <Box key={label} mt="xl">
+                    <Divider
+                      my="sm"
+                      label={label}
+                      labelPosition="center"
+                    />
+                    {groupVerses.map((v) => (
+                      <Box key={v.verse} py={4} px={8}>
+                        <Text size="sm">
+                          <Text
+                            component="span"
+                            weight={700}
+                            mr={4}
+                          >
+                            {v.verse}
+                          </Text>
+                          {v.text}
+                        </Text>
+                      </Box>
+                    ))}
+                  </Box>
+                ))}
+                {versesTruncated && (
+                  <Text color="red" size="sm" mt="sm">
+                    Cannot display more than 500 verses of the
+                    Bible due to copyright restrictions.
+                  </Text>
+                )}
+              </>
+            )}
+          </Collapse>
         </>
       )}
     </Modal>

@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import {
+  act,
   fireEvent,
   screen,
   waitFor,
@@ -23,6 +24,7 @@ vi.mock('../api', () => ({
   getVersesInChapter: vi.fn(),
   getLinkedNotes: vi.fn(),
   addTagNote: vi.fn(),
+  editNote: vi.fn(),
 }));
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
@@ -40,6 +42,10 @@ describe('AddTagNoteModal Component', () => {
       { id: '1', name: 'Faith', parent_tag: null,
         created_at: '', updated_at: '' },
     ]);
+    (api.getVersesInChapter as Mock).mockResolvedValue({
+      verses: [],
+      headings: [],
+    });
 
     (api.getLinkedNotes as Mock).mockResolvedValue({
       count: 0,
@@ -103,6 +109,78 @@ describe('AddTagNoteModal Component', () => {
       expect(screen.getByLabelText('Note')).toBeInTheDocument();
     });
   });
+
+  it('resolves stored product ids before fetching verse text',
+    async () => {
+      // `ENGKJV:text:0` must collapse to 'ENGKJV' so the offline
+      // bundle fast-path in api.tsx is used; a split-text product
+      // resolves to the member covering the selected book.
+      const kjv = {
+        abbr: 'ENGKJV',
+        name: 'King James Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [
+          { id: 'ENGKJV', type: 'text_plain' as const, size: 'C',
+            codec: null, bitrate: null },
+        ],
+      };
+      const niv = {
+        abbr: 'ENGNIV',
+        name: 'New International Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [
+          { id: 'ENGNIVO_ET', type: 'text_plain' as const,
+            size: 'OT', codec: null, bitrate: null },
+          { id: 'ENGNIVN_ET', type: 'text_plain' as const,
+            size: 'NT', codec: null, bitrate: null },
+        ],
+      };
+
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+            activeTextFilesetId: 'ENGNIV:text:0',
+            translations: [kjv, niv],
+          },
+        }
+      );
+
+      await waitFor(() => {
+        expect(api.getVersesInChapter).toHaveBeenCalledWith(
+          'GEN',
+          1,
+          'ENGNIVO_ET',
+        );
+      });
+
+      (api.getVersesInChapter as Mock).mockClear();
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+            activeTextFilesetId: 'ENGKJV:text:0',
+            translations: [kjv],
+          },
+        }
+      );
+
+      await waitFor(() => {
+        expect(api.getVersesInChapter).toHaveBeenCalledWith(
+          'GEN',
+          1,
+          'ENGKJV',
+        );
+      });
+    });
 
   const linkedNote = {
     id: 'NOT1',
@@ -222,6 +300,62 @@ describe('AddTagNoteModal Component', () => {
       );
       await Promise.resolve();
       expect(api.getLinkedNotes).not.toHaveBeenCalled();
+    });
+
+  it('PATCHes the autosaved note when submit races autosave',
+    async () => {
+      // Autosave POST stays in flight while Submit is clicked;
+      // submit must wait for it, then PATCH — never a second POST.
+      let resolvePost: (value: { id: string }) => void =
+        () => undefined;
+      (api.addTagNote as Mock).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolvePost = resolve;
+          })
+      );
+      (api.editNote as Mock).mockResolvedValue({});
+
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Draft' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // Submit while the autosave POST is still pending.
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Submit' })
+      );
+      await act(async () => {
+        resolvePost({ id: 'n1' });
+      });
+
+      await waitFor(() => {
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      });
+      expect(api.editNote).toHaveBeenCalledWith('n1', '', 'Draft');
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
 
   // Note: Full modal interaction testing is problematic

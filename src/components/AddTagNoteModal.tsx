@@ -12,25 +12,22 @@ import {
   IconChevronDown,
   IconChevronRight,
 } from "@tabler/icons-react";
-import { addTagNote, getLinkedNotes, getVersesInChapter } from "../api";
+import { addTagNote, editNote, getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Note } from "../types";
-import { groupRefsByChapter } from "../utils/verseRefs";
 import { toBookName } from "../utils/bibleUtils";
+import { resolveTextFileset } from "../utils/filesetGroups";
 import { toPlainText } from "../utils/tiptapContent";
+import {
+  groupVerseTexts,
+  useVerseTexts,
+} from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
 
 interface AddTagNoteModalProps {
   opened: boolean;
   onClose: () => void;
-}
-
-interface VerseText {
-  book: string;
-  chapter: number;
-  verse: number;
-  text: string;
 }
 
 const linkedNoteRef = (note: Note): string => {
@@ -52,6 +49,8 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection,
     setVerseSelection,
     activeTextFilesetId,
+    activeBookId,
+    translations,
     lastSelectedTagId,
     setLastSelectedTagId,
   } = useBibleStore((state) => ({
@@ -60,6 +59,8 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     verseSelection: state.verseSelection,
     setVerseSelection: state.setVerseSelection,
     activeTextFilesetId: state.activeTextFilesetId,
+    activeBookId: state.activeBookId,
+    translations: state.translations,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
   }));
@@ -69,7 +70,14 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     [verseSelection]
   );
 
-  const [verseTexts, setVerseTexts] = useState<VerseText[]>([]);
+  // Selections may span chapters/books — the hook fetches each
+  // book/chapter group independently.
+  const verseTexts = useVerseTexts(
+    refs,
+    activeTextFilesetId,
+    translations,
+    opened
+  );
   // null = not loaded yet or no selection; count is shown only
   // once the linked-notes query has resolved.
   const [linkedNotes, setLinkedNotes] =
@@ -90,55 +98,18 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     });
   };
 
+  // Once autosave creates the note, later saves (and Submit)
+  // must PATCH that note instead of POSTing duplicates.
+  const savedNoteIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
       getTags();
+      savedNoteIdRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]); // Only run when opened changes
-
-  useEffect(() => {
-    if (!opened || !activeTextFilesetId || refs.length === 0) return;
-
-    let cancelled = false;
-
-    const fetchVerseTexts = async () => {
-      try {
-        // Selections may span chapters/books — fetch each
-        // book/chapter group independently.
-        const groups = groupRefsByChapter(refs);
-        const results = await Promise.all(
-          groups.map(async (group) => {
-            const result = await getVersesInChapter(
-              group.bookId,
-              group.chapter,
-              activeTextFilesetId
-            );
-            const wanted = new Set(group.verses);
-            return result.verses
-              .filter((v) => wanted.has(v.verse))
-              .map((v) => ({
-                book: toBookName(group.bookId) ?? group.bookId,
-                chapter: group.chapter,
-                verse: v.verse,
-                text: v.text,
-              }));
-          })
-        );
-        if (cancelled) return;
-        setVerseTexts(results.flat());
-      } catch {
-        // Non-critical — verse preview is best-effort
-      }
-    };
-
-    void fetchVerseTexts();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [opened, refs, activeTextFilesetId]);
 
   // The notes API expects book names (verses[].book).
   const verseReferences = useMemo(
@@ -159,9 +130,17 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     let cancelled = false;
     const fetchLinkedNotes = async () => {
       try {
+        // The stored id may be a grouped product id — resolve to
+        // the concrete member for the selected book's testament,
+        // like every other `fileset_id` call site.
+        const filesetId = resolveTextFileset(
+          activeTextFilesetId,
+          refs[0]?.bookId ?? activeBookId,
+          translations
+        );
         const result = await getLinkedNotes(
           verseReferences,
-          activeTextFilesetId ?? undefined
+          filesetId ?? undefined
         );
         if (!cancelled) {
           setLinkedNotes(result.results);
@@ -174,33 +153,42 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     return () => {
       cancelled = true;
     };
-  }, [opened, verseReferences, activeTextFilesetId]);
+  }, [
+    opened,
+    verseReferences,
+    activeTextFilesetId,
+    activeBookId,
+    translations,
+    refs,
+  ]);
+
+  const handleAutoSave = async (tagId: string, text: string) => {
+    if (savedNoteIdRef.current) {
+      await editNote(savedNoteIdRef.current, tagId, text);
+      return;
+    }
+    const created = await addTagNote(tagId, text, verseReferences);
+    savedNoteIdRef.current = created?.id ?? null;
+  };
 
   const handleSubmit = async (tagId: string, text: string) => {
     try {
-      await addTagNote(tagId, text, verseReferences);
+      // Shares savedNoteIdRef with autosave: an existing draft is
+      // PATCHed, and a note created by submit is recorded so a
+      // late autosave tick PATCHes instead of POSTing a duplicate.
+      await handleAutoSave(tagId, text);
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
-      setVerseTexts([]);
       onClose();
     } catch (error) {
       console.error(error);
     }
   };
 
-  const textGroups = useMemo(() => {
-    const groups = new Map<string, VerseText[]>();
-    for (const v of verseTexts) {
-      const key = `${v.book} ${v.chapter}`;
-      const group = groups.get(key);
-      if (group) {
-        group.push(v);
-      } else {
-        groups.set(key, [v]);
-      }
-    }
-    return [...groups.entries()];
-  }, [verseTexts]);
+  const textGroups = useMemo(
+    () => groupVerseTexts(verseTexts),
+    [verseTexts]
+  );
 
   return (
     <Modal opened={opened} onClose={onClose} title="Add note" fullScreen>
@@ -217,6 +205,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         onSubmit={handleSubmit}
         submitText="Submit"
         onTagDropdownOpen={() => getTags()}
+        onAutoSave={handleAutoSave}
         note={
           lastSelectedTagId
             ? { tagId: lastSelectedTagId, text: "" }

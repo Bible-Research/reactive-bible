@@ -19,15 +19,17 @@ import {
   IconEdit,
   IconTrash,
 } from "@tabler/icons-react";
-import { Note } from "../types";
+import { Note, NoteOrderMenuData } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
 import Verse from "./Verse";
+import NoteOrderMenu from "./NoteOrderMenu";
 import CommentThread from "./CommentThread";
 import SectionHeadingComponent from "./SectionHeading";
 import ScripturePassage from "./ScripturePassage";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
+import { visibleNoteVerses } from "../utils/noteVerses";
 import {
   isSameScriptureRef,
   parseScriptureRef,
@@ -50,6 +52,9 @@ interface NoteCardProps {
     ref?: (element: HTMLElement | null) => void;
     [key: string]: unknown;
   };
+  /** When present (custom sort + authenticated), renders the
+   *  `#k` order badge + move dropdown in the action group. */
+  orderMenu?: NoteOrderMenuData;
 }
 
 const NoteCard = ({
@@ -62,6 +67,7 @@ const NoteCard = ({
   onCountChange,
   verseScope,
   dragHandleProps,
+  orderMenu,
 }: NoteCardProps) => {
   const scope = verseScope ?? note.id;
   const [threadOpen, setThreadOpen] = useState(false);
@@ -71,6 +77,18 @@ const NoteCard = ({
 
   // Use headings from the note (provided by backend)
   const noteHeadings = note.headings || [];
+
+  // The notes API sets error/error_code when the upstream
+  // Bible provider fails to resolve verse text.
+  const verseError = note.error;
+
+  // Provider text is capped at 500 verses for copyright
+  // reasons; render the truncated tail as a notice instead
+  // of empty verse rows.
+  const {
+    verses: displayedVerses,
+    truncated: versesTruncated,
+  } = visibleNoteVerses(note?.verses);
 
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
@@ -144,6 +162,19 @@ const NoteCard = ({
     ? false
     : commentCount > 0 || isAuthenticated;
 
+  // The order badge is opt-in: notes missing from the index
+  // (and callers that never pass `orderMenu`, e.g.
+  // NoteDetailRoute) simply render no badge.
+  const orderId = orderMenu?.orderIdByNoteId.get(note.id);
+  const orderMenuNode =
+    orderMenu && orderId !== undefined ? (
+      <NoteOrderMenu
+        noteId={note.id}
+        orderId={orderId}
+        data={orderMenu}
+      />
+    ) : null;
+
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
       {error && (
@@ -184,6 +215,7 @@ const NoteCard = ({
           </Title>
           {versesFolded && (
             <Group spacing="xs" sx={{ position: 'relative', zIndex: 1 }}>
+              {orderMenuNode}
               <Tooltip label="View in Bible" position="top">
                 <Box component="span" sx={{ display: 'inline-block' }}>
                   <ActionIcon
@@ -306,6 +338,7 @@ const NoteCard = ({
               zIndex: 1,
             }}
           >
+            {orderMenuNode}
             <Tooltip label="View in Bible" position="top">
               <Box component="span" sx={{ display: 'inline-block' }}>
                 <ActionIcon
@@ -425,7 +458,14 @@ const NoteCard = ({
         sx={{ position: 'relative', zIndex: 0 }}
         data-verse-scope={scope}
       >
-        {versesFolded
+        {verseError ? (
+          <Text color="red" size="sm" mt={8}>
+            {verseError}
+            {note.error_code === 'rate_limited'
+              ? ' Try reloading in a few moments.'
+              : ''}
+          </Text>
+        ) : versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
               const heading = noteHeadings.find(
@@ -448,26 +488,38 @@ const NoteCard = ({
                 </Box>
               );
             })
-          : note?.verses?.map(v => {
-              // Check if there's a heading before this verse
-              const heading = noteHeadings.find(
-                h => h.before_verse === v.verse
-              );
-              return (
-                <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
-                  {heading && (
-                    <SectionHeadingComponent text={heading.text} />
-                  )}
-                  <Verse
-                    scope={scope}
-                    book={v.book}
-                    chapter={v.chapter}
-                    verse={v.verse}
-                    text={v.text}
-                  />
-                </Box>
-              );
-            })
+          : (
+            <>
+              {displayedVerses.map(v => {
+                // Check if there's a heading before this verse
+                const heading = noteHeadings.find(
+                  h => h.before_verse === v.verse
+                );
+                return (
+                  <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
+                    {heading && (
+                      <SectionHeadingComponent
+                        text={heading.text}
+                      />
+                    )}
+                    <Verse
+                      scope={scope}
+                      book={v.book}
+                      chapter={v.chapter}
+                      verse={v.verse}
+                      text={v.text}
+                    />
+                  </Box>
+                );
+              })}
+              {versesTruncated && (
+                <Text color="red" size="sm" mt={8}>
+                  Cannot display more than 500 verses of the
+                  Bible due to copyright restrictions.
+                </Text>
+              )}
+            </>
+          )
         }
       </Box>
 
