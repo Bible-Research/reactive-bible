@@ -1,7 +1,9 @@
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { http, HttpResponse } from 'msw';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { server } from '../mocks/server';
 import App from '../App';
 import Audio from '../components/Audio';
 import { useBibleStore } from '../store';
@@ -67,6 +69,15 @@ describe('Audio stops instantly on chapter change (#62)', () => {
 
   it('stops playing chapter audio on next-chapter click',
     async () => {
+      // Playing chapter 1 preloads chapter 2's bytes — keep that
+      // fetch off the real network (KJV audio is served by
+      // wordpocket.org, which has no default MSW handler).
+      server.use(
+        http.get(
+          'https://wordpocket.org/*',
+          () => new HttpResponse(null, { status: 404 })
+        )
+      );
       render(
         <MemoryRouter initialEntries={['/bible/JHN.1']}>
           <App />
@@ -93,6 +104,13 @@ describe('Audio stops instantly on chapter change (#62)', () => {
       });
       expect(first.playing()).toBe(true);
 
+      // 'play' also preloads the next chapter — wait for its
+      // Howl so the discard assertion below is meaningful.
+      await waitFor(() => {
+        expect(FakeHowl.instances.length).toBe(2);
+      });
+      const preloaded = FakeHowl.instances[1];
+
       await userEvent.click(
         screen.getByTitle('next-passage-button')
       );
@@ -105,6 +123,11 @@ describe('Audio stops instantly on chapter change (#62)', () => {
 
       expect(first.state()).toBe('unloaded');
       expect(first.playing()).toBe(false);
+      // Manual navigation must discard the preloaded Howl too —
+      // a stale `current` local in the reset effect used to skip
+      // discardPreloaded() and leave it parked in preloadedRef
+      // for the load effect to adopt.
+      expect(preloaded.state()).toBe('unloaded');
     }
   );
 

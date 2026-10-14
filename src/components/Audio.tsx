@@ -724,8 +724,8 @@ const Audio = () => {
     };
   });
 
-  // Reset chapter audio when chapter/book/version changes
-  // (non-playlist only)
+  // Reset chapter audio when chapter/book/version/mode changes —
+  // playlist mode also routes here to dispose the chapter Howl.
   useEffect(() => {
     // Every run means the passage or mode changed — supersede any
     // chapter load still in flight; its post-await token check
@@ -761,9 +761,11 @@ const Audio = () => {
       discardPreloaded();
       return;
     }
-    if (current) {
-      // The ended handler already adopted the preloaded Howl for
-      // this chapter — keep it playing.
+    // Re-check the ref, not the captured `current` local: the
+    // dispose branch above clears it on a key mismatch. Only a
+    // still-live Howl — the ended handler adopted this chapter's
+    // preloaded one — may skip the discard and keep playing.
+    if (audioRef.current) {
       setTimestamps([]);
       setAudioActiveVerse(null);
       return;
