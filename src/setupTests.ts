@@ -68,10 +68,16 @@ beforeEach(async () => {
     // mocked without the export — nothing to reset
   }
 
+  // structuredClone gives each test fresh nested objects —
+  // sharing initialState's arrays/objects would let one test's
+  // in-place mutation leak into later tests. Both initialState
+  // objects are plain data (no functions), so cloning is safe.
   try {
     const bible = await import('./store');
     if (bible.initialState) {
-      bible.useBibleStore?.setState?.(bible.initialState);
+      bible.useBibleStore?.setState?.(
+        structuredClone(bible.initialState)
+      );
     }
   } catch {
     // mocked without the store — nothing to reset
@@ -80,7 +86,9 @@ beforeEach(async () => {
   try {
     const auth = await import('./stores/authStore');
     if (auth.initialState) {
-      auth.useAuthStore?.setState?.(auth.initialState);
+      auth.useAuthStore?.setState?.(
+        structuredClone(auth.initialState)
+      );
     }
   } catch {
     // mocked without the store — nothing to reset
