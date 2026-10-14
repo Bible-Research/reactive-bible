@@ -22,6 +22,12 @@ interface NoteFormProps {
   onTagDropdownOpen: () => void;
   onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
   /**
+   * Called after a save triggered by the unmount flush
+   * resolves — the parent's own close handler already ran, so
+   * this is its only chance to react (e.g. refetch stale UI).
+   */
+  onUnmountedSave?: () => void;
+  /**
    * Reports every draft change so a parent-owned draft object
    * can restore the autosaved note after the form remounts
    * (the modal unmounts it on close).
@@ -59,6 +65,7 @@ const NoteForm = ({
   submitText,
   onTagDropdownOpen,
   onAutoSave,
+  onUnmountedSave,
   onDraftChange,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
@@ -67,6 +74,7 @@ const NoteForm = ({
   const [savedFlash, setSavedFlash] = useState(false);
   const latest = useRef({ tagId: "", text: "" });
   const onAutoSaveRef = useRef(onAutoSave);
+  const onUnmountedSaveRef = useRef(onUnmountedSave);
   const onDraftChangeRef = useRef(onDraftChange);
   const autoSaveRef = useRef(autoSave);
   // Shared save lock for autosave ticks and submit: overlapping
@@ -78,6 +86,7 @@ const NoteForm = ({
   useEffect(() => {
     latest.current = { tagId: selectedTagId, text: noteText };
     onAutoSaveRef.current = onAutoSave;
+    onUnmountedSaveRef.current = onUnmountedSave;
     onDraftChangeRef.current = onDraftChange;
     autoSaveRef.current = autoSave;
   });
@@ -126,6 +135,7 @@ const NoteForm = ({
       const chain = inFlightRef.current ?? Promise.resolve();
       void chain
         .then(() => save(tagId, text))
+        .then(() => onUnmountedSaveRef.current?.())
         .catch((error) => console.error(error));
     },
     []

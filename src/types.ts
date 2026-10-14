@@ -18,7 +18,9 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
-  is_owner: boolean;
+  /** Only sent once the backend's is_owner field ships —
+   *  treat absence as "not owned" (`=== true` guards). */
+  is_owner?: boolean;
   created_at: string;
   updated_at: string;
   tag: Tag;
