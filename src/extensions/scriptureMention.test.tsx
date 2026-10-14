@@ -310,6 +310,37 @@ describe('ScriptureMention suggestion', () => {
     expect(previewOpen()).toBe(false);
   });
 
+  it('reopens on double click after picker insertion', async () => {
+    // A picker-inserted token carries insert-suppression — the
+    // double-click reopen intent must beat it.
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3.');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+
+    const verse = document.querySelector(
+      '[title="mention-verse-16"]'
+    );
+    fireEvent.click(verse as Element);
+    await waitFor(() => expect(popupOpen()).toBe(false));
+    expect(editor?.getText()).toBe('@JHN.3.16 ');
+
+    // '@' sits at doc pos 1 — pos 3 is inside the token.
+    mouseDownAtPos(3, 1);
+    mouseDownAtPos(3, 2);
+    await waitFor(() => expect(popupOpen()).toBe(true));
+  });
+
+  it('does not flag email-like tokens as invalid refs', async () => {
+    await renderEditor();
+    editor?.commands.setContent(
+      '<p>mail bob@example.com today</p>'
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(
+      document.querySelector('.scripture-ref-invalid')
+    ).toBeNull();
+  });
+
   it('ignores clicks on invalid refs', async () => {
     await renderEditor();
     editor?.commands.setContent(
