@@ -203,6 +203,72 @@ describe('AddStandaloneNoteModal Component', () => {
       expectDocArg(patchArgs[2], 'Draft');
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
+
+  // FIXME: reopening the modal orphans the autosaved draft on
+  // the server — `savedNoteIdRef` resets in the `opened` effect
+  // (AddStandaloneNoteModal.tsx) so the next autosave POSTs a
+  // second note instead of PATCHing the existing one. The fix
+  // (delete the draft on close, or persist/resume its id across
+  // reopen) is a product decision exceeding a ~30-line
+  // test-only fix.
+  it.skip('PATCHes the autosaved draft instead of POSTing a ' +
+    'second note when reopened mid-session', async () => {
+      (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+      (api.editNote as Mock).mockResolvedValue({});
+
+      const { rerender } = renderWithProviders(
+        <AddStandaloneNoteModal
+          opened={true}
+          onClose={vi.fn()}
+        />
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Draft' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+
+        // Close without submitting, then reopen and keep
+        // typing — the draft should resume, not duplicate.
+        rerender(
+          <AddStandaloneNoteModal
+            opened={false}
+            onClose={vi.fn()}
+          />
+        );
+        rerender(
+          <AddStandaloneNoteModal
+            opened={true}
+            onClose={vi.fn()}
+          />
+        );
+        // getByLabelText, not findBy — async queries never
+        // resolve under fake timers.
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft continued' },
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+        const patchArgs =
+          (api.editNote as Mock).mock.calls[0];
+        expect(patchArgs[0]).toBe('n1');
+        expectDocArg(patchArgs[2], 'Draft continued');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 });
 
 // The stub emits `JSON.stringify(getJSON())` like the real
