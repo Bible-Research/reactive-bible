@@ -1,4 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import BibleRoute from '../BibleRoute';
@@ -171,9 +176,14 @@ describe('BibleRoute', () => {
       expect(setVersesFoldedSpy.mock.calls.length).toBeLessThan(5);
       expect(passageRenderCount.count).toBeLessThan(10);
     } finally {
-      useBibleStore.setState({
-        setShowNotes: store.setShowNotes,
-        setVersesFolded: store.setVersesFolded,
+      // The tree is still mounted here — restoring the store
+      // setters triggers subscribers, so wrap in act() to keep
+      // stderr clean.
+      act(() => {
+        useBibleStore.setState({
+          setShowNotes: store.setShowNotes,
+          setVersesFolded: store.setVersesFolded,
+        });
       });
     }
   });
