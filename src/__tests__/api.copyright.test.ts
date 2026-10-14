@@ -51,16 +51,28 @@ describe('getCopyrightInfo', () => {
   });
 
   it('fetches and caches data on cache miss', async () => {
+    // Literal expected payload — mirrors the MSW
+    // /bible/copyright/ fixture — so the cache write is pinned
+    // to the server contract, not to whatever was returned.
+    const expected = [
+      {
+        id: 'ENGESV',
+        type: 'text_plain',
+        size: 'C',
+        copyright: '© 2001 Test Copyright',
+        copyright_date: '2001',
+        copyright_description: 'The Holy Bible, Test Version',
+      },
+    ];
+
     const result = await api.getCopyrightInfo(
       'ENGESV'
     );
 
-    expect(result.length).toBeGreaterThan(0);
-    expect(result[0].id).toBe('ENGESV');
-    expect(result[0].type).toBe('text_plain');
+    expect(result).toEqual(expected);
     expect(cacheManager.cacheCopyright).toHaveBeenCalledWith(
       'ENGESV',
-      result
+      expected
     );
   });
 
