@@ -1322,6 +1322,30 @@ All prefetching happens silently in the background.
 5. New audio loads automatically via useEffect
 6. Playback continues seamlessly
 
+**Concurrency & mode invariants** (easy to regress — preserve):
+- `loadSeqRef` (Audio.tsx) and `playSeqRef`
+  (useAudioPlaylist) are generation counters: bumping them
+  invalidates any in-flight load, so a superseded coroutine can
+  never materialize a Howl that would play over current audio.
+- Chapter playback and playlist playback are mutually
+  exclusive: entering playlist mode disposes the chapter Howl
+  and forces chapter `isPlaying` off.
+- Chapter adjacency (next/previous, auto-advance, fallback
+  re-arm) is derived from `audioChapterKeyRef` — the chapter
+  actually playing — not the store, which can lag a commit
+  behind during URL->store sync.
+- Off the `/bible` route (search, notes) a chapter advance
+  updates `activeBookId`/`activeChapter` in the store directly
+  via `setActiveBookAndChapter` instead of navigating, so
+  playback continues without yanking the user back.
+- `disposeHowl` (`src/utils/howlUtils.ts`) is the shared
+  teardown: `stop()` → `off()` → `volume(0)` → `unload()`,
+  so pooled `<audio>` nodes never keep playing and listeners
+  (bounds poll, `timeupdate`) are released.
+- ENGKJV audio has no verse timestamps; playlist items play
+  their whole chapter and the user is notified once per
+  playlist.
+
 **Hardware Controls**:
 - **Play/Pause**: Works on all devices (headphones, car)
 - **Seek Forward/Backward**: Skips ±10 seconds (headphones)

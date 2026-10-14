@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { Howl } from 'howler';
 import { resolveTimestampsFilesetId } from '../utils/bibleUtils';
 import type { PlaylistItem } from '../types';
 import type { Translation } from '../store';
@@ -78,6 +79,7 @@ let mockHowlOnLoadError:
   | ((_id: number, err: unknown) => void)
   | null = null;
 let mockHowlSeekValue = 0;
+let mockHowlLoopValue = false;
 let mockHowlUnload = vi.fn();
 let mockHowlPause = vi.fn();
 let mockHowlPlay = vi.fn();
@@ -93,6 +95,7 @@ vi.mock('howler', () => ({
       err: unknown,
     ) => void;
     mockHowlSeekValue = 0;
+    mockHowlLoopValue = false;
     mockHowlUnload = vi.fn();
     mockHowlPause = vi.fn();
     mockHowlPlay = vi.fn();
@@ -107,7 +110,14 @@ vi.mock('howler', () => ({
       pause: mockHowlPause,
       stop: mockHowlStop,
       unload: mockHowlUnload,
-      loop: vi.fn(),
+      off: vi.fn(),
+      volume: vi.fn(),
+      loop: vi.fn((v?: boolean) => {
+        if (v === undefined) return mockHowlLoopValue;
+        mockHowlLoopValue = v;
+        return mockHowlLoopValue;
+      }),
+      state: vi.fn().mockReturnValue('loaded'),
       duration: vi.fn().mockReturnValue(60),
       on: mockHowlOn,
     };
@@ -432,4 +442,120 @@ describe('useAudioPlaylist', () => {
       )
     );
   });
+
+  it('a superseded load can never materialize a Howl', async () => {
+    // Regression: rapid next() while a fetch is in flight let
+    // the superseded coroutine create a Howl that overwrote the
+    // current item's audio — a parallel self-advancing
+    // playlist.
+    let resolveStale!: (url: string) => void;
+    const staleFetch = new Promise<string>((resolve) => {
+      resolveStale = resolve;
+    });
+    vi.mocked(api.getBibleAudioUrl)
+      .mockImplementationOnce(() => staleFetch)
+      .mockResolvedValue('http://audio.test/b.mp3');
+    const { result } = renderHook(() => useAudioPlaylist());
+    const items = [
+      makeItem({ itemId: 'a' }),
+      makeItem({ itemId: 'b', chapter: 4 }),
+    ];
+    act(() => {
+      result.current.start(items);
+    });
+    // Item a's URL fetch is still pending — skip to b.
+    act(() => {
+      result.current.next();
+    });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(1)
+    );
+    await waitFor(() =>
+      expect(result.current.audio).not.toBeNull()
+    );
+    const winningAudio = result.current.audio;
+    const howlCount = vi.mocked(Howl).mock.calls.length;
+    // Resolving the stale fetch must not produce another Howl
+    // or clobber the winning item's audio.
+    await act(async () => {
+      resolveStale('http://audio.test/a.mp3');
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(vi.mocked(Howl).mock.calls.length).toBe(howlCount);
+    expect(result.current.audio).toBe(winningAudio);
+    expect(result.current.currentIndex).toBe(1);
+  });
+
+  it('notifies once that KJV items play their whole chapter',
+    async () => {
+      const { showNotification } =
+        await import('@mantine/notifications');
+      mockStoreState.activeAudioFilesetId = 'ENGKJV';
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ itemId: 'a' }),
+          makeItem({ itemId: 'b', chapter: 4 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Playing whole chapters',
+          }),
+        )
+      );
+      // Advance to the second KJV item — the notice is once
+      // per playlist, not per item.
+      act(() => {
+        mockHowlOnLoad?.();
+      });
+      act(() => {
+        mockHowlOnEnd?.();
+      });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(1)
+      );
+      const notices = vi.mocked(showNotification).mock.calls
+        .filter(
+          (c) =>
+            (c[0] as { title?: string }).title ===
+            'Playing whole chapters',
+        );
+      expect(notices).toHaveLength(1);
+    },
+  );
+
+  it('loop replays a bounded item instead of advancing',
+    async () => {
+      vi.mocked(api.getAudioTimestamps).mockResolvedValue([
+        { verse_start: 16, timestamp: 0 },
+        { verse_start: 17, timestamp: 5 },
+        { verse_start: 18, timestamp: 10 },
+        { verse_start: 19, timestamp: 15 },
+      ]);
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ itemId: 'a' }),
+          makeItem({ itemId: 'b', chapter: 4 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(result.current.audio).not.toBeNull()
+      );
+      act(() => {
+        result.current.audio?.loop(true);
+      });
+      // Simulate playback reaching the item's end timestamp —
+      // the 100ms bounds poll should seek back to the item's
+      // start rather than advancing to item b.
+      mockHowlSeekValue = 20;
+      await waitFor(() => expect(mockHowlSeekValue).toBe(0), {
+        timeout: 2000,
+      });
+      await new Promise((r) => setTimeout(r, 250));
+      expect(result.current.currentIndex).toBe(0);
+    },
+  );
 });
