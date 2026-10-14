@@ -41,6 +41,7 @@ import {
   getTag,
   fetchCommentCounts,
   getNoteOrderIndex,
+  UNTAGGED_TAG_ID,
 } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
@@ -98,6 +99,9 @@ const entryLabel = (
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
+  // `/notes/tag/untagged` is the virtual "no tag" view: the
+  // API translates the sentinel into a tag__isnull filter.
+  const isUntagged = tagId === UNTAGGED_TAG_ID;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -238,7 +242,8 @@ export default function TagNotesRoute() {
           // in the store; before that, reuse the last request.
           const current = useBibleStore.getState();
           const ownsPage = current.notes.some(
-            (n) => n.tag?.id === tagId
+            (n) =>
+              isUntagged ? n.tag == null : n.tag?.id === tagId
           );
           page = ownsPage
             ? current.notesPage
@@ -256,16 +261,31 @@ export default function TagNotesRoute() {
         if (cancelled) return;
 
         const fetchedNotes = useBibleStore.getState().notes;
-        let resolvedTag: Tag | null =
-          useBibleStore.getState().tags.find((t) => t.id === tagId) ||
-          fetchedNotes[0]?.tag ||
-          null;
+        let resolvedTag: Tag | null;
+        if (isUntagged) {
+          // No Tag row exists for the untagged view — use a
+          // synthetic label object for display.
+          resolvedTag = {
+            id: UNTAGGED_TAG_ID,
+            name: 'Untagged',
+            parent_tag: null,
+            created_at: '',
+            updated_at: '',
+          };
+        } else {
+          resolvedTag =
+            useBibleStore
+              .getState()
+              .tags.find((t) => t.id === tagId) ||
+            fetchedNotes[0]?.tag ||
+            null;
 
-        if (!resolvedTag) {
-          try {
-            resolvedTag = await getTag(tagId);
-          } catch {
-            resolvedTag = null;
+          if (!resolvedTag) {
+            try {
+              resolvedTag = await getTag(tagId);
+            } catch {
+              resolvedTag = null;
+            }
           }
         }
 
@@ -296,13 +316,21 @@ export default function TagNotesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [tagId, fetchNotes, getTags, isAuthenticated, sortOrder]);
+  }, [
+    tagId,
+    fetchNotes,
+    getTags,
+    isAuthenticated,
+    sortOrder,
+    isUntagged,
+  ]);
 
   // The order badge/menu is gated exactly like `isDraggable`:
   // custom sort + authenticated.
   const orderMenuEnabled =
     (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
-    isAuthenticated;
+    isAuthenticated &&
+    !isUntagged;
 
   const loadOrderIndex = useCallback(async () => {
     if (!tagId) return;
@@ -926,7 +954,17 @@ export default function TagNotesRoute() {
             placeholder="Select a tag"
             value={tagId}
             onChange={handleTagChange}
-            data={sortedTags.map(t => ({ value: t.id, label: t.name }))}
+            // Grouped items render above a divider; the
+            // ungrouped "Untagged" entry lands in its own
+            // bottom section (Mantine v6 SelectItems).
+            data={[
+              ...sortedTags.map((t) => ({
+                value: t.id,
+                label: t.name,
+                group: 'Tags',
+              })),
+              { value: UNTAGGED_TAG_ID, label: 'Untagged' },
+            ]}
             searchable
             style={{ maxWidth: 400 }}
           />
@@ -1064,7 +1102,8 @@ export default function TagNotesRoute() {
               isDraggable={
                 (sortOrder === 'custom_asc' ||
                   sortOrder === 'custom_desc') &&
-                isAuthenticated
+                isAuthenticated &&
+                !isUntagged
               }
               tagId={tagId || ''}
               onReorder={handleReorder}
@@ -1078,7 +1117,11 @@ export default function TagNotesRoute() {
           </Stack>
         ) : (
           <Center style={{ height: 200 }}>
-            <Text>No notes found for this tag.</Text>
+            <Text>
+              {isUntagged
+                ? 'No untagged notes.'
+                : 'No notes found for this tag.'}
+            </Text>
           </Center>
         )}
       </ScrollArea>

@@ -10,7 +10,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
-import { editNote } from "../api";
+import { editNote, UNTAGGED_TAG_ID } from "../api";
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import { clearNotesCache } from "../utils/cacheManager";
@@ -146,7 +146,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
 
   const handleClose = () => {
     if (autosavedRef.current && note) {
-      fetchNotes(note.tag.id);
+      // Untagged notes refresh the virtual "untagged" view.
+      fetchNotes(note.tag?.id ?? UNTAGGED_TAG_ID);
     }
     autosavedRef.current = false;
     onClose();
@@ -199,7 +200,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             submitText="Submit changes"
             onTagDropdownOpen={() => getTags()}
             onAutoSave={handleAutoSave}
-            note={{ tagId: note.tag.id, text: note.note_text }}
+            note={{
+              tagId: note.tag?.id ?? "",
+              text: note.note_text,
+            }}
           />
           <Divider mt="xl" mb="sm" />
           <UnstyledButton

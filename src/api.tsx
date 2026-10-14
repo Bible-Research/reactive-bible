@@ -1101,6 +1101,15 @@ export interface PaginatedNotesResponse {
   results: Note[];
 }
 
+/**
+ * `tag_id` sentinel the API understands as "notes with no
+ * tag". Real tag ids are `TAG…` strings and cannot collide.
+ * An older backend that does not know the sentinel simply
+ * matches no tag and returns an empty page — it never falls
+ * back to returning every note.
+ */
+export const UNTAGGED_TAG_ID = 'untagged';
+
 export const getNotes = async (
   tagId?: string,
   options?: {

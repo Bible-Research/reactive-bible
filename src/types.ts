@@ -21,7 +21,7 @@ export interface Note {
   is_owner: boolean;
   created_at: string;
   updated_at: string;
-  tag: Tag;
+  tag: Tag | null;
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;

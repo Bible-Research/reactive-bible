@@ -287,7 +287,8 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 
 **Notes Routes** (✅ Implemented):
 - `/notes` - Auto-redirects to first tag
-- `/notes/tag/:tagId` - Displays notes filtered by specific tag
+- `/notes/tag/:tagId` - Displays notes filtered by specific tag;
+  `/notes/tag/untagged` shows notes with no tag
 
 **Search Routes** (✅ Implemented):
 - `/search?q=<query>` - Book-grouped search results
@@ -308,7 +309,11 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
 - Fetches notes for specific tag via API
-- Displays tag selector dropdown (searchable)
+- Displays tag selector dropdown (searchable); a separate
+  "Untagged" section at the bottom lists notes with no tag
+  (`tag_id=untagged` API sentinel). Custom-sort reordering and
+  the order menu are disabled there — reorder endpoints need a
+  real tag id
 - Shows note count
 - Provides full CRUD operations:
   - View note in Bible passage
@@ -458,7 +463,7 @@ export interface Note {
   public: boolean;
   created_at: string;
   updated_at: string;
-  tag: Tag;
+  tag: Tag | null;  // null = untagged note
   verses: {
     book: string;
     chapter: number;
