@@ -72,6 +72,13 @@ function handleGlobalError(event: Event): void {
       (target as HTMLImageElement).src ||
       (target as HTMLLinkElement).href ||
       target.tagName.toLowerCase();
+    // Optional Vercel telemetry (Analytics / Speed Insights) must
+    // never surface as an app error: ad blockers and non-Vercel
+    // hosts (e.g. the Capacitor shell's https://localhost origin)
+    // make these requests fail routinely.
+    if (src.includes('/_vercel/')) {
+      return;
+    }
     reportError(
       new Error(`Failed to load resource: ${src}`),
       'Resource load error'

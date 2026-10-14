@@ -1580,7 +1580,11 @@ export default function App() {
 
 **Note**: Analytics data is only collected in production 
 deployments on Vercel. No data is tracked during local 
-development.
+development. `<Analytics />` and `<SpeedInsights />` are not
+rendered inside the Capacitor Android shell — their `/_vercel/*`
+scripts only exist on the Vercel deployment and would 404 on the
+WebView's `https://localhost` origin (see `isNativeApp()` in
+`src/utils/nativeAudio.ts`).
 
 ### 9. Global Error Reporting
 
@@ -1599,6 +1603,9 @@ pasting into a GitHub issue.
   link) are reported in addition to script errors. Audio/video
   element failures are excluded — the app's own fallback chains
   retry them, so reporting them would surface expected noise.
+  Resource failures for `/_vercel/*` URLs (Vercel telemetry) are
+  also ignored — ad blockers and non-Vercel hosts make them fail
+  routinely.
 - **Unhandled promise rejections**: `unhandledrejection`
   listener; `AbortError` rejections are ignored (routine
   fetch cancellations on navigation races).
@@ -2304,6 +2311,8 @@ and `getKjvAudioUrl` stay synchronous.
 - Component: `<SpeedInsights />` in `App.tsx`
 - Package: `@vercel/speed-insights`
 - Data visible in Vercel dashboard after deployment
+- Both components are skipped in the Capacitor Android shell
+  (`isNativeApp()`), where their `/_vercel/*` scripts 404.
 
 ---
 
