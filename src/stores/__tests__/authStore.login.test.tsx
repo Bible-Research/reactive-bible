@@ -155,6 +155,19 @@ describe('authStore - Login', () => {
       const logSpy = vi
         .spyOn(console, 'log')
         .mockImplementation(() => undefined);
+      const errorSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => undefined);
+      const renderedCalls = (calls: unknown[][]) =>
+        calls.map((call) =>
+          call
+            .map((arg) =>
+              typeof arg === 'string'
+                ? arg
+                : JSON.stringify(arg)
+            )
+            .join(' ')
+        );
       server.use(
         http.post(TOKEN_URL, () =>
           HttpResponse.json({ token: mockToken })
@@ -165,12 +178,7 @@ describe('authStore - Login', () => {
       await store.getState().login(mockUsername, mockPassword);
 
       expect(logSpy).toHaveBeenCalled();
-      for (const call of logSpy.mock.calls) {
-        const rendered = call
-          .map((arg) =>
-            typeof arg === 'string' ? arg : JSON.stringify(arg)
-          )
-          .join(' ');
+      for (const rendered of renderedCalls(logSpy.mock.calls)) {
         expect(rendered).not.toContain(mockPassword);
       }
       // The mask itself is applied, not just omitted.
@@ -178,6 +186,30 @@ describe('authStore - Login', () => {
         .map((call) => JSON.stringify(call))
         .find((entry) => entry.includes('Login attempt'));
       expect(attemptLog).toContain('"password":"***"');
+
+      // The error path must not leak either — a backend that
+      // echoes the request body would otherwise resurface the
+      // password through console.error.
+      server.use(
+        http.post(TOKEN_URL, () =>
+          HttpResponse.json(
+            {
+              detail: 'Invalid credentials',
+              echo: { password: mockPassword },
+            },
+            { status: 400 }
+          )
+        )
+      );
+
+      await expect(
+        store.getState().login(mockUsername, mockPassword)
+      ).rejects.toThrow();
+
+      expect(errorSpy).toHaveBeenCalled();
+      for (const rendered of renderedCalls(errorSpy.mock.calls)) {
+        expect(rendered).not.toContain(mockPassword);
+      }
     });
   });
 });

@@ -69,7 +69,12 @@ const createAuthStore = () => create<AuthState>()(
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('🔐 Login error response:', errorData);
+            // Log the status only — the error body may echo
+            // submitted credentials.
+            console.error(
+              '🔐 Login error response status:',
+              response.status
+            );
             
             let errorMessage = 'Invalid username or password';
             
@@ -160,7 +165,12 @@ const createAuthStore = () => create<AuthState>()(
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('🔐 Registration error response:', errorData);
+            // Log the status only — the error body may echo
+            // submitted credentials.
+            console.error(
+              '🔐 Registration error response status:',
+              response.status
+            );
             
             let errorMessage = 'Registration failed. Please try again.';
             

@@ -39,7 +39,15 @@ describe('LoginPage', () => {
     // renderWithProviders' mockDomApis spyOns getElementById
     // each render — restoring unwraps the nested spy chain.
     vi.restoreAllMocks();
-    mockUseLocation.mockReturnValue({ state: null });
+    // A full Location shape — a bare `{ state: null }` would
+    // hand a future `location.pathname` read `undefined`.
+    mockUseLocation.mockReturnValue({
+      pathname: '/login',
+      search: '',
+      hash: '',
+      state: null,
+      key: 'test',
+    });
   });
 
   const fillAndSubmit = async (
@@ -138,7 +146,11 @@ describe('LoginPage', () => {
 
   it('should redirect back to the originally requested page', async () => {
     mockUseLocation.mockReturnValue({
+      pathname: '/login',
+      search: '',
+      hash: '',
       state: { from: { pathname: '/tags' } },
+      key: 'test',
     });
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />);
