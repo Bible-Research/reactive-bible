@@ -162,7 +162,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
 
   const handleClose = () => {
     if (autosavedRef.current) {
-      void refreshViewedNotes();
+      // fetchNotes rethrows after its own error toast —
+      // swallow here so the fire-and-forget can't reject
+      // unhandled.
+      void refreshViewedNotes().catch(() => undefined);
     }
     autosavedRef.current = false;
     onClose();
@@ -184,8 +187,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
       await editNote(note.id, tagId, text, verseReferences);
       clearNotesCache(); // Cached pages hold stale verse links
       // Fire-and-forget like before — a failed refetch must not
-      // keep the modal open after the note was saved.
-      void refreshViewedNotes();
+      // keep the modal open after the note was saved. fetchNotes
+      // rethrows after notifying, so swallow the rejection.
+      void refreshViewedNotes().catch(() => undefined);
       onClose();
     } catch (error) {
       console.error(error);
