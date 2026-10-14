@@ -16,11 +16,13 @@ import {
   toBookName,
   toUsfmCode,
 } from './utils/bibleUtils';
+import { resolveTextFileset } from './utils/filesetGroups';
 import {
   getCachedNotes,
   cacheNotes,
   clearNotesCache,
 } from './utils/cacheManager';
+import { useAuthStore } from './stores/authStore';
 
 export interface Fileset {
   id: string;
@@ -36,6 +38,14 @@ export interface Translation {
   language: string;
   language_iso: string;
   filesets: Fileset[];
+  /**
+   * Normalized audio/text options supplied by newer backends
+   * (`by_testament` member maps). When present they take
+   * precedence over client-side grouping of `filesets` — see
+   * `src/utils/filesetGroups.ts`.
+   */
+  audio_options?: unknown[];
+  text_options?: unknown[];
 }
 
 export interface BibleState {
@@ -68,6 +78,29 @@ export interface BibleState {
   setAudioPlaylistEnded: (ended: boolean) => void;
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
+  /**
+   * Saved position per USFM book id. A missing key means the
+   * position was never fetched; a null value means it was fetched
+   * and the user has no saved position for that book.
+   */
+  readingPositions: Record<
+    string,
+    api.ReadingPositionValue | null
+  >;
+  /**
+   * Transient (not persisted): after switching books, the verse
+   * PassageView should scroll to once the chapter loads.
+   */
+  pendingScrollVerse: VerseRef | null;
+  setPendingScrollVerse: (ref: VerseRef | null) => void;
+  /**
+   * Transient (not persisted): whether the top header is shown.
+   * MyHeader hides it on a deliberate downward scroll; the
+   * AppShell collapses the reserved padding in sync so the
+   * passage reclaims the freed space.
+   */
+  headerVisible: boolean;
+  setHeaderVisible: (visible: boolean) => void;
   setActiveBookAndChapter: (
     activeBookId: string,
     activeChapter: number
@@ -101,10 +134,25 @@ export interface BibleState {
     currentPage: number,
     pageSize: number
   ) => Promise<void>;
+  moveNoteAfter: (
+    tagId: string,
+    noteId: string,
+    targetNoteId: string,
+    placement: api.MovePlacement
+  ) => Promise<void>;
   setShowNotes: (show: boolean) => void;
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
   setNotesPageSize: (pageSize: number) => void;
+  setActiveBookWithPosition: (
+    activeBookId: string
+  ) => Promise<void>;
+  syncReadingPosition: (
+    bookId: string,
+    chapter: number,
+    verse?: number
+  ) => void;
+  prefetchReadingPositions: () => Promise<void>;
 }
 
 // Define and export the initial state for reusability and testing
@@ -132,6 +180,12 @@ export const initialState = {
   audioPlaylistStartIndex: null as number | null,
   audioPlaylistEnded: false,
   versesFolded: false,
+  readingPositions: {} as Record<
+    string,
+    api.ReadingPositionValue | null
+  >,
+  pendingScrollVerse: null as VerseRef | null,
+  headerVisible: true,
 };
 
 const partializeState = (state: BibleState) => ({
@@ -148,7 +202,10 @@ const partializeState = (state: BibleState) => ({
   tags: state.tags,
   notesPage: state.notesPage,
   notesPageSize: state.notesPageSize,
+  readingPositions: state.readingPositions,
   // showAudioPlayer is NOT persisted
+  // pendingScrollVerse is NOT persisted
+  // headerVisible is NOT persisted
 });
 
 type PersistedBibleState = ReturnType<typeof partializeState>;
@@ -180,6 +237,9 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   `activeBookId` (USFM code); VerseRef/audio refs gain bookId.
  * - pre-v4: `notesPage`/`notesPageSize` are newly persisted;
  *   absent values fall back to defaults, no migration needed.
+ * - pre-v5: `readingPositions` is introduced; any pre-existing
+ *   value is sanitized and name-keyed entries are re-keyed to
+ *   USFM codes.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -237,7 +297,57 @@ export const migratePersistedState = (
     delete migrated.activeBookShort;
   }
 
+  if (version < 5) {
+    const raw = migrated.readingPositions;
+    const positions: Record<
+      string,
+      api.ReadingPositionValue | null
+    > = {};
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      for (const [key, value] of Object.entries(raw)) {
+        // Keys may be USFM codes or legacy book names.
+        const bookId = toUsfmCode(key);
+        if (!bookId) continue;
+        const entry = value as {
+          chapter?: unknown;
+          verse?: unknown;
+        } | null;
+        positions[bookId] =
+          entry !== null &&
+          typeof entry === 'object' &&
+          typeof entry.chapter === 'number' &&
+          typeof entry.verse === 'number'
+            ? { chapter: entry.chapter, verse: entry.verse }
+            : null;
+      }
+    }
+    migrated = { ...migrated, readingPositions: positions };
+  }
+
   return migrated as PersistedBibleState;
+};
+
+/**
+ * Latest-call-wins guard for `fetchNotes`: rapid moves, or a
+ * move-refresh racing a page change, can resolve out of order.
+ * Only the most recently issued request may write `notes`.
+ */
+let fetchNotesRequestSeq = 0;
+
+/**
+ * Refetches the tag's current page preserving ordering+page so
+ * page membership is re-derived from the server — a cross-page
+ * move changes which notes are visible, and a stale page would
+ * let a later drag reassign sequential positions that silently
+ * undo the move.
+ */
+const refreshNotesPage = async (tagId: string): Promise<void> => {
+  const { notesOrdering, notesPage } = useBibleStore.getState();
+  clearNotesCache(tagId);
+  await useBibleStore.getState().fetchNotes(tagId, {
+    ordering: notesOrdering ?? undefined,
+    page: notesPage,
+  });
 };
 
 export const useBibleStore = createWithEqualityFn<BibleState>()(
@@ -306,11 +416,25 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ activeAudioFilesetId }),
       fetchNotes: async (tagId?: string, options = {}) => {
         const { ordering, page = 1, append = false } = options;
+        const requestId = ++fetchNotesRequestSeq;
         try {
           const {
             notesPageSize,
-            activeTextFilesetId
+            activeTextFilesetId,
+            activeBookId,
+            translations,
           } = useBibleStore.getState();
+
+          // The stored id may be a grouped product id
+          // (`{abbr}:text:n`) — resolve to a concrete fileset
+          // before sending it as `fileset_id`.
+          const filesetId = activeTextFilesetId
+            ? resolveTextFileset(
+                activeTextFilesetId,
+                activeBookId,
+                translations,
+              ) ?? activeTextFilesetId
+            : undefined;
           
           // Check cache for any page/ordering combination
           if (!append && tagId) {
@@ -339,14 +463,14 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             `📝 Fetching notes from API for tag: ` +
             `${tagId || 'all'} ` +
             `(page ${page}, ordering: ${ordering || 'default'}, ` +
-            `fileset: ${activeTextFilesetId || 'default'})`
+            `fileset: ${filesetId || 'default'})`
           );
-          
+
           const response = await api.getNotes(tagId, {
             ordering,
             page,
             pageSize: notesPageSize,
-            filesetId: activeTextFilesetId || undefined,
+            filesetId,
           });
           
           // Cache all page results
@@ -358,7 +482,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
               ordering,
             });
           }
-          
+
+          // A response resolving after a newer fetchNotes call
+          // was issued is stale — drop it rather than resurrect
+          // an older page/order on top of the current one.
+          if (requestId !== fetchNotesRequestSeq) return;
+
           set((state) => ({
             notes: append
               ? [...state.notes, ...response.results]
@@ -371,6 +500,9 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             lastSelectedTagId: tagId || null,
           }));
         } catch (error) {
+          // A superseded request owns no state: no retry and
+          // no error toast — the newer request decides the UI.
+          if (requestId !== fetchNotesRequestSeq) return;
           if (page > 1) {
             // The requested page may no longer exist (e.g. notes
             // were deleted); fall back to the first page.
@@ -491,12 +623,85 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
               ),
               color: 'orange',
             });
-            // Refresh notes from server
-            await useBibleStore.getState().fetchNotes(tagId);
+            // Refresh the page the user is on — a bare
+            // fetchNotes(tagId) would bounce to page 1 and
+            // null notesOrdering, corrupting a later move's
+            // refreshCurrentPage arguments. Best-effort: a
+            // refresh failure must not mask the ConflictError.
+            await refreshNotesPage(tagId).catch(() => {
+              /* fetchNotes already notified the failure */
+            });
           } else {
             showNotification({
               title: 'Error',
               message: 'Failed to reorder notes',
+              color: 'red',
+            });
+          }
+          throw error;
+        }
+      },
+      moveNoteAfter: async (
+        tagId: string,
+        noteId: string,
+        targetNoteId: string,
+        placement: api.MovePlacement
+      ) => {
+        try {
+          const result = await api.moveNote(
+            tagId,
+            noteId,
+            targetNoteId,
+            placement
+          );
+
+          if (!result.rebalanced) {
+            // Instant feedback: patch the moved note's
+            // position locally while the authoritative
+            // refetch below resolves. A rebalance renumbers
+            // every position, so skip the patch then.
+            set((state) => ({
+              notes: state.notes.map((n) =>
+                n.id === noteId
+                  ? { ...n, tag_position: result.tag_position }
+                  : n
+              ),
+            }));
+          }
+          // Every move can change page membership, so the
+          // server refetch — not the local patch — is
+          // authoritative. It is isolated: a refresh failure
+          // must not flip this into the 'Failed to move' path
+          // (the move succeeded; fetchNotes already shows its
+          // own error notification).
+          await refreshNotesPage(tagId).catch(() => {
+            /* fetchNotes already notified the failure */
+          });
+
+          showNotification({
+            title: 'Success',
+            message: 'Note moved',
+            color: 'green',
+          });
+        } catch (error) {
+          if (error instanceof api.ConflictError) {
+            showNotification({
+              title: 'Conflict',
+              message: (
+                'Another user modified these notes. ' +
+                'Refreshing...'
+              ),
+              color: 'orange',
+            });
+            // Best-effort resync — a refresh failure must not
+            // mask the original ConflictError.
+            await refreshNotesPage(tagId).catch(() => {
+              /* fetchNotes already notified the failure */
+            });
+          } else {
+            showNotification({
+              title: 'Error',
+              message: 'Failed to move note',
               color: 'red',
             });
           }
@@ -517,11 +722,105 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setAudioPlaylistEnded: (audioPlaylistEnded) =>
         set({ audioPlaylistEnded }),
       setVersesFolded: (versesFolded) => set({ versesFolded }),
+      setPendingScrollVerse: (pendingScrollVerse) =>
+        set({ pendingScrollVerse }),
+      setHeaderVisible: (headerVisible) => set({ headerVisible }),
+      setActiveBookWithPosition: async (activeBookId) => {
+        const cached =
+          useBibleStore.getState().readingPositions[activeBookId];
+        // undefined = never fetched; null = fetched, nothing saved
+        let position = cached as
+          | api.ReadingPositionValue
+          | null
+          | undefined;
+        if (
+          position === undefined &&
+          useAuthStore.getState().isAuthenticated &&
+          (typeof navigator === 'undefined' || navigator.onLine)
+        ) {
+          try {
+            const apiPosition =
+              await api.getReadingPosition(activeBookId);
+            const entry: api.ReadingPositionValue | null =
+              apiPosition
+                ? {
+                    chapter: apiPosition.chapter,
+                    verse: apiPosition.verse,
+                  }
+                : null;
+            position = entry;
+            set((state) => ({
+              readingPositions: {
+                ...state.readingPositions,
+                [activeBookId]: entry,
+              },
+            }));
+          } catch {
+            // A failed lookup stays `undefined` — never cached
+            // as "no position", so the next book click retries
+            // instead of permanently landing on chapter 1.
+          }
+        }
+        const chapter = position?.chapter ?? 1;
+        const verse = position?.verse ?? 1;
+        // Clear verseSelection: restoring a position must not
+        // select a verse or pop up the VerseActionToolbar.
+        set({
+          activeBookId,
+          activeChapter: chapter,
+          verseSelection: null,
+          audioActiveVerse: null,
+          pendingScrollVerse:
+            verse > 1
+              ? { bookId: activeBookId, chapter, verse }
+              : null,
+        });
+      },
+      syncReadingPosition: (bookId, chapter, verse = 1) => {
+        set((state) => ({
+          readingPositions: {
+            ...state.readingPositions,
+            [bookId]: { chapter, verse },
+          },
+        }));
+        // Anonymous sessions must not hit the API: session auth
+        // would land them in a shared auto-provisioned account.
+        if (useAuthStore.getState().isAuthenticated) {
+          api.updateReadingPosition(bookId, chapter, verse);
+        }
+      },
+      prefetchReadingPositions: async () => {
+        if (!useAuthStore.getState().isAuthenticated) return;
+        try {
+          const bookIds = api.getBooks().map((b) => b.book_id);
+          const positions =
+            await api.getBulkReadingPositions(bookIds);
+          // Keep explicit nulls: they mark books as checked so
+          // they are not refetched on every book click. A local
+          // non-null entry wins over a remote null (offline reads).
+          set((state) => {
+            const merged = { ...state.readingPositions };
+            for (const [bookId, pos] of Object.entries(
+              positions
+            )) {
+              if (merged[bookId] === undefined || pos !== null) {
+                merged[bookId] = pos;
+              }
+            }
+            return { readingPositions: merged };
+          });
+        } catch (error) {
+          console.error(
+            'Error prefetching reading positions:',
+            error
+          );
+        }
+      },
     }),
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 4,
+      version: 5,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

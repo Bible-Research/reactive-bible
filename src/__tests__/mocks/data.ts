@@ -76,38 +76,59 @@ export const mockNotes: Note[] = [
 ];
 
 // --- Filesets ---
+// Matches the real API shape for the ENGKJV translation after
+// `getAvailableTranslations` injects the bundled KJV entries:
+// the API only lists the `_ET` splits (and DBT audio), the
+// client adds the offline `ENGKJV` text/audio pseudo-filesets.
 export const mockFilesets: Fileset[] = [
-  { id: 'ENGKJV', type: 'text_plain', size: 'C', codec: null, bitrate: null },
-  { id: 'ENGKJVO1DA', type: 'audio', size: 'OT', codec: 'mp3', bitrate: '64' },
-  { id: 'ENGKJVN1DA', type: 'audio', size: 'NT', codec: 'mp3', bitrate: '64' },
+  { id: 'ENGKJVO_ET', type: 'text_plain', size: 'OT',
+    codec: null, bitrate: null },
+  { id: 'ENGKJVN_ET', type: 'text_plain', size: 'NT',
+    codec: null, bitrate: null },
+  { id: 'ENGKJV', type: 'text_plain', size: 'C',
+    codec: null, bitrate: null },
+  { id: 'ENGKJV', type: 'audio', size: 'C',
+    codec: null, bitrate: null },
+  { id: 'ENGKJVO1DA', type: 'audio', size: 'OT',
+    codec: 'mp3', bitrate: '64' },
+  { id: 'ENGKJVN1DA', type: 'audio', size: 'NT',
+    codec: 'mp3', bitrate: '64' },
 ];
 
 // --- Translations ---
 export const mockTranslations: Translation[] = [
   {
-    abbr: 'KJV',
+    abbr: 'ENGKJV',
     name: 'King James Version',
     language: 'English',
     language_iso: 'eng',
     filesets: mockFilesets,
   },
   {
-    abbr: 'ESV',
+    abbr: 'ENGESV',
     name: 'English Standard Version',
     language: 'English',
     language_iso: 'eng',
     filesets: [
-      { id: 'ENGESV', type: 'text_plain', size: 'C',
+      { id: 'ENGESVO_ET', type: 'text_plain', size: 'OT',
+        codec: null, bitrate: null },
+      { id: 'ENGESVN_ET', type: 'text_plain', size: 'NT',
+        codec: null, bitrate: null },
+      { id: 'ENGESV_API', type: 'text_plain', size: 'C',
+        codec: null, bitrate: null },
+      { id: 'ENGESV_API', type: 'audio', size: 'C',
         codec: null, bitrate: null },
     ],
   },
   {
-    abbr: 'NIV',
+    abbr: 'ENGNIV',
     name: 'New International Version',
     language: 'English',
     language_iso: 'eng',
     filesets: [
-      { id: 'ENGNIV', type: 'text_plain', size: 'C',
+      { id: 'ENGNIVO_ET', type: 'text_plain', size: 'OT',
+        codec: null, bitrate: null },
+      { id: 'ENGNIVN_ET', type: 'text_plain', size: 'NT',
         codec: null, bitrate: null },
     ],
   },

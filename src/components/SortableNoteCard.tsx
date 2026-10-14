@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Box } from "@mantine/core";
-import { Note } from "../types";
+import { Note, NoteOrderMenuData } from "../types";
 import NoteCard from "./NoteCard";
 
 interface SortableNoteCardProps {
@@ -20,6 +20,7 @@ interface SortableNoteCardProps {
   onPlayFromNote?: (noteId: string) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
+  orderMenu?: NoteOrderMenuData;
 }
 
 const SortableNoteCard = ({
@@ -30,6 +31,7 @@ const SortableNoteCard = ({
   onPlayFromNote,
   commentCount,
   onCountChange,
+  orderMenu,
 }: SortableNoteCardProps) => {
   const {
     attributes,
@@ -61,6 +63,7 @@ const SortableNoteCard = ({
         onPlayFromNote={onPlayFromNote}
         commentCount={commentCount}
         onCountChange={onCountChange}
+        orderMenu={orderMenu}
         dragHandleProps={{
           ref: setActivatorNodeRef,
           ...listeners,

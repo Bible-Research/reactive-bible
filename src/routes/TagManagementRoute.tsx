@@ -27,7 +27,8 @@ export default function TagManagementRoute() {
     tags: state.tags,
     getTags: state.getTags,
   }));
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
@@ -37,8 +38,15 @@ export default function TagManagementRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadTags = async (forceRefresh = false) => {
-    setLoading(true);
+  const loadTags = async (
+    forceRefresh = false,
+    { silent = false }: { silent?: boolean } = {}
+  ) => {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setInitialLoading(true);
+    }
     try {
       await getTags(forceRefresh);
     } catch (error) {
@@ -48,14 +56,20 @@ export default function TagManagementRoute() {
         message: 'Failed to load tags',
         color: 'red',
       });
+    } finally {
+      if (silent) {
+        setRefreshing(false);
+      } else {
+        setInitialLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   const handleDeleteTag = async (tagId: string, tagName: string) => {
     if (
       window.confirm(
-        `Are you sure you want to delete "${tagName}"? This action cannot be undone.`
+        `Are you sure you want to delete "${tagName}"? ` +
+          'This action cannot be undone.'
       )
     ) {
       try {
@@ -65,7 +79,7 @@ export default function TagManagementRoute() {
           message: 'Tag deleted successfully',
           color: 'green',
         });
-        await loadTags(true); // Force refresh
+        await loadTags(true, { silent: true }); // Force refresh
       } catch (error) {
         console.error('Error deleting tag:', error);
         showNotification({
@@ -93,7 +107,7 @@ export default function TagManagementRoute() {
     tag.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (loading) {
+  if (initialLoading && tags.length === 0) {
     return (
       <Center style={{ height: '100vh' }}>
         <Loader size="lg" aria-label="Loading tags" />
@@ -151,9 +165,13 @@ export default function TagManagementRoute() {
         </Center>
       ) : (
         <>
-          <Text color="dimmed" size="sm" mb="md">
-            {filteredTags.length} {filteredTags.length === 1 ? 'tag' : 'tags'}
-          </Text>
+          <Group spacing="xs" mb="md">
+            <Text color="dimmed" size="sm">
+              {filteredTags.length}{' '}
+              {filteredTags.length === 1 ? 'tag' : 'tags'}
+            </Text>
+            {refreshing && <Loader size="xs" />}
+          </Group>
           <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto">
             <TagTree
               tags={filteredTags}
@@ -168,14 +186,14 @@ export default function TagManagementRoute() {
       <CreateTagModal
         opened={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        onSuccess={() => loadTags(true)}
+        onSuccess={() => loadTags(true, { silent: true })}
         existingTags={tags}
       />
 
       <EditTagModal
         opened={!!editingTag}
         onClose={() => setEditingTag(null)}
-        onSuccess={() => loadTags(true)}
+        onSuccess={() => loadTags(true, { silent: true })}
         tag={editingTag}
         existingTags={tags}
       />
