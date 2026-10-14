@@ -345,7 +345,12 @@ const TranslationSelector = () => {
       }
     };
 
-    fetchTranslations();
+    // A failed fetch must not surface as an unhandled
+    // rejection (global errorReporter toast) — the stale store
+    // list stays usable.
+    fetchTranslations().catch((error) => {
+      console.error('Error loading translations:', error);
+    });
 
     return () => {
       cancelled = true;
@@ -374,7 +379,17 @@ const TranslationSelector = () => {
       ): Promise<string | null> => {
         if (!filesetId) return null;
         for (const { value: iso } of LANGUAGES) {
-          const list = await getAvailableTranslations(iso);
+          // One failed language response must not strand the
+          // seeding — continue to the next language tab.
+          const list = await getAvailableTranslations(iso).catch(
+            (error) => {
+              console.error(
+                `Error loading ${iso} translations:`,
+                error,
+              );
+              return [];
+            },
+          );
           if (cancelled || userInteractedRef.current) return null;
           if (findTranslationByFilesetId(filesetId, list)) {
             return iso;

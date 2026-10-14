@@ -123,7 +123,19 @@ export interface Comment {
 export type CommentCounts = Record<string, number>;
 
 export interface PlaylistItem {
+  /**
+   * Unique per item — a note spanning chapters emits one item
+   * per block, so `itemId` suffixes the note id with
+   * `book:chapter`. Audio effects key on it, so duplicates
+   * would skip scroll/highlight runs between blocks.
+   */
   itemId: string;
+  /**
+   * DOM/highlight scope the item's verses render under — the
+   * note id for note blocks. Defaults to `itemId` when absent
+   * (search items already carry unique ids).
+   */
+  scope?: VerseScope;
   /** USFM book code (e.g. "JHN"). */
   bookId: string;
   chapter: number;
@@ -154,7 +166,7 @@ export interface AudioActiveVerse {
   bookId: string;
   chapter: number;
   verse: number;
-  scope?: VerseScope; // 'bible' | PlaylistItem.itemId
+  scope?: VerseScope; // 'bible' | PlaylistItem.scope/itemId
 }
 
 export interface ReadingPosition {

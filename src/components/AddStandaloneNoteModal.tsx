@@ -2,17 +2,28 @@ import { Modal } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
 import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import NoteForm from "./NoteForm";
+import {
+  emptyNoteDraft,
+  type NoteDraftRef,
+} from "./noteDraft";
 
 interface AddStandaloneNoteModalProps {
   opened: boolean;
   onClose: () => void;
+  /**
+   * Autosave draft owned by the parent — survives the form
+   * unmounting on close so a reopen PATCHes the autosaved note
+   * instead of POSTing a duplicate.
+   */
+  draftRef: NoteDraftRef;
 }
 
 const AddStandaloneNoteModal = ({
   opened,
   onClose,
+  draftRef,
 }: AddStandaloneNoteModalProps) => {
   const {
     tags,
@@ -26,33 +37,48 @@ const AddStandaloneNoteModal = ({
     setLastSelectedTagId: state.setLastSelectedTagId,
   }));
 
-  // Once autosave creates the note, later saves (and Submit)
-  // must PATCH that note instead of POSTing duplicates.
-  const savedNoteIdRef = useRef<string | null>(null);
-
   useEffect(() => {
     if (opened) {
       void getTags().catch(() => { /* notified by the store */ });
-      savedNoteIdRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]);
 
-  const handleAutoSave = async (tagId: string, text: string) => {
-    if (savedNoteIdRef.current) {
-      await editNote(savedNoteIdRef.current, tagId, text);
-      return;
-    }
-    const created = await addTagNote(tagId, text, []);
-    savedNoteIdRef.current = created?.id ?? null;
+  // Serialized through the draft's queue: a reopened form's
+  // in-flight lock starts empty, so without this a save could
+  // run beside a still-pending POST from the previous mount and
+  // create a duplicate.
+  const handleAutoSave = (tagId: string, text: string) => {
+    const draft = draftRef.current;
+    const run = draft.queue.then(async () => {
+      if (draft.savedNoteId) {
+        await editNote(draft.savedNoteId, tagId, text);
+      } else {
+        const created = await addTagNote(tagId, text, []);
+        draft.savedNoteId = created?.id ?? null;
+      }
+      // Record what the server holds so a reopened modal can
+      // restore the draft.
+      draft.tagId = tagId;
+      draft.text = text;
+    });
+    draft.queue = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
   };
 
   const handleSubmit = async (tagId: string, text: string) => {
     try {
-      // Shares savedNoteIdRef with autosave: an existing draft is
+      // Shares the draft with autosave: an existing draft is
       // PATCHed, and a note created by submit is recorded so a
-      // late autosave tick PATCHes instead of POSTing a duplicate.
+      // late autosave tick PATCHes instead of POSTing a
+      // duplicate.
       await handleAutoSave(tagId, text);
+      // The draft was submitted — reset so the next open starts
+      // a new note instead of resuming this one.
+      draftRef.current = emptyNoteDraft();
       setLastSelectedTagId(tagId || null);
       onClose();
     } catch (error) {
@@ -77,10 +103,21 @@ const AddStandaloneNoteModal = ({
           });
         }}
         onAutoSave={handleAutoSave}
+        onDraftChange={(tagId, text) => {
+          // Track live form contents so a reopen restores the
+          // in-progress draft, not just the last saved text.
+          draftRef.current.tagId = tagId;
+          draftRef.current.text = text;
+        }}
         note={
-          lastSelectedTagId
-            ? { tagId: lastSelectedTagId, text: "" }
-            : undefined
+          draftRef.current.savedNoteId
+            ? {
+                tagId: draftRef.current.tagId,
+                text: draftRef.current.text,
+              }
+            : lastSelectedTagId
+              ? { tagId: lastSelectedTagId, text: "" }
+              : undefined
         }
       />
     </Modal>

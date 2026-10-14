@@ -18,13 +18,14 @@ import {
   IconShare,
   IconX,
 } from "@tabler/icons-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "@mantine/hooks";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
 import AddTagNoteModal from "./AddTagNoteModal";
+import { emptyNoteDraft } from "./noteDraft";
 import {
   buildBiblePath,
   toBookName,
@@ -230,9 +231,14 @@ const VerseActionToolbar = () => {
   );
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const notes = useBibleStore((state) => state.notes);
+  const detailNote = useBibleStore((state) => state.detailNote);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const location = useLocation();
   const [noteModalOpened, setNoteModalOpened] = useState(false);
+  // Owned here (not inside the modal) because the modal unmounts
+  // on close — a component-local draft would lose the autosaved
+  // note id and reopening would POST a duplicate.
+  const noteDraftRef = useRef(emptyNoteDraft());
   const [mapModalOpened, setMapModalOpened] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const navigate = useNavigate();
@@ -276,11 +282,15 @@ const VerseActionToolbar = () => {
   // selection lives inside a note card — DOM scraping only sees
   // rendered verses, so folded cards shared a partial passage.
   // 'bible'-scope selections still scrape the passage DOM below.
+  // `detailNote` covers /notes/:id — that page's note is fetched
+  // into local state and never joins `notes`.
   const noteVerseText = useMemo(() => {
     if (!scope || scope === 'bible' || refs.length === 0) {
       return null;
     }
-    const note = notes.find((n) => n.id === scope);
+    const note =
+      notes.find((n) => n.id === scope) ??
+      (detailNote?.id === scope ? detailNote : null);
     if (!note) return null;
     const text = refs
       .map(
@@ -297,7 +307,7 @@ const VerseActionToolbar = () => {
       .filter(Boolean)
       .join(' ');
     return text || null;
-  }, [scope, refs, notes]);
+  }, [scope, refs, notes, detailNote]);
 
   const handleShare = useCallback(async () => {
     if (!primary) return;
@@ -607,6 +617,7 @@ const VerseActionToolbar = () => {
         <AddTagNoteModal
           opened={noteModalOpened}
           onClose={() => setNoteModalOpened(false)}
+          draftRef={noteDraftRef}
         />
       )}
       <Modal

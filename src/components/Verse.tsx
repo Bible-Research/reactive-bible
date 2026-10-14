@@ -217,6 +217,14 @@ const Verse = ({
     touchStartPos.current = null;
   };
 
+  // A cancelled touch (scroll hijack, incoming call) fires no
+  // touchend — reset the tap state or the stale start position
+  // keeps suppressing context menus via onContextMenu below.
+  const handleTouchCancel = () => {
+    touchStartPos.current = null;
+    selectionAtTouchStart.current = null;
+  };
+
   const handleTouchClick = () => {
     if (!selectable) return;
     userClickedRef.current = true;
@@ -278,6 +286,7 @@ const Verse = ({
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
       onContextMenu={(e) => {
         // Only suppress the long-press context menu while a
         // touch is in progress — mouse right-click keeps the

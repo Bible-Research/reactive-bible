@@ -119,8 +119,20 @@ export const authenticatedFetch = async (
       },
     });
     
-    // Handle 401 Unauthorized - token expired or invalid
+    // Handle 401 Unauthorized - token expired or invalid. Only
+    // destroy the session when this request actually carried the
+    // token — an anonymous 401 (e.g. an auth-only endpoint hit
+    // on a public page) means "login required", not "your
+    // session expired", and must not log anyone out.
     if (response.status === 401) {
+      // An anonymous 401 (no token attached — e.g. an
+      // auth-only endpoint hit on a public page) means "login
+      // required", not "your session expired" — do not log out.
+      if (!headers['Authorization']) {
+        throw new Error(
+          'Authentication required for this request.'
+        );
+      }
       // The token may have rotated while this request was
       // in flight — a login/register completed, or checkAuth
       // replaced it. This 401 belongs to the stale token, so
@@ -197,7 +209,16 @@ export const authenticatedUpload = async (
     body: formData,
   });
 
+  // Same rule as authenticatedFetch: a 401 only ends the
+  // session when this request actually attached the token.
   if (response.status === 401) {
+    // An anonymous 401 means "login required", not a dead
+    // session — there is nothing to log out.
+    if (!token) {
+      throw new Error(
+        'Authentication required for this request.'
+      );
+    }
     // Same rotation guard as authenticatedFetch: a 401 for
     // a superseded token must not wipe the fresh session.
     if (useAuthStore.getState().token !== token) {

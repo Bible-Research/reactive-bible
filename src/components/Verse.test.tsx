@@ -465,6 +465,43 @@ describe('Verse Component', () => {
       el.dispatchEvent(plainDown);
       expect(plainDown.defaultPrevented).toBe(false);
     });
+  it('should clear the in-progress tap state on touchcancel ' +
+    'so context menus are not suppressed forever', () => {
+    renderVerse();
+    const el = verseContainer('5');
+    const touch = { clientX: 10, clientY: 10 };
+    const dispatchTouch = (type: string) => {
+      const evt = new Event(type, { bubbles: true });
+      Object.assign(evt, {
+        touches: [touch],
+        changedTouches: [touch],
+      });
+      el.dispatchEvent(evt);
+    };
+    const fireContextMenu = () => {
+      const evt = new Event('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+      });
+      fireEvent(el, evt);
+      return evt;
+    };
+
+    // While a touch is in progress the long-press context
+    // menu is intentionally suppressed.
+    act(() => {
+      dispatchTouch('touchstart');
+    });
+    expect(fireContextMenu().defaultPrevented).toBe(true);
+
+    // A cancelled touch (scroll hijack, incoming call) fires
+    // no touchend — the stale start position used to keep
+    // suppressing every later context menu.
+    act(() => {
+      dispatchTouch('touchcancel');
+    });
+    expect(fireContextMenu().defaultPrevented).toBe(false);
+  });
 
   it('should not have the active class when not active', () => {
     renderVerse({ verse: 1 });

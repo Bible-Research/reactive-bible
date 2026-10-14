@@ -342,9 +342,10 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
   param is the only fetch trigger (the load effect owns it),
   and re-sorts use the in-page spinner, not the full loader
 - Write affordances (drag handles, edit/delete, order badge)
-  require **ownership**, not just login: every visible note
-  must report `is_owner === true`, so logged-in viewers of
-  someone else's public tag get a read-only page
+  require **ownership**, not just login: the tag must appear
+  in the authenticated user's own tag list, or every visible
+  note must report `is_owner === true`, so logged-in viewers
+  of someone else's public tag get a read-only page
 - Play-from-note indexes into the filtered playlist of notes
   that actually have verses; a note spanning several
   book/chapter blocks produces one playlist item per block
@@ -1470,14 +1471,19 @@ Create and organize notes with tags for Bible verses.
   flashes a green checkmark at the top-right corner for 0.5s
   after each successful save. Ticks skip empty text and
   empty tag selections, share a write lock with Submit, and
-  failures surface as notifications
+  failures surface as notifications. The autosaved note id
+  and latest draft live in a parent-owned `NoteDraft` ref
+  (`src/components/noteDraft.ts`), so closing and reopening
+  the editor keeps PATCHing the same note instead of POSTing
+  a duplicate, and a Submit queued behind an in-flight POST
+  resolves to a PATCH
 - `NoteCard` headings: verse-less notes show the tag name;
   notes spanning chapters render a cross-chapter range
   (e.g. `John 3:16–5:1`) — never a synthetic `… 1:1`
-- Edit/delete controls on note cards require
-  `note.is_owner === true`; clipboard share falls back to
-  `execCommand` on non-secure contexts
-  (`src/utils/clipboard.ts`)
+- Edit/delete controls on note cards require the tag-owner
+  context (`isTagOwner`) or `note.is_owner === true`;
+  clipboard share falls back to `execCommand` on non-secure
+  contexts (`src/utils/clipboard.ts`)
 
 **Workflow**:
 1. User selects one or more verses by clicking them

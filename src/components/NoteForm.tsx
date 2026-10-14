@@ -21,6 +21,12 @@ interface NoteFormProps {
   submitText: string;
   onTagDropdownOpen: () => void;
   onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
+  /**
+   * Reports every draft change so a parent-owned draft object
+   * can restore the autosaved note after the form remounts
+   * (the modal unmounts it on close).
+   */
+  onDraftChange?: (tagId: string, text: string) => void;
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
@@ -53,6 +59,7 @@ const NoteForm = ({
   submitText,
   onTagDropdownOpen,
   onAutoSave,
+  onDraftChange,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
@@ -60,6 +67,8 @@ const NoteForm = ({
   const [savedFlash, setSavedFlash] = useState(false);
   const latest = useRef({ tagId: "", text: "" });
   const onAutoSaveRef = useRef(onAutoSave);
+  const onDraftChangeRef = useRef(onDraftChange);
+  const autoSaveRef = useRef(autoSave);
   // Shared save lock for autosave ticks and submit: overlapping
   // writes could POST two notes for one draft (or let stale text
   // win over a submit), so both paths must respect it.
@@ -69,7 +78,15 @@ const NoteForm = ({
   useEffect(() => {
     latest.current = { tagId: selectedTagId, text: noteText };
     onAutoSaveRef.current = onAutoSave;
+    onDraftChangeRef.current = onDraftChange;
+    autoSaveRef.current = autoSave;
   });
+
+  // Keep the parent-owned draft object in sync — a reopened
+  // modal restores `note` from it.
+  useEffect(() => {
+    onDraftChangeRef.current?.(selectedTagId, noteText);
+  }, [selectedTagId, noteText]);
 
   // Sync on the primitive fields, not the `note` object itself:
   // every call site passes a fresh inline object each render, so
@@ -88,6 +105,30 @@ const NoteForm = ({
   // the same payload again are skipped.
   const lastSavedRef = useRef<{ tagId: string; text: string } | null>(
     null
+  );
+
+  // Unmount = the modal closed (Mantine unmounts content, and
+  // parents drop the modal itself). Flush the unsaved tail so
+  // a close inside the autosave window does not drop the last
+  // seconds of typing.
+  useEffect(
+    () => () => {
+      const save = onAutoSaveRef.current;
+      if (!save || !autoSaveRef.current) return;
+      const { tagId, text } = latest.current;
+      if (!tagId || !toPlainText(text).trim()) return;
+      const last = lastSavedRef.current;
+      if (last && last.tagId === tagId && last.text === text) {
+        return;
+      }
+      // Chain behind an in-flight save — the draft's note id
+      // only exists once its POST resolves.
+      const chain = inFlightRef.current ?? Promise.resolve();
+      void chain
+        .then(() => save(tagId, text))
+        .catch((error) => console.error(error));
+    },
+    []
   );
 
   useEffect(() => {
@@ -158,6 +199,12 @@ const NoteForm = ({
         inFlightRef,
         Promise.resolve(onSubmit(selectedTagId, noteText))
       );
+      // The submitted content is persisted — mark it saved so
+      // the unmount flush does not rewrite it on close.
+      lastSavedRef.current = {
+        tagId: selectedTagId,
+        text: noteText,
+      };
     } catch (error) {
       console.error(error);
     }
