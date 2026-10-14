@@ -21,6 +21,9 @@ vi.mock('../api', () => ({
     mockPrefetchAdjacentChapters(...args),
   fetchHeadingsOnly: vi.fn().mockResolvedValue([]),
   getChapters: vi.fn().mockReturnValue([1, 2, 3]),
+  getAdjacentChapters: vi
+    .fn()
+    .mockReturnValue({ previous: null, next: null }),
 }));
 
 vi.mock('react-router-dom', () => ({
