@@ -15,6 +15,11 @@ import {
   isTiptapDocString,
   toPlainText,
 } from '../../utils/tiptapContent';
+import { showNotification } from '@mantine/notifications';
+
+vi.mock('@mantine/notifications', () => ({
+  showNotification: vi.fn(),
+}));
 
 vi.mock('@mantine/modals', () => ({
   openConfirmModal: vi.fn(
@@ -868,5 +873,10 @@ describe('CommentThread', () => {
       expect(
         document.querySelector('img[alt="ok.png"]')
       ).toBeInTheDocument();
+      // The failed upload surfaces its own 'Upload failed'
+      // notification instead of failing the whole comment.
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Upload failed' })
+      );
     });
 });
