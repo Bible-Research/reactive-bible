@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { resolveTimestampsFilesetId } from '../utils/bibleUtils';
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import type { PlaylistItem } from '../types';
 import type { Translation } from '../store';
 
@@ -72,46 +73,8 @@ vi.mock('../api', () => {
   };
 });
 
-let mockHowlOnLoad: (() => void) | null = null;
-let mockHowlOnEnd: (() => void) | null = null;
-let mockHowlOnLoadError:
-  | ((_id: number, err: unknown) => void)
-  | null = null;
-let mockHowlSeekValue = 0;
-let mockHowlUnload = vi.fn();
-let mockHowlPause = vi.fn();
-let mockHowlPlay = vi.fn();
-let mockHowlStop = vi.fn();
-let mockHowlOn = vi.fn();
-
-vi.mock('howler', () => ({
-  Howl: vi.fn().mockImplementation(function (opts: Record<string, unknown>) {
-    mockHowlOnLoad = opts.onload as () => void;
-    mockHowlOnEnd = opts.onend as () => void;
-    mockHowlOnLoadError = opts.onloaderror as (
-      _id: number,
-      err: unknown,
-    ) => void;
-    mockHowlSeekValue = 0;
-    mockHowlUnload = vi.fn();
-    mockHowlPause = vi.fn();
-    mockHowlPlay = vi.fn();
-    mockHowlStop = vi.fn();
-    mockHowlOn = vi.fn();
-    return {
-      seek: vi.fn((v?: number) => {
-        if (v !== undefined) mockHowlSeekValue = v;
-        return mockHowlSeekValue;
-      }),
-      play: mockHowlPlay,
-      pause: mockHowlPause,
-      stop: mockHowlStop,
-      unload: mockHowlUnload,
-      loop: vi.fn(),
-      duration: vi.fn().mockReturnValue(60),
-      on: mockHowlOn,
-    };
-  }),
+vi.mock('howler', async () => ({
+  Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
 }));
 
 vi.mock('@mantine/notifications', () => ({
@@ -151,8 +114,9 @@ const mockStoreState = {
 };
 
 vi.mock('../store', () => ({
-  useBibleStore: vi.fn((selector: (s: typeof mockStoreState) => unknown) =>
-    selector(mockStoreState),
+  useBibleStore: vi.fn(
+    (selector: (s: typeof mockStoreState) => unknown) =>
+      selector(mockStoreState),
   ),
 }));
 
@@ -172,12 +136,12 @@ const makeItem = (
   ...overrides,
 });
 
+const latestHowl = (): FakeHowl =>
+  FakeHowl.instances[FakeHowl.instances.length - 1];
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mockHowlOnLoad = null;
-  mockHowlOnEnd = null;
-  mockHowlOnLoadError = null;
-  mockHowlSeekValue = 0;
+  FakeHowl.reset();
   mockStoreState.setAudioActiveVerse.mockReset();
   mockStoreState.setShowAudioPlayer.mockReset();
   mockStoreState.activeAudioFilesetId = 'ENGESHN1DA-opus16';
@@ -210,7 +174,97 @@ describe('useAudioPlaylist', () => {
     expect(result.current.currentItem?.itemId).toBe('a');
   });
 
-  it('advances on onend', async () => {
+  it('start(items, index) begins at the requested item', async () => {
+    const { result } = renderHook(() => useAudioPlaylist());
+    const items = [
+      makeItem({ itemId: 'a', chapter: 3 }),
+      makeItem({ itemId: 'b', chapter: 8 }),
+    ];
+    act(() => { result.current.start(items, 1); });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(1)
+    );
+    expect(result.current.currentItem?.itemId).toBe('b');
+    // The fetched URL is for item b's chapter, not item a's.
+    await waitFor(() =>
+      expect(api.getBibleAudioUrl).toHaveBeenCalledWith(
+        'JHN',
+        8,
+        expect.any(String),
+      )
+    );
+  });
+
+  it('next() and previous() move between items', async () => {
+    const { result } = renderHook(() => useAudioPlaylist());
+    const items = [
+      makeItem({ itemId: 'a', chapter: 3 }),
+      makeItem({ itemId: 'b', chapter: 8 }),
+      makeItem({ itemId: 'c', chapter: 10 }),
+    ];
+    act(() => { result.current.start(items); });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(0)
+    );
+
+    act(() => { result.current.next(); });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(1)
+    );
+    expect(result.current.currentItem?.itemId).toBe('b');
+
+    act(() => { result.current.next(); });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(2)
+    );
+    expect(result.current.currentItem?.itemId).toBe('c');
+
+    act(() => { result.current.previous(); });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(1)
+    );
+    expect(result.current.currentItem?.itemId).toBe('b');
+  });
+
+  it('previous() clamps at the first item', async () => {
+    const { result } = renderHook(() => useAudioPlaylist());
+    act(() => {
+      result.current.start([makeItem({ itemId: 'a' })]);
+    });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(0)
+    );
+    act(() => { result.current.previous(); });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(0)
+    );
+    expect(result.current.currentItem?.itemId).toBe('a');
+  });
+
+  it('pause() and resume() drive the current Howl', async () => {
+    const { result } = renderHook(() => useAudioPlaylist());
+    act(() => { result.current.start([makeItem()]); });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(0)
+    );
+    const howl = latestHowl();
+    act(() => { howl.emit('load'); });
+    expect(howl.playing()).toBe(true);
+
+    act(() => { result.current.pause(); });
+    expect(howl.playing()).toBe(false);
+    await waitFor(() =>
+      expect(result.current.isPlaying).toBe(false)
+    );
+
+    act(() => { result.current.resume(); });
+    expect(howl.playing()).toBe(true);
+    await waitFor(() =>
+      expect(result.current.isPlaying).toBe(true)
+    );
+  });
+
+  it('advances on the media end event', async () => {
     const { result } = renderHook(() => useAudioPlaylist());
     const items = [
       makeItem({ itemId: 'a' }),
@@ -220,10 +274,9 @@ describe('useAudioPlaylist', () => {
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(0)
     );
-    // Simulate onload to start playing
-    act(() => { mockHowlOnLoad?.(); });
-    // Simulate onend to advance
-    act(() => { mockHowlOnEnd?.(); });
+    const first = latestHowl();
+    act(() => { first.emit('load'); });
+    act(() => { first.emit('end'); });
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(1)
     );
@@ -235,7 +288,9 @@ describe('useAudioPlaylist', () => {
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(0)
     );
+    const howl = latestHowl();
     act(() => { result.current.stop(); });
+    expect(howl.state()).toBe('unloaded');
     expect(mockStoreState.setAudioActiveVerse).toHaveBeenCalledWith(
       null,
     );
@@ -250,7 +305,9 @@ describe('useAudioPlaylist', () => {
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(0)
     );
-    act(() => { mockHowlOnLoadError?.(0, 'network error'); });
+    act(() => {
+      latestHowl().emit('loaderror', 0, 'network error');
+    });
     expect(showNotification).toHaveBeenCalled();
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(1)
@@ -399,7 +456,9 @@ describe('useAudioPlaylist', () => {
       await waitFor(() =>
         expect(result.current.currentIndex).toBe(0)
       );
-      act(() => { mockHowlOnLoadError?.(0, 'decode error'); });
+      act(() => {
+        latestHowl().emit('loaderror', 0, 'decode error');
+      });
       await waitFor(() =>
         expect(showNotification).toHaveBeenCalledWith(
           expect.objectContaining({ title: 'Audio unavailable' }),
@@ -411,25 +470,181 @@ describe('useAudioPlaylist', () => {
     },
   );
 
-  it('notifies once after exhausting all candidates', async () => {
-    const { BookNotInFilesetError } = await import('../api');
-    const { showNotification } =
-      await import('@mantine/notifications');
-    mockStoreState.translations = [eshTranslation];
-    mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
-    vi.mocked(api.getBibleAudioUrl).mockRejectedValue(
-      new BookNotInFilesetError('not covered'),
-    );
-    const { result } = renderHook(() => useAudioPlaylist());
-    act(() => {
-      result.current.start([makeItem(), makeItem()]);
+  it('notifies once per item after exhausting all candidates',
+    async () => {
+      const { BookNotInFilesetError } = await import('../api');
+      const { showNotification } =
+        await import('@mantine/notifications');
+      mockStoreState.translations = [eshTranslation];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      vi.mocked(api.getBibleAudioUrl).mockRejectedValue(
+        new BookNotInFilesetError('not covered'),
+      );
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ itemId: 'a' }),
+          makeItem({ itemId: 'b' }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Audio not available',
+          }),
+        )
+      );
+      // One 'Audio not available' per skipped item — each
+      // candidate retry must not notify again.
+      await waitFor(() =>
+        expect(
+          vi.mocked(showNotification).mock.calls.filter(
+            ([arg]) =>
+              (arg as { title?: string }).title ===
+              'Audio not available',
+          ),
+        ).toHaveLength(2)
+      );
+    },
+  );
+
+  it('a superseded in-flight load cannot clobber the newer item',
+    async () => {
+      // Item a's URL fetch hangs; next() supersedes it with item
+      // b. When the stale fetch finally resolves it must not
+      // materialize a Howl or steal audioRef back — without a
+      // generation counter in playIndex the last-resolved run
+      // wins and the orphaned Howl plays invisibly.
+      let resolveA: ((url: string) => void) | null = null;
+      vi.mocked(api.getBibleAudioUrl).mockImplementation(
+        (_book, chapter) =>
+          chapter === 3
+            ? new Promise<string>((r) => { resolveA = r; })
+            : Promise.resolve('http://audio.test/jhn8.mp3'),
+      );
+      const { result } = renderHook(() => useAudioPlaylist());
+      const items = [
+        makeItem({ itemId: 'a', chapter: 3 }),
+        makeItem({ itemId: 'b', chapter: 8 }),
+      ];
+      act(() => { result.current.start(items); });
+
+      // Item a's fetch is still in flight — supersede it.
+      act(() => { result.current.next(); });
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1)
+      );
+      const itemBHowl = latestHowl();
+      expect(itemBHowl.src).toEqual([
+        'http://audio.test/jhn8.mp3',
+      ]);
+
+      // Item a's stale fetch resolves — its run must bail out
+      // instead of overwriting the newer item's audio.
+      await act(async () => {
+        resolveA?.('http://audio.test/jhn3.mp3');
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      expect(FakeHowl.instances.length).toBe(1);
+      expect(result.current.currentIndex).toBe(1);
+      expect(result.current.currentItem?.itemId).toBe('b');
+      expect(result.current.audio).toBe(itemBHowl);
+    },
+  );
+
+  it('stop() during a pending load prevents the Howl from playing',
+    async () => {
+      let resolveA: ((url: string) => void) | null = null;
+      vi.mocked(api.getBibleAudioUrl).mockImplementation(
+        () => new Promise<string>((r) => { resolveA = r; }),
+      );
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => { result.current.start([makeItem()]); });
+      act(() => { result.current.stop(); });
+      await act(async () => {
+        resolveA?.('http://audio.test/late.mp3');
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(FakeHowl.instances.length).toBe(0);
+      expect(result.current.isActive).toBe(false);
+    },
+  );
+
+  describe('verse-bounds playback (endTs)', () => {
+    // Timestamps covering verses 16-19 — a verse AFTER endVerse
+    // must exist so the hook derives a non-null endTs and the
+    // bounds checker (timeupdate + 100ms poll) installs.
+    const BOUNDS_TIMESTAMPS = [
+      { verse_start: 16, timestamp: 0 },
+      { verse_start: 17, timestamp: 10 },
+      { verse_start: 18, timestamp: 20 },
+      { verse_start: 19, timestamp: 30 },
+    ];
+
+    beforeEach(() => {
+      vi.mocked(api.getAudioTimestamps).mockResolvedValue(
+        BOUNDS_TIMESTAMPS,
+      );
     });
-    await waitFor(() =>
-      expect(showNotification).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Audio not available',
-        }),
-      )
+
+    const fireTimeUpdate = (howl: FakeHowl) => {
+      const node = howl._sounds[0]?._node;
+      expect(node).not.toBeNull();
+      act(() => {
+        node?.dispatchEvent(new Event('timeupdate'));
+      });
+    };
+
+    it('advances when playback passes the end timestamp',
+      async () => {
+        const { result } = renderHook(() => useAudioPlaylist());
+        const items = [
+          makeItem({ itemId: 'a', chapter: 3 }),
+          makeItem({ itemId: 'b', chapter: 8 }),
+        ];
+        act(() => { result.current.start(items); });
+        await waitFor(() =>
+          expect(result.current.currentIndex).toBe(0)
+        );
+        const howl = latestHowl();
+        act(() => { howl.emit('load'); });
+
+        // Still inside the verse range — no advance.
+        act(() => { howl.seek(15); });
+        fireTimeUpdate(howl);
+        expect(result.current.currentIndex).toBe(0);
+
+        // Past verse 19's timestamp (endTs = 30) — the checker
+        // advances to the next item instead of replaying.
+        act(() => { howl.seek(31); });
+        fireTimeUpdate(howl);
+        await waitFor(() =>
+          expect(result.current.currentIndex).toBe(1)
+        );
+        expect(howl.state()).toBe('unloaded');
+      },
     );
+
+    it('seeks past verses excluded by verseNumbers', async () => {
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ verseNumbers: [16, 18] }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(0)
+      );
+      const howl = latestHowl();
+      act(() => { howl.emit('load'); });
+      expect(howl._pos).toBe(0);
+
+      // Position inside verse 17 — not in verseNumbers — the
+      // checker skips ahead to verse 18's timestamp.
+      act(() => { howl.seek(15); });
+      fireTimeUpdate(howl);
+      expect(howl._pos).toBe(20);
+    });
   });
 });

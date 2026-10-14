@@ -4,80 +4,122 @@ import {
   fireEvent,
   waitFor,
 } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe, it, expect, vi, beforeEach, afterEach,
+} from 'vitest';
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
+import { getBibleAudioUrl } from '../api';
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
+import {
+  stubMediaSession,
+  type MediaSessionStub,
+} from '../__tests__/mocks/mediaSession';
+import type { BibleState, Translation } from '../store';
 
-// Mock Howler
-vi.mock('howler', () => ({
-  Howl: vi.fn().mockImplementation(function () {
-    return {
-      play: vi.fn(),
-      pause: vi.fn(),
-      stop: vi.fn(),
-      unload: vi.fn(),
-      seek: vi.fn().mockReturnValue(0),
-      duration: vi.fn().mockReturnValue(100),
-      loop: vi.fn(),
-      state: vi.fn().mockReturnValue('loaded'),
-      playing: vi.fn().mockReturnValue(false),
-      volume: vi.fn(),
-      on: vi.fn(),
-      once: vi.fn(),
-      off: vi.fn(),
-    };
-  }),
+vi.mock('howler', async () => ({
+  Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
 }));
 
-// Mock API
-vi.mock('../api', () => ({
-  getKjvAudioUrl: vi.fn().mockReturnValue('http://audio.url/test.mp3'),
-  getBibleAudioUrl: vi.fn()
-    .mockResolvedValue('http://audio.url/test.mp3'),
-  getPassage: vi.fn().mockReturnValue({
-    book: 'Genesis',
-    chapter: 1,
-  }),
-  getAudioTimestamps: vi.fn().mockResolvedValue([]),
-  getAdjacentChapters: vi.fn().mockReturnValue({
-    previous: null,
-    next: null,
-  }),
-  BookNotInFilesetError: class BookNotInFilesetError
-    extends Error {},
-}));
+// Mock API — importOriginal keeps BookNotInFilesetError's real
+// class so prod instanceof checks behave like production.
+vi.mock('../api', async () => {
+  const actual = await vi.importActual<typeof import('../api')>(
+    '../api',
+  );
+  return {
+    ...actual,
+    getKjvAudioUrl:
+      vi.fn().mockReturnValue('http://audio.url/test.mp3'),
+    getBibleAudioUrl: vi.fn()
+      .mockResolvedValue('http://audio.url/test.mp3'),
+    // Real signature returns an array of {book_name, book_id,
+    // chapter} entries — previously mocked as a single object.
+    getPassage: vi.fn().mockReturnValue([
+      { book_name: 'Genesis', book_id: 'GEN', chapter: 1 },
+    ]),
+    getAudioTimestamps: vi.fn().mockResolvedValue([]),
+    // No adjacent chapters: no next-chapter preload, so each test
+    // sees exactly the Howls it causes.
+    getAdjacentChapters: vi.fn().mockReturnValue({
+      previous: null,
+      next: null,
+    }),
+  };
+});
 
-// Note: AudioPlayer component is now used as-is (no mock)
+// Split-testament audio translation for the fallback test:
+// {OT: ENGESHO1DA, NT: ENGESHN1DA} in both codecs.
+const eshTranslation: Translation = {
+  abbr: 'ENGESH',
+  name: 'English Test Version',
+  language: 'English',
+  language_iso: 'eng',
+  filesets: [
+    { id: 'ENGESHO1DA', type: 'audio', size: 'OT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'ENGESHO1DA-opus16', type: 'audio', size: 'OT',
+      codec: 'opus', bitrate: '16' },
+    { id: 'ENGESHN1DA', type: 'audio', size: 'NT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'ENGESHN1DA-opus16', type: 'audio', size: 'NT',
+      codec: 'opus', bitrate: '16' },
+  ],
+};
+
+// happy-dom has no MediaMetadata — a minimal class carrying the
+// init fields so assertions can read them back.
+class FakeMediaMetadata {
+  title: string;
+  artist: string;
+  album: string;
+  artwork?: MediaImage[];
+  constructor(init: MediaMetadataInit) {
+    this.title = init.title ?? '';
+    this.artist = init.artist ?? '';
+    this.album = init.album ?? '';
+    this.artwork = init.artwork;
+  }
+}
+
+let session: MediaSessionStub;
+
+const renderAudio = (
+  storeOverrides: Partial<BibleState> = {},
+) =>
+  renderWithProviders(<Audio />, {
+    storeOverrides: {
+      activeBookId: 'GEN',
+      activeChapter: 1,
+      activeAudioFilesetId: 'ENGKJV',
+      showAudioPlayer: false,
+      ...storeOverrides,
+    },
+  });
 
 describe('Audio Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    FakeHowl.reset();
+    session = stubMediaSession();
+    vi.stubGlobal('MediaMetadata', FakeMediaMetadata);
+  });
+
+  afterEach(() => {
+    session.restore();
+    vi.unstubAllGlobals();
   });
 
   it('should render the play button', () => {
-    renderWithProviders(<Audio />, {
-      storeOverrides: {
-        activeBookId: 'GEN',
-        activeChapter: 1,
-        activeAudioFilesetId: 'ENGKJV',
-        showAudioPlayer: false,
-      },
-    });
+    renderAudio();
     const button = screen.getByRole('button');
     expect(button).toBeInTheDocument();
   });
 
   it('clears the audio-active verse when the player closes',
     async () => {
-      renderWithProviders(<Audio />, {
-        storeOverrides: {
-          activeBookId: 'GEN',
-          activeChapter: 1,
-          activeAudioFilesetId: 'ENGKJV',
-          showAudioPlayer: false,
-        },
-      });
+      renderAudio();
 
       fireEvent.click(screen.getByTitle('Play audio'));
       const closeButton = await screen.findByTitle(
@@ -103,18 +145,76 @@ describe('Audio Component', () => {
       });
     });
 
-  // Note: Full audio playback testing is extremely complex
-  // due to Howler.js, Media Session API, and async state.
-  // See SKIPPED_TESTS.md for details.
-  it.skip('should load and play audio when button clicked', () => {
-    // This test is skipped due to complex mocking requirements
-  });
+  it('updates Media Session metadata when audio starts',
+    async () => {
+      renderAudio({ activeBookId: 'JHN', activeChapter: 3 });
 
-  it.skip('should update Media Session metadata', () => {
-    // This test is skipped due to Media Session API mocking
-  });
+      fireEvent.click(screen.getByTitle('Play audio'));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1),
+      );
 
-  it.skip('should auto-advance to next chapter on audio end', () => {
-    // This test is skipped due to complex async behavior
-  });
+      await waitFor(() => {
+        expect(navigator.mediaSession.metadata?.title).toBe(
+          'John 3',
+        );
+      });
+      expect(navigator.mediaSession.metadata?.artist).toBe(
+        'Bible Audio',
+      );
+      expect(navigator.mediaSession.playbackState).toBe(
+        'playing',
+      );
+    });
+
+  it('ignores a fallback fetch that resolves after close',
+    async () => {
+      // opus16 candidate loads instantly; its decode failure
+      // sends the mp3 sibling's fetch to a deferred promise so the
+      // fallback stays in flight when the player is closed.
+      let resolveFallback: ((url: string) => void) | null = null;
+      vi.mocked(getBibleAudioUrl).mockImplementation(
+        (_book, _chapter, filesetId) =>
+          filesetId === 'ENGESHN1DA'
+            ? new Promise<string>((r) => { resolveFallback = r; })
+            : Promise.resolve('http://audio.url/opus16.webm'),
+      );
+      renderAudio({
+        activeBookId: 'JHN',
+        activeChapter: 3,
+        activeAudioFilesetId: 'ENGESHN1DA-opus16',
+        activeTextFilesetId: 'ENGESH',
+        translations: [eshTranslation],
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1),
+      );
+
+      act(() => {
+        FakeHowl.instances[0].emit(
+          'loaderror',
+          0,
+          new Error('codec decode failed'),
+        );
+      });
+      await waitFor(() =>
+        expect(resolveFallback).not.toBeNull(),
+      );
+
+      const closeButton = await screen.findByTitle('Close player');
+      fireEvent.click(closeButton);
+
+      // The pending fallback resolves after the player closed —
+      // it must not materialize a Howl or resurrect the player.
+      await act(async () => {
+        resolveFallback?.('http://audio.url/mp3.mp3');
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      expect(FakeHowl.instances.length).toBe(1);
+      expect(FakeHowl.instances[0].state()).toBe('unloaded');
+      expect(screen.queryByTitle('Close player')).toBeNull();
+    });
 });
