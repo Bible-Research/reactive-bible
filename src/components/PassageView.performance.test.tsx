@@ -240,20 +240,32 @@ describe('PassageView Component Performance Tests', () => {
   });
 
   describe('Prefetch Performance', () => {
-    it('should prefetch adjacent chapters without blocking', 
+    it('should prefetch adjacent chapters without blocking',
       async () => {
       const verses = createLargeVerseData(25);
       mockGetVersesInChapter.mockResolvedValue(verses);
 
-      render(
+      // Never-settling prefetches pin the non-blocking contract:
+      // if the render awaited them, the content below could
+      // never appear and this test would time out.
+      mockPrefetchAudioUrl.mockImplementation(
+        () => new Promise(() => {})
+      );
+      mockPrefetchAdjacentChapters.mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      const { container } = render(
         <MantineProvider>
           <PassageView />
         </MantineProvider>
       );
 
-      // The initial render resolves without waiting on prefetch.
+      // Content appears even though the prefetches are still
+      // pending — the render path never awaited them.
       await waitFor(() => {
-        expect(mockGetVersesInChapter).toHaveBeenCalled();
+        expect(container.querySelector('[data-testid="verse-1"]'))
+          .toBeInTheDocument();
       });
 
       // Verify prefetch was called
