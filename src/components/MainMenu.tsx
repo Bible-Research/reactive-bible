@@ -19,6 +19,7 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { isNativeApp } from "../utils/nativeAudio";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
@@ -51,6 +52,11 @@ const MainMenu = ({
   // Get Bible state for navigation
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
+  // Note-writing and tag management require auth; hide the rows
+  // for anonymous visitors instead of letting them hit 401s.
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
 
   // Offer the APK only on Android browsers — useless on iOS,
   // desktop, and inside the native shell itself.
@@ -116,30 +122,34 @@ const MainMenu = ({
           </Text>
         </Group>
 
-        <Group position="apart" spacing="xs">
-          <Text
-            weight={500}
-            size="lg"
-            onClick={() => setNewNoteOpened(true)}
-            sx={{ cursor: "pointer" }}
-          >
-            New Note
-          </Text>
-        </Group>
+        {isAuthenticated && (
+          <>
+            <Group position="apart" spacing="xs">
+              <Text
+                weight={500}
+                size="lg"
+                onClick={() => setNewNoteOpened(true)}
+                sx={{ cursor: "pointer" }}
+              >
+                New Note
+              </Text>
+            </Group>
 
-        <Group position="apart" spacing="xs">
-          <Text
-            weight={500}
-            size="lg"
-            onClick={() => {
-              navigate('/tags');
-              onClose();
-            }}
-            sx={{ cursor: "pointer" }}
-          >
-            Tag Management
-          </Text>
-        </Group>
+            <Group position="apart" spacing="xs">
+              <Text
+                weight={500}
+                size="lg"
+                onClick={() => {
+                  navigate('/tags');
+                  onClose();
+                }}
+                sx={{ cursor: "pointer" }}
+              >
+                Tag Management
+              </Text>
+            </Group>
+          </>
+        )}
 
         {isNativeApp() && (
           <Group spacing="xs" align="flex-start" noWrap>
@@ -214,10 +224,12 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
-      <AddStandaloneNoteModal
-        opened={newNoteOpened}
-        onClose={() => setNewNoteOpened(false)}
-      />
+      {isAuthenticated && (
+        <AddStandaloneNoteModal
+          opened={newNoteOpened}
+          onClose={() => setNewNoteOpened(false)}
+        />
+      )}
     </>
   );
 };

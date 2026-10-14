@@ -8,6 +8,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { Tag } from "../types";
 import { toPlainText } from "../utils/tiptapContent";
@@ -16,7 +17,7 @@ import RichTextEditor from "./RichTextEditor";
 interface NoteFormProps {
   tags: Tag[];
   note?: { tagId: string; text: string };
-  onSubmit: (tagId: string, text: string) => void;
+  onSubmit: (tagId: string, text: string) => void | Promise<unknown>;
   submitText: string;
   onTagDropdownOpen: () => void;
   onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
@@ -95,7 +96,9 @@ const NoteForm = ({
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
       const { tagId, text } = latest.current;
-      if (!toPlainText(text).trim()) return;
+      // Skip empty text AND empty tag — the latter used to POST
+      // `tag: ''` every 5s, generating a stream of silent 400s.
+      if (!tagId || !toPlainText(text).trim()) return;
       const last = lastSavedRef.current;
       if (last && last.tagId === tagId && last.text === text) {
         return;
@@ -128,6 +131,23 @@ const NoteForm = ({
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
+    // Guard empty submissions — the API would reject the note.
+    if (!selectedTagId) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Please choose a tag.',
+        color: 'red',
+      });
+      return;
+    }
+    if (!toPlainText(noteText).trim()) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Note text is required.',
+        color: 'red',
+      });
+      return;
+    }
     // Wait for an in-flight autosave first: the parent then sees
     // the created note id and PATCHes instead of POSTing a
     // duplicate. Holding the lock while submitting also keeps an
@@ -143,21 +163,20 @@ const NoteForm = ({
     }
   };
 
-  const selectedTagName =
-    tags.find((tag) => tag.id === selectedTagId)?.name || "";
-
   return (
     <form onSubmit={handleSubmit}>
       <Select
         variant="transparent"
         label="Tag"
-        value={selectedTagName}
-        onChange={(item: string) => {
-          const tagId = tags.find((tag) => tag.name === item)?.id;
-          setSelectedTagId(tagId ?? "");
+        value={selectedTagId || null}
+        onChange={(item: string | null) => {
+          setSelectedTagId(item ?? "");
         }}
         onDropdownOpen={onTagDropdownOpen}
-        data={tags.map((tag) => tag.name)}
+        data={tags.map((tag) => ({
+          value: tag.id,
+          label: tag.name,
+        }))}
         searchable
         maxDropdownHeight={window.innerHeight * 0.7}
       />

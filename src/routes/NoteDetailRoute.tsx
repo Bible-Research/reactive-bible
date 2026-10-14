@@ -18,6 +18,7 @@ import NoteCard from '../components/NoteCard';
 import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
 import { toPlainText } from '../utils/tiptapContent';
+import { copyTextToClipboard } from '../utils/clipboard';
 import { buildBiblePath } from '../utils/bibleUtils';
 import { useBibleStore } from '../store';
 
@@ -93,15 +94,20 @@ export default function NoteDetailRoute() {
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(url);
+    // execCommand fallback covers http/non-secure contexts where
+    // navigator.clipboard is unavailable.
+    if (await copyTextToClipboard(url)) {
       showNotification({
         title: 'Link Copied!',
         message: 'Note link copied to clipboard',
         color: 'blue',
       });
-    } catch (err) {
-      console.error('Error copying to clipboard:', err);
+    } else {
+      showNotification({
+        title: 'Error',
+        message: 'Failed to copy link',
+        color: 'red',
+      });
     }
   };
 
