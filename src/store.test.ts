@@ -276,8 +276,18 @@ describe('Zustand Store (useBibleStore)', () => {
 
   it('migratePersistedState does not re-key readingPositions ' +
     'at v5', () => {
+    // Feeding only well-formed USFM-keyed data would be
+    // non-discriminating: a `version <= 5` off-by-one would
+    // re-sanitize it into identical output. The name-keyed
+    // and malformed entries below WOULD change if
+    // re-sanitized (re-keyed to MRK / degraded to null), so
+    // they must survive untouched at v5.
     const persisted = {
-      readingPositions: { JHN: { chapter: 3, verse: 16 } },
+      readingPositions: {
+        JHN: { chapter: 3, verse: 16 },
+        Mark: { chapter: 2, verse: 1 },
+        GEN: 'malformed',
+      },
     };
     const migrated = migratePersistedState(persisted, 5);
     expect(migrated.readingPositions).toEqual(
