@@ -464,8 +464,14 @@ export const cacheAudioUrl = (
   try {
     const url = new URL(audioUrl);
     const expiresParam = url.searchParams.get('Expires');
-    if (expiresParam) {
-      expiresAt = parseInt(expiresParam) * 1000; // Convert to ms
+    const expiresSec = expiresParam
+      ? parseInt(expiresParam, 10)
+      : NaN;
+    // Malformed Expires params (e.g. '?Expires=abc') must not
+    // produce NaN — a NaN expiresAt never compares expired, so
+    // the entry would live until reload. Keep the 24h default.
+    if (Number.isFinite(expiresSec)) {
+      expiresAt = expiresSec * 1000; // Convert to ms
     }
   } catch (error) {
     console.error('Error parsing audio URL expiration:', error);

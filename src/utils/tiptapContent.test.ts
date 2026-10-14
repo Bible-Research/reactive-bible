@@ -113,6 +113,14 @@ describe('docToPlainText', () => {
   it('returns empty string for malformed JSON', () => {
     expect(docToPlainText('{bad json')).toBe('');
   });
+
+  it('concatenates text under untyped container nodes', () => {
+    const s = doc([
+      { content: [{ type: 'text', text: 'loose' }] },
+    ]);
+    // No block type -> no trailing newline for this node.
+    expect(docToPlainText(s)).toBe('loose');
+  });
 });
 
 describe('toPlainText', () => {
@@ -128,5 +136,11 @@ describe('toPlainText', () => {
       },
     ]);
     expect(toPlainText(s)).toBe('note body');
+  });
+
+  it('passes non-doc JSON through unchanged', () => {
+    expect(toPlainText('{"type":"paragraph"}')).toBe(
+      '{"type":"paragraph"}'
+    );
   });
 });

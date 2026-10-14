@@ -246,6 +246,68 @@ describe('groupFilesets', () => {
       );
     },
   );
+
+  it('ignores filesets when backend audio_options is empty', () => {
+    // FIXME: `Array.isArray([])` is true, so an empty backend
+    // `audio_options` suppresses client-side grouping entirely —
+    // audio-capable `filesets` yield zero options. If the backend
+    // ever ships `audio_options: []` mid-rollout this drops all
+    // audio for the translation.
+    const backend = tr('EMPTY', [fs('EMPTYN1DA', 'audio', 'NT')], {
+      audio_options: [],
+    });
+    expect(groupFilesets(backend).audio).toEqual([]);
+  });
+
+  it('mints missing backend option ids with the array index', () => {
+    // FIXME: the minted id uses the raw array index
+    // (`${abbr}:${kind}:${index}`), 0-based — while client-side
+    // grouping mints 1-based per-kind counters. The same logical
+    // option can be `X:audio:0` or `X:audio:1` depending on which
+    // side named it: a drift-fallback hazard.
+    const backend = tr('MINT', [fs('MINTN1DA', 'audio', 'NT')], {
+      audio_options: [
+        {
+          kind: 'audio',
+          by_testament: { NT: { mp3: 'MINTN1DA' } },
+        },
+      ],
+    });
+    expect(groupFilesets(backend).audio[0].id).toBe('MINT:audio:0');
+  });
+
+  it('accepts a bare-string by_testament entry', () => {
+    const backend = tr('STR', [], {
+      text_options: [
+        {
+          by_testament: { NT: 'STRN_ET' },
+          members: ['STRN_ET'],
+        },
+      ],
+    });
+    const { text } = groupFilesets(backend);
+    expect(text?.kind).toBe('text'); // fallbackKind applied
+    expect(text?.byTestament.NT).toEqual({ default: 'STRN_ET' });
+    expect(text?.coverageLabel).toBe('New Testament only');
+  });
+
+  it('drops backend options with no usable members', () => {
+    // Non-objects and memberless entries are filtered out; the
+    // surviving option keeps its original array index for the
+    // minted id.
+    const backend = tr('NONE', [], {
+      audio_options: [
+        'junk',
+        {
+          kind: 'audio',
+          by_testament: { NT: 'NONEN1DA' },
+        },
+      ],
+    });
+    const { audio } = groupFilesets(backend);
+    expect(audio).toHaveLength(1);
+    expect(audio[0].id).toBe('NONE:audio:1');
+  });
 });
 
 describe('resolveAudioFileset', () => {
@@ -495,4 +557,55 @@ describe('product id prefix fallback (index drift)', () => {
       resolveAudioFileset('ENGKJV:audio:0', 'GEN', [])?.filesetId,
     ).toBe('ENGKJV');
   });
+
+  // Two same-kind options with backend-supplied ids that
+  // deliberately do NOT collide with `{abbr}:{kind}:{n}` —
+  // forcing every lookup through the drift prefix fallback.
+  const backendTwoAudio = tr(
+    'TWO',
+    [fs('TWOAN1DA', 'audio', 'NT')],
+    {
+      audio_options: [
+        {
+          id: 'two-a',
+          kind: 'audio',
+          by_testament: { NT: { mp3: 'TWOAN1DA' } },
+          members: ['TWOAN1DA'],
+        },
+        {
+          id: 'two-b',
+          kind: 'audio',
+          by_testament: { NT: { mp3: 'TWOBN1DA' } },
+          members: ['TWOBN1DA'],
+        },
+      ],
+    },
+  );
+
+  it('uses the parsed index as a 0-based position in the kind', () => {
+    // FIXME: `candidates[parsed.index] ?? candidates[0]` treats
+    // the stored index as 0-based. Stored `*:audio:1` lands on the
+    // SECOND option — correct only if persisted ids really were
+    // minted 0-based client-side. If any drifted id was
+    // backend-minted (1-based) this is an off-by-one: index 1
+    // would mean the FIRST option. Intent is unproven — pinned.
+    expect(
+      resolveAudioFileset('TWO:audio:1', 'JHN', [backendTwoAudio])
+        ?.filesetId,
+    ).toBe('TWOBN1DA');
+  });
+
+  it('clamps an out-of-range index to the first candidate', () => {
+    // `:99` overshoots both options — `?? candidates[0]` pins the
+    // fallback to the FIRST option of that kind, not the last.
+    expect(
+      resolveAudioFileset('TWO:audio:99', 'JHN', [backendTwoAudio])
+        ?.filesetId,
+    ).toBe('TWOAN1DA');
+  });
+
+  it.todo(
+    'decide 0-vs-1-based semantics for drifted ' +
+      '{abbr}:{kind}:{n} ids — see FIXME above'
+  );
 });

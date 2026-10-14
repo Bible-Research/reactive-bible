@@ -46,6 +46,23 @@ describe('verseRefs utils', () => {
     ]);
   });
 
+  it('sortRefs pushes unknown books last via the 999 fallback', () => {
+    const sorted = sortRefs([
+      ref('UNKNOWN', 1, 1),
+      ref('REV', 1, 1),
+      ref('GEN', 1, 1),
+      ref('ALSOUNKNOWN', 5, 2),
+    ]);
+    expect(sorted).toEqual([
+      ref('GEN', 1, 1),
+      ref('REV', 1, 1),
+      // Both unknowns share order key 999 — chapter/verse breaks
+      // the tie (chapter 1 sorts before chapter 5).
+      ref('UNKNOWN', 1, 1),
+      ref('ALSOUNKNOWN', 5, 2),
+    ]);
+  });
+
   it('sameRefSet ignores ordering', () => {
     expect(
       sameRefSet(

@@ -25,26 +25,8 @@ afterEach(() => {
   Date.now = REAL_NOW;
 });
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: { [key: string]: string } = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value.toString();
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    clear: () => {
-      store = {};
-    },
-  };
-})();
-
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-});
+// localStorage is stubbed by setupTests; the global beforeEach
+// clears it plus cacheManager's in-memory storageCache.
 
 const sampleCopyright: FilesetCopyright[] = [
   {
@@ -59,26 +41,6 @@ const sampleCopyright: FilesetCopyright[] = [
 ];
 
 describe('Copyright Cache', () => {
-  beforeEach(() => {
-    localStorageMock.clear();
-    // Invalidate in-memory storageCache in cacheManager
-    // by simulating tab visibility change
-    Object.defineProperty(document, 'visibilityState', {
-      value: 'hidden',
-      configurable: true,
-    });
-    document.dispatchEvent(
-      new Event('visibilitychange')
-    );
-    Object.defineProperty(document, 'visibilityState', {
-      value: 'visible',
-      configurable: true,
-    });
-    document.dispatchEvent(
-      new Event('visibilitychange')
-    );
-  });
-
   it('stores and retrieves copyright data', () => {
     cacheCopyright('ENGESV', sampleCopyright);
     const result = getCachedCopyright('ENGESV');

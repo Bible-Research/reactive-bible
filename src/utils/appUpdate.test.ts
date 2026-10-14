@@ -122,6 +122,33 @@ describe('fetchUpdateManifest', () => {
     );
     expect(await fetchUpdateManifest()).toBeNull();
   });
+
+  it('currently accepts a non-https apkUrl', async () => {
+    // FIXME: isUpdateManifest only checks
+    // `typeof apkUrl === 'string'` — an `http://` (or worse)
+    // URL validates. The manifest should require https so the
+    // sideloaded APK can't come from a plaintext/mitm-able URL.
+    mockFetchOk(manifest({ apkUrl: 'http://x/y.apk' }));
+    const result = await fetchUpdateManifest();
+    expect(result?.apkUrl).toBe('http://x/y.apk');
+  });
+
+  it('currently accepts a manifest without versionName', async () => {
+    // FIXME: `versionName` is required by the UpdateManifest
+    // interface but isUpdateManifest never checks it — a
+    // manifest missing it passes validation.
+    mockFetchOk({ versionCode: 42, apkUrl: 'https://x/y.apk' });
+    expect(await fetchUpdateManifest()).not.toBeNull();
+  });
+
+  it('currently accepts a non-integer versionCode', async () => {
+    // FIXME: isUpdateManifest checks `typeof versionCode ===
+    // 'number'` only — fractional codes pass even though
+    // Android versionCode is an integer.
+    mockFetchOk(manifest({ versionCode: 42.5 }));
+    const result = await fetchUpdateManifest();
+    expect(result?.versionCode).toBe(42.5);
+  });
 });
 
 describe('getInstalledVersion', () => {
@@ -180,6 +207,26 @@ describe('checkForUpdates', () => {
       vi.fn().mockRejectedValue(new Error('offline')),
     );
     expect(await checkForUpdates()).toEqual({ kind: 'error' });
+  });
+
+  it('stamps the throttle even when the check fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('offline')),
+    );
+
+    const before = Date.now();
+    expect(await checkForUpdates()).toEqual({ kind: 'error' });
+
+    // FIXME: markUpdateChecked() runs before the fetch, so a
+    // transient network failure stamps `app_update_last_check`
+    // and suppresses automatic checks for the next hour. The
+    // stamp arguably belongs after a successful fetch.
+    const stamp = Number(
+      localStorage.getItem('app_update_last_check')
+    );
+    expect(stamp).toBeGreaterThanOrEqual(before);
+    expect(shouldCheckForUpdates()).toBe(false);
   });
 
   it('force bypasses the throttle', async () => {
