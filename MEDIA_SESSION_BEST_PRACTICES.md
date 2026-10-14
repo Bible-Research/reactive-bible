@@ -1,208 +1,170 @@
 # Media Session API Best Practices for React PWAs
 
-## 🎯 **Core Principle**
-**Never trigger React state updates directly from Media Session handlers when the app is in the background.**
+## Core Principle
+
+**Media Session action handlers must be synchronous,
+fire-and-forget, and never throw.** The single owner is
+`useMediaSession` (`src/hooks/useMediaSession.ts`), wired once in
+`Audio.tsx` for both chapter and playlist playback.
+
+Why: on Android the WebView can be frozen on the lock screen. A
+handler that `await`s a playback promise may never return, which
+blocks the main thread and triggers ANR crashes. All playback
+work is dispatched to fire-and-forget callbacks instead.
 
 ---
 
-## ✅ **DO: Use Refs for Background Operations**
+## DO: Single owner for `navigator.mediaSession`
+
+`navigator.mediaSession` is a global singleton. Registering
+handlers from multiple components produces stale or duplicated
+owners. `useMediaSession` registers all action handlers once per
+active session and reads the latest callbacks from refs:
 
 ```typescript
-const Audio = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const isPlayingRef = useRef(false);
-  const audioRef = useRef<Howl | null>(null);
+const controlsRef = useRef(controls);
+useEffect(() => {
+  controlsRef.current = controls;
+}, [controls]);
+```
 
-  // Sync ref with state
-  useEffect(() => {
-    isPlayingRef.current = isPlaying;
-  }, [isPlaying]);
+**Why:** refs don't trigger re-renders and never re-register
+handlers mid-session, which matters while backgrounded.
 
-  useEffect(() => {
-    audioRef.current = audio;
-  }, [audio]);
+---
 
-  // Media Session handlers use refs
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
+## DO: Keep handlers synchronous — never await inside them
 
-    navigator.mediaSession.setActionHandler('play', () => {
-      // ✅ Read from ref, call async function
-      const currentAudio = audioRef.current;
-      if (currentAudio && !isPlayingRef.current) {
-        safePlay(); // Async function handles state update
-      }
-    });
-  }, [audio, safePlay]);
+```typescript
+// GOOD: handler returns immediately, work is detached
+const dispatch = (action, details) => {
+  try {
+    const c = controlsRef.current;
+    if (action === 'play') c.play();   // fire-and-forget
+  } catch (err) {
+    console.warn('MediaSession handler error:', err);
+  }
 };
 ```
 
-**Why:** Refs don't trigger re-renders, preventing main thread blocking.
-
----
-
-## ❌ **DON'T: Call setState Directly in Handlers**
+Note: Howler's html5 `play()` returns a sound **id** (number),
+not a promise — the underlying `<audio>` element's play promise
+is managed internally and rejections surface via `onplayerror`.
+There is nothing to await; the handler just kicks the work off.
 
 ```typescript
-// ❌ BAD: Direct state mutation
-navigator.mediaSession.setActionHandler('play', () => {
-  setIsPlaying(true); // Triggers re-render on main thread
-});
-
-// ❌ BAD: Direct audio operation
-navigator.mediaSession.setActionHandler('pause', () => {
-  audio.pause(); // No promise handling, can cause state locks
+// BAD: awaiting inside a handler can hang forever on a frozen
+// lock-screen renderer and never lets the handler return.
+navigator.mediaSession.setActionHandler('play', async () => {
+  await audio.play(); // ANR risk — do NOT do this
 });
 ```
 
-**Why:** State updates block the main thread, especially when the screen is locked.
-
 ---
 
-## ✅ **DO: Handle Audio Promises Properly**
+## DO: Call setState from handlers if needed — but return fast
+
+An earlier revision of this doc claimed state updates must never
+run inside handlers. The real constraint is **blocking**: a
+synchronous `setIsPlaying(...)` is fine — React batches it and the
+handler still returns immediately. What is dangerous is awaiting
+promises or doing heavy synchronous work.
 
 ```typescript
-const safePlay = useCallback(async () => {
+const safePlay = useCallback(() => {
   const currentAudio = audioRef.current;
-  if (!currentAudio || isPlayingRef.current) return;
-
-  // Wait for any pending operation
-  if (pendingOperationRef.current) {
-    await pendingOperationRef.current;
-  }
-
+  if (!currentAudio || currentAudio.playing()) return;
   try {
-    const playPromise = currentAudio.play();
-    if (playPromise && typeof playPromise.then === 'function') {
-      pendingOperationRef.current = playPromise as Promise<void>;
-      await playPromise;
-      pendingOperationRef.current = null;
-    }
+    currentAudio.play();       // returns a number, not a promise
     isPlayingRef.current = true;
-    setIsPlaying(true); // Update state AFTER operation completes
+    setIsPlaying(true);        // synchronous — handler stays fast
   } catch (err) {
-    console.warn('Play failed:', err);
-    pendingOperationRef.current = null;
+    console.warn('Play operation failed:', err);
   }
 }, []);
 ```
 
-**Why:** Prevents concurrent operations and state locks.
+---
+
+## DO: Wrap every MediaSession API call in try/catch
+
+Some Android WebView versions throw `NotSupportedError` for
+certain actions or invalid `setPositionState` values. Validate
+position data before sending (`duration > 0`,
+`0 <= position <= duration`, all finite) and never let a call
+escape the hook's try/catch.
 
 ---
 
-## ✅ **DO: Debounce Position State Updates**
+## DO: Clean up handlers and metadata
 
 ```typescript
-let positionUpdateTimer: ReturnType<typeof setTimeout> | null = null;
-const debouncedSyncPosition = () => {
-  if (positionUpdateTimer) clearTimeout(positionUpdateTimer);
-  positionUpdateTimer = setTimeout(() => {
-    const currentAudio = audioRef.current;
-    if (!currentAudio) return;
-    try {
-      navigator.mediaSession.setPositionState({
-        duration: currentAudio.duration(),
-        playbackRate: 1,
-        position: currentAudio.seek() as number,
-      });
-    } catch {
-      // Ignore out-of-range errors
-    }
-  }, 100);
+return () => {
+  ALL_ACTIONS.forEach((a) => safeSetHandler(a, null));
 };
-
-navigator.mediaSession.setActionHandler('seekto', (details) => {
-  if (details.seekTime !== undefined) {
-    safeSeek(details.seekTime);
-    debouncedSyncPosition(); // Debounced update
-  }
-});
 ```
 
-**Why:** Reduces main thread load during rapid seeking.
+On deactivate also clear `mediaSession.metadata = null` and set
+`playbackState = 'none'` — and mirror an empty
+`setMetadata({title: '', artist: '', album: '', artwork: []})`
+to the native plugin (it has no dedicated clear call).
 
 ---
 
-## ✅ **DO: Clean Up Handlers Properly**
+## DO: Prefer the native plugin's handlers on Capacitor
 
-```typescript
-useEffect(() => {
-  if (!('mediaSession' in navigator)) return;
-
-  // Setup handlers
-  navigator.mediaSession.setActionHandler('play', handlePlay);
-  navigator.mediaSession.setActionHandler('pause', handlePause);
-
-  return () => {
-    // Clean up on unmount
-    navigator.mediaSession.setActionHandler('play', null);
-    navigator.mediaSession.setActionHandler('pause', null);
-    navigator.mediaSession.metadata = null;
-    navigator.mediaSession.playbackState = 'none';
-  };
-}, [handlePlay, handlePause]);
-```
-
-**Why:** Prevents memory leaks and stale handlers.
+In the Capacitor shell, `@capgo/capacitor-media-session` mirrors
+metadata/state/position to the Android MediaSession. Action
+**handlers** are registered only on the native side when
+`Capacitor.isNativePlatform()` — registering both web and native
+handlers can double-dispatch `seekBy`/`nexttrack` if the OS also
+surfaces the WebView's media session.
 
 ---
 
-## ✅ **DO: Sync Playback State**
+## DON'T: Create circular dependencies
 
 ```typescript
+// BAD: isPlaying is both a dependency and modified inside
 useEffect(() => {
-  if (!('mediaSession' in navigator)) return;
-
-  navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  navigator.mediaSession.setActionHandler('play', () => {
+    setIsPlaying(true);
+  });
 }, [isPlaying]);
-```
 
-**Why:** Ensures lock-screen controls show the correct state.
+// GOOD: register once; read latest state from refs
+useEffect(() => {
+  navigator.mediaSession.setActionHandler('play', () =>
+    controlsRef.current.play(),
+  );
+}, []);
+```
 
 ---
 
-## ❌ **DON'T: Create Circular Dependencies**
+## Testing Checklist
 
-```typescript
-// ❌ BAD: isPlaying is both a dependency and modified inside
-useEffect(() => {
-  navigator.mediaSession.setActionHandler('play', () => {
-    setIsPlaying(true); // Modifies dependency
-  });
-}, [isPlaying]); // Circular dependency
+### Lock Screen Testing
 
-// ✅ GOOD: Remove isPlaying from dependencies
-useEffect(() => {
-  navigator.mediaSession.setActionHandler('play', () => {
-    safePlay(); // Async function handles state
-  });
-}, [safePlay]); // No circular dependency
-```
-
-**Why:** Prevents infinite loops and excessive re-renders.
-
----
-
-## 🧪 **Testing Checklist**
-
-### **Lock Screen Testing**
 - [ ] Play/pause from lock screen
 - [ ] Seek forward/backward from lock screen
 - [ ] Drag seek bar on lock screen
 - [ ] Rapid tapping of controls
 - [ ] Unlock device after interaction
 
-### **Headphone Controls**
+### Headphone Controls
+
 - [ ] Play/pause button
 - [ ] Next/previous track buttons
 - [ ] Seek buttons (if available)
 
-### **Car Stereo**
+### Car Stereo
+
 - [ ] Bluetooth controls
 - [ ] Android Auto integration
 
-### **Performance**
+### Performance
+
 - [ ] No ANR crashes
 - [ ] No UI freezing
 - [ ] Smooth audio playback
@@ -210,91 +172,30 @@ useEffect(() => {
 
 ---
 
-## 📊 **Common Pitfalls**
+## Common Pitfalls
 
 | Issue | Symptom | Fix |
 |-------|---------|-----|
-| Direct `setState` in handlers | App freezes on lock screen | Use refs + async functions |
-| No promise handling | Audio stutters/stops | Await audio operations |
-| Missing cleanup | Stale handlers fire | Clean up in `useEffect` return |
-| Circular dependencies | Infinite re-renders | Remove state from dependencies |
-| Excessive position updates | Main thread lag | Debounce position state |
+| Awaiting in handlers | ANR on lock screen | Fire-and-forget |
+| Multiple handler owners | Desynced controls | `useMediaSession` only |
+| Missing cleanup | Stale handlers fire | Clear in effect return |
+| Circular dependencies | Infinite re-renders | Refs, not state deps |
+| Invalid position state | API throws | Validate range/finite |
+| Web+native handlers | Double seeks/skips | Native only on Capacitor |
 
 ---
 
-## 🔗 **Resources**
+## Resources
 
 - [Media Session API Spec](https://w3c.github.io/mediasession/)
-- [Android Media Session Guide](https://developer.android.com/guide/topics/media-apps/working-with-a-media-session)
+- Android media session guide:
+  developer.android.com/guide/topics/media-apps/
+  working-with-a-media-session
 - [React useRef Documentation](https://react.dev/reference/react/useRef)
 - [Howler.js API](https://github.com/goldfire/howler.js#documentation)
 
 ---
 
-## 📝 **Quick Reference Template**
-
-```typescript
-import { useState, useEffect, useRef, useCallback } from 'react';
-
-const MyAudioComponent = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const isPlayingRef = useRef(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const pendingOpRef = useRef<Promise<void> | null>(null);
-
-  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
-  useEffect(() => { audioRef.current = audio; }, [audio]);
-
-  const safePlay = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio || isPlayingRef.current) return;
-    if (pendingOpRef.current) await pendingOpRef.current;
-    try {
-      const promise = audio.play();
-      if (promise) {
-        pendingOpRef.current = promise;
-        await promise;
-        pendingOpRef.current = null;
-      }
-      isPlayingRef.current = true;
-      setIsPlaying(true);
-    } catch (err) {
-      console.warn('Play failed:', err);
-      pendingOpRef.current = null;
-    }
-  }, []);
-
-  const safePause = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio || !isPlayingRef.current) return;
-    if (pendingOpRef.current) await pendingOpRef.current;
-    try {
-      audio.pause();
-      isPlayingRef.current = false;
-      setIsPlaying(false);
-      pendingOpRef.current = null;
-    } catch (err) {
-      console.warn('Pause failed:', err);
-      pendingOpRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-
-    navigator.mediaSession.setActionHandler('play', () => safePlay());
-    navigator.mediaSession.setActionHandler('pause', () => safePause());
-
-    return () => {
-      navigator.mediaSession.setActionHandler('play', null);
-      navigator.mediaSession.setActionHandler('pause', null);
-    };
-  }, [safePlay, safePause]);
-
-  return <div>Your audio UI</div>;
-};
-```
-
----
-
-**Remember:** The key to preventing ANR crashes is to **avoid synchronous state updates in background event handlers**. Always use refs and async operations!
+**Remember:** the key to preventing ANR crashes is handlers that
+**return immediately** — synchronous, fire-and-forget, and
+never throwing. Detached functions own the actual playback work.

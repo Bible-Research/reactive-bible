@@ -825,4 +825,82 @@ describe('useAudioPlaylist', () => {
       expect(howl._pos).toBe(20);
     });
   });
+
+  it('a superseded load can never materialize a Howl', async () => {
+    // Regression: rapid next() while a fetch is in flight let
+    // the superseded coroutine create a Howl that overwrote the
+    // current item's audio — a parallel self-advancing
+    // playlist.
+    let resolveStale!: (url: string) => void;
+    const staleFetch = new Promise<string>((resolve) => {
+      resolveStale = resolve;
+    });
+    vi.mocked(api.getBibleAudioUrl)
+      .mockImplementationOnce(() => staleFetch)
+      .mockResolvedValue('http://audio.test/b.mp3');
+    const { result } = renderHook(() => useAudioPlaylist());
+    const items = [
+      makeItem({ itemId: 'a' }),
+      makeItem({ itemId: 'b', chapter: 4 }),
+    ];
+    act(() => {
+      result.current.start(items);
+    });
+    // Item a's URL fetch is still pending — skip to b.
+    act(() => {
+      result.current.next();
+    });
+    await waitFor(() =>
+      expect(result.current.currentIndex).toBe(1)
+    );
+    await waitFor(() =>
+      expect(result.current.audio).not.toBeNull()
+    );
+    const winningAudio = result.current.audio;
+    const howlCount = FakeHowl.instances.length;
+    // Resolving the stale fetch must not produce another Howl
+    // or clobber the winning item's audio.
+    await act(async () => {
+      resolveStale('http://audio.test/a.mp3');
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(FakeHowl.instances.length).toBe(howlCount);
+    expect(result.current.audio).toBe(winningAudio);
+    expect(result.current.currentIndex).toBe(1);
+  });
+
+  it('loop replays a bounded item instead of advancing',
+    async () => {
+      vi.mocked(api.getAudioTimestamps).mockResolvedValue([
+        { verse_start: 16, timestamp: 0 },
+        { verse_start: 17, timestamp: 5 },
+        { verse_start: 18, timestamp: 10 },
+        { verse_start: 19, timestamp: 15 },
+      ]);
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ itemId: 'a' }),
+          makeItem({ itemId: 'b', chapter: 4 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(result.current.audio).not.toBeNull()
+      );
+      const howl = latestHowl();
+      act(() => { howl.emit('load'); });
+      act(() => {
+        result.current.audio?.loop(true);
+      });
+      // Simulate playback reaching the item's end timestamp —
+      // the 100ms bounds poll should seek back to the item's
+      // start rather than advancing to item b.
+      act(() => { howl.seek(20); });
+      await waitFor(() => expect(howl.seek()).toBe(0), {
+        timeout: 2000,
+      });
+      await new Promise((r) => setTimeout(r, 250));
+      expect(result.current.currentIndex).toBe(0);
+    },
+  );
 });
