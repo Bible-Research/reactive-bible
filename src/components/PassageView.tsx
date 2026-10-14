@@ -69,6 +69,20 @@ const firstVisibleVerse = (
   return null;
 };
 
+// Deferred scrolls can outlive the DOM: an unmounted component
+// (or a torn-down test environment, where `document` is removed
+// from globals entirely) must not crash the pending timer.
+const scrollToIdDeferred = (id: string, smooth = false): void => {
+  setTimeout(() => {
+    globalThis.document
+      ?.getElementById(id)
+      ?.scrollIntoView({
+        block: 'start',
+        ...(smooth ? { behavior: 'smooth' as const } : {}),
+      });
+  }, 50);
+};
+
 const PassageView = () => {
   const {
     activeBookId,
@@ -235,11 +249,7 @@ const PassageView = () => {
     tocAbortRef.current = true;
     if (chapter === activeChapter) {
       setHeadingsOnlyMode(false);
-      setTimeout(() => {
-        document
-          .getElementById(`section-heading-${beforeVerse}`)
-          ?.scrollIntoView({ block: "start", behavior: "smooth" });
-      }, 50);
+      scrollToIdDeferred(`section-heading-${beforeVerse}`, true);
     } else {
       pendingScrollHeadingRef.current = beforeVerse;
       setHeadingsOnlyMode(false);
@@ -311,11 +321,7 @@ const PassageView = () => {
         const pendingVerse = pendingScrollHeadingRef.current;
         if (pendingVerse !== null) {
           pendingScrollHeadingRef.current = null;
-          setTimeout(() => {
-            document
-              .getElementById(`section-heading-${pendingVerse}`)
-              ?.scrollIntoView({ block: "start", behavior: "smooth" });
-          }, 50);
+          scrollToIdDeferred(`section-heading-${pendingVerse}`, true);
         }
 
         // Consume a pending reading-position restore (set by
@@ -358,17 +364,13 @@ const PassageView = () => {
         }
         initialLoadRef.current = false;
         if (restoreVerse !== null) {
-          setTimeout(() => {
-            document
-              .getElementById(
-                verseDomId('bible', {
-                  bookId: activeBookId,
-                  chapter: activeChapter,
-                  verse: restoreVerse,
-                })
-              )
-              ?.scrollIntoView({ block: 'start' });
-          }, 50);
+          scrollToIdDeferred(
+            verseDomId('bible', {
+              bookId: activeBookId,
+              chapter: activeChapter,
+              verse: restoreVerse,
+            })
+          );
         }
 
         // Persist the position the user landed on. Scroll events
