@@ -1,7 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+} from 'vitest';
 import { server } from '../../mocks/server';
 import { API_BASE_URL } from '../../config';
 import NoteDetailRoute from '../NoteDetailRoute';
@@ -90,6 +97,10 @@ describe('NoteDetailRoute error paths', () => {
   beforeEach(() => {
     resetStore();
     mockDomApis();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('shows a friendly error when the note fetch fails ' +

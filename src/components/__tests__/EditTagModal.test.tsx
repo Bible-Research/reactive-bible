@@ -1,4 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 import {
   render,
   screen,
@@ -84,6 +91,10 @@ describe('EditTagModal', () => {
     );
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('populates the form with the tag being edited', () => {
     renderModal();
 
@@ -165,8 +176,11 @@ describe('EditTagModal', () => {
 
   it('blocks a circular parent relationship against the ' +
     'real canSetParent/isDescendant chain', async () => {
-      // tag-c -> tag-b -> tag-a: editing tag-a and pointing
-      // its parent at tag-c would create a cycle.
+      // tag-c -> tag-b -> tag-a: tag-a already has tag-c as
+      // its stored parent. Submitting unchanged exercises
+      // canSetParent('tag-c'), which walks tag-c's ancestor
+      // chain (tag-c -> tag-b -> tag-a), finds tag-a itself,
+      // and rejects the circular relationship.
       const tags = [
         makeTag('tag-a', 'Alpha', 'tag-c'),
         makeTag('tag-b', 'Beta', 'tag-a'),
