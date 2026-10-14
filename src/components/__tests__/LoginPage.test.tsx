@@ -1,12 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { LoginPage } from '../LoginPage';
 import { renderWithProviders } from '../../__tests__/helpers';
 import { useAuthStore } from '../../stores/authStore';
+import { server } from '../../mocks/server';
+import { API_BASE_URL } from '../../config';
 
-// Mock useNavigate
+const TOKEN_URL = `${API_BASE_URL}/api/token/`;
+
+// Mock useNavigate / useLocation so redirects are observable and
+// the `from` location state can be varied per test.
 const mockNavigate = vi.fn();
+const mockUseLocation = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<
     typeof import('react-router-dom')
@@ -14,45 +21,64 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    useLocation: () => ({ state: null }),
+    useLocation: () => mockUseLocation(),
   };
 });
 
-// Mock notifications
+const mockShowNotification = vi.fn();
 vi.mock('@mantine/notifications', () => ({
-  showNotification: vi.fn(),
+  showNotification: (...args: unknown[]) =>
+    mockShowNotification(...args),
 }));
 
-describe.skip('LoginPage', () => {
+// These tests exercise the REAL auth store against the MSW
+// token endpoint — no store action mocks — so a regression in
+// either the page or authStore.login surfaces here.
+describe('LoginPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    useAuthStore.setState({
-      token: null,
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-    });
+    // renderWithProviders' mockDomApis spyOns getElementById
+    // each render — restoring unwraps the nested spy chain.
+    vi.restoreAllMocks();
+    mockUseLocation.mockReturnValue({ state: null });
   });
 
-  it('should render login form', () => {
+  const fillAndSubmit = async (
+    user: ReturnType<typeof userEvent.setup>,
+    username = 'testuser',
+    password = 'testpass123'
+  ) => {
+    await user.type(screen.getByLabelText(/username/i), username);
+    await user.type(screen.getByLabelText(/password/i), password);
+    await user.click(
+      screen.getByRole('button', { name: /sign in/i })
+    );
+  };
+
+  it('should render the sign-in form', () => {
     renderWithProviders(<LoginPage />);
 
-    expect(screen.getByText('Welcome to Bible Research')).toBeInTheDocument();
+    expect(
+      screen.getByText('Welcome to Bible Research')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/sign in to access your notes and tags/i)
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /sign in/i })
+    ).toBeInTheDocument();
   });
 
-  it('should show helper text about account creation', () => {
+  it('should link to the registration page', () => {
     renderWithProviders(<LoginPage />);
 
     expect(
-      screen.getByText(/You need a user account with a password/i)
+      screen.getByText(/don't have an account/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Auto-created accounts/i)
-    ).toBeInTheDocument();
+      screen.getByRole('link', { name: /create one now/i })
+    ).toHaveAttribute('href', '/register');
   });
 
   it('should handle user input', async () => {
@@ -69,135 +95,158 @@ describe.skip('LoginPage', () => {
     expect(passwordInput).toHaveValue('testpass123');
   });
 
-  it('should call login on form submit', async () => {
-    const user = userEvent.setup();
-    const mockLogin = vi.fn().mockResolvedValue(undefined);
-    
-    useAuthStore.setState({
-      login: mockLogin as any,
-    });
-
-    renderWithProviders(<LoginPage />);
-
-    await user.type(screen.getByLabelText(/username/i), 'testuser');
-    await user.type(screen.getByLabelText(/password/i), 'testpass123');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
-
-    await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith('testuser', 'testpass123');
-    });
-  });
-
-  it('should navigate to /notes after successful login', async () => {
-    const user = userEvent.setup();
-    const mockLogin = vi.fn().mockResolvedValue(undefined);
-    
-    useAuthStore.setState({
-      login: mockLogin as any,
-    });
-
-    renderWithProviders(<LoginPage />);
-
-    await user.type(screen.getByLabelText(/username/i), 'testuser');
-    await user.type(screen.getByLabelText(/password/i), 'testpass123');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/notes', { replace: true });
-    });
-  });
-
-  it('should display error message on login failure', async () => {
-    const user = userEvent.setup();
-    const mockLogin = vi.fn().mockRejectedValue(
-      new Error('Invalid credentials')
-    );
-    
-    useAuthStore.setState({
-      login: mockLogin as any,
-      error: 'Invalid credentials',
-    });
-
-    renderWithProviders(<LoginPage />);
-
-    await user.type(screen.getByLabelText(/username/i), 'testuser');
-    await user.type(screen.getByLabelText(/password/i), 'wrongpass');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/Invalid credentials/i)).toBeInTheDocument();
-    });
-  });
-
-  it('should show loading state during login', async () => {
-    const user = userEvent.setup();
-    const mockLogin = vi.fn().mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 100))
-    );
-    
-    useAuthStore.setState({
-      login: mockLogin as any,
-    });
-
-    renderWithProviders(<LoginPage />);
-
-    await user.type(screen.getByLabelText(/username/i), 'testuser');
-    await user.type(screen.getByLabelText(/password/i), 'testpass123');
-    
-    const submitButton = screen.getByRole('button', { name: /sign in/i });
-    await user.click(submitButton);
-
-    // Button should show loading state
-    await waitFor(() => {
-      expect(submitButton).toBeDisabled();
-    });
-  });
-
-  it('should disable inputs during loading', async () => {
-    useAuthStore.setState({
-      isLoading: true,
-    });
-
-    renderWithProviders(<LoginPage />);
-
-    const usernameInput = screen.getByLabelText(/username/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-
-    expect(usernameInput).toBeDisabled();
-    expect(passwordInput).toBeDisabled();
-  });
-
-  it('should clear error when clearError is called', async () => {
-    const user = userEvent.setup();
-    const mockClearError = vi.fn();
-    
-    useAuthStore.setState({
-      error: 'Test error',
-      clearError: mockClearError,
-    });
-
-    renderWithProviders(<LoginPage />);
-
-    const closeButton = screen.getByRole('button', { name: /close/i });
-    await user.click(closeButton);
-
-    expect(mockClearError).toHaveBeenCalled();
-  });
-
   it('should require username and password', () => {
     renderWithProviders(<LoginPage />);
 
-    const usernameInput = screen.getByLabelText(/username/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-
-    expect(usernameInput).toBeRequired();
-    expect(passwordInput).toBeRequired();
+    expect(screen.getByLabelText(/username/i)).toBeRequired();
+    expect(screen.getByLabelText(/password/i)).toBeRequired();
   });
 
-  it('should autofocus username input', () => {
+  it('should login and navigate to /notes', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<LoginPage />);
 
-    const usernameInput = screen.getByLabelText(/username/i);
-    expect(usernameInput).toHaveAttribute('autofocus');
+    await fillAndSubmit(user);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/notes', {
+        replace: true,
+      });
+    });
+
+    const auth = useAuthStore.getState();
+    expect(auth.token).toBe('test-token');
+    expect(auth.isAuthenticated).toBe(true);
+    expect(auth.user).toEqual({ username: 'testuser' });
+  });
+
+  it('should show a success notification after login', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await fillAndSubmit(user);
+
+    await waitFor(() => {
+      expect(mockShowNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Welcome!',
+          color: 'green',
+        })
+      );
+    });
+  });
+
+  it('should redirect back to the originally requested page', async () => {
+    mockUseLocation.mockReturnValue({
+      state: { from: { pathname: '/tags' } },
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await fillAndSubmit(user);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/tags', {
+        replace: true,
+      });
+    });
+  });
+
+  it('should display an error alert when login fails', async () => {
+    server.use(
+      http.post(TOKEN_URL, () =>
+        HttpResponse.json({}, { status: 401 })
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await fillAndSubmit(user);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Invalid username or password')
+      ).toBeInTheDocument();
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it('should clear the error when the alert is dismissed', async () => {
+    server.use(
+      http.post(TOKEN_URL, () =>
+        HttpResponse.json({}, { status: 401 })
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await fillAndSubmit(user);
+
+    const alert = await screen.findByRole('alert');
+    // The alert's only button is its close (dismiss) button.
+    await user.click(within(alert).getByRole('button'));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+    expect(useAuthStore.getState().error).toBeNull();
+  });
+
+  it('should disable the form while the store is loading', () => {
+    renderWithProviders(<LoginPage />, {
+      authStoreState: { isLoading: true },
+    });
+
+    expect(screen.getByLabelText(/username/i)).toBeDisabled();
+    expect(screen.getByLabelText(/password/i)).toBeDisabled();
+    // Mantine's `loading` prop shows a spinner via data-loading;
+    // it does not disable the button (no `disabled` prop in prod).
+    expect(
+      screen.getByRole('button', { name: /sign in/i })
+    ).toHaveAttribute('data-loading', 'true');
+  });
+
+  it('should disable the form while a login is in flight', async () => {
+    server.use(
+      http.post(TOKEN_URL, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return HttpResponse.json({ token: 'test-token' });
+      })
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await user.type(screen.getByLabelText(/username/i), 'testuser');
+    await user.type(
+      screen.getByLabelText(/password/i),
+      'testpass123'
+    );
+    await user.click(
+      screen.getByRole('button', { name: /sign in/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/username/i)).toBeDisabled();
+    });
+    expect(screen.getByLabelText(/password/i)).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /sign in/i })
+    ).toHaveAttribute('data-loading', 'true');
+
+    // The in-flight login settles and navigation follows.
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/notes', {
+        replace: true,
+      });
+    });
+  });
+
+  it('should autofocus the username input', () => {
+    renderWithProviders(<LoginPage />);
+
+    // React's autoFocus focuses programmatically; no attribute
+    // is rendered, so assert the focus outcome itself.
+    expect(screen.getByLabelText(/username/i)).toHaveFocus();
   });
 });

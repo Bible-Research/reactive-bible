@@ -1,12 +1,16 @@
-import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { RegisterPage } from '../RegisterPage';
 import { renderWithProviders } from '../../__tests__/helpers';
 import { useAuthStore } from '../../stores/authStore';
+import { server } from '../../mocks/server';
+import { API_BASE_URL } from '../../config';
 
-// Mock useNavigate
+const REGISTER_URL = `${API_BASE_URL}/api/v1/users/register/`;
+
+// Mock useNavigate so post-registration redirects are observable.
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<
@@ -15,36 +19,64 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    Link: ({ to, children }: any) => <a href={to}>{children}</a>,
   };
 });
 
-// Mock notifications
 const mockShowNotification = vi.fn();
 vi.mock('@mantine/notifications', () => ({
-  showNotification: mockShowNotification,
+  showNotification: (...args: unknown[]) =>
+    mockShowNotification(...args),
 }));
 
-describe.skip('RegisterPage', () => {
+// Submit tests exercise the REAL auth store against the MSW
+// register endpoint — no store action mocks.
+describe('RegisterPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    useAuthStore.setState({
-      token: null,
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-    });
+    // renderWithProviders' mockDomApis spyOns getElementById
+    // each render — restoring unwraps the nested spy chain.
+    vi.restoreAllMocks();
   });
+
+  const fillValidForm = async (
+    user: ReturnType<typeof userEvent.setup>,
+    {
+      username = 'newuser',
+      email,
+      password = 'SecurePass123',
+      confirm = password,
+    }: {
+      username?: string;
+      email?: string;
+      password?: string;
+      confirm?: string;
+    } = {}
+  ) => {
+    await user.type(screen.getByLabelText(/username/i), username);
+    if (email !== undefined) {
+      await user.type(screen.getByLabelText(/email/i), email);
+    }
+    await user.type(screen.getByLabelText(/^password/i), password);
+    await user.type(
+      screen.getByLabelText(/confirm password/i),
+      confirm
+    );
+    await user.click(
+      screen.getByRole('button', { name: /create account/i })
+    );
+  };
 
   it('should render registration form', () => {
     renderWithProviders(<RegisterPage />);
 
-    expect(screen.getByText('Create Account')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Create Account' })
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/confirm password/i)
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /create account/i })
     ).toBeInTheDocument();
@@ -53,14 +85,20 @@ describe.skip('RegisterPage', () => {
   it('should show email is optional', () => {
     renderWithProviders(<RegisterPage />);
 
-    expect(screen.getByText(/used for password recovery/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/used for password recovery/i)
+    ).toBeInTheDocument();
   });
 
   it('should show link to login page', () => {
     renderWithProviders(<RegisterPage />);
 
-    expect(screen.getByText(/already have an account/i)).toBeInTheDocument();
-    expect(screen.getByText('Sign in')).toBeInTheDocument();
+    expect(
+      screen.getByText(/already have an account/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /sign in/i })
+    ).toHaveAttribute('href', '/login');
   });
 
   it('should handle user input', async () => {
@@ -69,7 +107,7 @@ describe.skip('RegisterPage', () => {
 
     const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
+    const passwordInput = screen.getByLabelText(/^password/i);
     const confirmInput = screen.getByLabelText(/confirm password/i);
 
     await user.type(usernameInput, 'newuser');
@@ -87,15 +125,7 @@ describe.skip('RegisterPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<RegisterPage />);
 
-    await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
-    await user.type(
-      screen.getByLabelText(/confirm password/i),
-      'differentpass'
-    );
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    await fillValidForm(user, { confirm: 'differentpass' });
 
     await waitFor(() => {
       expect(mockShowNotification).toHaveBeenCalledWith(
@@ -106,18 +136,14 @@ describe.skip('RegisterPage', () => {
         })
       );
     });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('should show error if password is too short', async () => {
     const user = userEvent.setup();
     renderWithProviders(<RegisterPage />);
 
-    await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'short');
-    await user.type(screen.getByLabelText(/confirm password/i), 'short');
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    await fillValidForm(user, { password: 'short' });
 
     await waitFor(() => {
       expect(mockShowNotification).toHaveBeenCalledWith(
@@ -128,94 +154,79 @@ describe.skip('RegisterPage', () => {
         })
       );
     });
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('should call register on form submit', async () => {
+  it('should submit the registration payload to the API', async () => {
+    let capturedBody: Record<string, unknown> = {};
+    server.use(
+      http.post(REGISTER_URL, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<
+          string,
+          unknown
+        >;
+        return HttpResponse.json(
+          { token: 'test-token', user: { username: 'newuser' } },
+          { status: 201 }
+        );
+      })
+    );
     const user = userEvent.setup();
-    const mockRegister = vi.fn().mockResolvedValue(undefined);
-
-    useAuthStore.setState({
-      register: mockRegister as any,
-    });
-
     renderWithProviders(<RegisterPage />);
 
-    await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
-    await user.type(
-      screen.getByLabelText(/confirm password/i),
-      'SecurePass123'
-    );
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    await fillValidForm(user, { email: 'test@example.com' });
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(
-        'newuser',
-        'SecurePass123',
-        'SecurePass123',
-        'test@example.com'
-      );
+      expect(capturedBody).toEqual({
+        username: 'newuser',
+        password: 'SecurePass123',
+        password_confirm: 'SecurePass123',
+        email: 'test@example.com',
+      });
     });
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
   it('should register without email if not provided', async () => {
+    let capturedBody: Record<string, unknown> = {};
+    server.use(
+      http.post(REGISTER_URL, async ({ request }) => {
+        capturedBody = (await request.json()) as Record<
+          string,
+          unknown
+        >;
+        return HttpResponse.json(
+          { token: 'test-token', user: { username: 'newuser' } },
+          { status: 201 }
+        );
+      })
+    );
     const user = userEvent.setup();
-    const mockRegister = vi.fn().mockResolvedValue(undefined);
-
-    useAuthStore.setState({
-      register: mockRegister as any,
-    });
-
     renderWithProviders(<RegisterPage />);
 
-    await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
-    await user.type(
-      screen.getByLabelText(/confirm password/i),
-      'SecurePass123'
-    );
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    await fillValidForm(user);
 
     await waitFor(() => {
-      expect(mockRegister).toHaveBeenCalledWith(
-        'newuser',
-        'SecurePass123',
-        'SecurePass123',
-        undefined
-      );
+      expect(mockNavigate).toHaveBeenCalledWith('/notes', {
+        replace: true,
+      });
     });
+    expect(capturedBody).not.toHaveProperty('email');
   });
 
   it('should show success notification after registration', async () => {
     const user = userEvent.setup();
-    const mockRegister = vi.fn().mockResolvedValue(undefined);
-
-    useAuthStore.setState({
-      register: mockRegister as any,
-    });
-
     renderWithProviders(<RegisterPage />);
 
-    await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
-    await user.type(
-      screen.getByLabelText(/confirm password/i),
-      'SecurePass123'
-    );
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    await fillValidForm(user);
 
     await waitFor(() => {
       expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'Success',
-          message: expect.stringContaining('Account created successfully'),
+          message: expect.stringContaining(
+            'Account created successfully'
+          ),
           color: 'green',
         })
       );
@@ -224,117 +235,92 @@ describe.skip('RegisterPage', () => {
 
   it('should navigate to /notes after successful registration', async () => {
     const user = userEvent.setup();
-    const mockRegister = vi.fn().mockResolvedValue(undefined);
-
-    useAuthStore.setState({
-      register: mockRegister as any,
-    });
-
     renderWithProviders(<RegisterPage />);
 
-    await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
-    await user.type(
-      screen.getByLabelText(/confirm password/i),
-      'SecurePass123'
-    );
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    await fillValidForm(user);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/notes', { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith('/notes', {
+        replace: true,
+      });
     });
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
   it('should display error message on registration failure', async () => {
-    const user = userEvent.setup();
-    const mockRegister = vi.fn().mockRejectedValue(
-      new Error('Username already exists')
+    server.use(
+      http.post(REGISTER_URL, () =>
+        HttpResponse.json(
+          { username: ['A user with that username already exists.'] },
+          { status: 400 }
+        )
+      )
     );
-
-    useAuthStore.setState({
-      register: mockRegister as any,
-      error: 'Username already exists',
-    });
-
+    const user = userEvent.setup();
     renderWithProviders(<RegisterPage />);
 
-    await user.type(screen.getByLabelText(/username/i), 'existinguser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
-    await user.type(
-      screen.getByLabelText(/confirm password/i),
-      'SecurePass123'
-    );
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    await fillValidForm(user, { username: 'existinguser' });
 
     await waitFor(() => {
       expect(
-        screen.getByText(/username already exists/i)
+        screen.getByText(/a user with that username already exists/i)
       ).toBeInTheDocument();
     });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
-  it('should show loading state during registration', async () => {
+  it('should clear the error when the alert is dismissed', async () => {
     const user = userEvent.setup();
-
-    useAuthStore.setState({
-      isLoading: true,
+    renderWithProviders(<RegisterPage />, {
+      authStoreState: { error: 'Test error' },
     });
 
-    renderWithProviders(<RegisterPage />);
+    const alert = screen.getByRole('alert');
+    // The alert's only button is its close (dismiss) button.
+    await user.click(within(alert).getByRole('button'));
 
-    const submitButton = screen.getByRole('button', {
-      name: /create account/i,
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
-    const usernameInput = screen.getByLabelText(/username/i);
-
-    expect(submitButton).toBeDisabled();
-    expect(usernameInput).toBeDisabled();
+    expect(useAuthStore.getState().error).toBeNull();
   });
 
-  it('should clear error when clearError is called', async () => {
-    const user = userEvent.setup();
-    const mockClearError = vi.fn();
-
-    useAuthStore.setState({
-      error: 'Test error',
-      clearError: mockClearError,
+  it('should disable the form while the store is loading', () => {
+    renderWithProviders(<RegisterPage />, {
+      authStoreState: { isLoading: true },
     });
 
-    renderWithProviders(<RegisterPage />);
-
-    const closeButton = screen.getByRole('button', { name: /close/i });
-    await user.click(closeButton);
-
-    expect(mockClearError).toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: /create account/i })
+    ).toBeDisabled();
+    expect(screen.getByLabelText(/username/i)).toBeDisabled();
+    expect(screen.getByLabelText(/email/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^password/i)).toBeDisabled();
+    expect(
+      screen.getByLabelText(/confirm password/i)
+    ).toBeDisabled();
   });
 
   it('should require username and passwords', () => {
     renderWithProviders(<RegisterPage />);
 
-    const usernameInput = screen.getByLabelText(/username/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmInput = screen.getByLabelText(/confirm password/i);
-
-    expect(usernameInput).toBeRequired();
-    expect(passwordInput).toBeRequired();
-    expect(confirmInput).toBeRequired();
+    expect(screen.getByLabelText(/username/i)).toBeRequired();
+    expect(screen.getByLabelText(/^password/i)).toBeRequired();
+    expect(screen.getByLabelText(/confirm password/i)).toBeRequired();
   });
 
   it('should not require email', () => {
     renderWithProviders(<RegisterPage />);
 
-    const emailInput = screen.getByLabelText(/email/i);
-    expect(emailInput).not.toBeRequired();
+    expect(screen.getByLabelText(/email/i)).not.toBeRequired();
   });
 
   it('should autofocus username input', () => {
     renderWithProviders(<RegisterPage />);
 
-    const usernameInput = screen.getByLabelText(/username/i);
-    expect(usernameInput).toHaveAttribute('autofocus');
+    // React's autoFocus focuses programmatically; no attribute
+    // is rendered, so assert the focus outcome itself.
+    expect(screen.getByLabelText(/username/i)).toHaveFocus();
   });
 });
