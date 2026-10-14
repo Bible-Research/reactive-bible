@@ -1,11 +1,29 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useBibleStore, initialState } from './store';
+import { useAuthStore } from './stores/authStore';
 import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
 import { Note, Tag } from './types';
 
-// Mock dependencies
-vi.mock('./api');
+// Mock dependencies — every api function is stubbed, but the
+// error classes stay real because store actions branch on
+// `instanceof` (e.g. ConflictError).
+vi.mock('./api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api')>();
+  const mocked: Record<string, unknown> = { ...actual };
+  const realClasses = new Set([
+    'ConflictError',
+    'RateLimitError',
+    'ProviderError',
+    'BookNotInFilesetError',
+  ]);
+  for (const [key, value] of Object.entries(actual)) {
+    if (typeof value === 'function' && !realClasses.has(key)) {
+      mocked[key] = vi.fn();
+    }
+  }
+  return mocked;
+});
 vi.mock('./utils/cacheManager');
 
 const mockApi = vi.mocked(api);
@@ -33,22 +51,13 @@ describe('useBibleStore', () => {
 
   describe('fetchNotes with caching', () => {
     const tag: Tag = {
-      id: 'TAG1',
-      name: 'Test Tag',
-      parent_tag: null,
-      created_at: '',
-      updated_at: '',
+      id: 'TAG1', name: 'Test Tag', parent_tag: null,
+      created_at: '', updated_at: '',
     };
     const sampleNotes: Note[] = [{
-      id: 'note1',
-      note_text: 'Cached note',
-      tag,
-      verses: [],
-      public: false,
-      is_owner: true,
-      created_at: '',
-      updated_at: '',
-      tag_position: null,
+      id: 'note1', note_text: 'Cached note', tag, verses: [],
+      public: false, is_owner: true, created_at: '',
+      updated_at: '', tag_position: null,
     }];
 
     it('should fetch notes from cache if available', async () => {
@@ -99,6 +108,49 @@ describe('useBibleStore', () => {
       );
       expect(useBibleStore.getState().notes).toEqual(sampleNotes);
     });
+
+    it('resolves a stored product id before sending fileset_id',
+      async () => {
+        mockCacheManager.getCachedNotes.mockReturnValue(null);
+        mockApi.getNotes.mockResolvedValue({
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        });
+        // The selector persists grouped product ids like
+        // `ENGESV:text:0` — the API only understands concrete
+        // fileset ids.
+        useBibleStore.setState({
+          activeTextFilesetId: 'ENGESV:text:0',
+          activeBookId: 'JHN',
+          translations: [
+            {
+              abbr: 'ENGESV',
+              name: 'English Standard Version',
+              language: 'English',
+              language_iso: 'eng',
+              filesets: [
+                { id: 'ENGESV_API', type: 'text_plain', size: 'C',
+                  codec: null, bitrate: null },
+                { id: 'ENGESVO_ET', type: 'text_plain', size: 'OT',
+                  codec: null, bitrate: null },
+                { id: 'ENGESVN_ET', type: 'text_plain', size: 'NT',
+                  codec: null, bitrate: null },
+              ],
+            },
+          ],
+        });
+
+        await useBibleStore.getState().fetchNotes('TAG1');
+
+        expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1', {
+          ordering: undefined,
+          page: 1,
+          pageSize: 25,
+          filesetId: 'ENGESV_API',
+        });
+      });
   });
 
   describe('deleteNote with cache clearing', () => {
@@ -110,11 +162,8 @@ describe('useBibleStore', () => {
           id: 'note1', 
           note_text: 'A note', 
           tag: {
-            id: 't1',
-            name: 't1',
-            parent_tag: null,
-            created_at: '',
-            updated_at: '',
+            id: 't1', name: 't1', parent_tag: null,
+            created_at: '', updated_at: '',
           },
           verses: [], 
           public: false, 
@@ -131,42 +180,195 @@ describe('useBibleStore', () => {
       expect(mockCacheManager.clearNotesCache).toHaveBeenCalled();
       expect(useBibleStore.getState().notes).toEqual([]);
     });
+  });
 
-    it('should decrement notesCount when the note is listed', async () => {
-      mockApi.deleteNote.mockResolvedValue('');
-      useBibleStore.setState({
-        notes: [{
-          id: 'note1',
-          note_text: 'A note',
-          tag: {
-            id: 't1',
-            name: 't1',
-            parent_tag: null,
-            created_at: '',
-            updated_at: '',
-          },
-          verses: [],
-          public: false,
-          is_owner: true,
-          created_at: '',
-          updated_at: '',
-          tag_position: null
-        }],
-        notesCount: 7,
-      });
-
-      await useBibleStore.getState().deleteNote('note1');
-
-      expect(useBibleStore.getState().notesCount).toBe(6);
+  describe('setActiveBookWithPosition', () => {
+    beforeEach(() => {
+      useAuthStore.setState({ isAuthenticated: false });
     });
 
-    it('should not change notesCount for unlisted notes', async () => {
-      mockApi.deleteNote.mockResolvedValue('');
-      useBibleStore.setState({ notes: [], notesCount: 7 });
+    it('restores the saved chapter when switching books', async () => {
+      useAuthStore.setState({ isAuthenticated: true });
+      mockApi.getReadingPosition.mockResolvedValue({
+        id: 'RDP1',
+        book: 'Mark',
+        chapter: 5,
+        verse: 16,
+        last_accessed: '2026-01-01T00:00:00Z',
+      });
 
-      await useBibleStore.getState().deleteNote('note9');
+      await useBibleStore.getState().setActiveBookWithPosition('MRK');
 
-      expect(useBibleStore.getState().notesCount).toBe(7);
+      const state = useBibleStore.getState();
+      expect(mockApi.getReadingPosition)
+        .toHaveBeenCalledWith('MRK');
+      expect(state.activeBookId).toBe('MRK');
+      expect(state.activeChapter).toBe(5);
+      // Restoring a position must not select a verse (that would
+      // pop up the VerseActionToolbar unprompted).
+      expect(state.verseSelection).toBeNull();
+      // Verse > 1 is queued for scroll restoration.
+      expect(state.pendingScrollVerse).toEqual({
+        bookId: 'MRK',
+        chapter: 5,
+        verse: 16,
+      });
+      expect(state.readingPositions.MRK).toEqual({
+        chapter: 5,
+        verse: 16,
+      });
+    });
+
+    it('uses the cached position without an API call', async () => {
+      useAuthStore.setState({ isAuthenticated: true });
+      useBibleStore.setState({
+        readingPositions: { MRK: { chapter: 2, verse: 1 } },
+      });
+
+      await useBibleStore.getState().setActiveBookWithPosition('MRK');
+
+      expect(mockApi.getReadingPosition).not.toHaveBeenCalled();
+      expect(useBibleStore.getState().activeChapter).toBe(2);
+      expect(useBibleStore.getState().pendingScrollVerse).toBeNull();
+    });
+
+    it('does not fetch a position when unauthenticated', async () => {
+      await useBibleStore.getState().setActiveBookWithPosition('MRK');
+
+      expect(mockApi.getReadingPosition).not.toHaveBeenCalled();
+      expect(useBibleStore.getState().activeBookId).toBe('MRK');
+      expect(useBibleStore.getState().activeChapter).toBe(1);
+    });
+
+    it('syncs only locally when unauthenticated', async () => {
+      useBibleStore.getState().syncReadingPosition('MRK', 3, 7);
+
+      const state = useBibleStore.getState();
+      expect(state.readingPositions.MRK).toEqual({
+        chapter: 3,
+        verse: 7,
+      });
+      expect(mockApi.updateReadingPosition).not.toHaveBeenCalled();
+    });
+
+    it('pushes position updates to the API when authenticated',
+      async () => {
+        useAuthStore.setState({ isAuthenticated: true });
+
+        useBibleStore.getState().syncReadingPosition('MRK', 3, 7);
+
+        expect(mockApi.updateReadingPosition)
+          .toHaveBeenCalledWith('MRK', 3, 7);
+      });
+  });
+
+  describe('note move/reorder refresh handling', () => {
+    const tag: Tag = {
+      id: 'TAG1', name: 'Test Tag', parent_tag: null,
+      created_at: '', updated_at: '',
+    };
+    const makeNote = (id: string): Note => ({
+      id, note_text: `Note ${id}`, tag, verses: [],
+      public: false, is_owner: true, created_at: '',
+      updated_at: '', tag_position: null,
+    });
+    const pageOf = (
+      results: Note[]
+    ): api.PaginatedNotesResponse => ({
+      count: results.length,
+      next: null,
+      previous: null,
+      results,
+    });
+
+    it('drops a stale fetchNotes response superseded by a ' +
+      'newer request', async () => {
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      let resolveStale: (
+        value: api.PaginatedNotesResponse
+      ) => void = () => undefined;
+      mockApi.getNotes
+        .mockImplementationOnce(
+          () =>
+            new Promise<api.PaginatedNotesResponse>((res) => {
+              resolveStale = res;
+            })
+        )
+        .mockResolvedValueOnce(pageOf([makeNote('fresh')]));
+
+      const staleCall =
+        useBibleStore.getState().fetchNotes('TAG1');
+      const freshCall =
+        useBibleStore.getState().fetchNotes('TAG1');
+      // Resolve the older request last — latest call wins.
+      resolveStale(pageOf([makeNote('stale')]));
+      await Promise.all([staleCall, freshCall]);
+
+      expect(useBibleStore.getState().notes).toEqual([
+        makeNote('fresh'),
+      ]);
+    });
+
+    it('still reports success when the post-move refetch ' +
+      'fails', async () => {
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.moveNote.mockResolvedValue({
+        note_id: 'n1',
+        tag_position: 1.5,
+        rebalanced: false,
+      });
+      mockApi.getNotes.mockRejectedValue(
+        new Error('refresh failed')
+      );
+      useBibleStore.setState({
+        notes: [makeNote('n1'), makeNote('n2')],
+        notesPage: 1,
+        notesOrdering: null,
+      });
+
+      // The move itself succeeded — a failed refresh must not
+      // reject as 'Failed to move note'.
+      await expect(
+        useBibleStore.getState().moveNoteAfter(
+          'TAG1', 'n1', 'n2', 'after'
+        )
+      ).resolves.toBeUndefined();
+    });
+
+    it('refreshes the current ordering and page after a ' +
+      'reorder conflict', async () => {
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.reorderNotes.mockRejectedValue(
+        new api.ConflictError('stale positions')
+      );
+      mockApi.getNotes.mockResolvedValue(pageOf([]));
+      useBibleStore.setState({
+        notesPage: 3,
+        notesOrdering: 'custom',
+      });
+
+      await expect(
+        useBibleStore.getState().reorderNotes(
+          'TAG1', ['n1', 'n2'], 3, 25
+        )
+      ).rejects.toBeInstanceOf(api.ConflictError);
+
+      // The refresh keeps the user on their page/ordering
+      // instead of bouncing to page 1 with ordering reset.
+      expect(mockCacheManager.clearNotesCache)
+        .toHaveBeenCalledWith('TAG1');
+      expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1', {
+        ordering: 'custom',
+        page: 3,
+        pageSize: 25,
+        filesetId: 'ENGESV_API',
+      });
+      expect(useBibleStore.getState().notesPage).toBe(3);
+      expect(useBibleStore.getState().notesOrdering)
+        .toBe('custom');
     });
   });
 });

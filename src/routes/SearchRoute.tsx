@@ -13,7 +13,6 @@ import {
   Center,
   Group,
   Loader,
-  Pagination,
   Stack,
   Text,
   TextInput,
@@ -24,17 +23,21 @@ import {
   IconSearch,
 } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
-import { searchBible, SearchVerse } from '../api';
+import {
+  searchBibleGrouped,
+  SearchVerse,
+  SearchVerseGroup,
+} from '../api';
 import {
   type PlaylistItem,
 } from '../types';
 import {
   BOOK_CODE_TO_NAME,
-  BOOK_CODE_TO_ORDER,
   buildBiblePath,
 } from '../utils/bibleUtils';
+import { resolveTextFileset } from '../utils/filesetGroups';
 
-const VERSE_PREVIEW_LIMIT = 5;
+const VERSE_PREVIEW_LIMIT = 3;
 
 function toPlaylistItem(
   v: SearchVerse,
@@ -54,47 +57,16 @@ function toPlaylistItem(
   };
 }
 
-interface BookGroup {
-  code: string;
-  displayName: string;
-  order: number;
-  verses: SearchVerse[];
-}
-
-function groupByBook(verses: SearchVerse[]): BookGroup[] {
-  const map = new Map<string, SearchVerse[]>();
-  for (const v of verses) {
-    const arr = map.get(v.book_id) ?? [];
-    arr.push(v);
-    map.set(v.book_id, arr);
-  }
-  const groups: BookGroup[] = [];
-  for (const [code, vs] of map.entries()) {
-    const sorted = [...vs].sort(
-      (a, b) =>
-        a.chapter - b.chapter || a.verse_start - b.verse_start,
-    );
-    groups.push({
-      code,
-      displayName: BOOK_CODE_TO_NAME[code] ?? code,
-      order: BOOK_CODE_TO_ORDER[code] ?? 999,
-      verses: sorted,
-    });
-  }
-  groups.sort((a, b) => a.order - b.order);
-  return groups;
-}
-
 export default function SearchRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const q = searchParams.get('q') ?? '';
-  const page = parseInt(searchParams.get('page') ?? '1', 10);
 
   const [inputValue, setInputValue] = useState(q);
-  const [verses, setVerses] = useState<SearchVerse[]>([]);
-  const [totalPages, setTotalPages] = useState(1);
+  const [groups, setGroups] = useState<SearchVerseGroup[]>([]);
+  const [total, setTotal] = useState(0);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -103,23 +75,17 @@ export default function SearchRoute() {
     useState<Set<string>>(new Set());
   const [playlistItems, setPlaylistItems] =
     useState<PlaylistItem[] | null>(null);
-  const [shouldAutoStartPlaylist, setShouldAutoStartPlaylist] =
-    useState(false);
 
   const activeTextFilesetId = useBibleStore(
     (s) => s.activeTextFilesetId,
   );
+  const activeBookId = useBibleStore((s) => s.activeBookId);
+  const translations = useBibleStore((s) => s.translations);
   const setAudioPlaylistItems = useBibleStore(
     (s) => s.setAudioPlaylistItems,
   );
   const setAudioPlaylistStartIndex = useBibleStore(
     (s) => s.setAudioPlaylistStartIndex,
-  );
-  const audioPlaylistEnded = useBibleStore(
-    (s) => s.audioPlaylistEnded,
-  );
-  const setAudioPlaylistEnded = useBibleStore(
-    (s) => s.setAudioPlaylistEnded,
   );
 
   useEffect(() => {
@@ -146,33 +112,54 @@ export default function SearchRoute() {
   }, [inputValue, setSearchParams]);
 
   useEffect(() => {
-    if (!q.trim() || !activeTextFilesetId) {
-      setVerses([]);
+    // The stored id may be a grouped product id (`{abbr}:text:n`)
+    // — resolve to the concrete fileset for the active book's
+    // testament before sending it as `fileset_id`.
+    const filesetId = resolveTextFileset(
+      activeTextFilesetId,
+      activeBookId,
+      translations,
+    );
+    if (!q.trim() || !filesetId) {
+      setGroups([]);
+      setTotal(0);
+      setTruncated(false);
+      setError(null);
       setSearched(false);
+      // A cleared query aborts the in-flight search (swallowed
+      // above) — reset loading or the spinner never clears.
+      setLoading(false);
       return;
     }
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    searchBible(q, activeTextFilesetId, page, 50, controller.signal)
+    searchBibleGrouped(q, filesetId, controller.signal)
       .then((res) => {
-        setVerses(res.verses);
-        setTotalPages(res.meta.pagination?.total_pages ?? 1);
+        setGroups(res.groups);
+        setTotal(res.meta.total);
+        setTruncated(res.meta.truncated);
         setSearched(true);
         setLoading(false);
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
+        setGroups([]);
+        setTotal(0);
+        setTruncated(false);
         setError(err.message);
         setLoading(false);
       });
     return () => controller.abort();
-  }, [q, activeTextFilesetId, page]);
+  }, [q, activeTextFilesetId, activeBookId, translations]);
 
-  const groups = useMemo(() => groupByBook(verses), [verses]);
+  const verses = useMemo(
+    () => groups.flatMap((g) => g.verses),
+    [groups],
+  );
 
   useEffect(() => {
-    setOpenGroups(groups.map((g) => g.code));
+    setOpenGroups(groups.map((g) => g.book_id));
     setExpandedBooks(new Set());
   }, [groups]);
 
@@ -187,39 +174,7 @@ export default function SearchRoute() {
     );
     setAudioPlaylistItems(items);
     setPlaylistItems(items);
-
-    if (shouldAutoStartPlaylist) {
-      setShouldAutoStartPlaylist(false);
-      setAudioPlaylistStartIndex(0);
-    }
-  }, [
-    verses,
-    setAudioPlaylistItems,
-    shouldAutoStartPlaylist,
-    setAudioPlaylistStartIndex,
-  ]);
-
-  useEffect(() => {
-    if (!audioPlaylistEnded) return;
-    setAudioPlaylistEnded(false);
-    if (page < totalPages) {
-      setShouldAutoStartPlaylist(true);
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          next.set('page', String(page + 1));
-          return next;
-        },
-        { replace: true },
-      );
-    }
-  }, [
-    audioPlaylistEnded,
-    page,
-    totalPages,
-    setAudioPlaylistEnded,
-    setSearchParams,
-  ]);
+  }, [verses, setAudioPlaylistItems]);
 
   const handlePlayVerse = useCallback(
     (v: SearchVerse) => {
@@ -283,17 +238,23 @@ export default function SearchRoute() {
         </Text>
       )}
 
-      {!loading && searched && verses.length === 0 && !error && (
+      {!loading && searched && groups.length === 0 && !error && (
         <Text color="dimmed" mt="md">
           No results found for &ldquo;{q}&rdquo;.
         </Text>
       )}
 
-      {!loading && verses.length > 0 && (
+      {!loading && groups.length > 0 && (
         <>
           <Text size="sm" color="dimmed" mb="sm">
             {verses.length} result{verses.length !== 1 ? 's' : ''}
           </Text>
+
+          {truncated && (
+            <Text size="sm" color="dimmed" mb="sm">
+              Showing first {verses.length} of {total} results
+            </Text>
+          )}
 
           <Accordion
             variant="separated"
@@ -303,7 +264,9 @@ export default function SearchRoute() {
             onChange={setOpenGroups}
           >
             {groups.map((group) => {
-              const isExpanded = expandedBooks.has(group.code);
+              const displayName =
+                BOOK_CODE_TO_NAME[group.book_id] ?? group.book_id;
+              const isExpanded = expandedBooks.has(group.book_id);
               const visible = isExpanded
                 ? group.verses
                 : group.verses.slice(0, VERSE_PREVIEW_LIMIT);
@@ -311,19 +274,19 @@ export default function SearchRoute() {
                 group.verses.length - visible.length;
               return (
                 <Accordion.Item
-                  key={group.code}
-                  value={group.code}
+                  key={group.book_id}
+                  value={group.book_id}
                 >
                   <Accordion.Control>
                     <Text weight={600}>
-                      {group.displayName}
+                      {displayName}
                       <Text
                         component="span"
                         size="sm"
                         color="dimmed"
                         ml="xs"
                       >
-                        ({group.verses.length})
+                        ({group.count})
                       </Text>
                     </Text>
                   </Accordion.Control>
@@ -345,7 +308,7 @@ export default function SearchRoute() {
                               color="dimmed"
                               mb={2}
                             >
-                              {group.displayName} {v.chapter}:
+                              {displayName} {v.chapter}:
                               {v.verse_start}
                             </Text>
                             <Text size="sm">
@@ -373,7 +336,7 @@ export default function SearchRoute() {
                           onClick={() =>
                             setExpandedBooks(
                               (prev) =>
-                                new Set([...prev, group.code]),
+                                new Set([...prev, group.book_id]),
                             )
                           }
                         >
@@ -387,22 +350,6 @@ export default function SearchRoute() {
               );
             })}
           </Accordion>
-
-          {totalPages > 1 && (
-            <Center mt="lg">
-              <Pagination
-                total={totalPages}
-                value={page}
-                onChange={(p) =>
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set('page', String(p));
-                    return next;
-                  })
-                }
-              />
-            </Center>
-          )}
         </>
       )}
     </Box>

@@ -2,7 +2,17 @@ import { screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import CommentNode from '../CommentNode';
 import { renderWithProviders } from '../../__tests__/helpers';
-import { Comment } from '../../api';
+import { Comment, CommentImage } from '../../types';
+
+const makeImage = (id: string): CommentImage => ({
+  id,
+  storage_url: `gs://bucket/originals/${id}/${id}.png`,
+  signed_url: `https://example.com/${id}.png`,
+  content_type: 'image/png',
+  size_bytes: 1024,
+  uploaded_by: 1,
+  created_at: '2024-01-01T00:00:00Z',
+});
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
 vi.mock('../RichTextEditor', async () => ({
@@ -20,6 +30,7 @@ const makeComment = (overrides: Partial<Comment> = {}): Comment => ({
   timestamp: '2024-01-01T00:00:00Z',
   is_deleted: false,
   replies: [],
+  images: [],
   ...overrides,
 });
 
@@ -30,6 +41,7 @@ const defaultProps = {
   onReply: vi.fn().mockResolvedValue(undefined),
   onUpdate: vi.fn().mockResolvedValue(undefined),
   onDelete: vi.fn().mockResolvedValue(undefined),
+  onDeleteImage: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('CommentNode', () => {
@@ -148,5 +160,109 @@ describe('CommentNode', () => {
     expect(
       screen.getByText('A nested reply')
     ).toBeInTheDocument();
+  });
+
+  it('renders image thumbnails when comment has images', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+      />
+    );
+    expect(
+      document.querySelector('img[alt="img-1.png"]')
+    ).toBeInTheDocument();
+  });
+
+  it('renders a placeholder when an image has no signed URL', () => {
+    const img = { ...makeImage('img-1'), signed_url: null };
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [img] })}
+        {...defaultProps}
+      />
+    );
+    expect(
+      screen.getByRole('img', {
+        name: 'img-1.png (unavailable)',
+      })
+    ).toBeInTheDocument();
+  });
+
+  it('shows delete affordance on each image for the author', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+        currentUsername="alice"
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Delete image img-1' })
+    ).toBeInTheDocument();
+  });
+
+  it('hides delete affordance on images for non-author', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+        currentUsername="bob"
+      />
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Delete image img-1' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('lightbox shows fresh signed URL after comment prop update', () => {
+    const img1 = makeImage('img-1');
+    const { rerender } = renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [img1] })}
+        {...defaultProps}
+      />
+    );
+
+    fireEvent.click(screen.getByAltText('img-1.png'));
+
+    const lightboxImg = screen.getByAltText(
+      'full size'
+    ) as HTMLImageElement;
+    expect(lightboxImg.src).toBe(
+      'https://example.com/img-1.png'
+    );
+
+    const refreshedImg = {
+      ...img1,
+      signed_url: 'https://example.com/img-1-refreshed.png',
+    };
+    rerender(
+      <CommentNode
+        comment={makeComment({ images: [refreshedImg] })}
+        {...defaultProps}
+      />
+    );
+
+    expect(lightboxImg.src).toBe(
+      'https://example.com/img-1-refreshed.png'
+    );
+  });
+
+  it('lightbox img onError calls onRequestRefresh', () => {
+    const onRequestRefresh = vi.fn();
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ images: [makeImage('img-1')] })}
+        {...defaultProps}
+        onRequestRefresh={onRequestRefresh}
+      />
+    );
+
+    fireEvent.click(screen.getByAltText('img-1.png'));
+
+    fireEvent.error(screen.getByAltText('full size'));
+
+    expect(onRequestRefresh).toHaveBeenCalledWith('c1');
   });
 });

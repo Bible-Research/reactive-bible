@@ -301,22 +301,67 @@ export const getTestament = (bookCode: string): Testament | null => {
   return BOOK_CODE_TO_TESTAMENT[bookCode.toUpperCase()] || null;
 };
 
+export interface SizeCoverage {
+  /** Testaments the size code claims to cover (OT first). */
+  testaments: Testament[];
+  /** Per-testament flag: true when the size marks it partial. */
+  partial: { OT: boolean; NT: boolean };
+}
+
+/**
+ * Parses a DBT fileset `size` field into testament coverage.
+ * Handles "C" (complete), "NT"/"OT", partial variants
+ * ("NTP", "OTP", "NTPOTP"), numbered codes ("NT1"-style), and
+ * a bare "P". Unknown or ambiguous sizes are permissive: they
+ * report both testaments so a coverage check can never wrongly
+ * block a book — real coverage gaps surface as provider 404s.
+ */
+export const sizeToCoverage = (
+  size: string | null | undefined,
+): SizeCoverage => {
+  const s = (size ?? '').toUpperCase();
+  const isPartial = s.includes('P');
+  if (s === '') {
+    return {
+      testaments: ['OT', 'NT'],
+      partial: { OT: false, NT: false },
+    };
+  }
+  // Backend parity (`fileset_groups.py`): a `C` anywhere in the
+  // size marks complete coverage of both testaments.
+  const testaments: Testament[] = [];
+  if (s.includes('C')) testaments.push('OT', 'NT');
+  if (s.includes('OT') && !testaments.includes('OT')) {
+    testaments.push('OT');
+  }
+  if (s.includes('NT') && !testaments.includes('NT')) {
+    testaments.push('NT');
+  }
+  if (testaments.length === 0) {
+    testaments.push('OT', 'NT');
+  }
+  return {
+    testaments,
+    partial: {
+      OT: isPartial && testaments.includes('OT'),
+      NT: isPartial && testaments.includes('NT'),
+    },
+  };
+};
+
 /**
  * Checks whether a fileset's size field covers the given testament.
- * DBT size values: "C" = complete, "NT"/"NT1"/"NT2" = New Testament,
- * "OT"/"OT1"/"OT2" = Old Testament.
- * Returns true if compatible or if the size is unknown/ambiguous.
+ * DBT size values: "C" = complete, "NT"/"NT1"/"NTP" = New
+ * Testament, "OT"/"OT1"/"OTP" = Old Testament, "NTPOTP" = partial
+ * coverage of both. Returns true if compatible or if the size is
+ * unknown/ambiguous.
  */
 export const filesetCoversTestament = (
   filesetSize: string | null,
   testament: Testament | null,
 ): boolean => {
   if (!filesetSize || !testament) return true;
-  const s = filesetSize.toUpperCase();
-  if (s === 'C') return true;
-  if (testament === 'OT') return s.startsWith('OT');
-  if (testament === 'NT') return s.startsWith('NT');
-  return true;
+  return sizeToCoverage(filesetSize).testaments.includes(testament);
 };
 
 /**
@@ -331,17 +376,20 @@ export const getTestamentByBookName = (
 
 /**
  * Resolves the fileset ID to use for fetching verse timestamps.
- * When the active text fileset is ENGESV_API (text-only),
- * timestamps come from the corresponding ESV audio fileset
- * based on the book's testament. Otherwise strips the codec
- * suffix from the audio fileset ID.
+ * When ESV is involved (`ENGESV_API` as the active text or audio
+ * fileset), timestamps come from the corresponding DBT ESV audio
+ * fileset chosen by the book's testament. Otherwise strips the
+ * `-opus16` codec suffix from the resolved audio fileset ID.
  */
 export const resolveTimestampsFilesetId = (
   audioFilesetId: string | null,
   textFilesetId: string | null,
   bookId: string,
 ): string | null => {
-  if (textFilesetId === 'ENGESV_API') {
+  if (
+    audioFilesetId === 'ENGESV_API' ||
+    textFilesetId === 'ENGESV_API'
+  ) {
     const testament = getTestament(bookId);
     if (testament === 'OT') return 'ENGESVO1DA';
     if (testament === 'NT') return 'ENGESVN1DA';
@@ -390,53 +438,8 @@ export interface Fileset {
   bitrate: string | null;
 }
 
-export const findTestamentFallback = (
-  filesetId: string,
-  targetTestament: Testament,
-  availableFilesets: Fileset[],
-): string | null => {
-  const upper = filesetId.toUpperCase();
-  const targetChar = targetTestament === 'OT' ? 'O' : 'N';
-  let fallbackId: string | null = null;
-  const nIndex = upper.indexOf('N');
-  const oIndex = upper.indexOf('O');
-  const pIndex = upper.indexOf('P');
-  const hasN = nIndex !== -1 && /N\d/.test(upper.substring(nIndex));
-  const hasO = oIndex !== -1 && /O\d/.test(upper.substring(oIndex));
-  const hasP = pIndex !== -1 && /P\d/.test(upper.substring(pIndex));
-  if (hasP) {
-    return null;
-  }
-  if (hasN) {
-    const match = upper.match(/N(\d)/);
-    if (match) {
-      const versionNum = match[1];
-      const origChar = filesetId.charAt(
-        upper.indexOf(match[0]),
-      );
-      const tc = origChar === origChar.toUpperCase()
-        ? targetChar
-        : targetChar.toLowerCase();
-      fallbackId = filesetId.replace(/N\d/i, `${tc}${versionNum}`);
-    }
-  } else if (hasO) {
-    const match = upper.match(/O(\d)/);
-    if (match) {
-      const versionNum = match[1];
-      const origChar = filesetId.charAt(
-        upper.indexOf(match[0]),
-      );
-      const tc = origChar === origChar.toUpperCase()
-        ? targetChar
-        : targetChar.toLowerCase();
-      fallbackId = filesetId.replace(/O\d/i, `${tc}${versionNum}`);
-    }
-  }
-  if (!fallbackId) {
-    return null;
-  }
-  const exists = availableFilesets.some(
-    (f) => f.id.toUpperCase() === fallbackId!.toUpperCase(),
-  );
-  return exists ? fallbackId : null;
-};
+// NOTE: testament-aware audio/text resolution moved to
+// utils/filesetGroups.ts (groupFilesets, resolveAudioFileset,
+// resolveTextFileset). The old N↔O id-surgery heuristic
+// (findTestamentFallback) was removed — it could not represent
+// 'P' partial filesets or non-standard id prefixes.

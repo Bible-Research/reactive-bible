@@ -1,4 +1,14 @@
-import { Comment } from '../types';
+import { Comment, CommentImage } from '../types';
+
+/**
+ * Display name for an attached comment image. The original file
+ * name is the last path segment of storage_url
+ * (…/originals/<image_id>/<file name>).
+ */
+export function commentImageName(image: CommentImage): string {
+  const segment = (image.storage_url ?? '').split('/').pop();
+  return segment || 'comment attachment';
+}
 
 /**
  * Insert a new comment as a reply to the given parentId.
