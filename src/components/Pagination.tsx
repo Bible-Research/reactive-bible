@@ -58,12 +58,14 @@ export default function Pagination({
   const pageNumbers = getPageNumbers();
 
   return (
-    <Group position="center" spacing="xs" mt="md" mb="xl">
+    <nav aria-label="Pagination">
+      <Group position="center" spacing="xs" mt="md" mb="xl">
       <ActionIcon
         variant="outline"
         size="lg"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
+        aria-label="Previous page"
       >
         <IconChevronLeft size={18} />
       </ActionIcon>
@@ -83,6 +85,8 @@ export default function Pagination({
             variant={page === currentPage ? 'filled' : 'outline'}
             size="sm"
             onClick={() => onPageChange(page)}
+            aria-label={`Page ${page}`}
+            aria-current={page === currentPage ? 'page' : undefined}
           >
             {page}
           </Button>
@@ -94,9 +98,11 @@ export default function Pagination({
         size="lg"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
+        aria-label="Next page"
       >
         <IconChevronRight size={18} />
       </ActionIcon>
-    </Group>
+      </Group>
+    </nav>
   );
 }

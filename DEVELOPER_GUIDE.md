@@ -286,8 +286,15 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - `*` (catch-all) - Redirects to `/bible`
 
 **Notes Routes** (✅ Implemented):
-- `/notes` - Auto-redirects to first tag
-- `/notes/tag/:tagId` - Displays notes filtered by specific tag
+- `/notes` - Auto-redirects to the last/first tag; shows a
+  real empty state when the user has no tags and an
+  error + retry state when tag loading fails; anonymous
+  visitors are redirected to `/bible`
+- `/notes/tag/:tagId` - Displays notes filtered by specific
+  tag (public share links work anonymously)
+- `/notes/:noteId` - Public single-note detail view
+- `/tags` - Tag management; wrapped in `ProtectedRoute`
+  (redirects anonymous users to `/login`)
 
 **Search Routes** (✅ Implemented):
 - `/search?q=<query>` - Book-grouped search results
@@ -301,9 +308,12 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 ### Route Implementation Details
 
 **NotesRoute** (`src/routes/NotesRoute.tsx`):
-- Fetches all tags from API
-- Automatically redirects to `/notes/tag/:firstTagId`
-- Provides tag selector dropdown
+- Fetches all tags from API (authenticated users only —
+  anonymous visitors are redirected to `/bible`)
+- Automatically redirects to `/notes/tag/:lastOrFirstTagId`
+- Shows an empty state ("Create your first tag") when the
+  account has no tags, and an error + retry state when the
+  tags request fails
 - Minimal component - main logic in TagNotesRoute
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
@@ -316,12 +326,20 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
   - Delete note (with confirmation)
 - Handles "View in Bible" navigation
 - Updates URL when switching tags
-- Sort order comes from the `?sort=` URL param
-  (`custom_asc` default; custom orders enable dnd-kit
-  drag-and-drop reordering when authenticated)
-- In custom sort + authenticated, each note card shows a
+- Sort order comes from the `?sort=` URL param; writing the
+  param is the only fetch trigger (the load effect owns it),
+  and re-sorts use the in-page spinner, not the full loader
+- Write affordances (drag handles, edit/delete, order badge)
+  require **ownership**, not just login: every visible note
+  must report `is_owner === true`, so logged-in viewers of
+  someone else's public tag get a read-only page
+- Play-from-note indexes into the filtered playlist of notes
+  that actually have verses; a note spanning several
+  book/chapter blocks produces one playlist item per block
+- In custom sort on an owned tag, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
-  of every note in the tag — see "Note order badges & moves"
+  of every note in the tag and the list is dnd-kit
+  reorderable — see "Note order badges & moves"
   under Note Taking & Tagging
 
 **Navigation Pattern**:
@@ -1424,7 +1442,16 @@ Create and organize notes with tags for Bible verses.
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
-  after each successful save
+  after each successful save. Ticks skip empty text and
+  empty tag selections, share a write lock with Submit, and
+  failures surface as notifications
+- `NoteCard` headings: verse-less notes show the tag name;
+  notes spanning chapters render a cross-chapter range
+  (e.g. `John 3:16–5:1`) — never a synthetic `… 1:1`
+- Edit/delete controls on note cards require
+  `note.is_owner === true`; clipboard share falls back to
+  `execCommand` on non-secure contexts
+  (`src/utils/clipboard.ts`)
 
 **Workflow**:
 1. User selects one or more verses by clicking them

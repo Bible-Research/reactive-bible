@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -28,6 +28,7 @@ export default function TagManagementRoute() {
     getTags: state.getTags,
   }));
   const [initialLoading, setInitialLoading] = useState(true);
+  const [initialError, setInitialError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -49,8 +50,14 @@ export default function TagManagementRoute() {
     }
     try {
       await getTags(forceRefresh);
+      setInitialError(false);
     } catch (error) {
       console.error('Error loading tags:', error);
+      // A failed first load must not fall through to the
+      // "No tags yet" empty state — offer a retry instead.
+      if (!silent) {
+        setInitialError(true);
+      }
       showNotification({
         title: 'Error',
         message: 'Failed to load tags',
@@ -66,10 +73,18 @@ export default function TagManagementRoute() {
   };
 
   const handleDeleteTag = async (tagId: string, tagName: string) => {
+    const childCount = tags.filter(
+      (t) => t.parent_tag === tagId
+    ).length;
     if (
       window.confirm(
         `Are you sure you want to delete "${tagName}"? ` +
-          'This action cannot be undone.'
+          'Notes assigned to it will lose this tag' +
+          (childCount > 0
+            ? `, and its ${childCount} child tag(s) may ` +
+              'be affected'
+            : '') +
+          '. This action cannot be undone.'
       )
     ) {
       try {
@@ -103,14 +118,53 @@ export default function TagManagementRoute() {
     navigate(`/notes/tag/${tagId}`);
   };
 
-  const filteredTags = tags.filter((tag) =>
-    tag.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Matching a child must keep its ancestors in the list —
+  // otherwise the tree renders the match as a root and the
+  // hierarchy (and the path to it) is lost.
+  const tagById = useMemo(
+    () => new Map(tags.map((t) => [t.id, t])),
+    [tags]
   );
+  const filteredTags = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return tags;
+    const keep = new Set<string>();
+    for (const tag of tags) {
+      if (!tag.name.toLowerCase().includes(query)) continue;
+      let current: Tag | undefined = tag;
+      while (current && !keep.has(current.id)) {
+        keep.add(current.id);
+        current = current.parent_tag
+          ? tagById.get(current.parent_tag)
+          : undefined;
+      }
+    }
+    return tags.filter((t) => keep.has(t.id));
+  }, [tags, searchQuery, tagById]);
+  const searching = searchQuery.trim().length > 0;
 
   if (initialLoading && tags.length === 0) {
     return (
       <Center style={{ height: '100vh' }}>
         <Loader size="lg" aria-label="Loading tags" />
+      </Center>
+    );
+  }
+
+  if (initialError && tags.length === 0) {
+    return (
+      <Center style={{ height: '100vh' }}>
+        <Stack align="center" spacing="sm">
+          <Text color="red" size="lg">
+            Failed to load your tags.
+          </Text>
+          <Button
+            variant="light"
+            onClick={() => void loadTags(true)}
+          >
+            Try again
+          </Button>
+        </Stack>
       </Center>
     );
   }
@@ -178,6 +232,7 @@ export default function TagManagementRoute() {
               onEdit={handleEditTag}
               onDelete={handleDeleteTag}
               onViewNotes={handleViewNotes}
+              forceExpand={searching}
             />
           </ScrollArea>
         </>
