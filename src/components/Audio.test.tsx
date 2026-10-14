@@ -5,9 +5,11 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Howl } from 'howler';
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
+import { getBibleAudioUrl } from '../api';
 
 // Mock Howler
 vi.mock('howler', () => ({
@@ -101,6 +103,44 @@ describe('Audio Component', () => {
           useBibleStore.getState().audioActiveVerse
         ).toBeNull();
       });
+    });
+
+  it('cancelling a stalled load keeps it from materializing a Howl',
+    async () => {
+      let resolveUrl!: (url: string) => void;
+      vi.mocked(getBibleAudioUrl).mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveUrl = resolve;
+          }),
+      );
+      renderWithProviders(<Audio />, {
+        storeOverrides: {
+          activeBookId: 'JHN',
+          activeChapter: 3,
+          activeAudioFilesetId: 'ENGESHN1DA',
+          showAudioPlayer: false,
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+
+      // While loading the button stays enabled and cancels.
+      const cancel = await screen.findByTitle('Cancel loading');
+      expect(cancel).toBeEnabled();
+      fireEvent.click(cancel);
+
+      // The fetch resolving after the cancel must not create a
+      // Howl or leave the spinner stuck.
+      await act(async () => {
+        resolveUrl('http://audio.url/test.mp3');
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByTitle('Play audio'),
+        ).toBeInTheDocument(),
+      );
+      expect(vi.mocked(Howl)).not.toHaveBeenCalled();
     });
 
   // Note: Full audio playback testing is extremely complex

@@ -3,7 +3,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Audio from './Audio';
 import BibleRoute from '../routes/BibleRoute';
-import { useBibleStore, initialState } from '../store';
+import {
+  useBibleStore,
+  initialState,
+  type Translation,
+} from '../store';
+import { getBibleAudioUrl } from '../api';
 import {
   useAuthStore,
   initialState as authInitialState,
@@ -254,4 +259,144 @@ describe('Audio chapter auto-advance', () => {
     ).not.toBeInTheDocument();
     unsubscribe();
   });
+
+  it('advances the store without navigating off /search',
+    async () => {
+      render(
+        <MemoryRouter initialEntries={['/search']}>
+          <Audio />
+          <Routes>
+            <Route
+              path="/search"
+              element={<div>search page</div>}
+            />
+            <Route path="/bible/:ref" element={<BibleRoute />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      await act(async () => {
+        screen.getByTitle('Play audio').click();
+      });
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBeGreaterThan(0),
+      );
+      const first = FakeHowl.instances[0];
+      await waitFor(() => expect(first._playing).toBe(true));
+      // Next chapter is pre-created while chapter 3 plays.
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(2),
+      );
+      const preloaded = FakeHowl.instances[1];
+
+      // Chapter 3 finishes while the user sits on /search —
+      // the store must advance WITHOUT navigating back to
+      // /bible.
+      await act(async () => {
+        first.emit('end', 0);
+        await Promise.resolve();
+      });
+
+      expect(useBibleStore.getState().activeChapter).toBe(4);
+      expect(screen.getByText('search page')).toBeInTheDocument();
+
+      // The adopted Howl still plays after the inter-chapter
+      // gap.
+      await waitFor(
+        () => expect(preloaded._playing).toBe(true),
+        { timeout: 4000 },
+      );
+    },
+  );
+
+  it('a fallback swap during the inter-chapter gap still plays',
+    async () => {
+      // Split-codec audio product: opus16 primary, mp3 sibling
+      // fallback.
+      const eshTranslation: Translation = {
+        abbr: 'ENGESH',
+        name: 'English Test Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [
+          { id: 'ENGESHO1DA', type: 'audio', size: 'OT',
+            codec: 'mp3', bitrate: '64' },
+          { id: 'ENGESHO1DA-opus16', type: 'audio', size: 'OT',
+            codec: 'opus', bitrate: '16' },
+          { id: 'ENGESHN1DA', type: 'audio', size: 'NT',
+            codec: 'mp3', bitrate: '64' },
+          { id: 'ENGESHN1DA-opus16', type: 'audio', size: 'NT',
+            codec: 'opus', bitrate: '16' },
+        ],
+      };
+      useBibleStore.setState({
+        translations: [eshTranslation],
+        activeAudioFilesetId: 'ENGESHN1DA',
+      });
+      vi.mocked(getBibleAudioUrl).mockImplementation(
+        (_book, _chapter, filesetId) =>
+          Promise.resolve(`http://audio.test/${filesetId}.mp3`),
+      );
+
+      render(
+        <MemoryRouter initialEntries={['/bible/JHN.3']}>
+          <Audio />
+          <Routes>
+            <Route path="/bible/:ref" element={<BibleRoute />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      await act(async () => {
+        screen.getByTitle('Play audio').click();
+      });
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBeGreaterThan(0),
+      );
+      const first = FakeHowl.instances[0];
+      expect(first.src).toBe(
+        'http://audio.test/ENGESHN1DA-opus16.mp3',
+      );
+      await waitFor(() => expect(first._playing).toBe(true));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(2),
+      );
+      const preloaded = FakeHowl.instances[1];
+
+      // Chapter ends — the preloaded Howl is adopted and its
+      // play() is scheduled after the inter-chapter gap.
+      await act(async () => {
+        first.emit('end', 0);
+        await Promise.resolve();
+      });
+      await waitFor(() =>
+        expect(useBibleStore.getState().activeChapter).toBe(4),
+      );
+
+      // The adopted Howl fails to decode DURING the gap. The
+      // fallback swap must cancel the scheduled play — a timer
+      // still targeting the old Howl would bail on its ref
+      // check and leave isPlaying true in silence forever.
+      await act(async () => {
+        preloaded.emit('loaderror', 0, new Error('decode'));
+        await Promise.resolve();
+      });
+
+      await waitFor(() =>
+        expect(
+          FakeHowl.instances.length,
+        ).toBeGreaterThanOrEqual(3),
+      );
+      const fallback = FakeHowl.instances[2];
+      expect(fallback.src).toBe(
+        'http://audio.test/ENGESHN1DA.mp3',
+      );
+      await waitFor(() =>
+        expect(fallback._playing).toBe(true),
+      );
+      expect(
+        screen.queryByTitle('Failed to load audio'),
+      ).not.toBeInTheDocument();
+    },
+  );
 });
