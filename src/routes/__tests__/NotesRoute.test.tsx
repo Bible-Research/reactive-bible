@@ -1,5 +1,12 @@
 import { StrictMode } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 import {
   act,
   render,
@@ -84,6 +91,10 @@ const renderRoute = ({
 describe('NotesRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('shows a loader while it decides where to go', () => {

@@ -1,4 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 import {
   render,
   screen,
@@ -74,6 +81,10 @@ describe('CreateTagModal', () => {
     mockApi.createTag.mockResolvedValue(
       makeTag('tag-new', 'New')
     );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('creates a tag with the trimmed name and no parent',

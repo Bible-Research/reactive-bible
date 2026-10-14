@@ -1,4 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 import {
   render,
   screen,
@@ -164,6 +171,10 @@ describe('TagNotesRoute order menu', () => {
       tag_position: 1.5,
       rebalanced: false,
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('shows order badges in custom_asc when authenticated', async () => {
