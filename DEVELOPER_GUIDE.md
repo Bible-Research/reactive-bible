@@ -1399,10 +1399,13 @@ Create and organize notes with tags for Bible verses.
 - Auto-clear selected verses after note creation
 - Linked notes: the creation modal shows a count of existing
   notes on the selected verses and lists them at the bottom
+<<<<<<< HEAD
+=======
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
   after each successful save
+>>>>>>> origin/main
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -1436,6 +1439,8 @@ getLinkedNotes(
   verseReferences: { book: string; chapter: number; verse: number }[],
   filesetId?: string
 ): Promise<LinkedNotesResponse>
+<<<<<<< HEAD
+=======
 
 // Compact index of every note in a tag, canonical ascending
 // order (GET /api/v1/notes/order-index/?tag_id=…)
@@ -1449,6 +1454,7 @@ moveNote(
   targetNoteId: string,
   placement: 'before' | 'after'
 ): Promise<MoveNoteResponse> // {note_id, tag_position, rebalanced}
+>>>>>>> origin/main
 ```
 
 **Note order badges & moves** (`NoteOrderMenu.tsx`):

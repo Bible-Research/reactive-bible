@@ -4,6 +4,7 @@ import {
   fireEvent,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import {
   describe,
@@ -181,31 +182,31 @@ describe('AddTagNoteModal Component', () => {
       });
     });
 
-  it('shows the count and the linked notes for the selection',
+  const linkedNote = {
+    id: 'NOT1',
+    note_text: 'Already noted this passage',
+    public: false,
+    is_owner: true,
+    created_at: '',
+    updated_at: '',
+    tag: {
+      id: '1', name: 'Faith', parent_tag: null,
+      created_at: '', updated_at: '',
+    },
+    verses: [
+      {
+        book: 'Genesis', chapter: 1, verse: 1,
+        text: 'In the beginning...',
+      },
+    ],
+    tag_position: null,
+  };
+
+  it('shows the count and collapsed linked notes for the selection',
     async () => {
       (api.getLinkedNotes as Mock).mockResolvedValue({
         count: 1,
-        results: [
-          {
-            id: 'NOT1',
-            note_text: 'Already noted this passage',
-            public: false,
-            is_owner: true,
-            created_at: '',
-            updated_at: '',
-            tag: {
-              id: '1', name: 'Faith', parent_tag: null,
-              created_at: '', updated_at: '',
-            },
-            verses: [
-              {
-                book: 'Genesis', chapter: 1, verse: 1,
-                text: 'In the beginning...',
-              },
-            ],
-            tag_position: null,
-          },
-        ],
+        results: [linkedNote],
       });
 
       renderWithProviders(
@@ -225,9 +226,18 @@ describe('AddTagNoteModal Component', () => {
           screen.getByText('1 linked note')
         ).toBeInTheDocument();
       });
+      // Collapsed rows show the passage ref but keep the
+      // note text and tag hidden until expanded.
+      const row = screen.getByTitle('linked-note-NOT1');
       expect(
-        screen.getByText('Already noted this passage')
-      ).toBeInTheDocument();
+        within(row).getByText('Genesis 1:1')
+      ).toBeVisible();
+      expect(
+        within(row).getByText('Already noted this passage')
+      ).not.toBeVisible();
+      expect(
+        within(row).getByText('Faith')
+      ).not.toBeVisible();
       expect(api.getLinkedNotes).toHaveBeenCalledWith(
         [
           { book: 'Genesis', chapter: 1, verse: 1 },
@@ -235,6 +245,45 @@ describe('AddTagNoteModal Component', () => {
         ],
         'ENGKJV'
       );
+    });
+
+  it('expands a linked note to show its text and tag',
+    async () => {
+      (api.getLinkedNotes as Mock).mockResolvedValue({
+        count: 1,
+        results: [linkedNote],
+      });
+
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+            activeTextFilesetId: 'ENGKJV',
+          },
+        }
+      );
+
+      const row = await screen.findByTitle('linked-note-NOT1');
+      const toggle = within(row).getByTitle(
+        'linked-note-toggle-NOT1'
+      );
+      const noteText = within(row).getByText(
+        'Already noted this passage'
+      );
+      const tagName = within(row).getByText('Faith');
+
+      // Expand reveals the note text and the linked tag.
+      fireEvent.click(toggle);
+      await waitFor(() => expect(noteText).toBeVisible());
+      expect(tagName).toBeVisible();
+
+      // Collapse hides them again.
+      fireEvent.click(toggle);
+      await waitFor(() => expect(noteText).not.toBeVisible());
+      expect(tagName).not.toBeVisible();
     });
 
   it('queries linked notes only when opened with a selection',
