@@ -2925,23 +2925,51 @@ The `src/setupTests.ts` file contains global test configuration:
 
 ```typescript
 import "@testing-library/jest-dom";
-import { vi } from "vitest";
+import { vi, beforeAll, afterEach, afterAll, beforeEach }
+  from "vitest";
+import { server } from "./mocks/server";
 
-// Mock Vercel Analytics and Speed Insights to prevent
-// external script loading errors in test environment
-vi.mock("@vercel/analytics/react", () => ({
-  Analytics: () => null,
-}));
+// localStorage stub (with length/key()), Vercel telemetry mocks
+vi.stubGlobal("localStorage", localStorageMock);
+vi.mock("@vercel/analytics/react", ...);
+vi.mock("@vercel/speed-insights/react", ...);
 
-vi.mock("@vercel/speed-insights/react", () => ({
-  SpeedInsights: () => null,
-}));
+// MSW: any unmocked request FAILS the test — no egress to the
+// real backend is allowed.
+beforeAll(() =>
+  server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+
+// Per-test hygiene: localStorage, the cacheManager module-level
+// storageCache, and both zustand stores are reset to a
+// structuredClone of initialState before every test.
+beforeEach(async () => { /* lazy imports + resets */ });
 ```
 
-**Why mock Vercel services?**
-- Prevents external script loading in test environment
-- Eliminates "Cannot read properties of undefined" errors from happy-dom
-- Keeps tests focused on application logic, not analytics
+**Key test infrastructure:**
+
+- `src/mocks/handlers.ts` — MSW handlers for every endpoint the
+  app calls, including all mutating ones (notes reorder/move,
+  PATCH, tags CRUD, reading positions, `/api/token/`,
+  register). `GET /notes/` returns the real paginated
+  `{count,next,previous,results}` envelope. Because
+  `onUnhandledRequest` is `'error'`, a test hitting an
+  endpoint with no handler fails — add a handler or a
+  per-test `server.use(...)` override.
+- `src/__tests__/mocks/FakeHowl.ts` — the one shared Howler
+  double. `vi.mock("howler")` to it; it tracks
+  `FakeHowl.instances`, models `loading→loaded`, exposes a
+  `_sounds[]._node` audio element so `getHtml5AudioNode` works,
+  and has a test-only `emit(event, ...)` helper. Call
+  `FakeHowl.reset()` in `beforeEach`.
+- `src/__tests__/mocks/mediaSession.ts` — `stubMediaSession()`
+  records `setActionHandler`/`setPositionState` calls.
+- `src/__tests__/mocks/RichTextEditorStub.tsx` — emits real
+  TipTap doc-JSON (not plain text), so submit assertions can
+  verify payloads with `isTiptapDocString`.
+- `src/__tests__/SKIPPED_TESTS.md` — the authoritative list of
+  every remaining skip (FIXME-pinned prod bugs) and
+  PERF-env-gated perf tests (`PERF=1 npm test` runs them).
 
 ### Build Configuration for Tests
 
