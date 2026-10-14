@@ -10,6 +10,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { editNote, UNTAGGED_TAG_ID } from "../api";
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
@@ -65,7 +66,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
     if (!opened) return;
-    getTags(); // Uses cache if available
+    // Uses cache if available; a rejection already produced a
+    // store notification — swallow it so it stays off the
+    // global error reporter.
+    void getTags().catch(() => { /* notified by the store */ });
     setVersesOpen(false);
     if (!note) return;
     const initial = (note.verses ?? [])
@@ -137,9 +141,19 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // list is then stale and must be refreshed on close.
   const autosavedRef = useRef(false);
 
+  // The notes API expects book names (verses[].book).
+  const verseReferences = () =>
+    sortRefs(refs).map(({ bookId, chapter, verse }) => ({
+      book: toBookName(bookId) ?? bookId,
+      chapter,
+      verse,
+    }));
+
   const handleAutoSave = async (tagId: string, text: string) => {
     if (!note) return;
-    await editNote(note.id, tagId, text);
+    // Include the picker's refs — closing via X/backdrop used
+    // to silently discard verse-link changes.
+    await editNote(note.id, tagId, text, verseReferences());
     autosavedRef.current = true;
     clearNotesCache();
   };
@@ -178,17 +192,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
 
-    // The notes API expects book names (verses[].book).
-    const verseReferences = sortRefs(refs).map(
-      ({ bookId, chapter, verse }) => ({
-        book: toBookName(bookId) ?? bookId,
-        chapter,
-        verse,
-      })
-    );
-
     try {
-      await editNote(note.id, tagId, text, verseReferences);
+      await editNote(note.id, tagId, text, verseReferences());
       clearNotesCache(); // Cached pages hold stale verse links
       // Fire-and-forget like before — a failed refetch must not
       // keep the modal open after the note was saved. fetchNotes
@@ -197,6 +202,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
       onClose();
     } catch (error) {
       console.error(error);
+      showNotification({
+        title: 'Error',
+        message: 'Failed to save note. Please try again.',
+        color: 'red',
+      });
     }
   };
 
@@ -223,7 +233,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             tags={tags}
             onSubmit={handleSubmit}
             submitText="Submit changes"
-            onTagDropdownOpen={() => getTags()}
+            onTagDropdownOpen={() => {
+              void getTags().catch(() => {
+                /* notified by the store */
+              });
+            }}
             onAutoSave={handleAutoSave}
             note={{
               tagId: note.tag?.id ?? "",

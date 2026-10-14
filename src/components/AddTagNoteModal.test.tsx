@@ -329,6 +329,9 @@ describe('AddTagNoteModal Component', () => {
             verseSelection: genesisSelection,
             activeBookId: 'GEN',
             activeChapter: 1,
+            // A selected tag is required — autosave skips
+            // tagless drafts instead of POSTing `tag: ''`.
+            lastSelectedTagId: '1',
           },
         }
       );

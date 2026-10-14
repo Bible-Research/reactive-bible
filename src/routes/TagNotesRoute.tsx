@@ -51,6 +51,7 @@ import {
   toUsfmCode,
 } from '../utils/bibleUtils';
 import { verseDomId } from '../utils/verseRefs';
+import { copyTextToClipboard } from '../utils/clipboard';
 
 // Type definition for sort orders
 type SortOrder =
@@ -60,6 +61,72 @@ type SortOrder =
   | 'created_asc'
   | 'verse_asc'
   | 'verse_desc';
+
+// Client-side ordering used for display; mirrors the server's
+// `ordering` parameter so a cached page still renders correctly.
+const sortNotes = (notes: Note[], sortOrder: SortOrder): Note[] =>
+  [...notes].sort((a, b) => {
+    switch (sortOrder) {
+      case 'custom_asc': {
+        const aPos = a.tag_position ?? 0;
+        const bPos = b.tag_position ?? 0;
+        if (aPos !== bPos) return aPos - bPos;
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      }
+      case 'custom_desc': {
+        const aPos = a.tag_position ?? 0;
+        const bPos = b.tag_position ?? 0;
+        if (aPos !== bPos) return bPos - aPos;
+        return (
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
+        );
+      }
+      case 'created_desc':
+        return (
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+        );
+      case 'created_asc':
+        return (
+          new Date(a.created_at).getTime() -
+          new Date(b.created_at).getTime()
+        );
+      case 'verse_asc': {
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return aBook - bBook;
+        if (aV.chapter !== bV.chapter)
+          return aV.chapter - bV.chapter;
+        return aV.verse - bV.verse;
+      }
+      case 'verse_desc': {
+        const aV = a.verses?.[0];
+        const bV = b.verses?.[0];
+        if (!aV) return 1;
+        if (!bV) return -1;
+        const aBook =
+          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
+        const bBook =
+          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
+        if (aBook !== bBook) return bBook - aBook;
+        if (aV.chapter !== bV.chapter)
+          return bV.chapter - aV.chapter;
+        return bV.verse - aV.verse;
+      }
+      default:
+        return 0;
+    }
+  });
 
 // Map frontend sort order to API ordering parameter
 // Moved outside component to prevent re-creation on every render
@@ -109,7 +176,10 @@ export default function TagNotesRoute() {
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   
   const notesFromStore = useBibleStore((state) => state.notes);
-  const notes = Array.isArray(notesFromStore) ? notesFromStore : [];
+  const notes = useMemo(
+    () => (Array.isArray(notesFromStore) ? notesFromStore : []),
+    [notesFromStore]
+  );
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
@@ -121,6 +191,9 @@ export default function TagNotesRoute() {
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
+  );
+  const lastSelectedTagId = useBibleStore(
+    (state) => state.lastSelectedTagId
   );
   const notesCount = useBibleStore((state) => state.notesCount);
   const notesPage = useBibleStore((state) => state.notesPage);
@@ -155,16 +228,14 @@ export default function TagNotesRoute() {
       ? urlSortOrder
       : 'custom_asc';
 
-  // Page to restore on the first load, captured during render
-  // before the mount effect writes lastSelectedTagId (which
-  // would make the same-tag check below always true).
+  // Page to restore on the first load, captured during the first
+  // render — the mount effect writes lastSelectedTagId, so a
+  // getState() read later could no longer tell whether the
+  // stored page belongs to this tag.
   const initialPageRef = useRef<number | null>(null);
   if (initialPageRef.current === null) {
-    const stored = useBibleStore.getState();
     initialPageRef.current =
-      stored.lastSelectedTagId === tagId && stored.notesPage > 1
-        ? stored.notesPage
-        : 1;
+      lastSelectedTagId === tagId && notesPage > 1 ? notesPage : 1;
   }
   // The load effect re-runs on mount (StrictMode, auth
   // hydration); remember the last requested query so repeats
@@ -192,6 +263,10 @@ export default function TagNotesRoute() {
   // fetches (rapid moves, tag switch mid-flight) must not
   // apply out of order.
   const orderIndexRequestRef = useRef(0);
+  // Once the first load completes, later effect re-runs (sort
+  // change, auth hydration) use the in-place page spinner
+  // instead of blanking the screen behind the full loader.
+  const hasLoadedRef = useRef(false);
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -215,7 +290,11 @@ export default function TagNotesRoute() {
         return;
       }
 
-      setLoading(true);
+      if (hasLoadedRef.current) {
+        setPageLoading(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       try {
@@ -295,8 +374,10 @@ export default function TagNotesRoute() {
           setError('No public notes available for this tag.');
         } else {
           setTag(resolvedTag);
+          hasLoadedRef.current = true;
         }
         setLoading(false);
+        setPageLoading(false);
 
         if (!cancelled && tagId) {
           fetchCommentCounts({ tagId }).then((counts) => {
@@ -306,8 +387,13 @@ export default function TagNotesRoute() {
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading tag notes:', err);
-        setError('Failed to load notes');
+        // A re-run failure (sort change, auth flip) keeps the
+        // loaded list on screen — fetchNotes already toasted.
+        if (!hasLoadedRef.current) {
+          setError('Failed to load notes');
+        }
         setLoading(false);
+        setPageLoading(false);
       }
     };
 
@@ -325,12 +411,20 @@ export default function TagNotesRoute() {
     isUntagged,
   ]);
 
+  // Ownership is reported per note: the tag's write affordances
+  // (drag handles, order badges, edit/delete) would only 403 for
+  // a logged-in non-owner, so they require every visible note to
+  // be owned — not just authentication.
+  const isTagOwner =
+    isAuthenticated &&
+    notes.length > 0 &&
+    notes.every((n) => n.is_owner === true);
+
   // The order badge/menu is gated exactly like `isDraggable`:
-  // custom sort + authenticated.
+  // custom sort + owner.
   const orderMenuEnabled =
     (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
-    isAuthenticated &&
-    !isUntagged;
+    isTagOwner;
 
   const loadOrderIndex = useCallback(async () => {
     if (!tagId) return;
@@ -502,7 +596,7 @@ export default function TagNotesRoute() {
   };
 
   const handleDeleteNote = async (
-    evt: MouseEvent<HTMLButtonElement>, 
+    evt: MouseEvent<HTMLButtonElement>,
     note: Note
   ) => {
     evt.preventDefault();
@@ -606,7 +700,15 @@ export default function TagNotesRoute() {
         page: notesPage,
       });
 
-      await getTags();
+      // getTags is an authenticated call — skip it on shared
+      // public-tag pages so anon refreshes don't 401/logout.
+      if (isAuthenticated) {
+        try {
+          await getTags();
+        } catch {
+          // The store action already showed the error toast.
+        }
+      }
 
       // Keep the order index current with whatever the
       // refetch brought back.
@@ -633,7 +735,7 @@ export default function TagNotesRoute() {
     const url = window.location.href;
     const title = `Notes: ${tag?.name || 'Tag'}`;
     const text =
-      `Check out these ${notes.length} note(s) ` +
+      `Check out these ${notesCount} note(s) ` +
       `tagged with "${tag?.name}"`;
 
     // Try Web Share API first (mobile-friendly)
@@ -656,16 +758,15 @@ export default function TagNotesRoute() {
         }
       }
     } else {
-      // Fallback: Copy to clipboard
-      try {
-        await navigator.clipboard.writeText(url);
+      // Fallback: Copy to clipboard (with an execCommand
+      // fallback for non-secure contexts)
+      if (await copyTextToClipboard(url)) {
         showNotification({
           title: 'Link Copied!',
           message: 'Tag link copied to clipboard',
           color: 'blue',
         });
-      } catch (err) {
-        console.error('Error copying to clipboard:', err);
+      } else {
         showNotification({
           title: 'Error',
           message: 'Failed to copy link',
@@ -675,38 +776,16 @@ export default function TagNotesRoute() {
     }
   };
 
+  // The URL is the source of truth for sorting: writing
+  // `?sort=` re-runs the load effect (sortOrder dep), which
+  // issues the single fetch — a manual fetch here used to
+  // double-request every sort change.
   const handleSortChange = useCallback(
-    async (newSortOrder: string) => {
+    (newSortOrder: string) => {
       if (!tagId) return;
-      
-      // Update URL
       setSearchParams({ sort: newSortOrder });
-      
-      // Check if we can sort client-side
-      const canSortClientSide =
-        notesCount <= notesPageSize && notes.length > 0;
-      
-      if (canSortClientSide) {
-        // Client-side sort - no API call needed
-        console.log('📊 Sorting notes client-side');
-        // Notes will be sorted by the existing sortedNotes logic
-      } else {
-        // Server-side sort - fetch from API
-        console.log('📊 Fetching sorted notes from API');
-        const apiOrdering = getApiOrdering(
-          newSortOrder as SortOrder
-        );
-        await fetchNotes(tagId, { ordering: apiOrdering, page: 1 });
-      }
     },
-    [
-      tagId,
-      setSearchParams,
-      notesCount,
-      notesPageSize,
-      notes.length,
-      fetchNotes,
-    ]
+    [tagId, setSearchParams]
   );
 
   const handlePageChange = useCallback(
@@ -767,68 +846,10 @@ export default function TagNotesRoute() {
     [tagId, sortOrder, setNotesPageSize, fetchNotes]
   );
 
-  const sortedNotes = [...notes].sort((a, b) => {
-    switch (sortOrder) {
-      case 'custom_asc': {
-        const aPos = a.tag_position ?? 0;
-        const bPos = b.tag_position ?? 0;
-        if (aPos !== bPos) return aPos - bPos;
-        return (
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-        );
-      }
-      case 'custom_desc': {
-        const aPos = a.tag_position ?? 0;
-        const bPos = b.tag_position ?? 0;
-        if (aPos !== bPos) return bPos - aPos;
-        return (
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
-        );
-      }
-      case 'created_desc':
-        return (
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-        );
-      case 'created_asc':
-        return (
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
-        );
-      case 'verse_asc': {
-        const aV = a.verses?.[0];
-        const bV = b.verses?.[0];
-        if (!aV) return 1;
-        if (!bV) return -1;
-        const aBook =
-          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
-        const bBook =
-          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
-        if (aBook !== bBook) return aBook - bBook;
-        if (aV.chapter !== bV.chapter)
-          return aV.chapter - bV.chapter;
-        return aV.verse - bV.verse;
-      }
-      case 'verse_desc': {
-        const aV = a.verses?.[0];
-        const bV = b.verses?.[0];
-        if (!aV) return 1;
-        if (!bV) return -1;
-        const aBook =
-          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
-        const bBook =
-          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
-        if (aBook !== bBook) return bBook - aBook;
-        if (aV.chapter !== bV.chapter)
-          return bV.chapter - aV.chapter;
-        return bV.verse - aV.verse;
-      }
-      default:
-        return 0;
-    }
-  });
+  const sortedNotes = useMemo(
+    () => sortNotes(notes, sortOrder),
+    [notes, sortOrder]
+  );
 
   const handleToggleFolded = () => {
     const next = !versesFolded;
@@ -856,69 +877,92 @@ export default function TagNotesRoute() {
     }, 50);
   };
 
-  // Verse-less notes never become playlist items; "play from
-  // here" must index the same filtered list the playlist
-  // effect below builds, or the start position is off.
-  const playableNotes = sortedNotes.filter(
-    (n) => (n.verses?.length ?? 0) > 0
+  // Notes that can actually produce playlist items — the same
+  // filtered list the playlist is built from.
+  const playableNotes = useMemo(
+    () =>
+      sortedNotes.filter((n) => (n.verses?.length ?? 0) > 0),
+    [sortedNotes]
+  );
+
+  // One item per book+chapter block: a note whose verses span
+  // several chapters used to be truncated to its first block —
+  // the later blocks were silently dropped from playback.
+  const playlistItems = useMemo(
+    (): PlaylistItem[] =>
+      playableNotes.flatMap((note, noteIndex) => {
+        const blocks = new Map<string, Note['verses']>();
+        for (const v of note.verses) {
+          const key = `${v.book}|${v.chapter}`;
+          const block = blocks.get(key);
+          if (block) {
+            block.push(v);
+          } else {
+            blocks.set(key, [v]);
+          }
+        }
+        return [...blocks.values()].map((block) => {
+          const firstVerse = block[0];
+          const verseNumbers = block.map((v) => v.verse);
+          const startVerse = Math.min(...verseNumbers);
+          const endVerse = Math.max(...verseNumbers);
+          const label =
+            `Note ${noteIndex + 1}/${playableNotes.length} ` +
+            `\u2013 ${firstVerse.book} ` +
+            `${firstVerse.chapter}:${startVerse}` +
+            (startVerse !== endVerse ? `-${endVerse}` : '');
+          return {
+            itemId: note.id,
+            bookId:
+              toUsfmCode(firstVerse.book) ?? firstVerse.book,
+            chapter: firstVerse.chapter,
+            startVerse,
+            endVerse,
+            label,
+            verseNumbers,
+          };
+        });
+      }),
+    [playableNotes]
   );
 
   const handlePlayFromNote = useCallback(
     (noteId: string) => {
+      // The start index must come from the same filtered item
+      // list handed to the playlist — a verse-less note earlier
+      // in sortedNotes would otherwise shift it off by one.
+      const itemIndex = playlistItems.findIndex(
+        (item) => item.itemId === noteId
+      );
+      if (itemIndex < 0) return;
+      setAudioPlaylistStartIndex(itemIndex);
+
       const noteIndex = playableNotes.findIndex(
         (n) => n.id === noteId
       );
-
-      if (noteIndex >= 0) {
-        setAudioPlaylistStartIndex(noteIndex);
-
-        showNotification({
-          title: 'Playlist Started',
-          message:
-            `Playing from note ${noteIndex + 1} ` +
-            `of ${playableNotes.length}`,
-          color: 'blue',
-          autoClose: 3000,
-        });
-      }
+      showNotification({
+        title: 'Playlist Started',
+        message:
+          `Playing from note ${noteIndex + 1} ` +
+          `of ${playableNotes.length}`,
+        color: 'blue',
+        autoClose: 3000,
+      });
     },
-    [playableNotes, setAudioPlaylistStartIndex]
+    [
+      playlistItems,
+      playableNotes,
+      setAudioPlaylistStartIndex,
+    ]
   );
 
   useEffect(() => {
-    if (loading || notes.length === 0) {
+    if (loading || playlistItems.length === 0) {
       setAudioPlaylistItems(null);
       return;
     }
-    const items: PlaylistItem[] = playableNotes
-      .map((note, i, arr) => {
-        const firstVerse = note.verses[0];
-        const sameBlock = note.verses.filter(
-          (v) =>
-            v.book === firstVerse.book &&
-            v.chapter === firstVerse.chapter,
-        );
-        const verseNumbers = sameBlock.map((v) => v.verse);
-        const startVerse = Math.min(...verseNumbers);
-        const endVerse = Math.max(...verseNumbers);
-        const label =
-          `Note ${i + 1}/${arr.length} ` +
-          `\u2013 ${firstVerse.book} ` +
-          `${firstVerse.chapter}:${startVerse}` +
-          (startVerse !== endVerse ? `-${endVerse}` : '');
-        return {
-          itemId: note.id,
-          bookId: toUsfmCode(firstVerse.book) ?? firstVerse.book,
-          chapter: firstVerse.chapter,
-          startVerse,
-          endVerse,
-          label,
-          verseNumbers,
-        };
-      });
-    setAudioPlaylistItems(items.length > 0 ? items : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notes, sortOrder, loading, setAudioPlaylistItems]);
+    setAudioPlaylistItems(playlistItems);
+  }, [loading, playlistItems, setAudioPlaylistItems]);
 
   if (loading) {
     return (
@@ -1102,10 +1146,10 @@ export default function TagNotesRoute() {
               notes={sortedNotes}
               onViewInBible={handleViewInBible}
               onEditNote={
-                isAuthenticated ? handleEditNote : undefined
+                isTagOwner ? handleEditNote : undefined
               }
               onDeleteNote={
-                isAuthenticated
+                isTagOwner
                   ? handleDeleteNote
                   : undefined
               }
@@ -1115,8 +1159,7 @@ export default function TagNotesRoute() {
               isDraggable={
                 (sortOrder === 'custom_asc' ||
                   sortOrder === 'custom_desc') &&
-                isAuthenticated &&
-                !isUntagged
+                isTagOwner
               }
               tagId={tagId || ''}
               onReorder={handleReorder}

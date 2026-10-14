@@ -1,4 +1,5 @@
 import { Modal } from "@mantine/core";
+import { showNotification } from "@mantine/notifications";
 import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useRef } from "react";
@@ -31,7 +32,7 @@ const AddStandaloneNoteModal = ({
 
   useEffect(() => {
     if (opened) {
-      getTags();
+      void getTags().catch(() => { /* notified by the store */ });
       savedNoteIdRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,6 +57,11 @@ const AddStandaloneNoteModal = ({
       onClose();
     } catch (error) {
       console.error(error);
+      showNotification({
+        title: 'Error',
+        message: 'Failed to save note. Please try again.',
+        color: 'red',
+      });
     }
   };
 
@@ -65,7 +71,11 @@ const AddStandaloneNoteModal = ({
         tags={tags}
         onSubmit={handleSubmit}
         submitText="Submit"
-        onTagDropdownOpen={() => getTags()}
+        onTagDropdownOpen={() => {
+          void getTags().catch(() => {
+            /* notified by the store */
+          });
+        }}
         onAutoSave={handleAutoSave}
         note={
           lastSelectedTagId

@@ -12,6 +12,7 @@ import {
   IconChevronDown,
   IconChevronRight,
 } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { addTagNote, editNote, getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -105,7 +106,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
-      getTags();
+      void getTags().catch(() => { /* notified by the store */ });
       savedNoteIdRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,6 +183,11 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
       onClose();
     } catch (error) {
       console.error(error);
+      showNotification({
+        title: 'Error',
+        message: 'Failed to save note. Please try again.',
+        color: 'red',
+      });
     }
   };
 
@@ -204,7 +210,11 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         tags={tags}
         onSubmit={handleSubmit}
         submitText="Submit"
-        onTagDropdownOpen={() => getTags()}
+        onTagDropdownOpen={() => {
+          void getTags().catch(() => {
+            /* notified by the store */
+          });
+        }}
         onAutoSave={handleAutoSave}
         note={
           lastSelectedTagId

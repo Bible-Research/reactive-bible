@@ -225,10 +225,12 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
-      <AddStandaloneNoteModal
-        opened={newNoteOpened}
-        onClose={() => setNewNoteOpened(false)}
-      />
+      {isAuthenticated && (
+        <AddStandaloneNoteModal
+          opened={newNoteOpened}
+          onClose={() => setNewNoteOpened(false)}
+        />
+      )}
     </>
   );
 };

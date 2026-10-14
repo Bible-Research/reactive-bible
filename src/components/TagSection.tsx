@@ -44,7 +44,7 @@ interface TagSectionProps {
     noteIds: string[],
     currentPage: number,
     pageSize: number
-  ) => void;
+  ) => void | Promise<unknown>;
   sortOrder?: string;
   currentPage?: number;
   pageSize?: number;
@@ -115,7 +115,14 @@ const TagSection = ({
       const idsToSend = sortOrder === 'custom_desc'
         ? [...noteIds].reverse()
         : noteIds;
-      onReorder(tagId, idsToSend, currentPage, pageSize);
+      // The reorder may reject (conflict/network) — awaiting it
+      // here both avoids an unhandled rejection and rolls the
+      // optimistic order back to the server's.
+      void Promise.resolve(
+        onReorder(tagId, idsToSend, currentPage, pageSize)
+      ).catch(() => {
+        setLocalNotes(notes);
+      });
     }
   };
 

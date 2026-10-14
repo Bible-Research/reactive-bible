@@ -267,6 +267,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}
@@ -304,6 +305,36 @@ describe('NoteForm Component', () => {
           onAutoSave.mock.calls[1][1],
           'Draft text updated'
         );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('skips saving while no tag is selected', async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        // With an empty tag id the API would reject every
+        // write — autosave must not even try.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(15000);
+        });
+        expect(onAutoSave).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
       }
@@ -441,6 +472,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}

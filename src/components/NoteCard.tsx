@@ -19,7 +19,7 @@ import {
   IconEdit,
   IconTrash,
 } from "@tabler/icons-react";
-import { Note, NoteOrderMenuData } from "../types";
+import { Note, NoteOrderMenuData, SectionHeading } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { useBibleStore } from "../store";
 import Verse from "./Verse";
@@ -29,6 +29,7 @@ import SectionHeadingComponent from "./SectionHeading";
 import ScripturePassage from "./ScripturePassage";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import {
   isSameScriptureRef,
@@ -110,19 +111,61 @@ const NoteCard = ({
 
   const versesFolded = useBibleStore((state) => state.versesFolded);
 
-  const firstVerse = note?.verses?.[0]?.verse || 1;
-  const lastVerse =
-    note?.verses?.[(note.verses?.length ?? 0) - 1]?.verse || 1;
-  const book = note?.verses?.[0]?.book || "";
-  const chapter = note?.verses?.[0]?.chapter || 1;
+  const noteVerses = note?.verses ?? [];
+  const firstVerseRef = noteVerses[0];
+  const lastVerseRef = noteVerses[noteVerses.length - 1];
+  const firstVerse = firstVerseRef?.verse || 1;
+  const book = firstVerseRef?.book || "";
+  const chapter = firstVerseRef?.chapter || 1;
 
-  const heading =
-    firstVerse === lastVerse
-      ? `${book} ${chapter}:${firstVerse}`
-      : `${book} ${chapter}:${firstVerse}-${lastVerse}`;
+  // Verse-less notes get the tag name; a note spanning chapters
+  // shows a cross-chapter range instead of "Genesis 1:31-1".
+  const heading = (() => {
+    if (!firstVerseRef || !lastVerseRef) {
+      return note?.tag?.name || 'Note';
+    }
+    const sameBlock =
+      firstVerseRef.book === lastVerseRef.book &&
+      firstVerseRef.chapter === lastVerseRef.chapter;
+    if (sameBlock) {
+      return firstVerse === lastVerseRef.verse
+        ? `${book} ${chapter}:${firstVerse}`
+        : `${book} ${chapter}:${firstVerse}-${lastVerseRef.verse}`;
+    }
+    const tail =
+      lastVerseRef.book === book
+        ? `${lastVerseRef.chapter}:${lastVerseRef.verse}`
+        : `${lastVerseRef.book} ${lastVerseRef.chapter}` +
+          `:${lastVerseRef.verse}`;
+    return `${book} ${chapter}:${firstVerse}–${tail}`;
+  })();
 
-  const canEdit = (note.is_owner !== false) && !!onEdit;
-  const canDelete = (note.is_owner !== false) && !!onDelete;
+  // A heading attaches to the first unmatched verse carrying its
+  // number — in a multi-chapter note the same verse number can
+  // appear in several chapters, and `find` alone would repeat
+  // the heading at every one of them.
+  const headingByVerseKey = (() => {
+    const map = new Map<string, SectionHeading>();
+    const remaining = [...noteHeadings];
+    for (const v of displayedVerses) {
+      const idx = remaining.findIndex(
+        (h) => h.before_verse === v.verse
+      );
+      if (idx >= 0) {
+        map.set(
+          `${v.book}-${v.chapter}-${v.verse}`,
+          remaining[idx]
+        );
+        remaining.splice(idx, 1);
+      }
+    }
+    return map;
+  })();
+
+  // `is_owner` may be absent on shared/public notes — fail
+  // closed rather than offering edit/delete that will 403.
+  const canEdit = note.is_owner === true && !!onEdit;
+  const canDelete = note.is_owner === true && !!onDelete;
   const canShare = note.public;
 
   const handleShare = async () => {
@@ -144,15 +187,18 @@ const NoteCard = ({
       }
     }
 
-    try {
-      await navigator.clipboard.writeText(url);
+    if (await copyTextToClipboard(url)) {
       showNotification({
         title: 'Link Copied!',
         message: 'Note link copied to clipboard',
         color: 'blue',
       });
-    } catch (err) {
-      console.error('Error copying to clipboard:', err);
+    } else {
+      showNotification({
+        title: 'Error',
+        message: 'Failed to copy link',
+        color: 'red',
+      });
     }
   };
 
@@ -199,7 +245,7 @@ const NoteCard = ({
           <Title 
             order={4} 
             className="note-card-heading"
-            ref={dragHandleProps?.ref as any}
+            ref={dragHandleProps?.ref}
             {...(dragHandleProps ? Object.fromEntries(
               Object.entries(dragHandleProps).filter(([key]) => key !== 'ref')
             ) : {})}
@@ -216,18 +262,20 @@ const NoteCard = ({
           {versesFolded && (
             <Group spacing="xs" sx={{ position: 'relative', zIndex: 1 }}>
               {orderMenuNode}
-              <Tooltip label="View in Bible" position="top">
-                <Box component="span" sx={{ display: 'inline-block' }}>
-                  <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    onClick={() => onViewInBible(book, chapter, firstVerse)}
-                    aria-label="view-in-bible"
-                  >
-                    <IconBook size={16} />
-                  </ActionIcon>
-                </Box>
-              </Tooltip>
+              {firstVerseRef && (
+                <Tooltip label="View in Bible" position="top">
+                  <Box component="span" sx={{ display: 'inline-block' }}>
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => onViewInBible(book, chapter, firstVerse)}
+                      aria-label="view-in-bible"
+                    >
+                      <IconBook size={16} />
+                    </ActionIcon>
+                  </Box>
+                </Tooltip>
+              )}
               {canShare && (
                 <Tooltip label="Share" position="top">
                   <Box component="span" sx={{ display: 'inline-block' }}>
@@ -242,7 +290,7 @@ const NoteCard = ({
                   </Box>
                 </Tooltip>
               )}
-              {onPlayFromNote && (
+              {firstVerseRef && onPlayFromNote && (
                 <Tooltip label="Play from here" position="top">
                   <Box component="span" sx={{ display: 'inline-block' }}>
                     <ActionIcon
@@ -339,18 +387,20 @@ const NoteCard = ({
             }}
           >
             {orderMenuNode}
-            <Tooltip label="View in Bible" position="top">
-              <Box component="span" sx={{ display: 'inline-block' }}>
-                <ActionIcon
-                  variant="subtle"
-                  size="sm"
-                  onClick={() => onViewInBible(book, chapter, firstVerse)}
-                  aria-label="view-in-bible"
-                >
-                  <IconBook size={16} />
-                </ActionIcon>
-              </Box>
-            </Tooltip>
+            {firstVerseRef && (
+              <Tooltip label="View in Bible" position="top">
+                <Box component="span" sx={{ display: 'inline-block' }}>
+                  <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => onViewInBible(book, chapter, firstVerse)}
+                    aria-label="view-in-bible"
+                  >
+                    <IconBook size={16} />
+                  </ActionIcon>
+                </Box>
+              </Tooltip>
+            )}
             {canShare && (
               <Tooltip label="Share" position="top">
                 <Box component="span" sx={{ display: 'inline-block' }}>
@@ -365,7 +415,7 @@ const NoteCard = ({
                 </Box>
               </Tooltip>
             )}
-            {onPlayFromNote && (
+            {firstVerseRef && onPlayFromNote && (
               <Tooltip label="Play from here" position="top">
                 <Box component="span" sx={{ display: 'inline-block' }}>
                   <ActionIcon
@@ -468,8 +518,8 @@ const NoteCard = ({
         ) : versesFolded
           ? note?.verses?.slice(0, 1).map(v => {
               // Check if there's a heading before this verse
-              const heading = noteHeadings.find(
-                h => h.before_verse === v.verse
+              const heading = headingByVerseKey.get(
+                `${v.book}-${v.chapter}-${v.verse}`
               );
               return (
                 <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
@@ -492,8 +542,8 @@ const NoteCard = ({
             <>
               {displayedVerses.map(v => {
                 // Check if there's a heading before this verse
-                const heading = noteHeadings.find(
-                  h => h.before_verse === v.verse
+                const heading = headingByVerseKey.get(
+                  `${v.book}-${v.chapter}-${v.verse}`
                 );
                 return (
                   <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
