@@ -122,6 +122,41 @@ describe('Verse Component', () => {
     });
   });
 
+  it('should scroll once — to the first selected verse — when ' +
+    'a multi-verse selection mounts', () => {
+    useBibleStore.setState({
+      verseSelection: {
+        scope: 'bible',
+        refs: [16, 17, 18].map((verse) => ({
+          bookId: 'JHN',
+          chapter: 3,
+          verse,
+        })),
+      },
+    });
+    render(
+      <>
+        {[16, 17, 18].map((verse) => (
+          <Verse
+            key={verse}
+            scope="bible"
+            book="John"
+            chapter={3}
+            verse={verse}
+            text={`Verse ${verse}`}
+          />
+        ))}
+      </>
+    );
+
+    // All three verses are active, but only verse 16 (the
+    // minimum) may scroll — otherwise the view settles on the
+    // last selected verse.
+    expect(
+      window.HTMLElement.prototype.scrollIntoView
+    ).toHaveBeenCalledTimes(1);
+  });
+
   it('should not be active when the selection is another scope', () => {
     useBibleStore.setState({
       verseSelection: { scope: 'note-9', refs: [JOHN_3_5] },
