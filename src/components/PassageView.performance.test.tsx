@@ -249,10 +249,10 @@ describe('PassageView Component Performance Tests', () => {
       // if the render awaited them, the content below could
       // never appear and this test would time out.
       mockPrefetchAudioUrl.mockImplementation(
-        () => new Promise(() => {})
+        () => new Promise(() => undefined)
       );
       mockPrefetchAdjacentChapters.mockImplementation(
-        () => new Promise(() => {})
+        () => new Promise(() => undefined)
       );
 
       const { container } = render(
