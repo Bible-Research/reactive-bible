@@ -133,14 +133,15 @@ describe('docToPlainText', () => {
 
   it('caps recursion on crafted deeply nested docs', () => {
     // Untrusted doc-JSON must not stack-overflow the walk.
-    let node: Record<string, unknown> = {
-      type: 'text',
-      text: 'deep',
-    };
-    for (let i = 0; i < 10000; i++) {
-      node = { type: 'paragraph', content: [node] };
-    }
-    const s = JSON.stringify({ type: 'doc', content: [node] });
+    // The JSON is built by concatenation — JSON.stringify on a
+    // 10k-deep object overflows the stack itself on Node <22.12.
+    const OPEN = '{"type":"paragraph","content":[';
+    const s =
+      '{"type":"doc","content":[' +
+      OPEN.repeat(10000) +
+      '{"type":"text","text":"deep"}' +
+      ']}'.repeat(10000) +
+      ']}';
     expect(() => docToPlainText(s)).not.toThrow();
   });
 
