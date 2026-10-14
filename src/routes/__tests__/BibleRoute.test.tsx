@@ -5,9 +5,15 @@ import BibleRoute from '../BibleRoute';
 import LegacyBibleRedirect from '../LegacyBibleRedirect';
 import { useBibleStore } from '../../store';
 
-// Mock the Passage component
+// Mock the Passage component; the render counter lets the
+// anti-loop test count render cycles without depending on a
+// debug console.log.
+const passageRenderCount = vi.hoisted(() => ({ count: 0 }));
 vi.mock('../../components/Passage', () => ({
-  default: () => <div data-testid="passage">Passage Component</div>,
+  default: () => {
+    passageRenderCount.count += 1;
+    return <div data-testid="passage">Passage Component</div>;
+  },
 }));
 
 // Mock the API
@@ -138,23 +144,38 @@ describe('BibleRoute', () => {
   });
 
   it('does not cause infinite loops when syncing', async () => {
-    const consoleSpy = vi.spyOn(console, 'log');
-
-    renderRoutes(['/bible/JHN.1']);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('passage')).toBeInTheDocument();
+    // The URL->store sync effect calls setShowNotes and
+    // setVersesFolded unconditionally, so spying on them counts
+    // sync runs directly. Combined with the Passage render
+    // counter this catches a sync<->navigate render storm
+    // without relying on a debug log string.
+    const store = useBibleStore.getState();
+    const setShowNotesSpy = vi.fn(store.setShowNotes);
+    const setVersesFoldedSpy = vi.fn(store.setVersesFolded);
+    useBibleStore.setState({
+      setShowNotes: setShowNotesSpy,
+      setVersesFolded: setVersesFoldedSpy,
     });
+    passageRenderCount.count = 0;
 
-    // Count how many times sync happened
-    const syncLogs = consoleSpy.mock.calls.filter(
-      (call) => call[0]?.includes('Syncing URL to store')
-    );
+    try {
+      renderRoutes(['/bible/JHN.1']);
 
-    // Should only sync once or twice, not hundreds of times
-    expect(syncLogs.length).toBeLessThan(5);
+      await waitFor(() => {
+        expect(screen.getByTestId('passage')).toBeInTheDocument();
+      });
 
-    consoleSpy.mockRestore();
+      // The URL already matches the store: the sync settles
+      // after a few effect runs instead of looping.
+      expect(setShowNotesSpy.mock.calls.length).toBeLessThan(5);
+      expect(setVersesFoldedSpy.mock.calls.length).toBeLessThan(5);
+      expect(passageRenderCount.count).toBeLessThan(10);
+    } finally {
+      useBibleStore.setState({
+        setShowNotes: store.setShowNotes,
+        setVersesFolded: store.setVersesFolded,
+      });
+    }
   });
 
   it('redirects lowercase refs to canonical form', async () => {
