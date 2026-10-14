@@ -2770,89 +2770,57 @@ if (Date.now() > audioData.expiresAt) {
 }
 ```
 
-#### 4. Notes Cache (Tag-based)
-**Purpose**: Cache notes by tag to eliminate redundant API calls
+#### 4. Notes Cache (Tag-based, scoped)
+**Purpose**: Cache notes pages by tag to eliminate redundant API
+calls
 
-**Features**:
-- No size limit (notes are user-generated)
-- Tag-based organization
-- Timestamp tracking
-- Selective cache invalidation
+**Storage Key**: `bible_notes_cache_v2` — the v1 `tagId`-only
+blob (`bible_notes_cache`) is dropped on load, not migrated.
 
-**Storage Key**: `bible_notes_cache`
+**Cache Key Format**:
+`{tagId}:{anon|auth}:fs:{filesetId}:ps:{pageSize}:page{n}:{ordering}`
 
-**Cache Key Format**: `{tagId}`
-
-**Implementation**:
-```typescript
-// In store.tsx fetchNotes()
-fetchNotes: async (tagId?: string) => {
-  // Check cache first
-  if (tagId) {
-    const cachedNotes = getCachedNotes(tagId);
-    if (cachedNotes) {
-      console.log(`✅ Using cached notes for tag: ${tagId}`);
-      set({ notes: cachedNotes });
-      return;
-    }
-  }
-  
-  // Fetch from API
-  const notes = await api.getNotes(tagId);
-  
-  // Cache the results
-  if (tagId) {
-    cacheNotes(tagId, notes);
-  }
-  
-  set({ notes });
-}
-```
-
-**Cache Structure**:
-```typescript
-{
-  "TAG123": {
-    notes: [/* Note objects */],
-    timestamp: 1709155200000
-  },
-  "TAG456": {
-    notes: [/* Note objects */],
-    timestamp: 1709155300000
-  }
-}
-```
+The scope fields exist because the response depends on them:
+- `anon|auth` — owners see private notes that anonymous callers
+  must never be served from cache.
+- `filesetId` — the backend fills `note.verses[].text` from the
+  requested fileset, so switching text translations must miss.
+- `pageSize` — page membership depends on it.
 
 **Cache Invalidation**:
-```typescript
-// Clear all notes cache when note is deleted
-deleteNote: async (noteId: string) => {
-  await api.deleteNote(noteId);
-  clearNotesCache(); // Clear all cached notes
-  set((state) => ({ notes: state.notes.filter(n => n.id !== noteId) }));
-}
+- `addTagNote`/`editNote`/`deleteNote`/`reorderNotes`/`moveNote`
+  clear the affected tag's pages (`clearNotesCache(tagId)` is a
+  prefix delete over every scoped page).
+- A `useAuthStore.subscribe` watcher in `store.tsx` purges
+  `notes`, `tags`, `readingPositions`, and the whole notes cache
+  whenever the token is dropped or replaced — covers both manual
+  logout and 401-driven logout, so a shared device can't expose
+  the previous user's private notes.
+- The 409-conflict refresh clears the tag cache *before*
+  refetching, so it can't read back the stale page it is trying
+  to replace.
 
-// Clear specific tag's cache
+```typescript
+// Clear all pages of one tag (any scope)
 clearNotesCache('TAG123');
 
-// Clear all notes cache
+// Clear the entire notes cache
 clearNotesCache();
 ```
 
 **Performance Impact**:
 - **First visit**: API call (200-500ms)
 - **Return visit**: Cached (< 10ms) ✅
-- **Improvement**: ~95% faster on cache hits
 
-**When Notes Are Cached**:
-- ✅ After successful fetch from API
-- ✅ Persists across sessions (localStorage)
-- ✅ Survives page refresh
-
-**When Cache Is Cleared**:
-- ✅ Note deletion (clears all)
-- ✅ Manual clear via `clearNotesCache()`
-- 🔄 Future: Note creation/editing
+**Fetch wrappers** (`src/utils/apiClient.ts`):
+- `publicFetch` attaches the token when present but, on a 401,
+  retries once **without** `Authorization` — DRF authenticates
+  before `AllowAny` permission checks, so an expired token would
+  otherwise poison public reads.
+- `authenticatedFetch` keeps the 401 → logout + "session
+  expired" behaviour; `TypeError` (network drop) retries are
+  restricted to idempotent GET/HEAD so a lost POST response
+  can't double-create a note/tag/comment.
 
 #### 5. Translation Cache (Session-based)
 **Purpose**: Cache translation lists to avoid refetching
