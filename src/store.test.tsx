@@ -378,6 +378,16 @@ describe('useBibleStore', () => {
     it.skip('invalidates the notes cache after a successful ' +
       'reorder', async () => {
       mockApi.reorderNotes.mockResolvedValue(undefined);
+      // Pre-stubbed so that once the prod fix routes the
+      // success path through refreshNotesPage (like
+      // moveNoteAfter does), this test fails on the cache
+      // assertion below rather than an unstubbed getNotes
+      // rejection.
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.getNotes.mockResolvedValue(pageOf([
+        makeNote('n2'),
+        makeNote('n1'),
+      ]));
       useBibleStore.setState({
         notes: [makeNote('n1'), makeNote('n2')],
         notesPage: 1,

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   authenticatedFetch,
+  authenticatedUpload,
   publicFetch,
   isAuthenticated,
   getAuthToken,
@@ -203,6 +204,64 @@ describe('apiClient', () => {
           'Content-Type': 'application/json',
         },
       });
+    });
+  });
+
+  describe('authenticatedUpload', () => {
+    it('posts FormData with the token and no JSON ' +
+      'Content-Type', async () => {
+      useAuthStore.setState({ token: mockToken });
+
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+      });
+      vi.stubGlobal('fetch', mockFetch);
+      const formData = new FormData();
+      formData.append('file', new Blob(['x']), 'x.png');
+
+      const response = await authenticatedUpload(
+        mockUrl,
+        formData
+      );
+
+      // Only Authorization is set — the browser must generate
+      // the multipart Content-Type (with boundary) itself.
+      expect(mockFetch).toHaveBeenCalledWith(mockUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${mockToken}`,
+        },
+        body: formData,
+      });
+      expect(response.ok).toBe(true);
+    });
+
+    it('handles 401 like authenticatedFetch: logout and ' +
+      'session-expired notification', async () => {
+      useAuthStore.setState({
+        token: mockToken,
+        isAuthenticated: true,
+      });
+
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      await expect(
+        authenticatedUpload(mockUrl, new FormData())
+      ).rejects.toThrow('Session expired');
+
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Session Expired' })
+      );
+      // A 401 is a response, not a network error — it must
+      // NOT consume the retry.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 
