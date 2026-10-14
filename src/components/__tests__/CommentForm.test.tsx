@@ -8,6 +8,10 @@ import { describe, it, expect, vi } from 'vitest';
 import CommentForm from '../CommentForm';
 import { renderWithProviders } from '../../__tests__/helpers';
 import { CommentImage } from '../../types';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../../utils/tiptapContent';
 
 const makeImage = (id: string): CommentImage => ({
   id,
@@ -112,24 +116,27 @@ describe('CommentForm', () => {
     });
   });
 
-  it('calls onSubmit with trimmed content and empty files', async () => {
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
-    renderWithProviders(
-      <CommentForm onSubmit={onSubmit} />
-    );
-    fireEvent.change(screen.getByRole('textbox'), {
-      target: { value: '  hello world  ' },
-    });
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Post' })
-    );
-    await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith(
-        'hello world',
-        []
+  it('calls onSubmit with doc-JSON content and empty files',
+    async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+      renderWithProviders(
+        <CommentForm onSubmit={onSubmit} />
       );
+      fireEvent.change(screen.getByRole('textbox'), {
+        target: { value: '  hello world  ' },
+      });
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Post' })
+      );
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+      const [content, files] = onSubmit.mock.calls[0];
+      // The editor emits doc-JSON, not the raw typed text.
+      expect(isTiptapDocString(content)).toBe(true);
+      expect(toPlainText(content).trim()).toBe('hello world');
+      expect(files).toEqual([]);
     });
-  });
 
   it('calls onCancel when cancel is clicked', () => {
     const onCancel = vi.fn();
@@ -259,7 +266,11 @@ describe('CommentForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith('hello', [file]);
+      expect(onSubmit).toHaveBeenCalledTimes(1);
     });
+    const [content, files] = onSubmit.mock.calls[0];
+    expect(isTiptapDocString(content)).toBe(true);
+    expect(toPlainText(content)).toBe('hello');
+    expect(files).toEqual([file]);
   });
 });

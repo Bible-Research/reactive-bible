@@ -13,9 +13,15 @@ import {
   beforeEach,
   type Mock,
 } from 'vitest';
+import { useState } from 'react';
 import AddTagNoteModal from './AddTagNoteModal';
 import { renderWithProviders } from '../__tests__/helpers';
+import { useBibleStore } from '../store';
 import * as api from '../api';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../utils/tiptapContent';
 
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
@@ -305,17 +311,152 @@ describe('AddTagNoteModal Component', () => {
       await waitFor(() => {
         expect(api.editNote).toHaveBeenCalledTimes(1);
       });
-      expect(api.editNote).toHaveBeenCalledWith('n1', '', 'Draft');
+      const patchArgs = (api.editNote as Mock).mock.calls[0];
+      expect(patchArgs[0]).toBe('n1');
+      expect(patchArgs[1]).toBe('');
+      // The editor emits doc-JSON, not the raw typed text.
+      expect(isTiptapDocString(patchArgs[2])).toBe(true);
+      expect(toPlainText(patchArgs[2])).toBe('Draft');
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
 
-  // Note: Full modal interaction testing is problematic
-  // due to portal rendering. See SKIPPED_TESTS.md.
-  it.skip('should call addTagNote when form submitted', () => {
-    // This test is skipped due to modal portal rendering
+  // Stateful host so `onClose` actually closes the modal —
+  // the old notes-workflow integration test asserted this.
+  const ControlledModal = () => {
+    const [open, setOpen] = useState(true);
+    return (
+      <AddTagNoteModal
+        opened={open}
+        onClose={() => setOpen(false)}
+      />
+    );
+  };
+
+  const typeAndSubmit = async (text: string) => {
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, { target: { value: text } });
+    const form = screen
+      .getByRole('button', { name: 'Submit' })
+      .closest('form');
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+  };
+
+  it('should call addTagNote when form submitted', async () => {
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+    const onClose = vi.fn();
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={onClose} />,
+      {
+        storeOverrides: {
+          verseSelection: genesisSelection,
+          activeBookId: 'GEN',
+          activeChapter: 1,
+        },
+      }
+    );
+
+    await typeAndSubmit('A test note');
+
+    await waitFor(() => {
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    });
+    const [tagId, text, refs] =
+      (api.addTagNote as Mock).mock.calls[0];
+    expect(tagId).toBe('');
+    expect(isTiptapDocString(text)).toBe(true);
+    expect(toPlainText(text)).toBe('A test note');
+    expect(refs).toEqual([
+      { book: 'Genesis', chapter: 1, verse: 1 },
+      { book: 'Genesis', chapter: 1, verse: 2 },
+    ]);
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
-  it.skip('should clear selected verses after submission', () => {
-    // This test is skipped due to modal portal rendering
+  it('should clear selected verses after submission', async () => {
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+    renderWithProviders(<ControlledModal />, {
+      storeOverrides: {
+        verseSelection: genesisSelection,
+        activeBookId: 'GEN',
+        activeChapter: 1,
+      },
+    });
+
+    await typeAndSubmit('A test note');
+
+    // The modal closes and the bible selection is cleared —
+    // ported from the deleted notes-workflow integration test.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog')
+      ).not.toBeInTheDocument();
+    });
+    expect(useBibleStore.getState().verseSelection).toBeNull();
   });
+
+  // FIXME: reopening the modal orphans the autosaved draft on
+  // the server — `savedNoteIdRef` resets in the `opened` effect
+  // (AddTagNoteModal.tsx) so the next autosave POSTs a second
+  // note instead of PATCHing the existing one. The fix (delete
+  // the draft on close, or persist/resume its id across reopen)
+  // is a product decision exceeding a ~30-line test-only fix.
+  it.skip('PATCHes the autosaved draft instead of POSTing a ' +
+    'second note when reopened mid-session', async () => {
+      (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+      (api.editNote as Mock).mockResolvedValue({});
+
+      const { rerender } = renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Draft' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+
+        // Close without submitting, then reopen for the same
+        // selection and keep typing — the draft should resume.
+        rerender(
+          <AddTagNoteModal opened={false} onClose={vi.fn()} />
+        );
+        rerender(
+          <AddTagNoteModal opened={true} onClose={vi.fn()} />
+        );
+        // getByLabelText, not findBy — async queries never
+        // resolve under fake timers.
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft continued' },
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+        const patchArgs =
+          (api.editNote as Mock).mock.calls[0];
+        expect(patchArgs[0]).toBe('n1');
+        expect(toPlainText(patchArgs[2])).toBe('Draft continued');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 });
