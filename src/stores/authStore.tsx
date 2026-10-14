@@ -52,9 +52,9 @@ const createAuthStore = () => create<AuthState>()(
         
         try {
           const requestBody = { username, password };
-          console.log('🔐 Login attempt:', { 
+          console.log('🔐 Login attempt:', {
             url: `${API_BASE_URL}/api/token/`,
-            body: requestBody 
+            body: { ...requestBody, password: '***' },
           });
           
           const response = await fetch(`${API_BASE_URL}/api/token/`, {
@@ -76,7 +76,8 @@ const createAuthStore = () => create<AuthState>()(
             if (response.status === 400) {
               errorMessage = errorData.non_field_errors?.[0] ||
                 errorData.detail ||
-                'Invalid credentials. Please ensure you have a valid account with a password set via Django admin.';
+                'Invalid credentials. Please ensure you have a ' +
+                'valid account with a password set via Django admin.';
             } else if (response.status === 401) {
               errorMessage = 'Invalid username or password';
             } else {
@@ -124,7 +125,12 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
-          const requestBody: any = {
+          const requestBody: {
+            username: string;
+            password: string;
+            password_confirm: string;
+            email?: string;
+          } = {
             username,
             password,
             password_confirm: passwordConfirm,
