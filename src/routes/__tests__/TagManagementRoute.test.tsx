@@ -22,7 +22,22 @@ import { useBibleStore } from '../../store';
 import { useAuthStore } from '../../stores/authStore';
 import * as api from '../../api';
 
-vi.mock('../../api');
+// Selective automock — keep real error classes so `instanceof`
+// checks in store actions still work.
+vi.mock('../../api', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../api')>();
+  const mocked: Record<string, unknown> = { ...actual };
+  for (const [key, value] of Object.entries(actual)) {
+    if (
+      typeof value === 'function' &&
+      key !== 'ConflictError'
+    ) {
+      mocked[key] = vi.fn();
+    }
+  }
+  return mocked;
+});
 const mockApi = vi.mocked(api);
 
 // Lightweight TagTree that still exercises onDelete.
