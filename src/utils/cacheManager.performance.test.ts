@@ -117,6 +117,12 @@ describe('CacheManager Performance Tests', () => {
       // Total should still be at or below limit
       const newStats = getCacheStats();
       expect(newStats.verses.total).toBeLessThanOrEqual(500);
+
+      // The eviction must drop the OLDEST entry (Genesis 1),
+      // not the newest (Genesis 50) or the just-added Exodus 1.
+      expect(getCachedVerses('Genesis', 1, 'KJV')).toBeNull();
+      expect(getCachedVerses('Genesis', 50, 'KJV')).not.toBeNull();
+      expect(getCachedVerses('Exodus', 1, 'KJV')).not.toBeNull();
     });
   });
 
