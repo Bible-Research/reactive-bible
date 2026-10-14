@@ -79,15 +79,28 @@ export default function App() {
     (state) => state.headerVisible
   );
   useWindowEvent("keydown", (event) => {
-    const tag = (event.target as HTMLElement).tagName;
-    if (
-      event.key === "/" &&
-      tag !== "INPUT" &&
-      tag !== "TEXTAREA"
-    ) {
-      event.preventDefault();
-      navigate("/search");
+    if (event.key !== "/" || event.isComposing) return;
+    // Already on the search page — another "/" must not push a
+    // duplicate history entry or swallow the keystroke.
+    if (location.pathname === "/search") return;
+    const target = event.target;
+    if (target instanceof HTMLElement) {
+      const tag = target.tagName;
+      // Bail while typing: inputs, selects, and contenteditable
+      // surfaces (TipTap's .ProseMirror) — otherwise the
+      // swallowed "/" navigates away and destroys drafts.
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable ||
+        target.closest("[contenteditable]") !== null
+      ) {
+        return;
+      }
     }
+    event.preventDefault();
+    navigate("/search");
   });
   return (
     <ColorSchemeProvider
