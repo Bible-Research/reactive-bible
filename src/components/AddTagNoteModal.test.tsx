@@ -284,7 +284,11 @@ describe('AddTagNoteModal Component', () => {
       });
 
       renderWithProviders(
-        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        <AddTagNoteModal
+          opened={true}
+          onClose={vi.fn()}
+          draftRef={draftRef()}
+        />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
