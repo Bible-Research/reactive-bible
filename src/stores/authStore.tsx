@@ -79,7 +79,9 @@ const createAuthStore = () => create<AuthState>()(
             if (response.status === 400) {
               errorMessage = errorData.non_field_errors?.[0] ||
                 errorData.detail ||
-                'Invalid credentials. Please ensure you have a valid account with a password set via Django admin.';
+                'Invalid credentials. Please ensure you have ' +
+                  'a valid account with a password set via ' +
+                  'Django admin.';
             } else if (response.status === 401) {
               errorMessage = 'Invalid username or password';
             } else {
@@ -281,6 +283,14 @@ const createAuthStore = () => create<AuthState>()(
               response.status === 401 ||
               response.status === 403
             ) {
+              // The token may have rotated while this
+              // ping was in flight — a login/register
+              // completed in the meantime, or another
+              // 401 handler already logged out. The
+              // rejection belongs to the stale token,
+              // so the current session must be left
+              // alone (and no second toast shown).
+              if (get().token !== token) return;
               console.warn(
                 'Persisted token rejected ' +
                   `(${response.status}) — logging out`

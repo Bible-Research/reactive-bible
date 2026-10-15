@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { authenticatedFetch, isAuthenticated, getAuthToken } from '../apiClient';
+import {
+  authenticatedFetch,
+  isAuthenticated,
+  getAuthToken,
+} from '../apiClient';
 import { useAuthStore } from '../../stores/authStore';
+import { showNotification } from '@mantine/notifications';
 
 // Mock the notifications
 vi.mock('@mantine/notifications', () => ({
@@ -122,6 +127,25 @@ describe('apiClient', () => {
       expect(useAuthStore.getState().token).toBeNull();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
+
+    it('should not repeat the expired-session toast when ' +
+      'another handler already logged out', async () => {
+        // e.g. a stale-token 401 landing after checkAuth's
+        // validation ping already expired the session.
+        useAuthStore.setState({
+          token: mockToken,
+          isAuthenticated: false,
+        });
+
+        global.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+        });
+
+        await expect(authenticatedFetch(mockUrl))
+          .rejects.toThrow('Session expired');
+        expect(showNotification).not.toHaveBeenCalled();
+      });
 
     it('should handle 403 response with permission error', async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({

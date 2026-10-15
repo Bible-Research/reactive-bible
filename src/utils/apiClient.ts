@@ -81,17 +81,25 @@ export const authenticatedFetch = async (
     
     // Handle 401 Unauthorized - token expired or invalid
     if (response.status === 401) {
+      // Another in-flight request (or checkAuth's token
+      // validation) may have already expired this session
+      // — only toast on the first logout.
+      const wasAuthenticated =
+        useAuthStore.getState().isAuthenticated;
       console.warn('401 Unauthorized - logging out user');
       useAuthStore.getState().logout();
-      
+
       // Show notification to user
-      showNotification({
-        title: 'Session Expired',
-        message: 'Your session has expired. Please log in again.',
-        color: 'orange',
-        autoClose: 5000,
-      });
-      
+      if (wasAuthenticated) {
+        showNotification({
+          title: 'Session Expired',
+          message:
+            'Your session has expired. Please log in again.',
+          color: 'orange',
+          autoClose: 5000,
+        });
+      }
+
       throw new Error('Session expired. Please log in again.');
     }
     
@@ -137,14 +145,21 @@ export const authenticatedUpload = async (
     });
 
     if (response.status === 401) {
+      // Mirror authenticatedFetch: only toast on the
+      // first handler to expire the session.
+      const wasAuthenticated =
+        useAuthStore.getState().isAuthenticated;
       console.warn('401 Unauthorized - logging out user');
       useAuthStore.getState().logout();
-      showNotification({
-        title: 'Session Expired',
-        message: 'Your session has expired. Please log in again.',
-        color: 'orange',
-        autoClose: 5000,
-      });
+      if (wasAuthenticated) {
+        showNotification({
+          title: 'Session Expired',
+          message:
+            'Your session has expired. Please log in again.',
+          color: 'orange',
+          autoClose: 5000,
+        });
+      }
       throw new Error('Session expired. Please log in again.');
     }
 

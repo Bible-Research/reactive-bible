@@ -2,9 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
+import { showNotification } from '@mantine/notifications';
 import { server } from '../../mocks/server';
 import { API_BASE_URL } from '../../config';
 import { createTestAuthStore } from '../authStore';
+
+vi.mock('@mantine/notifications', () => ({
+  showNotification: vi.fn(),
+}));
 
 describe('authStore', () => {
   const mockToken = 'test-token-123';
@@ -153,6 +158,7 @@ describe('authStore', () => {
           expect(result.current.isAuthenticated).toBe(false);
         });
         expect(result.current.token).toBeNull();
+        expect(showNotification).toHaveBeenCalledTimes(1);
       });
 
     it('logs out when the persisted token is rejected (403)',
@@ -179,12 +185,63 @@ describe('authStore', () => {
         expect(result.current.token).toBeNull();
       });
 
+    it('keeps the new session when the stale token ' +
+      'rejection lands after login() rotated the token',
+      async () => {
+        // Hold the validation ping in flight while a real
+        // login() rotates the token. The stale 401 must not
+        // wipe the fresh session.
+        let resolvePing: (value: Response) => void =
+          () => undefined;
+        const ping = new Promise<Response>((resolve) => {
+          resolvePing = resolve;
+        });
+        vi.spyOn(global, 'fetch').mockImplementation(
+          (input) =>
+            String(input).includes('/api/token/')
+              ? Promise.resolve(
+                  new Response(
+                    JSON.stringify({ token: 'fresh-token' }),
+                    { status: 200 }
+                  )
+                )
+              : ping
+        );
+        const useTestAuthStore = createTestAuthStore();
+        const { result } = renderHook(() => useTestAuthStore());
+
+        act(() => {
+          useTestAuthStore.setState({ token: 'stale-token' });
+        });
+
+        act(() => {
+          result.current.checkAuth();
+        });
+
+        // login() completes — and rotates the token —
+        // while the stale ping is still in flight.
+        await act(async () => {
+          await result.current.login(mockUsername, 'pw');
+        });
+        expect(result.current.token).toBe('fresh-token');
+
+        // The stale token's 401 lands now; resolving the
+        // ping inside act flushes its .then handler.
+        await act(async () => {
+          resolvePing(new Response(null, { status: 401 }));
+        });
+
+        expect(result.current.token).toBe('fresh-token');
+        expect(result.current.user)
+          .toEqual({ username: mockUsername });
+        expect(result.current.isAuthenticated).toBe(true);
+        expect(showNotification).not.toHaveBeenCalled();
+      });
+
     it('keeps the session when validation cannot reach the ' +
       'server', async () => {
-        server.use(
-          http.get(`${API_BASE_URL}/api/v1/tags/`, () =>
-            HttpResponse.error()
-          )
+        vi.spyOn(global, 'fetch').mockRejectedValue(
+          new TypeError('Failed to fetch')
         );
         const useTestAuthStore = createTestAuthStore();
         const { result } = renderHook(() => useTestAuthStore());
@@ -197,9 +254,14 @@ describe('authStore', () => {
           result.current.checkAuth();
         });
 
-        // Give the failed request time to settle — offline
-        // users keep their local session.
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        // Flush the rejected ping's .catch — offline
+        // users keep their local session. A 0ms timer
+        // drains the microtask queue deterministically.
+        await act(async () => {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 0);
+          });
+        });
         expect(result.current.isAuthenticated).toBe(true);
         expect(result.current.token).toBe(mockToken);
       });
