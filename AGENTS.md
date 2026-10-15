@@ -65,6 +65,8 @@ Talks to the `bible_research` Django API.
 ## Commands
 
 ```bash
+# node/npm live in /opt/homebrew/bin on this machine — run
+# `export PATH="/opt/homebrew/bin:$PATH"` before any npm command
 npm run dev      # dev server :5173
 npm run build    # tsc + vite build
 npm run lint     # ESLint (aim for zero new warnings)
