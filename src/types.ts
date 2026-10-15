@@ -165,3 +165,97 @@ export interface ReadingPosition {
   verse: number;
   last_accessed: string;
 }
+
+export interface Fileset {
+  id: string;
+  type: "text_plain" | "audio" | "audio_drama";
+  size: string;
+  codec: "mp3" | "opus" | null;
+  bitrate: string | null;
+}
+
+export interface Translation {
+  abbr: string;
+  name: string;
+  language: string;
+  language_iso: string;
+  filesets: Fileset[];
+  /**
+   * Normalized audio/text options supplied by newer backends
+   * (`by_testament` member maps). When present they take
+   * precedence over client-side grouping of `filesets` — see
+   * `src/utils/filesetGroups.ts`.
+   */
+  audio_options?: unknown[];
+  text_options?: unknown[];
+}
+
+export interface KjvBook {
+  chapter: number;
+  verse: number;
+  text: string;
+  translation_id: string;
+  book_id: string;
+  book_name: string;
+}
+
+export interface NotePositionUpdate {
+  note_id: string;
+  position: number;
+}
+
+export type MovePlacement = 'before' | 'after';
+
+export interface MoveNoteResponse {
+  note_id: string;
+  tag_position: number;
+  rebalanced: boolean;
+}
+
+export interface PaginatedNotesResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: Note[];
+}
+
+export interface LinkedNotesResponse {
+  count: number;
+  results: Note[];
+}
+
+export interface SearchVerse {
+  book_id: string;
+  chapter: number;
+  verse_start: number;
+  verse_text: string;
+}
+
+export interface SearchPagination {
+  total: number;
+  count: number;
+  per_page: number;
+  current_page: number;
+  total_pages: number;
+}
+
+export interface SearchResponse {
+  verses: SearchVerse[];
+  meta: { pagination?: SearchPagination };
+}
+
+export interface SearchVerseGroup {
+  book_id: string;
+  count: number;
+  verses: SearchVerse[];
+}
+
+export interface GroupedSearchResponse {
+  groups: SearchVerseGroup[];
+  meta: { total: number; truncated: boolean };
+}
+
+export type ReadingPositionValue = {
+  chapter: number;
+  verse: number;
+};

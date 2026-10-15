@@ -1,17 +1,26 @@
-import { Translation } from "./store";
 import { loadKjvData } from './utils/kjvDataLoader';
 import bibleStructure from './assets/bibleStructure.json';
 import { toBookName, toUsfmCode } from "./utils/bibleUtils";
-import {
+import type {
   VerseTimestamp,
   FilesetCopyright,
   SectionHeading,
   Comment,
-  CommentAuthor,
   CommentCounts,
   CommentImage,
   NoteOrderIndexEntry,
   ReadingPosition,
+  Translation,
+  KjvBook,
+  Note,
+  Tag,
+  NotePositionUpdate,
+  MovePlacement,
+  MoveNoteResponse,
+  PaginatedNotesResponse,
+  LinkedNotesResponse,
+  GroupedSearchResponse,
+  ReadingPositionValue,
 } from './types';
 
 import {
@@ -37,7 +46,30 @@ import {
 import { reportFums } from './utils/fums';
 import { API_BASE_URL } from './config';
 
-export type { SectionHeading };
+// Shared API/domain types live in `./types`; re-export them
+// here so every existing `from '../api'` type import (and the
+// vi.mock barrels) keeps working unchanged.
+export type {
+  SectionHeading,
+  KjvBook,
+  Note,
+  Tag,
+  NotePositionUpdate,
+  MovePlacement,
+  MoveNoteResponse,
+  PaginatedNotesResponse,
+  LinkedNotesResponse,
+  Comment,
+  CommentAuthor,
+  CommentCounts,
+  CommentImage,
+  SearchVerse,
+  SearchPagination,
+  SearchResponse,
+  SearchVerseGroup,
+  GroupedSearchResponse,
+  ReadingPositionValue,
+} from './types';
 
 interface BibleStructureEntry {
   book_id: string;
@@ -49,15 +81,6 @@ interface BibleStructureEntry {
 // Book/chapter/verse-count metadata only — verse text is
 // lazy-loaded from kjv.json via kjvDataLoader.
 const structure = bibleStructure as BibleStructureEntry[];
-
-export interface KjvBook {
-  chapter: number;
-  verse: number;
-  text: string;
-  translation_id: string;
-  book_id: string;
-  book_name: string;
-}
 
 /**
  * Get list of all Bible books from lightweight structure data
@@ -353,7 +376,7 @@ export const deleteNote = async (noteId: string) => {
     }
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch(err: any | Error) {
+  } catch (err) {
     console.error('Error deleting note:', err);
     throw new Error('Failed to delete your note, please try again');
   }
@@ -406,11 +429,6 @@ const isRateLimitMessage = (
   message: string
 ): boolean => RATE_LIMIT_PATTERN.test(message);
 
-export interface NotePositionUpdate {
-  note_id: string;
-  position: number;
-}
-
 export const reorderNotes = async (
   tagId: string,
   updates: NotePositionUpdate[]
@@ -441,7 +459,6 @@ export const reorderNotes = async (
  * canonical ascending order. Powers the order-ID badge
  * dropdown; the order ID is the 1-based array index.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export const getNoteOrderIndex = async (
   tagId: string
 ): Promise<NoteOrderIndexEntry[]> => {
@@ -468,21 +485,12 @@ export const getNoteOrderIndex = async (
     : [];
 };
 
-export type MovePlacement = 'before' | 'after';
-
-export interface MoveNoteResponse {
-  note_id: string;
-  tag_position: number;
-  rebalanced: boolean;
-}
-
 /**
  * Move a single note to before/after `targetNoteId` in
  * canonical ascending order. The server computes the midpoint
  * (and rebalances when the float gap is exhausted); unlike
  * `reorderNotes` it returns 200 with the new position.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export const moveNote = async (
   tagId: string,
   noteId: string,
@@ -701,14 +709,13 @@ export const getAvailableTranslations = async (
 // AUDIO FUNCTIONS
 // ============================================
 
-export interface AudioResponse {
-  book: string;
-  book_name: string;
-  chapter: number;
-  audio_url: string;
-  duration_seconds: number;
-  file_size_bytes: number;
-  format: string;
+interface AudioApiResponse {
+  error?: string | { message?: string };
+  error_code?: unknown;
+  audio_url?: unknown;
+  duration_seconds?: number;
+  file_size_bytes?: number;
+  meta?: unknown;
 }
 
 /**
@@ -770,7 +777,7 @@ export const getBibleAudioUrl = async (
       throw new Error(errorMsg);
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as AudioApiResponse;
 
     if (isBookNotInFilesetBody(data)) {
       throw new BookNotInFilesetError(
@@ -1066,41 +1073,6 @@ export const getAudioTimestamps = async (
   }
 };
 
-export interface NoteVerse {
-  book: string;
-  chapter: number;
-  verse: number;
-  text: string;
-}
-
-export interface Tag {
-  id: string;
-  name: string;
-  parent_tag: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Note {
-  id: string;
-  note_text: string;
-  public: boolean;
-  is_owner: boolean;
-  created_at: string;
-  updated_at: string;
-  tag: Tag;
-  verses: NoteVerse[];
-  headings?: SectionHeading[];
-  tag_position: number | null;
-}
-
-export interface PaginatedNotesResponse {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: Note[];
-}
-
 /**
  * `tag_id` sentinel the API understands as "notes with no
  * tag". Real tag ids are `TAG…` strings and cannot collide.
@@ -1158,28 +1130,6 @@ export const getNotes = async (
   }
 };
 
-export const getAllNotes = async (
-  tagId?: string
-): Promise<Note[]> => {
-  const allNotes: Note[] = [];
-  let page = 1;
-  let hasMore = true;
-
-  while (hasMore) {
-    const response = await getNotes(tagId, { page });
-    allNotes.push(...response.results);
-    hasMore = response.next !== null;
-    page++;
-  }
-
-  return allNotes;
-};
-
-export interface LinkedNotesResponse {
-  count: number;
-  results: Note[];
-}
-
 export const getLinkedNotes = async (
   verseReferences: { book: string; chapter: number; verse: number }[],
   filesetId?: string
@@ -1223,12 +1173,6 @@ export const getNote = async (noteId: string): Promise<Note> => {
     throw error;
   }
 };
-
-// ============================================
-// COMMENT TYPES
-// ============================================
-
-export type { Comment, CommentAuthor, CommentCounts, CommentImage };
 
 // ============================================
 // COMMENT FUNCTIONS
@@ -1370,64 +1314,6 @@ export const fetchCommentImages = async (
 // SEARCH FUNCTIONS
 // ============================================
 
-export interface SearchVerse {
-  book_id: string;
-  chapter: number;
-  verse_start: number;
-  verse_text: string;
-}
-
-export interface SearchPagination {
-  total: number;
-  count: number;
-  per_page: number;
-  current_page: number;
-  total_pages: number;
-}
-
-export interface SearchResponse {
-  verses: SearchVerse[];
-  meta: { pagination?: SearchPagination };
-}
-
-export const searchBible = async (
-  query: string,
-  filesetId: string,
-  page = 1,
-  limit = 50,
-  signal?: AbortSignal,
-): Promise<SearchResponse> => {
-  const params = new URLSearchParams({
-    query,
-    fileset_id: filesetId,
-    page: String(page),
-    limit: String(limit),
-  });
-  const url =
-    `${API_BASE_URL}/api/v1/bible/search/?` +
-    params.toString();
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(`Search failed: ${response.statusText}`);
-  }
-  const json = await response.json();
-  return {
-    verses: json.data?.verses ?? [],
-    meta: json.data?.meta ?? {},
-  };
-};
-
-export interface SearchVerseGroup {
-  book_id: string;
-  count: number;
-  verses: SearchVerse[];
-}
-
-export interface GroupedSearchResponse {
-  groups: SearchVerseGroup[];
-  meta: { total: number; truncated: boolean };
-}
-
 export const searchBibleGrouped = async (
   query: string,
   filesetId: string,
@@ -1521,13 +1407,6 @@ export const fetchCommentCounts = async (params: {
 // get_dbt_book_id), so every function below maps the USFM bookId
 // to a display name before calling the API and maps names back
 // to USFM codes in responses.
-/* eslint-disable react-refresh/only-export-components --
-   api.tsx is a pure API module; it exports no components. */
-
-export type ReadingPositionValue = {
-  chapter: number;
-  verse: number;
-};
 
 /**
  * Get the saved reading position for a book. `bookId` is a USFM
