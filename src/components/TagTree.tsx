@@ -21,6 +21,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { Tag } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
 interface TagNode {
   tag: Tag;
@@ -43,6 +44,12 @@ export function TagTree({
   noteCounts = {},
 }: TagTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  // Defense in depth: /tags is a protected route, but the
+  // edit/delete affordances stay auth-gated in case this tree
+  // is ever rendered on a public surface.
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
 
   const buildTree = (tags: Tag[]): TagNode[] => {
     const map = new Map<string, TagNode>();
@@ -157,6 +164,7 @@ export function TagTree({
                   size="sm"
                   variant="subtle"
                   color="blue"
+                  title="View notes"
                   onClick={(e) => {
                     e.stopPropagation();
                     onViewNotes(node.tag.id);
@@ -166,33 +174,39 @@ export function TagTree({
                 </ActionIcon>
               </Tooltip>
 
-              <Tooltip label="Edit tag" position="top">
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="gray"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(node.tag);
-                  }}
-                >
-                  <IconEdit size={16} />
-                </ActionIcon>
-              </Tooltip>
+              {isAuthenticated && (
+                <>
+                  <Tooltip label="Edit tag" position="top">
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="gray"
+                      title="Edit tag"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(node.tag);
+                      }}
+                    >
+                      <IconEdit size={16} />
+                    </ActionIcon>
+                  </Tooltip>
 
-              <Tooltip label="Delete tag" position="top">
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="red"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(node.tag.id, node.tag.name);
-                  }}
-                >
-                  <IconTrash size={16} />
-                </ActionIcon>
-              </Tooltip>
+                  <Tooltip label="Delete tag" position="top">
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="red"
+                      title="Delete tag"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(node.tag.id, node.tag.name);
+                      }}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                </>
+              )}
             </Group>
           </Group>
         </Paper>
