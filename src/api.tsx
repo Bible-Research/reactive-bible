@@ -837,6 +837,7 @@ export const getBibleAudioUrl = async (
       audio_url?: unknown;
       duration_seconds?: number;
       file_size_bytes?: number;
+      meta?: unknown;
     };
 
     if (isBookNotInFilesetBody(data)) {
