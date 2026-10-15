@@ -13,8 +13,16 @@ const useStyles = createStyles((theme) => ({
   },
 
   link: {
+    appearance: "none",
+    background: "none",
+    border: 0,
+    cursor: "pointer",
+    font: "inherit",
+    ...theme.fn.focusStyles(),
     boxSizing: "border-box",
     display: "block",
+    width: "100%",
+    textAlign: "left",
     textDecoration: "none",
     color:
       theme.colorScheme === "dark"
@@ -142,21 +150,19 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%" className={classes.border}>
           {books.map((b) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: bookId === b.book_id,
               })}
               data-active={bookId === b.book_id || undefined}
-              href="/"
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectBook(b.book_id);
-              }}
+              aria-current={bookId === b.book_id || undefined}
+              onClick={() => onSelectBook(b.book_id)}
               key={b.book_id}
               title={`${titlePrefix}book-${b.book_id}`}
             >
               {b.book_name}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>
@@ -166,21 +172,19 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%" className={classes.border}>
           {chapters.map((ch) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: chapter === ch,
               })}
               data-active={chapter === ch || undefined}
-              href="/"
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectChapter(ch);
-              }}
+              aria-current={chapter === ch || undefined}
+              onClick={() => onSelectChapter(ch)}
               key={ch}
               title={`${titlePrefix}chapter-${ch}`}
             >
               {ch}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>
@@ -190,21 +194,21 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%">
           {verseList.map((verse) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: verses.includes(verse),
               })}
               data-active={verses.includes(verse) || undefined}
-              href="/"
+              aria-pressed={verses.includes(verse)}
               onClick={(event) => {
-                event.preventDefault();
                 onSelectVerse(verse, event.shiftKey);
               }}
               key={verse}
               title={`${titlePrefix}verse-${verse}`}
             >
               {verse}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>

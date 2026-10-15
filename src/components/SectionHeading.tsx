@@ -1,4 +1,9 @@
-import { Title, Box, createStyles } from "@mantine/core";
+import {
+  Box,
+  Title,
+  UnstyledButton,
+  createStyles,
+} from "@mantine/core";
 
 const useStyles = createStyles((theme) => ({
   clickable: {
@@ -31,10 +36,19 @@ const SectionHeading = ({
       pb="xs"
       id={id}
       className={cx({ [classes.clickable]: !!onClick })}
-      onClick={onClick}
     >
       <Title order={4} weight={700} color="dimmed">
-        {text}
+        {onClick ? (
+          <UnstyledButton
+            onClick={onClick}
+            // Keep the heading's typography inside the button.
+            sx={{ font: "inherit", color: "inherit" }}
+          >
+            {text}
+          </UnstyledButton>
+        ) : (
+          text
+        )}
       </Title>
     </Box>
   );
