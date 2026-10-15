@@ -24,10 +24,8 @@ import {
 } from './utils/cacheManager';
 import { useAuthStore } from './stores/authStore';
 
-// Canonical definitions live in `./types`; aliased (not
-// specifier re-exports — eslint-plugin-react-refresh@0.3
-// counts `export type { X }` names as component exports) so
-// existing `from '../store'` type imports keep working.
+// Canonical definitions live in `./types`; aliased so existing
+// `from '../store'` type imports keep working.
 export type Fileset = import('./types').Fileset;
 export type Translation = import('./types').Translation;
 
