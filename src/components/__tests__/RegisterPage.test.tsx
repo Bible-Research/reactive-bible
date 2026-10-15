@@ -1,13 +1,33 @@
-import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  vi,
+} from 'vitest';
+import {
+  act,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RegisterPage } from '../RegisterPage';
 import { renderWithProviders } from '../../__tests__/helpers';
-import { useAuthStore } from '../../stores/authStore';
+import {
+  useAuthStore,
+  type AuthState,
+} from '../../stores/authStore';
+
+// `vi.mock` factories are hoisted above the imports, so the
+// spies they capture must be created via `vi.hoisted` too.
+const { mockNavigate, mockShowNotification } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  mockShowNotification: vi.fn(),
+}));
 
 // Mock useNavigate
-const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<
     typeof import('react-router-dom')
@@ -15,17 +35,18 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    Link: ({ to, children }: any) => <a href={to}>{children}</a>,
+    Link: ({ to, children }: { to: string; children: ReactNode }) => (
+      <a href={to}>{children}</a>
+    ),
   };
 });
 
 // Mock notifications
-const mockShowNotification = vi.fn();
 vi.mock('@mantine/notifications', () => ({
   showNotification: mockShowNotification,
 }));
 
-describe.skip('RegisterPage', () => {
+describe('RegisterPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.setState({
@@ -40,11 +61,13 @@ describe.skip('RegisterPage', () => {
   it('should render registration form', () => {
     renderWithProviders(<RegisterPage />);
 
-    expect(screen.getByText('Create Account')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Create Account' })
+    ).toBeInTheDocument();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password\b/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^confirm password/i)).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /create account/i })
     ).toBeInTheDocument();
@@ -53,7 +76,9 @@ describe.skip('RegisterPage', () => {
   it('should show email is optional', () => {
     renderWithProviders(<RegisterPage />);
 
-    expect(screen.getByText(/used for password recovery/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/used for password recovery/i)
+    ).toBeInTheDocument();
   });
 
   it('should show link to login page', () => {
@@ -69,8 +94,8 @@ describe.skip('RegisterPage', () => {
 
     const usernameInput = screen.getByLabelText(/username/i);
     const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password\b/i);
+    const confirmInput = screen.getByLabelText(/^confirm password/i);
 
     await user.type(usernameInput, 'newuser');
     await user.type(emailInput, 'test@example.com');
@@ -88,9 +113,9 @@ describe.skip('RegisterPage', () => {
     renderWithProviders(<RegisterPage />);
 
     await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'password123');
+    await user.type(screen.getByLabelText(/^password\b/i), 'password123');
     await user.type(
-      screen.getByLabelText(/confirm password/i),
+      screen.getByLabelText(/^confirm password/i),
       'differentpass'
     );
     await user.click(
@@ -113,8 +138,8 @@ describe.skip('RegisterPage', () => {
     renderWithProviders(<RegisterPage />);
 
     await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'short');
-    await user.type(screen.getByLabelText(/confirm password/i), 'short');
+    await user.type(screen.getByLabelText(/^password\b/i), 'short');
+    await user.type(screen.getByLabelText(/^confirm password/i), 'short');
     await user.click(
       screen.getByRole('button', { name: /create account/i })
     );
@@ -135,16 +160,16 @@ describe.skip('RegisterPage', () => {
     const mockRegister = vi.fn().mockResolvedValue(undefined);
 
     useAuthStore.setState({
-      register: mockRegister as any,
+      register: mockRegister as AuthState['register'],
     });
 
     renderWithProviders(<RegisterPage />);
 
     await user.type(screen.getByLabelText(/username/i), 'newuser');
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
+    await user.type(screen.getByLabelText(/^password\b/i), 'SecurePass123');
     await user.type(
-      screen.getByLabelText(/confirm password/i),
+      screen.getByLabelText(/^confirm password/i),
       'SecurePass123'
     );
     await user.click(
@@ -166,15 +191,15 @@ describe.skip('RegisterPage', () => {
     const mockRegister = vi.fn().mockResolvedValue(undefined);
 
     useAuthStore.setState({
-      register: mockRegister as any,
+      register: mockRegister as AuthState['register'],
     });
 
     renderWithProviders(<RegisterPage />);
 
     await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
+    await user.type(screen.getByLabelText(/^password\b/i), 'SecurePass123');
     await user.type(
-      screen.getByLabelText(/confirm password/i),
+      screen.getByLabelText(/^confirm password/i),
       'SecurePass123'
     );
     await user.click(
@@ -196,15 +221,15 @@ describe.skip('RegisterPage', () => {
     const mockRegister = vi.fn().mockResolvedValue(undefined);
 
     useAuthStore.setState({
-      register: mockRegister as any,
+      register: mockRegister as AuthState['register'],
     });
 
     renderWithProviders(<RegisterPage />);
 
     await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
+    await user.type(screen.getByLabelText(/^password\b/i), 'SecurePass123');
     await user.type(
-      screen.getByLabelText(/confirm password/i),
+      screen.getByLabelText(/^confirm password/i),
       'SecurePass123'
     );
     await user.click(
@@ -227,15 +252,15 @@ describe.skip('RegisterPage', () => {
     const mockRegister = vi.fn().mockResolvedValue(undefined);
 
     useAuthStore.setState({
-      register: mockRegister as any,
+      register: mockRegister as AuthState['register'],
     });
 
     renderWithProviders(<RegisterPage />);
 
     await user.type(screen.getByLabelText(/username/i), 'newuser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
+    await user.type(screen.getByLabelText(/^password\b/i), 'SecurePass123');
     await user.type(
-      screen.getByLabelText(/confirm password/i),
+      screen.getByLabelText(/^confirm password/i),
       'SecurePass123'
     );
     await user.click(
@@ -254,21 +279,22 @@ describe.skip('RegisterPage', () => {
     );
 
     useAuthStore.setState({
-      register: mockRegister as any,
-      error: 'Username already exists',
+      register: mockRegister as AuthState['register'],
     });
 
     renderWithProviders(<RegisterPage />);
 
+    // The page clears stale auth errors on mount — a real
+    // registration failure lands in the store after render.
     await user.type(screen.getByLabelText(/username/i), 'existinguser');
-    await user.type(screen.getByLabelText(/^password$/i), 'SecurePass123');
+    await user.type(screen.getByLabelText(/^password\b/i), 'SecurePass123');
     await user.type(
-      screen.getByLabelText(/confirm password/i),
+      screen.getByLabelText(/^confirm password/i),
       'SecurePass123'
     );
-    await user.click(
-      screen.getByRole('button', { name: /create account/i })
-    );
+    act(() => {
+      useAuthStore.setState({ error: 'Username already exists' });
+    });
 
     await waitFor(() => {
       expect(
@@ -278,13 +304,11 @@ describe.skip('RegisterPage', () => {
   });
 
   it('should show loading state during registration', async () => {
-    const user = userEvent.setup();
-
-    useAuthStore.setState({
-      isLoading: true,
+    // Pass via overrides — renderWithProviders resets the
+    // auth store to its initial state on every render.
+    renderWithProviders(<RegisterPage />, {
+      stores: { auth: { isLoading: true } },
     });
-
-    renderWithProviders(<RegisterPage />);
 
     const submitButton = screen.getByRole('button', {
       name: /create account/i,
@@ -300,14 +324,18 @@ describe.skip('RegisterPage', () => {
     const mockClearError = vi.fn();
 
     useAuthStore.setState({
-      error: 'Test error',
       clearError: mockClearError,
     });
-
     renderWithProviders(<RegisterPage />);
+    act(() => {
+      useAuthStore.setState({ error: 'Test error' });
+    });
 
-    const closeButton = screen.getByRole('button', { name: /close/i });
-    await user.click(closeButton);
+    // The Alert close button has no accessible name (the page
+    // doesn't pass `closeButtonLabel`) — locate it inside the
+    // alert instead.
+    const alert = screen.getByRole('alert');
+    await user.click(within(alert).getByRole('button'));
 
     expect(mockClearError).toHaveBeenCalled();
   });
@@ -316,8 +344,8 @@ describe.skip('RegisterPage', () => {
     renderWithProviders(<RegisterPage />);
 
     const usernameInput = screen.getByLabelText(/username/i);
-    const passwordInput = screen.getByLabelText(/^password$/i);
-    const confirmInput = screen.getByLabelText(/confirm password/i);
+    const passwordInput = screen.getByLabelText(/^password\b/i);
+    const confirmInput = screen.getByLabelText(/^confirm password/i);
 
     expect(usernameInput).toBeRequired();
     expect(passwordInput).toBeRequired();
@@ -335,6 +363,6 @@ describe.skip('RegisterPage', () => {
     renderWithProviders(<RegisterPage />);
 
     const usernameInput = screen.getByLabelText(/username/i);
-    expect(usernameInput).toHaveAttribute('autofocus');
+    expect(usernameInput).toHaveFocus();
   });
 });

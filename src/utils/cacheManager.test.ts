@@ -412,18 +412,100 @@ describe('Notes Cache Manager', () => {
     const beforeCache = Date.now();
     cacheNotes('TAG1', notes);
     const afterCache = Date.now();
-    
-    // Verify timestamp is stored (check localStorage directly)
-    const cacheStr = localStorageMock.getItem('bible_notes_cache');
+
+    // Verify timestamp is stored (check localStorage directly).
+    // Keys carry the request scope: auth discriminator, fileset,
+    // and page size.
+    const cacheStr =
+      localStorageMock.getItem('bible_notes_cache_v2');
     expect(cacheStr).toBeTruthy();
-    
+
     const cache = JSON.parse(cacheStr!);
-    expect(cache['TAG1:page1:default'].timestamp).toBeGreaterThanOrEqual(
+    const key =
+      'TAG1:anon:fs:default:ps:default:page1:default';
+    expect(cache[key].timestamp).toBeGreaterThanOrEqual(
       beforeCache
     );
-    expect(cache['TAG1:page1:default'].timestamp).toBeLessThanOrEqual(
-      afterCache
-    );
+    expect(cache[key].timestamp).toBeLessThanOrEqual(afterCache);
+  });
+
+  it('separates cached pages by auth state, fileset, and ' +
+    'page size', () => {
+    const tag: Tag = {
+      id: 'TAG1', name: 'Tag 1', parent_tag: null,
+      created_at: '', updated_at: '',
+    };
+    const makeNote = (id: string): Note => ({
+      id, note_text: id, public: false, is_owner: true,
+      created_at: '', updated_at: '', tag, verses: [],
+      tag_position: null,
+    });
+
+    const base = { count: 1, hasMore: false, page: 1 };
+    cacheNotes('TAG1', [makeNote('anon')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: false,
+    });
+    cacheNotes('TAG1', [makeNote('authed')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: true,
+    });
+    cacheNotes('TAG1', [makeNote('other-fs')], {
+      ...base, filesetId: 'FS_B', pageSize: 25, authed: false,
+    });
+    cacheNotes('TAG1', [makeNote('other-ps')], {
+      ...base, filesetId: 'FS_A', pageSize: 50, authed: false,
+    });
+
+    const scope = (
+      authed: boolean,
+      filesetId = 'FS_A',
+      pageSize = 25
+    ) => ({ filesetId, pageSize, authed });
+
+    // A private-note page cached under an authed scope must not
+    // be served to anonymous readers (and vice versa).
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false))?.notes[0].id
+    ).toBe('anon');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(true))?.notes[0].id
+    ).toBe('authed');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false, 'FS_B'))
+        ?.notes[0].id
+    ).toBe('other-fs');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false, 'FS_A', 50))
+        ?.notes[0].id
+    ).toBe('other-ps');
+  });
+
+  it('clearNotesCache(tagId) clears every scoped page of the ' +
+    'tag', () => {
+    const tag: Tag = {
+      id: 'TAG1', name: 'Tag 1', parent_tag: null,
+      created_at: '', updated_at: '',
+    };
+    const note: Note = {
+      id: 'n1', note_text: 'n', public: false, is_owner: true,
+      created_at: '', updated_at: '', tag, verses: [],
+      tag_position: null,
+    };
+    const base = { count: 1, hasMore: false, page: 1 };
+    cacheNotes('TAG1', [note], {
+      ...base, filesetId: 'FS_A', authed: false,
+    });
+    cacheNotes('TAG1', [note], {
+      ...base, filesetId: 'FS_B', authed: true,
+    });
+
+    clearNotesCache('TAG1');
+
+    expect(getCachedNotes('TAG1', 1, null, {
+      filesetId: 'FS_A', authed: false,
+    })).toBeNull();
+    expect(getCachedNotes('TAG1', 1, null, {
+      filesetId: 'FS_B', authed: true,
+    })).toBeNull();
   });
 
   it('should cache different pages independently', () => {
@@ -662,5 +744,18 @@ describe('Audio Cache Manager', () => {
     cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
 
     expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+
+  it('treats a non-numeric Expires param as the 24h default ' +
+    'instead of NaN-never-expires', () => {
+    const audioUrl = 'http://audio.url/1?Expires=abc';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+
+    // Past the 24h default the URL must expire — a NaN expiry
+    // would have kept it fresh forever.
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBeNull();
   });
 });

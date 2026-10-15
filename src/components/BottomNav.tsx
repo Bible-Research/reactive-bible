@@ -7,7 +7,7 @@ import {
 } from "@mantine/core";
 import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
-import { useBibleStore } from "../store";
+import { useBibleStore, selectActiveBookName } from "../store";
 import { getPassage } from "../api";
 import { buildBiblePath } from "../utils/bibleUtils";
 
@@ -20,6 +20,8 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookId = useBibleStore((state) => state.activeBookId);
+  // Display name ("John") rather than the raw USFM code ("JHN").
+  const activeBookName = useBibleStore(selectActiveBookName);
   const getPassageResult = getPassage();
 
   const checkNext = (): number | null => {
@@ -45,30 +47,18 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const nextHandler = () => {
     const index = checkNext();
     if (index === null) return null;
-    if (getPassageResult) {
-      const next = getPassageResult[index + 1];
-      if (next !== null) {
-        console.log(
-          `🔗 BottomNav Next: ` +
-          `/bible/${next.book_id}.${next.chapter}`
-        );
-        navigate(buildBiblePath(next.book_id, next.chapter));
-      }
+    const next = getPassageResult[index + 1];
+    if (next !== null) {
+      navigate(buildBiblePath(next.book_id, next.chapter));
     }
   };
 
   const prevHandler = () => {
     const index = checkPrev();
     if (index === null) return null;
-    if (getPassageResult) {
-      const prev = getPassageResult[index - 1];
-      if (prev !== null) {
-        console.log(
-          `🔗 BottomNav Prev: ` +
-          `/bible/${prev.book_id}.${prev.chapter}`
-        );
-        navigate(buildBiblePath(prev.book_id, prev.chapter));
-      }
+    const prev = getPassageResult[index - 1];
+    if (prev !== null) {
+      navigate(buildBiblePath(prev.book_id, prev.chapter));
     }
   };
 
@@ -99,7 +89,16 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         </ActionIcon>
         <Title
           order={4}
+          role="button"
+          tabIndex={0}
+          title="nav-current-passage"
           onClick={() => setBibleSelectorOpened(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setBibleSelectorOpened(true);
+            }
+          }}
           sx={{
             cursor: "pointer",
             minWidth: "120px",
@@ -109,7 +108,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
             },
           }}
         >
-          {activeBookId} {activeChapter}
+          {activeBookName} {activeChapter}
         </Title>
         <ActionIcon
           variant="transparent"

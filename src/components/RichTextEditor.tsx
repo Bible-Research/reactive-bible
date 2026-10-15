@@ -13,7 +13,10 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import ScriptureMention from '../extensions/scriptureMention';
+import ScriptureMention, {
+  ScriptureMentionNode,
+  ScriptureRefNode,
+} from '../extensions/scriptureMention';
 import ScripturePassage from './ScripturePassage';
 import { isTiptapDocString } from '../utils/tiptapContent';
 import {
@@ -105,17 +108,23 @@ const RichTextEditor = forwardRef<
       }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
       ScriptureMention.configure({ onRefPreview }),
+      // Preserve stored scriptureRef/mention nodes — without
+      // schema entries the editor would strip them on load.
+      ScriptureRefNode,
+      ScriptureMentionNode,
     ],
     content: valueToContent(value),
     autofocus: autoFocus ? 'end' : false,
     editable: !disabled,
     // Note editors start one line high and grow with content up
     // to 60% of the viewport height, then scroll internally.
+    // Comment editors cap at a smaller height for the same.
     editorProps: {
       attributes: {
         style: note
           ? 'max-height: 60vh; overflow-y: auto;'
-          : `min-height: ${rem(76)};`,
+          : `min-height: ${rem(76)};` +
+            ` max-height: ${rem(240)}; overflow-y: auto;`,
       },
     },
     onUpdate: ({ editor: e }) => {

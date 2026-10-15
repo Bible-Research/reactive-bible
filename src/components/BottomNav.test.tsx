@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import BottomNav from './BottomNav';
+import { selectActiveBookName } from '../store';
 import { renderWithProviders } from '../__tests__/helpers';
 
 describe.skip('BottomNav Component', () => {
@@ -15,7 +16,7 @@ describe.skip('BottomNav Component', () => {
     
     expect(screen.getByTitle('prev-passage-button')).toBeInTheDocument();
     expect(screen.getByTitle('next-passage-button')).toBeInTheDocument();
-    // Passage title should be present (e.g., "Joh 1")
+    // Passage title should be present (e.g., "John 1")
     expect(screen.getByRole('heading', { level: 4 })).toBeInTheDocument();
   });
 
@@ -41,12 +42,13 @@ describe.skip('BottomNav Component', () => {
     const { mockStore } = renderWithProviders(
       <BottomNav {...defaultProps} />
     );
-    
+
     const passageTitle = screen.getByRole('heading', { level: 4 });
-    
-    // Should display book id and chapter
+
+    // Should display the book name (not the raw USFM code)
+    // and chapter
     expect(passageTitle).toHaveTextContent(
-      `${mockStore.activeBookId} ${mockStore.activeChapter}`
+      `${selectActiveBookName(mockStore)} ${mockStore.activeChapter}`
     );
   });
 });

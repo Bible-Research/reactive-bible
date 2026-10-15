@@ -3,6 +3,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { API_BASE_URL } from '../config';
 
 interface User {
+  /** Authoritative author identity (comments); absent for
+   *  login, whose /api/token/ response carries no user payload
+   *  — author matching falls back to the username. */
+  id?: number;
   username: string;
 }
 
@@ -49,14 +53,15 @@ const createAuthStore = () => create<AuthState>()(
       // Login action
       login: async (username: string, password: string) => {
         set({ isLoading: true, error: null });
-        
+
         try {
           const requestBody = { username, password };
-          console.log('🔐 Login attempt:', { 
+          // Never log the plaintext password — mask like register.
+          console.log('🔐 Login attempt:', {
             url: `${API_BASE_URL}/api/token/`,
-            body: requestBody 
+            body: { username, password: '***' },
           });
-          
+
           const response = await fetch(`${API_BASE_URL}/api/token/`, {
             method: 'POST',
             headers: {
@@ -64,35 +69,46 @@ const createAuthStore = () => create<AuthState>()(
             },
             body: JSON.stringify(requestBody),
           });
-          
+
           console.log('🔐 Login response status:', response.status);
-          
+
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             console.error('🔐 Login error response:', errorData);
-            
+
             let errorMessage = 'Invalid username or password';
-            
+
             if (response.status === 400) {
               errorMessage = errorData.non_field_errors?.[0] ||
                 errorData.detail ||
-                'Invalid credentials. Please ensure you have a valid account with a password set via Django admin.';
+                'Invalid credentials. Please ensure you have a ' +
+                'valid account with a password set via Django ' +
+                'admin.';
             } else if (response.status === 401) {
               errorMessage = 'Invalid username or password';
             } else {
-              errorMessage = errorData.detail || 
-                errorData.non_field_errors?.[0] || 
+              errorMessage = errorData.detail ||
+                errorData.non_field_errors?.[0] ||
                 'Login failed. Please try again.';
             }
-            
+
             throw new Error(errorMessage);
           }
-          
+
           const data = await response.json();
-          
+
+          // /api/token/ returns only `{ token }` — the as-typed
+          // username is the fallback identity; keep the
+          // defensive `data.user` read in case the endpoint
+          // ever grows a user payload.
           set({
             token: data.token,
-            user: { username },
+            user: {
+              ...(typeof data.user?.id === 'number'
+                ? { id: data.user.id }
+                : {}),
+              username: data.user?.username ?? username,
+            },
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -124,7 +140,12 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
-          const requestBody: any = {
+          const requestBody: {
+            username: string;
+            password: string;
+            password_confirm: string;
+            email?: string;
+          } = {
             username,
             password,
             password_confirm: passwordConfirm,
@@ -192,10 +213,17 @@ const createAuthStore = () => create<AuthState>()(
           
           const data = await response.json();
           
-          // Registration successful, set token and user
+          // Registration successful — the response carries a
+          // `user` payload, so keep its numeric id for author
+          // matching (comments compare ids before usernames).
           set({
             token: data.token,
-            user: { username: data.user.username },
+            user: {
+              ...(typeof data.user?.id === 'number'
+                ? { id: data.user.id }
+                : {}),
+              username: data.user?.username ?? username,
+            },
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -251,10 +279,27 @@ const createAuthStore = () => create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => localStorage),
+      // isAuthenticated is persisted alongside the token so the
+      // first render after rehydration already knows the session
+      // exists — otherwise pages that load data on the
+      // isAuthenticated flip would double-fetch.
       partialize: (state) => ({
         token: state.token,
         user: state.user,
+        isAuthenticated: state.isAuthenticated,
       }),
+      // isAuthenticated always derives from the token (the same
+      // rule checkAuth applies) — this covers blobs written
+      // before the field was persisted and keeps the two from
+      // ever disagreeing.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AuthState>;
+        return {
+          ...current,
+          ...p,
+          isAuthenticated: Boolean(p.token),
+        };
+      },
     }
   )
 );

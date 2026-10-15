@@ -76,19 +76,27 @@ export function mockDomApis() {
   // Mock scrollIntoView
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
-  // Mock document.getElementById for scroll behavior
-  const originalGetElementById = document.getElementById.bind(document);
-  vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
-    const element = originalGetElementById(id);
-    if (element) return element;
-    // Return a mock element for verse scrolling
-    if (id.startsWith('verse-')) {
-      return {
-        scrollIntoView: vi.fn(),
-      } as unknown as HTMLElement;
-    }
-    return null;
-  });
+  // Mock document.getElementById for scroll behavior.
+  // Guard the spy: re-wrapping an already-spied method binds
+  // `original` to the spy itself and recurses infinitely once
+  // enough tests have rendered in the same environment.
+  if (!vi.isMockFunction(document.getElementById)) {
+    const originalGetElementById =
+      document.getElementById.bind(document);
+    vi.spyOn(document, 'getElementById').mockImplementation(
+      (id: string) => {
+        const element = originalGetElementById(id);
+        if (element) return element;
+        // Return a mock element for verse scrolling
+        if (id.startsWith('verse-')) {
+          return {
+            scrollIntoView: vi.fn(),
+          } as unknown as HTMLElement;
+        }
+        return null;
+      }
+    );
+  }
 
   // Mock matchMedia for theme tests
   Object.defineProperty(window, 'matchMedia', {

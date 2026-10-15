@@ -1,5 +1,6 @@
 import { Box, ScrollArea, createStyles, rem } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
+import type { KeyboardEvent } from "react";
 import { getChapters, getVerses } from "../api";
 import { getAllBooks } from "../utils/scriptureMention";
 
@@ -47,6 +48,21 @@ const useStyles = createStyles((theme) => ({
     },
   },
 }));
+
+/**
+ * Enter/Space activates a picker row; Space must not scroll the
+ * column. The Shift state is forwarded so Shift+Enter can extend
+ * a verse range like shift+click does.
+ */
+const activateOnKeyDown = (
+  event: KeyboardEvent,
+  action: (shiftKey: boolean) => void,
+) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    action(event.shiftKey);
+  }
+};
 
 interface PassagePickerProps {
   /** USFM book code (e.g. "JHN"), null when unresolved. */
@@ -147,11 +163,14 @@ const PassagePicker = ({
                 [classes.linkActive]: bookId === b.book_id,
               })}
               data-active={bookId === b.book_id || undefined}
-              href="/"
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectBook(b.book_id);
-              }}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectBook(b.book_id)}
+              onKeyDown={(event) =>
+                activateOnKeyDown(event, () =>
+                  onSelectBook(b.book_id)
+                )
+              }
               key={b.book_id}
               title={`${titlePrefix}book-${b.book_id}`}
             >
@@ -171,11 +190,12 @@ const PassagePicker = ({
                 [classes.linkActive]: chapter === ch,
               })}
               data-active={chapter === ch || undefined}
-              href="/"
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectChapter(ch);
-              }}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectChapter(ch)}
+              onKeyDown={(event) =>
+                activateOnKeyDown(event, () => onSelectChapter(ch))
+              }
               key={ch}
               title={`${titlePrefix}chapter-${ch}`}
             >
@@ -195,11 +215,16 @@ const PassagePicker = ({
                 [classes.linkActive]: verses.includes(verse),
               })}
               data-active={verses.includes(verse) || undefined}
-              href="/"
-              onClick={(event) => {
-                event.preventDefault();
-                onSelectVerse(verse, event.shiftKey);
-              }}
+              role="button"
+              tabIndex={0}
+              onClick={(event) =>
+                onSelectVerse(verse, event.shiftKey)
+              }
+              onKeyDown={(event) =>
+                activateOnKeyDown(event, (shiftKey) =>
+                  onSelectVerse(verse, shiftKey)
+                )
+              }
               key={verse}
               title={`${titlePrefix}verse-${verse}`}
             >

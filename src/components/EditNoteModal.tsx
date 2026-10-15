@@ -10,6 +10,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { editNote, UNTAGGED_TAG_ID } from "../api";
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
@@ -65,7 +66,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
     if (!opened) return;
-    getTags(); // Uses cache if available
+    // Uses cache if available; a rejection already produced a
+    // store notification — swallow it so it stays off the
+    // global error reporter.
+    void getTags().catch(() => { /* notified by the store */ });
     setVersesOpen(false);
     if (!note) return;
     const initial = (note.verses ?? [])
@@ -137,17 +141,47 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // list is then stale and must be refreshed on close.
   const autosavedRef = useRef(false);
 
+  // The notes API expects book names (verses[].book).
+  const verseReferences = () =>
+    sortRefs(refs).map(({ bookId, chapter, verse }) => ({
+      book: toBookName(bookId) ?? bookId,
+      chapter,
+      verse,
+    }));
+
+  // Refetch the page the route is actually showing — a bare
+  // fetchNotes(tagId) would reset to page 1 with no ordering
+  // and could render a different tag's notes under this heading.
+  const refetchRouteTag = async () => {
+    if (!note) return;
+    const { notesOrdering, notesPage } = useBibleStore.getState();
+    // `null` tag means the note lives in the route's virtual
+    // "untagged" section — refetch via the sentinel id.
+    await fetchNotes(note.tag?.id ?? UNTAGGED_TAG_ID, {
+      ordering: notesOrdering ?? undefined,
+      page: notesPage,
+    });
+  };
+
   const handleAutoSave = async (tagId: string, text: string) => {
     if (!note) return;
-    await editNote(note.id, tagId, text);
+    // Include the picker's refs — closing via X/backdrop used
+    // to silently discard verse-link changes.
+    await editNote(note.id, tagId, text, verseReferences());
     autosavedRef.current = true;
     clearNotesCache();
   };
 
   const handleClose = () => {
     if (autosavedRef.current && note) {
-      // Untagged notes refresh the virtual "untagged" view.
-      fetchNotes(note.tag?.id ?? UNTAGGED_TAG_ID);
+      // Even if autosave moved the note to another tag, the
+      // list on screen is note.tag's — refetch it so the note
+      // disappears. Untagged notes refetch the virtual
+      // "untagged" view; the destination tag's cache was
+      // cleared.
+      void refetchRouteTag().catch(() => {
+        /* fetchNotes already notified the failure */
+      });
     }
     autosavedRef.current = false;
     onClose();
@@ -156,22 +190,23 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const handleSubmit = async (tagId: string, text: string) => {
     if (!note) return;
 
-    // The notes API expects book names (verses[].book).
-    const verseReferences = sortRefs(refs).map(
-      ({ bookId, chapter, verse }) => ({
-        book: toBookName(bookId) ?? bookId,
-        chapter,
-        verse,
-      })
-    );
-
     try {
-      await editNote(note.id, tagId, text, verseReferences);
+      await editNote(note.id, tagId, text, verseReferences());
       clearNotesCache(); // Cached pages hold stale verse links
-      fetchNotes(tagId); // Refresh notes list
+      // Refresh the tag the route displays (the note's own
+      // tag), not the select value — a moved note belongs to a
+      // different tag now.
+      void refetchRouteTag().catch(() => {
+        /* fetchNotes already notified the failure */
+      });
       onClose();
     } catch (error) {
       console.error(error);
+      showNotification({
+        title: 'Error',
+        message: 'Failed to save note. Please try again.',
+        color: 'red',
+      });
     }
   };
 
@@ -198,8 +233,21 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             tags={tags}
             onSubmit={handleSubmit}
             submitText="Submit changes"
-            onTagDropdownOpen={() => getTags()}
+            onTagDropdownOpen={() => {
+              void getTags().catch(() => {
+                /* notified by the store */
+              });
+            }}
             onAutoSave={handleAutoSave}
+            onUnmountedSave={() => {
+              // A tail save finishing after unmount sets
+              // autosavedRef too late for handleClose's check —
+              // refetch the route's tag here or the list shows
+              // the pre-edit text until the next load.
+              void refetchRouteTag().catch(() => {
+                /* fetchNotes already notified the failure */
+              });
+            }}
             note={{
               tagId: note.tag?.id ?? "",
               text: note.note_text,

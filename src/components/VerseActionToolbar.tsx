@@ -15,90 +15,102 @@ import {
   IconShare,
   IconX,
 } from "@tabler/icons-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMediaQuery } from "@mantine/hooks";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
 import AddTagNoteModal from "./AddTagNoteModal";
+import { emptyNoteDraft } from "./noteDraft";
 import {
   buildBiblePath,
   toBookName,
+  toUsfmCode,
 } from "../utils/bibleUtils";
+import { copyTextToClipboard } from "../utils/clipboard";
 import {
   groupRefsByChapter,
   verseNumbersFor,
 } from "../utils/verseRefs";
 
 
+// Keyed by USFM book code — display names go through
+// titleCase ("Song Of Solomon") which never matched the old
+// name-keyed entries, silently hiding the BLB link for SNG.
 const BOOK_TO_BLB_ABBR: Record<string, string> = {
-  Genesis: "gen",
-  Exodus: "exo",
-  Leviticus: "lev",
-  Numbers: "num",
-  Deuteronomy: "deu",
-  Joshua: "jos",
-  Judges: "jdg",
-  Ruth: "rth",
-  "1 Samuel": "1sa",
-  "2 Samuel": "2sa",
-  "1 Kings": "1ki",
-  "2 Kings": "2ki",
-  "1 Chronicles": "1ch",
-  "2 Chronicles": "2ch",
-  Ezra: "ezr",
-  Nehemiah: "neh",
-  Esther: "est",
-  Job: "job",
-  Psalms: "psa",
-  Proverbs: "pro",
-  Ecclesiastes: "ecc",
-  "Song of Solomon": "sng",
-  Isaiah: "isa",
-  Jeremiah: "jer",
-  Lamentations: "lam",
-  Ezekiel: "eze",
-  Daniel: "dan",
-  Hosea: "hos",
-  Joel: "joe",
-  Amos: "amo",
-  Obadiah: "oba",
-  Jonah: "jon",
-  Micah: "mic",
-  Nahum: "nah",
-  Habakkuk: "hab",
-  Zephaniah: "zep",
-  Haggai: "hag",
-  Zechariah: "zec",
-  Malachi: "mal",
-  Matthew: "mat",
-  Mark: "mar",
-  Luke: "luk",
-  John: "jhn",
-  Acts: "act",
-  Romans: "rom",
-  "1 Corinthians": "1co",
-  "2 Corinthians": "2co",
-  Galatians: "gal",
-  Ephesians: "eph",
-  Philippians: "php",
-  Colossians: "col",
-  "1 Thessalonians": "1th",
-  "2 Thessalonians": "2th",
-  "1 Timothy": "1ti",
-  "2 Timothy": "2ti",
-  Titus: "tit",
-  Philemon: "phm",
-  Hebrews: "heb",
-  James: "jam",
-  "1 Peter": "1pe",
-  "2 Peter": "2pe",
-  "1 John": "1jo",
-  "2 John": "2jo",
-  "3 John": "3jo",
-  Jude: "jde",
-  Revelation: "rev",
+  GEN: "gen",
+  EXO: "exo",
+  LEV: "lev",
+  NUM: "num",
+  DEU: "deu",
+  JOS: "jos",
+  JDG: "jdg",
+  RUT: "rth",
+  "1SA": "1sa",
+  "2SA": "2sa",
+  "1KI": "1ki",
+  "2KI": "2ki",
+  "1CH": "1ch",
+  "2CH": "2ch",
+  EZR: "ezr",
+  NEH: "neh",
+  EST: "est",
+  JOB: "job",
+  PSA: "psa",
+  PRO: "pro",
+  ECC: "ecc",
+  SNG: "sng",
+  ISA: "isa",
+  JER: "jer",
+  LAM: "lam",
+  EZK: "eze",
+  DAN: "dan",
+  HOS: "hos",
+  JOL: "joe",
+  AMO: "amo",
+  OBA: "oba",
+  JON: "jon",
+  MIC: "mic",
+  NAM: "nah",
+  HAB: "hab",
+  ZEP: "zep",
+  HAG: "hag",
+  ZEC: "zec",
+  MAL: "mal",
+  MAT: "mat",
+  MRK: "mar",
+  LUK: "luk",
+  JHN: "jhn",
+  ACT: "act",
+  ROM: "rom",
+  "1CO": "1co",
+  "2CO": "2co",
+  GAL: "gal",
+  EPH: "eph",
+  PHP: "php",
+  COL: "col",
+  "1TH": "1th",
+  "2TH": "2th",
+  "1TI": "1ti",
+  "2TI": "2ti",
+  TIT: "tit",
+  PHM: "phm",
+  HEB: "heb",
+  JAS: "jam",
+  "1PE": "1pe",
+  "2PE": "2pe",
+  "1JN": "1jo",
+  "2JN": "2jo",
+  "3JN": "3jo",
+  JUD: "jde",
+  REV: "rev",
+};
+
+// BibleHub paths slug the title-cased book name; a handful of
+// books use non-obvious slugs (BibleHub calls SNG "songs").
+const BIBLEHUB_PATH_OVERRIDES: Record<string, string> = {
+  SNG: "songs",
 };
 
 const faviconUrl = (domain: string) =>
@@ -131,8 +143,15 @@ const VerseActionToolbar = () => {
     (state) => state.setVerseSelection
   );
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
+  const notes = useBibleStore((state) => state.notes);
+  const detailNote = useBibleStore((state) => state.detailNote);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const location = useLocation();
   const [noteModalOpened, setNoteModalOpened] = useState(false);
+  // Owned here (not inside the modal) because the modal unmounts
+  // on close — a component-local draft would lose the autosaved
+  // note id and reopening would POST a duplicate.
+  const noteDraftRef = useRef(emptyNoteDraft());
   const [mapModalOpened, setMapModalOpened] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const navigate = useNavigate();
@@ -172,6 +191,37 @@ const VerseActionToolbar = () => {
     return groupRefsByChapter(refs).map(formatChapterGroup).join("; ");
   }, [refs]);
 
+  // Selected verse text from the note's own data when the
+  // selection lives inside a note card — DOM scraping only sees
+  // rendered verses, so folded cards shared a partial passage.
+  // 'bible'-scope selections still scrape the passage DOM below.
+  // `detailNote` covers /notes/:id — that page's note is fetched
+  // into local state and never joins `notes`.
+  const noteVerseText = useMemo(() => {
+    if (!scope || scope === 'bible' || refs.length === 0) {
+      return null;
+    }
+    const note =
+      notes.find((n) => n.id === scope) ??
+      (detailNote?.id === scope ? detailNote : null);
+    if (!note) return null;
+    const text = refs
+      .map(
+        (r) =>
+          note.verses
+            .find(
+              (v) =>
+                toUsfmCode(v.book) === r.bookId &&
+                v.chapter === r.chapter &&
+                v.verse === r.verse
+            )
+            ?.text.trim() ?? ''
+      )
+      .filter(Boolean)
+      .join(' ');
+    return text || null;
+  }, [scope, refs, notes, detailNote]);
+
   const handleShare = useCallback(async () => {
     if (!primary) return;
     const path = buildBiblePath(
@@ -181,16 +231,18 @@ const VerseActionToolbar = () => {
     );
     const url = `${window.location.origin}${path}`;
 
-    const verseText = refs
-      .map((r) => {
-        const el = document.querySelector(
-          `[data-verse-scope="${scope}"] ` +
-          `[title="passage-verse-${r.chapter}-${r.verse}"]`
-        );
-        return el?.textContent?.trim() ?? "";
-      })
-      .filter(Boolean)
-      .join(" ");
+    const verseText =
+      noteVerseText ??
+      refs
+        .map((r) => {
+          const el = document.querySelector(
+            `[data-verse-scope="${scope}"] ` +
+            `[title="passage-verse-${r.chapter}-${r.verse}"]`
+          );
+          return el?.textContent?.trim() ?? "";
+        })
+        .filter(Boolean)
+        .join(" ");
 
     const shareBody = verseText
       ? `${verseText}\n\n${passageRef}`
@@ -218,14 +270,13 @@ const VerseActionToolbar = () => {
       const clipboardText = verseText
         ? `${verseText}\n\n${passageRef}\n\n${url}`
         : `${passageRef}\n\n${url}`;
-      try {
-        await navigator.clipboard.writeText(clipboardText);
+      if (await copyTextToClipboard(clipboardText)) {
         showNotification({
           title: "Link copied",
           message: `Link to ${passageRef} copied to clipboard`,
           color: "blue",
         });
-      } catch {
+      } else {
         showNotification({
           title: "Error",
           message: "Failed to copy link",
@@ -233,28 +284,29 @@ const VerseActionToolbar = () => {
         });
       }
     }
-  }, [primary, refs, scope, passageRef]);
+  }, [primary, refs, scope, noteVerseText, passageRef]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
-    window.open(
-      "https://biblemapper.com/web/",
-      "_blank",
-      "noopener,noreferrer"
-    );
-    try {
-      await navigator.clipboard.writeText(passageRef);
-      showNotification({
-        title: "Copied",
-        message: `${passageRef} copied to clipboard`,
-        color: "green",
-      });
-    } catch {
+    // Copy first — opening the viewer after a failed copy would
+    // send the user to a page with nothing on the clipboard.
+    if (!(await copyTextToClipboard(passageRef))) {
       showNotification({
         title: "Error",
         message: "Failed to copy to clipboard",
         color: "red",
       });
+      return;
     }
+    showNotification({
+      title: "Copied",
+      message: `${passageRef} copied to clipboard`,
+      color: "green",
+    });
+    window.open(
+      "https://biblemapper.com/web/",
+      "_blank",
+      "noopener,noreferrer"
+    );
   }, [passageRef]);
 
   const youVersionUrl = useMemo(() => {
@@ -276,9 +328,8 @@ const VerseActionToolbar = () => {
     const verse = primary.verses[primary.verses.length - 1];
     if (verse == null) return null;
     const bookPath =
-      primaryBookName === "Song of Solomon"
-        ? "songs"
-        : primaryBookName.toLowerCase().replace(/ /g, "_");
+      BIBLEHUB_PATH_OVERRIDES[primary.bookId] ??
+      primaryBookName.toLowerCase().replace(/ /g, "_");
     return (
       `https://biblehub.com/${bookPath}/` +
       `${primary.chapter}-${verse}.htm#commentary`
@@ -286,15 +337,15 @@ const VerseActionToolbar = () => {
   }, [primary, primaryBookName]);
 
   const blbUrl = useMemo(() => {
-    if (!primary || !primaryBookName) return null;
+    if (!primary) return null;
     const verse = primary.verses[primary.verses.length - 1];
-    const abbr = BOOK_TO_BLB_ABBR[primaryBookName];
+    const abbr = BOOK_TO_BLB_ABBR[primary.bookId];
     if (!abbr || verse == null) return null;
     return (
       `https://www.blueletterbible.org/kjv/${abbr}/` +
       `${primary.chapter}/${verse}/`
     );
-  }, [primary, primaryBookName]);
+  }, [primary]);
 
   const mapUrl = useMemo(() => {
     if (!primary || !primaryBookName) {
@@ -308,7 +359,17 @@ const VerseActionToolbar = () => {
   }, [primary, primaryBookName]);
 
   const isVisible = refCount > 0;
-  const bottomOffset = showAudioPlayer ? 176 : 56;
+  // BottomNav (56px) only renders on /bible routes; on /notes
+  // the toolbar would otherwise float mid-screen. The audio
+  // player bar (~120px) sits at the bottom on every route.
+  const onBibleRoute = location.pathname.startsWith('/bible');
+  const bottomOffset = showAudioPlayer
+    ? onBibleRoute
+      ? 176
+      : 120
+    : onBibleRoute
+      ? 56
+      : 0;
 
   const handleViewInBible = useCallback(() => {
     if (!primary) return;
@@ -483,6 +544,7 @@ const VerseActionToolbar = () => {
         <AddTagNoteModal
           opened={noteModalOpened}
           onClose={() => setNoteModalOpened(false)}
+          draftRef={noteDraftRef}
         />
       )}
       <Modal
@@ -510,6 +572,9 @@ const VerseActionToolbar = () => {
         <iframe
           src={mapUrl}
           title="BibleMapper PassageBrowser"
+          sandbox="allow-scripts allow-same-origin"
+          referrerPolicy="no-referrer"
+          loading="lazy"
           width="100%"
           height={isMobile ? undefined : "600px"}
           style={{
