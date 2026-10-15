@@ -38,7 +38,8 @@ export function LoginPage() {
       });
       
       // Redirect to the page they tried to visit or to notes
-      const from = (location.state as any)?.from?.pathname || '/notes';
+      const state = location.state as { from?: { pathname?: string } } | null;
+      const from = state?.from?.pathname || '/notes';
       navigate(from, { replace: true });
     } catch (err) {
       // Error is already set in the store

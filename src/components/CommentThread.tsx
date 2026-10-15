@@ -133,8 +133,13 @@ const CommentThread = ({
 
   useEffect(() => {
     load();
+    // Alias the ref object so the cleanup bumps the shared
+    // counter — a superseded in-flight load must drop its
+    // result. Copying `loadVersion.current` (a snapshot)
+    // would defeat the guard.
+    const version = loadVersion;
     return () => {
-      loadVersion.current++;
+      version.current++;
     };
   }, [load]);
 
