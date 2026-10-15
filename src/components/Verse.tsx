@@ -235,6 +235,8 @@ const Verse = ({
     <Box
       component="div"
       display="flex"
+      role={selectable ? "button" : undefined}
+      aria-pressed={selectable ? isActive : undefined}
       data-active={isActive}
       data-audio-active={isAudioActive}
       className={cx({
