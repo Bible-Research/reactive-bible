@@ -683,6 +683,27 @@ export const handlers = [
     });
   }),
 
+  // --- Audio Timestamps ---
+  // ENGESHO1DA (ESV "Hear the Word" OT audio) has no DBT verse
+  // timestamp rows — mirrors production, so tests can exercise
+  // the graceful-degradation path. Other filesets return a
+  // small fixed row set.
+  http.get(`${API_URL}/bible/timestamps/`, ({ request }) => {
+    const url = new URL(request.url);
+    const filesetId = url.searchParams.get('fileset_id');
+    if (filesetId === 'ENGESHO1DA') {
+      return HttpResponse.json({ data: [] });
+    }
+    return HttpResponse.json({
+      data: [
+        { verse_start: 0, timestamp: 0 },
+        { verse_start: 1, timestamp: 2.44 },
+        { verse_start: 2, timestamp: 5.0 },
+        { verse_start: 3, timestamp: 8.5 },
+      ],
+    });
+  }),
+
   // --- Copyright ---
   http.get(
     `${API_URL}/bible/copyright/`,

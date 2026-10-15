@@ -14,6 +14,8 @@ import {
   buildBiblePath,
   encodeVerses,
   decodeVerses,
+  resolveTimestampsFilesetId,
+  preferTimestampedAudioFileset,
 } from './bibleUtils';
 
 describe('Bible Utils', () => {
@@ -274,6 +276,69 @@ describe('Bible Utils', () => {
       ];
       const result = adjustTimestampsForENGESV(input, 'ENGESV_API');
       expect(result[2].timestamp).toBe(0);
+    });
+  });
+
+  describe('resolveTimestampsFilesetId', () => {
+    it('maps ENGESV_API audio to the testament ESV fileset', () => {
+      expect(
+        resolveTimestampsFilesetId('ENGESV_API', 'ENGESV_API', 'GEN'),
+      ).toBe('ENGESVO1DA');
+      expect(
+        resolveTimestampsFilesetId('ENGESV_API', 'ENGESV_API', 'JHN'),
+      ).toBe('ENGESVN1DA');
+    });
+
+    it('ignores ENGESV_API as the text fileset', () => {
+      // Timestamps are only valid for the recording they were
+      // generated from — an ESV text selection must not borrow
+      // ESV timestamp rows for a different audio recording
+      // (ENGESVO1DA rows misalign with ENGESHO1DA audio).
+      expect(
+        resolveTimestampsFilesetId(
+          'ENGESHO1DA-opus16',
+          'ENGESV_API',
+          'GEN',
+        ),
+      ).toBe('ENGESHO1DA');
+      expect(
+        resolveTimestampsFilesetId(null, 'ENGESV_API', 'GEN'),
+      ).toBeNull();
+    });
+
+    it('strips the codec suffix for other audio filesets', () => {
+      expect(
+        resolveTimestampsFilesetId(
+          'ENGESHN1DA-opus16',
+          'ENGESH',
+          'JHN',
+        ),
+      ).toBe('ENGESHN1DA');
+    });
+  });
+
+  describe('preferTimestampedAudioFileset', () => {
+    it('maps ENGESHO1DA to ENGESVO1DA preserving the suffix', () => {
+      expect(preferTimestampedAudioFileset('ENGESHO1DA')).toBe(
+        'ENGESVO1DA',
+      );
+      expect(
+        preferTimestampedAudioFileset('ENGESHO1DA-opus16'),
+      ).toBe('ENGESVO1DA-opus16');
+    });
+
+    it('passes unmapped ids through unchanged', () => {
+      expect(preferTimestampedAudioFileset('ENGESHN1DA')).toBe(
+        'ENGESHN1DA',
+      );
+      expect(
+        preferTimestampedAudioFileset('ENGESHN1DA-opus16'),
+      ).toBe('ENGESHN1DA-opus16');
+      expect(preferTimestampedAudioFileset('ENGKJV')).toBe('ENGKJV');
+      expect(preferTimestampedAudioFileset('ENGESV_API')).toBe(
+        'ENGESV_API',
+      );
+      expect(preferTimestampedAudioFileset('')).toBe('');
     });
   });
 

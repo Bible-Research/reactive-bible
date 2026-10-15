@@ -141,6 +141,90 @@ describe('apiClient', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
+    it('should not repeat the expired-session toast when ' +
+      'another handler already logged out', async () => {
+        // e.g. a stale-token 401 landing after checkAuth's
+        // validation ping already expired the session.
+        useAuthStore.setState({
+          token: null,
+          isAuthenticated: false,
+        });
+
+        global.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+        });
+
+        await expect(authenticatedFetch(mockUrl))
+          .rejects.toThrow('Session expired');
+        expect(showNotification).not.toHaveBeenCalled();
+      });
+
+    it('should not log out when the token rotated while ' +
+      'the request was in flight', async () => {
+        // Cold-load race: a request issued with a stale token
+        // resolves 401 after login/register already stored a
+        // fresh token — the stale 401 must not wipe it.
+        useAuthStore.setState({
+          token: mockToken,
+          isAuthenticated: true,
+        });
+        const logoutSpy = vi.spyOn(
+          useAuthStore.getState(),
+          'logout'
+        );
+
+        let resolveFetch: (r: unknown) => void = () => {
+          throw new Error('fetch resolved before mock was ready');
+        };
+        global.fetch = vi.fn().mockImplementationOnce(
+          () => new Promise((resolve) => {
+            resolveFetch = resolve;
+          })
+        );
+
+        const request = authenticatedFetch(mockUrl);
+        const assertion = expect(request).rejects.toThrow(
+          'Session expired'
+        );
+
+        // Rotate the token while the stale request is held.
+        useAuthStore
+          .getState()
+          .setToken('fresh-token-456', 'user');
+        resolveFetch({ ok: false, status: 401 });
+        await assertion;
+
+        // The fresh session survives: no logout, no toast.
+        expect(logoutSpy).not.toHaveBeenCalled();
+        expect(useAuthStore.getState().token)
+          .toBe('fresh-token-456');
+        expect(useAuthStore.getState().isAuthenticated)
+          .toBe(true);
+        expect(showNotification).not.toHaveBeenCalled();
+      });
+
+    it('should still log out on a normal mid-session 401 ' +
+      '(token unchanged)', async () => {
+        useAuthStore.setState({
+          token: mockToken,
+          isAuthenticated: true,
+        });
+
+        global.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+        });
+
+        await expect(authenticatedFetch(mockUrl))
+          .rejects.toThrow('Session expired');
+
+        expect(useAuthStore.getState().token).toBeNull();
+        expect(useAuthStore.getState().isAuthenticated)
+          .toBe(false);
+        expect(showNotification).toHaveBeenCalledTimes(1);
+      });
+
     it('should handle 403 response with permission error', async () => {
       vi.stubGlobal(
         'fetch',

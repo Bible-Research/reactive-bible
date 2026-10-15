@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { showNotification } from '@mantine/notifications';
 import { API_BASE_URL } from '../config';
+import { useBibleStore } from '../store';
+import { clearNotesCache } from '../utils/cacheManager';
 
 interface User {
   username: string;
@@ -241,6 +244,24 @@ const createAuthStore = () => create<AuthState>()(
           isAuthenticated: false,
           error: null,
         });
+        // Scrub user-owned data from the persisted bible store
+        // so a previous session's private notes, tags and
+        // reading positions can't resurface for an anonymous
+        // visitor on this device. (`useBibleStore` is a
+        // deferred-usage import — ../store also imports this
+        // module — and may be a bare mock in unit tests, so
+        // only touch it at call time.)
+        useBibleStore.setState?.({
+          notes: [],
+          tags: [],
+          notesCount: 0,
+          notesHasMore: false,
+          allNotesFetched: false,
+          lastSelectedTagId: null,
+          notesPage: 1,
+          readingPositions: {},
+        });
+        clearNotesCache();
       },
       
       // Clear error
@@ -262,6 +283,46 @@ const createAuthStore = () => create<AuthState>()(
       checkAuth: () => {
         const { token } = get();
         set({ isAuthenticated: !!token });
+        if (!token) return;
+        // A persisted token may be expired or revoked — checkAuth
+        // alone only proves a token exists. Validate it against a
+        // cheap authenticated GET; a rejected token must not keep
+        // `isAuthenticated` true, or write UI stays reachable and
+        // stale private data stays visible.
+        fetch(`${API_BASE_URL}/api/v1/tags/`, {
+          headers: { Authorization: `Token ${token}` },
+        })
+          .then((response) => {
+            if (
+              response.status === 401 ||
+              response.status === 403
+            ) {
+              // The token may have rotated while this
+              // ping was in flight — a login/register
+              // completed in the meantime, or another
+              // 401 handler already logged out. The
+              // rejection belongs to the stale token,
+              // so the current session must be left
+              // alone (and no second toast shown).
+              if (get().token !== token) return;
+              console.warn(
+                'Persisted token rejected ' +
+                  `(${response.status}) — logging out`
+              );
+              get().logout();
+              showNotification({
+                title: 'Session Expired',
+                message:
+                  'Your session has expired. Please log in again.',
+                color: 'orange',
+                autoClose: 5000,
+              });
+            }
+          })
+          .catch(() => {
+            // Network failure (offline): keep the local session —
+            // the next authenticated request re-validates anyway.
+          });
       },
     }),
     {

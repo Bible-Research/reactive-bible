@@ -286,9 +286,19 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - `*` (catch-all) - Redirects to `/bible`
 
 **Notes Routes** (✅ Implemented):
-- `/notes` - Auto-redirects to first tag
+- `/notes` - Auto-redirects to first tag (anonymous visitors
+  redirect to `/bible`)
 - `/notes/tag/:tagId` - Displays notes filtered by specific tag;
-  `/notes/tag/untagged` shows notes with no tag
+  `/notes/tag/untagged` shows notes with no tag. Public for
+  sharing — write affordances are `isAuthenticated`-gated
+- `/notes/:noteId` - Single note detail view; public for sharing
+
+**Tag Routes** (✅ Implemented):
+- `/tags` - Tag management; wrapped in `ProtectedRoute`
+  (anonymous visitors redirect to `/login`)
+
+**Auth Routes** (✅ Implemented):
+- `/login`, `/register`
 
 **Search Routes** (✅ Implemented):
 - `/search?q=<query>` - Book-grouped search results
@@ -353,8 +363,8 @@ navigate('/notes/tag/:newTagId');
 - `/notes/:noteId/edit` - Edit note
 
 **Phase 4**:
-- `/tags` - Tags list
-- `/tags/:tagId` - Tag detail
+- `/tags/:tagId` - Tag detail (`/tags` list is implemented —
+  see Tag Routes above)
 
 ---
 
@@ -1197,6 +1207,17 @@ pairs and testament-split members into `FilesetOption`s
   same-kind options → any audio option. Playback walks this list
   on `BookNotInFilesetError` or Howler load/play errors before
   notifying.
+- `preferTimestampedAudio(filesetId, translations)` swaps a
+  resolved audio fileset for the timestamp-backed sibling
+  recording in `TIMESTAMP_BACKED_AUDIO` (`bibleUtils.ts`) —
+  `ENGESHO1DA` has no DBT verse timestamps while `ENGESVO1DA`
+  does — but only when the replacement id exists among the
+  loaded translations. Both `useAudioPlaylist` and `Audio.tsx`
+  apply it to the primary candidate (keeping the resolved id as
+  a fallback) so verse seeks/bounds always match the playing
+  recording. When a recording still has no timestamps, the
+  playlist degrades to whole-chapter playback with a one-time
+  notification.
 - A stored `{abbr}:{kind}:{n}` product id that matches neither a
   product id nor a member falls back to the nth option of that
   kind owned by that translation — covers the 0-based
@@ -1255,6 +1276,9 @@ Streams audio Bible chapters with full playback controls.
 - Skip forward/backward (±10 seconds)
 - Auto-advance to next chapter
 - Loop current chapter infinitely
+- Starts at the earliest selected verse's timestamp when verses
+  are selected in the chapter (bible scope only; KJV audio and
+  missing timestamps start at 0)
 - Smart prefetching system:
   - Current chapter audio URL
   - Adjacent chapters (previous/next) verses + audio

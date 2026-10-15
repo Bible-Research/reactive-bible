@@ -18,6 +18,7 @@ import {
   createMockNote,
   createMockTag,
 } from '../__tests__/helpers';
+
 import * as api from '../api';
 import {
   isTiptapDocString,
@@ -344,6 +345,13 @@ describe('EditNoteModal Component', () => {
             lastSelectedTagId: '1',
             notesPage: 2,
             notesOrdering: 'verse',
+          },
+          // store.getTags no-ops without a token — the tag
+          // Select only populates for authenticated sessions.
+          authStoreState: {
+            isAuthenticated: true,
+            token: 'test-token',
+            user: { username: 'testuser' },
           },
         }
       );

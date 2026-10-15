@@ -8,6 +8,7 @@ import TagManagementRoute from './TagManagementRoute';
 import SearchRoute from './SearchRoute';
 import { LoginPage } from '../components/LoginPage';
 import { RegisterPage } from '../components/RegisterPage';
+import { ProtectedRoute } from '../components/ProtectedRoute';
 
 export function AppRoutes() {
   return (
@@ -34,8 +35,18 @@ export function AppRoutes() {
       <Route path="/notes/tag/:tagId" element={<TagNotesRoute />} />
       <Route path="/notes/:noteId" element={<NoteDetailRoute />} />
 
-      {/* Tag management route */}
-      <Route path="/tags" element={<TagManagementRoute />} />
+      {/* Tag management route - protected: it only exists to
+          write user-owned tags, so anonymous visitors go to
+          /login. /notes/tag/:tagId and /notes/:noteId stay
+          public for sharing. */}
+      <Route
+        path="/tags"
+        element={
+          <ProtectedRoute>
+            <TagManagementRoute />
+          </ProtectedRoute>
+        }
+      />
       {/* Catch-all: redirect to bible */}
       <Route path="*" element={<Navigate to="/bible" replace />} />
     </Routes>

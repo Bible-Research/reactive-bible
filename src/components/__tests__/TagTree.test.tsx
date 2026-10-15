@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   render,
   screen,
@@ -7,6 +7,10 @@ import {
 import { TagTree } from '../TagTree';
 import { mockDomApis } from '../../__tests__/helpers';
 import { Tag } from '../../types';
+import {
+  useAuthStore,
+  initialState as authInitialState,
+} from '../../stores/authStore';
 
 const makeTag = (
   id: string,
@@ -51,6 +55,17 @@ const renderTree = ({
 };
 
 describe('TagTree', () => {
+  beforeEach(() => {
+    // TagTree gates edit/delete affordances on isAuthenticated
+    // (issue #68) — these tests exercise those actions.
+    useAuthStore.setState({
+      ...authInitialState,
+      token: 'test-token',
+      user: { username: 'testuser' },
+      isAuthenticated: true,
+    });
+  });
+
   it('renders nothing for an empty tag list', () => {
     mockDomApis();
     const { container } = render(
@@ -145,5 +160,41 @@ describe('TagTree', () => {
     });
 
     expect(screen.getByText('Orphan')).toBeInTheDocument();
+  });
+});
+
+/**
+ * TagTree auth gating (issue #68): defense in depth — even if
+ * the tree is ever rendered on a public surface, the edit and
+ * delete affordances must stay hidden from anonymous visitors.
+ */
+describe('TagTree auth gating (issue #68)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.setState(authInitialState);
+  });
+
+  it('hides edit/delete actions for anonymous visitors', () => {
+    renderTree({ tags: [makeTag('tag-1', 'Bible Study')] });
+
+    expect(screen.queryByTitle('Edit tag'))
+      .not.toBeInTheDocument();
+    expect(screen.queryByTitle('Delete tag'))
+      .not.toBeInTheDocument();
+    // Read-only navigation stays visible.
+    expect(screen.getByTitle('View notes')).toBeInTheDocument();
+  });
+
+  it('shows edit/delete actions when authenticated', () => {
+    useAuthStore.setState({
+      token: 'test-token',
+      user: { username: 'testuser' },
+      isAuthenticated: true,
+    });
+
+    renderTree({ tags: [makeTag('tag-1', 'Bible Study')] });
+
+    expect(screen.getByTitle('Edit tag')).toBeInTheDocument();
+    expect(screen.getByTitle('Delete tag')).toBeInTheDocument();
   });
 });

@@ -39,6 +39,15 @@ describe('MainMenu Component', () => {
     );
   });
 
+  // New Note / Tag Management are authenticated-only (issue
+  // #68) — renderWithProviders resets auth to anonymous per
+  // render unless authStoreState is passed.
+  const authed = {
+    isAuthenticated: true,
+    token: 'test-token',
+    user: { username: 'testuser' },
+  };
+
   const defaultProps = {
     opened: true,
     onClose: mockOnClose,
@@ -47,7 +56,9 @@ describe('MainMenu Component', () => {
   };
 
   it('should render menu items when opened', () => {
-    renderWithProviders(<MainMenu {...defaultProps} />);
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: authed,
+    });
 
     expect(screen.getByText('Account')).toBeInTheDocument();
     expect(screen.getByText('Read Bible')).toBeInTheDocument();
@@ -104,7 +115,9 @@ describe('MainMenu Component', () => {
 
   it('should navigate to /tags on Tag Management', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<MainMenu {...defaultProps} />);
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: authed,
+    });
 
     await user.click(screen.getByText('Tag Management'));
 
@@ -127,7 +140,9 @@ describe('MainMenu Component', () => {
 
   it('should open the New Note modal', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<MainMenu {...defaultProps} />);
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: authed,
+    });
 
     await user.click(screen.getByText('New Note'));
 

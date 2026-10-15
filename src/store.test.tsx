@@ -60,6 +60,14 @@ describe('useBibleStore', () => {
       updated_at: '', tag_position: null,
     }];
 
+    beforeEach(() => {
+      // The notes cache only serves authenticated sessions.
+      useAuthStore.setState({
+        token: 'test-token',
+        isAuthenticated: true,
+      });
+    });
+
     it('should fetch notes from cache if available', async () => {
       mockCacheManager.getCachedNotes.mockReturnValue({
         notes: sampleNotes,
@@ -108,6 +116,36 @@ describe('useBibleStore', () => {
       );
       expect(useBibleStore.getState().notes).toEqual(sampleNotes);
     });
+
+    it('skips the localStorage cache for anonymous visitors',
+      async () => {
+        useAuthStore.setState({
+          token: null,
+          isAuthenticated: false,
+        });
+        // A stale cache entry must not be served — it could be
+        // private notes from a previous session on this device.
+        mockCacheManager.getCachedNotes.mockReturnValue({
+          notes: sampleNotes,
+          timestamp: Date.now(),
+          count: 1,
+          hasMore: false,
+        });
+        mockApi.getNotes.mockResolvedValue({
+          count: 1,
+          next: null,
+          previous: null,
+          results: sampleNotes,
+        });
+
+        await useBibleStore.getState().fetchNotes('TAG1');
+
+        expect(mockCacheManager.getCachedNotes)
+          .not.toHaveBeenCalled();
+        expect(mockApi.getNotes).toHaveBeenCalled();
+        expect(useBibleStore.getState().notes)
+          .toEqual(sampleNotes);
+      });
 
     it('resolves a stored product id before sending fileset_id',
       async () => {

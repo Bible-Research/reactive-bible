@@ -436,8 +436,15 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
               ) ?? activeTextFilesetId
             : undefined;
           
-          // Check cache for any page/ordering combination
-          if (!append && tagId) {
+          // Check cache for any page/ordering combination —
+          // but never for anonymous visitors: the localStorage
+          // cache may hold private notes from a previous
+          // session on this device. (`token` is the
+          // synchronously rehydrated anonymous check;
+          // `isAuthenticated` lags until App's mount checkAuth
+          // runs, so gating on it would miss the cache on
+          // every cold load.)
+          if (!append && tagId && useAuthStore.getState().token) {
             const cachedData = getCachedNotes(tagId, page, ordering);
             if (cachedData) {
               console.log(
@@ -523,6 +530,20 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         }
       },
       getTags: async (forceRefresh = false) => {
+        // Anonymous sessions own no tags. Drop any persisted
+        // leftovers from a previous session instead of serving
+        // them, and never hit the authed endpoint (which would
+        // 401 and trip the "session expired" logout for a user
+        // who was never logged in). `token` is the synchronous
+        // anonymous check — `isAuthenticated` lags until
+        // checkAuth runs, and NotesRoute legitimately calls
+        // getTags before that on a cold /notes load.
+        if (!useAuthStore.getState().token) {
+          if (useBibleStore.getState().tags.length > 0) {
+            set({ tags: [] });
+          }
+          return;
+        }
         // Use cached tags unless force refresh
         const currentTags = useBibleStore.getState().tags;
         if (!forceRefresh && currentTags.length > 0) {

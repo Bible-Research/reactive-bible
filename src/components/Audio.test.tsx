@@ -10,7 +10,10 @@ import {
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
-import { getBibleAudioUrl } from '../api';
+import {
+  getBibleAudioUrl,
+  getAudioTimestamps,
+} from '../api';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import {
   stubMediaSession,
@@ -104,6 +107,9 @@ describe('Audio Component', () => {
     FakeHowl.reset();
     session = stubMediaSession();
     vi.stubGlobal('MediaMetadata', FakeMediaMetadata);
+    // vi.clearAllMocks keeps mockImplementation — restore the
+    // default so per-test overrides cannot leak.
+    vi.mocked(getAudioTimestamps).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -165,6 +171,124 @@ describe('Audio Component', () => {
       expect(navigator.mediaSession.playbackState).toBe(
         'playing',
       );
+    });
+
+  it('starts chapter audio at the earliest selected verse',
+    async () => {
+      // ENGESV_API timestamps include a chapter announcement at
+      // verse 0 — adjustTimestampsForENGESV subtracts the
+      // verse0->verse1 offset (8 - 4 = 4), so verse 5 lands
+      // at 40 - 4 = 36.
+      vi.mocked(getAudioTimestamps).mockResolvedValue([
+        { verse_start: 0, timestamp: 4 },
+        { verse_start: 1, timestamp: 8 },
+        { verse_start: 5, timestamp: 40 },
+        { verse_start: 9, timestamp: 55 },
+      ]);
+      const seekSpy = vi.spyOn(FakeHowl.prototype, 'seek');
+      renderAudio({
+        activeAudioFilesetId: 'ENGESV_API',
+        verseSelection: {
+          scope: 'bible',
+          refs: [
+            { bookId: 'GEN', chapter: 1, verse: 9 },
+            { bookId: 'GEN', chapter: 1, verse: 5 },
+          ],
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1),
+      );
+      act(() => {
+        FakeHowl.instances[0].emit('load');
+      });
+
+      await waitFor(() => {
+        expect(seekSpy).toHaveBeenCalledWith(36);
+      });
+    });
+
+  it('does not seek when the selection is in another ' +
+    'chapter', async () => {
+      vi.mocked(getAudioTimestamps).mockResolvedValue([
+        { verse_start: 2, timestamp: 10 },
+      ]);
+      const seekSpy = vi.spyOn(FakeHowl.prototype, 'seek');
+      renderAudio({
+        activeAudioFilesetId: 'ENGESV_API',
+        verseSelection: {
+          scope: 'bible',
+          refs: [{ bookId: 'GEN', chapter: 2, verse: 2 }],
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1),
+      );
+      act(() => {
+        FakeHowl.instances[0].emit('load');
+      });
+
+      // play() runs after the load effect's seek decision, so
+      // once it fired no seek can still be pending.
+      await waitFor(() => {
+        expect(FakeHowl.instances[0].playing()).toBe(true);
+      });
+      expect(seekSpy).not.toHaveBeenCalled();
+    });
+
+  it('does not seek for ENGKJV audio (no timestamps)', async () => {
+    const seekSpy = vi.spyOn(FakeHowl.prototype, 'seek');
+    renderAudio({
+      verseSelection: {
+        scope: 'bible',
+        refs: [{ bookId: 'GEN', chapter: 1, verse: 5 }],
+      },
+    });
+
+    fireEvent.click(screen.getByTitle('Play audio'));
+    await waitFor(() =>
+      expect(FakeHowl.instances.length).toBe(1),
+    );
+    act(() => {
+      FakeHowl.instances[0].emit('load');
+    });
+
+    await waitFor(() => {
+      expect(FakeHowl.instances[0].playing()).toBe(true);
+    });
+    expect(seekSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not seek for note-scoped verse selections',
+    async () => {
+      vi.mocked(getAudioTimestamps).mockResolvedValue([
+        { verse_start: 5, timestamp: 30 },
+      ]);
+      const seekSpy = vi.spyOn(FakeHowl.prototype, 'seek');
+      renderAudio({
+        activeAudioFilesetId: 'ENGESV_API',
+        verseSelection: {
+          scope: 'note:1',
+          refs: [{ bookId: 'GEN', chapter: 1, verse: 5 }],
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1),
+      );
+      act(() => {
+        FakeHowl.instances[0].emit('load');
+      });
+
+      await waitFor(() => {
+        expect(FakeHowl.instances[0].playing()).toBe(true);
+      });
+      expect(seekSpy).not.toHaveBeenCalled();
     });
 
   it('ignores a fallback fetch that resolves after close',
