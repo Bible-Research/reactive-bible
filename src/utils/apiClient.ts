@@ -68,6 +68,9 @@ export const authenticatedFetch = async (
   options: RequestInit = {},
   retries = 1
 ): Promise<Response> => {
+  // Capture the token this request is issued with so a stale
+  // 401 can't wipe a session that rotated in the meantime.
+  const issuedToken = useAuthStore.getState().token;
   const headers = getAuthHeaders();
   
   try {
@@ -81,6 +84,14 @@ export const authenticatedFetch = async (
     
     // Handle 401 Unauthorized - token expired or invalid
     if (response.status === 401) {
+      // The token may have rotated while this request was
+      // in flight — a login/register completed, or checkAuth
+      // replaced it. This 401 belongs to the stale token, so
+      // the current session must be left alone (no logout,
+      // no toast); mirror the guard in checkAuth.
+      if (useAuthStore.getState().token !== issuedToken) {
+        throw new Error('Session expired. Please log in again.');
+      }
       // Another in-flight request (or checkAuth's token
       // validation) may have already expired this session
       // — only toast on the first logout.
@@ -145,6 +156,11 @@ export const authenticatedUpload = async (
     });
 
     if (response.status === 401) {
+      // Same rotation guard as authenticatedFetch: a 401 for
+      // a superseded token must not wipe the fresh session.
+      if (useAuthStore.getState().token !== token) {
+        throw new Error('Session expired. Please log in again.');
+      }
       // Mirror authenticatedFetch: only toast on the
       // first handler to expire the session.
       const wasAuthenticated =
