@@ -1255,6 +1255,9 @@ Streams audio Bible chapters with full playback controls.
 - Skip forward/backward (±10 seconds)
 - Auto-advance to next chapter
 - Loop current chapter infinitely
+- Starts at the earliest selected verse's timestamp when verses
+  are selected in the chapter (bible scope only; KJV audio and
+  missing timestamps start at 0)
 - Smart prefetching system:
   - Current chapter audio URL
   - Adjacent chapters (previous/next) verses + audio

@@ -8,11 +8,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
+import { getAudioTimestamps } from '../api';
+
+// Every mocked Howl instance created during a test.
+const createdHowls = vi.hoisted(
+  () => [] as Record<string, ReturnType<typeof vi.fn>>[],
+);
 
 // Mock Howler
 vi.mock('howler', () => ({
   Howl: vi.fn().mockImplementation(function () {
-    return {
+    const howl = {
       play: vi.fn(),
       pause: vi.fn(),
       stop: vi.fn(),
@@ -27,6 +33,8 @@ vi.mock('howler', () => ({
       once: vi.fn(),
       off: vi.fn(),
     };
+    createdHowls.push(howl);
+    return howl;
   }),
 }));
 
@@ -53,6 +61,8 @@ vi.mock('../api', () => ({
 describe('Audio Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    createdHowls.length = 0;
+    vi.mocked(getAudioTimestamps).mockResolvedValue([]);
   });
 
   it('should render the play button', () => {
@@ -101,6 +111,113 @@ describe('Audio Component', () => {
           useBibleStore.getState().audioActiveVerse
         ).toBeNull();
       });
+    });
+
+  it('starts chapter audio at the earliest selected verse',
+    async () => {
+      // ENGESV_API timestamps include a chapter announcement at
+      // verse 0 — adjustTimestampsForENGESV subtracts the
+      // verse0->verse1 offset (8 - 4 = 4), so verse 5 lands
+      // at 40 - 4 = 36.
+      vi.mocked(getAudioTimestamps).mockResolvedValue([
+        { verse_start: 0, timestamp: 4 },
+        { verse_start: 1, timestamp: 8 },
+        { verse_start: 5, timestamp: 40 },
+        { verse_start: 9, timestamp: 55 },
+      ]);
+      renderWithProviders(<Audio />, {
+        storeOverrides: {
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          activeAudioFilesetId: 'ENGESV_API',
+          verseSelection: {
+            scope: 'bible',
+            refs: [
+              { bookId: 'GEN', chapter: 1, verse: 9 },
+              { bookId: 'GEN', chapter: 1, verse: 5 },
+            ],
+          },
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+
+      await waitFor(() => {
+        expect(createdHowls[0]?.seek).toHaveBeenCalledWith(36);
+      });
+    });
+
+  it('does not seek when the selection is in another ' +
+    'chapter', async () => {
+      vi.mocked(getAudioTimestamps).mockResolvedValue([
+        { verse_start: 2, timestamp: 10 },
+      ]);
+      renderWithProviders(<Audio />, {
+        storeOverrides: {
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          activeAudioFilesetId: 'ENGESV_API',
+          verseSelection: {
+            scope: 'bible',
+            refs: [{ bookId: 'GEN', chapter: 2, verse: 2 }],
+          },
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+
+      // play() runs after the load effect's seek decision, so
+      // once it fired no seek can still be pending.
+      await waitFor(() => {
+        expect(createdHowls[0]?.play).toHaveBeenCalled();
+      });
+      expect(createdHowls[0].seek).not.toHaveBeenCalled();
+    });
+
+  it('does not seek for ENGKJV audio (no timestamps)', async () => {
+    renderWithProviders(<Audio />, {
+      storeOverrides: {
+        activeBookId: 'GEN',
+        activeChapter: 1,
+        activeAudioFilesetId: 'ENGKJV',
+        verseSelection: {
+          scope: 'bible',
+          refs: [{ bookId: 'GEN', chapter: 1, verse: 5 }],
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByTitle('Play audio'));
+
+    await waitFor(() => {
+      expect(createdHowls[0]?.play).toHaveBeenCalled();
+    });
+    expect(createdHowls[0].seek).not.toHaveBeenCalled();
+  });
+
+  it('does not seek for note-scoped verse selections',
+    async () => {
+      vi.mocked(getAudioTimestamps).mockResolvedValue([
+        { verse_start: 5, timestamp: 30 },
+      ]);
+      renderWithProviders(<Audio />, {
+        storeOverrides: {
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          activeAudioFilesetId: 'ENGESV_API',
+          verseSelection: {
+            scope: 'note:1',
+            refs: [{ bookId: 'GEN', chapter: 1, verse: 5 }],
+          },
+        },
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+
+      await waitFor(() => {
+        expect(createdHowls[0]?.play).toHaveBeenCalled();
+      });
+      expect(createdHowls[0].seek).not.toHaveBeenCalled();
     });
 
   // Note: Full audio playback testing is extremely complex
