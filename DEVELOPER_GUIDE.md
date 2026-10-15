@@ -287,7 +287,8 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 
 **Notes Routes** (✅ Implemented):
 - `/notes` - Auto-redirects to first tag
-- `/notes/tag/:tagId` - Displays notes filtered by specific tag
+- `/notes/tag/:tagId` - Displays notes filtered by specific tag;
+  `/notes/tag/untagged` shows notes with no tag
 
 **Search Routes** (✅ Implemented):
 - `/search?q=<query>` - Book-grouped search results
@@ -308,12 +309,18 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
 - Fetches notes for specific tag via API
-- Displays tag selector dropdown (searchable)
+- Displays tag selector dropdown (searchable); a separate
+  "Untagged" section at the bottom lists notes with no tag
+  (`tag_id=untagged` API sentinel). Custom-sort reordering and
+  the order menu are disabled there — reorder endpoints need a
+  real tag id
 - Shows note count
 - Provides full CRUD operations:
   - View note in Bible passage
   - Edit note (opens modal)
-  - Delete note (with confirmation)
+  - Delete note (with confirmation; the card is removed from
+    state as soon as the DELETE resolves, then the current page
+    is refetched to backfill the latest server state)
 - Handles "View in Bible" navigation
 - Updates URL when switching tags
 - Sort order comes from the `?sort=` URL param
@@ -456,7 +463,7 @@ export interface Note {
   public: boolean;
   created_at: string;
   updated_at: string;
-  tag: Tag;
+  tag: Tag | null;  // null = untagged note
   verses: {
     book: string;
     chapter: number;
@@ -1580,7 +1587,11 @@ export default function App() {
 
 **Note**: Analytics data is only collected in production 
 deployments on Vercel. No data is tracked during local 
-development.
+development. `<Analytics />` and `<SpeedInsights />` are not
+rendered inside the Capacitor Android shell — their `/_vercel/*`
+scripts only exist on the Vercel deployment and would 404 on the
+WebView's `https://localhost` origin (see `isNativeApp()` in
+`src/utils/nativeAudio.ts`).
 
 ### 9. Global Error Reporting
 
@@ -1599,6 +1610,9 @@ pasting into a GitHub issue.
   link) are reported in addition to script errors. Audio/video
   element failures are excluded — the app's own fallback chains
   retry them, so reporting them would surface expected noise.
+  Resource failures for `/_vercel/*` URLs (Vercel telemetry) are
+  also ignored — ad blockers and non-Vercel hosts make them fail
+  routinely.
 - **Unhandled promise rejections**: `unhandledrejection`
   listener; `AbortError` rejections are ignored (routine
   fetch cancellations on navigation races).
@@ -2304,6 +2318,8 @@ and `getKjvAudioUrl` stay synchronous.
 - Component: `<SpeedInsights />` in `App.tsx`
 - Package: `@vercel/speed-insights`
 - Data visible in Vercel dashboard after deployment
+- Both components are skipped in the Capacitor Android shell
+  (`isNativeApp()`), where their `/_vercel/*` scripts 404.
 
 ---
 

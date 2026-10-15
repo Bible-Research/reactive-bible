@@ -372,8 +372,9 @@ describe('Audio Cache Manager', () => {
   });
 
   it('should cache and retrieve an audio URL', () => {
-    const expiresSec = Math.floor((Date.now() + 3600 * 1000) / 1000);
-    const audioUrl = `http://audio.url/1?Expires=${expiresSec}`;
+    const now = Date.now();
+    const expires = Math.floor((now + 3600 * 1000) / 1000);
+    const audioUrl = `http://audio.url/1?Expires=${expires}`;
     cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
 
     const cached = getCachedAudioUrl('GEN', 1, 'KJV');
@@ -381,8 +382,9 @@ describe('Audio Cache Manager', () => {
   });
 
   it('should not return an expired audio URL', () => {
-    const expiresSec = Math.floor((Date.now() - 1000) / 1000);
-    const audioUrl = `http://audio.url/1?Expires=${expiresSec}`;
+    const now = Date.now();
+    const expires = Math.floor((now - 1000) / 1000);
+    const audioUrl = `http://audio.url/1?Expires=${expires}`;
     cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
 
     const cached = getCachedAudioUrl('GEN', 1, 'KJV');
@@ -391,12 +393,10 @@ describe('Audio Cache Manager', () => {
 
   it('should clear expired audio URLs', () => {
     const now = Date.now();
-    const expiredUrl =
-      'http://audio.url/1' +
-      `?Expires=${Math.floor((now - 1000) / 1000)}`;
-    const validUrl =
-      'http://audio.url/2' +
-      `?Expires=${Math.floor((now + 3600 * 1000) / 1000)}`;
+    const expired = Math.floor((now - 1000) / 1000);
+    const valid = Math.floor((now + 3600 * 1000) / 1000);
+    const expiredUrl = `http://audio.url/1?Expires=${expired}`;
+    const validUrl = `http://audio.url/2?Expires=${valid}`;
 
     cacheAudioUrl('GEN', 1, 'KJV', expiredUrl, 60, 1024); // Expired
     cacheAudioUrl('EXO', 2, 'ESV', validUrl, 120, 2048); // Not expired
@@ -449,6 +449,61 @@ describe('Audio Cache Manager', () => {
     expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBeNull();
 
     errorSpy.mockRestore();
+  });
+
+  // API.Bible `resourceUrl`s are AWS SigV4-presigned: expiry is
+  // `X-Amz-Date` + `X-Amz-Expires` seconds.
+  const amzDate = (d: Date) =>
+    d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
+  it('should honor X-Amz presigned URL expiry', () => {
+    const now = Date.now();
+    const signedAt = amzDate(new Date(now - 60 * 1000));
+    const audioUrl =
+      `https://cdn.example.com/JHN.3.mp3?X-Amz-Date=${signedAt}` +
+      `&X-Amz-Expires=7200&X-Amz-Signature=abc`;
+    cacheAudioUrl('JHN', 3, 'NIV', audioUrl, 0, 0);
+
+    expect(getCachedAudioUrl('JHN', 3, 'NIV')).toBe(audioUrl);
+  });
+
+  it('should not return an expired X-Amz presigned URL', () => {
+    const now = Date.now();
+    const signedAt = amzDate(new Date(now - 2 * 3600 * 1000));
+    const audioUrl =
+      `https://cdn.example.com/JHN.3.mp3?X-Amz-Date=${signedAt}` +
+      `&X-Amz-Expires=3600&X-Amz-Signature=abc`;
+    cacheAudioUrl('JHN', 3, 'NIV', audioUrl, 0, 0);
+
+    expect(getCachedAudioUrl('JHN', 3, 'NIV')).toBeNull();
+  });
+
+  it('should honor a lowercase expires epoch param', () => {
+    const now = Date.now();
+    const expires = Math.floor((now + 3600 * 1000) / 1000);
+    const audioUrl = `http://audio.url/1?expires=${expires}`;
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+
+  it('should ignore a non-epoch Expires param', () => {
+    // parseInt('2025-01-01') would yield 2025 (epoch 1970 →
+    // always expired); reject it and use the 24h default.
+    const audioUrl = 'http://audio.url/1?Expires=2025-01-01';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+
+  it('should ignore an epoch-milliseconds Expires param', () => {
+    // 1.7e12 is epoch ms, not seconds — must not be treated as
+    // epoch seconds (~60k years out → never expires).
+    const audioUrl =
+      'http://audio.url/1?Expires=1893456000000';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
   });
 });
 

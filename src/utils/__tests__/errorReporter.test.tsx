@@ -203,6 +203,16 @@ describe('errorReporter', () => {
       );
     });
 
+
+    it('ignores Vercel telemetry resource load failures', () => {
+      cleanup = initGlobalErrorHandlers();
+      const script = document.createElement('script');
+      script.src = 'https://localhost/_vercel/insights/script.js';
+      const event = new Event('error');
+      Object.defineProperty(event, 'target', { value: script });
+      window.dispatchEvent(event);
+      expect(mockShowNotification).not.toHaveBeenCalled();
+    });
     it('stops reporting after cleanup', () => {
       cleanup = initGlobalErrorHandlers();
       cleanup();

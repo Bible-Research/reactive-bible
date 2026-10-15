@@ -10,7 +10,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
-import { editNote } from "../api";
+import { editNote, UNTAGGED_TAG_ID } from "../api";
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import { clearNotesCache } from "../utils/cacheManager";
@@ -154,17 +154,21 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
       notesOrdering,
       notesPage,
     } = useBibleStore.getState();
-    return fetchNotes(lastSelectedTagId ?? note?.tag.id, {
-      ordering: notesOrdering ?? undefined,
-      page: notesPage,
-    });
+    return fetchNotes(
+      lastSelectedTagId ?? note?.tag?.id ?? UNTAGGED_TAG_ID,
+      {
+        ordering: notesOrdering ?? undefined,
+        page: notesPage,
+      }
+    );
   };
 
   const handleClose = () => {
     if (autosavedRef.current) {
       // fetchNotes rethrows after its own error toast —
       // swallow here so the fire-and-forget can't reject
-      // unhandled.
+      // unhandled. refreshViewedNotes falls back to
+      // UNTAGGED_TAG_ID for untagged notes.
       void refreshViewedNotes().catch(() => undefined);
     }
     autosavedRef.current = false;
@@ -221,7 +225,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             submitText="Submit changes"
             onTagDropdownOpen={() => getTags()}
             onAutoSave={handleAutoSave}
-            note={{ tagId: note.tag.id, text: note.note_text }}
+            note={{
+              tagId: note.tag?.id ?? "",
+              text: note.note_text,
+            }}
           />
           <Divider mt="xl" mb="sm" />
           <UnstyledButton

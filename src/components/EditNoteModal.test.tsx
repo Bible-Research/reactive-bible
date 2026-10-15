@@ -191,6 +191,33 @@ describe('EditNoteModal Component', () => {
     expect(verse17).not.toHaveAttribute('data-active');
   });
 
+  it('should keep note edits when verse references change',
+    async () => {
+    renderWithProviders(
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={noteWithVerses}
+      />
+    );
+
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, {
+      target: { value: 'Edited note text' },
+    });
+
+    fireEvent.click(
+      await screen.findByTitle('toggle-verse-references')
+    );
+    fireEvent.click(
+      await screen.findByTitle('edit-note-verse-17')
+    );
+
+    expect((noteInput as HTMLTextAreaElement).value).toBe(
+      'Edited note text'
+    );
+  });
+
   it('should submit updated verse references', async () => {
     const fetchNotes = vi.fn().mockResolvedValue(undefined);
     (api.editNote as Mock).mockResolvedValue({});
