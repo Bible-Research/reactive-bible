@@ -64,25 +64,32 @@ const Verse = ({
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
   const navigate = useNavigate();
-  const verseSelection = useBibleStore((state) => state.verseSelection);
+  const bookId = toUsfmCode(book) ?? book;
+  const thisRef: VerseRef = { bookId, chapter, verse };
+  // Per-verse boolean selectors: this verse only re-renders when
+  // its own selection/audio flags flip, not on every store change.
+  const isActive = useBibleStore((state) => {
+    const selection = state.verseSelection;
+    return (
+      selection !== null &&
+      selection.scope === scope &&
+      refsInclude(selection.refs, thisRef)
+    );
+  });
+  const isAudioActive = useBibleStore((state) => {
+    const active = state.audioActiveVerse;
+    return (
+      active !== null &&
+      active.scope === scope &&
+      active.bookId === bookId &&
+      active.chapter === chapter &&
+      active.verse === verse
+    );
+  });
   const toggleVerseRef = useBibleStore((state) => state.toggleVerseRef);
   const selectVerseRange = useBibleStore(
     (state) => state.selectVerseRange
   );
-  const audioActiveVerse = useBibleStore(
-    (state) => state.audioActiveVerse
-  );
-  const bookId = toUsfmCode(book) ?? book;
-  const thisRef: VerseRef = { bookId, chapter, verse };
-  const isActive =
-    verseSelection?.scope === scope &&
-    refsInclude(verseSelection.refs, thisRef);
-  const isAudioActive =
-    audioActiveVerse !== null &&
-    audioActiveVerse.scope === scope &&
-    audioActiveVerse.bookId === bookId &&
-    audioActiveVerse.chapter === chapter &&
-    audioActiveVerse.verse === verse;
 
   // Track touch state to differentiate tap from scroll
   const touchStartPos = useRef<{ x: number; y: number } | null>(
