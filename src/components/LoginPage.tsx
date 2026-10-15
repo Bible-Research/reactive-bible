@@ -19,7 +19,10 @@ import { useAuthStore } from '../stores/authStore';
 export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const login = useAuthStore((state) => state.login);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
+  const clearError = useAuthStore((state) => state.clearError);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -38,7 +41,8 @@ export function LoginPage() {
       });
       
       // Redirect to the page they tried to visit or to notes
-      const from = (location.state as any)?.from?.pathname || '/notes';
+      const state = location.state as { from?: { pathname?: string } } | null;
+      const from = state?.from?.pathname || '/notes';
       navigate(from, { replace: true });
     } catch (err) {
       // Error is already set in the store
