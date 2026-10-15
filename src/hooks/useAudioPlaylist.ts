@@ -285,9 +285,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 });
               }
 
-              const filteredTimestamps = item.verseNumbers
+              const verseNumbers = item.verseNumbers;
+              const filteredTimestamps = verseNumbers
                 ? fetchedTimestamps.filter((t) =>
-                    item.verseNumbers!.includes(t.verse_start),
+                    verseNumbers.includes(t.verse_start),
                   )
                 : fetchedTimestamps.filter(
                     (t) =>
@@ -409,6 +410,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     return true;
                   }
                   if (item.verseNumbers) {
+                    const verseNumbers = item.verseNumbers;
                     const currentVerse = fetchedTimestamps.find(
                       (t, i) => {
                         const nextT = fetchedTimestamps[i + 1];
@@ -420,7 +422,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     );
                     if (
                       currentVerse &&
-                      !item.verseNumbers.includes(
+                      !verseNumbers.includes(
                         currentVerse.verse_start,
                       )
                     ) {
@@ -428,7 +430,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                         fetchedTimestamps.find(
                           (t) =>
                             t.timestamp > pos &&
-                            item.verseNumbers!.includes(
+                            verseNumbers.includes(
                               t.verse_start,
                             ),
                         );
@@ -532,7 +534,6 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       activeTextFilesetId,
       translations,
       unloadCurrent,
-      setAudioActiveVerse,
       setShowPlayer,
       setAudioPlaylistEnded,
     ],

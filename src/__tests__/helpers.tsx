@@ -13,14 +13,23 @@ import {
   initialState as authInitialState,
 } from '../stores/authStore';
 
+// The `export *` re-exports below are test-only barrels — they
+// can never be fast-refresh boundaries, but the rule can't
+// verify wildcard re-exports, so each needs a scoped disable.
+
 // Re-export mock data for convenience
+// eslint-disable-next-line react-refresh/only-export-components
 export * from './mocks/data';
 
 // Re-export factories for easy access
+// eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/factories';
 
 // Re-export performance helpers
+// eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/performance';
+// eslint-disable-next-line react-refresh/only-export-components
+export * from './helpers/performanceUtils';
 
 // --- Store Helpers ---
 
