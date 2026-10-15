@@ -602,9 +602,10 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
           { ordering: undefined, page: 2 }
         );
       });
-      expect(mockClearNotesCache).toHaveBeenCalledWith(
-        'tag-123'
-      );
+      // Cache invalidation now lives in the store's deleteNote
+      // action, which clears the whole notes cache (no tag arg)
+      // rather than the route clearing the tag's pages.
+      expect(mockClearNotesCache).toHaveBeenCalledWith();
       // The order index resyncs after the delete — the
       // removed note's rank shifted every entry below it.
       await waitFor(() => {
