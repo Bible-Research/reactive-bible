@@ -286,9 +286,19 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - `*` (catch-all) - Redirects to `/bible`
 
 **Notes Routes** (✅ Implemented):
-- `/notes` - Auto-redirects to first tag
+- `/notes` - Auto-redirects to first tag (anonymous visitors
+  redirect to `/bible`)
 - `/notes/tag/:tagId` - Displays notes filtered by specific tag;
-  `/notes/tag/untagged` shows notes with no tag
+  `/notes/tag/untagged` shows notes with no tag. Public for
+  sharing — write affordances are `isAuthenticated`-gated
+- `/notes/:noteId` - Single note detail view; public for sharing
+
+**Tag Routes** (✅ Implemented):
+- `/tags` - Tag management; wrapped in `ProtectedRoute`
+  (anonymous visitors redirect to `/login`)
+
+**Auth Routes** (✅ Implemented):
+- `/login`, `/register`
 
 **Search Routes** (✅ Implemented):
 - `/search?q=<query>` - Book-grouped search results
@@ -353,8 +363,8 @@ navigate('/notes/tag/:newTagId');
 - `/notes/:noteId/edit` - Edit note
 
 **Phase 4**:
-- `/tags` - Tags list
-- `/tags/:tagId` - Tag detail
+- `/tags/:tagId` - Tag detail (`/tags` list is implemented —
+  see Tag Routes above)
 
 ---
 
