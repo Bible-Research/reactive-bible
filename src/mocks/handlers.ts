@@ -71,8 +71,11 @@ export const handlers = [
       return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
     }
 
-    // Otherwise, assume it's a verse request
-    // This is the success case for verses
+    // Otherwise, assume it's a verse request.
+    // Fixture caveat: the same John 3:16 verse is returned for
+    // every book/chapter, so this handler alone cannot catch a
+    // wrong-chapter fetch — use server.use() when the requested
+    // passage matters.
     return HttpResponse.json({
       verses: [
         {

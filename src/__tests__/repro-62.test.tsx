@@ -124,9 +124,10 @@ describe('Audio stops instantly on chapter change (#62)', () => {
       expect(first.state()).toBe('unloaded');
       expect(first.playing()).toBe(false);
       // Manual navigation must discard the preloaded Howl too —
-      // a stale `current` local in the reset effect used to skip
-      // discardPreloaded() and leave it parked in preloadedRef
-      // for the load effect to adopt.
+      // an intermediate commit on this branch used a stale
+      // `current` local here (caught in review), skipping
+      // discardPreloaded() and leaving the Howl parked in
+      // preloadedRef for the load effect to adopt.
       expect(preloaded.state()).toBe('unloaded');
     }
   );
