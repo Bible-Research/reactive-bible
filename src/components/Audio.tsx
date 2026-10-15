@@ -1113,6 +1113,59 @@ const Audio = () => {
           }
           const candidates = resolved.candidates;
 
+          // Earliest selected verse in this chapter — playback
+          // starts at its timestamp instead of 0. Only the
+          // bible-scoped selection counts; note-card selections
+          // ('note:<id>') and refs in other chapters are ignored.
+          const sel = useBibleStore.getState().verseSelection;
+          const startVerse = (
+            sel?.scope === 'bible' ? sel.refs : []
+          ).reduce<number | null>(
+            (min, r) =>
+              r.bookId === activeBookId &&
+              r.chapter === activeChapter &&
+              (min === null || r.verse < min)
+                ? r.verse
+                : min,
+            null,
+          );
+
+          // Kick off the timestamp lookup in parallel with the
+          // audio fetch so a slow request doesn't delay the start
+          // (getAudioTimestamps is cache-first and the timestamps
+          // effect usually warmed it). ENGKJV audio has no verse
+          // timestamps — it keeps starting at 0.
+          const tsFilesetId =
+            startVerse === null ||
+            resolved.filesetId === 'ENGKJV'
+              ? null
+              : resolveTimestampsFilesetId(
+                  resolved.filesetId,
+                  resolveTextFileset(
+                    useBibleStore.getState().activeTextFilesetId,
+                    activeBookId,
+                    useBibleStore.getState().translations,
+                  ),
+                  activeBookId,
+                );
+          const startTsPromise = tsFilesetId
+            ? getAudioTimestamps(
+                activeBookId,
+                activeChapter,
+                tsFilesetId,
+              )
+                .then(
+                  (ts) =>
+                    adjustTimestampsForENGESV(
+                      ts,
+                      resolved.filesetId,
+                    ).find((t) => t.verse_start === startVerse)
+                      ?.timestamp ?? 0,
+                )
+                // Timestamp failures must not break playback.
+                .catch(() => 0)
+            : Promise.resolve(0);
+
           let key = chapterKey(
             resolved.filesetId,
             activeBookId,
@@ -1208,6 +1261,22 @@ const Audio = () => {
           audioChapterKeyRef.current = key;
           setAudio(audioHowl);
           audioRef.current = audioHowl;
+
+          // Seek to the selected verse. A still-loading Howl is
+          // covered by 'load'; an already-loaded one (e.g. the
+          // adopted preload) seeks right away. A superseded load
+          // skips the seek — the reset effect owns its teardown,
+          // and disposeHowl's off() detaches the listener anyway.
+          const startTs = await startTsPromise;
+          if (seq === loadSeqRef.current && startTs > 0) {
+            if (audioHowl.state() === 'loaded') {
+              audioHowl.seek(startTs);
+            } else {
+              audioHowl.once('load', () => {
+                audioHowl.seek(startTs);
+              });
+            }
+          }
         } catch (err) {
           // A superseded load must not surface errors or flip
           // playback state — the winning run owns both.
