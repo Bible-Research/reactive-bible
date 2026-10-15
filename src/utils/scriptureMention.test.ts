@@ -157,6 +157,28 @@ describe('parseMentionQuery', () => {
     const p = parseMentionQuery('JHN.3.18-16');
     expect(p.error).toBe('Invalid verse range 18-16');
   });
+
+  it('errors on a non-numeric chapter', () => {
+    const p = parseMentionQuery('JHN.x');
+    expect(p.error).toBe('Invalid chapter: x');
+    expect(p.chapter).toBeNull();
+    expect(p.complete).toBe(false);
+  });
+
+  it('errors on text after a complete ref', () => {
+    const p = parseMentionQuery('JHN.3.16 extra');
+    expect(p.verseStart).toBe(16);
+    expect(p.error).toBe('Unexpected text: extra');
+    expect(p.complete).toBe(false);
+  });
+
+  it('errors on trailing letters after a verse number', () => {
+    // '16a' never matches the verse grammar — pinned as an
+    // 'Invalid verse' error rather than silently truncating.
+    const p = parseMentionQuery('JHN.3.16a');
+    expect(p.error).toBe('Invalid verse: 16a');
+    expect(p.complete).toBe(false);
+  });
 });
 
 describe('buildScriptureToken', () => {

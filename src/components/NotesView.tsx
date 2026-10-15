@@ -18,20 +18,14 @@ const NotesView = () => {
       return;
     }
     
-    // If we have cached tags and lastSelectedTagId, navigate immediately
-    if (storedTags.length > 0 && lastSelectedTagId && location.pathname === '/notes') {
-      console.log(`🔗 NotesView: Navigate to last selected tag /notes/tag/${lastSelectedTagId}`);
+    // If we have cached tags and lastSelectedTagId, navigate now
+    if (storedTags.length > 0 && lastSelectedTagId &&
+        location.pathname === '/notes') {
       hasNavigatedRef.current = true;
       navigate(`/notes/tag/${lastSelectedTagId}`, { replace: true });
       return;
     }
-    
-    // If tags not cached, we MUST load them before navigating
-    // Even if we have lastSelectedTagId, we need tags in the store
-    if (storedTags.length === 0) {
-      console.log('📝 Loading tags before navigation...');
-    }
-    
+
     const loadData = async () => {
       setLoading(true);
       try {
@@ -40,14 +34,16 @@ const NotesView = () => {
         // Tags are now in store, get them from there
         const fetchedTags = useBibleStore.getState().tags;
         
-        // Only navigate if we're still on /notes route and haven't navigated yet
-        if (fetchedTags.length > 0 && 
-            location.pathname === '/notes' && 
+        // Only navigate if we're still on /notes and have not
+        // navigated yet
+        if (fetchedTags.length > 0 &&
+            location.pathname === '/notes' &&
             !hasNavigatedRef.current) {
-          // Use lastSelectedTagId if available, otherwise use first tag
-          const tagId = lastSelectedTagId || 
-            [...fetchedTags].sort((a, b) => a.name.localeCompare(b.name))[0].id;
-          console.log(`🔗 NotesView: Auto-navigate to tag /notes/tag/${tagId}`);
+          // Prefer lastSelectedTagId; fall back to the
+          // alphabetically-first tag
+          const tagId = lastSelectedTagId ||
+            [...fetchedTags]
+              .sort((a, b) => a.name.localeCompare(b.name))[0].id;
           hasNavigatedRef.current = true;
           navigate(`/notes/tag/${tagId}`, { replace: true });
         }
@@ -69,7 +65,6 @@ const NotesView = () => {
   // Handle tag selection change
   const handleTagChange = (value: string | null) => {
     if (value) {
-      console.log(`🔗 NotesView: Navigate to /notes/tag/${value}`);
       // Navigate to tag-specific route
       navigate(`/notes/tag/${value}`);
     }
@@ -78,7 +73,9 @@ const NotesView = () => {
 
 
   // Sort tags alphabetically for the dropdown
-  const sortedTags = [...storedTags].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedTags = [...storedTags].sort(
+    (a, b) => a.name.localeCompare(b.name)
+  );
 
   // Always show tag selector, even while loading or redirecting
   // This allows users to change tags immediately

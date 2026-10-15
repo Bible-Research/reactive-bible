@@ -4,7 +4,56 @@ import { mockTranslations } from '../__tests__/mocks/data';
 
 // Define your request handlers
 const API_URL = `${API_BASE_URL}/api/v1`;
+
+// COMMENT_BASE intentionally equals API_URL: api.tsx addresses
+// comment endpoints as `${API_BASE_URL}/api/v1/notes/:id/comments/`,
+// i.e. the same /api/v1 prefix. The separate constant only exists
+// to document that these handlers back the comment API surface —
+// it is NOT a different host or a double /api/v1 prefix.
 const COMMENT_BASE = `${API_BASE_URL}/api/v1`;
+
+// --- Shared fixtures ---
+
+const mockTag = {
+  id: '1',
+  name: 'Test Tag',
+  parent_tag: null,
+  created_at: '',
+  updated_at: '',
+};
+
+// Matches the Note contract in src/types.ts / api.tsx:
+// tag_position + is_owner are required, headings optional.
+const mockNote = {
+  id: 'note-1',
+  note_text: 'This is a test note.',
+  tag: mockTag,
+  public: false,
+  is_owner: true,
+  tag_position: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  verses: [
+    {
+      book: 'John',
+      chapter: 3,
+      verse: 16,
+      text: 'For God so loved the world...',
+    },
+  ],
+  headings: [],
+};
+
+interface NoteWriteBody {
+  tag?: string;
+  note_text?: string;
+  verse_references?: {
+    book: string;
+    chapter: number;
+    verse: number;
+    text?: string;
+  }[];
+}
 
 export const handlers = [
   // --- Single /bible Endpoint Handler ---
@@ -22,8 +71,11 @@ export const handlers = [
       return HttpResponse.json({ audio_url: 'http://audio.url/test.mp3' });
     }
 
-    // Otherwise, assume it's a verse request
-    // This is the success case for verses
+    // Otherwise, assume it's a verse request.
+    // Fixture caveat: the same John 3:16 verse is returned for
+    // every book/chapter, so this handler alone cannot catch a
+    // wrong-chapter fetch — use server.use() when the requested
+    // passage matters.
     return HttpResponse.json({
       verses: [
         {
@@ -37,66 +89,352 @@ export const handlers = [
   }),
 
   // --- Translations ---
+  // api.tsx requests `bible/translations/?language_iso=` (trailing
+  // slash); both variants are registered so either form matches.
   http.get(`${API_URL}/bible/translations`, () => {
     return HttpResponse.json({ results: mockTranslations });
+  }),
+  http.get(`${API_URL}/bible/translations/`, () => {
+    return HttpResponse.json({ results: mockTranslations });
+  }),
+
+  // --- Audio verse timestamps ---
+  http.get(`${API_URL}/bible/timestamps/`, () => {
+    return HttpResponse.json({ data: [] });
   }),
 
   // --- Tags ---
   http.get(`${API_URL}/tags/`, () => {
-    return HttpResponse.json([
-      {
-        id: '1', name: 'Test Tag', parent_tag: null,
-        created_at: '', updated_at: ''
-      }
-    ]);
+    return HttpResponse.json([mockTag]);
+  }),
+  http.get(`${API_URL}/tags`, () => {
+    return HttpResponse.json([mockTag]);
   }),
 
-  // --- Notes ---
-  http.post(`${API_URL}/notes/`, async ({ request }) => {
-    const body = await request.json() as any;
-    return HttpResponse.json({ 
-      id: 'note-1',
-      note_text: body.note_text,
-      tag: {
-        id: body.tag, name: 'Test Tag', parent_tag: null,
-        created_at: '', updated_at: ''
+  http.get(`${API_URL}/tags/:id`, ({ params }) => {
+    return HttpResponse.json({ ...mockTag, id: params.id });
+  }),
+  http.get(`${API_URL}/tags/:id/`, ({ params }) => {
+    return HttpResponse.json({ ...mockTag, id: params.id });
+  }),
+
+  http.post(`${API_URL}/tags/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      parent_tag?: string | null;
+    };
+    return HttpResponse.json(
+      {
+        ...mockTag,
+        id: 'tag-new',
+        name: body.name ?? 'New Tag',
+        parent_tag: body.parent_tag ?? null,
       },
-      public: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      verses: body.verse_references || []
+      { status: 201 }
+    );
+  }),
+  http.post(`${API_URL}/tags`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      parent_tag?: string | null;
+    };
+    return HttpResponse.json(
+      {
+        ...mockTag,
+        id: 'tag-new',
+        name: body.name ?? 'New Tag',
+        parent_tag: body.parent_tag ?? null,
+      },
+      { status: 201 }
+    );
+  }),
+
+  http.patch(`${API_URL}/tags/:id`, async ({ params, request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      parent_tag?: string | null;
+    };
+    return HttpResponse.json({
+      ...mockTag,
+      id: params.id,
+      name: body.name ?? mockTag.name,
+      parent_tag: body.parent_tag ?? null,
+    });
+  }),
+  http.patch(`${API_URL}/tags/:id/`, async ({ params, request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      parent_tag?: string | null;
+    };
+    return HttpResponse.json({
+      ...mockTag,
+      id: params.id,
+      name: body.name ?? mockTag.name,
+      parent_tag: body.parent_tag ?? null,
     });
   }),
 
-  // --- Get Notes ---
+  http.delete(`${API_URL}/tags/:id`, () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.delete(`${API_URL}/tags/:id/`, () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // --- Notes ---
+  // api.tsx requests `notes/?...` (trailing slash); the paginated
+  // envelope {count, next, previous, results} mirrors DRF. Both
+  // variants are registered.
   http.get(`${API_URL}/notes`, () => {
+    return HttpResponse.json({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [mockNote],
+    });
+  }),
+  http.get(`${API_URL}/notes/`, () => {
+    return HttpResponse.json({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [mockNote],
+    });
+  }),
+
+  // Registered before `/notes/:id` so the literal path wins over
+  // the `:id` param.
+  http.get(`${API_URL}/notes/order-index/`, () => {
     return HttpResponse.json([
       {
         id: 'note-1',
-        note_text: 'This is a test note.',
-        tag: {
-          id: '1', name: 'Test Tag', parent_tag: null,
-          created_at: '', updated_at: ''
-        },
-        public: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        verses: [{
-          book: 'John', chapter: 3, verse: 16,
-          text: 'For God so loved the world...'
-        }]
-      }
+        tag_position: 1,
+        book: 'John',
+        chapter: 3,
+        verse_start: 16,
+        verse_end: 16,
+      },
     ]);
+  }),
+  http.get(`${API_URL}/notes/order-index`, () => {
+    return HttpResponse.json([
+      {
+        id: 'note-1',
+        tag_position: 1,
+        book: 'John',
+        chapter: 3,
+        verse_start: 16,
+        verse_end: 16,
+      },
+    ]);
+  }),
+
+  http.post(`${API_URL}/notes/reorder/`, () => {
+    return HttpResponse.json({ status: 'ok' });
+  }),
+  http.post(`${API_URL}/notes/reorder`, () => {
+    return HttpResponse.json({ status: 'ok' });
+  }),
+
+  http.post(`${API_URL}/notes/move/`, async ({ request }) => {
+    const body = (await request.json()) as { note_id?: string };
+    return HttpResponse.json({
+      note_id: body.note_id ?? 'note-1',
+      tag_position: 1,
+      rebalanced: false,
+    });
+  }),
+  http.post(`${API_URL}/notes/move`, async ({ request }) => {
+    const body = (await request.json()) as { note_id?: string };
+    return HttpResponse.json({
+      note_id: body.note_id ?? 'note-1',
+      tag_position: 1,
+      rebalanced: false,
+    });
+  }),
+
+  http.post(`${API_URL}/notes/`, async ({ request }) => {
+    const body = (await request.json()) as NoteWriteBody;
+    // Verse echoes carry `text` like the backend response does.
+    const verses = (body.verse_references ?? []).map((v) => ({
+      ...v,
+      text: v.text ?? 'Test verse text',
+    }));
+    return HttpResponse.json({
+      ...mockNote,
+      id: 'note-1',
+      note_text: body.note_text ?? mockNote.note_text,
+      tag: { ...mockTag, id: body.tag ?? mockTag.id },
+      verses,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }),
+  http.post(`${API_URL}/notes`, async ({ request }) => {
+    const body = (await request.json()) as NoteWriteBody;
+    const verses = (body.verse_references ?? []).map((v) => ({
+      ...v,
+      text: v.text ?? 'Test verse text',
+    }));
+    return HttpResponse.json({
+      ...mockNote,
+      id: 'note-1',
+      note_text: body.note_text ?? mockNote.note_text,
+      tag: { ...mockTag, id: body.tag ?? mockTag.id },
+      verses,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
   }),
 
   // --- Linked Notes ---
   http.post(`${API_URL}/notes/linked/`, () => {
     return HttpResponse.json({ count: 0, results: [] });
   }),
+  http.post(`${API_URL}/notes/linked`, () => {
+    return HttpResponse.json({ count: 0, results: [] });
+  }),
 
-  // --- Delete Note ---
+  // --- Single note (GET/PATCH/DELETE) ---
+  http.get(`${API_URL}/notes/:id`, ({ params }) => {
+    return HttpResponse.json({ ...mockNote, id: params.id });
+  }),
+  http.get(`${API_URL}/notes/:id/`, ({ params }) => {
+    return HttpResponse.json({ ...mockNote, id: params.id });
+  }),
+
+  http.patch(`${API_URL}/notes/:id`, async ({ params, request }) => {
+    const body = (await request.json()) as NoteWriteBody;
+    const verses = (body.verse_references ?? []).map((v) => ({
+      ...v,
+      text: v.text ?? 'Test verse text',
+    }));
+    return HttpResponse.json({
+      ...mockNote,
+      id: params.id,
+      note_text: body.note_text ?? mockNote.note_text,
+      tag: { ...mockTag, id: body.tag ?? mockTag.id },
+      verses:
+        body.verse_references !== undefined
+          ? verses
+          : mockNote.verses,
+      updated_at: new Date().toISOString(),
+    });
+  }),
+  http.patch(`${API_URL}/notes/:id/`, async ({ params, request }) => {
+    const body = (await request.json()) as NoteWriteBody;
+    const verses = (body.verse_references ?? []).map((v) => ({
+      ...v,
+      text: v.text ?? 'Test verse text',
+    }));
+    return HttpResponse.json({
+      ...mockNote,
+      id: params.id,
+      note_text: body.note_text ?? mockNote.note_text,
+      tag: { ...mockTag, id: body.tag ?? mockTag.id },
+      verses:
+        body.verse_references !== undefined
+          ? verses
+          : mockNote.verses,
+      updated_at: new Date().toISOString(),
+    });
+  }),
+
   http.delete(`${API_URL}/notes/:id`, () => {
     return HttpResponse.text('Deleted');
+  }),
+  http.delete(`${API_URL}/notes/:id/`, () => {
+    return HttpResponse.text('Deleted');
+  }),
+
+  // --- Reading positions (book-NAME keyed, auth-gated) ---
+  http.get(`${API_URL}/reading-positions/`, () => {
+    return HttpResponse.json([]);
+  }),
+  http.get(`${API_URL}/reading-positions`, () => {
+    return HttpResponse.json([]);
+  }),
+
+  http.post(`${API_URL}/reading-positions/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      book?: string;
+      chapter?: number;
+      verse?: number;
+    };
+    return HttpResponse.json(
+      {
+        id: 'rp-1',
+        book: body.book ?? 'John',
+        chapter: body.chapter ?? 1,
+        verse: body.verse ?? 1,
+        last_accessed: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
+  }),
+  http.post(`${API_URL}/reading-positions`, async ({ request }) => {
+    const body = (await request.json()) as {
+      book?: string;
+      chapter?: number;
+      verse?: number;
+    };
+    return HttpResponse.json(
+      {
+        id: 'rp-1',
+        book: body.book ?? 'John',
+        chapter: body.chapter ?? 1,
+        verse: body.verse ?? 1,
+        last_accessed: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
+  }),
+
+  // Bulk endpoint returns a map keyed by book name.
+  http.post(`${API_URL}/reading-positions/bulk/`, () => {
+    return HttpResponse.json({});
+  }),
+  http.post(`${API_URL}/reading-positions/bulk`, () => {
+    return HttpResponse.json({});
+  }),
+
+  // --- Auth ---
+  // NOTE: the token endpoint is NOT under /api/v1 — authStore.tsx
+  // posts to `${API_BASE_URL}/api/token/`.
+  http.post(`${API_BASE_URL}/api/token/`, async ({ request }) => {
+    const body = (await request.json()) as { username?: string };
+    return HttpResponse.json({
+      token: 'test-token',
+      user: { username: body.username ?? 'testuser' },
+    });
+  }),
+  http.post(`${API_BASE_URL}/api/token`, async ({ request }) => {
+    const body = (await request.json()) as { username?: string };
+    return HttpResponse.json({
+      token: 'test-token',
+      user: { username: body.username ?? 'testuser' },
+    });
+  }),
+
+  http.post(`${API_URL}/users/register/`, async ({ request }) => {
+    const body = (await request.json()) as { username?: string };
+    return HttpResponse.json(
+      {
+        token: 'test-token',
+        user: { username: body.username ?? 'testuser' },
+      },
+      { status: 201 }
+    );
+  }),
+  http.post(`${API_URL}/users/register`, async ({ request }) => {
+    const body = (await request.json()) as { username?: string };
+    return HttpResponse.json(
+      {
+        token: 'test-token',
+        user: { username: body.username ?? 'testuser' },
+      },
+      { status: 201 }
+    );
   }),
 
   // --- Comments ---
@@ -119,7 +457,10 @@ export const handlers = [
   http.post(
     `${COMMENT_BASE}/notes/:noteId/comments/`,
     async ({ params, request }) => {
-      const body = await request.json() as any;
+      const body = (await request.json()) as {
+        content?: string;
+        parent_comment?: string | null;
+      };
       return HttpResponse.json({
         id: 'comment-new',
         author: { id: 1, username: 'testuser' },
@@ -137,7 +478,7 @@ export const handlers = [
   http.patch(
     `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
     async ({ params, request }) => {
-      const body = await request.json() as any;
+      const body = (await request.json()) as { content?: string };
       return HttpResponse.json({
         id: params.commentId,
         author: { id: 1, username: 'testuser' },
@@ -316,7 +657,7 @@ export const handlers = [
         }
       });
     }
-    
+
     // Mock search results for other filesets
     return HttpResponse.json({
       data: {
@@ -387,5 +728,3 @@ export const handlers = [
     }
   ),
 ];
-
-

@@ -1,8 +1,17 @@
-import { screen, fireEvent } from '@testing-library/react';
+import {
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import CommentNode from '../CommentNode';
 import { renderWithProviders } from '../../__tests__/helpers';
 import { Comment, CommentImage } from '../../types';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../../utils/tiptapContent';
 
 const makeImage = (id: string): CommentImage => ({
   id,
@@ -247,6 +256,70 @@ describe('CommentNode', () => {
     expect(lightboxImg.src).toBe(
       'https://example.com/img-1-refreshed.png'
     );
+  });
+
+  it('submits reply content as doc-JSON', async () => {
+    const onReply = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        onReply={onReply}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reply' })
+    );
+    const replyInput =
+      screen.getByPlaceholderText('Write a reply…');
+    fireEvent.change(replyInput, {
+      target: { value: 'Reply body' },
+    });
+    // The actions row keeps its own 'Reply' button — click the
+    // submit inside the reply form container.
+    const formRoot = replyInput.closest('div') as HTMLElement;
+    fireEvent.click(
+      within(formRoot).getByRole('button', { name: 'Reply' })
+    );
+
+    await waitFor(() => {
+      expect(onReply).toHaveBeenCalledTimes(1);
+    });
+    const [parentId, content, files] = onReply.mock.calls[0];
+    expect(parentId).toBe('c1');
+    expect(isTiptapDocString(content)).toBe(true);
+    expect(toPlainText(content)).toBe('Reply body');
+    expect(files).toEqual([]);
+  });
+
+  it('submits an edit as doc-JSON', async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        onUpdate={onUpdate}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit' })
+    );
+    fireEvent.change(screen.getByDisplayValue('Hello world'), {
+      target: { value: 'Edited body' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save' })
+    );
+
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+    });
+    const [id, content] = onUpdate.mock.calls[0];
+    expect(id).toBe('c1');
+    expect(isTiptapDocString(content)).toBe(true);
+    expect(toPlainText(content)).toBe('Edited body');
   });
 
   it('lightbox img onError calls onRequestRefresh', () => {

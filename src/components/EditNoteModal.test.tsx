@@ -1,4 +1,9 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import {
   describe,
   it,
@@ -13,7 +18,12 @@ import {
   createMockNote,
   createMockTag,
 } from '../__tests__/helpers';
+
 import * as api from '../api';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../utils/tiptapContent';
 
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
@@ -210,20 +220,25 @@ describe('EditNoteModal Component', () => {
   });
 
   it('should submit updated verse references', async () => {
+    const fetchNotes = vi.fn().mockResolvedValue(undefined);
     (api.editNote as Mock).mockResolvedValue({});
     renderWithProviders(
       <EditNoteModal
         opened={true}
         onClose={vi.fn()}
         note={noteWithVerses}
-      />
+      />,
+      { storeOverrides: { fetchNotes } }
     );
 
-    // Add John 3:17 to the note's linked verses.
+    // Add John 3:17 to the note's linked verses and edit text.
     fireEvent.click(
       await screen.findByTitle('toggle-verse-references')
     );
     fireEvent.click(await screen.findByTitle('edit-note-verse-17'));
+    fireEvent.change(screen.getByLabelText('Note'), {
+      target: { value: 'Edited note text' },
+    });
     const form = screen
       .getByText('Submit changes')
       .closest('form');
@@ -231,21 +246,140 @@ describe('EditNoteModal Component', () => {
     fireEvent.submit(form as HTMLFormElement);
 
     await waitFor(() => {
-      expect(api.editNote).toHaveBeenCalledWith(
-        'n1',
-        '1',
-        'Original note text',
-        [
-          { book: 'John', chapter: 3, verse: 16 },
-          { book: 'John', chapter: 3, verse: 17 },
-        ]
-      );
+      expect(api.editNote).toHaveBeenCalledTimes(1);
+    });
+    const [noteId, tagId, text, refs] =
+      (api.editNote as Mock).mock.calls[0];
+    expect(noteId).toBe('n1');
+    expect(tagId).toBe('1');
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(isTiptapDocString(text)).toBe(true);
+    expect(toPlainText(text)).toBe('Edited note text');
+    expect(refs).toEqual([
+      { book: 'John', chapter: 3, verse: 16 },
+      { book: 'John', chapter: 3, verse: 17 },
+    ]);
+
+    // The viewed notes page is refreshed after the edit.
+    await waitFor(() => {
+      expect(fetchNotes).toHaveBeenCalledTimes(1);
     });
   });
 
-  // Note: Full modal interaction testing is problematic
-  // due to portal rendering. See SKIPPED_TESTS.md.
-  it.skip('should refresh notes after successful edit', () => {
-    // This test is skipped due to modal portal rendering
-  });
+  it('refreshes the viewed tag page after autosave on close',
+    async () => {
+      const fetchNotes = vi.fn().mockResolvedValue(undefined);
+      const onClose = vi.fn();
+      (api.editNote as Mock).mockResolvedValue({});
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={onClose}
+          note={mockNote}
+        />,
+        {
+          storeOverrides: {
+            fetchNotes,
+            // The route is showing tag 1, page 3, sorted.
+            lastSelectedTagId: '1',
+            notesPage: 3,
+            notesOrdering: '-created_at',
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Updated text' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // Close via the modal's X button.
+      const closeButton = document.querySelector(
+        '.mantine-Modal-close'
+      );
+      expect(closeButton).not.toBeNull();
+      fireEvent.click(closeButton as HTMLElement);
+
+      // The refresh must target the viewed tag's current page
+      // and ordering — not bounce to page 1, and not the
+      // (possibly re-tagged) note's stale tag.
+      await waitFor(() => {
+        expect(fetchNotes).toHaveBeenCalledTimes(1);
+      });
+      expect(fetchNotes).toHaveBeenCalledWith('1', {
+        ordering: '-created_at',
+        page: 3,
+      });
+      expect(onClose).toHaveBeenCalled();
+    });
+
+  it('refreshes the viewed tag after submit even when the ' +
+    'note moved tags', async () => {
+      (api.getTags as Mock).mockResolvedValue([
+        createMockTag({ id: '1', name: 'Faith' }),
+        createMockTag({ id: '2', name: 'Hope' }),
+      ]);
+      const fetchNotes = vi.fn().mockResolvedValue(undefined);
+      const onClose = vi.fn();
+      (api.editNote as Mock).mockResolvedValue({});
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={onClose}
+          note={mockNote}
+        />,
+        {
+          storeOverrides: {
+            fetchNotes,
+            lastSelectedTagId: '1',
+            notesPage: 2,
+            notesOrdering: 'verse',
+          },
+          // store.getTags no-ops without a token — the tag
+          // Select only populates for authenticated sessions.
+          authStoreState: {
+            isAuthenticated: true,
+            token: 'test-token',
+            user: { username: 'testuser' },
+          },
+        }
+      );
+
+      // Re-tag the note from Faith to Hope via the Select.
+      const tagInput = await screen.findByLabelText('Tag');
+      fireEvent.mouseDown(tagInput);
+      fireEvent.mouseDown(
+        await screen.findByRole('option', { name: 'Hope' })
+      );
+      const form = screen
+        .getByText('Submit changes')
+        .closest('form');
+      fireEvent.submit(form as HTMLFormElement);
+
+      await waitFor(() => {
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      });
+      expect((api.editNote as Mock).mock.calls[0][1]).toBe('2');
+
+      // The route still shows tag 1 — refetch that view, not
+      // the note's new tag.
+      await waitFor(() => {
+        expect(fetchNotes).toHaveBeenCalledTimes(1);
+      });
+      expect(fetchNotes).toHaveBeenCalledWith('1', {
+        ordering: 'verse',
+        page: 2,
+      });
+    });
 });

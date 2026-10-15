@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   authenticatedFetch,
+  authenticatedUpload,
+  publicFetch,
   isAuthenticated,
   getAuthToken,
 } from '../apiClient';
@@ -23,12 +25,15 @@ describe('apiClient', () => {
       user: null,
       isAuthenticated: false,
     });
-    
+
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // `vi.stubGlobal('fetch', …)` survives restoreAllMocks;
+    // unstub so the MSW-intercepted fetch is restored.
+    vi.unstubAllGlobals();
   });
 
   describe('authenticatedFetch', () => {
@@ -40,7 +45,7 @@ describe('apiClient', () => {
         status: 200,
         json: async () => ({ data: 'test' }),
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       await authenticatedFetch(mockUrl);
 
@@ -57,7 +62,7 @@ describe('apiClient', () => {
         ok: true,
         status: 200,
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       await authenticatedFetch(mockUrl);
 
@@ -75,7 +80,7 @@ describe('apiClient', () => {
         ok: true,
         status: 200,
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       await authenticatedFetch(mockUrl);
 
@@ -91,7 +96,7 @@ describe('apiClient', () => {
         ok: true,
         status: 200,
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       await authenticatedFetch(mockUrl, {
         headers: {
@@ -114,10 +119,11 @@ describe('apiClient', () => {
         isAuthenticated: true,
       });
 
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      const mockFetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 401,
       });
+      vi.stubGlobal('fetch', mockFetch);
 
       await expect(authenticatedFetch(mockUrl)).rejects.toThrow(
         'Session expired'
@@ -126,6 +132,13 @@ describe('apiClient', () => {
       // Should have logged out
       expect(useAuthStore.getState().token).toBeNull();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      // The user is told why they were signed out...
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Session Expired' })
+      );
+      // ...and a 401 is a response, not a network error — it
+      // must NOT consume the retry.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it('should not repeat the expired-session toast when ' +
@@ -213,10 +226,13 @@ describe('apiClient', () => {
       });
 
     it('should handle 403 response with permission error', async () => {
-      global.fetch = vi.fn().mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+        })
+      );
 
       await expect(authenticatedFetch(mockUrl)).rejects.toThrow(
         'You do not have permission'
@@ -231,7 +247,7 @@ describe('apiClient', () => {
           ok: true,
           status: 200,
         });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       const response = await authenticatedFetch(mockUrl);
 
@@ -243,7 +259,7 @@ describe('apiClient', () => {
       const mockFetch = vi.fn().mockRejectedValueOnce(
         new Error('Not a network error')
       );
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       await expect(authenticatedFetch(mockUrl)).rejects.toThrow(
         'Not a network error'
@@ -257,7 +273,7 @@ describe('apiClient', () => {
         ok: true,
         status: 200,
       });
-      global.fetch = mockFetch;
+      vi.stubGlobal('fetch', mockFetch);
 
       const options = {
         method: 'POST',
@@ -275,6 +291,125 @@ describe('apiClient', () => {
     });
   });
 
+  describe('authenticatedUpload', () => {
+    it('posts FormData with the token and no JSON ' +
+      'Content-Type', async () => {
+      useAuthStore.setState({ token: mockToken });
+
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+      });
+      vi.stubGlobal('fetch', mockFetch);
+      const formData = new FormData();
+      formData.append('file', new Blob(['x']), 'x.png');
+
+      const response = await authenticatedUpload(
+        mockUrl,
+        formData
+      );
+
+      // Only Authorization is set — the browser must generate
+      // the multipart Content-Type (with boundary) itself.
+      expect(mockFetch).toHaveBeenCalledWith(mockUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${mockToken}`,
+        },
+        body: formData,
+      });
+      expect(response.ok).toBe(true);
+    });
+
+    it('handles 401 like authenticatedFetch: logout and ' +
+      'session-expired notification', async () => {
+      useAuthStore.setState({
+        token: mockToken,
+        isAuthenticated: true,
+      });
+
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      await expect(
+        authenticatedUpload(mockUrl, new FormData())
+      ).rejects.toThrow('Session expired');
+
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Session Expired' })
+      );
+      // A 401 is a response, not a network error — it must
+      // NOT consume the retry.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('publicFetch', () => {
+    it('attaches the token when one is present', async () => {
+      useAuthStore.setState({ token: mockToken });
+
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      await publicFetch(mockUrl);
+
+      expect(mockFetch).toHaveBeenCalledWith(mockUrl, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${mockToken}`,
+        },
+      });
+    });
+
+    it('returns a 401 response without logging out', async () => {
+      useAuthStore.setState({
+        token: mockToken,
+        isAuthenticated: true,
+      });
+
+      const mockFetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const response = await publicFetch(mockUrl);
+
+      // Public-read endpoints must never destroy a session on a
+      // stray 401 — the response is returned for the caller to
+      // interpret, and no logout/notification happens.
+      expect(response.status).toBe(401);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().token).toBe(mockToken);
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(showNotification).not.toHaveBeenCalled();
+    });
+
+    it('retries once on network error', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockRejectedValueOnce(new TypeError('Network error'))
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+        });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const response = await publicFetch(mockUrl);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(response.ok).toBe(true);
+    });
+  });
+
   describe('isAuthenticated', () => {
     it('should return true when user is authenticated', () => {
       useAuthStore.setState({ isAuthenticated: true });
@@ -283,6 +418,16 @@ describe('apiClient', () => {
 
     it('should return false when user is not authenticated', () => {
       useAuthStore.setState({ isAuthenticated: false });
+      expect(isAuthenticated()).toBe(false);
+    });
+
+    it('reads the auth flag, not token presence', () => {
+      // A persisted token alone does not make the session
+      // authenticated — checkAuth() flips the flag on load.
+      useAuthStore.setState({
+        token: mockToken,
+        isAuthenticated: false,
+      });
       expect(isAuthenticated()).toBe(false);
     });
   });

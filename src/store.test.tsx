@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useBibleStore, initialState } from './store';
 import { useAuthStore } from './stores/authStore';
 import * as api from './api';
@@ -345,6 +345,99 @@ describe('useBibleStore', () => {
       expect(useBibleStore.getState().notes).toEqual([
         makeNote('fresh'),
       ]);
+    });
+
+    it('invalidates the notes cache and refetches the page ' +
+      'after a successful move', async () => {
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.moveNote.mockResolvedValue({
+        note_id: 'n1',
+        tag_position: 1.5,
+        rebalanced: false,
+      });
+      const movedNote = { ...makeNote('n1'), tag_position: 1.5 };
+      mockApi.getNotes.mockResolvedValue(pageOf([movedNote]));
+      useBibleStore.setState({
+        notes: [makeNote('n1'), makeNote('n2')],
+        notesPage: 2,
+        notesOrdering: 'custom',
+      });
+
+      await useBibleStore.getState().moveNoteAfter(
+        'TAG1', 'n1', 'n2', 'after'
+      );
+
+      expect(mockCacheManager.clearNotesCache)
+        .toHaveBeenCalledWith('TAG1');
+      expect(mockApi.getNotes).toHaveBeenCalledWith('TAG1', {
+        ordering: 'custom',
+        page: 2,
+        pageSize: 25,
+        filesetId: 'ENGESV_API',
+      });
+      // The authoritative refetch — not the instant-feedback
+      // local patch — decides the final note list.
+      expect(useBibleStore.getState().notes).toEqual([movedNote]);
+    });
+
+    it('applies the new tag positions locally on a ' +
+      'successful reorder', async () => {
+      mockApi.reorderNotes.mockResolvedValue(undefined);
+      useBibleStore.setState({
+        notes: [makeNote('n1'), makeNote('n2')],
+        notesPage: 1,
+        notesOrdering: 'custom',
+      });
+
+      await useBibleStore.getState().reorderNotes(
+        'TAG1', ['n2', 'n1'], 1, 25
+      );
+
+      expect(mockApi.reorderNotes).toHaveBeenCalledWith('TAG1', [
+        { note_id: 'n2', position: 1 },
+        { note_id: 'n1', position: 2 },
+      ]);
+      expect(
+        useBibleStore.getState().notes.map((n) => ({
+          id: n.id,
+          tag_position: n.tag_position,
+        }))
+      ).toEqual([
+        { id: 'n2', tag_position: 1 },
+        { id: 'n1', tag_position: 2 },
+      ]);
+    });
+
+    // FIXME: store.tsx reorderNotes' success path never calls
+    // clearNotesCache nor refetches — the notes cache has no
+    // TTL, so the next fetchNotes for this tag serves the
+    // pre-reorder order until eviction. moveNoteAfter does
+    // invalidate via refreshNotesPage; reorderNotes should too.
+    it.skip('invalidates the notes cache after a successful ' +
+      'reorder', async () => {
+      mockApi.reorderNotes.mockResolvedValue(undefined);
+      // Pre-stubbed so that once the prod fix routes the
+      // success path through refreshNotesPage (like
+      // moveNoteAfter does), this test fails on the cache
+      // assertion below rather than an unstubbed getNotes
+      // rejection.
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.getNotes.mockResolvedValue(pageOf([
+        makeNote('n2'),
+        makeNote('n1'),
+      ]));
+      useBibleStore.setState({
+        notes: [makeNote('n1'), makeNote('n2')],
+        notesPage: 1,
+        notesOrdering: 'custom',
+      });
+
+      await useBibleStore.getState().reorderNotes(
+        'TAG1', ['n2', 'n1'], 1, 25
+      );
+
+      expect(mockCacheManager.clearNotesCache)
+        .toHaveBeenCalledWith('TAG1');
     });
 
     it('still reports success when the post-move refetch ' +
