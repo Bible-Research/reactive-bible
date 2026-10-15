@@ -319,7 +319,7 @@ const CommentNode = ({
 
       {(comment.replies?.length ?? 0) > 0 && (
         <Stack spacing={8} mt={8}>
-          {comment.replies!.map((reply) => (
+          {comment.replies?.map((reply) => (
             <CommentNode
               key={reply.id}
               comment={reply}
