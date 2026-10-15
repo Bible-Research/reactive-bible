@@ -10,13 +10,13 @@ import {
   UpdateManifest,
 } from './appUpdate';
 import { App } from '@capacitor/app';
-import { isNativeApp } from './nativeAudio';
+import { isNativeApp } from './platform';
 
 vi.mock('@capacitor/app', () => ({
   App: { getInfo: vi.fn() },
 }));
 
-vi.mock('./nativeAudio', () => ({
+vi.mock('./platform', () => ({
   isNativeApp: vi.fn(),
 }));
 
