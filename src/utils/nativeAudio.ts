@@ -1,5 +1,4 @@
-import { Capacitor } from '@capacitor/core';
-import { BackgroundMode } from '@anuradev/capacitor-background-mode';
+import { isNativeApp } from './platform';
 
 /**
  * Native (Capacitor) helpers that keep the WebView's JS alive while
@@ -7,20 +6,21 @@ import { BackgroundMode } from '@anuradev/capacitor-background-mode';
  * few minutes after screen-off unless the app runs a foreground
  * service — this module wraps @anuradev/capacitor-background-mode
  * and the one-time battery-optimization exemption prompt.
+ *
+ * The plugin is loaded lazily: this module is statically reachable
+ * from the app shell, so a static import would keep the plugin code
+ * in the entry chunk even though it only runs on native builds.
  */
+const loadBackgroundMode = () =>
+  import('@anuradev/capacitor-background-mode').then(
+    (m) => m.BackgroundMode
+  );
 
 const BATTERY_PROMPT_KEY = 'android_battery_prompt_shown';
 
-export const isNativeApp = (): boolean => {
-  try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
-};
-
 const ensureNotificationPermission = async (): Promise<void> => {
   try {
+    const BackgroundMode = await loadBackgroundMode();
     const status =
       await BackgroundMode.checkNotificationsPermission();
     if (status.notifications !== 'granted') {
@@ -37,6 +37,7 @@ const promptBatteryExemptionOnce = async (): Promise<void> => {
   try {
     if (localStorage.getItem(BATTERY_PROMPT_KEY)) return;
     localStorage.setItem(BATTERY_PROMPT_KEY, '1');
+    const BackgroundMode = await loadBackgroundMode();
     const { enabled } =
       await BackgroundMode.checkBatteryOptimizations();
     if (enabled) {
@@ -56,6 +57,7 @@ const promptBatteryExemptionOnce = async (): Promise<void> => {
 export const enableAudioKeepAlive = async (): Promise<void> => {
   if (!isNativeApp()) return;
   try {
+    const BackgroundMode = await loadBackgroundMode();
     await ensureNotificationPermission();
     const { enabled } = await BackgroundMode.isEnabled();
     if (!enabled) {
@@ -79,6 +81,7 @@ export const enableAudioKeepAlive = async (): Promise<void> => {
 export const disableAudioKeepAlive = async (): Promise<void> => {
   if (!isNativeApp()) return;
   try {
+    const BackgroundMode = await loadBackgroundMode();
     const { enabled } = await BackgroundMode.isEnabled();
     if (enabled) {
       await BackgroundMode.disable();
