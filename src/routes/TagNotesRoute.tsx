@@ -38,10 +38,10 @@ import EditNoteModal from '../components/EditNoteModal';
 import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
 import {
-  deleteNote,
   getTag,
   fetchCommentCounts,
   getNoteOrderIndex,
+  UNTAGGED_TAG_ID,
 } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
@@ -166,6 +166,9 @@ const entryLabel = (
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
+  // `/notes/tag/untagged` is the virtual "no tag" view: the
+  // API translates the sentinel into a tag__isnull filter.
+  const isUntagged = tagId === UNTAGGED_TAG_ID;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -181,6 +184,7 @@ export default function TagNotesRoute() {
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
   const reorderNotes = useBibleStore((state) => state.reorderNotes);
+  const deleteNote = useBibleStore((state) => state.deleteNote);
   const moveNoteAfter = useBibleStore(
     (state) => state.moveNoteAfter
   );
@@ -239,6 +243,9 @@ export default function TagNotesRoute() {
   const lastLoadRef = useRef<{ key: string; page: number } | null>(
     null
   );
+  // Set while a delete is in flight; a second confirm + DELETE
+  // would 404 and surface a spurious error notification.
+  const deletingRef = useRef(false);
 
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
@@ -314,7 +321,8 @@ export default function TagNotesRoute() {
           // in the store; before that, reuse the last request.
           const current = useBibleStore.getState();
           const ownsPage = current.notes.some(
-            (n) => n.tag?.id === tagId
+            (n) =>
+              isUntagged ? n.tag == null : n.tag?.id === tagId
           );
           page = ownsPage
             ? current.notesPage
@@ -332,16 +340,31 @@ export default function TagNotesRoute() {
         if (cancelled) return;
 
         const fetchedNotes = useBibleStore.getState().notes;
-        let resolvedTag: Tag | null =
-          useBibleStore.getState().tags.find((t) => t.id === tagId) ||
-          fetchedNotes[0]?.tag ||
-          null;
+        let resolvedTag: Tag | null;
+        if (isUntagged) {
+          // No Tag row exists for the untagged view — use a
+          // synthetic label object for display.
+          resolvedTag = {
+            id: UNTAGGED_TAG_ID,
+            name: 'Untagged',
+            parent_tag: null,
+            created_at: '',
+            updated_at: '',
+          };
+        } else {
+          resolvedTag =
+            useBibleStore
+              .getState()
+              .tags.find((t) => t.id === tagId) ||
+            fetchedNotes[0]?.tag ||
+            null;
 
-        if (!resolvedTag) {
-          try {
-            resolvedTag = await getTag(tagId);
-          } catch {
-            resolvedTag = null;
+          if (!resolvedTag) {
+            try {
+              resolvedTag = await getTag(tagId);
+            } catch {
+              resolvedTag = null;
+            }
           }
         }
 
@@ -379,7 +402,14 @@ export default function TagNotesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [tagId, fetchNotes, getTags, isAuthenticated, sortOrder]);
+  }, [
+    tagId,
+    fetchNotes,
+    getTags,
+    isAuthenticated,
+    sortOrder,
+    isUntagged,
+  ]);
 
   // Ownership: the caller's own tag list is the primary signal —
   // production notes do not send `is_owner` yet, so without the
@@ -397,7 +427,8 @@ export default function TagNotesRoute() {
   // custom sort + owner.
   const orderMenuEnabled =
     (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
-    isTagOwner;
+    isTagOwner &&
+    !isUntagged;
 
   const loadOrderIndex = useCallback(async () => {
     if (!tagId) return;
@@ -573,51 +604,59 @@ export default function TagNotesRoute() {
     note: Note
   ) => {
     evt.preventDefault();
-    if (!note.id) return;
-    if (
-      !window.confirm('Are you sure you want to delete this note?')
-    ) {
+    if (!note.id || deletingRef.current) return;
+    if (!window.confirm('Are you sure you want to delete this note?')) {
       return;
     }
+    deletingRef.current = true;
     try {
-      await deleteNote(note.id);
-    } catch (err) {
-      // A failed delete used to be an unhandled rejection and a
-      // silent no-op — surface it instead.
-      console.error('Error deleting note:', err);
-      showNotification({
-        title: 'Error',
-        message: 'Failed to delete note. Please try again.',
-        color: 'red',
-      });
-      return;
-    }
-    showNotification({
-      title: 'Deleted',
-      message: 'Note deleted',
-      color: 'green',
-    });
-    if (tagId) {
-      clearNotesCache(tagId);
+      try {
+        // The store action drops the card from state as soon as
+        // the DELETE resolves, so the list updates without
+        // waiting for the page refetch below.
+        await deleteNote(note.id);
+      } catch {
+        return; // Store already surfaced an error notification.
+      }
+      if (!tagId) return;
+      // The user may have navigated to a different tag while the
+      // DELETE was in flight; don't touch its notes list.
+      if (useBibleStore.getState().lastSelectedTagId !== tagId) {
+        return;
+      }
       const apiOrdering =
         sortOrder !== 'custom_asc'
           ? getApiOrdering(sortOrder)
           : undefined;
-      // Stay on the current page; if this was its last
-      // note, fall back to the new last page.
+      // Pull the latest server state for the page being viewed
+      // so it backfills; if this was its last note, fall back
+      // to the new last page.
+      const current = useBibleStore.getState();
       const lastPage = Math.max(
         1,
-        Math.ceil((notesCount - 1) / notesPageSize)
+        Math.ceil(current.notesCount / current.notesPageSize)
       );
-      await fetchNotes(tagId, {
-        ordering: apiOrdering,
-        page: Math.min(notesPage, lastPage),
-      });
-      // Resync badges/menu labels — the deleted note's
-      // rank shifts every entry below it.
-      if (orderMenuEnabled) {
-        await loadOrderIndex();
+      // An emptied list would flash "No notes found" while the
+      // backfill is in flight; show the page loader instead.
+      const emptied = current.notes.length === 0;
+      if (emptied) setPageLoading(true);
+      try {
+        await fetchNotes(tagId, {
+          ordering: apiOrdering,
+          page: Math.min(current.notesPage, lastPage),
+        });
+        // Resync badges/menu labels — the deleted note's
+        // rank shifts every entry below it.
+        if (orderMenuEnabled) {
+          await loadOrderIndex();
+        }
+      } catch {
+        // fetchNotes already surfaced an error notification.
+      } finally {
+        if (emptied) setPageLoading(false);
       }
+    } finally {
+      deletingRef.current = false;
     }
   };
 
@@ -981,7 +1020,17 @@ export default function TagNotesRoute() {
             placeholder="Select a tag"
             value={tagId}
             onChange={handleTagChange}
-            data={sortedTags.map(t => ({ value: t.id, label: t.name }))}
+            // Grouped items render above a divider; the
+            // ungrouped "Untagged" entry lands in its own
+            // bottom section (Mantine v6 SelectItems).
+            data={[
+              ...sortedTags.map((t) => ({
+                value: t.id,
+                label: t.name,
+                group: 'Tags',
+              })),
+              { value: UNTAGGED_TAG_ID, label: 'Untagged' },
+            ]}
             searchable
             style={{ maxWidth: 400 }}
           />
@@ -1120,7 +1169,8 @@ export default function TagNotesRoute() {
               isDraggable={
                 (sortOrder === 'custom_asc' ||
                   sortOrder === 'custom_desc') &&
-                isTagOwner
+                isTagOwner &&
+                !isUntagged
               }
               tagId={tagId || ''}
               onReorder={handleReorder}
@@ -1134,7 +1184,11 @@ export default function TagNotesRoute() {
           </Stack>
         ) : (
           <Center style={{ height: 200 }}>
-            <Text>No notes found for this tag.</Text>
+            <Text>
+              {isUntagged
+                ? 'No untagged notes.'
+                : 'No notes found for this tag.'}
+            </Text>
           </Center>
         )}
       </ScrollArea>

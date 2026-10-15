@@ -178,12 +178,16 @@ describe('Notes Cache Manager', () => {
 
   it('should cache notes for multiple tags independently', () => {
     const tag1: Tag = {
-      id: 'TAG1', name: 'Tag 1', parent_tag: null,
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
     const tag2: Tag = {
-      id: 'TAG2', name: 'Tag 2', parent_tag: null,
+      id: 'TAG2',
+      name: 'Tag 2',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
@@ -225,30 +229,44 @@ describe('Notes Cache Manager', () => {
 
   it('should clear notes cache for a specific tag', () => {
     const tag1: Tag = {
-      id: 'TAG1', name: 'Tag 1', parent_tag: null,
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
     const tag2: Tag = {
-      id: 'TAG2', name: 'Tag 2', parent_tag: null,
+      id: 'TAG2',
+      name: 'Tag 2',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
-    
+
     const notes1: Note[] = [
       {
-        id: 'note1', note_text: 'Note 1', public: false,
-        is_owner: true, created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag: tag1,
-        verses: [], tag_position: null,
+        id: 'note1',
+        note_text: 'Note 1',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag: tag1,
+        verses: [],
+        tag_position: null,
       },
     ];
     const notes2: Note[] = [
       {
-        id: 'note2', note_text: 'Note 2', public: false,
-        is_owner: true, created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag: tag2,
-        verses: [], tag_position: null,
+        id: 'note2',
+        note_text: 'Note 2',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag: tag2,
+        verses: [],
+        tag_position: null,
       },
     ];
     
@@ -263,30 +281,44 @@ describe('Notes Cache Manager', () => {
 
   it('should clear all notes cache', () => {
     const tag1: Tag = {
-      id: 'TAG1', name: 'Tag 1', parent_tag: null,
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
     const tag2: Tag = {
-      id: 'TAG2', name: 'Tag 2', parent_tag: null,
+      id: 'TAG2',
+      name: 'Tag 2',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
-    
+
     const notes1: Note[] = [
       {
-        id: 'note1', note_text: 'Note 1', public: false,
-        is_owner: true, created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag: tag1,
-        verses: [], tag_position: null,
+        id: 'note1',
+        note_text: 'Note 1',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag: tag1,
+        verses: [],
+        tag_position: null,
       },
     ];
     const notes2: Note[] = [
       {
-        id: 'note2', note_text: 'Note 2', public: false,
-        is_owner: true, created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag: tag2,
-        verses: [], tag_position: null,
+        id: 'note2',
+        note_text: 'Note 2',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag: tag2,
+        verses: [],
+        tag_position: null,
       },
     ];
     
@@ -301,31 +333,48 @@ describe('Notes Cache Manager', () => {
 
   it('should update cached notes when caching again for same tag', () => {
     const tag: Tag = {
-      id: 'TAG1', name: 'Tag 1', parent_tag: null,
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
-    
+
     const initialNotes: Note[] = [
       {
-        id: 'note1', note_text: 'Initial note', public: false,
-        is_owner: true, created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag,
-        verses: [], tag_position: null,
+        id: 'note1',
+        note_text: 'Initial note',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
       },
     ];
     const updatedNotes: Note[] = [
       {
-        id: 'note1', note_text: 'Updated note', public: false,
-        is_owner: true, created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag,
-        verses: [], tag_position: null,
+        id: 'note1',
+        note_text: 'Updated note',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
       },
       {
-        id: 'note2', note_text: 'New note', public: false,
-        is_owner: true, created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag,
-        verses: [], tag_position: null,
+        id: 'note2',
+        note_text: 'New note',
+        public: false,
+        is_owner: true,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
+        tag_position: null,
       },
     ];
     
@@ -339,17 +388,24 @@ describe('Notes Cache Manager', () => {
 
   it('should store timestamp with cached notes', () => {
     const tag: Tag = {
-      id: 'TAG1', name: 'Tag 1', parent_tag: null,
+      id: 'TAG1',
+      name: 'Tag 1',
+      parent_tag: null,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     };
-    
+
     const notes: Note[] = [
       {
-        id: 'note1', note_text: 'Test note', public: false,
-        is_owner: false, tag_position: null,
+        id: 'note1',
+        note_text: 'Test note',
+        public: false,
+        is_owner: false,
+        tag_position: null,
         created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z', tag, verses: [],
+        updated_at: '2024-01-01T00:00:00Z',
+        tag,
+        verses: [],
       },
     ];
     
@@ -598,8 +654,8 @@ describe('Audio Cache Manager', () => {
 
   it('should cache and retrieve an audio URL', () => {
     const now = Date.now();
-    const futureExpiry = Math.floor((now + 3600 * 1000) / 1000);
-    const audioUrl = `http://audio.url/1?Expires=${futureExpiry}`;
+    const expires = Math.floor((now + 3600 * 1000) / 1000);
+    const audioUrl = `http://audio.url/1?Expires=${expires}`;
     cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
 
     const cached = getCachedAudioUrl('GEN', 1, 'KJV');
@@ -608,8 +664,8 @@ describe('Audio Cache Manager', () => {
 
   it('should not return an expired audio URL', () => {
     const now = Date.now();
-    const pastExpiry = Math.floor((now - 1000) / 1000);
-    const audioUrl = `http://audio.url/1?Expires=${pastExpiry}`;
+    const expires = Math.floor((now - 1000) / 1000);
+    const audioUrl = `http://audio.url/1?Expires=${expires}`;
     cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
 
     const cached = getCachedAudioUrl('GEN', 1, 'KJV');
@@ -618,10 +674,10 @@ describe('Audio Cache Manager', () => {
 
   it('should clear expired audio URLs', () => {
     const now = Date.now();
-    const pastExpiry = Math.floor((now - 1000) / 1000);
-    const futureExpiry = Math.floor((now + 3600 * 1000) / 1000);
-    const expiredUrl = `http://audio.url/1?Expires=${pastExpiry}`;
-    const validUrl = `http://audio.url/2?Expires=${futureExpiry}`;
+    const expired = Math.floor((now - 1000) / 1000);
+    const valid = Math.floor((now + 3600 * 1000) / 1000);
+    const expiredUrl = `http://audio.url/1?Expires=${expired}`;
+    const validUrl = `http://audio.url/2?Expires=${valid}`;
 
     cacheAudioUrl('GEN', 1, 'KJV', expiredUrl, 60, 1024); // Expired
     cacheAudioUrl('EXO', 2, 'ESV', validUrl, 120, 2048); // Not expired
@@ -633,6 +689,61 @@ describe('Audio Cache Manager', () => {
 
     expect(expiredCached).toBeNull();
     expect(validCached).toBe(validUrl);
+  });
+
+  // API.Bible `resourceUrl`s are AWS SigV4-presigned: expiry is
+  // `X-Amz-Date` + `X-Amz-Expires` seconds.
+  const amzDate = (d: Date) =>
+    d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
+  it('should honor X-Amz presigned URL expiry', () => {
+    const now = Date.now();
+    const signedAt = amzDate(new Date(now - 60 * 1000));
+    const audioUrl =
+      `https://cdn.example.com/JHN.3.mp3?X-Amz-Date=${signedAt}` +
+      `&X-Amz-Expires=7200&X-Amz-Signature=abc`;
+    cacheAudioUrl('JHN', 3, 'NIV', audioUrl, 0, 0);
+
+    expect(getCachedAudioUrl('JHN', 3, 'NIV')).toBe(audioUrl);
+  });
+
+  it('should not return an expired X-Amz presigned URL', () => {
+    const now = Date.now();
+    const signedAt = amzDate(new Date(now - 2 * 3600 * 1000));
+    const audioUrl =
+      `https://cdn.example.com/JHN.3.mp3?X-Amz-Date=${signedAt}` +
+      `&X-Amz-Expires=3600&X-Amz-Signature=abc`;
+    cacheAudioUrl('JHN', 3, 'NIV', audioUrl, 0, 0);
+
+    expect(getCachedAudioUrl('JHN', 3, 'NIV')).toBeNull();
+  });
+
+  it('should honor a lowercase expires epoch param', () => {
+    const now = Date.now();
+    const expires = Math.floor((now + 3600 * 1000) / 1000);
+    const audioUrl = `http://audio.url/1?expires=${expires}`;
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+
+  it('should ignore a non-epoch Expires param', () => {
+    // parseInt('2025-01-01') would yield 2025 (epoch 1970 →
+    // always expired); reject it and use the 24h default.
+    const audioUrl = 'http://audio.url/1?Expires=2025-01-01';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+
+  it('should ignore an epoch-milliseconds Expires param', () => {
+    // 1.7e12 is epoch ms, not seconds — must not be treated as
+    // epoch seconds (~60k years out → never expires).
+    const audioUrl =
+      'http://audio.url/1?Expires=1893456000000';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
   });
 
   it('treats a non-numeric Expires param as the 24h default ' +

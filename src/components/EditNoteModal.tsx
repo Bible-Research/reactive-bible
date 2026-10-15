@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
-import { editNote } from "../api";
+import { editNote, UNTAGGED_TAG_ID } from "../api";
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import { clearNotesCache } from "../utils/cacheManager";
@@ -155,7 +155,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const refetchRouteTag = async () => {
     if (!note) return;
     const { notesOrdering, notesPage } = useBibleStore.getState();
-    await fetchNotes(note.tag.id, {
+    // `null` tag means the note lives in the route's virtual
+    // "untagged" section — refetch via the sentinel id.
+    await fetchNotes(note.tag?.id ?? UNTAGGED_TAG_ID, {
       ordering: notesOrdering ?? undefined,
       page: notesPage,
     });
@@ -174,7 +176,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     if (autosavedRef.current && note) {
       // Even if autosave moved the note to another tag, the
       // list on screen is note.tag's — refetch it so the note
-      // disappears. The destination tag's cache was cleared.
+      // disappears. Untagged notes refetch the virtual
+      // "untagged" view; the destination tag's cache was
+      // cleared.
       void refetchRouteTag().catch(() => {
         /* fetchNotes already notified the failure */
       });
@@ -244,7 +248,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 /* fetchNotes already notified the failure */
               });
             }}
-            note={{ tagId: note.tag.id, text: note.note_text }}
+            note={{
+              tagId: note.tag?.id ?? "",
+              text: note.note_text,
+            }}
           />
           <Divider mt="xl" mb="sm" />
           <UnstyledButton

@@ -37,6 +37,7 @@ import {
   authenticatedUpload,
   publicFetch,
 } from './utils/apiClient';
+import { reportFums } from './utils/fums';
 import { API_BASE_URL } from './config';
 
 export type { SectionHeading };
@@ -171,6 +172,9 @@ export const fetchHeadingsOnly = async (
       return [];
     }
     const responseData = await response.json();
+    // API.Bible responses carry a FUMS token in `meta` that must
+    // be reported per their license terms (silent on failure).
+    reportFums(responseData.meta);
     const headings: SectionHeading[] =
       responseData.headings ?? [];
     cacheHeadings(bookId, chapter, filesetId, headings);
@@ -275,6 +279,9 @@ export const getVersesFromApi = async (
     );
     const headings: SectionHeading[] =
       data.headings ?? [];
+    // API.Bible responses carry a FUMS token in `meta` that must
+    // be reported per their license terms (silent on failure).
+    reportFums(data.meta);
     cacheVerses(bookId, thechapter, filesetId, verses);
     cacheHeadings(bookId, thechapter, filesetId, headings);
     return { verses, headings };
@@ -864,6 +871,10 @@ export const getBibleAudioUrl = async (
       );
     }
 
+    // API.Bible responses carry a FUMS token in `meta` that must
+    // be reported per their license terms (silent on failure).
+    reportFums(data.meta);
+
     // Cache the audio URL
     cacheAudioUrl(
       bookId,
@@ -1106,9 +1117,12 @@ export const getAudioTimestamps = async (
     }
     const data = await response.json();
     const timestamps: VerseTimestamp[] = (data.data || []).map(
-      (item: { verse_start: string | number; timestamp: number }) => ({
+      (item: {
+        verse_start: string | number;
+        timestamp: string | number;
+      }) => ({
         verse_start: Number(item.verse_start),
-        timestamp: item.timestamp,
+        timestamp: Number(item.timestamp),
       })
     );
     cacheTimestamps(filesetId, bookId, chapter, timestamps);
@@ -1125,6 +1139,15 @@ export interface PaginatedNotesResponse {
   previous: string | null;
   results: Note[];
 }
+
+/**
+ * `tag_id` sentinel the API understands as "notes with no
+ * tag". Real tag ids are `TAG…` strings and cannot collide.
+ * An older backend that does not know the sentinel simply
+ * matches no tag and returns an empty page — it never falls
+ * back to returning every note.
+ */
+export const UNTAGGED_TAG_ID = 'untagged';
 
 export const getNotes = async (
   tagId?: string,

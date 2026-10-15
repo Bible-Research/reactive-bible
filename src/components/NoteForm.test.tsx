@@ -96,6 +96,68 @@ describe('NoteForm Component', () => {
     expect(submitBar).toContainElement(submitButton);
   });
 
+  it('should keep edits when note prop is re-created', () => {
+    const note = { tagId: '1', text: 'Initial text' };
+    const { rerender } = render(
+      <NoteForm
+        tags={mockTags}
+        note={note}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const noteInput = screen.getByLabelText('Note');
+    fireEvent.change(noteInput,
+      { target: { value: 'Edited text' } });
+
+    // Parents pass a fresh object literal on every render.
+    rerender(
+      <NoteForm
+        tags={mockTags}
+        note={{ ...note }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    expect((noteInput as HTMLTextAreaElement).value).toBe(
+      'Edited text'
+    );
+  });
+
+  it('should re-seed inputs when a different note arrives', () => {
+    const { rerender } = render(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '1', text: 'Initial text' }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    // Switching to a different note must re-seed the form.
+    rerender(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '2', text: 'Other text' }}
+        onSubmit={mockOnSubmit}
+        submitText="Save"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    const noteInput = screen.getByLabelText('Note') as
+      HTMLTextAreaElement;
+    expect(noteInput.value).toBe('Other text');
+    const tagInput = screen.getByLabelText('Tag') as
+      HTMLInputElement;
+    expect(tagInput.value).toBe('Hope');
+  });
+
   it('should not render create new tag button', () => {
     render(
       <NoteForm

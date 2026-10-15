@@ -17,6 +17,7 @@ import { AppRoutes } from "./routes";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { isNativeApp } from "./utils/nativeAudio";
 import { useAuthStore } from "./stores/authStore";
 import { useAppUpdate } from "./hooks/useAppUpdate";
 import { useBibleStore } from "./store";
@@ -161,8 +162,16 @@ export default function App() {
             toggleColorScheme={toggleColorScheme}
           />
         </AppShell>
-        <Analytics />
-        <SpeedInsights />
+        {/* Vercel telemetry injects /_vercel/* scripts that only
+            exist on the Vercel deployment; inside the Capacitor
+            shell (origin https://localhost) they 404 and trip the
+            resource-load error reporter. */}
+        {!isNativeApp() && (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        )}
         </ModalsProvider>
       </MantineProvider>
     </ColorSchemeProvider>
