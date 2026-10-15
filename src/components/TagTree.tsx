@@ -60,7 +60,10 @@ export function TagTree({
     });
 
     tags.forEach((tag) => {
-      const node = map.get(tag.id)!;
+      // map was populated from `tags` above, so this is
+      // always present — guard anyway instead of asserting.
+      const node = map.get(tag.id);
+      if (!node) return;
       if (tag.parent_tag) {
         const parent = map.get(tag.parent_tag);
         if (parent) {
@@ -135,7 +138,10 @@ export function TagTree({
 
               {hasChildren ? (
                 isExpanded ? (
-                  <IconFolderOpen size={18} color="var(--mantine-color-blue-6)" />
+                  <IconFolderOpen
+                    size={18}
+                    color="var(--mantine-color-blue-6)"
+                  />
                 ) : (
                   <IconFolder size={18} color="var(--mantine-color-blue-6)" />
                 )

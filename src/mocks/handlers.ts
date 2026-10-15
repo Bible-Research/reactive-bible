@@ -6,6 +6,17 @@ import { mockTranslations } from '../__tests__/mocks/data';
 const API_URL = `${API_BASE_URL}/api/v1`;
 const COMMENT_BASE = `${API_BASE_URL}/api/v1`;
 
+interface NoteCreateBody {
+  note_text?: string;
+  tag?: string;
+  verse_references?: unknown[];
+}
+
+interface CommentWriteBody {
+  content?: string;
+  parent_comment?: string | null;
+}
+
 export const handlers = [
   // --- Single /bible Endpoint Handler ---
   http.get(`${API_URL}/bible`, ({ request }) => {
@@ -53,7 +64,7 @@ export const handlers = [
 
   // --- Notes ---
   http.post(`${API_URL}/notes/`, async ({ request }) => {
-    const body = await request.json() as any;
+    const body = (await request.json()) as NoteCreateBody;
     return HttpResponse.json({ 
       id: 'note-1',
       note_text: body.note_text,
@@ -119,7 +130,7 @@ export const handlers = [
   http.post(
     `${COMMENT_BASE}/notes/:noteId/comments/`,
     async ({ params, request }) => {
-      const body = await request.json() as any;
+      const body = (await request.json()) as CommentWriteBody;
       return HttpResponse.json({
         id: 'comment-new',
         author: { id: 1, username: 'testuser' },
@@ -137,7 +148,7 @@ export const handlers = [
   http.patch(
     `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
     async ({ params, request }) => {
-      const body = await request.json() as any;
+      const body = (await request.json()) as CommentWriteBody;
       return HttpResponse.json({
         id: params.commentId,
         author: { id: 1, username: 'testuser' },

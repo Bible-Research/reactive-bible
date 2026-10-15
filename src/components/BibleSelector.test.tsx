@@ -21,7 +21,7 @@ describe('BibleSelector Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useNavigate as any).mockReturnValue(mockNavigate);
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
   });
 
   const noop = () => { /* noop */ };

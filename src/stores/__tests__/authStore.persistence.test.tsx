@@ -36,7 +36,10 @@ describe('authStore - Persistence', () => {
       const stored = localStorage.getItem('auth-storage');
       expect(stored).toBeTruthy();
       
-      const parsed = JSON.parse(stored!);
+      if (!stored) {
+        throw new Error('expected auth-storage to be populated');
+      }
+      const parsed = JSON.parse(stored);
       expect(parsed.state.token).toBe(mockToken);
       expect(parsed.state.user.username).toBe(mockUsername);
     });
