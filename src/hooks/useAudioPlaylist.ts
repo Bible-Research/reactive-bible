@@ -16,6 +16,7 @@ import {
 } from '../utils/bibleUtils';
 import {
   findTranslationByFilesetId,
+  preferTimestampedAudio,
   resolveAudioFileset,
   resolveTextFileset,
 } from '../utils/filesetGroups';
@@ -49,6 +50,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
   const audioRef = useRef<Howl | null>(null);
   const stoppedRef = useRef(false);
+  // Guards the "no verse timestamps" notification so a playlist
+  // of timestampless recordings warns once, not per item.
+  const timestampsNoticeShownRef = useRef(false);
 
   const activeAudioFilesetId = useBibleStore(
     (s) => s.activeAudioFilesetId
@@ -126,10 +130,23 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         : null;
       // Ordered candidates: resolved primary, then codec sibling,
       // other-testament member, and the translation's remaining
-      // audio options.
-      const candidates = resolved
-        ? [resolved.filesetId, ...resolved.alternates]
-        : [];
+      // audio options. A timestamp-backed sibling recording
+      // (TIMESTAMP_BACKED_AUDIO, e.g. ENGESHO1DA -> ENGESVO1DA)
+      // leads when one exists — verse timestamps only match the
+      // recording they were generated from, and swapping the
+      // recording is what lets a verse-ranged item seek to the
+      // linked verse and stop after it. The resolved id stays
+      // in the list as a load/decode fallback.
+      const candidates = (() => {
+        if (!resolved) return [];
+        const primary = preferTimestampedAudio(
+          resolved.filesetId,
+          translations,
+        );
+        const rest = [...resolved.alternates, resolved.filesetId]
+          .filter((id) => id !== primary);
+        return [primary, ...rest];
+      })();
       const translationName =
         findTranslationByFilesetId(
           activeAudioFilesetId,
@@ -142,12 +159,20 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       const prefetchNext = (i: number) => {
         const next = allItems[i + 1];
         if (!next || !activeAudioFilesetId) return;
-        const nextFilesetId =
-          resolveAudioFileset(
-            activeAudioFilesetId,
-            next.bookId,
-            translations,
-          )?.filesetId ?? activeAudioFilesetId;
+        const nextResolved = resolveAudioFileset(
+          activeAudioFilesetId,
+          next.bookId,
+          translations,
+        );
+        // Same timestamp-backed substitution as the playing
+        // item so the prefetched URL/timestamps match what will
+        // actually be loaded.
+        const nextFilesetId = nextResolved
+          ? preferTimestampedAudio(
+              nextResolved.filesetId,
+              translations,
+            )
+          : activeAudioFilesetId;
         if (nextFilesetId !== 'ENGKJV') {
           getBibleAudioUrl(
             next.bookId,
@@ -228,6 +253,28 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               }
 
               if (stoppedRef.current) return;
+
+              // Graceful degradation for recordings with no
+              // verse timestamps at all (ENGKJV wordpocket
+              // audio, generated TTS, DBT coverage gaps):
+              // startTs/endTs below fall back to 0/null so the
+              // whole chapter plays. Warn once per playlist
+              // rather than silently playing from verse 1.
+              if (
+                fetchedTimestamps.length === 0 &&
+                !timestampsNoticeShownRef.current
+              ) {
+                timestampsNoticeShownRef.current = true;
+                showNotification({
+                  title: 'No verse timestamps',
+                  message:
+                    "Verse-level playback isn't available " +
+                    'for this recording — whole chapters ' +
+                    'will play.',
+                  color: 'orange',
+                  autoClose: 8000,
+                });
+              }
 
               const filteredTimestamps = item.verseNumbers
                 ? fetchedTimestamps.filter((t) =>
@@ -478,6 +525,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   const start = useCallback(
     (newItems: PlaylistItem[], startIndex = 0) => {
       stoppedRef.current = false;
+      timestampsNoticeShownRef.current = false;
       setItems(newItems);
       playIndex(newItems, startIndex);
     },

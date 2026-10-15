@@ -9,6 +9,7 @@
 
 import {
   getTestament,
+  preferTimestampedAudioFileset,
   sizeToCoverage,
   type SizeCoverage,
   type Testament,
@@ -684,6 +685,30 @@ export const resolveAudioFileset = (
     codec: primary.codec,
     alternates,
   };
+};
+
+/**
+ * Swaps a resolved audio fileset for the timestamp-backed
+ * sibling recording mapped in `TIMESTAMP_BACKED_AUDIO` — but
+ * only when the replacement id actually exists among the
+ * loaded `translations` (it may live in a different
+ * translation: `ENGESHO1DA` belongs to the "Hear the Word"
+ * product while `ENGESVO1DA` is an `ENGESV` member). Verse
+ * timestamps are only valid for the recording they were
+ * generated from, so a fileset DBT has no timestamp rows for
+ * is replaced by the timestamped recording itself rather than
+ * borrowing misaligned rows. Unmapped or unavailable ids pass
+ * through unchanged.
+ */
+export const preferTimestampedAudio = (
+  filesetId: string,
+  translations: Translation[],
+): string => {
+  const preferred = preferTimestampedAudioFileset(filesetId);
+  if (preferred === filesetId) return filesetId;
+  return findTranslationByFilesetId(preferred, translations)
+    ? preferred
+    : filesetId;
 };
 
 /**
