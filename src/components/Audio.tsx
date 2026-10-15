@@ -27,6 +27,7 @@ import {
 } from "../utils/bibleUtils";
 import {
   findTranslationByFilesetId,
+  preferTimestampedAudio,
   resolveAudioFileset,
   resolveTextFileset,
   splitCodec,
@@ -232,10 +233,19 @@ const Audio = () => {
     ): { filesetId: string; candidates: string[] } | null => {
       const resolved = resolveAudio(bookId, filesetId);
       if (!resolved) return null;
-      const candidates = [
+      // Prefer the timestamp-backed sibling recording (e.g.
+      // ENGESHO1DA -> ENGESVO1DA) so single-chapter playback
+      // gets verse timestamps and highlighting; the resolved
+      // id stays in candidates as a load/decode fallback.
+      const primary = preferTimestampedAudio(
         resolved.filesetId,
+        useBibleStore.getState().translations,
+      );
+      const candidates = [
+        primary,
         ...resolved.alternates,
-      ];
+        resolved.filesetId,
+      ].filter((id, i, arr) => arr.indexOf(id) === i);
       const remembered = filesetId
         ? workingCodecRef.current.get(filesetId)
         : undefined;

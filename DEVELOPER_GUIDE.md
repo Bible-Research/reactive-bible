@@ -1197,6 +1197,17 @@ pairs and testament-split members into `FilesetOption`s
   same-kind options → any audio option. Playback walks this list
   on `BookNotInFilesetError` or Howler load/play errors before
   notifying.
+- `preferTimestampedAudio(filesetId, translations)` swaps a
+  resolved audio fileset for the timestamp-backed sibling
+  recording in `TIMESTAMP_BACKED_AUDIO` (`bibleUtils.ts`) —
+  `ENGESHO1DA` has no DBT verse timestamps while `ENGESVO1DA`
+  does — but only when the replacement id exists among the
+  loaded translations. Both `useAudioPlaylist` and `Audio.tsx`
+  apply it to the primary candidate (keeping the resolved id as
+  a fallback) so verse seeks/bounds always match the playing
+  recording. When a recording still has no timestamps, the
+  playlist degrades to whole-chapter playback with a one-time
+  notification.
 - A stored `{abbr}:{kind}:{n}` product id that matches neither a
   product id nor a member falls back to the nth option of that
   kind owned by that translation — covers the 0-based

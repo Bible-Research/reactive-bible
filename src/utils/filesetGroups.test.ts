@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   groupFilesets,
+  preferTimestampedAudio,
   resolveAudioFileset,
   resolveTextFileset,
   findTranslationByFilesetId,
@@ -379,6 +380,59 @@ describe('resolveTextFileset', () => {
 
   it('returns null for a null selection', () => {
     expect(resolveTextFileset(null, 'JHN', [ENGESV])).toBeNull();
+  });
+});
+
+describe('preferTimestampedAudio', () => {
+  // EN1ESV-style "Hear the Word" product whose OT member
+  // ENGESHO1DA has no DBT timestamps; the timestamped
+  // ENGESVO1DA recording lives in the separate ENGESV product.
+  const EN1ESV = tr('EN1ESV', [
+    fs('ENGESHO1DA', 'audio', 'OT'),
+    fs('ENGESHO1DA-opus16', 'audio', 'OT'),
+    fs('ENGESHN1DA', 'audio', 'NT'),
+    fs('ENGESHN1DA-opus16', 'audio', 'NT'),
+  ]);
+  const ESVDBT = tr('ENGESV', [
+    fs('ENGESVO1DA', 'audio', 'OT'),
+    fs('ENGESVO1DA-opus16', 'audio', 'OT'),
+    fs('ENGESVN1DA', 'audio', 'NT'),
+    fs('ENGESVN1DA-opus16', 'audio', 'NT'),
+  ]);
+
+  it('swaps ENGESHO1DA for the existing timestamped recording',
+    () => {
+      expect(
+        preferTimestampedAudio(
+          'ENGESHO1DA-opus16',
+          [EN1ESV, ESVDBT],
+        ),
+      ).toBe('ENGESVO1DA-opus16');
+      expect(
+        preferTimestampedAudio('ENGESHO1DA', [EN1ESV, ESVDBT]),
+      ).toBe('ENGESVO1DA');
+    },
+  );
+
+  it('keeps the original when the replacement is absent', () => {
+    expect(
+      preferTimestampedAudio('ENGESHO1DA-opus16', [EN1ESV]),
+    ).toBe('ENGESHO1DA-opus16');
+    expect(preferTimestampedAudio('ENGESHO1DA', [])).toBe(
+      'ENGESHO1DA',
+    );
+  });
+
+  it('passes unmapped ids through unchanged', () => {
+    expect(
+      preferTimestampedAudio('ENGESHN1DA-opus16', [EN1ESV]),
+    ).toBe('ENGESHN1DA-opus16');
+    expect(preferTimestampedAudio('ENGKJV', [ENGKJV])).toBe(
+      'ENGKJV',
+    );
+    expect(preferTimestampedAudio('ENGESV_API', [ENGESV])).toBe(
+      'ENGESV_API',
+    );
   });
 });
 

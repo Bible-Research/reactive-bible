@@ -9,16 +9,29 @@ import type { Translation } from '../store';
 // ---------------------------------------------------------------------------
 
 describe('resolveTimestampsFilesetId', () => {
-  it('returns ENGESVO1DA for ENGESV_API + OT book', () => {
+  it('returns ENGESVO1DA for ENGESV_API audio + OT book', () => {
     expect(
-      resolveTimestampsFilesetId('SOMEAUDIO', 'ENGESV_API', 'GEN'),
+      resolveTimestampsFilesetId('ENGESV_API', 'ENGESV_API', 'GEN'),
     ).toBe('ENGESVO1DA');
   });
 
-  it('returns ENGESVN1DA for ENGESV_API + NT book', () => {
+  it('returns ENGESVN1DA for ENGESV_API audio + NT book', () => {
     expect(
-      resolveTimestampsFilesetId('SOMEAUDIO', 'ENGESV_API', 'JHN'),
+      resolveTimestampsFilesetId('ENGESV_API', 'ENGESV_API', 'JHN'),
     ).toBe('ENGESVN1DA');
+  });
+
+  it('ignores ENGESV_API as the text fileset', () => {
+    // Timestamp rows are only valid for the recording they were
+    // generated from — an ESV text selection must not borrow
+    // ESV rows for a different recording (issue #57).
+    expect(
+      resolveTimestampsFilesetId(
+        'ENGESHO1DA-opus16',
+        'ENGESV_API',
+        'GEN',
+      ),
+    ).toBe('ENGESHO1DA');
   });
 
   it('strips codec suffix for any other text fileset', () => {
@@ -141,6 +154,26 @@ const eshTranslation: Translation = {
   ],
 };
 
+// The timestamped ESV DBT recording lives in a separate product
+// from the "Hear the Word" audio (ENGESHO1DA has no DBT
+// timestamp rows; ENGESVO1DA does).
+const esvDbTimestamped: Translation = {
+  abbr: 'ENGESV',
+  name: 'English Standard Version',
+  language: 'English',
+  language_iso: 'eng',
+  filesets: [
+    { id: 'ENGESVO1DA', type: 'audio', size: 'OT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'ENGESVO1DA-opus16', type: 'audio', size: 'OT',
+      codec: 'opus', bitrate: '16' },
+    { id: 'ENGESVN1DA', type: 'audio', size: 'NT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'ENGESVN1DA-opus16', type: 'audio', size: 'NT',
+      codec: 'opus', bitrate: '16' },
+  ],
+};
+
 const mockStoreState = {
   activeAudioFilesetId: 'ENGESHN1DA-opus16',
   activeTextFilesetId: 'ENGESH',
@@ -187,6 +220,12 @@ beforeEach(() => {
   // default so per-test overrides cannot leak.
   vi.mocked(api.getBibleAudioUrl)
     .mockResolvedValue('http://audio.test/file.mp3');
+  vi.mocked(api.getAudioTimestamps).mockResolvedValue([
+    { verse_start: 1, timestamp: 0 },
+    { verse_start: 2, timestamp: 5 },
+    { verse_start: 3, timestamp: 10 },
+    { verse_start: 4, timestamp: 15 },
+  ]);
 });
 
 describe('useAudioPlaylist', () => {
@@ -259,6 +298,7 @@ describe('useAudioPlaylist', () => {
 
   it('calls getAudioTimestamps with ENGESVN1DA for NT book when ENGESV_API',
     async () => {
+      mockStoreState.activeAudioFilesetId = 'ENGESV_API';
       mockStoreState.activeTextFilesetId = 'ENGESV_API';
       const { result } = renderHook(() => useAudioPlaylist());
       act(() => {
@@ -276,6 +316,7 @@ describe('useAudioPlaylist', () => {
 
   it('calls getAudioTimestamps with ENGESVO1DA for OT book when ENGESV_API',
     async () => {
+      mockStoreState.activeAudioFilesetId = 'ENGESV_API';
       mockStoreState.activeTextFilesetId = 'ENGESV_API';
       const { result } = renderHook(() => useAudioPlaylist());
       act(() => {
@@ -408,6 +449,143 @@ describe('useAudioPlaylist', () => {
       await waitFor(() =>
         expect(result.current.isActive).toBe(false)
       );
+    },
+  );
+
+  it('prefers the timestamp-backed recording for EN1ESV OT',
+    async () => {
+      // Issue #57: ENGESHO1DA (OT "Hear the Word" audio) has no
+      // DBT timestamps, so verse-ranged items started at verse 1
+      // and never advanced past the linked verse. The playlist
+      // must swap to the timestamped ENGESVO1DA recording — the
+      // timestamps only match the recording that generated
+      // them, so borrowing rows is not an option.
+      mockStoreState.translations = [
+        eshTranslation,
+        esvDbTimestamped,
+      ];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ bookId: 'GEN', chapter: 1, startVerse: 2,
+            endVerse: 3 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(api.getBibleAudioUrl).toHaveBeenCalledWith(
+          'GEN',
+          1,
+          'ENGESVO1DA-opus16',
+        )
+      );
+      await waitFor(() =>
+        expect(api.getAudioTimestamps).toHaveBeenCalledWith(
+          'GEN',
+          1,
+          'ENGESVO1DA',
+        )
+      );
+      // Seeks to the linked verse's timestamp once loaded.
+      act(() => { mockHowlOnLoad?.(); });
+      expect(mockHowlSeekValue).toBe(5);
+    },
+  );
+
+  it('keeps the resolved fileset when no timestamped sibling ' +
+    'is available', async () => {
+      // ENGESVO1DA is not among the loaded translations — the
+      // timestampless original must still play.
+      mockStoreState.translations = [eshTranslation];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ bookId: 'GEN', chapter: 1 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(api.getBibleAudioUrl).toHaveBeenCalledWith(
+          'GEN',
+          1,
+          'ENGESHO1DA-opus16',
+        )
+      );
+    },
+  );
+
+  it('keeps the original id as a fallback candidate', async () => {
+      // If the timestamped opus16 sibling fails to load the
+      // original ENGESHO1DA alternates are still tried.
+      const { BookNotInFilesetError } = await import('../api');
+      mockStoreState.translations = [
+        eshTranslation,
+        esvDbTimestamped,
+      ];
+      mockStoreState.activeAudioFilesetId = 'ENGESHN1DA';
+      vi.mocked(api.getBibleAudioUrl).mockImplementation(
+        async (_book, _chapter, filesetId) =>
+          filesetId === 'ENGESVO1DA-opus16'
+            ? Promise.reject(
+                new BookNotInFilesetError('not covered'),
+              )
+            : Promise.resolve('http://audio.test/mp3.mp3'),
+      );
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ bookId: 'GEN', chapter: 1 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(api.getBibleAudioUrl).toHaveBeenCalledWith(
+          'GEN',
+          1,
+          'ENGESHO1DA',
+        )
+      );
+      expect(result.current.currentIndex).toBe(0);
+    },
+  );
+
+  it('notifies once per playlist when a recording has no ' +
+    'timestamps', async () => {
+      const { showNotification } =
+        await import('@mantine/notifications');
+      vi.mocked(api.getAudioTimestamps).mockResolvedValue([]);
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ itemId: 'a' }),
+          makeItem({ itemId: 'b', chapter: 4 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'No verse timestamps',
+          }),
+        )
+      );
+      // The whole chapter plays from the start and advancement
+      // falls back to the media end event.
+      act(() => { mockHowlOnLoad?.(); });
+      expect(mockHowlSeekValue).toBe(0);
+      act(() => { mockHowlOnEnd?.(); });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(1)
+      );
+      // Item a's load + its prefetch of item b + item b's load.
+      await waitFor(() =>
+        expect(api.getAudioTimestamps).toHaveBeenCalledTimes(3)
+      );
+      const notices = vi.mocked(showNotification).mock.calls
+        .filter(
+          ([arg]) =>
+            (arg as { title?: string }).title ===
+            'No verse timestamps',
+        );
+      expect(notices).toHaveLength(1);
     },
   );
 

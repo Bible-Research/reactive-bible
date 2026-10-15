@@ -376,26 +376,61 @@ export const getTestamentByBookName = (
 
 /**
  * Resolves the fileset ID to use for fetching verse timestamps.
- * When ESV is involved (`ENGESV_API` as the active text or audio
- * fileset), timestamps come from the corresponding DBT ESV audio
- * fileset chosen by the book's testament. Otherwise strips the
- * `-opus16` codec suffix from the resolved audio fileset ID.
+ * When the *audio* fileset is `ENGESV_API` (the esv.org proxy
+ * recording), timestamps come from the corresponding DBT ESV
+ * audio fileset chosen by the book's testament — the esv.org
+ * stream is that same recording minus the chapter announcement
+ * (see `adjustTimestampsForENGESV`). The *text* fileset no
+ * longer triggers this: timestamps are only valid for the
+ * recording they were generated from, so applying ESV rows to
+ * e.g. an `ENGESHO1DA` stream would mis-seek. Otherwise strips
+ * the `-opus16` codec suffix from the resolved audio fileset ID.
  */
 export const resolveTimestampsFilesetId = (
   audioFilesetId: string | null,
-  textFilesetId: string | null,
+  // Kept for signature compatibility; the text fileset no
+  // longer influences which recording's timestamps are fetched.
+  _textFilesetId: string | null,
   bookId: string,
 ): string | null => {
-  if (
-    audioFilesetId === 'ENGESV_API' ||
-    textFilesetId === 'ENGESV_API'
-  ) {
+  if (audioFilesetId === 'ENGESV_API') {
     const testament = getTestament(bookId);
     if (testament === 'OT') return 'ENGESVO1DA';
     if (testament === 'NT') return 'ENGESVN1DA';
   }
   if (!audioFilesetId) return null;
   return audioFilesetId.split('-')[0];
+};
+
+/**
+ * Audio filesets with no DBT verse timestamps mapped to a
+ * timestamp-backed sibling recording of the same version. DBT
+ * publishes no timestamp rows for `ENGESHO1DA` (ESV "Hear the
+ * Word" OT audio); `ENGESVO1DA` is timestamped for all books.
+ * Keys and values are base ids (no codec suffix). If DBT ever
+ * ships timestamps for a listed fileset its entry can simply be
+ * removed.
+ */
+export const TIMESTAMP_BACKED_AUDIO: Record<string, string> = {
+  ENGESHO1DA: 'ENGESVO1DA',
+};
+
+/**
+ * Returns the timestamp-backed recording mapped in
+ * `TIMESTAMP_BACKED_AUDIO`, preserving a `-opus16`-style codec
+ * suffix (`ENGESHO1DA-opus16` -> `ENGESVO1DA-opus16`). Unmapped
+ * ids pass through unchanged. The result is a candidate only —
+ * callers must confirm it exists among the loaded translations
+ * before swapping (`preferTimestampedAudio` in filesetGroups).
+ */
+export const preferTimestampedAudioFileset = (
+  filesetId: string,
+): string => {
+  const dash = filesetId.indexOf('-');
+  const baseId = dash === -1 ? filesetId : filesetId.slice(0, dash);
+  const suffix = dash === -1 ? '' : filesetId.slice(dash);
+  const mapped = TIMESTAMP_BACKED_AUDIO[baseId];
+  return mapped ? mapped + suffix : filesetId;
 };
 
 /**
