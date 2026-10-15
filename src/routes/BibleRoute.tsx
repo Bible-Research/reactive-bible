@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { shallow } from 'zustand/shallow';
 import { parseBibleRef } from '../utils/bibleUtils';
 import { sameRefSet } from '../utils/verseRefs';
 import type { VerseRef } from '../types';
@@ -23,7 +24,18 @@ export default function BibleRoute() {
     setShowNotes,
     setVersesFolded,
     getTags,
-  } = useBibleStore();
+  } = useBibleStore(
+    (state) => ({
+      activeBookId: state.activeBookId,
+      activeChapter: state.activeChapter,
+      setActiveBookAndChapter: state.setActiveBookAndChapter,
+      setVerseSelection: state.setVerseSelection,
+      setShowNotes: state.setShowNotes,
+      setVersesFolded: state.setVersesFolded,
+      getTags: state.getTags,
+    }),
+    shallow
+  );
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated,
   );

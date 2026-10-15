@@ -24,6 +24,7 @@ import {
   useVerseTexts,
 } from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
+import { shallow } from "zustand/shallow";
 
 interface AddTagNoteModalProps {
   opened: boolean;
@@ -63,7 +64,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     translations: state.translations,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
-  }));
+  }), shallow);
 
   const refs = useMemo(
     () => verseSelection?.refs ?? [],
