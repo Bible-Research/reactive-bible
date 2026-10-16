@@ -7,7 +7,9 @@ import { renderWithProviders } from '../__tests__/helpers';
 
 // Mock useNavigate
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual = await vi.importActual<
+    typeof import('react-router-dom')
+  >('react-router-dom');
   return {
     ...actual,
     useNavigate: vi.fn(),
@@ -21,7 +23,7 @@ describe.skip('MainMenu Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useNavigate as any).mockReturnValue(mockNavigate);
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
   });
 
   const defaultProps = {

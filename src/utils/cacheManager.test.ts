@@ -417,7 +417,10 @@ describe('Notes Cache Manager', () => {
     const cacheStr = localStorageMock.getItem('bible_notes_cache');
     expect(cacheStr).toBeTruthy();
     
-    const cache = JSON.parse(cacheStr!);
+    if (!cacheStr) {
+      throw new Error('expected the notes cache to be populated');
+    }
+    const cache = JSON.parse(cacheStr);
     expect(cache['TAG1:page1:default'].timestamp).toBeGreaterThanOrEqual(
       beforeCache
     );
