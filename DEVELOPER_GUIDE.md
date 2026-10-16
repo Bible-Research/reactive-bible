@@ -1621,7 +1621,7 @@ development. `<Analytics />` and `<SpeedInsights />` are not
 rendered inside the Capacitor Android shell — their `/_vercel/*`
 scripts only exist on the Vercel deployment and would 404 on the
 WebView's `https://localhost` origin (see `isNativeApp()` in
-`src/utils/nativeAudio.ts`).
+`src/utils/platform.ts`).
 
 ### 9. Global Error Reporting
 

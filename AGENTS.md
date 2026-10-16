@@ -24,9 +24,11 @@ Talks to the `bible_research` Django API.
 - `src/stores/authStore.tsx` — auth state (token, user, login,
   register, logout).
 - `src/utils/apiClient.ts` — `publicFetch` (attaches token if
-  present, never logs out on 401) vs `authenticatedFetch` (401 →
-  logout + "session expired" notification). Both retry on network
-  failure.
+  present; a 401 retries once anonymously — a stale token must
+  not break public content — and never logs out) vs
+  `authenticatedFetch` (401 → logout + "session expired"
+  notification). Network-failure retry only fires for
+  idempotent methods (GET/HEAD/OPTIONS).
 - `src/utils/cacheManager.ts` — 3-tier localStorage cache: verses
   (LRU, 500 cap for copyright), audio URLs (CloudFront expiry
   parsing), translations (per language).
@@ -65,6 +67,8 @@ Talks to the `bible_research` Django API.
 ## Commands
 
 ```bash
+# node/npm live in /opt/homebrew/bin on this machine — run
+# `export PATH="/opt/homebrew/bin:$PATH"` before any npm command
 npm run dev      # dev server :5173
 npm run build    # tsc + vite build
 npm run lint     # ESLint (aim for zero new warnings)
