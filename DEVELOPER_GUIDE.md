@@ -3299,16 +3299,27 @@ prefetchAdjacentChapters(book, chapter, filesetId);
 **Current Bundle** (approximate):
 - **Entry chunk**: ~220KB raw / ~51KB gzipped
 - **Vendor chunks** (`build.rolldownOptions.output.codeSplitting`
-  in `vite.config.ts`): `vendor-tiptap` ~690KB, `vendor-mantine`
-  ~216KB, `vendor-react` ~41KB, `vendor-dndkit` ~47KB,
-  `vendor-howler` ~36KB
+  in `vite.config.ts`): `vendor-mantine` ~399KB, `vendor-react`
+  ~180KB, `vendor-dndkit` ~47KB, `vendor-howler` ~36KB — all
+  eagerly modulepreloaded by `index.html`
+- **Eager JS total**: ~840KB raw / ~232KB gzipped (entry +
+  modulepreloaded chunks)
+- **TipTap/ProseMirror** (~373KB): no `vendor-tiptap` group on
+  purpose — every importer is a lazy chunk (note modals,
+  `NoteCard` → `CommentForm` → `RichTextEditor`), so rolldown
+  keeps it inside the lazy `RichTextEditor` chunk. A manual
+  group with the default `includeDependenciesRecursively`
+  dragged the whole dep closure (react, @mantine/*) into a
+  ~690KB chunk that `index.html` modulepreloaded eagerly.
+  `vendor-mantine`'s test excludes `@mantine/tiptap` so it
+  stays in the lazy editor graph.
 - **KJV JSON**: ~4.5MB gzipped (lazy-loaded chunk)
 - **Route chunks**: non-bible routes lazy via `React.lazy` in
   `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect` stay
   eager (landing path)
 - **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
-  `EditNoteModal` lazy + gated on their open flag, so TipTap is
-  fetched only when a note is authored
+  `EditNoteModal` lazy + gated on their open flag, keeping
+  TipTap out of the entry graph entirely
 
 **Optimizations**:
 - Tree-shaking enabled (Vite)
