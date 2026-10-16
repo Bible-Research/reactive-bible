@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Center, Loader } from '@mantine/core';
+import { Center, Loader, Text } from '@mantine/core';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import { shallow } from 'zustand/shallow';
@@ -21,6 +21,13 @@ export default function NotesRoute() {
   // run first, so a cold /notes load would see `false` and bounce
   // logged-in users to /bible.
   const token = useAuthStore((state) => state.token);
+  // 'empty' = tags loaded but the user has none; 'error' = the
+  // tags request failed. Both replace the spinner — otherwise
+  // a fresh signup (zero tags) or a failed fetch would sit on
+  // the Loader forever.
+  const [status, setStatus] = useState<'loading' | 'empty' | 'error'>(
+    'loading'
+  );
 
   useEffect(() => {
     // Prevent double-navigation in React Strict Mode
@@ -44,7 +51,8 @@ export default function NotesRoute() {
         const currentTags = useBibleStore.getState().tags;
         
         if (currentTags.length === 0) {
-          // No tags - stay on /notes and show empty state
+          // No tags — stay on /notes and show the empty state.
+          setStatus('empty');
           return;
         }
 
@@ -58,17 +66,29 @@ export default function NotesRoute() {
             ? lastSelectedTagId
             : sorted[0].id;
         
-        console.log(`🔗 NotesRoute: Navigate to /notes/tag/${targetTagId}`);
         hasNavigatedRef.current = true;
         navigate(`/notes/tag/${targetTagId}`, { replace: true });
       } catch (error) {
         console.error('Error loading tags:', error);
+        setStatus('error');
       }
     };
 
     navigateToTag();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
+
+  if (status !== 'loading') {
+    return (
+      <Center style={{ height: '100vh' }}>
+        <Text color="dimmed">
+          {status === 'empty'
+            ? 'No notes yet — create a note to get started.'
+            : 'Could not load notes. Please try again.'}
+        </Text>
+      </Center>
+    );
+  }
 
   // Show loading while redirecting
   return (
