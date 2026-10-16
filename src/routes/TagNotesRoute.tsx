@@ -1,9 +1,8 @@
 import {
   Suspense,
   lazy,
-  useEffect,
+  useMemo,
   useState,
-  useCallback,
 } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -24,7 +23,6 @@ import {
   IconArrowsMaximize,
   IconArrowsMinimize,
 } from '@tabler/icons-react';
-import { showNotification } from '@mantine/notifications';
 import { Note } from '../types';
 import TagSection from '../components/TagSection';
 import Pagination from '../components/Pagination';
@@ -39,16 +37,21 @@ import {
   SORT_ORDERS,
   sortNotes,
 } from '../utils/noteSorting';
-import { buildNotePlaylistItems } from '../utils/notePlaylist';
 import { verseDomId } from '../utils/verseRefs';
 import { useNoteOrderMenu } from '../hooks/useNoteOrderMenu';
 import { useTagNotesData } from '../hooks/useTagNotesData';
+import { useNotePlaylist } from '../hooks/useNotePlaylist';
 
 // Lazy + gated below on isEditModalOpen — the modal pulls in
 // TipTap, which should not ship with the route chunk.
 const EditNoteModal = lazy(
   () => import('../components/EditNoteModal')
 );
+
+// Stable fallback so `notes` keeps a constant identity for the
+// sortedNotes memo when the store unexpectedly holds a
+// non-array value.
+const NO_NOTES: Note[] = [];
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -62,7 +65,9 @@ export default function TagNotesRoute() {
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
   
   const notesFromStore = useBibleStore((state) => state.notes);
-  const notes = Array.isArray(notesFromStore) ? notesFromStore : [];
+  const notes = Array.isArray(notesFromStore)
+    ? notesFromStore
+    : NO_NOTES;
   const storedTags = useBibleStore((state) => state.tags);
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const notesCount = useBibleStore((state) => state.notesCount);
@@ -70,12 +75,6 @@ export default function TagNotesRoute() {
   const notesPageSize = useBibleStore((state) => state.notesPageSize);
   const versesFolded = useBibleStore((state) => state.versesFolded);
   const setVersesFolded = useBibleStore((state) => state.setVersesFolded);
-  const setAudioPlaylistItems = useBibleStore(
-    (state) => state.setAudioPlaylistItems
-  );
-  const setAudioPlaylistStartIndex = useBibleStore(
-    (state) => state.setAudioPlaylistStartIndex
-  );
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
@@ -126,6 +125,17 @@ export default function TagNotesRoute() {
     reloadOrderIndex,
   });
 
+  const sortedNotes = useMemo(
+    () => sortNotes(notes, sortOrder),
+    [notes, sortOrder]
+  );
+
+  const { playFromNote } = useNotePlaylist(
+    sortedNotes,
+    loading,
+    tagId
+  );
+
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
     setIsEditModalOpen(true);
@@ -174,8 +184,6 @@ export default function TagNotesRoute() {
     );
   };
 
-  const sortedNotes = sortNotes(notes, sortOrder);
-
   const handleToggleFolded = () => {
     const next = !versesFolded;
     setVersesFolded(next);
@@ -201,36 +209,6 @@ export default function TagNotesRoute() {
       }
     }, 50);
   };
-
-  const handlePlayFromNote = useCallback(
-    (noteId: string) => {
-      const noteIndex = sortedNotes.findIndex((n) => n.id === noteId);
-      
-      if (noteIndex >= 0) {
-        setAudioPlaylistStartIndex(noteIndex);
-        
-        showNotification({
-          title: 'Playlist Started',
-          message:
-            `Playing from note ${noteIndex + 1} ` +
-            `of ${sortedNotes.length}`,
-          color: 'blue',
-          autoClose: 3000,
-        });
-      }
-    },
-    [sortedNotes, setAudioPlaylistStartIndex]
-  );
-
-  useEffect(() => {
-    if (loading || notes.length === 0) {
-      setAudioPlaylistItems(null);
-      return;
-    }
-    const items = buildNotePlaylistItems(sortedNotes);
-    setAudioPlaylistItems(items.length > 0 ? items : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notes, sortOrder, loading, setAudioPlaylistItems]);
 
   if (loading) {
     return (
@@ -416,7 +394,7 @@ export default function TagNotesRoute() {
                   ? handleDeleteNote
                   : undefined
               }
-              onPlayFromNote={handlePlayFromNote}
+              onPlayFromNote={playFromNote}
               commentCounts={commentCounts}
               onCountChange={handleCountChange}
               isDraggable={orderMenuEnabled}
