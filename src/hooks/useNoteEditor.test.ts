@@ -391,6 +391,58 @@ describe('useNoteEditor', () => {
     });
   });
 
+  it('submit returns false when save declined the write',
+    async () => {
+      const onSubmitted = vi.fn();
+      const { result } = renderEditor({
+        mode: 'create',
+        // No draftKey — there is no draft slot, so save()
+        // resolves false without touching the API.
+        verseReferences: refs,
+        onSubmitted,
+      });
+
+      let ok: boolean | undefined;
+      await act(async () => {
+        ok = await result.current.submit('t1', 'hello');
+      });
+      expect(ok).toBe(false);
+      expect(api.addTagNote).not.toHaveBeenCalled();
+      expect(api.editNote).not.toHaveBeenCalled();
+      // A declined save is not a submit — no close-out.
+      expect(onSubmitted).not.toHaveBeenCalled();
+    });
+
+  it('drops drafts when the session token changes',
+    async () => {
+      const first = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+      await act(async () => {
+        await first.result.current.save('t1', 'draft text');
+      });
+      first.unmount();
+
+      // Logout and a later login under the same token: every
+      // stored draft was made unreachable by the token
+      // change, so the store prunes instead of accumulating.
+      act(() => {
+        useAuthStore.setState({ token: null });
+      });
+      act(() => {
+        useAuthStore.setState({ token: 'tok' });
+      });
+
+      const second = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+      expect(second.result.current.draft).toBeNull();
+    });
+
   it('trackDraft records live contents for a reopen',
     async () => {
       const first = renderEditor({

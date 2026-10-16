@@ -508,6 +508,64 @@ describe('AddTagNoteModal Component', () => {
     });
   });
 
+  it('does not POST a duplicate when the modal closes ' +
+    'mid-submit', async () => {
+    // Repro: autosave on, text typed since the last tick,
+    // Submit clicked, modal closed while the submit's POST
+    // is still in flight. The unmount flush used to chain
+    // save() behind the whole submit promise — it resolved
+    // only after drafts.delete(), so the flush recreated a
+    // fresh draft and POSTed the same note twice.
+    let resolvePost: (value: { id: string }) => void =
+      () => undefined;
+    (api.addTagNote as Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePost = resolve;
+        })
+    );
+
+    const { unmount } = renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      {
+        storeOverrides: {
+          verseSelection: genesisSelection,
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          lastSelectedTagId: '1',
+        },
+      }
+    );
+
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, { target: { value: 'Draft' } });
+    // The unmount flush only runs when autosave is enabled.
+    fireEvent.click(screen.getByLabelText('Auto save'));
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Submit' })
+      );
+    });
+    await waitFor(() => {
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    });
+
+    // Close while the submit's POST is still pending.
+    unmount();
+
+    await act(async () => {
+      resolvePost({ id: 'n1' });
+      // Flush every queued continuation — submit completion
+      // and the deferred flush decision behind it.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+
+    expect(api.addTagNote).toHaveBeenCalledTimes(1);
+  });
+
   it('should clear selected verses after submission', async () => {
     (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
     renderWithProviders(<ControlledModal />, {
