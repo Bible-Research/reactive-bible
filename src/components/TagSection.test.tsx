@@ -85,7 +85,9 @@ describe('TagSection Component', () => {
       />
     );
 
-    const viewButtons = screen.getAllByRole('button', { name: 'view-in-bible' });
+    const viewButtons = screen.getAllByRole('button', {
+      name: 'view-in-bible',
+    });
     viewButtons[0].click();
 
     expect(mockOnViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);

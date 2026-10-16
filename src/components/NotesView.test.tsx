@@ -15,8 +15,14 @@ vi.mock('react-router-dom', async () => {
 });
 
 const mockTags: Tag[] = [
-  { id: 'tag2', name: 'Prayer', parent_tag: null, created_at: '', updated_at: '' },
-  { id: 'tag1', name: 'Bible Study', parent_tag: null, created_at: '', updated_at: '' },
+  {
+    id: 'tag2', name: 'Prayer',
+    parent_tag: null, created_at: '', updated_at: '',
+  },
+  {
+    id: 'tag1', name: 'Bible Study',
+    parent_tag: null, created_at: '', updated_at: '',
+  },
 ];
 
 describe('NotesView', () => {
@@ -32,23 +38,34 @@ describe('NotesView', () => {
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/notes" element={<NotesView />} />
-          <Route path="/notes/tag/:tagId" element={<div>Tag Notes Page</div>} />
+          <Route
+            path="/notes/tag/:tagId"
+            element={<div>Tag Notes Page</div>}
+          />
         </Routes>
       </MemoryRouter>
     );
   };
 
-  it('should navigate to lastSelectedTagId if it exists in the store', async () => {
-    useBibleStore.setState({ lastSelectedTagId: 'tag-last', tags: mockTags });
+  it('should navigate to lastSelectedTagId if it exists in ' +
+    'the store', async () => {
+    useBibleStore.setState({
+      lastSelectedTagId: 'tag-last',
+      tags: mockTags,
+    });
     renderComponent('/notes');
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/notes/tag/tag-last', { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith(
+        '/notes/tag/tag-last',
+        { replace: true }
+      );
     });
     expect(mockGetTags).not.toHaveBeenCalled();
   });
 
-  it('should fetch tags and navigate to the first tag if lastSelectedTagId is not set', async () => {
+  it('should fetch tags and navigate to the first tag if ' +
+    'lastSelectedTagId is not set', async () => {
     useBibleStore.setState({ lastSelectedTagId: null, tags: [] });
     mockGetTags.mockImplementation(() => {
       useBibleStore.setState({ tags: mockTags });
@@ -63,7 +80,10 @@ describe('NotesView', () => {
 
     await waitFor(() => {
       // Navigates to the first tag alphabetically ('Bible Study')
-      expect(mockNavigate).toHaveBeenCalledWith('/notes/tag/tag1', { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith(
+        '/notes/tag/tag1',
+        { replace: true }
+      );
     });
   });
 
