@@ -78,8 +78,8 @@ Talks to the `bible_research` Django API.
 # `export PATH="/opt/homebrew/bin:$PATH"` before any npm command
 npm run dev      # dev server :5173
 npm run build    # tsc + vite build
-npm run lint     # ESLint (aim for zero new warnings)
-npm test -- --run  # vitest headless (389 tests, ~85s)
+npm run lint     # ESLint (must stay 0 errors, 0 warnings)
+npm test -- --run  # vitest headless (98 files / 953 tests)
 ```
 
 ## Conventions / rules
@@ -94,6 +94,22 @@ npm test -- --run  # vitest headless (389 tests, ~85s)
 - Zustand: select narrowly (`state => state.x`) to avoid rerenders.
 - Test hooks: `title="nav-book-{code}"`, `title="nav-chapter-{n}"`,
   `title="passage-verse-{chapter}-{n}"`.
+- Error reporting: `showNotification` is for EXPECTED,
+  contextual failures you handle (save failed, session
+  expired, audio unavailable, copy succeeded). `reportError`
+  (`src/utils/errorReporter.tsx`) is for UNEXPECTED/unhandled
+  errors — wired globally in `main.tsx` plus `ErrorBoundary`;
+  call it directly only from another global catch-all, never
+  from routine catch blocks.
+- Deliberate fire-and-forget promises are prefixed `void`
+  (`void navigate(...)`, `void prefetch(...)`) — enforced by
+  `@typescript-eslint/no-floating-promises`. If a floating
+  promise is a bug, `await` it instead.
+- `fetchJson` (`src/utils/apiClient.ts`) is the shared
+  fetch→JSON helper for endpoints whose error handling is
+  just "throw on !ok". Keep custom `try/catch` only where the
+  endpoint has a richer contract (typed provider errors, 409
+  bodies, 204s, swallowed failures).
 - Commit after each completed plan step; update
   `DEVELOPER_GUIDE.md` after functionality changes.
 
