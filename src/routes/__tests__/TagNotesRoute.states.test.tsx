@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { waitFor, screen } from '@testing-library/react';
+import { waitFor, screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '../../__tests__/helpers';
 import TagNotesRoute from '../TagNotesRoute';
 import * as api from '../../api';
@@ -31,6 +31,14 @@ const mockApi = vi.mocked(api);
 const tag: Tag = {
   id: 'tag-123',
   name: 'Bible Study',
+  parent_tag: null,
+  created_at: '',
+  updated_at: '',
+};
+
+const otherTag: Tag = {
+  id: 'tag-456',
+  name: 'Prayer',
   parent_tag: null,
   created_at: '',
   updated_at: '',
@@ -109,6 +117,41 @@ describe('TagNotesRoute states', () => {
           screen.getByText('No notes found for this tag.')
         ).toBeInTheDocument();
       });
+    });
+
+  it('navigates to a different tag but no-ops on the ' +
+    'current one', async () => {
+      // The switcher only renders for authenticated users
+      // with tags; picking a tag routes to /notes/tag/:id.
+      renderWithProviders(<TagNotesRoute />, {
+        storeOverrides: {
+          ...storeOverrides,
+          tags: [tag, otherTag],
+        },
+        authStoreState: { isAuthenticated: true },
+      });
+
+      fireEvent.mouseDown(
+        await screen.findByLabelText('Filter by tag')
+      );
+      // Mantine v6 Select items select on mouseDown.
+      fireEvent.mouseDown(
+        await screen.findByRole('option', { name: 'Prayer' })
+      );
+      expect(mockNavigate).toHaveBeenCalledWith(
+        '/notes/tag/tag-456'
+      );
+
+      mockNavigate.mockClear();
+      fireEvent.mouseDown(
+        screen.getByLabelText('Filter by tag')
+      );
+      fireEvent.mouseDown(
+        await screen.findByRole('option', {
+          name: 'Bible Study',
+        })
+      );
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
 
   it('renders the toolbar with share and refresh controls',
