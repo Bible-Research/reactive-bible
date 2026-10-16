@@ -42,6 +42,37 @@ const normalize = (
 // signed URLs that still fail to load.
 const MAX_IMAGE_REFRESHES = 3;
 
+// Sequential per-file upload shared by create and update — one
+// failure notifies and the rest still attempt.
+const uploadImages = async (
+  noteId: string,
+  commentId: string,
+  files: File[]
+): Promise<CommentImage[]> => {
+  const uploaded: CommentImage[] = [];
+  for (const file of files) {
+    try {
+      const img = await uploadCommentImage(
+        noteId,
+        commentId,
+        file
+      );
+      uploaded.push(img);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Failed to upload image.';
+      showNotification({
+        color: 'red',
+        title: 'Upload failed',
+        message: msg,
+      });
+    }
+  }
+  return uploaded;
+};
+
 interface CommentThreadProps {
   noteId: string;
   onCountChange?: (delta: number) => void;
@@ -168,27 +199,11 @@ const CommentThread = ({
         content,
         parentId
       );
-      const uploadedImages: CommentImage[] = [];
-      for (const file of files) {
-        try {
-          const img = await uploadCommentImage(
-            noteId,
-            newComment.id,
-            file
-          );
-          uploadedImages.push(img);
-        } catch (err: unknown) {
-          const msg =
-            err instanceof Error
-              ? err.message
-              : 'Failed to upload image.';
-          showNotification({
-            color: 'red',
-            title: 'Upload failed',
-            message: msg,
-          });
-        }
-      }
+      const uploadedImages = await uploadImages(
+        noteId,
+        newComment.id,
+        files
+      );
       const normalizedNew = {
         ...normalize([newComment])[0],
         images: uploadedImages,
@@ -217,27 +232,11 @@ const CommentThread = ({
   ) => {
     try {
       const updated = await updateComment(noteId, id, content);
-      const uploadedImages: CommentImage[] = [];
-      for (const file of files) {
-        try {
-          const img = await uploadCommentImage(
-            noteId,
-            id,
-            file
-          );
-          uploadedImages.push(img);
-        } catch (err: unknown) {
-          const msg =
-            err instanceof Error
-              ? err.message
-              : 'Failed to upload image.';
-          showNotification({
-            color: 'red',
-            title: 'Upload failed',
-            message: msg,
-          });
-        }
-      }
+      const uploadedImages = await uploadImages(
+        noteId,
+        id,
+        files
+      );
       setComments((prev) =>
         updateNode(prev, id, (n) => ({
           ...normalize([updated])[0],

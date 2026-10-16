@@ -1,21 +1,14 @@
 import { useState } from 'react';
-import {
-  Box,
-  Text,
-  Stack,
-  SimpleGrid,
-  ActionIcon,
-  Modal,
-  UnstyledButton,
-} from '@mantine/core';
+import { Box, Text, Stack } from '@mantine/core';
 import { openConfirmModal } from '@mantine/modals';
-import { IconX, IconPhoto } from '@tabler/icons-react';
 import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
+import CommentImageGrid from './CommentImageGrid';
+import Lightbox from './Lightbox';
 import ScripturePassage from './ScripturePassage';
 import RichTextView from './RichTextView';
-import { commentImageName } from '../utils/commentTree';
+import formatTime from '../utils/formatTime';
 import useScripturePreview from '../hooks/useScripturePreview';
 
 interface CommentNodeProps {
@@ -68,25 +61,6 @@ const CommentNode = ({
     !!currentUsername &&
     comment.author.username === currentUsername;
   const indent = Math.min(depth, MAX_DEPTH) * 16;
-
-  const formatTime = (ts: string): string => {
-    try {
-      const diff = Date.now() - new Date(ts).getTime();
-      const seconds = Math.floor(diff / 1000);
-      if (seconds < 60) return 'just now';
-      const minutes = Math.floor(seconds / 60);
-      if (minutes < 60) {
-        return `${minutes}m ago`;
-      }
-      const hours = Math.floor(minutes / 60);
-      if (hours < 24) return `${hours}h ago`;
-      const days = Math.floor(hours / 24);
-      if (days < 30) return `${days}d ago`;
-      return new Date(ts).toLocaleDateString();
-    } catch {
-      return ts;
-    }
-  };
 
   const handleReplySubmit = async (
     content: string,
@@ -171,98 +145,14 @@ const CommentNode = ({
                 size="sm"
               />
 
-              {images.length > 0 && (
-                <SimpleGrid
-                  cols={3}
-                  spacing={4}
-                  breakpoints={[
-                    { maxWidth: 'xs', cols: 2 },
-                  ]}
-                  mt={4}
-                >
-                  {images.map((img) => {
-                    const src = img.signed_url;
-                    const name = commentImageName(img);
-                    return (
-                      <Box
-                        key={img.id}
-                        style={{ position: 'relative' }}
-                      >
-                        {src ? (
-                          <UnstyledButton
-                            onClick={() =>
-                              setLightboxImageId(img.id)
-                            }
-                            aria-label={`View image ${name}`}
-                            style={{
-                              display: 'block',
-                              width: '100%',
-                            }}
-                          >
-                            <img
-                              src={src}
-                              loading="lazy"
-                              alt={name}
-                              onError={() =>
-                                onRequestRefresh?.(comment.id)
-                              }
-                              style={{
-                                width: '100%',
-                                maxHeight: 200,
-                                objectFit: 'cover',
-                                borderRadius: 4,
-                                display: 'block',
-                              }}
-                            />
-                          </UnstyledButton>
-                        ) : (
-                          <Box
-                            role="img"
-                            aria-label={`${name} (unavailable)`}
-                            sx={(theme) => ({
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              height: 80,
-                              width: '100%',
-                              borderRadius: 4,
-                              backgroundColor:
-                                theme.colorScheme === 'dark'
-                                  ? theme.colors.dark[5]
-                                  : theme.colors.gray[2],
-                              color:
-                                theme.colorScheme === 'dark'
-                                  ? theme.colors.dark[2]
-                                  : theme.colors.gray[6],
-                            })}
-                          >
-                            <IconPhoto size={20} />
-                          </Box>
-                        )}
-                        {isAuthor && onDeleteImage && (
-                          <ActionIcon
-                            size="xs"
-                            color="red"
-                            variant="filled"
-                            style={{
-                              position: 'absolute',
-                              top: 4,
-                              right: 4,
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteImage(comment.id, img.id);
-                            }}
-                            aria-label={`Delete image ${img.id}`}
-                          >
-                            <IconX size={10} />
-                          </ActionIcon>
-                        )}
-                      </Box>
-                    );
-                  })}
-                </SimpleGrid>
-              )}
+              <CommentImageGrid
+                images={images}
+                commentId={comment.id}
+                canDelete={isAuthor}
+                onDeleteImage={onDeleteImage}
+                onOpenImage={setLightboxImageId}
+                onImageError={onRequestRefresh}
+              />
             </>
           )}
 
@@ -319,27 +209,11 @@ const CommentNode = ({
         </Stack>
       )}
 
-      <Modal
-        opened={lightboxImageId !== null}
+      <Lightbox
+        image={lightboxImage}
         onClose={() => setLightboxImageId(null)}
-        size="xl"
-        title="Image"
-        padding="xs"
-      >
-        {lightboxImage &&
-          (lightboxImage.signed_url ? (
-            <img
-              src={lightboxImage.signed_url}
-              alt="full size"
-              onError={() => onRequestRefresh?.(comment.id)}
-              style={{ width: '100%', height: 'auto' }}
-            />
-          ) : (
-            <Text size="sm" color="dimmed" ta="center" py="xl">
-              Image unavailable
-            </Text>
-          ))}
-      </Modal>
+        onImageError={() => onRequestRefresh?.(comment.id)}
+      />
     </Box>
   );
 };
