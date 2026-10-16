@@ -1,7 +1,6 @@
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import type {
   ReadingPosition,
-  GroupedSearchResponse,
   ReadingPositionValue,
 } from '../types';
 
@@ -16,6 +15,7 @@ export * from './translations';
 export * from './notes';
 export * from './tags';
 export * from './comments';
+export * from './search';
 
 // Shared API/domain types live in `../types`; re-export them
 // here so every existing `from '../api'` type import (and the
@@ -41,36 +41,6 @@ export type {
   GroupedSearchResponse,
   ReadingPositionValue,
 } from '../types';
-
-// ============================================
-// SEARCH FUNCTIONS
-// ============================================
-
-export const searchBibleGrouped = async (
-  query: string,
-  filesetId: string,
-  signal?: AbortSignal,
-): Promise<GroupedSearchResponse> => {
-  const params = new URLSearchParams({
-    query,
-    fileset_id: filesetId,
-    group_by: 'book',
-  });
-  const url =
-    `${API_BASE_URL}/api/v1/bible/search/?` +
-    params.toString();
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(
-      `Search failed: ${response.statusText}`
-    );
-  }
-  const json = await response.json();
-  return {
-    groups: json.data?.groups ?? [],
-    meta: json.data?.meta ?? { total: 0, truncated: false },
-  };
-};
 
 // ============================================
 // READING POSITION FUNCTIONS
