@@ -11,7 +11,13 @@ import {
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
-import { throwFromErrorBody } from './errors';
+import {
+  ProviderError,
+  RateLimitError,
+  errorMessageFromBody,
+  isRateLimitMessage,
+  throwFromErrorBody,
+} from './errors';
 
 /**
  * Keeps the locally bundled KJV reachable: the API lists an
@@ -86,6 +92,18 @@ export const getAvailableTranslations = async (
       });
     }
     const data = await response.json();
+    // Provider failures may arrive wrapped in a 200 body —
+    // surface the error/error_code contract instead of
+    // caching an empty translation list.
+    if (data.error || data.error_code) {
+      const message = errorMessageFromBody(
+        data, 'Failed to fetch translations'
+      );
+      throw data.error_code === 'rate_limited' ||
+        isRateLimitMessage(message)
+        ? new RateLimitError(message)
+        : new ProviderError(message);
+    }
 
     // The actual translations are in the 'results' property
     const translations: Translation[] =
