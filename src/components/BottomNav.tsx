@@ -69,20 +69,22 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         >
           <IconArrowLeft size={rem(20)} />
         </ActionIcon>
-        <UnstyledButton
-          onClick={() => setBibleSelectorOpened(true)}
-          sx={{
-            minWidth: "120px",
-            textAlign: "center",
-            "&:hover": {
-              textDecoration: "underline",
-            },
-          }}
-        >
-          <Title order={4}>
+        <Title order={4}>
+          <UnstyledButton
+            onClick={() => setBibleSelectorOpened(true)}
+            sx={{
+              minWidth: "120px",
+              textAlign: "center",
+              font: "inherit",
+              color: "inherit",
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
+          >
             {activeBookId} {activeChapter}
-          </Title>
-        </UnstyledButton>
+          </UnstyledButton>
+        </Title>
         <ActionIcon
           variant="transparent"
           onClick={nextHandler}
