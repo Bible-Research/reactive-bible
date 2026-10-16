@@ -1289,7 +1289,9 @@ const res = await searchBibleGrouped(
 
 ### 4. Audio Bible Playback
 
-**Location**: `src/components/Audio.tsx`, 
+**Location**: `src/components/Audio.tsx` (container —
+playlist orchestration, media-session wiring, JSX),
+`src/hooks/useChapterAudio.ts` (chapter-mode engine),
 `src/components/AudioPlayer.tsx`
 
 Streams audio Bible chapters with full playback controls.
