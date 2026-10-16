@@ -18,6 +18,7 @@ import {
 import AudioPlayer from "./AudioPlayer";
 import { useVerseHighlighter } from "../hooks/useVerseHighlighter";
 import { VerseTimestamp } from "../types";
+import { shallow } from "zustand/shallow";
 import { showNotification } from "@mantine/notifications";
 import {
   toBookName,
@@ -27,13 +28,12 @@ import {
 } from "../utils/bibleUtils";
 import {
   findTranslationByFilesetId,
-  preferTimestampedAudio,
-  resolveAudioFileset,
   resolveTextFileset,
   splitCodec,
   type CodecKey,
 } from "../utils/filesetGroups";
-import { getPlayPosition } from "../utils/audioUtils";
+import { orderedAudioCandidates } from "../utils/audioCandidates";
+import { disposeHowl, getPlayPosition } from "../utils/audioUtils";
 import { verseDomId } from "../utils/verseRefs";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";
@@ -136,11 +136,14 @@ const Audio = () => {
     (s) => s.setAudioActiveVerse
   );
   const { activeAudioFilesetId, activeTextFilesetId, translations } =
-    useBibleStore((state) => ({
-      activeAudioFilesetId: state.activeAudioFilesetId,
-      activeTextFilesetId: state.activeTextFilesetId,
-      translations: state.translations,
-    }));
+    useBibleStore(
+      (state) => ({
+        activeAudioFilesetId: state.activeAudioFilesetId,
+        activeTextFilesetId: state.activeTextFilesetId,
+        translations: state.translations,
+      }),
+      shallow
+    );
   const showPlayer = useBibleStore((state) => state.showAudioPlayer);
   const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
   const audioPlaylistStartIndex = useBibleStore(
@@ -208,20 +211,6 @@ const Audio = () => {
     }
   }, [isPlaylistMode, playlistActive, stopPlaylist]);
 
-  // Resolve which audio fileset actually serves a book through
-  // the grouped "audio product" (testament splits, opus16/mp3
-  // codec pairs, generated voices). Reads store state so it is
-  // always current.
-  const resolveAudio = useCallback(
-    (bookId: string, filesetId: string | null) =>
-      resolveAudioFileset(
-        filesetId,
-        bookId,
-        useBibleStore.getState().translations,
-      ),
-    [],
-  );
-
   // Ordered candidates for a book with the codec that last
   // played for this selection moved to the front — after an
   // opus16 decode failure the mp3 sibling leads the next
@@ -231,33 +220,19 @@ const Audio = () => {
       bookId: string,
       filesetId: string | null,
     ): { filesetId: string; candidates: string[] } | null => {
-      const resolved = resolveAudio(bookId, filesetId);
-      if (!resolved) return null;
-      // Prefer the timestamp-backed sibling recording (e.g.
-      // ENGESHO1DA -> ENGESVO1DA) so single-chapter playback
-      // gets verse timestamps and highlighting; the resolved
-      // id stays in candidates as a load/decode fallback.
-      const primary = preferTimestampedAudio(
-        resolved.filesetId,
-        useBibleStore.getState().translations,
-      );
-      const candidates = [
-        primary,
-        ...resolved.alternates,
-        resolved.filesetId,
-      ].filter((id, i, arr) => arr.indexOf(id) === i);
       const remembered = filesetId
         ? workingCodecRef.current.get(filesetId)
         : undefined;
-      if (remembered) {
-        const i = candidates.findIndex(
-          (id) => splitCodec(id).codec === remembered,
-        );
-        if (i > 0) candidates.unshift(candidates.splice(i, 1)[0]);
-      }
+      const candidates = orderedAudioCandidates(
+        filesetId,
+        bookId,
+        useBibleStore.getState().translations,
+        remembered,
+      );
+      if (candidates.length === 0) return null;
       return { filesetId: candidates[0], candidates };
     },
-    [resolveAudio],
+    [],
   );
 
   // Primary concrete fileset id for a book — used where only the
@@ -285,34 +260,6 @@ const Audio = () => {
     [],
   );
 
-  const disposeHowl = useCallback(
-    (howl: Howl | null, blobUrl: string | null = null) => {
-      if (howl) {
-        // Detach listeners first: clearing the node's src during
-        // unload() rejects a still-pending play() request, and
-        // the resulting playerror is teardown noise that must not
-        // surface as a user-facing playback error.
-        // volume(0) silences the node even if the pooled <audio>
-        // element drains buffered audio after release — mute(true)
-        // would set node.muted, which the pool never resets and
-        // would silence the NEXT chapter's Howl. stop() halts
-        // playback immediately — unload() alone can let the
-        // underlying html5 <audio> element keep playing for a few
-        // seconds until the next chapter finishes loading.
-        try {
-          howl.off();
-          howl.volume(0);
-          howl.stop();
-          howl.unload();
-        } catch (err) {
-          console.warn('Failed to dispose chapter audio:', err);
-        }
-      }
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    },
-    [],
-  );
-
   const discardPreloaded = useCallback(() => {
     // Invalidate any in-flight preload so it cannot write a stale
     // record after this discard.
@@ -320,7 +267,7 @@ const Audio = () => {
     const pre = preloadedRef.current;
     preloadedRef.current = null;
     if (pre) disposeHowl(pre.howl, pre.blobUrl);
-  }, [disposeHowl]);
+  }, []);
 
   const clearAdvanceTimer = useCallback(() => {
     if (advanceTimerRef.current !== null) {
@@ -571,7 +518,7 @@ const Audio = () => {
         setIsPlaying(false);
       }
     },
-    [advanceChapter, disposeHowl, resolveFilesetFor],
+    [advanceChapter, resolveFilesetFor],
   );
 
   useEffect(() => {
@@ -776,7 +723,6 @@ const Audio = () => {
     activeChapter,
     activeAudioFilesetId,
     resolveFilesetFor,
-    disposeHowl,
     discardPreloaded,
     clearAdvanceTimer,
     setAudioActiveVerse,

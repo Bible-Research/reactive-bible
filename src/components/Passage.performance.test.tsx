@@ -3,13 +3,10 @@ import { render, screen, act } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import Passage from './Passage';
 import { useBibleStore } from '../store';
-import { measureRenderTime } from '../__tests__/helpers/performance';
+import { measureRenderTime } from
+  '../__tests__/helpers/performanceUtils';
 
 // Mock child components to isolate Passage component performance
-vi.mock('./SubHeader', () => ({
-  default: () => <div data-testid="subheader">SubHeader</div>,
-}));
-
 vi.mock('./PassageView', () => ({
   default: () => <div data-testid="passage-view">PassageView</div>,
 }));
