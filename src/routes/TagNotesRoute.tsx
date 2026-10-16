@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  lazy,
   useEffect,
   useState,
   useCallback,
@@ -33,7 +35,6 @@ import {
   NoteOrderIndexEntry,
 } from '../types';
 import TagSection from '../components/TagSection';
-import EditNoteModal from '../components/EditNoteModal';
 import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
 import {
@@ -47,6 +48,12 @@ import { clearNotesCache } from '../utils/cacheManager';
 import { buildBiblePath } from '../utils/bibleUtils';
 import { shareOrCopyLink } from '../utils/share';
 import { pageCount } from '../utils/pagination';
+
+// Lazy + gated below on isEditModalOpen — the modal pulls in
+// TipTap, which should not ship with the route chunk.
+const EditNoteModal = lazy(
+  () => import('../components/EditNoteModal')
+);
 import {
   SortOrder,
   SORT_ORDERS,
@@ -1003,11 +1010,15 @@ export default function TagNotesRoute() {
         )}
       </ScrollArea>
 
-      <EditNoteModal
-        opened={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        note={noteToEdit}
-      />
+      {isEditModalOpen && (
+        <Suspense fallback={null}>
+          <EditNoteModal
+            opened={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            note={noteToEdit}
+          />
+        </Suspense>
+      )}
     </Box>
   );
 }
