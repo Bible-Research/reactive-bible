@@ -6,13 +6,13 @@ import {
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { ModalsProvider } from "@mantine/modals";
-import { useLocalStorage, useWindowEvent } from "@mantine/hooks";
+import { useLocalStorage } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
 import BottomNav from "./components/BottomNav";
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { AppRoutes } from "./routes";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
@@ -23,6 +23,7 @@ import { useAppUpdate } from "./hooks/useAppUpdate";
 import { useBibleStore } from "./store";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
+import { useSlashSearchShortcut } from "./hooks/useSlashSearchShortcut";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -37,8 +38,6 @@ export default function App() {
   
   // MainMenu state
   const [mainMenuOpened, setMainMenuOpened] = useState(false);
-  
-  const navigate = useNavigate();
 
   // Check authentication on app load
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -78,17 +77,9 @@ export default function App() {
   const headerVisible = useBibleStore(
     (state) => state.headerVisible
   );
-  useWindowEvent("keydown", (event) => {
-    const tag = (event.target as HTMLElement).tagName;
-    if (
-      event.key === "/" &&
-      tag !== "INPUT" &&
-      tag !== "TEXTAREA"
-    ) {
-      event.preventDefault();
-      navigate("/search");
-    }
-  });
+  // "/" opens search — the hook also guards contenteditable
+  // targets so TipTap note edits are not hijacked.
+  useSlashSearchShortcut();
   return (
     <ColorSchemeProvider
       colorScheme={colorScheme}
@@ -138,7 +129,13 @@ export default function App() {
             },
           })}
         >
-          <ErrorBoundary>
+          {/* Keyed on the top-level route segment so navigating
+              between pages resets a caught error — without
+              remounting the route tree on intra-page URL updates
+              like verse-selection refs (/bible/JHN.1 ->
+              /bible/JHN.1.3), which would unload PassageView and
+              swallow clicks mid-remount. */}
+          <ErrorBoundary key={location.pathname.split('/')[1]}>
             <AppRoutes />
           </ErrorBoundary>
           {showVerseToolbar && <VerseActionToolbar />}
