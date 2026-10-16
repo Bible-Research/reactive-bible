@@ -3278,8 +3278,9 @@ prefetchAdjacentChapters(book, chapter, filesetId);
 - **Entry chunk**: ~220KB raw / ~51KB gzipped
 - **Vendor chunks** (`build.rolldownOptions.output.codeSplitting`
   in `vite.config.ts`): `vendor-mantine` ~399KB, `vendor-react`
-  ~180KB, `vendor-dndkit` ~47KB, `vendor-howler` ~36KB — all
-  eagerly modulepreloaded by `index.html`
+  ~180KB, `vendor-howler` ~36KB — eagerly modulepreloaded by
+  `index.html`. `vendor-dndkit` ~47KB is *not* preloaded; it is
+  only referenced by the lazy `TagNotesRoute` chunk.
 - **Eager JS total**: ~840KB raw / ~232KB gzipped (entry +
   modulepreloaded chunks)
 - **TipTap/ProseMirror** (~373KB): no `vendor-tiptap` group on
