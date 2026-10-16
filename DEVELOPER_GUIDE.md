@@ -317,8 +317,13 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 
 **NotesRoute** (`src/routes/NotesRoute.tsx`):
 - Fetches all tags from API
-- Automatically redirects to `/notes/tag/:firstTagId`
-- Provides tag selector dropdown
+- Automatically redirects to `/notes/tag/:tagId` — the tag
+  choice is `defaultTagId` in `src/utils/defaultTag.ts`:
+  the last-viewed tag if it still exists, else the
+  alphabetically first tag
+- Anonymous visitors are bounced to `/bible`; a zero-tag user
+  sees an empty-state message and a failed tag fetch an error
+  message — neither spins on the loader forever
 - Minimal component - main logic in TagNotesRoute
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
@@ -1447,13 +1452,24 @@ Create and organize notes with tags for Bible verses.
 - Auto-clear selected verses after note creation
 - Linked notes: the creation modal shows a count of existing
   notes on the selected verses and lists them at the bottom
-<<<<<<< HEAD
-=======
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
-  after each successful save
->>>>>>> origin/main
+  after each successful save. The save contract lives in
+  `src/hooks/useNoteEditor.ts` — shared by all three note
+  modals: it guards tagless/empty writes, serializes saves
+  through a draft queue (a pending autosave can never race a
+  submit into a duplicate POST), keeps the draft (note id +
+  live text) in module state keyed by user + selection so it
+  survives the modal's unmount and a reopen resumes the same
+  note, and flushes the unsaved tail on close. Edit mode also
+  sends the picker's CURRENT `verse_references` with every
+  save and refetches the note's own tag at the route's
+  current page/ordering after submit or a post-unmount save.
+- `VerseTextGroups.tsx` renders the shared verse-preview
+  grouping (book/chapter divider + numbered verses) used by
+  the add/edit modals; grouping itself is `groupVerseTexts`
+  in `src/hooks/useVerseTexts.ts`.
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -1487,8 +1503,6 @@ getLinkedNotes(
   verseReferences: { book: string; chapter: number; verse: number }[],
   filesetId?: string
 ): Promise<LinkedNotesResponse>
-<<<<<<< HEAD
-=======
 
 // Compact index of every note in a tag, canonical ascending
 // order (GET /api/v1/notes/order-index/?tag_id=…)
@@ -1502,7 +1516,6 @@ moveNote(
   targetNoteId: string,
   placement: 'before' | 'after'
 ): Promise<MoveNoteResponse> // {note_id, tag_position, rebalanced}
->>>>>>> origin/main
 ```
 
 **Note order badges & moves** (`NoteOrderMenu.tsx`):
@@ -2107,10 +2120,19 @@ Form for creating/editing notes.
 
 **Responsibilities**:
 - Rich text editor (TipTap)
-- Tag selection
+- Tag selection (Select keyed by tag id, not name)
 - Verse reference display
 - Form validation
-- Submit handler
+- Submit handler — serialized against in-flight autosaves so
+  a submit can never race a tick into a duplicate POST; a
+  resolved `false` marks the submit rejected and leaves the
+  text eligible for the unmount flush
+- Optional autosave interval (`onAutoSave`): fires every 5s,
+  skips unchanged/tagless/empty drafts, and on unmount
+  flushes the last unsaved contents (`onUnmountedSave` runs
+  after a tail save resolves)
+- `onDraftChange` reports live contents so the editor hook's
+  draft store can restore an in-progress note after reopen
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token. Clicking a complete token once
@@ -2118,11 +2140,13 @@ previews its passage below the editor (the note is NOT linked to
 it); a second click reopens the picker to edit the reference.
 
 #### `AddTagNoteModal.tsx`
-Modal for creating new notes.
+Modal for creating new notes from selected verses.
 
 **Responsibilities**:
 - Display NoteForm in modal
-- Handle note submission to API
+- All save/submit/draft logic delegated to `useNoteEditor`
+  (create mode, draft keyed by the verse selection) — see
+  "Note Taking & Tagging" above for the shared contract
 - Auto-clear selected verses after successful creation
 - Close modal on success or cancel
 
@@ -2141,10 +2165,16 @@ Modal for editing existing notes.
 
 **Responsibilities**:
 - Display NoteForm pre-filled with note data
+- All save/submit/refetch logic delegated to `useNoteEditor`
+  (edit mode) — every autosave/submit PATCH includes the
+  picker's CURRENT `verse_references`, and closing after any
+  save refetches the note's own tag at the route's current
+  page/ordering (untagged notes refetch the `untagged`
+  sentinel view)
 - Edit the note's verse links via an embedded PassagePicker
   (click toggles a verse, shift-click extends a range)
-- Preview the selected verses' text via `useVerseTexts`
-- Handle note update to API (PATCH incl. `verse_references`)
+- Preview the selected verses' text via `useVerseTexts` +
+  `VerseTextGroups`
 - Close modal on success or cancel
 - Show at most 500 verse previews (same
   `visibleNoteVerses` copyright cap as NoteCard)
