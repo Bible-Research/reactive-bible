@@ -21,7 +21,6 @@ const useStyles = createStyles((theme) => ({
     ...theme.fn.focusStyles(),
     boxSizing: "border-box",
     display: "block",
-    width: "100%",
     textAlign: "left",
     textDecoration: "none",
     color:

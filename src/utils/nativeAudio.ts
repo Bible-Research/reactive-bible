@@ -36,8 +36,8 @@ const ensureNotificationPermission = async (): Promise<void> => {
 const promptBatteryExemptionOnce = async (): Promise<void> => {
   try {
     if (localStorage.getItem(BATTERY_PROMPT_KEY)) return;
-    localStorage.setItem(BATTERY_PROMPT_KEY, '1');
     const BackgroundMode = await loadBackgroundMode();
+    localStorage.setItem(BATTERY_PROMPT_KEY, '1');
     const { enabled } =
       await BackgroundMode.checkBatteryOptimizations();
     if (enabled) {

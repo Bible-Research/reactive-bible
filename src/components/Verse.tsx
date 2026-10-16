@@ -122,7 +122,9 @@ const Verse = ({
     });
   };
 
-  const handleVerseClick = (event: React.MouseEvent) => {
+  const handleVerseClick = (
+    event: React.MouseEvent | React.KeyboardEvent
+  ) => {
     if (!selectable) return;
 
     // Ignore the synthetic click fired after a handled touch tap
@@ -157,6 +159,12 @@ const Verse = ({
     if (scope === 'bible') {
       navigateForSelection();
     }
+  };
+
+  const handleVerseKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault(); // Keep Space from scrolling the page
+    handleVerseClick(event);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -237,6 +245,8 @@ const Verse = ({
       display="flex"
       role={selectable ? "button" : undefined}
       aria-pressed={selectable ? isActive : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      onKeyDown={selectable ? handleVerseKeyDown : undefined}
       data-active={isActive}
       data-audio-active={isAudioActive}
       className={cx({
