@@ -1250,6 +1250,10 @@ Full-text search across the Bible via the backend
 - No pagination - the backend returns all matches
 - Dimmed "Showing first N of M results" notice when the
   backend reports `meta.truncated`
+- Backend failures (`error`/`error_code`/`message`, including
+  provider errors wrapped in a 200 body) surface as typed
+  `RateLimitError`/`ProviderError` and render in red rather
+  than showing "No results"
 - Per-verse play button feeds a flattened playlist of all
   results into the audio player
 
@@ -2446,7 +2450,10 @@ getAvailableTranslations(
 
 - Checks cache first
 - Falls back to API if not cached
-- Caches result for future use
+- Caches result for future use — a failed (`!response.ok`)
+  response is never written to the cache
+- Throws on fetch failure; `TranslationSelector` catches at
+  the UI layer (warns, and notifies on refresh failure)
 
 #### Audio Functions
 
