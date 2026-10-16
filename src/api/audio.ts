@@ -38,7 +38,8 @@ interface AudioApiResponse {
  * Get audio URL for any Bible translation from Bible Research API
  * @param bookId - USFM book code (e.g., "GEN", "2CH")
  * @param chapter - Chapter number
- * @param translation - Translation code (e.g., "ESV", "NIV", "NASB")
+ * @param filesetId - Fileset ID selecting the provider
+ *   (e.g., "ESVDA", "ENGESVN1DA")
  * @returns Audio URL string
  */
 export const getBibleAudioUrl = async (
@@ -162,7 +163,7 @@ export const getKjvAudioUrl = (
  * Silently fetches and caches audio URL without blocking UI
  * @param bookId - USFM book code
  * @param chapter - Chapter number
- * @param bibleVersion - Bible version ("KJV", "ESV", etc.)
+ * @param filesetId - Fileset ID ("ENGKJV", "ESVDA", etc.)
  */
 export const prefetchAudioUrl = async (
   bookId: string,
