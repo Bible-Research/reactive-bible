@@ -15,17 +15,17 @@ suites were deleted after porting their still-useful cases.
 
 ### Restored (fix + unskip)
 
-- `components/__tests__/RegisterPage.test.tsx` — renamed from
+- `components/RegisterPage.test.tsx` — renamed from
   `.test.tsx.skip`, unskipped, fixed Mantine `PasswordInput`
   label queries and the duplicate "Create Account" text.
-- `components/__tests__/LoginPage.test.tsx` — rewritten: stale
+- `components/LoginPage.test.tsx` — rewritten: stale
   copy replaced, the "loading during login" test (broken by
   design) replaced with an `isLoading` store-state test, and a
   stale-error-on-mount case added for the new `clearError`
   effect.
-- `components/__tests__/UserMenu.test.tsx` — unskipped; passes
+- `components/UserMenu.test.tsx` — unskipped; passes
   as written under happy-dom.
-- `components/__tests__/ProtectedRoute.test.tsx` — unskipped;
+- `components/ProtectedRoute.test.tsx` — unskipped;
   state now seeded via `renderWithProviders` `authStoreState`,
   and a pre-checkAuth persisted-token case was added.
 - `components/MainMenu.test.tsx` — rewritten for the current
@@ -34,13 +34,13 @@ suites were deleted after porting their still-useful cases.
 - `components/NoteCard.test.tsx` — rewritten with the current
   `aria-label="*-note"` action selectors; covers ownership
   gating, share/play/comment badges.
-- `stores/__tests__/authStore.login.test.tsx` — unskipped;
+- `stores/authStore.login.test.tsx` — unskipped;
   the stale `bibleresearchapi.vercel.app` URL now derives
   from `API_BASE_URL`, the duplicated "Initial State"
   describe was dropped, and assertions read
   `store.getState()` instead of `renderHook` results (which
   go stale when `act()` rejects).
-- `stores/__tests__/authStore.register.test.tsx` — same
+- `stores/authStore.register.test.tsx` — same
   `getState()` treatment.
 - `api.test.ts` — the `addTagNote` POST and `deleteNote`
   DELETE tests; MSW mutation handlers were added in the
@@ -58,10 +58,12 @@ suites were deleted after porting their still-useful cases.
 ### Deleted (rotted or superseded)
 
 - `components/BottomNav.test.tsx` — covered through the real
-  App by `repro-62`/`repro-63`/`routes/__tests__/repro-95`.
+  App by `audio-stop-on-chapter-switch-62`,
+  `chapter-scroll-reset-63`, and
+  `__tests__/bottomnav-title-sync-95`.
 - `components/NotesView.test.tsx` — tested a vestigial
   component.
-- `routes/__tests__/TagNotesRoute.test.tsx` — rotted (stale
+- `routes/TagNotesRoute.test.tsx` — rotted (stale
   strings, old `fetchNotes` signature); error/empty/share
   cases ported to `TagNotesRoute.states.test.tsx`.
 - `components/EditNoteModal.test.tsx` empty `it.skip` — the

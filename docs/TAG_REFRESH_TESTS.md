@@ -2,21 +2,29 @@
 
 ## Overview
 
-This document explains the comprehensive test suite in `src/routes/__tests__/tag-refresh.test.tsx` that ensures tags are always force-refreshed when navigating to key routes.
+This document explains the comprehensive test suite in
+`src/__tests__/integration/tag-refresh.test.tsx` that ensures
+tags are always force-refreshed when navigating to key routes.
 
 ## Background
 
 ### The Problem
 
-Tags are cached in the Zustand store for performance optimization (~95% faster, < 10ms vs 200-500ms). However, this caching created a UX issue where users wouldn't see newly created/edited/deleted tags when navigating between routes.
+Tags are cached in the Zustand store for performance
+optimization (~95% faster, < 10ms vs 200-500ms). However, this
+caching created a UX issue where users wouldn't see newly
+created/edited/deleted tags when navigating between routes.
 
 ### The Solution
 
-All three main routes now call `getTags(true)` on mount to force-refresh tags from the API, ensuring users always see the latest data while still benefiting from caching during normal usage.
+All three main routes now call `getTags(true)` on mount to
+force-refresh tags from the API, ensuring users always see the
+latest data while still benefiting from caching during normal
+usage.
 
 ## Test Suite Structure
 
-### File: `src/routes/__tests__/tag-refresh.test.tsx`
+### File: `src/__tests__/integration/tag-refresh.test.tsx`
 
 **Total Tests**: 12  
 **All Passing**: ✅
@@ -97,10 +105,10 @@ All three main routes now call `getTags(true)` on mount to force-refresh tags fr
 
 ```bash
 # Run only tag refresh tests
-npm test -- src/routes/__tests__/tag-refresh.test.tsx
+npm test -- src/__tests__/integration/tag-refresh.test.tsx
 
 # Run with verbose output
-npm test -- src/routes/__tests__/tag-refresh.test.tsx --reporter=verbose
+npm test -- src/__tests__/integration/tag-refresh.test.tsx --reporter=verbose
 
 # Run all tests
 npm test
@@ -109,7 +117,7 @@ npm test
 ## Expected Output
 
 ```
-✓ src/routes/__tests__/tag-refresh.test.tsx (12 tests) 315ms
+✓ src/__tests__/integration/tag-refresh.test.tsx (12 tests) 315ms
   ✓ Tag Refresh Behavior (12 tests)
     ✓ TagNotesRoute (3 tests)
       ✓ should call getTags with forceRefresh=true on mount
@@ -137,26 +145,36 @@ Test Files  1 passed (1)
 
 ### Regression Scenarios
 
-1. **Stale Tag Dropdown**: Without force refresh, the tag dropdown in TagNotesRoute would show outdated tags
-2. **Missing New Tags**: After creating a tag in TagManagementRoute, it wouldn't appear in other routes
-3. **Deleted Tags Persist**: Deleted tags would still appear in dropdowns until manual page refresh
-4. **Cache Over-Optimization**: Someone might remove force-refresh to "optimize" performance, breaking freshness
+1. **Stale Tag Dropdown**: Without force refresh, the tag
+   dropdown in TagNotesRoute would show outdated tags
+2. **Missing New Tags**: After creating a tag in
+   TagManagementRoute, it wouldn't appear in other routes
+3. **Deleted Tags Persist**: Deleted tags would still appear
+   in dropdowns until manual page refresh
+4. **Cache Over-Optimization**: Someone might remove
+   force-refresh to "optimize" performance, breaking freshness
 
 ### Real-World Impact
 
-- **Collaborative Editing**: Multiple users editing tags see each other's changes
-- **Multi-Tab Scenarios**: Changes in one tab appear when navigating in another tab
+- **Collaborative Editing**: Multiple users editing tags see
+  each other's changes
+- **Multi-Tab Scenarios**: Changes in one tab appear when
+  navigating in another tab
 - **User Confidence**: Users trust that the UI shows current data
 
 ## Related Commits
 
-- **5a6e14c** (April 17, 2026): "feat: Implement tag caching in store to prevent unnecessary API calls"
+- **5a6e14c** (April 17, 2026): "feat: Implement tag caching
+  in store to prevent unnecessary API calls"
   - Added the caching mechanism for performance
-  
-- **2407a23** (Sept 3, 2026): "Feat: Force refresh tags on route navigation"
-  - Fixed the incomplete implementation by adding force-refresh on route mount
-  
-- **ef67e87** (Sept 3, 2026): "Test: Add comprehensive tag refresh behavior tests"
+
+- **2407a23** (Sept 3, 2026): "Feat: Force refresh tags on
+  route navigation"
+  - Fixed the incomplete implementation by adding
+    force-refresh on route mount
+
+- **ef67e87** (Sept 3, 2026): "Test: Add comprehensive tag
+  refresh behavior tests"
   - Added this test suite to prevent regression
 
 ## Implementation Details
@@ -191,7 +209,7 @@ beforeEach(() => {
   useBibleStore.setState({
     tags: [],
     notes: [],
-    activeBook: 'John',
+    activeBookId: 'JHN',
     activeChapter: 1,
     // ... other state
   });
@@ -222,7 +240,8 @@ await waitFor(() => {
 
 ### When to Update These Tests
 
-1. **Route Changes**: If TagNotesRoute, BibleRoute, or TagManagementRoute are refactored
+1. **Route Changes**: If TagNotesRoute, BibleRoute, or
+   TagManagementRoute are refactored
 2. **Store Changes**: If the `getTags` function signature changes
 3. **Auth Changes**: If authentication logic changes
 4. **New Routes**: If new routes are added that display tags
@@ -254,8 +273,10 @@ it('should call getTags with forceRefresh=true on mount', async () => {
 ### Common Issues
 
 1. **Test Timeout**: Increase `waitFor` timeout if API mocks are slow
-2. **Mock Not Called**: Ensure component is actually mounting (check for errors)
-3. **Wrong Call Count**: React Strict Mode calls effects twice in development
+2. **Mock Not Called**: Ensure component is actually mounting
+   (check for errors)
+3. **Wrong Call Count**: React Strict Mode calls effects
+   twice in development
 
 ### Debug Tips
 
@@ -272,6 +293,11 @@ screen.debug();
 
 ## Conclusion
 
-This test suite is critical for maintaining the balance between performance (caching) and data freshness (force-refresh). It ensures that users always see the latest tags when navigating to key routes, while still benefiting from the ~95% performance improvement that caching provides.
+This test suite is critical for maintaining the balance
+between performance (caching) and data freshness
+(force-refresh). It ensures that users always see the latest
+tags when navigating to key routes, while still benefiting
+from the ~95% performance improvement that caching provides.
 
-**Do not remove or skip these tests** without understanding the full impact on user experience.
+**Do not remove or skip these tests** without understanding
+the full impact on user experience.
