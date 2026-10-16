@@ -13,6 +13,12 @@ import { reportError } from '../utils/errorReporter';
 
 interface Props {
   children: ReactNode;
+  /** When this value changes while the boundary is in the
+   *  error state, the boundary recovers. Healthy children are
+   *  never remounted — the check only fires post-error.
+   *  Pass the current pathname so intra-section navigation
+   *  (e.g. /notes -> /notes/:id) clears a stuck fallback. */
+  resetKey?: string;
 }
 
 interface State {
@@ -34,6 +40,15 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     reportError(error, 'React render error');
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (
+      this.state.hasError &&
+      prevProps.resetKey !== this.props.resetKey
+    ) {
+      this.setState({ hasError: false, error: null, copied: false });
+    }
   }
 
   render() {
