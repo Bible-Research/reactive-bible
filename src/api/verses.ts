@@ -248,11 +248,11 @@ export const prefetchAdjacentChapters = async (
   };
 
   if (previous) {
-    prefetch(
+    void prefetch(
       previous.bookId, previous.chapter, filesetId, 'previous'
     );
   }
   if (next) {
-    prefetch(next.bookId, next.chapter, filesetId, 'next');
+    void prefetch(next.bookId, next.chapter, filesetId, 'next');
   }
 };

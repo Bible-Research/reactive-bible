@@ -242,7 +242,7 @@ const PassageView = () => {
     } else {
       pendingScrollHeadingRef.current = beforeVerse;
       setHeadingsOnlyMode(false);
-      navigate(buildBiblePath(activeBookId, chapter));
+      void navigate(buildBiblePath(activeBookId, chapter));
     }
   };
 
@@ -376,12 +376,12 @@ const PassageView = () => {
         const audioFilesetId = resolvedAudioFilesetId;
 
         // Prefetch current chapter audio (parallel)
-        prefetchAudioUrl(
+        void prefetchAudioUrl(
           activeBookId, activeChapter, audioFilesetId
         );
 
         // Prefetch next chapter audio (parallel)
-        prefetchAudioUrl(
+        void prefetchAudioUrl(
           activeBookId, activeChapter + 1, audioFilesetId
         );
 
@@ -393,7 +393,7 @@ const PassageView = () => {
           activeTextFilesetId: storedTextId,
           translations: tls,
         } = useBibleStore.getState();
-        prefetchAdjacentChapters(
+        void prefetchAdjacentChapters(
           activeBookId,
           activeChapter,
           textFilesetId,

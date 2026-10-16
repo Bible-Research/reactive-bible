@@ -132,13 +132,13 @@ export default function TagNotesRoute() {
     chapter: number,
     verse: number
   ) => {
-    navigate(buildBiblePath(book, chapter, [verse]));
+    void navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
   };
 
   const handleTagChange = (value: string | null) => {
     if (value && value !== tagId) {
-      navigate(`/notes/tag/${value}`);
+      void navigate(`/notes/tag/${value}`);
     }
   };
 

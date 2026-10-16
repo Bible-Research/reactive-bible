@@ -112,7 +112,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       const advanceNext = () => {
         if (advanced || stoppedRef.current) return;
         advanced = true;
-        playIndex(allItems, index + 1);
+        void playIndex(allItems, index + 1);
       };
 
       if (!item.bookId || item.startVerse == null) {
@@ -505,7 +505,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       stoppedRef.current = false;
       timestampsNoticeShownRef.current = false;
       setItems(newItems);
-      playIndex(newItems, startIndex);
+      void playIndex(newItems, startIndex);
     },
     [playIndex],
   );
@@ -520,13 +520,13 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
   const next = useCallback(() => {
     if (items.length === 0) return;
-    playIndex(items, currentIndex + 1);
+    void playIndex(items, currentIndex + 1);
   }, [items, currentIndex, playIndex]);
 
   const previous = useCallback(() => {
     if (items.length === 0) return;
     const target = Math.max(0, currentIndex - 1);
-    playIndex(items, target);
+    void playIndex(items, target);
   }, [items, currentIndex, playIndex]);
 
   const stop = useCallback(() => {

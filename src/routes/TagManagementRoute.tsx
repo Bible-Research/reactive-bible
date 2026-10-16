@@ -114,7 +114,7 @@ export default function TagManagementRoute() {
 
   const handleViewNotes = useCallback(
     (tagId: string) => {
-      navigate(`/notes/tag/${tagId}`);
+      void navigate(`/notes/tag/${tagId}`);
     },
     [navigate]
   );

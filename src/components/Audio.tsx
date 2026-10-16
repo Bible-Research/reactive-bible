@@ -70,7 +70,7 @@ const Audio = () => {
         ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       return;
     }
-    navigate(
+    void navigate(
       buildBiblePath(item.bookId, item.chapter, [item.startVerse]),
       { replace: true },
     );
@@ -360,7 +360,7 @@ const Audio = () => {
               ? () => {
                   const item = playlist.currentItem;
                   if (!item) return;
-                  navigate(
+                  void navigate(
                     buildBiblePath(
                       item.bookId,
                       item.chapter,

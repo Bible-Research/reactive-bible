@@ -21,7 +21,7 @@ export const useSlashSearchShortcut = () => {
       target.isContentEditable;
     if (event.key === "/" && !isEditable) {
       event.preventDefault();
-      navigate("/search");
+      void navigate("/search");
     }
   });
 };

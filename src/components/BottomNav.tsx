@@ -36,12 +36,12 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
 
   const prevHandler = () => {
     if (previous === null) return;
-    navigate(buildBiblePath(previous.bookId, previous.chapter));
+    void navigate(buildBiblePath(previous.bookId, previous.chapter));
   };
 
   const nextHandler = () => {
     if (next === null) return;
-    navigate(buildBiblePath(next.bookId, next.chapter));
+    void navigate(buildBiblePath(next.bookId, next.chapter));
   };
 
   return (

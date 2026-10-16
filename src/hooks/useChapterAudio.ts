@@ -267,7 +267,7 @@ export const useChapterAudio = (
       // with the new chapter; the route's URL->store sync would
       // then revert the advance and tear down the adopted Howl
       // mid-play.
-      navigate(buildBiblePath(target.bookId, target.chapter), {
+      void navigate(buildBiblePath(target.bookId, target.chapter), {
         replace: true,
       });
       return true;
@@ -704,7 +704,7 @@ export const useChapterAudio = (
       activeBookId,
     );
     if (!tsFilesetId) return;
-    getAudioTimestamps(
+    void getAudioTimestamps(
       activeBookId,
       activeChapter,
       tsFilesetId,
