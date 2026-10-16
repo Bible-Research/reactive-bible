@@ -15,10 +15,8 @@ import {
 import { useBibleStore } from '../store';
 import type { CommentCounts, Note, Tag } from '../types';
 import { clearNotesCache } from '../utils/cacheManager';
-import {
-  SortOrder,
-  getApiOrdering,
-} from '../utils/noteSorting';
+import { getApiOrdering } from '../utils/noteSorting';
+import type { SortOrder } from '../utils/noteSorting';
 import { pageCount } from '../utils/pagination';
 
 interface UseTagNotesDataOptions {
@@ -39,7 +37,7 @@ interface UseTagNotesDataResult {
   pageLoading: boolean;
   error: string | null;
   commentCounts: CommentCounts;
-  handleSortChange: (newSortOrder: string) => Promise<void>;
+  handleSortChange: (newSortOrder: string) => void;
   handlePageChange: (newPage: number) => Promise<void>;
   handlePageSizeChange: (
     newPageSize: string | null
@@ -67,8 +65,6 @@ export const useTagNotesData = ({
   orderMenuEnabled,
   reloadOrderIndex,
 }: UseTagNotesDataOptions): UseTagNotesDataResult => {
-  const notesFromStore = useBibleStore((state) => state.notes);
-  const notes = Array.isArray(notesFromStore) ? notesFromStore : [];
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
   const deleteNote = useBibleStore((state) => state.deleteNote);
@@ -78,11 +74,7 @@ export const useTagNotesData = ({
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
   );
-  const notesCount = useBibleStore((state) => state.notesCount);
   const notesPage = useBibleStore((state) => state.notesPage);
-  const notesPageSize = useBibleStore(
-    (state) => state.notesPageSize
-  );
   const setNotesPageSize = useBibleStore(
     (state) => state.setNotesPageSize
   );
@@ -113,7 +105,8 @@ export const useTagNotesData = ({
   // would 404 and surface a spurious error notification.
   const deletingRef = useRef(false);
 
-  // Set showNotes to true and save lastSelectedTagId when on notes route
+  // Set showNotes to true and save lastSelectedTagId when on
+  // notes route.
   useEffect(() => {
     if (tagId) {
       // Capture the page to restore BEFORE overwriting
@@ -259,38 +252,16 @@ export const useTagNotesData = ({
     isUntagged,
   ]);
 
+  // A sort change only rewrites the URL — the load effect
+  // re-runs on `sortOrder` and issues the single refetch
+  // (page 1 via the fresh queryKey). It used to also call
+  // fetchNotes here, so every server-side sort fired twice.
   const handleSortChange = useCallback(
-    async (newSortOrder: string) => {
+    (newSortOrder: string) => {
       if (!tagId) return;
-
-      // Update URL
       setSearchParams({ sort: newSortOrder });
-
-      // Check if we can sort client-side
-      const canSortClientSide =
-        notesCount <= notesPageSize && notes.length > 0;
-
-      if (canSortClientSide) {
-        // Client-side sort - no API call needed
-        console.log('📊 Sorting notes client-side');
-        // Notes will be sorted by the existing sortedNotes logic
-      } else {
-        // Server-side sort - fetch from API
-        console.log('📊 Fetching sorted notes from API');
-        const apiOrdering = getApiOrdering(
-          newSortOrder as SortOrder
-        );
-        await fetchNotes(tagId, { ordering: apiOrdering, page: 1 });
-      }
     },
-    [
-      tagId,
-      setSearchParams,
-      notesCount,
-      notesPageSize,
-      notes.length,
-      fetchNotes,
-    ]
+    [tagId, setSearchParams]
   );
 
   const handlePageChange = useCallback(
