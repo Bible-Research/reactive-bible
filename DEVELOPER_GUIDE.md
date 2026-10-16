@@ -2191,8 +2191,8 @@ Vite emits it as a separate `kjv-*.js` chunk that is only fetched
 when verse text is requested. Book/chapter/verse-count metadata
 needed for navigation lives in `src/assets/bibleStructure.json`
 (bundled in the entry chunk), so helpers like `getBooks`,
-`getChapters`, `getVerses`, `getPassage`, `getAdjacentChapters`,
-and `getKjvAudioUrl` stay synchronous.
+`getChapters`, `getVerses`, `getChapterList`,
+`getAdjacentChapters`, and `getKjvAudioUrl` stay synchronous.
 
 **Structure**:
 ```typescript
@@ -2424,12 +2424,12 @@ getVersesFromApi(
 ): Promise<{ verse: number; text: string }[]>
 ```
 
-**`getPassage()`**
+**`getChapterList()`**
 
 Returns all book/chapter combinations for navigation.
 
 ```typescript
-getPassage(): {
+getChapterList(): {
   book_name: string;
   book_id: string;
   chapter: number;
