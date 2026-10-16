@@ -1,6 +1,6 @@
-import { loadKjvData } from './utils/kjvDataLoader';
-import bibleStructure from './assets/bibleStructure.json';
-import { toBookName, toUsfmCode } from "./utils/bibleUtils";
+import { loadKjvData } from '../utils/kjvDataLoader';
+import bibleStructure from '../assets/bibleStructure.json';
+import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import type {
   VerseTimestamp,
   FilesetCopyright,
@@ -21,7 +21,7 @@ import type {
   LinkedNotesResponse,
   GroupedSearchResponse,
   ReadingPositionValue,
-} from './types';
+} from '../types';
 
 import {
   getCachedVerses,
@@ -36,17 +36,17 @@ import {
   cacheTimestamps,
   getCachedCopyright,
   cacheCopyright,
-} from './utils/cacheManager';
+} from '../utils/cacheManager';
 
 import {
   authenticatedFetch,
   authenticatedUpload,
   publicFetch,
-} from './utils/apiClient';
-import { reportFums } from './utils/fums';
-import { API_BASE_URL } from './config';
+} from '../utils/apiClient';
+import { reportFums } from '../utils/fums';
+import { API_BASE_URL } from '../config';
 
-// Shared API/domain types live in `./types`; re-export them
+// Shared API/domain types live in `../types`; re-export them
 // here so every existing `from '../api'` type import (and the
 // vi.mock barrels) keeps working unchanged.
 export type {
@@ -69,7 +69,7 @@ export type {
   SearchVerseGroup,
   GroupedSearchResponse,
   ReadingPositionValue,
-} from './types';
+} from '../types';
 
 interface BibleStructureEntry {
   book_id: string;
