@@ -14,7 +14,11 @@ Talks to the `bible_research` Django API.
 
 ## Layout (actual)
 
-- `src/api.tsx` — every backend call lives here (large module).
+- `src/api/` — every backend call lives here, split by domain
+  (`errors`, `structure`, `verses`, `audio`, `translations`,
+  `notes`, `tags`, `comments`, `search`, `readingPositions`);
+  `index.ts` is the barrel — always import from `'../api'`,
+  never a leaf, so `vi.mock('../api')` keeps intercepting.
 - `src/config.ts` — `API_BASE_URL` from `VITE_API_BASE_URL`, else
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
@@ -51,8 +55,9 @@ Talks to the `bible_research` Django API.
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.
 - Verse selection is scoped: `{ scope: 'bible' | 'note:<id>',
   refs: VerseRef[] }` — a `VerseRef` is `{ bookId, chapter, verse }`.
-- Backend errors carry `error`/`error_code`/`message`; api.tsx maps
-  them to `RateLimitError`/`ProviderError`. Preserve this — do not
+- Backend errors carry `error`/`error_code`/`message`;
+  `src/api/errors.ts` maps them to `RateLimitError`/
+  `ProviderError`. Preserve this — do not
   silently swallow provider failures into empty verse lists.
 
 ## Behavior notes
