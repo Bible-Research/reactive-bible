@@ -124,6 +124,10 @@ const NoteCard = ({
   const canEdit = (note.is_owner !== false) && !!onEdit;
   const canDelete = (note.is_owner !== false) && !!onDelete;
   const canShare = note.public;
+  // Verse-less notes never enter the audio playlist
+  // (buildNotePlaylistItems filters them out), so clicking
+  // "play from here" would silently no-op — disable instead.
+  const canPlay = (note.verses?.length ?? 0) > 0;
 
   const handleShare = async () => {
     const title = note.tag?.name
@@ -238,12 +242,20 @@ const NoteCard = ({
                 </Tooltip>
               )}
               {onPlayFromNote && (
-                <Tooltip label="Play from here" position="top">
+                <Tooltip
+                  label={
+                    canPlay
+                      ? 'Play from here'
+                      : 'No verses to play'
+                  }
+                  position="top"
+                >
                   <Box component="span" sx={{ display: 'inline-block' }}>
                     <ActionIcon
                       variant="subtle"
                       size="sm"
                       color="blue"
+                      disabled={!canPlay}
                       onClick={() => onPlayFromNote(note.id)}
                       aria-label={`play-from-${note.id}`}
                     >
@@ -361,12 +373,18 @@ const NoteCard = ({
               </Tooltip>
             )}
             {onPlayFromNote && (
-              <Tooltip label="Play from here" position="top">
+              <Tooltip
+                label={
+                  canPlay ? 'Play from here' : 'No verses to play'
+                }
+                position="top"
+              >
                 <Box component="span" sx={{ display: 'inline-block' }}>
                   <ActionIcon
                     variant="subtle"
                     size="sm"
                     color="blue"
+                    disabled={!canPlay}
                     onClick={() => onPlayFromNote(note.id)}
                     aria-label={`play-from-${note.id}`}
                   >
