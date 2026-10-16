@@ -225,6 +225,39 @@ export const authenticatedUpload = async (
   return response;
 };
 
+type Fetcher = (
+  url: string,
+  options?: RequestInit,
+  retries?: number
+) => Promise<Response>;
+
+/**
+ * Shared fetch→JSON boilerplate for endpoints whose failure
+ * handling is just "throw on !ok, log, rethrow": runs
+ * `fetcher`, throws `Error(fallbackMessage)` on a non-OK
+ * status, and returns the parsed body. Endpoints with richer
+ * error contracts — typed provider errors, 409/error-body
+ * reads, 204 no-content, swallowed failures — keep their own
+ * handling and should not use this helper.
+ */
+export const fetchJson = async <T>(
+  fetcher: Fetcher,
+  url: string,
+  fallbackMessage: string,
+  options?: RequestInit
+): Promise<T> => {
+  try {
+    const response = await fetcher(url, options);
+    if (!response.ok) {
+      throw new Error(fallbackMessage);
+    }
+    return (await response.json()) as T;
+  } catch (error) {
+    console.error(`${fallbackMessage}:`, error);
+    throw error;
+  }
+};
+
 /**
  * Helper to check if user is authenticated
  * @returns boolean
