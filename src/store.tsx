@@ -428,12 +428,6 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           if (!append && tagId && useAuthStore.getState().token) {
             const cachedData = getCachedNotes(tagId, page, ordering);
             if (cachedData) {
-              console.log(
-                `✅ Using cached notes for tag: ${tagId} ` +
-                `(page ${page}, ordering: ${ordering || 'default'}, ` +
-                `${cachedData.notes.length} notes, ` +
-                `total: ${cachedData.count ?? 'unknown'})`
-              );
               set({
                 notes: cachedData.notes,
                 notesCount: cachedData.count ?? cachedData.notes.length,
@@ -446,14 +440,6 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             }
           }
           
-          // Fetch from API
-          console.log(
-            `📝 Fetching notes from API for tag: ` +
-            `${tagId || 'all'} ` +
-            `(page ${page}, ordering: ${ordering || 'default'}, ` +
-            `fileset: ${filesetId || 'default'})`
-          );
-
           const response = await api.getNotes(tagId, {
             ordering,
             page,
@@ -528,19 +514,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         // Use cached tags unless force refresh
         const currentTags = useBibleStore.getState().tags;
         if (!forceRefresh && currentTags.length > 0) {
-          console.log(
-            `✅ Using cached tags ` +
-            `(${currentTags.length} tags) - no API call`
-          );
           return;
         }
 
-        // Fetch from API
-        console.log('📝 Fetching tags from API');
         try {
           const tags = await api.getTags();
           set({ tags });
-          console.log(`✅ Tags fetched successfully (${tags.length} tags)`);
         } catch (error) {
           console.error('Error fetching tags:', error);
           showNotification({
