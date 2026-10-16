@@ -10,7 +10,6 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { showNotification } from "@mantine/notifications";
 import {
   IconMessageCircle,
   IconPlayerPlay,
@@ -29,6 +28,7 @@ import SectionHeadingComponent from "./SectionHeading";
 import ScripturePassage from "./ScripturePassage";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
+import { shareOrCopyLink } from "../utils/share";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import {
   isSameScriptureRef,
@@ -126,7 +126,6 @@ const NoteCard = ({
   const canShare = note.public;
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/notes/${note.id}`;
     const title = note.tag?.name
       ? `Note: ${note.tag.name}`
       : 'Shared note';
@@ -134,26 +133,22 @@ const NoteCard = ({
       ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-        console.error('Error sharing:', err);
+    await shareOrCopyLink(
+      {
+        title,
+        text,
+        url: `${window.location.origin}/notes/${note.id}`,
+      },
+      {
+        copySuccess: {
+          title: 'Link Copied!',
+          message: 'Note link copied to clipboard',
+        },
+        // A failed share sheet retries through the clipboard
+        // rather than silently dropping the share.
+        clipboardOnShareError: true,
       }
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
-      showNotification({
-        title: 'Link Copied!',
-        message: 'Note link copied to clipboard',
-        color: 'blue',
-      });
-    } catch (err) {
-      console.error('Error copying to clipboard:', err);
-    }
+    );
   };
 
   // commentCount is undefined on the detail route, which renders

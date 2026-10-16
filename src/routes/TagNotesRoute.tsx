@@ -45,6 +45,7 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 import { buildBiblePath } from '../utils/bibleUtils';
+import { shareOrCopyLink } from '../utils/share';
 import {
   SortOrder,
   SORT_ORDERS,
@@ -610,49 +611,31 @@ export default function TagNotesRoute() {
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
-    const title = `Notes: ${tag?.name || 'Tag'}`;
-    const text =
-      `Check out these ${notes.length} note(s) ` +
-      `tagged with "${tag?.name}"`;
-
-    // Try Web Share API first (mobile-friendly)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title,
-          text,
-          url,
-        });
-        showNotification({
+    await shareOrCopyLink(
+      {
+        title: `Notes: ${tag?.name || 'Tag'}`,
+        // notesCount is the tag total; notes.length is only
+        // the currently loaded page.
+        text:
+          `Check out these ${notesCount} note(s) ` +
+          `tagged with "${tag?.name}"`,
+        url: window.location.href,
+      },
+      {
+        shareSuccess: {
           title: 'Shared!',
           message: 'Link shared successfully',
-          color: 'green',
-        });
-      } catch (err) {
-        // User cancelled or error occurred
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Error sharing:', err);
-        }
-      }
-    } else {
-      // Fallback: Copy to clipboard
-      try {
-        await navigator.clipboard.writeText(url);
-        showNotification({
+        },
+        copySuccess: {
           title: 'Link Copied!',
           message: 'Tag link copied to clipboard',
-          color: 'blue',
-        });
-      } catch (err) {
-        console.error('Error copying to clipboard:', err);
-        showNotification({
+        },
+        copyFailure: {
           title: 'Error',
           message: 'Failed to copy link',
-          color: 'red',
-        });
+        },
       }
-    }
+    );
   };
 
   const handleSortChange = useCallback(
