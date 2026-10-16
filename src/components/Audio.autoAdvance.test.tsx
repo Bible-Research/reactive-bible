@@ -9,130 +9,15 @@ import {
   initialState as authInitialState,
 } from '../stores/authStore';
 import { mockDomApis } from '../__tests__/helpers';
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 
-type Handler = (...args: unknown[]) => void;
-
-// Fake Howl that models real Howler semantics closely enough for
-// the chapter transition: play() resolves asynchronously, and a
-// teardown (unload) while play is still pending surfaces a
+// Shared faithful Howl fake: play() resolves asynchronously and
+// a teardown (unload) while play is still pending surfaces a
 // 'playerror' — matching the browser's AbortError behavior.
-const FakeHowl = vi.hoisted(() => {
-  class FakeHowlClass {
-    static instances: FakeHowlClass[] = [];
-    src: string;
-    _state: 'loading' | 'loaded' | 'unloaded' = 'loaded';
-    _playing = false;
-    _pendingPlay = false;
-    _loop = false;
-    _handlers: Record<string, Handler[]> = {};
-
-    constructor(opts: Record<string, unknown>) {
-      this.src = (opts.src as string[])[0];
-      const map: Record<string, string> = {
-        onplay: 'play',
-        onpause: 'pause',
-        onend: 'end',
-        onloaderror: 'loaderror',
-        onplayerror: 'playerror',
-        onload: 'load',
-        onstop: 'stop',
-      };
-      Object.entries(map).forEach(([optKey, evt]) => {
-        const fn = opts[optKey] as Handler | undefined;
-        if (fn) this._handlers[evt] = [fn];
-      });
-      FakeHowlClass.instances.push(this);
-    }
-
-    on(evt: string, fn: Handler) {
-      (this._handlers[evt] ??= []).push(fn);
-      return this;
-    }
-    once(evt: string, fn: Handler) {
-      const wrapped: Handler = (...a) => {
-        this.off(evt, wrapped);
-        fn(...a);
-      };
-      return this.on(evt, wrapped);
-    }
-    off(evt?: string, fn?: Handler) {
-      if (!evt) {
-        this._handlers = {};
-        return this;
-      }
-      if (!fn) {
-        delete this._handlers[evt];
-        return this;
-      }
-      this._handlers[evt] = (this._handlers[evt] ?? []).filter(
-        (h) => h !== fn,
-      );
-      return this;
-    }
-    emit(evt: string, ...args: unknown[]) {
-      [...(this._handlers[evt] ?? [])].forEach((h) => h(...args));
-    }
-
-    play() {
-      if (this._state === 'unloaded') return 0;
-      // playing() flips synchronously like Howler's setParams;
-      // 'play' fires when the node's promise resolves.
-      this._playing = true;
-      this._pendingPlay = true;
-      void Promise.resolve().then(() => {
-        if (!this._pendingPlay || this._state === 'unloaded')
-          return;
-        this._pendingPlay = false;
-        this.emit('play', 0);
-      });
-      return 0;
-    }
-    pause() {
-      this._playing = false;
-      this.emit('pause', 0);
-      return this;
-    }
-    stop() {
-      this._playing = false;
-      this.emit('stop', 0);
-      return this;
-    }
-    unload() {
-      if (this._pendingPlay) {
-        this._pendingPlay = false;
-        this.emit('playerror', 0, new Error('play interrupted'));
-      }
-      this._state = 'unloaded';
-      this._playing = false;
-      return this;
-    }
-    state() {
-      return this._state;
-    }
-    playing() {
-      return this._playing;
-    }
-    loop(v?: boolean) {
-      if (v === undefined) return this._loop;
-      this._loop = v;
-      return this;
-    }
-    seek(v?: number) {
-      if (v === undefined) return 0;
-      return this;
-    }
-    duration() {
-      return 60;
-    }
-    volume(v?: number) {
-      if (v === undefined) return 1;
-      return this;
-    }
-  }
-  return FakeHowlClass;
+vi.mock('howler', async () => {
+  const { FakeHowl } = await import('../__tests__/mocks/FakeHowl');
+  return { Howl: FakeHowl };
 });
-
-vi.mock('howler', () => ({ Howl: FakeHowl }));
 
 vi.mock('./Passage', () => ({
   default: () => <div data-testid="passage" />,
@@ -161,7 +46,7 @@ vi.mock('@mantine/notifications', () => ({
 
 describe('Audio chapter auto-advance', () => {
   beforeEach(() => {
-    FakeHowl.instances = [];
+    FakeHowl.reset();
     vi.clearAllMocks();
     mockDomApis();
     // No CORS on the audio host — the preload streams the URL.

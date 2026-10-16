@@ -85,52 +85,15 @@ vi.mock('../api', () => {
   };
 });
 
-let mockHowlOnLoad: (() => void) | null = null;
-let mockHowlOnEnd: (() => void) | null = null;
-let mockHowlOnLoadError:
-  | ((_id: number, err: unknown) => void)
-  | null = null;
-let mockHowlSeekValue = 0;
-let mockHowlUnload = vi.fn();
-let mockHowlPause = vi.fn();
-let mockHowlPlay = vi.fn();
-let mockHowlStop = vi.fn();
-let mockHowlOn = vi.fn();
+// Shared faithful Howl fake: born 'loading', flips to 'loaded'
+// and emits 'load' on a microtask; constructor on* options
+// register as handlers. Reach instances via FakeHowl.latest().
+vi.mock('howler', async () => {
+  const { FakeHowl } = await import('../__tests__/mocks/FakeHowl');
+  return { Howl: FakeHowl };
+});
 
-vi.mock('howler', () => ({
-  Howl: vi.fn().mockImplementation(function (opts: Record<string, unknown>) {
-    mockHowlOnLoad = opts.onload as () => void;
-    mockHowlOnEnd = opts.onend as () => void;
-    mockHowlOnLoadError = opts.onloaderror as (
-      _id: number,
-      err: unknown,
-    ) => void;
-    mockHowlSeekValue = 0;
-    mockHowlUnload = vi.fn();
-    mockHowlPause = vi.fn();
-    mockHowlPlay = vi.fn();
-    mockHowlStop = vi.fn();
-    mockHowlOn = vi.fn();
-    return {
-      seek: vi.fn((v?: number) => {
-        if (v !== undefined) mockHowlSeekValue = v;
-        return mockHowlSeekValue;
-      }),
-      play: mockHowlPlay,
-      pause: mockHowlPause,
-      stop: mockHowlStop,
-      unload: mockHowlUnload,
-      // disposeHowl (utils/audioUtils) calls off()/volume()
-      // before unload() — without these the teardown throws and
-      // unload is skipped.
-      off: vi.fn(),
-      volume: vi.fn(),
-      loop: vi.fn(),
-      duration: vi.fn().mockReturnValue(60),
-      on: mockHowlOn,
-    };
-  }),
-}));
+const latestHowl = () => FakeHowl.latest();
 
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
@@ -195,6 +158,7 @@ vi.mock('../store', () => ({
 
 import { useAudioPlaylist } from './useAudioPlaylist';
 import { useVerseHighlighter } from './useVerseHighlighter';
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import * as api from '../api';
 
 const makeItem = (
@@ -211,10 +175,7 @@ const makeItem = (
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockHowlOnLoad = null;
-  mockHowlOnEnd = null;
-  mockHowlOnLoadError = null;
-  mockHowlSeekValue = 0;
+  FakeHowl.reset();
   mockStoreState.setAudioActiveVerse.mockReset();
   mockStoreState.setShowAudioPlayer.mockReset();
   mockStoreState.activeAudioFilesetId = 'ENGESHN1DA-opus16';
@@ -263,10 +224,12 @@ describe('useAudioPlaylist', () => {
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(0)
     );
-    // Simulate onload to start playing
-    act(() => { mockHowlOnLoad?.(); });
-    // Simulate onend to advance
-    act(() => { mockHowlOnEnd?.(); });
+    // FakeHowl auto-loads on a microtask; wait for the load
+    // handlers, then simulate 'end' to advance.
+    await waitFor(() =>
+      expect(latestHowl()?.state()).toBe('loaded')
+    );
+    act(() => { latestHowl()?.emit('end', 0); });
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(1)
     );
@@ -293,7 +256,9 @@ describe('useAudioPlaylist', () => {
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(0)
     );
-    act(() => { mockHowlOnLoadError?.(0, 'network error'); });
+    act(() => {
+      latestHowl()?.emit('loaderror', 0, 'network error');
+    });
     expect(showNotification).toHaveBeenCalled();
     await waitFor(() =>
       expect(result.current.currentIndex).toBe(1)
@@ -444,7 +409,9 @@ describe('useAudioPlaylist', () => {
       await waitFor(() =>
         expect(result.current.currentIndex).toBe(0)
       );
-      act(() => { mockHowlOnLoadError?.(0, 'decode error'); });
+      act(() => {
+        latestHowl()?.emit('loaderror', 0, 'decode error');
+      });
       await waitFor(() =>
         expect(showNotification).toHaveBeenCalledWith(
           expect.objectContaining({ title: 'Audio unavailable' }),
@@ -491,8 +458,9 @@ describe('useAudioPlaylist', () => {
         )
       );
       // Seeks to the linked verse's timestamp once loaded.
-      act(() => { mockHowlOnLoad?.(); });
-      expect(mockHowlSeekValue).toBe(5);
+      await waitFor(() =>
+        expect(latestHowl()?._pos).toBe(5)
+      );
     },
   );
 
@@ -573,9 +541,11 @@ describe('useAudioPlaylist', () => {
       );
       // The whole chapter plays from the start and advancement
       // falls back to the media end event.
-      act(() => { mockHowlOnLoad?.(); });
-      expect(mockHowlSeekValue).toBe(0);
-      act(() => { mockHowlOnEnd?.(); });
+      await waitFor(() =>
+        expect(latestHowl()?.state()).toBe('loaded')
+      );
+      expect(latestHowl()?._pos).toBe(0);
+      act(() => { latestHowl()?.emit('end', 0); });
       await waitFor(() =>
         expect(result.current.currentIndex).toBe(1)
       );

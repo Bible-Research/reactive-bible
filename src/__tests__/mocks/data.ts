@@ -134,43 +134,4 @@ export const mockTranslations: Translation[] = [
   },
 ];
 
-// --- Audio URLs ---
-export const mockAudioUrls = {
-  genesis1: 'https://audio.bible.is/ENGKJVO1DA/GEN/1.mp3?Expires=1735689600',
-  john3: 'https://audio.bible.is/ENGKJVN1DA/JHN/3.mp3?Expires=1735689600',
-};
 
-// --- Books (simplified) ---
-export const mockBooks = [
-  { book_id: 'GEN', book_name: 'Genesis' },
-  { book_id: 'EXO', book_name: 'Exodus' },
-  { book_id: 'LEV', book_name: 'Leviticus' },
-  { book_id: 'MAT', book_name: 'Matthew' },
-  { book_id: 'JHN', book_name: 'John' },
-  { book_id: 'REV', book_name: 'Revelation' },
-];
-
-// --- API Response Mocks ---
-export const mockApiResponses = {
-  verses: {
-    success: { verses: mockVerses.slice(0, 3) },
-    empty: { verses: [] },
-    error: { error: 'Failed to fetch verses' },
-  },
-  audio: {
-    success: { audio_url: mockAudioUrls.genesis1 },
-    error: { error: 'Failed to fetch audio' },
-  },
-  translations: {
-    success: mockTranslations,
-    empty: [],
-  },
-  notes: {
-    success: mockNotes,
-    empty: [],
-  },
-  tags: {
-    success: mockTags,
-    empty: [],
-  },
-};
