@@ -30,79 +30,16 @@ import {
   groupRefsByChapter,
   verseNumbersFor,
 } from "../utils/verseRefs";
+import {
+  BIBLE_MAPPER_WEB_URL,
+  buildBibleHubUrl,
+  buildBibleMapperUrl,
+  buildBlbUrl,
+  buildYouVersionUrl,
+  collectSelectedVerseText,
+  faviconUrl,
+} from "../utils/externalLinks";
 
-
-const BOOK_TO_BLB_ABBR: Record<string, string> = {
-  Genesis: "gen",
-  Exodus: "exo",
-  Leviticus: "lev",
-  Numbers: "num",
-  Deuteronomy: "deu",
-  Joshua: "jos",
-  Judges: "jdg",
-  Ruth: "rth",
-  "1 Samuel": "1sa",
-  "2 Samuel": "2sa",
-  "1 Kings": "1ki",
-  "2 Kings": "2ki",
-  "1 Chronicles": "1ch",
-  "2 Chronicles": "2ch",
-  Ezra: "ezr",
-  Nehemiah: "neh",
-  Esther: "est",
-  Job: "job",
-  Psalms: "psa",
-  Proverbs: "pro",
-  Ecclesiastes: "ecc",
-  "Song of Solomon": "sng",
-  Isaiah: "isa",
-  Jeremiah: "jer",
-  Lamentations: "lam",
-  Ezekiel: "eze",
-  Daniel: "dan",
-  Hosea: "hos",
-  Joel: "joe",
-  Amos: "amo",
-  Obadiah: "oba",
-  Jonah: "jon",
-  Micah: "mic",
-  Nahum: "nah",
-  Habakkuk: "hab",
-  Zephaniah: "zep",
-  Haggai: "hag",
-  Zechariah: "zec",
-  Malachi: "mal",
-  Matthew: "mat",
-  Mark: "mar",
-  Luke: "luk",
-  John: "jhn",
-  Acts: "act",
-  Romans: "rom",
-  "1 Corinthians": "1co",
-  "2 Corinthians": "2co",
-  Galatians: "gal",
-  Ephesians: "eph",
-  Philippians: "php",
-  Colossians: "col",
-  "1 Thessalonians": "1th",
-  "2 Thessalonians": "2th",
-  "1 Timothy": "1ti",
-  "2 Timothy": "2ti",
-  Titus: "tit",
-  Philemon: "phm",
-  Hebrews: "heb",
-  James: "jam",
-  "1 Peter": "1pe",
-  "2 Peter": "2pe",
-  "1 John": "1jo",
-  "2 John": "2jo",
-  "3 John": "3jo",
-  Jude: "jde",
-  Revelation: "rev",
-};
-
-const faviconUrl = (domain: string) =>
-  `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
 
 const formatChapterGroup = (group: {
   bookId: string;
@@ -163,10 +100,6 @@ const VerseActionToolbar = () => {
       verses: verseNumbersFor(refs, first.bookId, first.chapter),
     };
   }, [refs]);
-  const primaryBookName = primary
-    ? toBookName(primary.bookId) ?? primary.bookId
-    : null;
-
   const passageRef = useMemo(() => {
     if (refs.length === 0) return "";
     return groupRefsByChapter(refs).map(formatChapterGroup).join("; ");
@@ -181,16 +114,7 @@ const VerseActionToolbar = () => {
     );
     const url = `${window.location.origin}${path}`;
 
-    const verseText = refs
-      .map((r) => {
-        const el = document.querySelector(
-          `[data-verse-scope="${scope}"] ` +
-          `[title="passage-verse-${r.chapter}-${r.verse}"]`
-        );
-        return el?.textContent?.trim() ?? "";
-      })
-      .filter(Boolean)
-      .join(" ");
+    const verseText = collectSelectedVerseText(refs, scope);
 
     const shareBody = verseText
       ? `${verseText}\n\n${passageRef}`
@@ -237,7 +161,7 @@ const VerseActionToolbar = () => {
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
     window.open(
-      "https://biblemapper.com/web/",
+      BIBLE_MAPPER_WEB_URL,
       "_blank",
       "noopener,noreferrer"
     );
@@ -257,55 +181,47 @@ const VerseActionToolbar = () => {
     }
   }, [passageRef]);
 
-  const youVersionUrl = useMemo(() => {
-    if (!primary) return null;
-    const bookCode = primary.bookId;
-    const sorted = primary.verses;
-    const verseStr =
-      sorted.length === 1
-        ? `${sorted[0]}`
-        : `${sorted[0]}-${sorted[sorted.length - 1]}`;
-    return (
-      "https://www.bible.com/bible/compare/" +
-      `${bookCode}.${primary.chapter}.${verseStr}`
-    );
-  }, [primary]);
+  const youVersionUrl = useMemo(
+    () =>
+      primary
+        ? buildYouVersionUrl(
+            primary.bookId,
+            primary.chapter,
+            primary.verses
+          )
+        : null,
+    [primary]
+  );
 
-  const bibleHubUrl = useMemo(() => {
-    if (!primary || !primaryBookName) return null;
-    const verse = primary.verses[primary.verses.length - 1];
-    if (verse == null) return null;
-    const bookPath =
-      primaryBookName === "Song of Solomon"
-        ? "songs"
-        : primaryBookName.toLowerCase().replace(/ /g, "_");
-    return (
-      `https://biblehub.com/${bookPath}/` +
-      `${primary.chapter}-${verse}.htm#commentary`
-    );
-  }, [primary, primaryBookName]);
+  const bibleHubUrl = useMemo(
+    () =>
+      primary
+        ? buildBibleHubUrl(
+            primary.bookId,
+            primary.chapter,
+            primary.verses[primary.verses.length - 1]
+          )
+        : null,
+    [primary]
+  );
 
-  const blbUrl = useMemo(() => {
-    if (!primary || !primaryBookName) return null;
-    const verse = primary.verses[primary.verses.length - 1];
-    const abbr = BOOK_TO_BLB_ABBR[primaryBookName];
-    if (!abbr || verse == null) return null;
-    return (
-      `https://www.blueletterbible.org/kjv/${abbr}/` +
-      `${primary.chapter}/${verse}/`
-    );
-  }, [primary, primaryBookName]);
+  const blbUrl = useMemo(
+    () =>
+      primary
+        ? buildBlbUrl(
+            primary.bookId,
+            primary.chapter,
+            primary.verses[primary.verses.length - 1]
+          )
+        : null,
+    [primary]
+  );
 
-  const mapUrl = useMemo(() => {
-    if (!primary || !primaryBookName) {
-      return "https://biblemapper.com/blog/mapfinder/";
-    }
-    const ref = `${primaryBookName} ${primary.chapter}`;
-    return (
-      "https://biblemapper.com/blog/mapfinder/?ref=" +
-      encodeURIComponent(ref)
-    );
-  }, [primary, primaryBookName]);
+  const mapUrl = useMemo(
+    () => buildBibleMapperUrl(primary?.bookId ?? null,
+      primary?.chapter ?? null),
+    [primary]
+  );
 
   const isVisible = refCount > 0;
   const bottomOffset = showAudioPlayer ? 176 : 56;
@@ -512,6 +428,9 @@ const VerseActionToolbar = () => {
           title="BibleMapper PassageBrowser"
           width="100%"
           height={isMobile ? undefined : "600px"}
+          sandbox="allow-scripts allow-same-origin allow-popups"
+          referrerPolicy="no-referrer"
+          loading="lazy"
           style={{
             border: "none",
             display: "block",
