@@ -267,6 +267,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}
@@ -283,7 +284,7 @@ describe('NoteForm Component', () => {
           await vi.advanceTimersByTimeAsync(5000);
         });
         expect(onAutoSave).toHaveBeenCalledTimes(1);
-        expect(onAutoSave.mock.calls[0][0]).toBe('');
+        expect(onAutoSave.mock.calls[0][0]).toBe('1');
         expectDocText(onAutoSave.mock.calls[0][1], 'Draft text');
 
         // Unchanged content is not re-saved.
@@ -300,10 +301,41 @@ describe('NoteForm Component', () => {
           await vi.advanceTimersByTimeAsync(5000);
         });
         expect(onAutoSave).toHaveBeenCalledTimes(2);
+        expect(onAutoSave.mock.calls[1][0]).toBe('1');
         expectDocText(
           onAutoSave.mock.calls[1][1],
           'Draft text updated'
         );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('skips saving while no tag is selected', async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        // With an empty tag id the API would reject every
+        // write — autosave must not even try.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(15000);
+        });
+        expect(onAutoSave).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
       }
@@ -316,6 +348,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}
@@ -347,6 +380,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}
@@ -401,6 +435,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}
@@ -433,6 +468,67 @@ describe('NoteForm Component', () => {
       }
     });
 
+    it('flushes the unsaved tail on unmount', async () => {
+      const onAutoSave = vi.fn().mockResolvedValue(undefined);
+      const onUnmountedSave = vi.fn();
+      const { unmount } = render(
+        <NoteForm
+          tags={mockTags}
+          note={{ tagId: '1', text: '' }}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+          onAutoSave={onAutoSave}
+          onUnmountedSave={onUnmountedSave}
+        />
+      );
+
+      fireEvent.change(screen.getByLabelText('Note'), {
+        target: { value: 'Typed then closed quickly' },
+      });
+      fireEvent.click(screen.getByLabelText('Auto save'));
+
+      // Closing inside the 5s window must not drop the text.
+      unmount();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(onAutoSave.mock.calls[0][0]).toBe('1');
+      expectDocText(
+        onAutoSave.mock.calls[0][1],
+        'Typed then closed quickly'
+      );
+      expect(onUnmountedSave).toHaveBeenCalled();
+    });
+
+    it('does not flush on unmount when auto save is off',
+      async () => {
+      const onAutoSave = vi.fn().mockResolvedValue(undefined);
+      const onUnmountedSave = vi.fn();
+      const { unmount } = render(
+        <NoteForm
+          tags={mockTags}
+          note={{ tagId: '1', text: '' }}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+          onAutoSave={onAutoSave}
+          onUnmountedSave={onUnmountedSave}
+        />
+      );
+
+      fireEvent.change(screen.getByLabelText('Note'), {
+        target: { value: 'Typed then closed' },
+      });
+
+      unmount();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(onAutoSave).not.toHaveBeenCalled();
+      expect(onUnmountedSave).not.toHaveBeenCalled();
+    });
+
     it('stops saving when the checkbox is unchecked',
       async () => {
       vi.useFakeTimers();
@@ -441,6 +537,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}

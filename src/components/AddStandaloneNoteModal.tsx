@@ -1,8 +1,8 @@
 import { Modal } from "@mantine/core";
-import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
-import { clearNotesCache } from "../utils/cacheManager";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { useNoteEditor } from "../hooks/useNoteEditor";
+import type { NoteVerseReference } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
 import { shallow } from "zustand/shallow";
 
@@ -10,6 +10,10 @@ interface AddStandaloneNoteModalProps {
   opened: boolean;
   onClose: () => void;
 }
+
+// A standalone note links no verses — the payload shape stays
+// stable so the editor hook's dep-driven render is cheap.
+const NO_REFERENCES: NoteVerseReference[] = [];
 
 const AddStandaloneNoteModal = ({
   opened,
@@ -27,55 +31,55 @@ const AddStandaloneNoteModal = ({
     setLastSelectedTagId: state.setLastSelectedTagId,
   }), shallow);
 
-  // Once autosave creates the note, later saves (and Submit)
-  // must PATCH that note instead of POSTing duplicates.
-  const savedNoteIdRef = useRef<string | null>(null);
-
   useEffect(() => {
     if (opened) {
-      getTags();
-      savedNoteIdRef.current = null;
+      // A rejection already produced a store notification —
+      // swallow it so it stays off the global error reporter.
+      void getTags().catch(() => {
+        /* notified by the store */
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]);
 
-  const handleAutoSave = async (tagId: string, text: string) => {
-    if (savedNoteIdRef.current) {
-      await editNote(savedNoteIdRef.current, tagId, text);
-    } else {
-      const created = await addTagNote(tagId, text, []);
-      savedNoteIdRef.current = created?.id ?? null;
-    }
-    // The cached notes pages are stale once a note is created
-    // or edited — a later fetchNotes must hit the API.
-    clearNotesCache();
-  };
-
-  const handleSubmit = async (tagId: string, text: string) => {
-    try {
-      // Shares savedNoteIdRef with autosave: an existing draft is
-      // PATCHed, and a note created by submit is recorded so a
-      // late autosave tick PATCHes instead of POSTing a duplicate.
-      await handleAutoSave(tagId, text);
+  const editor = useNoteEditor({
+    mode: "create",
+    draftKey: "standalone-note",
+    verseReferences: NO_REFERENCES,
+    onSubmitted: (tagId) => {
       setLastSelectedTagId(tagId || null);
       onClose();
-    } catch (error) {
-      console.error(error);
-    }
-  };
+    },
+  });
 
   return (
     <Modal opened={opened} onClose={onClose} title="New note" fullScreen>
       <NoteForm
         tags={tags}
-        onSubmit={handleSubmit}
+        onSubmit={editor.submit}
         submitText="Submit"
-        onTagDropdownOpen={() => getTags()}
-        onAutoSave={handleAutoSave}
+        onTagDropdownOpen={() => {
+          void getTags().catch(() => {
+            /* notified by the store */
+          });
+        }}
+        onAutoSave={editor.save}
+        onDraftChange={editor.trackDraft}
         note={
-          lastSelectedTagId
-            ? { tagId: lastSelectedTagId, text: "" }
-            : undefined
+          // Gate on draft content, not just savedNoteId: while
+          // the unmount flush's POST is still in flight the id
+          // is null but the typed text is already tracked —
+          // keying on the id alone would reopen a blank form.
+          editor.draft &&
+          (editor.draft.savedNoteId || editor.draft.text)
+            ? {
+                tagId:
+                  editor.draft.tagId || lastSelectedTagId || "",
+                text: editor.draft.text,
+              }
+            : lastSelectedTagId
+              ? { tagId: lastSelectedTagId, text: "" }
+              : undefined
         }
       />
     </Modal>

@@ -16,6 +16,7 @@ import {
 } from 'vitest';
 import { useState } from 'react';
 import AddTagNoteModal from './AddTagNoteModal';
+import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -43,6 +44,9 @@ vi.mock('./RichTextEditor', async () => ({
 describe('AddTagNoteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drafts live outside the component — reset them or a
+    // previous test's autosaved note would resume here.
+    resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
       { id: '1', name: 'Faith', parent_tag: null,
@@ -330,6 +334,9 @@ describe('AddTagNoteModal Component', () => {
             verseSelection: genesisSelection,
             activeBookId: 'GEN',
             activeChapter: 1,
+            // A selected tag is required — autosave skips
+            // tagless drafts instead of POSTing `tag: ''`.
+            lastSelectedTagId: '1',
           },
         }
       );
@@ -363,12 +370,87 @@ describe('AddTagNoteModal Component', () => {
       });
       const patchArgs = (api.editNote as Mock).mock.calls[0];
       expect(patchArgs[0]).toBe('n1');
-      expect(patchArgs[1]).toBe('');
+      expect(patchArgs[1]).toBe('1');
       // The editor emits doc-JSON, not the raw typed text.
       expect(isTiptapDocString(patchArgs[2])).toBe(true);
       expect(toPlainText(patchArgs[2])).toBe('Draft');
+      // Edit-mode saves carry the picker's current refs.
+      expect(patchArgs[3]).toEqual([
+        { book: 'Genesis', chapter: 1, verse: 1 },
+        { book: 'Genesis', chapter: 1, verse: 2 },
+      ]);
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
+
+  it('reopening after autosave PATCHes the draft instead ' +
+    'of POSTing a duplicate', async () => {
+    // Mantine unmounts the form on close — the editor draft
+    // carries the autosaved note id across the remount.
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n-draft' });
+    (api.editNote as Mock).mockResolvedValue({});
+
+    const overrides = {
+      verseSelection: genesisSelection,
+      activeBookId: 'GEN',
+      activeChapter: 1,
+      lastSelectedTagId: '1',
+    };
+
+    const { unmount } = renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      { storeOverrides: overrides }
+    );
+
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, { target: { value: 'Draft' } });
+    // Fake timers must be installed before the Auto save
+    // click — the interval registers on whichever clock is
+    // active.
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByLabelText('Auto save'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(api.addTagNote).toHaveBeenCalledTimes(1);
+
+    // Closing unmounts the form; the unmount flush may PATCH
+    // the latest text behind the draft's save queue.
+    unmount();
+
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      { storeOverrides: overrides }
+    );
+
+    // The form restores the draft instead of starting blank.
+    await waitFor(() => {
+      expect(
+        (screen.getByLabelText('Note') as HTMLTextAreaElement)
+          .value
+      ).toBe('Draft');
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByLabelText('Auto save'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // Still exactly one POST — every later write PATCHes.
+    expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    expect(api.editNote).toHaveBeenCalled();
+    expect(
+      vi.mocked(api.editNote).mock.calls[0][0]
+    ).toBe('n-draft');
+  });
 
   // Stateful host so `onClose` actually closes the modal —
   // the old notes-workflow integration test asserted this.
@@ -402,6 +484,7 @@ describe('AddTagNoteModal Component', () => {
           verseSelection: genesisSelection,
           activeBookId: 'GEN',
           activeChapter: 1,
+          lastSelectedTagId: '1',
         },
       }
     );
@@ -413,7 +496,7 @@ describe('AddTagNoteModal Component', () => {
     });
     const [tagId, text, refs] =
       (api.addTagNote as Mock).mock.calls[0];
-    expect(tagId).toBe('');
+    expect(tagId).toBe('1');
     expect(isTiptapDocString(text)).toBe(true);
     expect(toPlainText(text)).toBe('A test note');
     expect(refs).toEqual([
@@ -432,6 +515,7 @@ describe('AddTagNoteModal Component', () => {
         verseSelection: genesisSelection,
         activeBookId: 'GEN',
         activeChapter: 1,
+        lastSelectedTagId: '1',
       },
     });
 
@@ -447,13 +531,10 @@ describe('AddTagNoteModal Component', () => {
     expect(useBibleStore.getState().verseSelection).toBeNull();
   });
 
-  // FIXME: reopening the modal orphans the autosaved draft on
-  // the server — `savedNoteIdRef` resets in the `opened` effect
-  // (AddTagNoteModal.tsx) so the next autosave POSTs a second
-  // note instead of PATCHing the existing one. The fix (delete
-  // the draft on close, or persist/resume its id across reopen)
-  // is a product decision exceeding a ~30-line test-only fix.
-  it.skip('PATCHes the autosaved draft instead of POSTing a ' +
+  // The useNoteEditor drafts map persists the autosaved note id
+  // across modal unmounts, so a reopen resumes the draft and
+  // PATCHes it instead of POSTing a second note.
+  it('PATCHes the autosaved draft instead of POSTing a ' +
     'second note when reopened mid-session', async () => {
       (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
       (api.editNote as Mock).mockResolvedValue({});
@@ -465,6 +546,8 @@ describe('AddTagNoteModal Component', () => {
             verseSelection: genesisSelection,
             activeBookId: 'GEN',
             activeChapter: 1,
+            // Autosave skips tagless drafts.
+            lastSelectedTagId: '1',
           },
         }
       );
