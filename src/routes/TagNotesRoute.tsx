@@ -4,7 +4,6 @@ import {
   useEffect,
   useState,
   useCallback,
-  useMemo,
   useRef,
 } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
@@ -32,7 +31,6 @@ import {
   Note,
   Tag,
   CommentCounts,
-  NoteOrderIndexEntry,
 } from '../types';
 import TagSection from '../components/TagSection';
 import Pagination from '../components/Pagination';
@@ -40,7 +38,6 @@ import { useBibleStore } from '../store';
 import {
   getTag,
   fetchCommentCounts,
-  getNoteOrderIndex,
   UNTAGGED_TAG_ID,
 } from '../api';
 import { useAuthStore } from '../stores/authStore';
@@ -56,34 +53,13 @@ import {
 } from '../utils/noteSorting';
 import { buildNotePlaylistItems } from '../utils/notePlaylist';
 import { verseDomId } from '../utils/verseRefs';
+import { useNoteOrderMenu } from '../hooks/useNoteOrderMenu';
 
 // Lazy + gated below on isEditModalOpen — the modal pulls in
 // TipTap, which should not ship with the route chunk.
 const EditNoteModal = lazy(
   () => import('../components/EditNoteModal')
 );
-
-/** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
- *  notes. `k` is the canonical 1-based order ID. */
-const entryLabel = (
-  entry: NoteOrderIndexEntry,
-  orderId: number
-): string => {
-  const idPart = `#${orderId}`;
-  if (
-    !entry.book ||
-    entry.chapter === null ||
-    entry.verse_start === null
-  ) {
-    return `${idPart} — no passage`;
-  }
-  const range =
-    entry.verse_end !== null &&
-    entry.verse_end !== entry.verse_start
-      ? `${entry.verse_start}-${entry.verse_end}`
-      : `${entry.verse_start}`;
-  return `${idPart} — ${entry.book} ${entry.chapter}:${range}`;
-};
 
 export default function TagNotesRoute() {
   const { tagId } = useParams<{ tagId: string }>();
@@ -101,11 +77,7 @@ export default function TagNotesRoute() {
   const storedTags = useBibleStore((state) => state.tags);
   const fetchNotes = useBibleStore((state) => state.fetchNotes);
   const getTags = useBibleStore((state) => state.getTags);
-  const reorderNotes = useBibleStore((state) => state.reorderNotes);
   const deleteNote = useBibleStore((state) => state.deleteNote);
-  const moveNoteAfter = useBibleStore(
-    (state) => state.moveNoteAfter
-  );
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
@@ -157,16 +129,6 @@ export default function TagNotesRoute() {
   const [error, setError] = useState<string | null>(null);
   const [commentCounts, setCommentCounts] =
     useState<CommentCounts>({});
-  // Compact index of every note in the tag, in canonical
-  // ascending order. Derived data — deliberately kept out of
-  // the persisted store — that powers the order-ID badges and
-  // the move dropdown.
-  const [orderIndex, setOrderIndex] =
-    useState<NoteOrderIndexEntry[] | null>(null);
-  // Latest-call-wins guard for `loadOrderIndex`: overlapping
-  // fetches (rapid moves, tag switch mid-flight) must not
-  // apply out of order.
-  const orderIndexRequestRef = useRef(0);
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
@@ -314,176 +276,20 @@ export default function TagNotesRoute() {
     isUntagged,
   ]);
 
-  // The order badge/menu is gated exactly like `isDraggable`:
-  // custom sort + authenticated.
-  const orderMenuEnabled =
-    (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
-    isAuthenticated &&
-    !isUntagged;
-
-  const loadOrderIndex = useCallback(async () => {
-    if (!tagId) return;
-    const requestId = ++orderIndexRequestRef.current;
-    try {
-      const entries = await getNoteOrderIndex(tagId);
-      // A stale response (a newer fetch already started, or
-      // the tag/sort changed) is dropped — latest wins.
-      if (requestId === orderIndexRequestRef.current) {
-        setOrderIndex(entries);
-      }
-    } catch (err) {
-      // A missing/failed endpoint leaves the index null so the
-      // badge stays hidden — the rest of the page still works.
-      console.error('Error loading note order index:', err);
-    }
-  }, [tagId]);
-
-  // Fetch the index once a custom sort + auth is active; it
-  // covers every note in the tag, not just the current page.
-  // Refetched after every move via the handlers below.
-  useEffect(() => {
-    if (orderMenuEnabled) {
-      loadOrderIndex();
-    } else {
-      // Invalidate any in-flight fetch before clearing.
-      orderIndexRequestRef.current += 1;
-      setOrderIndex(null);
-    }
-  }, [orderMenuEnabled, loadOrderIndex]);
-
-  // Order ID = 1-based rank in canonical ascending order —
-  // identical IDs in both custom sort directions.
-  const orderIdByNoteId = useMemo(() => {
-    const map = new Map<string, number>();
-    orderIndex?.forEach((entry, index) => {
-      map.set(entry.id, index + 1);
-    });
-    return map;
-  }, [orderIndex]);
-
-  // Display-order "after" translates to canonical placement:
-  // in custom_desc visual after = canonical before.
-  const handleMoveAfter = useCallback(
-    async (noteId: string, targetNoteId: string) => {
-      if (!tagId) return;
-      try {
-        await moveNoteAfter(
-          tagId,
-          noteId,
-          targetNoteId,
-          sortOrder === 'custom_desc' ? 'before' : 'after'
-        );
-      } catch {
-        // The store action already showed a notification.
-      } finally {
-        await loadOrderIndex();
-      }
-    },
-    [tagId, sortOrder, moveNoteAfter, loadOrderIndex]
-  );
-
-  const handleMoveToTop = useCallback(
-    async (noteId: string) => {
-      if (!tagId || !orderIndex || orderIndex.length === 0) {
-        return;
-      }
-      // Visual top is the canonical first entry ascending but
-      // the canonical last entry descending.
-      const descending = sortOrder === 'custom_desc';
-      const target = descending
-        ? orderIndex[orderIndex.length - 1]
-        : orderIndex[0];
-      try {
-        await moveNoteAfter(
-          tagId,
-          noteId,
-          target.id,
-          descending ? 'after' : 'before'
-        );
-      } catch {
-        // The store action already showed a notification.
-      } finally {
-        await loadOrderIndex();
-      }
-    },
-    [
-      tagId,
-      sortOrder,
-      orderIndex,
-      moveNoteAfter,
-      loadOrderIndex,
-    ]
-  );
-
-  // A drag-reorder must re-pull the order index once the store
-  // action settles — otherwise badges, topOrderId and the menu
-  // labels keep their pre-drag values (and Move-to-top can aim
-  // at an entry that is no longer canonical-first).
-  const handleReorder = useCallback(
-    async (
-      reorderTagId: string,
-      noteIds: string[],
-      currentPage: number,
-      pageSize: number
-    ) => {
-      try {
-        await reorderNotes(
-          reorderTagId,
-          noteIds,
-          currentPage,
-          pageSize
-        );
-      } catch {
-        // The store action already showed a notification.
-      } finally {
-        await loadOrderIndex();
-      }
-    },
-    [reorderNotes, loadOrderIndex]
-  );
-
-  const orderMenu = useMemo(
-    () =>
-      orderMenuEnabled && orderIndex
-        ? {
-            // Labels are computed once here so ~100 mounted
-            // menus share them instead of each re-mapping the
-            // full index on every render. Under custom_desc the
-            // page displays the index reversed, so the picker
-            // lists entries in that same visual order.
-            labeledEntries: (
-              sortOrder === 'custom_desc'
-                ? [...orderIndex].reverse()
-                : orderIndex
-            ).map((entry) => ({
-              entry,
-              // Built from this same array, so every entry
-              // is guaranteed an order ID.
-              label: entryLabel(
-                entry,
-                orderIdByNoteId.get(entry.id) as number
-              ),
-            })),
-            orderIdByNoteId,
-            // Visual top is canonical #1 ascending but the
-            // highest order ID descending.
-            topOrderId:
-              sortOrder === 'custom_desc'
-                ? orderIndex.length
-                : 1,
-            onMoveAfter: handleMoveAfter,
-            onMoveToTop: handleMoveToTop,
-          }
-        : undefined,
-    [
-      orderMenuEnabled,
-      orderIndex,
-      orderIdByNoteId,
-      sortOrder,
-      handleMoveAfter,
-      handleMoveToTop,
-    ]
-  );
+  // Order badges/menus + drag-reorder — enabled and resynced
+  // via the shared hook (custom sort + auth + owned notes).
+  const {
+    enabled: orderMenuEnabled,
+    orderMenu,
+    reloadOrderIndex: loadOrderIndex,
+    handleReorder,
+  } = useNoteOrderMenu({
+    tagId,
+    sortOrder,
+    isAuthenticated,
+    isUntagged,
+    notes,
+  });
 
   const handleEditNote = (note: Note) => {
     setNoteToEdit(note);
@@ -502,8 +308,8 @@ export default function TagNotesRoute() {
     deletingRef.current = true;
     try {
       try {
-        // The store action drops the card from state as soon as
-        // the DELETE resolves, so the list updates without
+        // The store action drops the card from state as soon
+        // as the DELETE resolves, so the list updates without
         // waiting for the page refetch below.
         await deleteNote(note.id);
       } catch {
@@ -983,12 +789,7 @@ export default function TagNotesRoute() {
               onPlayFromNote={handlePlayFromNote}
               commentCounts={commentCounts}
               onCountChange={handleCountChange}
-              isDraggable={
-                (sortOrder === 'custom_asc' ||
-                  sortOrder === 'custom_desc') &&
-                isAuthenticated &&
-                !isUntagged
-              }
+              isDraggable={orderMenuEnabled}
               tagId={tagId || ''}
               onReorder={handleReorder}
               sortOrder={sortOrder}
