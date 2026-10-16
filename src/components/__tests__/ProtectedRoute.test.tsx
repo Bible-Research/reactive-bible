@@ -12,7 +12,7 @@ vi.mock('react-router-dom', async () => {
   >('react-router-dom');
   return {
     ...actual,
-    Navigate: ({ to, state }: any) => {
+    Navigate: ({ to, state }: { to: string; state?: unknown }) => {
       mockNavigate(to, state);
       return <div data-testid="navigate-mock">Redirecting to {to}</div>;
     },

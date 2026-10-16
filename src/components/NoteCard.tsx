@@ -10,7 +10,6 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { showNotification } from "@mantine/notifications";
 import {
   IconMessageCircle,
   IconPlayerPlay,
@@ -29,6 +28,7 @@ import SectionHeadingComponent from "./SectionHeading";
 import ScripturePassage from "./ScripturePassage";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
+import { shareOrCopyLink } from "../utils/share";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import {
   isSameScriptureRef,
@@ -124,9 +124,12 @@ const NoteCard = ({
   const canEdit = (note.is_owner !== false) && !!onEdit;
   const canDelete = (note.is_owner !== false) && !!onDelete;
   const canShare = note.public;
+  // Verse-less notes never enter the audio playlist
+  // (buildNotePlaylistItems filters them out), so clicking
+  // "play from here" would silently no-op — disable instead.
+  const canPlay = (note.verses?.length ?? 0) > 0;
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/notes/${note.id}`;
     const title = note.tag?.name
       ? `Note: ${note.tag.name}`
       : 'Shared note';
@@ -134,26 +137,22 @@ const NoteCard = ({
       ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-        console.error('Error sharing:', err);
+    await shareOrCopyLink(
+      {
+        title,
+        text,
+        url: `${window.location.origin}/notes/${note.id}`,
+      },
+      {
+        copySuccess: {
+          title: 'Link Copied!',
+          message: 'Note link copied to clipboard',
+        },
+        // A failed share sheet retries through the clipboard
+        // rather than silently dropping the share.
+        clipboardOnShareError: true,
       }
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
-      showNotification({
-        title: 'Link Copied!',
-        message: 'Note link copied to clipboard',
-        color: 'blue',
-      });
-    } catch (err) {
-      console.error('Error copying to clipboard:', err);
-    }
+    );
   };
 
   // commentCount is undefined on the detail route, which renders
@@ -199,7 +198,7 @@ const NoteCard = ({
           <Title 
             order={4} 
             className="note-card-heading"
-            ref={dragHandleProps?.ref as any}
+            ref={dragHandleProps?.ref}
             {...(dragHandleProps ? Object.fromEntries(
               Object.entries(dragHandleProps).filter(([key]) => key !== 'ref')
             ) : {})}
@@ -243,12 +242,20 @@ const NoteCard = ({
                 </Tooltip>
               )}
               {onPlayFromNote && (
-                <Tooltip label="Play from here" position="top">
+                <Tooltip
+                  label={
+                    canPlay
+                      ? 'Play from here'
+                      : 'No verses to play'
+                  }
+                  position="top"
+                >
                   <Box component="span" sx={{ display: 'inline-block' }}>
                     <ActionIcon
                       variant="subtle"
                       size="sm"
                       color="blue"
+                      disabled={!canPlay}
                       onClick={() => onPlayFromNote(note.id)}
                       aria-label={`play-from-${note.id}`}
                     >
@@ -263,7 +270,7 @@ const NoteCard = ({
                     <ActionIcon
                       variant="subtle"
                       size="sm"
-                      onClick={() => onEdit!(note)}
+                      onClick={() => onEdit?.(note)}
                       aria-label="edit-note"
                     >
                       <IconEdit size={16} />
@@ -280,7 +287,7 @@ const NoteCard = ({
                       color="red"
                       onClick={
                         (evt: MouseEvent<HTMLButtonElement>) =>
-                          onDelete!(evt, note)
+                          onDelete?.(evt, note)
                       }
                       aria-label="remove-note"
                     >
@@ -366,12 +373,18 @@ const NoteCard = ({
               </Tooltip>
             )}
             {onPlayFromNote && (
-              <Tooltip label="Play from here" position="top">
+              <Tooltip
+                label={
+                  canPlay ? 'Play from here' : 'No verses to play'
+                }
+                position="top"
+              >
                 <Box component="span" sx={{ display: 'inline-block' }}>
                   <ActionIcon
                     variant="subtle"
                     size="sm"
                     color="blue"
+                    disabled={!canPlay}
                     onClick={() => onPlayFromNote(note.id)}
                     aria-label={`play-from-${note.id}`}
                   >
@@ -386,7 +399,7 @@ const NoteCard = ({
                   <ActionIcon
                     variant="subtle"
                     size="sm"
-                    onClick={() => onEdit!(note)}
+                    onClick={() => onEdit?.(note)}
                     aria-label="edit-note"
                   >
                     <IconEdit size={16} />
@@ -403,7 +416,7 @@ const NoteCard = ({
                     color="red"
                     onClick={
                       (evt: MouseEvent<HTMLButtonElement>) =>
-                        onDelete!(evt, note)
+                        onDelete?.(evt, note)
                     }
                     aria-label="remove-note"
                   >
