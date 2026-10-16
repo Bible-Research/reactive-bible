@@ -12,13 +12,13 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconShare } from '@tabler/icons-react';
-import { showNotification } from '@mantine/notifications';
 import { Note } from '../types';
 import NoteCard from '../components/NoteCard';
 import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
 import { toPlainText } from '../utils/tiptapContent';
 import { buildBiblePath } from '../utils/bibleUtils';
+import { shareOrCopyLink } from '../utils/share';
 import { useBibleStore } from '../store';
 
 /**
@@ -74,7 +74,6 @@ export default function NoteDetailRoute() {
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
     const title = note?.tag?.name
       ? `Note: ${note.tag.name}`
       : 'Shared note';
@@ -82,27 +81,15 @@ export default function NoteDetailRoute() {
       ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Error sharing:', err);
-        }
+    await shareOrCopyLink(
+      { title, text, url: window.location.href },
+      {
+        copySuccess: {
+          title: 'Link Copied!',
+          message: 'Note link copied to clipboard',
+        },
       }
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(url);
-      showNotification({
-        title: 'Link Copied!',
-        message: 'Note link copied to clipboard',
-        color: 'blue',
-      });
-    } catch (err) {
-      console.error('Error copying to clipboard:', err);
-    }
+    );
   };
 
   if (loading) {

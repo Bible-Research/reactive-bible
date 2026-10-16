@@ -1,8 +1,10 @@
 import { Modal } from "@mantine/core";
 import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
+import { clearNotesCache } from "../utils/cacheManager";
 import { useEffect, useRef } from "react";
 import NoteForm from "./NoteForm";
+import { shallow } from "zustand/shallow";
 
 interface AddStandaloneNoteModalProps {
   opened: boolean;
@@ -23,7 +25,7 @@ const AddStandaloneNoteModal = ({
     getTags: state.getTags,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
-  }));
+  }), shallow);
 
   // Once autosave creates the note, later saves (and Submit)
   // must PATCH that note instead of POSTing duplicates.
@@ -40,10 +42,13 @@ const AddStandaloneNoteModal = ({
   const handleAutoSave = async (tagId: string, text: string) => {
     if (savedNoteIdRef.current) {
       await editNote(savedNoteIdRef.current, tagId, text);
-      return;
+    } else {
+      const created = await addTagNote(tagId, text, []);
+      savedNoteIdRef.current = created?.id ?? null;
     }
-    const created = await addTagNote(tagId, text, []);
-    savedNoteIdRef.current = created?.id ?? null;
+    // The cached notes pages are stale once a note is created
+    // or edited — a later fetchNotes must hit the API.
+    clearNotesCache();
   };
 
   const handleSubmit = async (tagId: string, text: string) => {

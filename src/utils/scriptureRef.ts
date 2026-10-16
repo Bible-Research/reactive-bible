@@ -1,4 +1,6 @@
-import { getBooks } from '../api';
+// Leaf import: keeps the network/cache barrel out of pure ref
+// parsing (bundle-split friendly).
+import { getBooks } from '../api/structure';
 import { findVersesInBetween } from './findVersesInBetween';
 
 export interface ScriptureRef {
