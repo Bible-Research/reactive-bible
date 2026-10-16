@@ -50,6 +50,16 @@ export interface NoteEditorDraft {
 // another account's session on the same device.
 const drafts = new Map<string, NoteEditorDraft>();
 
+// Drafts are keyed by the session token — a token change
+// (logout, or a different account logging in) makes every
+// stored entry unreachable, so drop them instead of letting
+// the Map accumulate abandoned drafts for the rest of the
+// page session. In-flight saves are unaffected: their queue
+// closures hold direct references to the draft objects.
+useAuthStore.subscribe((state, prev) => {
+  if (state.token !== prev.token) drafts.clear();
+});
+
 /**
  * Test helper: forgets every draft. Suites share this module,
  * so drafts persist between tests unless reset.
@@ -275,7 +285,11 @@ export const useNoteEditor = ({
         return false;
       }
       try {
-        await save(tagId, text);
+        const saved = await save(tagId, text);
+        // save() declined the write (no draft slot to persist
+        // into) — nothing reached the server, so do not
+        // refresh, drop the draft, or report a submit.
+        if (!saved) return false;
         if (mode === 'edit') {
           // Refresh the tag the route displays (the note's
           // own), not the select value — a moved note belongs
