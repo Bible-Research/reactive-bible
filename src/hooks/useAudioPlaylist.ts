@@ -16,10 +16,9 @@ import {
 } from '../utils/bibleUtils';
 import {
   findTranslationByFilesetId,
-  preferTimestampedAudio,
-  resolveAudioFileset,
   resolveTextFileset,
 } from '../utils/filesetGroups';
+import { orderedAudioCandidates } from '../utils/audioCandidates';
 import { useVerseHighlighter } from './useVerseHighlighter';
 import {
   disposeHowl,
@@ -126,32 +125,15 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       }
 
       const itemBookName = toBookName(item.bookId) ?? item.bookId;
-      const resolved = activeAudioFilesetId
-        ? resolveAudioFileset(
-            activeAudioFilesetId,
-            item.bookId,
-            translations,
-          )
-        : null;
-      // Ordered candidates: resolved primary, then codec sibling,
-      // other-testament member, and the translation's remaining
-      // audio options. A timestamp-backed sibling recording
-      // (TIMESTAMP_BACKED_AUDIO, e.g. ENGESHO1DA -> ENGESVO1DA)
-      // leads when one exists — verse timestamps only match the
-      // recording they were generated from, and swapping the
-      // recording is what lets a verse-ranged item seek to the
-      // linked verse and stop after it. The resolved id stays
-      // in the list as a load/decode fallback.
-      const candidates = (() => {
-        if (!resolved) return [];
-        const primary = preferTimestampedAudio(
-          resolved.filesetId,
-          translations,
-        );
-        const rest = [...resolved.alternates, resolved.filesetId]
-          .filter((id) => id !== primary);
-        return [primary, ...rest];
-      })();
+      // Ordered candidates: timestamp-backed sibling recording,
+      // then resolved primary, codec sibling, other-testament
+      // member, and the translation's remaining audio options —
+      // see orderedAudioCandidates.
+      const candidates = orderedAudioCandidates(
+        activeAudioFilesetId,
+        item.bookId,
+        translations,
+      );
       const translationName =
         findTranslationByFilesetId(
           activeAudioFilesetId,
@@ -164,20 +146,15 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       const prefetchNext = (i: number) => {
         const next = allItems[i + 1];
         if (!next || !activeAudioFilesetId) return;
-        const nextResolved = resolveAudioFileset(
-          activeAudioFilesetId,
-          next.bookId,
-          translations,
-        );
         // Same timestamp-backed substitution as the playing
         // item so the prefetched URL/timestamps match what will
         // actually be loaded.
-        const nextFilesetId = nextResolved
-          ? preferTimestampedAudio(
-              nextResolved.filesetId,
-              translations,
-            )
-          : activeAudioFilesetId;
+        const nextFilesetId =
+          orderedAudioCandidates(
+            activeAudioFilesetId,
+            next.bookId,
+            translations,
+          )[0] ?? activeAudioFilesetId;
         if (nextFilesetId !== 'ENGKJV') {
           getBibleAudioUrl(
             next.bookId,
