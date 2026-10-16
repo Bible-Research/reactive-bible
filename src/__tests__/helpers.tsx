@@ -1,5 +1,5 @@
 import React, { ReactElement } from 'react';
-import { render, RenderOptions, waitFor } from '@testing-library/react';
+import { render, RenderOptions } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import {
@@ -129,29 +129,6 @@ export function mockDomApis() {
   global.URL.revokeObjectURL = vi.fn();
 }
 
-/**
- * Creates a mock localStorage implementation.
- */
-export function createMockLocalStorage() {
-  let store: Record<string, string> = {};
-  return {
-    getItem: vi.fn((key: string) => store[key] || null),
-    setItem: vi.fn((key: string, value: string) => {
-      store[key] = value.toString();
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: vi.fn(() => {
-      store = {};
-    }),
-    get length() {
-      return Object.keys(store).length;
-    },
-    key: vi.fn((index: number) => Object.keys(store)[index] || null),
-  };
-}
-
 // --- Render Helpers ---
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'wrapper'> {
@@ -207,75 +184,4 @@ export function renderWithProviders(
   };
 }
 
-// --- Async Helpers ---
 
-/**
- * Waits for all pending state updates to complete.
- * Use this to avoid act() warnings when components have async effects.
- */
-export async function waitForLoadingToFinish() {
-  await waitFor(
-    () => {
-      // Check for common loading indicators
-      const loadingElements = document.querySelectorAll(
-        '[aria-label="loading"], [data-loading="true"]'
-      );
-      if (loadingElements.length > 0) {
-        throw new Error('Still loading');
-      }
-    },
-    { timeout: 3000 }
-  );
-}
-
-/**
- * Flushes all pending promises and timers.
- * Useful for ensuring all async operations complete.
- */
-export async function flushPromises() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-/**
- * Wraps an async operation to suppress act() warnings.
- * Use when you need to wait for state updates in tests.
- */
-export async function actAsync(callback: () => Promise<void>) {
-  const { act } = await import('@testing-library/react');
-  await act(async () => {
-    await callback();
-    await flushPromises();
-  });
-}
-
-// --- Fetch Mocks ---
-
-/**
- * Creates a mock fetch function that returns the specified response.
- */
-export function createMockFetch(response: unknown, ok = true) {
-  return vi.fn().mockResolvedValue({
-    ok,
-    json: () => Promise.resolve(response),
-    statusText: ok ? 'OK' : 'Error',
-  });
-}
-
-/**
- * Creates a mock fetch that fails with the specified error.
- */
-export function createMockFetchError(errorMessage: string) {
-  return vi.fn().mockRejectedValue(new Error(errorMessage));
-}
-
-// --- Cleanup Helpers ---
-
-/**
- * Cleans up all mocks and resets the store.
- * Call this in afterEach() for thorough cleanup.
- */
-export function cleanupTestEnvironment() {
-  vi.clearAllMocks();
-  vi.restoreAllMocks();
-  useBibleStore.setState(initialState);
-}

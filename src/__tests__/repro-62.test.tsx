@@ -24,89 +24,14 @@ import type { PlaylistItem } from '../types';
  *    current verse finished.
  */
 
-type Handler = (id?: number, msg?: unknown) => void;
+import { FakeHowl } from './mocks/FakeHowl';
 
-const FakeHowl = vi.hoisted(() => class FakeHowlImpl {
-  static instances: FakeHowlImpl[] = [];
-  _handlers: Record<string, Handler[]> = {};
-  _onceHandlers: Record<string, Handler[]> = {};
-  _opts: Record<string, unknown>;
-  _state = 'loaded';
-  _playing = false;
-  stopped = false;
-  unloaded = false;
-  played = false;
-  src: string;
-
-  constructor(opts: Record<string, unknown>) {
-    this._opts = opts;
-    this.src = (opts.src as string[])[0];
-    FakeHowl.instances.push(this);
-  }
-  emit(event: string, id = 0) {
-    (this._handlers[event] ?? []).forEach((fn) => fn(id));
-    (this._onceHandlers[event] ?? []).forEach((fn) => fn(id));
-    this._onceHandlers[event] = [];
-    const opt = this._opts[`on${event}`] as Handler | undefined;
-    opt?.(id);
-  }
-  on(event: string, fn: Handler) {
-    (this._handlers[event] ??= []).push(fn);
-    return this;
-  }
-  once(event: string, fn: Handler) {
-    (this._onceHandlers[event] ??= []).push(fn);
-    return this;
-  }
-  off() {
-    return this;
-  }
-  play() {
-    this.played = true;
-    this._playing = true;
-    this.emit('play');
-    return 1;
-  }
-  pause() {
-    this._playing = false;
-    this.emit('pause');
-    return this;
-  }
-  stop() {
-    this.stopped = true;
-    this._playing = false;
-    this.emit('stop');
-    return this;
-  }
-  unload() {
-    if (this._playing) this.stop();
-    this.unloaded = true;
-    this._state = 'unloaded';
-    return null;
-  }
-  seek(v?: number) {
-    return v === undefined ? 0 : this;
-  }
-  duration() {
-    return 100;
-  }
-  loop() {
-    return this;
-  }
-  playing() {
-    return this._playing;
-  }
-  volume() {
-    return this;
-  }
-  state() {
-    return this._state;
-  }
+// Shared faithful Howl fake — instances reachable via
+// FakeHowl.instances; play/stop/unload are vi.fn()s.
+vi.mock('howler', async () => {
+  const { FakeHowl } = await import('./mocks/FakeHowl');
+  return { Howl: FakeHowl };
 });
-
-vi.mock('howler', () => ({
-  Howl: FakeHowl,
-}));
 
 vi.mock('../hooks/useMediaSession', () => ({
   useMediaSession: vi.fn(),
@@ -126,7 +51,7 @@ const playlistItem = (
 
 describe('Audio stops instantly on chapter change (#62)', () => {
   beforeEach(() => {
-    FakeHowl.instances = [];
+    FakeHowl.reset();
     useBibleStore.setState({
       activeBookId: 'JHN',
       activeChapter: 1,
@@ -163,7 +88,7 @@ describe('Audio stops instantly on chapter change (#62)', () => {
         expect(FakeHowl.instances.length).toBeGreaterThan(0);
       });
       const first = FakeHowl.instances[0];
-      act(() => {
+      await act(async () => {
         first.play();
       });
       expect(first._playing).toBe(true);
@@ -178,8 +103,8 @@ describe('Audio stops instantly on chapter change (#62)', () => {
         ).toBeInTheDocument();
       });
 
-      expect(first.stopped).toBe(true);
-      expect(first.unloaded).toBe(true);
+      expect(first.stop).toHaveBeenCalled();
+      expect(first.unload).toHaveBeenCalled();
       expect(first._playing).toBe(false);
     }
   );
@@ -213,7 +138,7 @@ describe('Audio stops instantly on chapter change (#62)', () => {
       });
 
       await waitFor(() => {
-        expect(FakeHowl.instances[0].unloaded).toBe(true);
+        expect(FakeHowl.instances[0].unload).toHaveBeenCalled();
       });
       expect(
         useBibleStore.getState().showAudioPlayer

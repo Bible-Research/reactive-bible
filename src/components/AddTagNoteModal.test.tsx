@@ -17,6 +17,7 @@ import {
 import AddTagNoteModal from './AddTagNoteModal';
 import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import { renderWithProviders } from '../__tests__/helpers';
+import { useBibleStore } from '../store';
 import * as api from '../api';
 
 // Mock API (appropriate for unit testing)
@@ -502,13 +503,80 @@ describe('AddTagNoteModal Component', () => {
     expect(api.addTagNote).toHaveBeenCalledTimes(1);
   });
 
-  // Note: Full modal interaction testing is problematic
-  // due to portal rendering. See SKIPPED_TESTS.md.
-  it.skip('should call addTagNote when form submitted', () => {
-    // This test is skipped due to modal portal rendering
-  });
+  it('should call addTagNote and close when the form submits',
+    async () => {
+      const onClose = vi.fn();
+      (api.addTagNote as Mock).mockResolvedValue({ id: 'n-new' });
 
-  it.skip('should clear selected verses after submission', () => {
-    // This test is skipped due to modal portal rendering
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={onClose} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+            lastSelectedTagId: '1',
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'A study note' },
+      });
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Submit' })
+        );
+      });
+
+      await waitFor(() => {
+        expect(api.addTagNote).toHaveBeenCalledWith(
+          '1',
+          expect.stringContaining('A study note'),
+          [
+            { book: 'Genesis', chapter: 1, verse: 1 },
+            { book: 'Genesis', chapter: 1, verse: 2 },
+          ]
+        );
+      });
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalled();
+      });
+    });
+
+  // Ported from the deleted notes-workflow integration test:
+  // a submitted note must drop the verse selection so the next
+  // click isn't added to the old one.
+  it('should clear selected verses after submission', async () => {
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n-new' });
+
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      {
+        storeOverrides: {
+          verseSelection: genesisSelection,
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          lastSelectedTagId: '1',
+        },
+      }
+    );
+
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, {
+      target: { value: 'A study note' },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Submit' })
+      );
+    });
+
+    await waitFor(() => {
+      expect(
+        useBibleStore.getState().verseSelection
+      ).toBeNull();
+    });
   });
 });
