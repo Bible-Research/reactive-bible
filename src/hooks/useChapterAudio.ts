@@ -33,6 +33,7 @@ import {
 } from "../utils/filesetGroups";
 import { orderedAudioCandidates } from "../utils/audioCandidates";
 import { disposeHowl } from "../utils/audioUtils";
+import { createChapterHowl } from "../utils/chapterHowl";
 import {
   selectedStartVerse,
   verseStartTimestamp,
@@ -340,11 +341,8 @@ export const useChapterAudio = (
         const format = /^[a-z0-9]{1,5}$/.test(ext)
           ? [ext]
           : undefined;
-        const howl = new Howl({
-          src: [src],
+        const howl = createChapterHowl(src, {
           format,
-          html5: true,
-          pool: 1,
           preload: true,
         });
         preloadedRef.current = { key, howl, blobUrl };
@@ -599,10 +597,7 @@ export const useChapterAudio = (
           // Swap out the failed Howl for the new candidate.
           disposeHowl(audioRef.current, activeBlobUrlRef.current);
           activeBlobUrlRef.current = null;
-          const howl = new Howl({
-            src: [url],
-            html5: true,
-            pool: 1,
+          const howl = createChapterHowl(url, {
             loop: isLoopingRef.current,
             onplay: handleChapterPlay,
             onpause: handleChapterPause,
@@ -956,10 +951,7 @@ export const useChapterAudio = (
             // is always the first retry).
             fallbackRef.current = { seq, ids: candidates, nextIndex };
 
-            audioHowl = new Howl({
-              src: [audioUrl],
-              html5: true,
-              pool: 1,
+            audioHowl = createChapterHowl(audioUrl, {
               loop: isLoopingRef.current,
               onplay: handleChapterPlay,
               onpause: handleChapterPause,
