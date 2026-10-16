@@ -154,27 +154,22 @@ export const fetchCommentCounts = async (params: {
     return data.counts;
   };
 
-  try {
-    if (tagId) {
-      return await fetchBatch();
-    }
-    if (!noteIds || noteIds.length === 0) {
-      return await fetchBatch();
-    }
-    const CHUNK_SIZE = 200;
-    if (noteIds.length <= CHUNK_SIZE) {
-      return await fetchBatch(noteIds.join(','));
-    }
-    const chunks: string[][] = [];
-    for (let i = 0; i < noteIds.length; i += CHUNK_SIZE) {
-      chunks.push(noteIds.slice(i, i + CHUNK_SIZE));
-    }
-    const results = await Promise.all(
-      chunks.map((chunk) => fetchBatch(chunk.join(',')))
-    );
-    return Object.assign({}, ...results) as CommentCounts;
-  } catch (error) {
-    console.error('Error fetching comment counts:', error);
-    throw error;
+  if (tagId) {
+    return fetchBatch();
   }
+  if (!noteIds || noteIds.length === 0) {
+    return fetchBatch();
+  }
+  const CHUNK_SIZE = 200;
+  if (noteIds.length <= CHUNK_SIZE) {
+    return fetchBatch(noteIds.join(','));
+  }
+  const chunks: string[][] = [];
+  for (let i = 0; i < noteIds.length; i += CHUNK_SIZE) {
+    chunks.push(noteIds.slice(i, i + CHUNK_SIZE));
+  }
+  const results = await Promise.all(
+    chunks.map((chunk) => fetchBatch(chunk.join(',')))
+  );
+  return Object.assign({}, ...results) as CommentCounts;
 };

@@ -25,21 +25,11 @@ const NotesView = () => {
       lastSelectedTagId &&
       location.pathname === '/notes'
     ) {
-      console.log(
-        '🔗 NotesView: Navigate to last selected tag ' +
-          `/notes/tag/${lastSelectedTagId}`
-      );
       hasNavigatedRef.current = true;
       void navigate(`/notes/tag/${lastSelectedTagId}`, { replace: true });
       return;
     }
-    
-    // If tags not cached, we MUST load them before navigating
-    // Even if we have lastSelectedTagId, we need tags in the store
-    if (storedTags.length === 0) {
-      console.log('📝 Loading tags before navigation...');
-    }
-    
+
     const loadData = async () => {
       setLoading(true);
       try {
@@ -58,10 +48,6 @@ const NotesView = () => {
           const tagId = lastSelectedTagId ||
             [...fetchedTags]
               .sort((a, b) => a.name.localeCompare(b.name))[0].id;
-          console.log(
-            `🔗 NotesView: Auto-navigate to tag ` +
-              `/notes/tag/${tagId}`
-          );
           hasNavigatedRef.current = true;
           void navigate(`/notes/tag/${tagId}`, { replace: true });
         }
@@ -83,7 +69,6 @@ const NotesView = () => {
   // Handle tag selection change
   const handleTagChange = (value: string | null) => {
     if (value) {
-      console.log(`🔗 NotesView: Navigate to /notes/tag/${value}`);
       // Navigate to tag-specific route
       void navigate(`/notes/tag/${value}`);
     }
