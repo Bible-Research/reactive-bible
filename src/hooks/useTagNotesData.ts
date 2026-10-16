@@ -78,9 +78,6 @@ export const useTagNotesData = ({
   const setNotesPageSize = useBibleStore(
     (state) => state.setNotesPageSize
   );
-  const setAudioPlaylistItems = useBibleStore(
-    (state) => state.setAudioPlaylistItems
-  );
 
   const [tag, setTag] = useState<Tag | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,9 +123,6 @@ export const useTagNotesData = ({
     if (tagId) {
       setLastSelectedTagId(tagId);
     }
-    return () => {
-      setAudioPlaylistItems(null);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagId]);
 
