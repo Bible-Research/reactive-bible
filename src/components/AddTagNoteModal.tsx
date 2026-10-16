@@ -12,9 +12,9 @@ import {
   IconChevronDown,
   IconChevronRight,
 } from "@tabler/icons-react";
-import { addTagNote, editNote, getLinkedNotes } from "../api";
+import { getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Note } from "../types";
 import { toBookName } from "../utils/bibleUtils";
 import { resolveTextFileset } from "../utils/filesetGroups";
@@ -23,7 +23,10 @@ import {
   groupVerseTexts,
   useVerseTexts,
 } from "../hooks/useVerseTexts";
+import { useNoteEditor } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
+import VerseTextGroups from "./VerseTextGroups";
+import { shallow } from "zustand/shallow";
 
 interface AddTagNoteModalProps {
   opened: boolean;
@@ -63,7 +66,7 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     translations: state.translations,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
-  }));
+  }), shallow);
 
   const refs = useMemo(
     () => verseSelection?.refs ?? [],
@@ -98,15 +101,14 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     });
   };
 
-  // Once autosave creates the note, later saves (and Submit)
-  // must PATCH that note instead of POSTing duplicates.
-  const savedNoteIdRef = useRef<string | null>(null);
-
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
-      getTags();
-      savedNoteIdRef.current = null;
+      // A rejection already produced a store notification —
+      // swallow it so it stays off the global error reporter.
+      void getTags().catch(() => {
+        /* notified by the store */
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]); // Only run when opened changes
@@ -162,28 +164,28 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     refs,
   ]);
 
-  const handleAutoSave = async (tagId: string, text: string) => {
-    if (savedNoteIdRef.current) {
-      await editNote(savedNoteIdRef.current, tagId, text);
-      return;
-    }
-    const created = await addTagNote(tagId, text, verseReferences);
-    savedNoteIdRef.current = created?.id ?? null;
-  };
+  // The draft key carries the selection fingerprint: a draft
+  // left over from a different passage must not resume here.
+  const draftKey = useMemo(
+    () =>
+      "tag-note:" +
+      refs
+        .map((r) => `${r.bookId}.${r.chapter}.${r.verse}`)
+        .sort()
+        .join(","),
+    [refs]
+  );
 
-  const handleSubmit = async (tagId: string, text: string) => {
-    try {
-      // Shares savedNoteIdRef with autosave: an existing draft is
-      // PATCHed, and a note created by submit is recorded so a
-      // late autosave tick PATCHes instead of POSTing a duplicate.
-      await handleAutoSave(tagId, text);
+  const editor = useNoteEditor({
+    mode: "create",
+    draftKey,
+    verseReferences,
+    onSubmitted: (tagId) => {
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
       onClose();
-    } catch (error) {
-      console.error(error);
-    }
-  };
+    },
+  });
 
   const textGroups = useMemo(
     () => groupVerseTexts(verseTexts),
@@ -202,31 +204,33 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
       )}
       <NoteForm
         tags={tags}
-        onSubmit={handleSubmit}
+        onSubmit={editor.submit}
         submitText="Submit"
-        onTagDropdownOpen={() => getTags()}
-        onAutoSave={handleAutoSave}
+        onTagDropdownOpen={() => {
+          void getTags().catch(() => {
+            /* notified by the store */
+          });
+        }}
+        onAutoSave={editor.save}
+        onDraftChange={editor.trackDraft}
         note={
-          lastSelectedTagId
-            ? { tagId: lastSelectedTagId, text: "" }
-            : undefined
+          // Gate on draft content, not just savedNoteId: while
+          // the unmount flush's POST is still in flight the id
+          // is null but the typed text is already tracked —
+          // keying on the id alone would reopen a blank form.
+          editor.draft &&
+          (editor.draft.savedNoteId || editor.draft.text)
+            ? {
+                tagId:
+                  editor.draft.tagId || lastSelectedTagId || "",
+                text: editor.draft.text,
+              }
+            : lastSelectedTagId
+              ? { tagId: lastSelectedTagId, text: "" }
+              : undefined
         }
       />
-      {textGroups.map(([label, groupVerses]) => (
-        <Box key={label} mt="xl">
-          <Divider my="sm" label={label} labelPosition="center" />
-          {groupVerses.map((v) => (
-            <Box key={v.verse} py={4} px={8}>
-              <Text size="sm">
-                <Text component="span" weight={700} mr={4}>
-                  {v.verse}
-                </Text>
-                {v.text}
-              </Text>
-            </Box>
-          ))}
-        </Box>
-      ))}
+      <VerseTextGroups groups={textGroups} />
       {linkedNotes && linkedNotes.length > 0 && (
         <Box mt="xl">
           <Divider

@@ -90,8 +90,9 @@ reactive-bible/
 │   ├── assets/         # Static assets
 │   │   ├── kjv.json    # KJV verse text (lazy-loaded chunk)
 │   │   └── bibleStructure.json  # Book/chapter metadata (bundled)
-│   ├── api.tsx         # API functions
-│   ├── store.tsx       # Zustand state management
+│   ├── api/            # API modules (index.ts barrel)
+│   ├── stores/         # authStore + bibleStore slices
+│   ├── store.ts        # Zustand composition root
 │   ├── types.ts        # TypeScript interfaces
 │   ├── App.tsx         # Main app component
 │   ├── main.tsx        # Entry point
@@ -136,8 +137,8 @@ src/
 ├── components/          # React components
 ├── utils/              # Utility functions (caching, bible utils)
 ├── assets/             # Static assets (kjv.json, bibleStructure)
-├── api.tsx             # API functions and data access
-├── store.tsx           # Zustand state management
+├── api/                # API functions and data access
+├── store.ts           # Zustand state management
 ├── App.tsx             # Main application component
 └── main.tsx            # Application entry point
 ```
@@ -145,10 +146,13 @@ src/
 ### Design Patterns
 - **Component-Based Architecture**: Modular, reusable components in
   `src/components`.
-- **Centralized State**: A single Zustand store (`src/store.tsx`) for global
-  state, with persistence to `localStorage`.
+- **Centralized State**: A single Zustand store (`src/store.ts` —
+  composition root; the notes orchestration lives in
+  `src/stores/bibleStore/notesSlice.ts`, persistence/migration
+  in `src/stores/bibleStore/persistence.ts`) for global state,
+  with persistence to `localStorage`.
 - **API Layer Separation**: All external data fetching and business logic is
-  handled in `src/api.tsx`.
+  handled in `src/api/`.
 - **Cache-First Strategy**: A multi-level caching system
   (`src/utils/cacheManager.ts`) minimizes API calls and improves speed.
 - **Persistent State**: User preferences (like theme and translation choice)
@@ -313,8 +317,13 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 
 **NotesRoute** (`src/routes/NotesRoute.tsx`):
 - Fetches all tags from API
-- Automatically redirects to `/notes/tag/:firstTagId`
-- Provides tag selector dropdown
+- Automatically redirects to `/notes/tag/:tagId` — the tag
+  choice is `defaultTagId` in `src/utils/defaultTag.ts`:
+  the last-viewed tag if it still exists, else the
+  alphabetically first tag
+- Anonymous visitors are bounced to `/bible`; a zero-tag user
+  sees an empty-state message and a failed tag fetch an error
+  message — neither spins on the loader forever
 - Minimal component - main logic in TagNotesRoute
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
@@ -339,7 +348,16 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - In custom sort + authenticated, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
   of every note in the tag — see "Note order badges & moves"
-  under Note Taking & Tagging
+  under Note Taking & Tagging. Reorder UI additionally
+  requires `is_owner` on every loaded note — shared/public
+  tag pages hide it for non-owners (the backend rejects
+  foreign moves with 400/409 anyway)
+- The route is thin view wiring over three hooks +
+  `TagNotesToolbar`: `useTagNotesData` (load/pagination/
+  refresh/delete orchestration), `useNoteOrderMenu` (order
+  index + moves), `useNotePlaylist` (audio playlist assembly —
+  its play-from index addresses the verse-filtered playlist
+  array, not the raw sorted notes)
 
 **Navigation Pattern**:
 ```typescript
@@ -370,7 +388,8 @@ navigate('/notes/tag/:newTagId');
 
 ## State Management
 
-**Location**: `src/store.tsx`
+**Location**: `src/store.ts` (composition root) +
+`src/stores/bibleStore/` (notesSlice, persistence)
 
 The application uses Zustand for lightweight, centralized state management. The
 state is persisted to `localStorage` to remember user selections across
@@ -446,7 +465,7 @@ setActiveVerses: (activeVerses) => {
 
 ## Types & Interfaces
 
-**Location**: `src/types.ts`, `src/store.tsx`, `src/api.tsx`
+**Location**: `src/types.ts`, `src/store.ts`, `src/api/`
 
 ### Core Types (`src/types.ts`)
 
@@ -483,7 +502,7 @@ export interface Note {
 }
 ```
 
-### Translation Types (`src/store.tsx`)
+### Translation Types (`src/store.ts`)
 
 #### `Fileset`
 Represents a specific Bible translation format.
@@ -511,7 +530,7 @@ export interface Translation {
 }
 ```
 
-### API Types (`src/api.tsx`)
+### API Types (`src/api/index.ts` barrel)
 
 #### `KjvBook`
 Represents a verse from the local KJV JSON file.
@@ -597,7 +616,7 @@ src/
 ├── utils/
 │   ├── format.ts
 │   └── format.test.ts       ✅ Co-located
-├── api.tsx
+├── api/
 ├── api.test.ts              ✅ Co-located
 ├── store.ts
 └── store.test.ts            ✅ Co-located
@@ -1127,7 +1146,8 @@ getVerses(book: string, chapter: number): number[]
 
 ### 2. Multi-Translation Support
 
-**Location**: `src/api.tsx`, `src/components/TranslationSelector.tsx`
+**Location**: `src/api/translations.ts`,
+`src/components/TranslationSelector.tsx`
 
 Provides dynamic, API-driven support for multiple Bible translations, including
 different text and audio formats for each.
@@ -1249,6 +1269,10 @@ Full-text search across the Bible via the backend
 - No pagination - the backend returns all matches
 - Dimmed "Showing first N of M results" notice when the
   backend reports `meta.truncated`
+- Backend failures (`error`/`error_code`/`message`, including
+  provider errors wrapped in a 200 body) surface as typed
+  `RateLimitError`/`ProviderError` and render in red rather
+  than showing "No results"
 - Per-verse play button feeds a flattened playlist of all
   results into the audio player
 
@@ -1265,7 +1289,9 @@ const res = await searchBibleGrouped(
 
 ### 4. Audio Bible Playback
 
-**Location**: `src/components/Audio.tsx`, 
+**Location**: `src/components/Audio.tsx` (container —
+playlist orchestration, media-session wiring, JSX),
+`src/hooks/useChapterAudio.ts` (chapter-mode engine),
 `src/components/AudioPlayer.tsx`
 
 Streams audio Bible chapters with full playback controls.
@@ -1428,13 +1454,24 @@ Create and organize notes with tags for Bible verses.
 - Auto-clear selected verses after note creation
 - Linked notes: the creation modal shows a count of existing
   notes on the selected verses and lists them at the bottom
-<<<<<<< HEAD
-=======
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
-  after each successful save
->>>>>>> origin/main
+  after each successful save. The save contract lives in
+  `src/hooks/useNoteEditor.ts` — shared by all three note
+  modals: it guards tagless/empty writes, serializes saves
+  through a draft queue (a pending autosave can never race a
+  submit into a duplicate POST), keeps the draft (note id +
+  live text) in module state keyed by user + selection so it
+  survives the modal's unmount and a reopen resumes the same
+  note, and flushes the unsaved tail on close. Edit mode also
+  sends the picker's CURRENT `verse_references` with every
+  save and refetches the note's own tag at the route's
+  current page/ordering after submit or a post-unmount save.
+- `VerseTextGroups.tsx` renders the shared verse-preview
+  grouping (book/chapter divider + numbered verses) used by
+  the add/edit modals; grouping itself is `groupVerseTexts`
+  in `src/hooks/useVerseTexts.ts`.
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -1468,8 +1505,6 @@ getLinkedNotes(
   verseReferences: { book: string; chapter: number; verse: number }[],
   filesetId?: string
 ): Promise<LinkedNotesResponse>
-<<<<<<< HEAD
-=======
 
 // Compact index of every note in a tag, canonical ascending
 // order (GET /api/v1/notes/order-index/?tag_id=…)
@@ -1483,14 +1518,15 @@ moveNote(
   targetNoteId: string,
   placement: 'before' | 'after'
 ): Promise<MoveNoteResponse> // {note_id, tag_position, rebalanced}
->>>>>>> origin/main
 ```
 
 **Note order badges & moves** (`NoteOrderMenu.tsx`):
-- In `custom_asc`/`custom_desc` + authenticated, each
-  `NoteCard` renders a `#k` badge where `k` is the note's
-  1-based rank in the canonical ascending order (same IDs in
-  both sort directions — `custom_desc` only reverses display).
+- In `custom_asc`/`custom_desc` + authenticated + owned notes
+  (every loaded note reports `is_owner`; the gate lives in
+  `useNoteOrderMenu`), each `NoteCard` renders a `#k` badge
+  where `k` is the note's 1-based rank in the canonical
+  ascending order (same IDs in both sort directions —
+  `custom_desc` only reverses display).
 - Clicking the badge opens a dropdown listing **all** notes
   in the tag (`#k — Book C:V[-V]`, or `#k — no passage`), with
   a filter input and a "Move to top" item — built for tags
@@ -1499,8 +1535,9 @@ moveNote(
   order; the route translates to canonical placement
   (`custom_asc` → `after`, `custom_desc` → `before`).
 - The order index is fetched per tag via `getNoteOrderIndex`,
-  kept in route state (never persisted), and refetched after
-  every move; `moveNoteAfter` in the store patches
+  kept in `useNoteOrderMenu` state (never persisted), and
+  refetched after every move; `moveNoteAfter` in the store
+  patches
   `tag_position` locally for instant feedback, then always
   refetches the current page (cross-page moves change page
   membership).
@@ -1621,7 +1658,7 @@ development. `<Analytics />` and `<SpeedInsights />` are not
 rendered inside the Capacitor Android shell — their `/_vercel/*`
 scripts only exist on the Vercel deployment and would 404 on the
 WebView's `https://localhost` origin (see `isNativeApp()` in
-`src/utils/nativeAudio.ts`).
+`src/utils/platform.ts`).
 
 ### 9. Global Error Reporting
 
@@ -1674,7 +1711,7 @@ not re-raised.
 
 ## State Management
 
-### Zustand Store (`src/store.tsx`)
+### Zustand Store (`src/store.ts`)
 
 Centralized state with localStorage persistence.
 
@@ -2085,10 +2122,19 @@ Form for creating/editing notes.
 
 **Responsibilities**:
 - Rich text editor (TipTap)
-- Tag selection
+- Tag selection (Select keyed by tag id, not name)
 - Verse reference display
 - Form validation
-- Submit handler
+- Submit handler — serialized against in-flight autosaves so
+  a submit can never race a tick into a duplicate POST; a
+  resolved `false` marks the submit rejected and leaves the
+  text eligible for the unmount flush
+- Optional autosave interval (`onAutoSave`): fires every 5s,
+  skips unchanged/tagless/empty drafts, and on unmount
+  flushes the last unsaved contents (`onUnmountedSave` runs
+  after a tail save resolves)
+- `onDraftChange` reports live contents so the editor hook's
+  draft store can restore an in-progress note after reopen
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token. Clicking a complete token once
@@ -2096,11 +2142,13 @@ previews its passage below the editor (the note is NOT linked to
 it); a second click reopens the picker to edit the reference.
 
 #### `AddTagNoteModal.tsx`
-Modal for creating new notes.
+Modal for creating new notes from selected verses.
 
 **Responsibilities**:
 - Display NoteForm in modal
-- Handle note submission to API
+- All save/submit/draft logic delegated to `useNoteEditor`
+  (create mode, draft keyed by the verse selection) — see
+  "Note Taking & Tagging" above for the shared contract
 - Auto-clear selected verses after successful creation
 - Close modal on success or cancel
 
@@ -2119,10 +2167,16 @@ Modal for editing existing notes.
 
 **Responsibilities**:
 - Display NoteForm pre-filled with note data
+- All save/submit/refetch logic delegated to `useNoteEditor`
+  (edit mode) — every autosave/submit PATCH includes the
+  picker's CURRENT `verse_references`, and closing after any
+  save refetches the note's own tag at the route's current
+  page/ordering (untagged notes refetch the `untagged`
+  sentinel view)
 - Edit the note's verse links via an embedded PassagePicker
   (click toggles a verse, shift-click extends a range)
-- Preview the selected verses' text via `useVerseTexts`
-- Handle note update to API (PATCH incl. `verse_references`)
+- Preview the selected verses' text via `useVerseTexts` +
+  `VerseTextGroups`
 - Close modal on success or cancel
 - Show at most 500 verse previews (same
   `visibleNoteVerses` copyright cap as NoteCard)
@@ -2192,8 +2246,8 @@ Vite emits it as a separate `kjv-*.js` chunk that is only fetched
 when verse text is requested. Book/chapter/verse-count metadata
 needed for navigation lives in `src/assets/bibleStructure.json`
 (bundled in the entry chunk), so helpers like `getBooks`,
-`getChapters`, `getVerses`, `getPassage`, `getAdjacentChapters`,
-and `getKjvAudioUrl` stay synchronous.
+`getChapters`, `getVerses`, `getChapterList`,
+`getAdjacentChapters`, and `getKjvAudioUrl` stay synchronous.
 
 **Structure**:
 ```typescript
@@ -2353,7 +2407,7 @@ and `getKjvAudioUrl` stay synchronous.
 
 ---
 
-### API Functions (`src/api.tsx`)
+### API Functions (`src/api/`)
 
 #### Bible Data Functions
 
@@ -2425,12 +2479,12 @@ getVersesFromApi(
 ): Promise<{ verse: number; text: string }[]>
 ```
 
-**`getPassage()`**
+**`getChapterList()`**
 
 Returns all book/chapter combinations for navigation.
 
 ```typescript
-getPassage(): {
+getChapterList(): {
   book_name: string;
   book_id: string;
   chapter: number;
@@ -2451,7 +2505,10 @@ getAvailableTranslations(
 
 - Checks cache first
 - Falls back to API if not cached
-- Caches result for future use
+- Caches result for future use — a failed (`!response.ok`)
+  response is never written to the cache
+- Throws on fetch failure; `TranslationSelector` catches at
+  the UI layer (warns, and notifies on refresh failure)
 
 #### Audio Functions
 
@@ -2619,7 +2676,7 @@ getBulkReadingPositions(
 ): Promise<Record<string, { chapter: number; verse: number } | null>>
 ```
 
-**Store integration** (`src/store.tsx`):
+**Store integration** (`src/store.ts`):
 - `readingPositions` — persisted per-book cache
   (`Record<bookId, { chapter, verse } | null>`)
 - `setActiveBookWithPosition(bookId)` — restores the saved
@@ -2744,7 +2801,7 @@ if (Date.now() > audioData.expiresAt) {
 
 **Implementation**:
 ```typescript
-// In store.tsx fetchNotes()
+// In stores/bibleStore/notesSlice.ts fetchNotes()
 fetchNotes: async (tagId?: string) => {
   // Check cache first
   if (tagId) {
@@ -3262,14 +3319,34 @@ prefetchAdjacentChapters(book, chapter, filesetId);
 ### Bundle Size Optimization
 
 **Current Bundle** (approximate):
-- **Main bundle**: ~500KB (gzipped)
-- **KJV JSON**: ~4.5MB (loaded separately)
-- **Mantine UI**: ~200KB (tree-shaken)
-- **Howler.js**: ~20KB
+- **Entry chunk**: ~220KB raw / ~51KB gzipped
+- **Vendor chunks** (`build.rolldownOptions.output.codeSplitting`
+  in `vite.config.ts`): `vendor-mantine` ~399KB, `vendor-react`
+  ~180KB, `vendor-howler` ~36KB — eagerly modulepreloaded by
+  `index.html`. `vendor-dndkit` ~47KB is *not* preloaded; it is
+  only referenced by the lazy `TagNotesRoute` chunk.
+- **Eager JS total**: ~840KB raw / ~232KB gzipped (entry +
+  modulepreloaded chunks)
+- **TipTap/ProseMirror** (~373KB): no `vendor-tiptap` group on
+  purpose — every importer is a lazy chunk (note modals,
+  `NoteCard` → `CommentForm` → `RichTextEditor`), so rolldown
+  keeps it inside the lazy `RichTextEditor` chunk. A manual
+  group with the default `includeDependenciesRecursively`
+  dragged the whole dep closure (react, @mantine/*) into a
+  ~690KB chunk that `index.html` modulepreloaded eagerly.
+  `vendor-mantine`'s test excludes `@mantine/tiptap` so it
+  stays in the lazy editor graph.
+- **KJV JSON**: ~4.5MB gzipped (lazy-loaded chunk)
+- **Route chunks**: non-bible routes lazy via `React.lazy` in
+  `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect` stay
+  eager (landing path)
+- **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
+  `EditNoteModal` lazy + gated on their open flag, keeping
+  TipTap out of the entry graph entirely
 
 **Optimizations**:
 - Tree-shaking enabled (Vite)
-- Code splitting (React.lazy could be added)
+- Route-level + vendor code splitting (above)
 - KJV JSON loaded as separate chunk
 - Production builds minified and compressed
 
