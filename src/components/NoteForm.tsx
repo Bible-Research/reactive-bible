@@ -16,10 +16,31 @@ import RichTextEditor from "./RichTextEditor";
 interface NoteFormProps {
   tags: Tag[];
   note?: { tagId: string; text: string };
-  onSubmit: (tagId: string, text: string) => void;
+  /**
+   * May resolve `false` to signal a rejected submit (failed
+   * validation or save) — the content then stays eligible for
+   * the unmount flush. Any other resolved value counts as
+   * persisted.
+   */
+  onSubmit: (
+    tagId: string,
+    text: string
+  ) => void | Promise<unknown>;
   submitText: string;
   onTagDropdownOpen: () => void;
   onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
+  /**
+   * Called after a save triggered by the unmount flush
+   * resolves — the parent's own close handler already ran, so
+   * this is its only chance to react (e.g. refetch stale UI).
+   */
+  onUnmountedSave?: () => void;
+  /**
+   * Reports every draft change so an outer draft store can
+   * restore the autosaved note after the form remounts (the
+   * modal unmounts it on close).
+   */
+  onDraftChange?: (tagId: string, text: string) => void;
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
@@ -52,6 +73,8 @@ const NoteForm = ({
   submitText,
   onTagDropdownOpen,
   onAutoSave,
+  onUnmountedSave,
+  onDraftChange,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
@@ -59,6 +82,9 @@ const NoteForm = ({
   const [savedFlash, setSavedFlash] = useState(false);
   const latest = useRef({ tagId: "", text: "" });
   const onAutoSaveRef = useRef(onAutoSave);
+  const onUnmountedSaveRef = useRef(onUnmountedSave);
+  const onDraftChangeRef = useRef(onDraftChange);
+  const autoSaveRef = useRef(autoSave);
   // Shared save lock for autosave ticks and submit: overlapping
   // writes could POST two notes for one draft (or let stale text
   // win over a submit), so both paths must respect it.
@@ -68,7 +94,16 @@ const NoteForm = ({
   useEffect(() => {
     latest.current = { tagId: selectedTagId, text: noteText };
     onAutoSaveRef.current = onAutoSave;
+    onUnmountedSaveRef.current = onUnmountedSave;
+    onDraftChangeRef.current = onDraftChange;
+    autoSaveRef.current = autoSave;
   });
+
+  // Keep the outer draft store in sync — a reopened modal
+  // restores `note` from it.
+  useEffect(() => {
+    onDraftChangeRef.current?.(selectedTagId, noteText);
+  }, [selectedTagId, noteText]);
 
   // Sync on the primitive fields, not the `note` object itself:
   // every call site passes a fresh inline object each render, so
@@ -89,13 +124,40 @@ const NoteForm = ({
     null
   );
 
+  // Unmount = the modal closed (Mantine unmounts content, and
+  // parents drop the modal itself). Flush the unsaved tail so
+  // a close inside the autosave window does not drop the last
+  // seconds of typing.
+  useEffect(
+    () => () => {
+      const save = onAutoSaveRef.current;
+      if (!save || !autoSaveRef.current) return;
+      const { tagId, text } = latest.current;
+      if (!tagId || !toPlainText(text).trim()) return;
+      const last = lastSavedRef.current;
+      if (last && last.tagId === tagId && last.text === text) {
+        return;
+      }
+      // Chain behind an in-flight save — the draft's note id
+      // only exists once its POST resolves.
+      const chain = inFlightRef.current ?? Promise.resolve();
+      void chain
+        .then(() => save(tagId, text))
+        .then(() => onUnmountedSaveRef.current?.())
+        .catch((error) => console.error(error));
+    },
+    []
+  );
+
   useEffect(() => {
     if (!autoSave) return;
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
       const { tagId, text } = latest.current;
-      if (!toPlainText(text).trim()) return;
+      // Skip empty text AND empty tag — the latter used to
+      // POST `tag: ''` every 5s, a stream of silent 400s.
+      if (!tagId || !toPlainText(text).trim()) return;
       const last = lastSavedRef.current;
       if (last && last.tagId === tagId && last.text === text) {
         return;
@@ -134,30 +196,41 @@ const NoteForm = ({
     // interval tick from interleaving a write mid-submit.
     await inFlightRef.current;
     try {
-      await trackInFlight(
+      const result = await trackInFlight(
         inFlightRef,
         Promise.resolve(onSubmit(selectedTagId, noteText))
       );
+      // `false` signals a rejected submit — leave the content
+      // eligible for the unmount flush. Anything else means the
+      // content is persisted; mark it saved so the flush does
+      // not rewrite it on close.
+      if (result !== false) {
+        lastSavedRef.current = {
+          tagId: selectedTagId,
+          text: noteText,
+        };
+      }
     } catch (error) {
       console.error(error);
     }
   };
-
-  const selectedTagName =
-    tags.find((tag) => tag.id === selectedTagId)?.name || "";
 
   return (
     <form onSubmit={handleSubmit}>
       <Select
         variant="transparent"
         label="Tag"
-        value={selectedTagName}
-        onChange={(item: string) => {
-          const tagId = tags.find((tag) => tag.name === item)?.id;
-          setSelectedTagId(tagId ?? "");
+        // Select by id — mapping by name silently picked the
+        // first of two same-named tags.
+        value={selectedTagId || null}
+        onChange={(item: string | null) => {
+          setSelectedTagId(item ?? "");
         }}
         onDropdownOpen={onTagDropdownOpen}
-        data={tags.map((tag) => tag.name)}
+        data={tags.map((tag) => ({
+          value: tag.id,
+          label: tag.name,
+        }))}
         searchable
         maxDropdownHeight={window.innerHeight * 0.7}
       />
