@@ -16,11 +16,7 @@ import CommentActions from './CommentActions';
 import ScripturePassage from './ScripturePassage';
 import RichTextView from './RichTextView';
 import { commentImageName } from '../utils/commentTree';
-import {
-  isSameScriptureRef,
-  parseScriptureRef,
-  ScriptureRef,
-} from '../utils/scriptureRef';
+import useScripturePreview from '../hooks/useScripturePreview';
 
 interface CommentNodeProps {
   comment: Comment;
@@ -60,10 +56,11 @@ const CommentNode = ({
 }: CommentNodeProps) => {
   const [replyOpen, setReplyOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [scripture, setScripture] =
-    useState<ScriptureRef | null>(null);
-  const [scriptureError, setScriptureError] =
-    useState<string | null>(null);
+  const {
+    preview: scripture,
+    error: scriptureError,
+    togglePreview: handleScriptureClick,
+  } = useScripturePreview();
   const [lightboxImageId, setLightboxImageId] =
     useState<string | null>(null);
 
@@ -97,20 +94,6 @@ const CommentNode = ({
   ) => {
     await onReply(comment.id, content, files);
     setReplyOpen(false);
-  };
-
-  const handleScriptureClick = (hashtag: string): void => {
-    const result = parseScriptureRef(hashtag);
-
-    if (!result.ok) {
-      setScriptureError(result.error);
-      return;
-    }
-
-    setScriptureError(null);
-    setScripture((current) =>
-      isSameScriptureRef(current, result.ref) ? null : result.ref
-    );
   };
 
   const handleEditSubmit = async (
