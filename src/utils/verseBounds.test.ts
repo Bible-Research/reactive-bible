@@ -109,6 +109,41 @@ describe('attachVerseBounds', () => {
     },
   );
 
+  it('attaches via the load event when the node is not ready ' +
+    'at attach time', async () => {
+      // Production: _sounds[0]._node is null until the Howl
+      // loads — the 'load' wiring is the real attach path, not
+      // the eager call. Withhold the node through attach, then
+      // restore it before the load microtask fires.
+      const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+      const sounds = howl._sounds;
+      howl._sounds = undefined;
+      const { onAdvance } = attach(howl);
+      howl._sounds = sounds;
+      await Promise.resolve(); // 'load' fires here
+      howl.seek(24.9);
+      node(howl).dispatchEvent(new Event('timeupdate'));
+      expect(onAdvance).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('attaches via the play event when the node arrives after ' +
+    'load', async () => {
+      const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+      const sounds = howl._sounds;
+      howl._sounds = undefined;
+      const { onAdvance } = attach(howl);
+      // 'load' fires while the node is still absent; 'play'
+      // (e.g. a pooled-node swap) must re-attach.
+      await Promise.resolve();
+      howl._sounds = sounds;
+      howl.emit('play', 0);
+      howl.seek(24.9);
+      node(howl).dispatchEvent(new Event('timeupdate'));
+      expect(onAdvance).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('seeks past a non-included verse to the next included ' +
     'one', async () => {
       const howl = await loadedHowl();
