@@ -12,25 +12,15 @@ import {
   Text,
   Loader,
   Box,
-  Group,
-  Select,
-  ActionIcon,
-  Tooltip,
 } from '@mantine/core';
-import {
-  IconShare,
-  IconRefresh,
-  IconArrowsMaximize,
-  IconArrowsMinimize,
-} from '@tabler/icons-react';
 import { Note } from '../types';
 import TagSection from '../components/TagSection';
+import TagNotesToolbar from '../components/TagNotesToolbar';
 import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
 import { UNTAGGED_TAG_ID } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { buildBiblePath } from '../utils/bibleUtils';
-import { shareOrCopyLink } from '../utils/share';
 import { pageCount } from '../utils/pagination';
 import {
   SortOrder,
@@ -60,10 +50,10 @@ export default function TagNotesRoute() {
   const isUntagged = tagId === UNTAGGED_TAG_ID;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [noteToEdit, setNoteToEdit] = useState<Note | null>(null);
-  
+
   const notesFromStore = useBibleStore((state) => state.notes);
   const notes = Array.isArray(notesFromStore)
     ? notesFromStore
@@ -78,7 +68,7 @@ export default function TagNotesRoute() {
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
-  
+
   // Get sort order from URL, default to 'custom_asc'
   const urlSortOrder = searchParams.get('sort') as SortOrder | null;
   const sortOrder: SortOrder =
@@ -86,8 +76,6 @@ export default function TagNotesRoute() {
       ? urlSortOrder
       : 'custom_asc';
 
-  // Order badges/menus + drag-reorder — enabled and resynced
-  // via the shared hook (custom sort + auth + owned notes).
   const {
     enabled: orderMenuEnabled,
     orderMenu,
@@ -101,8 +89,6 @@ export default function TagNotesRoute() {
     notes,
   });
 
-  // Tag + notes loading, pagination, sort/refresh/delete
-  // orchestration — owned by the data hook.
   const {
     tag,
     loading,
@@ -156,34 +142,6 @@ export default function TagNotesRoute() {
     }
   };
 
-  const handleShare = async () => {
-    await shareOrCopyLink(
-      {
-        title: `Notes: ${tag?.name || 'Tag'}`,
-        // notesCount is the tag total; notes.length is only
-        // the currently loaded page.
-        text:
-          `Check out these ${notesCount} note(s) ` +
-          `tagged with "${tag?.name}"`,
-        url: window.location.href,
-      },
-      {
-        shareSuccess: {
-          title: 'Shared!',
-          message: 'Link shared successfully',
-        },
-        copySuccess: {
-          title: 'Link Copied!',
-          message: 'Tag link copied to clipboard',
-        },
-        copyFailure: {
-          title: 'Error',
-          message: 'Failed to copy link',
-        },
-      }
-    );
-  };
-
   const handleToggleFolded = () => {
     const next = !versesFolded;
     setVersesFolded(next);
@@ -228,10 +186,6 @@ export default function TagNotesRoute() {
     );
   }
 
-  const sortedTags = [...storedTags].sort(
-    (a, b) => a.name.localeCompare(b.name)
-  );
-
   // Calculate total pages
   const totalPages = pageCount(notesCount, notesPageSize);
 
@@ -245,139 +199,22 @@ export default function TagNotesRoute() {
 
   return (
     <Box p="md">
-      <Stack spacing="sm" mb="md">
-        {isAuthenticated && sortedTags.length > 0 ? (
-          <Select
-            label="Filter by tag"
-            placeholder="Select a tag"
-            value={tagId}
-            onChange={handleTagChange}
-            // Grouped items render above a divider; the
-            // ungrouped "Untagged" entry lands in its own
-            // bottom section (Mantine v6 SelectItems).
-            data={[
-              ...sortedTags.map((t) => ({
-                value: t.id,
-                label: t.name,
-                group: 'Tags',
-              })),
-              { value: UNTAGGED_TAG_ID, label: 'Untagged' },
-            ]}
-            searchable
-            style={{ maxWidth: 400 }}
-          />
-        ) : (
-          <Text fw={500} size="lg">{tag.name}</Text>
-        )}
-        <Group spacing="xs" position="apart">
-          <Group spacing="xs" noWrap>
-            <Select
-              size="xs"
-              value={sortOrder}
-              onChange={(v) => {
-                if (v) {
-                  handleSortChange(v);
-                }
-              }}
-              data={[
-                {
-                  value: 'custom_asc',
-                  label: 'Custom: Ascending',
-                },
-                {
-                  value: 'custom_desc',
-                  label: 'Custom: Descending',
-                },
-                {
-                  value: 'created_desc',
-                  label: 'Date: Newest first',
-                },
-                {
-                  value: 'created_asc',
-                  label: 'Date: Oldest first',
-                },
-                {
-                  value: 'verse_asc',
-                  label: 'Verse: Ascending',
-                },
-                {
-                  value: 'verse_desc',
-                  label: 'Verse: Descending',
-                },
-              ]}
-              style={{ width: 170, flexShrink: 0 }}
-            />
-            <Select
-              size="xs"
-              value={String(notesPageSize)}
-              onChange={handlePageSizeChange}
-              data={[
-                { value: '5', label: '5' },
-                { value: '25', label: '25' },
-                { value: '50', label: '50' },
-                { value: '100', label: '100' },
-              ]}
-              style={{ width: 60, flexShrink: 0 }}
-            />
-          </Group>
-          <Group spacing="xs" noWrap>
-            <Text
-              color="dimmed"
-              size="sm"
-              sx={(theme) => ({
-                [theme.fn.smallerThan('sm')]: {
-                  display: 'none',
-                },
-              })}
-            >
-              {notes.length}
-              {notesCount > notes.length && ` of ${notesCount}`}
-              {' '}
-              {notes.length === 1 ? 'note' : 'notes'}
-            </Text>
-            <Tooltip
-              label={versesFolded ? "Unfold verses" : "Fold verses"}
-              position="left"
-            >
-              <ActionIcon
-                onClick={handleToggleFolded}
-                variant="subtle"
-                color={versesFolded ? "blue" : "gray"}
-                size="lg"
-                aria-label={
-                  versesFolded ? 'Unfold verses' : 'Fold verses'
-                }
-              >
-                {versesFolded
-                  ? <IconArrowsMaximize size={20} />
-                  : <IconArrowsMinimize size={20} />}
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Refresh notes" position="left">
-              <ActionIcon
-                onClick={handleRefresh}
-                variant="subtle"
-                color="gray"
-                size="lg"
-                aria-label="Refresh notes"
-              >
-                <IconRefresh size={20} />
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Share tag link" position="left">
-              <ActionIcon
-                onClick={handleShare}
-                variant="subtle"
-                color="blue"
-                size="lg"
-                aria-label="Share tag link"
-              >
-                <IconShare size={20} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </Group>
-      </Stack>
+      <TagNotesToolbar
+        tags={storedTags}
+        isAuthenticated={isAuthenticated}
+        tagId={tagId}
+        tagName={tag.name}
+        sortOrder={sortOrder}
+        pageSize={notesPageSize}
+        shownCount={notes.length}
+        totalCount={notesCount}
+        versesFolded={versesFolded}
+        onTagChange={handleTagChange}
+        onSortChange={handleSortChange}
+        onPageSizeChange={handlePageSizeChange}
+        onToggleFolded={handleToggleFolded}
+        onRefresh={handleRefresh}
+      />
 
       <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
         {pageLoading ? (
@@ -410,7 +247,7 @@ export default function TagNotesRoute() {
               pageSize={notesPageSize}
               orderMenu={orderMenu}
             />
-            
+
             {pagination}
           </Stack>
         ) : (
