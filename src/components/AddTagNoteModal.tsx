@@ -17,6 +17,7 @@ import { useBibleStore } from "../store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Note } from "../types";
 import { toBookName } from "../utils/bibleUtils";
+import { clearNotesCache } from "../utils/cacheManager";
 import { resolveTextFileset } from "../utils/filesetGroups";
 import { toPlainText } from "../utils/tiptapContent";
 import {
@@ -166,10 +167,13 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
   const handleAutoSave = async (tagId: string, text: string) => {
     if (savedNoteIdRef.current) {
       await editNote(savedNoteIdRef.current, tagId, text);
-      return;
+    } else {
+      const created = await addTagNote(tagId, text, verseReferences);
+      savedNoteIdRef.current = created?.id ?? null;
     }
-    const created = await addTagNote(tagId, text, verseReferences);
-    savedNoteIdRef.current = created?.id ?? null;
+    // The cached notes pages are stale once a note is created
+    // or edited — a later fetchNotes must hit the API.
+    clearNotesCache();
   };
 
   const handleSubmit = async (tagId: string, text: string) => {

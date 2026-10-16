@@ -1,6 +1,7 @@
 import { Modal } from "@mantine/core";
 import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
+import { clearNotesCache } from "../utils/cacheManager";
 import { useEffect, useRef } from "react";
 import NoteForm from "./NoteForm";
 import { shallow } from "zustand/shallow";
@@ -41,10 +42,13 @@ const AddStandaloneNoteModal = ({
   const handleAutoSave = async (tagId: string, text: string) => {
     if (savedNoteIdRef.current) {
       await editNote(savedNoteIdRef.current, tagId, text);
-      return;
+    } else {
+      const created = await addTagNote(tagId, text, []);
+      savedNoteIdRef.current = created?.id ?? null;
     }
-    const created = await addTagNote(tagId, text, []);
-    savedNoteIdRef.current = created?.id ?? null;
+    // The cached notes pages are stale once a note is created
+    // or edited — a later fetchNotes must hit the API.
+    clearNotesCache();
   };
 
   const handleSubmit = async (tagId: string, text: string) => {
