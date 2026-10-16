@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   TextInput,
@@ -25,6 +25,12 @@ export function LoginPage() {
   const clearError = useAuthStore((state) => state.clearError);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Clear any stale auth error left over from a previous visit to
+  // the login or register page.
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

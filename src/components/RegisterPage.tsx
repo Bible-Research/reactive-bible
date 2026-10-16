@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Container,
@@ -22,6 +22,12 @@ export function RegisterPage() {
   const isLoading = useAuthStore((state) => state.isLoading);
   const error = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
+
+  // Clear any stale auth error left over from a previous visit to
+  // the login or register page.
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
