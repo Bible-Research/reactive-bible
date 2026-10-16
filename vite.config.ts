@@ -66,6 +66,12 @@ export default defineConfig({
     setupFiles: ['src/setupTests.ts'],
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
     testTimeout: 30000,
-    fileParallelism: false,
+    // Measured on the full suite (98 files / 953 tests):
+    // parallel ~38s vs serial ~125s wall time, peak aggregate
+    // RSS ~3.1GB vs ~1.3GB — no OOM, so parallelism stays on.
+    // `isolate` MUST stay at its default (true): shared module
+    // state leaks per-file vi.mock registrations across files
+    // (measured: 276 failures in 52 files).
+    fileParallelism: true,
   },
 });
