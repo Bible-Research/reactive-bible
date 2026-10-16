@@ -6,6 +6,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 import * as kjvDataLoader from './utils/kjvDataLoader';
 import { API_BASE_URL } from './config';
+import type { Translation } from './store';
 
 const API_URL = `${API_BASE_URL}/api/v1`;
 const COMMENT_BASE = `${API_URL}`;
@@ -314,31 +315,44 @@ describe('API Functions', () => {
       });
       expect(result).toEqual({ 'note-x': 5 });
       expect(callCount).toBe(1);
-      const url = new URL(capturedUrl!);
+      if (!capturedUrl) {
+        throw new Error('expected the request to be captured');
+      }
+      const url = new URL(capturedUrl);
       expect(url.searchParams.get('tag_id')).toBe('tag-1');
       expect(url.searchParams.has('note_ids')).toBe(false);
     });
   });
 
   describe('getAvailableTranslations', () => {
-    const cached = [
+    const cached: Translation[] = [
       {
         abbr: 'KJV',
         name: 'King James Version',
         language: 'English',
         language_iso: 'eng',
-        filesets: [{ id: 'ENGKJV', type: 'text_plain', size: 'NT' }],
+        filesets: [
+          {
+            id: 'ENGKJV', type: 'text_plain', size: 'NT',
+            codec: null, bitrate: null,
+          },
+        ],
       },
     ];
 
-    const fresh = [
+    const fresh: Translation[] = [
       ...cached,
       {
         abbr: 'NIV',
         name: 'New International Version',
         language: 'English',
         language_iso: 'eng',
-        filesets: [{ id: 'ENGNIV', type: 'text_plain', size: 'C' }],
+        filesets: [
+          {
+            id: 'ENGNIV', type: 'text_plain', size: 'C',
+            codec: null, bitrate: null,
+          },
+        ],
       },
     ];
 
@@ -364,7 +378,7 @@ describe('API Functions', () => {
 
     it('returns cached translations without hitting API', async () => {
       vi.spyOn(cacheManager, 'getCachedTranslations')
-        .mockReturnValue(cached as any);
+        .mockReturnValue(cached);
       const fetchSpy = vi.spyOn(global, 'fetch');
 
       const result = await api.getAvailableTranslations('eng');
@@ -375,7 +389,7 @@ describe('API Functions', () => {
 
     it('bypasses cache when forceRefresh=true and updates cache', async () => {
       vi.spyOn(cacheManager, 'getCachedTranslations')
-        .mockReturnValue(cached as any);
+        .mockReturnValue(cached);
       server.use(
         http.get(
           `${API_URL}/bible/translations/`,

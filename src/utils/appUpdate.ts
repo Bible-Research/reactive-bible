@@ -1,5 +1,5 @@
 import { App } from '@capacitor/app';
-import { isNativeApp } from './nativeAudio';
+import { isNativeApp } from './platform';
 
 /**
  * Sideload update check for the Android APK build.
