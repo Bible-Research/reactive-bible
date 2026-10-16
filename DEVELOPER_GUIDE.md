@@ -622,14 +622,18 @@ src/
 └── store.test.ts            ✅ Co-located
 ```
 
-**Integration Tests**:
+**Shared Test Infra & Regression Tests**:
 
-Tests that cover the interaction of multiple components (user workflows) are
-placed in a dedicated directory:
+`src/__tests__/` holds shared test infrastructure and app-level
+regression tests (named `repro-<issue>.test.tsx`, each with a header
+comment explaining the bug it guards):
 
 ```
-src/__tests__/integration/
-└── notes-workflow.test.tsx
+src/__tests__/
+├── helpers.tsx          # renderWithProviders, mockDomApis, resetStore
+├── helpers/             # factories + performance helpers
+├── mocks/               # shared doubles (FakeHowl) + fixture data
+└── repro-*.test.tsx     # regression tests for fixed bugs
 ```
 
 ### Running Tests
@@ -661,11 +665,21 @@ Test configuration is managed in `vite.config.ts`:
 test: {
   globals: true,
   environment: 'happy-dom', // Fast, but less complete than jsdom
-  setupFiles: 'src/__tests__/setup.ts',
+  setupFiles: ['src/setupTests.ts'],
   include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-  exclude: ['node_modules', 'dist'],
+  testTimeout: 30000,
+  fileParallelism: false, // peak memory: App-mount + kjv.json files
 }
 ```
+
+`src/setupTests.ts` starts the MSW server with
+`onUnhandledRequest: 'error'` (unexpected requests fail loudly
+instead of reaching a real backend) and resets shared state before
+every test: both Zustand stores, the cache manager's in-memory
+Map, `localStorage`, and `globalThis.fetch` (restoring the
+MSW-intercepted fetch after tests that stub it). Store resets use
+dynamic imports inside `beforeEach` so per-file `vi.mock()`
+declarations still intercept the app modules.
 
 ### Test Helpers
 
@@ -820,23 +834,49 @@ it('should show loading then content', async () => {
 
 Use MSW (Mock Service Worker) for API mocking instead of `vi.mock()`:
 
-**✅ CORRECT** - Use MSW handlers:
+**✅ CORRECT** - Use MSW handlers (derive URLs from `API_BASE_URL` —
+never hardcode a host):
 ```typescript
-import { server } from '../__tests__/setup';
+import { server } from '../mocks/server';
+import { API_BASE_URL } from '../config';
 import { http, HttpResponse } from 'msw';
 
 it('should fetch and display data', async () => {
   server.use(
-    http.get('/api/data', () => {
+    http.get(`${API_BASE_URL}/api/v1/data`, () => {
       return HttpResponse.json({ message: 'Hello' });
     })
   );
-  
+
   renderWithProviders(<MyComponent />);
-  
+
   const message = await screen.findByText('Hello');
   expect(message).toBeInTheDocument();
 });
+```
+
+The default handlers live in `src/mocks/handlers.ts`; `server.use`
+overrides them per test and `server.resetHandlers()` runs in
+`afterEach`. Because the server errors on unhandled requests, any
+new endpoint the app calls needs a default handler.
+
+**Mocking Howler**: audio tests share one fake —
+`src/__tests__/mocks/FakeHowl.ts`. It implements `instances[]`
+registry, born-`'loading'` → async `'load'`, real `seek` position
+tracking, constructor `on*` callbacks, deferred `'play'` with
+`playerror`-on-teardown, and an `<audio>` node stub for
+`getHtml5AudioNode`. Every method is a `vi.fn()`, so tests can both
+assert calls and drive real state:
+
+```typescript
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
+
+vi.mock('howler', async () => {
+  const { FakeHowl } = await import('../__tests__/mocks/FakeHowl');
+  return { Howl: FakeHowl };
+});
+
+beforeEach(() => FakeHowl.reset());
 ```
 
 **❌ INCORRECT** - Module-level mocking:
