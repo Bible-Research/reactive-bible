@@ -47,8 +47,33 @@ export const handlers = [
     });
   }),
 
+  // --- Auth ---
+  // POST /api/token/ lives OUTSIDE /api/v1.
+  http.post(`${API_BASE_URL}/api/token/`, () => {
+    return HttpResponse.json({ token: 'test-token' });
+  }),
+
+  http.post(`${API_URL}/users/register/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+      email?: string;
+    };
+    return HttpResponse.json(
+      {
+        user: {
+          id: 1,
+          username: body.username ?? 'testuser',
+          email: body.email ?? null,
+        },
+        token: 'test-token',
+        message: 'User registered successfully',
+      },
+      { status: 201 }
+    );
+  }),
+
   // --- Translations ---
-  http.get(`${API_URL}/bible/translations`, () => {
+  http.get(`${API_URL}/bible/translations/`, () => {
     return HttpResponse.json({ results: mockTranslations });
   }),
 
@@ -62,10 +87,52 @@ export const handlers = [
     ]);
   }),
 
+  http.get(`${API_URL}/tags/:tagId/`, ({ params }) => {
+    return HttpResponse.json({
+      id: params.tagId, name: 'Test Tag', parent_tag: null,
+      created_at: '', updated_at: ''
+    });
+  }),
+
+  http.post(`${API_URL}/tags/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      parent_tag?: string | null;
+    };
+    return HttpResponse.json(
+      {
+        id: 'tag-new',
+        name: body.name ?? 'New Tag',
+        parent_tag: body.parent_tag ?? null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
+  }),
+
+  http.patch(`${API_URL}/tags/:tagId/`, async ({ params, request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      parent_tag?: string | null;
+    };
+    return HttpResponse.json({
+      id: params.tagId,
+      name: body.name ?? 'Test Tag',
+      parent_tag: body.parent_tag ?? null,
+      created_at: '',
+      updated_at: new Date().toISOString(),
+    });
+  }),
+
+  http.delete(`${API_URL}/tags/:tagId/`, () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   // --- Notes ---
   http.post(`${API_URL}/notes/`, async ({ request }) => {
     const body = (await request.json()) as NoteCreateBody;
-    return HttpResponse.json({ 
+    return HttpResponse.json({
       id: 'note-1',
       note_text: body.note_text,
       tag: {
@@ -73,31 +140,45 @@ export const handlers = [
         created_at: '', updated_at: ''
       },
       public: false,
+      is_owner: true,
+      tag_position: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      verses: body.verse_references || []
+      // The backend resolves verse text; refs arrive without it.
+      verses: (body.verse_references || []).map((ref) => ({
+        text: '',
+        ...(ref as Record<string, unknown>),
+      }))
     });
   }),
 
   // --- Get Notes ---
-  http.get(`${API_URL}/notes`, () => {
-    return HttpResponse.json([
-      {
-        id: 'note-1',
-        note_text: 'This is a test note.',
-        tag: {
-          id: '1', name: 'Test Tag', parent_tag: null,
-          created_at: '', updated_at: ''
-        },
-        public: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        verses: [{
-          book: 'John', chapter: 3, verse: 16,
-          text: 'For God so loved the world...'
-        }]
-      }
-    ]);
+  // Real contract: a paginated envelope, NOT a bare array.
+  http.get(`${API_URL}/notes/`, () => {
+    return HttpResponse.json({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: 'note-1',
+          note_text: 'This is a test note.',
+          tag: {
+            id: '1', name: 'Test Tag', parent_tag: null,
+            created_at: '', updated_at: ''
+          },
+          public: false,
+          is_owner: true,
+          tag_position: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          verses: [{
+            book: 'John', chapter: 3, verse: 16,
+            text: 'For God so loved the world...'
+          }]
+        }
+      ]
+    });
   }),
 
   // --- Linked Notes ---
@@ -105,9 +186,87 @@ export const handlers = [
     return HttpResponse.json({ count: 0, results: [] });
   }),
 
+  // --- Note ordering ---
+  // Literal sub-paths are registered BEFORE `/notes/:noteId/` so
+  // 'order-index' isn't swallowed by the path parameter.
+  http.get(`${API_URL}/notes/order-index/`, () => {
+    return HttpResponse.json([]);
+  }),
+
+  http.post(`${API_URL}/notes/reorder/`, () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(`${API_URL}/notes/move/`, async ({ request }) => {
+    const body = (await request.json()) as { note_id?: string };
+    return HttpResponse.json({
+      note_id: body.note_id,
+      tag_position: 1,
+      rebalanced: false,
+    });
+  }),
+
+  // --- Single Note ---
+  http.get(`${API_URL}/notes/:noteId/`, ({ params }) => {
+    return HttpResponse.json({
+      id: params.noteId,
+      note_text: 'This is a test note.',
+      tag: {
+        id: '1', name: 'Test Tag', parent_tag: null,
+        created_at: '', updated_at: ''
+      },
+      public: false,
+      is_owner: true,
+      tag_position: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      verses: [{
+        book: 'John', chapter: 3, verse: 16,
+        text: 'For God so loved the world...'
+      }]
+    });
+  }),
+
+  http.patch(
+    `${API_URL}/notes/:noteId/`,
+    async ({ params, request }) => {
+      const body = (await request.json()) as NoteCreateBody;
+      return HttpResponse.json({
+        id: params.noteId,
+        note_text: body.note_text,
+        tag: {
+          id: body.tag, name: 'Test Tag', parent_tag: null,
+          created_at: '', updated_at: ''
+        },
+        public: false,
+        is_owner: true,
+        tag_position: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        verses: (body.verse_references || []).map((ref) => ({
+          text: '',
+          ...(ref as Record<string, unknown>),
+        }))
+      });
+    }
+  ),
+
   // --- Delete Note ---
-  http.delete(`${API_URL}/notes/:id`, () => {
+  http.delete(`${API_URL}/notes/:id/`, () => {
     return HttpResponse.text('Deleted');
+  }),
+
+  // --- Reading Positions ---
+  http.get(`${API_URL}/reading-positions/`, () => {
+    return HttpResponse.json([]);
+  }),
+
+  http.post(`${API_URL}/reading-positions/`, () => {
+    return HttpResponse.json({}, { status: 201 });
+  }),
+
+  http.post(`${API_URL}/reading-positions/bulk/`, () => {
+    return HttpResponse.json({});
   }),
 
   // --- Comments ---
