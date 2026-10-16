@@ -1,5 +1,9 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useBibleStore, initialState } from './store';
+import {
+  useBibleStore,
+  initialState,
+  migratePersistedState,
+} from './store';
 import { useAuthStore } from './stores/authStore';
 import * as api from './api';
 import * as cacheManager from './utils/cacheManager';
@@ -29,11 +33,340 @@ vi.mock('./utils/cacheManager');
 const mockApi = vi.mocked(api);
 const mockCacheManager = vi.mocked(cacheManager);
 
+const john316 = { bookId: 'JHN', chapter: 3, verse: 16 };
+
+const notePageOf = (
+  results: Note[]
+): api.PaginatedNotesResponse => ({
+  count: results.length,
+  next: null,
+  previous: null,
+  results,
+});
+
 describe('useBibleStore', () => {
   beforeEach(() => {
     // Reset store to initial state before each test
     useBibleStore.setState(initialState);
     vi.clearAllMocks();
+  });
+
+  it('should have the correct initial state', () => {
+    const state = useBibleStore.getState();
+    expect(state.activeBookId).toBe('JHN');
+    expect(state.activeChapter).toBe(1);
+    expect(state.bibleVersion).toBe('KJV');
+    expect(state.notes).toEqual([]);
+    expect(state.allNotesFetched).toBe(false);
+    expect(state.verseSelection).toBeNull();
+  });
+
+  it('setActiveBookAndChapter updates book and chapter', () => {
+    useBibleStore.getState().setActiveBookAndChapter('EXO', 2);
+    const state = useBibleStore.getState();
+    expect(state.activeBookId).toBe('EXO');
+    expect(state.activeChapter).toBe(2);
+    expect(state.verseSelection).toBeNull();
+  });
+
+  it('setActiveChapter should update chapter and verses', () => {
+    useBibleStore.getState().setActiveChapter(10);
+    const state = useBibleStore.getState();
+    expect(state.activeChapter).toBe(10);
+    expect(state.verseSelection).toBeNull();
+  });
+
+  it('setBibleVersion should update the bibleVersion', () => {
+    useBibleStore.getState().setBibleVersion('NIV');
+    const state = useBibleStore.getState();
+    expect(state.bibleVersion).toBe('NIV');
+  });
+
+  it('setVerseSelection sets a scoped selection', () => {
+    useBibleStore.getState().setVerseSelection({
+      scope: 'bible',
+      refs: [john316],
+    });
+    expect(useBibleStore.getState().verseSelection).toEqual({
+      scope: 'bible',
+      refs: [john316],
+    });
+  });
+
+  it('toggleVerseRef adds and removes refs within a scope', () => {
+    const { toggleVerseRef } = useBibleStore.getState();
+    toggleVerseRef('bible', john316);
+    toggleVerseRef('bible', { bookId: 'JHN', chapter: 3, verse: 17 });
+    expect(useBibleStore.getState().verseSelection?.refs).toHaveLength(
+      2
+    );
+    toggleVerseRef('bible', john316);
+    expect(useBibleStore.getState().verseSelection?.refs).toEqual([
+      { bookId: 'JHN', chapter: 3, verse: 17 },
+    ]);
+    toggleVerseRef('bible', { bookId: 'JHN', chapter: 3, verse: 17 });
+    expect(useBibleStore.getState().verseSelection).toBeNull();
+  });
+
+  it('toggleVerseRef in a different scope replaces the selection', () => {
+    const { toggleVerseRef } = useBibleStore.getState();
+    toggleVerseRef('bible', john316);
+    const noteRef = { bookId: 'JHN', chapter: 3, verse: 16 };
+    toggleVerseRef('note-1', noteRef);
+    expect(useBibleStore.getState().verseSelection).toEqual({
+      scope: 'note-1',
+      refs: [noteRef],
+    });
+  });
+
+  it('selectVerseRange merges a range into the scope selection', () => {
+    const { toggleVerseRef, selectVerseRange } =
+      useBibleStore.getState();
+    toggleVerseRef('note-1', { bookId: 'JHN', chapter: 3, verse: 20 });
+    selectVerseRange(
+      'note-1',
+      { bookId: 'JHN', chapter: 3, verse: 16 },
+      { bookId: 'JHN', chapter: 3, verse: 18 }
+    );
+    expect(useBibleStore.getState().verseSelection).toEqual({
+      scope: 'note-1',
+      refs: [
+        { bookId: 'JHN', chapter: 3, verse: 20 },
+        { bookId: 'JHN', chapter: 3, verse: 16 },
+        { bookId: 'JHN', chapter: 3, verse: 17 },
+        { bookId: 'JHN', chapter: 3, verse: 18 },
+      ],
+    });
+  });
+
+  it('selectVerseRange refuses cross-chapter ranges', () => {
+    const { selectVerseRange } = useBibleStore.getState();
+    selectVerseRange(
+      'bible',
+      { bookId: 'JHN', chapter: 3, verse: 16 },
+      { bookId: 'JHN', chapter: 4, verse: 2 }
+    );
+    expect(useBibleStore.getState().verseSelection).toEqual({
+      scope: 'bible',
+      refs: [{ bookId: 'JHN', chapter: 4, verse: 2 }],
+    });
+  });
+
+  it('setActiveChapter clears the selection', () => {
+    useBibleStore.getState().setVerseSelection({
+      scope: 'bible',
+      refs: [john316],
+    });
+    useBibleStore.getState().setActiveChapter(4);
+    expect(useBibleStore.getState().verseSelection).toBeNull();
+  });
+
+  it('migratePersistedState converts legacy activeVerses', () => {
+    const migrated = migratePersistedState(
+      {
+        activeBook: 'John',
+        activeBookShort: 'Joh',
+        activeChapter: 3,
+        activeVerses: [16, 17],
+        selectedVerses: [16],
+        bibleVersion: 'KJV',
+      },
+      0
+    );
+    expect(migrated.verseSelection).toEqual({
+      scope: 'bible',
+      refs: [
+        { bookId: 'JHN', chapter: 3, verse: 16 },
+        { bookId: 'JHN', chapter: 3, verse: 17 },
+      ],
+    });
+    expect(migrated.activeBookId).toBe('JHN');
+    expect(
+      (migrated as Record<string, unknown>).activeBook
+    ).toBeUndefined();
+    expect(
+      (migrated as Record<string, unknown>).activeBookShort
+    ).toBeUndefined();
+    expect(
+      (migrated as Record<string, unknown>).activeVerses
+    ).toBeUndefined();
+    expect(
+      (migrated as Record<string, unknown>).selectedVerses
+    ).toBeUndefined();
+  });
+
+  it('migratePersistedState yields null selection when empty', () => {
+    const migrated = migratePersistedState(
+      { activeBook: 'John', activeChapter: 3, activeVerses: [] },
+      0
+    );
+    expect(migrated.verseSelection).toBeNull();
+    expect(migrated.activeBookId).toBe('JHN');
+  });
+
+  it('migratePersistedState converts v2 name-based state', () => {
+    const migrated = migratePersistedState(
+      {
+        activeBook: 'John',
+        activeBookShort: 'Joh',
+        activeChapter: 3,
+        verseSelection: {
+          scope: 'bible',
+          refs: [{ book: 'John', chapter: 3, verse: 16 }],
+        },
+        audioActiveVerse: {
+          book: 'John',
+          chapter: 3,
+          verse: 17,
+          scope: 'bible',
+        },
+      },
+      2
+    );
+    expect(migrated.activeBookId).toBe('JHN');
+    expect(migrated.verseSelection).toEqual({
+      scope: 'bible',
+      refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+    });
+    expect(migrated.audioActiveVerse).toEqual({
+      bookId: 'JHN',
+      chapter: 3,
+      verse: 17,
+      scope: 'bible',
+    });
+    expect(
+      (migrated as Record<string, unknown>).activeBook
+    ).toBeUndefined();
+  });
+
+  it('migratePersistedState keeps v3 state untouched', () => {
+    const persisted = {
+      activeBookId: 'JHN',
+      activeChapter: 3,
+      verseSelection: {
+        scope: 'bible',
+        refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+      },
+    };
+    const migrated = migratePersistedState(persisted, 3);
+    expect(migrated.activeBookId).toBe('JHN');
+    expect(migrated.verseSelection).toEqual(
+      persisted.verseSelection
+    );
+  });
+
+  it('migratePersistedState re-keys v<5 readingPositions from ' +
+    'book names to USFM codes', () => {
+    // v<5 persisted positions keyed by book name (the backend's
+    // `book` field); v5 keys them by USFM code like everything
+    // else in the store.
+    const migrated = migratePersistedState(
+      {
+        readingPositions: {
+          John: { chapter: 3, verse: 16 },
+          MRK: { chapter: 2, verse: 1 },
+          '1 Corinthians': { chapter: 5, verse: 9 },
+        },
+      },
+      4
+    );
+    expect(migrated.readingPositions).toEqual({
+      JHN: { chapter: 3, verse: 16 },
+      MRK: { chapter: 2, verse: 1 },
+      '1CO': { chapter: 5, verse: 9 },
+    });
+  });
+
+  it('migratePersistedState maps malformed v<5 positions to ' +
+    'null and drops unknown books', () => {
+    const migrated = migratePersistedState(
+      {
+        readingPositions: {
+          JHN: { chapter: 'three', verse: 16 },
+          MRK: null,
+          Genesis: { chapter: 1 },
+          NotABook: { chapter: 1, verse: 1 },
+        },
+      },
+      4
+    );
+    // A null entry means "fetched, no saved position"; malformed
+    // entries degrade to the same value rather than crashing.
+    expect(migrated.readingPositions).toEqual({
+      JHN: null,
+      MRK: null,
+      GEN: null,
+    });
+  });
+
+  it('migratePersistedState does not re-key readingPositions ' +
+    'at v5', () => {
+    // Feeding only well-formed USFM-keyed data would be
+    // non-discriminating: a `version <= 5` off-by-one would
+    // re-sanitize it into identical output. The name-keyed
+    // and malformed entries below WOULD change if
+    // re-sanitized (re-keyed to MRK / degraded to null), so
+    // they must survive untouched at v5.
+    const persisted = {
+      readingPositions: {
+        JHN: { chapter: 3, verse: 16 },
+        Mark: { chapter: 2, verse: 1 },
+        GEN: 'malformed',
+      },
+    };
+    const migrated = migratePersistedState(persisted, 5);
+    expect(migrated.readingPositions).toEqual(
+      persisted.readingPositions
+    );
+  });
+
+  describe('fetchNotes', () => {
+    it('should fetch all notes and update state', async () => {
+      const mockResponse = {
+        count: 1,
+        next: null,
+        previous: null,
+        results: [{ id: '1', content: 'Note 1', tags: [] }],
+      } as unknown as api.PaginatedNotesResponse;
+      mockApi.getNotes.mockResolvedValue(mockResponse);
+
+      await useBibleStore.getState().fetchNotes();
+
+      const state = useBibleStore.getState();
+      expect(api.getNotes).toHaveBeenCalledWith(undefined, {
+        ordering: undefined,
+        page: 1,
+        pageSize: 25,
+        filesetId: 'ENGESV_API',
+      });
+      expect(state.notes).toEqual(mockResponse.results);
+      expect(state.notesCount).toBe(1);
+      expect(state.notesHasMore).toBe(false);
+    });
+
+    it('should fetch notes for a specific tag and update state',
+      async () => {
+        const mockResponse = {
+          count: 1,
+          next: null,
+          previous: null,
+          results: [{ id: '2', content: 'Tagged Note', tags: ['tag1'] }],
+        } as unknown as api.PaginatedNotesResponse;
+        mockApi.getNotes.mockResolvedValue(mockResponse);
+
+        await useBibleStore.getState().fetchNotes('tag1');
+
+        const state = useBibleStore.getState();
+        expect(api.getNotes).toHaveBeenCalledWith('tag1', {
+          ordering: undefined,
+          page: 1,
+          pageSize: 25,
+          filesetId: 'ENGESV_API',
+        });
+        expect(state.notes).toEqual(mockResponse.results);
+        expect(state.notesCount).toBe(1);
+        expect(state.notesHasMore).toBe(false);
+      });
   });
 
   describe('lastSelectedTagId', () => {
@@ -195,21 +528,21 @@ describe('useBibleStore', () => {
     it('should call clearNotesCache when a note is deleted', async () => {
       mockApi.deleteNote.mockResolvedValue('');
       // Pre-fill state with a note
-      useBibleStore.setState({ 
-        notes: [{ 
-          id: 'note1', 
-          note_text: 'A note', 
+      useBibleStore.setState({
+        notes: [{
+          id: 'note1',
+          note_text: 'A note',
           tag: {
             id: 't1', name: 't1', parent_tag: null,
             created_at: '', updated_at: '',
           },
-          verses: [], 
-          public: false, 
+          verses: [],
+          public: false,
           is_owner: true,
-          created_at: '', 
+          created_at: '',
           updated_at: '',
           tag_position: null
-        }] 
+        }]
       });
 
       await useBibleStore.getState().deleteNote('note1');
@@ -310,14 +643,6 @@ describe('useBibleStore', () => {
       public: false, is_owner: true, created_at: '',
       updated_at: '', tag_position: null,
     });
-    const pageOf = (
-      results: Note[]
-    ): api.PaginatedNotesResponse => ({
-      count: results.length,
-      next: null,
-      previous: null,
-      results,
-    });
 
     it('drops a stale fetchNotes response superseded by a ' +
       'newer request', async () => {
@@ -332,14 +657,14 @@ describe('useBibleStore', () => {
               resolveStale = res;
             })
         )
-        .mockResolvedValueOnce(pageOf([makeNote('fresh')]));
+        .mockResolvedValueOnce(notePageOf([makeNote('fresh')]));
 
       const staleCall =
         useBibleStore.getState().fetchNotes('TAG1');
       const freshCall =
         useBibleStore.getState().fetchNotes('TAG1');
       // Resolve the older request last — latest call wins.
-      resolveStale(pageOf([makeNote('stale')]));
+      resolveStale(notePageOf([makeNote('stale')]));
       await Promise.all([staleCall, freshCall]);
 
       expect(useBibleStore.getState().notes).toEqual([
@@ -475,7 +800,7 @@ describe('useBibleStore', () => {
       mockApi.reorderNotes.mockRejectedValue(
         new api.ConflictError('stale positions')
       );
-      mockApi.getNotes.mockResolvedValue(pageOf([]));
+      mockApi.getNotes.mockResolvedValue(notePageOf([]));
       useBibleStore.setState({
         notesPage: 3,
         notesOrdering: 'custom',
