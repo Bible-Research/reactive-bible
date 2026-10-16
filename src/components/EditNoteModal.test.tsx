@@ -339,10 +339,4 @@ describe('EditNoteModal Component', () => {
       );
     });
   });
-
-  // Note: Full modal interaction testing is problematic
-  // due to portal rendering. See SKIPPED_TESTS.md.
-  it.skip('should refresh notes after successful edit', () => {
-    // This test is skipped due to modal portal rendering
-  });
 });

@@ -244,7 +244,7 @@ describe('API Functions', () => {
         { fumsId: 'audio-fums-token' });
     });
 
-    it.skip('addTagNote should make a POST request with the ' +
+    it('addTagNote should make a POST request with the ' +
       'correct body', async () => {
       const verseRefs = [{ book: 'John', chapter: 3, verse: 16 }];
       const result = await api.addTagNote('tag1', 'My note', verseRefs);
@@ -273,7 +273,7 @@ describe('API Functions', () => {
       );
     });
 
-    it.skip('should make a DELETE request with note id', async () => {
+    it('should make a DELETE request with note id', async () => {
       const removeNote = await api.deleteNote('abc-123');
       expect(removeNote).toBe('Deleted');
     });

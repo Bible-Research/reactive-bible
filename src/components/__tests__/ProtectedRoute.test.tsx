@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { ProtectedRoute } from '../ProtectedRoute';
 import { renderWithProviders } from '../../__tests__/helpers';
-import { useAuthStore } from '../../stores/authStore';
 
 // Mock Navigate component
 const mockNavigate = vi.fn();
@@ -20,46 +19,68 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-describe.skip('ProtectedRoute', () => {
+describe('ProtectedRoute', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe.skip('When authenticated', () => {
-    beforeEach(() => {
-      useAuthStore.setState({
-        isAuthenticated: true,
-      });
-    });
+  describe('When authenticated', () => {
+    const authState = {
+      isAuthenticated: true,
+      token: 'test-token',
+      user: { username: 'testuser' },
+    };
 
     it('should render children', () => {
       renderWithProviders(
         <ProtectedRoute>
           <div>Protected Content</div>
-        </ProtectedRoute>
+        </ProtectedRoute>,
+        { authStoreState: authState }
       );
 
-      expect(screen.getByText('Protected Content')).toBeInTheDocument();
+      expect(
+        screen.getByText('Protected Content')
+      ).toBeInTheDocument();
     });
 
     it('should not redirect', () => {
       renderWithProviders(
         <ProtectedRoute>
           <div>Protected Content</div>
-        </ProtectedRoute>
+        </ProtectedRoute>,
+        { authStoreState: authState }
       );
 
       expect(mockNavigate).not.toHaveBeenCalled();
     });
+
+    it('should render children on a persisted token before ' +
+      'checkAuth flips isAuthenticated', () => {
+      // The token rehydrates from localStorage before App's
+      // checkAuth runs — gating on isAuthenticated alone would
+      // bounce logged-in users on refresh.
+      renderWithProviders(
+        <ProtectedRoute>
+          <div>Protected Content</div>
+        </ProtectedRoute>,
+        {
+          authStoreState: {
+            isAuthenticated: false,
+            token: 'test-token',
+            user: { username: 'testuser' },
+          },
+        }
+      );
+
+      expect(
+        screen.getByText('Protected Content')
+      ).toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
   });
 
-  describe.skip('When not authenticated', () => {
-    beforeEach(() => {
-      useAuthStore.setState({
-        isAuthenticated: false,
-      });
-    });
-
+  describe('When not authenticated', () => {
     it('should not render children', () => {
       renderWithProviders(
         <ProtectedRoute>
@@ -67,7 +88,9 @@ describe.skip('ProtectedRoute', () => {
         </ProtectedRoute>
       );
 
-      expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Protected Content')
+      ).not.toBeInTheDocument();
     });
 
     it('should redirect to /login', () => {
@@ -80,10 +103,8 @@ describe.skip('ProtectedRoute', () => {
       expect(mockNavigate).toHaveBeenCalledWith(
         '/login',
         expect.objectContaining({
-          state: expect.objectContaining({
-            from: expect.objectContaining({
-              pathname: '/notes',
-            }),
+          from: expect.objectContaining({
+            pathname: '/notes',
           }),
         })
       );
@@ -98,7 +119,7 @@ describe.skip('ProtectedRoute', () => {
 
       const callArgs = mockNavigate.mock.calls[0];
       expect(callArgs[0]).toBe('/login');
-      expect(callArgs[1].state.from.pathname).toBe('/notes');
+      expect(callArgs[1].from.pathname).toBe('/notes');
     });
   });
 });

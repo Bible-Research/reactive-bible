@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
-import { act, render, screen, fireEvent } from
+import { act, render, screen, fireEvent, waitFor } from
   '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import NoteForm from './NoteForm';
 import { Tag } from '../types';
@@ -173,16 +174,54 @@ describe('NoteForm Component', () => {
     ).not.toBeInTheDocument();
   });
 
-  // Note: Testing Select dropdown interactions is problematic
-  // due to portal rendering. See SKIPPED_TESTS.md for details.
-  it.skip('should call onSubmit with correct values', () => {
-    // This test is skipped due to Select portal rendering
-  });
+  it('should call onSubmit with the selected tag and text',
+    async () => {
+      render(
+        <NoteForm
+          tags={mockTags}
+          note={{ tagId: '2', text: '' }}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
 
-  it.skip('should call onTagDropdownOpen when dropdown opens',
-    () => {
-    // This test is skipped due to Select portal rendering
-  });
+      fireEvent.change(screen.getByLabelText('Note'), {
+        target: { value: 'Note body' },
+      });
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Submit' })
+        );
+      });
+
+      await waitFor(() => {
+        expect(mockOnSubmit).toHaveBeenCalledWith(
+          '2',
+          expect.stringContaining('Note body')
+        );
+      });
+    });
+
+  it('should call onTagDropdownOpen when dropdown opens',
+    async () => {
+      const user = userEvent.setup();
+      render(
+        <NoteForm
+          tags={mockTags}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      // Mantine Select opens on pointer-down, not click.
+      await user.click(screen.getByLabelText('Tag'));
+
+      await waitFor(() => {
+        expect(mockOnTagDropdownOpen).toHaveBeenCalled();
+      });
+    });
 
   describe('auto save', () => {
     it('hides the checkbox without onAutoSave', () => {

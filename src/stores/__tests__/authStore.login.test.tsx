@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { act, waitFor } from '@testing-library/react';
-import { renderHook } from '@testing-library/react';
 import { createTestAuthStore } from '../authStore';
+import { API_BASE_URL } from '../../config';
 
-describe.skip('authStore - Login', () => {
+describe('authStore - Login', () => {
   const mockToken = 'test-token-123';
   const mockUsername = 'testuser';
   const mockPassword = 'testpass123';
@@ -17,20 +16,7 @@ describe.skip('authStore - Login', () => {
     vi.restoreAllMocks();
   });
 
-  describe.skip('Initial State', () => {
-    it('should have correct initial state', () => {
-      const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
-      
-      expect(result.current.token).toBeNull();
-      expect(result.current.user).toBeNull();
-      expect(result.current.isAuthenticated).toBe(false);
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.error).toBeNull();
-    });
-  });
-
-  describe.skip('login', () => {
+  describe('login', () => {
     it('should successfully login with valid credentials', async () => {
       const useTestAuthStore = createTestAuthStore();
       global.fetch = vi.fn().mockResolvedValueOnce({
@@ -39,17 +25,17 @@ describe.skip('authStore - Login', () => {
         json: async () => ({ token: mockToken }),
       });
 
-      const { result } = renderHook(() => useTestAuthStore());
+      await useTestAuthStore.getState().login(
+        mockUsername,
+        mockPassword
+      );
 
-      await act(async () => {
-        await result.current.login(mockUsername, mockPassword);
-      });
-
-      expect(result.current.token).toBe(mockToken);
-      expect(result.current.user).toEqual({ username: mockUsername });
-      expect(result.current.isAuthenticated).toBe(true);
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.error).toBeNull();
+      const state = useTestAuthStore.getState();
+      expect(state.token).toBe(mockToken);
+      expect(state.user).toEqual({ username: mockUsername });
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.isLoading).toBe(false);
+      expect(state.error).toBeNull();
     });
 
     it('should set loading state during login', async () => {
@@ -63,29 +49,28 @@ describe.skip('authStore - Login', () => {
                   ok: true,
                   json: async () => ({ token: mockToken }),
                 }),
-              100
+              50
             )
           )
       );
 
-      const { result } = renderHook(() => useTestAuthStore());
+      const loginPromise = useTestAuthStore
+        .getState()
+        .login(mockUsername, mockPassword);
 
-      const loginPromise = act(async () => {
-        await result.current.login(mockUsername, mockPassword);
-      });
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(true);
-      });
+      // isLoading flips synchronously before the first await.
+      expect(useTestAuthStore.getState().isLoading).toBe(true);
 
       await loginPromise;
 
-      expect(result.current.isLoading).toBe(false);
+      expect(useTestAuthStore.getState().isLoading).toBe(false);
     });
 
     it('should handle 400 error (invalid credentials)', async () => {
       const errorResponse = {
-        non_field_errors: ['Unable to log in with provided credentials.'],
+        non_field_errors: [
+          'Unable to log in with provided credentials.',
+        ],
       };
 
       const useTestAuthStore = createTestAuthStore();
@@ -95,18 +80,15 @@ describe.skip('authStore - Login', () => {
         json: async () => errorResponse,
       });
 
-      const { result } = renderHook(() => useTestAuthStore());
-
       await expect(
-        act(async () => {
-          await result.current.login(mockUsername, mockPassword);
-        })
+        useTestAuthStore.getState().login(mockUsername, mockPassword)
       ).rejects.toThrow();
 
-      expect(result.current.token).toBeNull();
-      expect(result.current.user).toBeNull();
-      expect(result.current.isAuthenticated).toBe(false);
-      expect(result.current.error).toContain('credentials');
+      const state = useTestAuthStore.getState();
+      expect(state.token).toBeNull();
+      expect(state.user).toBeNull();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.error).toContain('credentials');
     });
 
     it('should handle 401 error', async () => {
@@ -117,15 +99,11 @@ describe.skip('authStore - Login', () => {
         json: async () => ({}),
       });
 
-      const { result } = renderHook(() => useTestAuthStore());
-
       await expect(
-        act(async () => {
-          await result.current.login(mockUsername, mockPassword);
-        })
+        useTestAuthStore.getState().login(mockUsername, mockPassword)
       ).rejects.toThrow('Invalid username or password');
 
-      expect(result.current.isAuthenticated).toBe(false);
+      expect(useTestAuthStore.getState().isAuthenticated).toBe(false);
     });
 
     it('should handle network errors', async () => {
@@ -134,16 +112,13 @@ describe.skip('authStore - Login', () => {
         new Error('Network error')
       );
 
-      const { result } = renderHook(() => useTestAuthStore());
-
       await expect(
-        act(async () => {
-          await result.current.login(mockUsername, mockPassword);
-        })
+        useTestAuthStore.getState().login(mockUsername, mockPassword)
       ).rejects.toThrow('Network error');
 
-      expect(result.current.isAuthenticated).toBe(false);
-      expect(result.current.error).toBe('Network error');
+      const state = useTestAuthStore.getState();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.error).toBe('Network error');
     });
 
     it('should send correct request format', async () => {
@@ -154,14 +129,12 @@ describe.skip('authStore - Login', () => {
       global.fetch = mockFetch;
 
       const useTestAuthStore = createTestAuthStore();
-      const { result } = renderHook(() => useTestAuthStore());
-
-      await act(async () => {
-        await result.current.login(mockUsername, mockPassword);
-      });
+      await useTestAuthStore
+        .getState()
+        .login(mockUsername, mockPassword);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://bibleresearchapi.vercel.app/api/token/',
+        `${API_BASE_URL}/api/token/`,
         {
           method: 'POST',
           headers: {

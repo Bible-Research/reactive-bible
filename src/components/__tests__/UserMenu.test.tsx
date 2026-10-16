@@ -22,12 +22,12 @@ vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
 }));
 
-describe.skip('UserMenu', () => {
+describe('UserMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe.skip('When not authenticated', () => {
+  describe('When not authenticated', () => {
     it('should show Sign In button', () => {
       renderWithProviders(<UserMenu />, {
         authStoreState: { isAuthenticated: false, user: null },
@@ -47,7 +47,7 @@ describe.skip('UserMenu', () => {
     });
   });
 
-  describe.skip('When authenticated', () => {
+  describe('When authenticated', () => {
     const authState = {
       isAuthenticated: true,
       user: { username: 'testuser' },

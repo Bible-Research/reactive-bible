@@ -65,19 +65,6 @@ describe('TranslationSelector Component', () => {
     ).toBeInTheDocument();
   });
 
-  // Note: Testing modal interactions with Select dropdowns
-  // is problematic due to portal rendering.
-  // See SKIPPED_TESTS.md for details.
-  it.skip('should display available translations', async () => {
-    render(<TranslationSelector />);
-    const button = screen.getByRole('button', 
-      { name: 'Change Translation' });
-    await userEvent.click(button);
-
-    // This test is skipped because Select component renders
-    // options in a portal that's not accessible in tests
-  });
-
   it('refreshes translations from the API when modal opens', async () => {
     const mock = api.getAvailableTranslations as unknown as ReturnType<
       typeof vi.fn
