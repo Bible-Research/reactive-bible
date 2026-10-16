@@ -8,6 +8,7 @@ import {
   beforeEach,
   type Mock,
 } from 'vitest';
+import { notifications } from '@mantine/notifications';
 import TranslationSelector from './TranslationSelector';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -160,6 +161,82 @@ describe('TranslationSelector Component', () => {
       );
     });
   });
+
+  it('toasts when the refresh fails while the modal is open',
+    async () => {
+      const showSpy = vi.spyOn(notifications, 'show');
+      vi.spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      let rejectRefresh: (error: unknown) => void =
+        () => undefined;
+      const pending = new Promise<never>((_resolve, reject) => {
+        rejectRefresh = reject;
+      });
+      (api.getAvailableTranslations as Mock).mockImplementation(
+        (_iso: string, forceRefresh?: boolean) =>
+          forceRefresh ? pending : Promise.resolve([])
+      );
+
+      render(<TranslationSelector />);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Change Translation' })
+      );
+      await waitFor(() => {
+        expect(api.getAvailableTranslations)
+          .toHaveBeenCalledWith('eng', true);
+      });
+
+      rejectRefresh(new Error('boom'));
+
+      await waitFor(() => {
+        expect(showSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Translations unavailable',
+          })
+        );
+      });
+    });
+
+  it('does not toast a refresh failure after the modal closes',
+    async () => {
+      const showSpy = vi.spyOn(notifications, 'show');
+      const warnSpy = vi.spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      let rejectRefresh: (error: unknown) => void =
+        () => undefined;
+      const pending = new Promise<never>((_resolve, reject) => {
+        rejectRefresh = reject;
+      });
+      (api.getAvailableTranslations as Mock).mockImplementation(
+        (_iso: string, forceRefresh?: boolean) =>
+          forceRefresh ? pending : Promise.resolve([])
+      );
+
+      render(<TranslationSelector />);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Change Translation' })
+      );
+      await waitFor(() => {
+        expect(api.getAvailableTranslations)
+          .toHaveBeenCalledWith('eng', true);
+      });
+
+      // Close before the refresh settles — the rejection is
+      // stale and must not surface a "unavailable" toast.
+      fireEvent.click(
+        screen.getByRole('button', { name: /cancel/i })
+      );
+      rejectRefresh(new Error('boom'));
+
+      // The catch still runs (warns), but the toast is gated.
+      await waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(
+          'Failed to refresh translations:',
+          expect.any(Error)
+        );
+      });
+      expect(showSpy).not.toHaveBeenCalled();
+    });
 
   describe('grouped fileset options', () => {
     const textFs = (id: string, size = 'C') => ({
