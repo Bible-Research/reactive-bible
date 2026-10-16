@@ -34,7 +34,7 @@ import {
   splitCodec,
   type CodecKey,
 } from "../utils/filesetGroups";
-import { getPlayPosition } from "../utils/audioUtils";
+import { disposeHowl, getPlayPosition } from "../utils/audioUtils";
 import { verseDomId } from "../utils/verseRefs";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";
@@ -289,34 +289,6 @@ const Audio = () => {
     [],
   );
 
-  const disposeHowl = useCallback(
-    (howl: Howl | null, blobUrl: string | null = null) => {
-      if (howl) {
-        // Detach listeners first: clearing the node's src during
-        // unload() rejects a still-pending play() request, and
-        // the resulting playerror is teardown noise that must not
-        // surface as a user-facing playback error.
-        // volume(0) silences the node even if the pooled <audio>
-        // element drains buffered audio after release — mute(true)
-        // would set node.muted, which the pool never resets and
-        // would silence the NEXT chapter's Howl. stop() halts
-        // playback immediately — unload() alone can let the
-        // underlying html5 <audio> element keep playing for a few
-        // seconds until the next chapter finishes loading.
-        try {
-          howl.off();
-          howl.volume(0);
-          howl.stop();
-          howl.unload();
-        } catch (err) {
-          console.warn('Failed to dispose chapter audio:', err);
-        }
-      }
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    },
-    [],
-  );
-
   const discardPreloaded = useCallback(() => {
     // Invalidate any in-flight preload so it cannot write a stale
     // record after this discard.
@@ -324,7 +296,7 @@ const Audio = () => {
     const pre = preloadedRef.current;
     preloadedRef.current = null;
     if (pre) disposeHowl(pre.howl, pre.blobUrl);
-  }, [disposeHowl]);
+  }, []);
 
   const clearAdvanceTimer = useCallback(() => {
     if (advanceTimerRef.current !== null) {
@@ -575,7 +547,7 @@ const Audio = () => {
         setIsPlaying(false);
       }
     },
-    [advanceChapter, disposeHowl, resolveFilesetFor],
+    [advanceChapter, resolveFilesetFor],
   );
 
   useEffect(() => {
@@ -780,7 +752,6 @@ const Audio = () => {
     activeChapter,
     activeAudioFilesetId,
     resolveFilesetFor,
-    disposeHowl,
     discardPreloaded,
     clearAdvanceTimer,
     setAudioActiveVerse,
