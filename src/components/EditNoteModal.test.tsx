@@ -24,16 +24,22 @@ vi.mock('../api', () => ({
     next: null,
   }),
   editNote: vi.fn(),
+  getVersesInChapter: vi.fn().mockResolvedValue({
+    verses: [],
+    headings: [],
+  }),
+}));
+
+// PassagePicker + utils/scriptureMention import structure
+// lookups from the leaf module — mock it here so the barrel
+// mock above isn't bypassed (C10 structure-seam repoint).
+vi.mock('../api/structure', () => ({
   getBooks: vi.fn(() => [
     { book_name: 'Genesis', book_id: 'GEN' },
     { book_name: 'John', book_id: 'JHN' },
   ]),
   getChapters: vi.fn(() => [1, 2, 3]),
   getVerses: vi.fn(() => [15, 16, 17]),
-  getVersesInChapter: vi.fn().mockResolvedValue({
-    verses: [],
-    headings: [],
-  }),
 }));
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor.

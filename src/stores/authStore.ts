@@ -43,23 +43,17 @@ const createAuthStore = () => create<AuthState>()(
   persist(
     (set, get) => ({
       // Initial state
-      token: null,
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-      
+      ...initialState,
+
       // Login action
       login: async (username: string, password: string) => {
         set({ isLoading: true, error: null });
         
         try {
+          // Never log requestBody — it carries the plaintext
+          // password.
           const requestBody = { username, password };
-          console.log('🔐 Login attempt:', { 
-            url: `${API_BASE_URL}/api/token/`,
-            body: requestBody 
-          });
-          
+
           const response = await fetch(`${API_BASE_URL}/api/token/`, {
             method: 'POST',
             headers: {
@@ -129,7 +123,12 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
-          const requestBody: any = {
+          const requestBody: {
+            username: string;
+            password: string;
+            password_confirm: string;
+            email?: string;
+          } = {
             username,
             password,
             password_confirm: passwordConfirm,

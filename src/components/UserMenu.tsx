@@ -13,7 +13,11 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ onNavigate }: UserMenuProps = {}) {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
+  const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
 
   const handleLogout = () => {

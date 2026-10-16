@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  lazy,
   useEffect,
   useState,
   useCallback,
@@ -30,11 +32,9 @@ import {
   Note,
   Tag,
   CommentCounts,
-  PlaylistItem,
   NoteOrderIndexEntry,
 } from '../types';
 import TagSection from '../components/TagSection';
-import EditNoteModal from '../components/EditNoteModal';
 import Pagination from '../components/Pagination';
 import { useBibleStore } from '../store';
 import {
@@ -45,35 +45,23 @@ import {
 } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
+import { buildBiblePath } from '../utils/bibleUtils';
+import { shareOrCopyLink } from '../utils/share';
+import { pageCount } from '../utils/pagination';
 import {
-  BOOK_NAME_TO_ORDER,
-  buildBiblePath,
-  toUsfmCode,
-} from '../utils/bibleUtils';
+  SortOrder,
+  SORT_ORDERS,
+  getApiOrdering,
+  sortNotes,
+} from '../utils/noteSorting';
+import { buildNotePlaylistItems } from '../utils/notePlaylist';
 import { verseDomId } from '../utils/verseRefs';
 
-// Type definition for sort orders
-type SortOrder =
-  | 'custom_asc'
-  | 'custom_desc'
-  | 'created_desc'
-  | 'created_asc'
-  | 'verse_asc'
-  | 'verse_desc';
-
-// Map frontend sort order to API ordering parameter
-// Moved outside component to prevent re-creation on every render
-const getApiOrdering = (sortOrder: SortOrder): string => {
-  const orderingMap: Record<SortOrder, string> = {
-    custom_asc: 'custom',
-    custom_desc: '-custom',
-    created_desc: '-created',
-    created_asc: 'created',
-    verse_asc: 'verse',
-    verse_desc: '-verse',
-  };
-  return orderingMap[sortOrder];
-};
+// Lazy + gated below on isEditModalOpen — the modal pulls in
+// TipTap, which should not ship with the route chunk.
+const EditNoteModal = lazy(
+  () => import('../components/EditNoteModal')
+);
 
 /** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
  *  notes. `k` is the canonical 1-based order ID. */
@@ -140,32 +128,19 @@ export default function TagNotesRoute() {
     (state) => state.isAuthenticated
   );
   
-  // Get sort order from URL, default to 'created_desc'
+  // Get sort order from URL, default to 'custom_asc'
   const urlSortOrder = searchParams.get('sort') as SortOrder | null;
-  const validSortOrders: SortOrder[] = [
-    'custom_asc',
-    'custom_desc',
-    'created_desc',
-    'created_asc',
-    'verse_asc',
-    'verse_desc',
-  ];
   const sortOrder: SortOrder =
-    urlSortOrder && validSortOrders.includes(urlSortOrder)
+    urlSortOrder && SORT_ORDERS.includes(urlSortOrder)
       ? urlSortOrder
       : 'custom_asc';
 
-  // Page to restore on the first load, captured during render
-  // before the mount effect writes lastSelectedTagId (which
-  // would make the same-tag check below always true).
+  // Page to restore on the first load. Seeded inside the mount
+  // effect below — reading the store during render is unsafe —
+  // and it must be captured before that effect writes
+  // lastSelectedTagId (which would make the same-tag check
+  // always true).
   const initialPageRef = useRef<number | null>(null);
-  if (initialPageRef.current === null) {
-    const stored = useBibleStore.getState();
-    initialPageRef.current =
-      stored.lastSelectedTagId === tagId && stored.notesPage > 1
-        ? stored.notesPage
-        : 1;
-  }
   // The load effect re-runs on mount (StrictMode, auth
   // hydration); remember the last requested query so repeats
   // refetch the current page instead of resetting to page 1.
@@ -195,6 +170,20 @@ export default function TagNotesRoute() {
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
+    if (tagId) {
+      // Capture the page to restore BEFORE overwriting
+      // lastSelectedTagId — after the write the same-tag
+      // check would always pass. This runs before the
+      // loader effect (declared below) consumes the ref.
+      if (initialPageRef.current === null) {
+        const stored = useBibleStore.getState();
+        initialPageRef.current =
+          stored.lastSelectedTagId === tagId &&
+          stored.notesPage > 1
+            ? stored.notesPage
+            : 1;
+      }
+    }
     setShowNotes(true);
     if (tagId) {
       setLastSelectedTagId(tagId);
@@ -536,7 +525,7 @@ export default function TagNotesRoute() {
       const current = useBibleStore.getState();
       const lastPage = Math.max(
         1,
-        Math.ceil(current.notesCount / current.notesPageSize)
+        pageCount(current.notesCount, current.notesPageSize)
       );
       // An emptied list would flash "No notes found" while the
       // backfill is in flight; show the page loader instead.
@@ -630,49 +619,31 @@ export default function TagNotesRoute() {
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
-    const title = `Notes: ${tag?.name || 'Tag'}`;
-    const text =
-      `Check out these ${notes.length} note(s) ` +
-      `tagged with "${tag?.name}"`;
-
-    // Try Web Share API first (mobile-friendly)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title,
-          text,
-          url,
-        });
-        showNotification({
+    await shareOrCopyLink(
+      {
+        title: `Notes: ${tag?.name || 'Tag'}`,
+        // notesCount is the tag total; notes.length is only
+        // the currently loaded page.
+        text:
+          `Check out these ${notesCount} note(s) ` +
+          `tagged with "${tag?.name}"`,
+        url: window.location.href,
+      },
+      {
+        shareSuccess: {
           title: 'Shared!',
           message: 'Link shared successfully',
-          color: 'green',
-        });
-      } catch (err) {
-        // User cancelled or error occurred
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Error sharing:', err);
-        }
-      }
-    } else {
-      // Fallback: Copy to clipboard
-      try {
-        await navigator.clipboard.writeText(url);
-        showNotification({
+        },
+        copySuccess: {
           title: 'Link Copied!',
           message: 'Tag link copied to clipboard',
-          color: 'blue',
-        });
-      } catch (err) {
-        console.error('Error copying to clipboard:', err);
-        showNotification({
+        },
+        copyFailure: {
           title: 'Error',
           message: 'Failed to copy link',
-          color: 'red',
-        });
+        },
       }
-    }
+    );
   };
 
   const handleSortChange = useCallback(
@@ -767,68 +738,7 @@ export default function TagNotesRoute() {
     [tagId, sortOrder, setNotesPageSize, fetchNotes]
   );
 
-  const sortedNotes = [...notes].sort((a, b) => {
-    switch (sortOrder) {
-      case 'custom_asc': {
-        const aPos = a.tag_position ?? 0;
-        const bPos = b.tag_position ?? 0;
-        if (aPos !== bPos) return aPos - bPos;
-        return (
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-        );
-      }
-      case 'custom_desc': {
-        const aPos = a.tag_position ?? 0;
-        const bPos = b.tag_position ?? 0;
-        if (aPos !== bPos) return bPos - aPos;
-        return (
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
-        );
-      }
-      case 'created_desc':
-        return (
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-        );
-      case 'created_asc':
-        return (
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
-        );
-      case 'verse_asc': {
-        const aV = a.verses?.[0];
-        const bV = b.verses?.[0];
-        if (!aV) return 1;
-        if (!bV) return -1;
-        const aBook =
-          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
-        const bBook =
-          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
-        if (aBook !== bBook) return aBook - bBook;
-        if (aV.chapter !== bV.chapter)
-          return aV.chapter - bV.chapter;
-        return aV.verse - bV.verse;
-      }
-      case 'verse_desc': {
-        const aV = a.verses?.[0];
-        const bV = b.verses?.[0];
-        if (!aV) return 1;
-        if (!bV) return -1;
-        const aBook =
-          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
-        const bBook =
-          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
-        if (aBook !== bBook) return bBook - aBook;
-        if (aV.chapter !== bV.chapter)
-          return bV.chapter - aV.chapter;
-        return bV.verse - aV.verse;
-      }
-      default:
-        return 0;
-    }
-  });
+  const sortedNotes = sortNotes(notes, sortOrder);
 
   const handleToggleFolded = () => {
     const next = !versesFolded;
@@ -881,33 +791,7 @@ export default function TagNotesRoute() {
       setAudioPlaylistItems(null);
       return;
     }
-    const items: PlaylistItem[] = sortedNotes
-      .filter((n) => (n.verses?.length ?? 0) > 0)
-      .map((note, i, arr) => {
-        const firstVerse = note.verses[0];
-        const sameBlock = note.verses.filter(
-          (v) =>
-            v.book === firstVerse.book &&
-            v.chapter === firstVerse.chapter,
-        );
-        const verseNumbers = sameBlock.map((v) => v.verse);
-        const startVerse = Math.min(...verseNumbers);
-        const endVerse = Math.max(...verseNumbers);
-        const label =
-          `Note ${i + 1}/${arr.length} ` +
-          `\u2013 ${firstVerse.book} ` +
-          `${firstVerse.chapter}:${startVerse}` +
-          (startVerse !== endVerse ? `-${endVerse}` : '');
-        return {
-          itemId: note.id,
-          bookId: toUsfmCode(firstVerse.book) ?? firstVerse.book,
-          chapter: firstVerse.chapter,
-          startVerse,
-          endVerse,
-          label,
-          verseNumbers,
-        };
-      });
+    const items = buildNotePlaylistItems(sortedNotes);
     setAudioPlaylistItems(items.length > 0 ? items : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes, sortOrder, loading, setAudioPlaylistItems]);
@@ -935,7 +819,7 @@ export default function TagNotesRoute() {
   );
 
   // Calculate total pages
-  const totalPages = Math.ceil(notesCount / notesPageSize);
+  const totalPages = pageCount(notesCount, notesPageSize);
 
   const pagination = totalPages > 1 ? (
     <Pagination
@@ -1126,11 +1010,15 @@ export default function TagNotesRoute() {
         )}
       </ScrollArea>
 
-      <EditNoteModal
-        opened={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        note={noteToEdit}
-      />
+      {isEditModalOpen && (
+        <Suspense fallback={null}>
+          <EditNoteModal
+            opened={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            note={noteToEdit}
+          />
+        </Suspense>
+      )}
     </Box>
   );
 }

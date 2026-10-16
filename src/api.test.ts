@@ -6,6 +6,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 import * as kjvDataLoader from './utils/kjvDataLoader';
 import { API_BASE_URL } from './config';
+import type { Translation } from './store';
 
 const API_URL = `${API_BASE_URL}/api/v1`;
 const COMMENT_BASE = `${API_URL}`;
@@ -35,9 +36,9 @@ describe('API Functions', () => {
       expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
     });
 
-    it('getPassage should NOT load KJV data (uses lightweight ' +
-      'structure)', () => {
-      api.getPassage();
+    it('getChapterList should NOT load KJV data (uses ' +
+      'lightweight structure)', () => {
+      api.getChapterList();
       expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
     });
 
@@ -314,31 +315,44 @@ describe('API Functions', () => {
       });
       expect(result).toEqual({ 'note-x': 5 });
       expect(callCount).toBe(1);
-      const url = new URL(capturedUrl!);
+      if (!capturedUrl) {
+        throw new Error('expected the request to be captured');
+      }
+      const url = new URL(capturedUrl);
       expect(url.searchParams.get('tag_id')).toBe('tag-1');
       expect(url.searchParams.has('note_ids')).toBe(false);
     });
   });
 
   describe('getAvailableTranslations', () => {
-    const cached = [
+    const cached: Translation[] = [
       {
         abbr: 'KJV',
         name: 'King James Version',
         language: 'English',
         language_iso: 'eng',
-        filesets: [{ id: 'ENGKJV', type: 'text_plain', size: 'NT' }],
+        filesets: [
+          {
+            id: 'ENGKJV', type: 'text_plain', size: 'NT',
+            codec: null, bitrate: null,
+          },
+        ],
       },
     ];
 
-    const fresh = [
+    const fresh: Translation[] = [
       ...cached,
       {
         abbr: 'NIV',
         name: 'New International Version',
         language: 'English',
         language_iso: 'eng',
-        filesets: [{ id: 'ENGNIV', type: 'text_plain', size: 'C' }],
+        filesets: [
+          {
+            id: 'ENGNIV', type: 'text_plain', size: 'C',
+            codec: null, bitrate: null,
+          },
+        ],
       },
     ];
 
@@ -364,7 +378,7 @@ describe('API Functions', () => {
 
     it('returns cached translations without hitting API', async () => {
       vi.spyOn(cacheManager, 'getCachedTranslations')
-        .mockReturnValue(cached as any);
+        .mockReturnValue(cached);
       const fetchSpy = vi.spyOn(global, 'fetch');
 
       const result = await api.getAvailableTranslations('eng');
@@ -375,7 +389,7 @@ describe('API Functions', () => {
 
     it('bypasses cache when forceRefresh=true and updates cache', async () => {
       vi.spyOn(cacheManager, 'getCachedTranslations')
-        .mockReturnValue(cached as any);
+        .mockReturnValue(cached);
       server.use(
         http.get(
           `${API_URL}/bible/translations/`,
@@ -388,6 +402,138 @@ describe('API Functions', () => {
       expect(result).toEqual(freshInjected);
       expect(cacheManager.cacheTranslations)
         .toHaveBeenCalledWith('eng', freshInjected);
+    });
+
+    it('throws instead of caching a 200 error body', async () => {
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({
+            error: 'Bible provider error (HTTP 503)',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.ProviderError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+
+    it('throws RateLimitError for a rate-limit-shaped 200 ' +
+      'error body', async () => {
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({
+            error: '(429) Reason: Too Many Requests',
+          })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.RateLimitError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fetchHeadingsOnly', () => {
+    beforeEach(() => {
+      vi.spyOn(cacheManager, 'getCachedHeadings')
+        .mockReturnValue(null);
+      vi.spyOn(cacheManager, 'cacheHeadings');
+    });
+
+    it('returns and caches headings from a 200 response',
+      async () => {
+        const headings = [
+          { before_verse: 1, text: 'The beginning' },
+        ];
+        server.use(
+          http.get(`${API_URL}/bible`, () => {
+            return HttpResponse.json({ headings });
+          })
+        );
+
+        const result = await api.fetchHeadingsOnly(
+          'JHN', 3, 'NONKJVFS');
+
+        expect(result).toEqual(headings);
+        expect(cacheManager.cacheHeadings).toHaveBeenCalledWith(
+          'JHN', 3, 'NONKJVFS', headings);
+      });
+
+    it('does not cache a 200 body carrying a `message`',
+      async () => {
+        server.use(
+          http.get(`${API_URL}/bible`, () => {
+            return HttpResponse.json({
+              verses: [],
+              message:
+                'No verses found for the specified passage',
+            });
+          })
+        );
+
+        const result = await api.fetchHeadingsOnly(
+          'JHN', 3, 'NONKJVFS');
+
+        expect(result).toEqual([]);
+        expect(cacheManager.cacheHeadings).not.toHaveBeenCalled();
+      });
+
+    it('does not cache a non-OK response', async () => {
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json(
+            { error: 'provider broke' }, { status: 500 });
+        })
+      );
+
+      const result = await api.fetchHeadingsOnly(
+        'JHN', 3, 'NONKJVFS');
+
+      expect(result).toEqual([]);
+      expect(cacheManager.cacheHeadings).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('searchBibleGrouped', () => {
+    it('throws ProviderError when a 200 body carries a ' +
+      '`message` and no groups', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message: 'Search provider unavailable',
+          });
+        })
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.ProviderError);
+    });
+
+    it('throws RateLimitError when a 200 `message` body is ' +
+      'rate-limit-shaped', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message:
+              'Bible provider rate limit exceeded (HTTP 429)',
+          });
+        })
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.RateLimitError);
     });
   });
 
