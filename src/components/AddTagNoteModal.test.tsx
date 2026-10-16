@@ -119,8 +119,9 @@ describe('AddTagNoteModal Component', () => {
   it('resolves stored product ids before fetching verse text',
     async () => {
       // `ENGKJV:text:0` must collapse to 'ENGKJV' so the offline
-      // bundle fast-path in api.tsx is used; a split-text product
-      // resolves to the member covering the selected book.
+      // bundle fast-path in src/api/verses.ts is used; a
+      // split-text product resolves to the member covering the
+      // selected book.
       const kjv = {
         abbr: 'ENGKJV',
         name: 'King James Version',
