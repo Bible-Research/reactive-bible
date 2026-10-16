@@ -16,15 +16,20 @@ import {
   IconBrandAndroid,
   IconRefresh,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
-import { isNativeApp } from "../utils/nativeAudio";
+import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
-import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
+
+// Lazy + gated below on newNoteOpened — the modal pulls in
+// TipTap, which must stay out of the app-shell chunk.
+const AddStandaloneNoteModal = lazy(
+  () => import("./AddStandaloneNoteModal")
+);
 
 // The rolling `continuous` prerelease always serves the newest
 // main build; `releases/latest` would serve the stale v* tag.
@@ -225,10 +230,14 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
-      <AddStandaloneNoteModal
-        opened={newNoteOpened}
-        onClose={() => setNewNoteOpened(false)}
-      />
+      {newNoteOpened && (
+        <Suspense fallback={null}>
+          <AddStandaloneNoteModal
+            opened={newNoteOpened}
+            onClose={() => setNewNoteOpened(false)}
+          />
+        </Suspense>
+      )}
     </>
   );
 };

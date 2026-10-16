@@ -43,7 +43,7 @@ vi.mock('../api', () => ({
   getKjvAudioUrl: vi.fn().mockReturnValue('http://audio.url/test.mp3'),
   getBibleAudioUrl: vi.fn()
     .mockResolvedValue('http://audio.url/test.mp3'),
-  getPassage: vi.fn().mockReturnValue({
+  getChapterList: vi.fn().mockReturnValue({
     book: 'Genesis',
     chapter: 1,
   }),

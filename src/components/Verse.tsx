@@ -64,25 +64,32 @@ const Verse = ({
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
   const navigate = useNavigate();
-  const verseSelection = useBibleStore((state) => state.verseSelection);
+  const bookId = toUsfmCode(book) ?? book;
+  const thisRef: VerseRef = { bookId, chapter, verse };
+  // Per-verse boolean selectors: this verse only re-renders when
+  // its own selection/audio flags flip, not on every store change.
+  const isActive = useBibleStore((state) => {
+    const selection = state.verseSelection;
+    return (
+      selection !== null &&
+      selection.scope === scope &&
+      refsInclude(selection.refs, thisRef)
+    );
+  });
+  const isAudioActive = useBibleStore((state) => {
+    const active = state.audioActiveVerse;
+    return (
+      active !== null &&
+      active.scope === scope &&
+      active.bookId === bookId &&
+      active.chapter === chapter &&
+      active.verse === verse
+    );
+  });
   const toggleVerseRef = useBibleStore((state) => state.toggleVerseRef);
   const selectVerseRange = useBibleStore(
     (state) => state.selectVerseRange
   );
-  const audioActiveVerse = useBibleStore(
-    (state) => state.audioActiveVerse
-  );
-  const bookId = toUsfmCode(book) ?? book;
-  const thisRef: VerseRef = { bookId, chapter, verse };
-  const isActive =
-    verseSelection?.scope === scope &&
-    refsInclude(verseSelection.refs, thisRef);
-  const isAudioActive =
-    audioActiveVerse !== null &&
-    audioActiveVerse.scope === scope &&
-    audioActiveVerse.bookId === bookId &&
-    audioActiveVerse.chapter === chapter &&
-    audioActiveVerse.verse === verse;
 
   // Track touch state to differentiate tap from scroll
   const touchStartPos = useRef<{ x: number; y: number } | null>(
@@ -115,7 +122,9 @@ const Verse = ({
     });
   };
 
-  const handleVerseClick = (event: React.MouseEvent) => {
+  const handleVerseClick = (
+    event: React.MouseEvent | React.KeyboardEvent
+  ) => {
     if (!selectable) return;
 
     // Ignore the synthetic click fired after a handled touch tap
@@ -150,6 +159,12 @@ const Verse = ({
     if (scope === 'bible') {
       navigateForSelection();
     }
+  };
+
+  const handleVerseKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault(); // Keep Space from scrolling the page
+    handleVerseClick(event);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -228,6 +243,10 @@ const Verse = ({
     <Box
       component="div"
       display="flex"
+      role={selectable ? "button" : undefined}
+      aria-pressed={selectable ? isActive : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      onKeyDown={selectable ? handleVerseKeyDown : undefined}
       data-active={isActive}
       data-audio-active={isAudioActive}
       className={cx({

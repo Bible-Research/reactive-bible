@@ -14,19 +14,27 @@ Talks to the `bible_research` Django API.
 
 ## Layout (actual)
 
-- `src/api.tsx` — every backend call lives here (large module).
+- `src/api/` — every backend call lives here, split by domain
+  (`errors`, `structure`, `verses`, `audio`, `translations`,
+  `notes`, `tags`, `comments`, `search`, `readingPositions`);
+  `index.ts` is the barrel — always import from `'../api'`,
+  never a leaf, so `vi.mock('../api')` keeps intercepting.
 - `src/config.ts` — `API_BASE_URL` from `VITE_API_BASE_URL`, else
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
-- `src/store.tsx` — main persisted Zustand store (`bible-storage`,
-  schema v3, custom `migratePersistedState` — bump version when
-  persisted shape changes).
-- `src/stores/authStore.tsx` — auth state (token, user, login,
+- `src/store.ts` — main persisted Zustand store (`bible-storage`,
+  schema v5, custom `migratePersistedState` — bump version when
+  persisted shape changes). Composition root; notes
+  orchestration in `src/stores/bibleStore/notesSlice.ts`,
+  partialize/migration in `src/stores/bibleStore/persistence.ts`.
+- `src/stores/authStore.ts` — auth state (token, user, login,
   register, logout).
 - `src/utils/apiClient.ts` — `publicFetch` (attaches token if
-  present, never logs out on 401) vs `authenticatedFetch` (401 →
-  logout + "session expired" notification). Both retry on network
-  failure.
+  present; a 401 retries once anonymously — a stale token must
+  not break public content — and never logs out) vs
+  `authenticatedFetch` (401 → logout + "session expired"
+  notification). Network-failure retry only fires for
+  idempotent methods (GET/HEAD/OPTIONS).
 - `src/utils/cacheManager.ts` — 3-tier localStorage cache: verses
   (LRU, 500 cap for copyright), audio URLs (CloudFront expiry
   parsing), translations (per language).
@@ -49,8 +57,9 @@ Talks to the `bible_research` Django API.
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.
 - Verse selection is scoped: `{ scope: 'bible' | 'note:<id>',
   refs: VerseRef[] }` — a `VerseRef` is `{ bookId, chapter, verse }`.
-- Backend errors carry `error`/`error_code`/`message`; api.tsx maps
-  them to `RateLimitError`/`ProviderError`. Preserve this — do not
+- Backend errors carry `error`/`error_code`/`message`;
+  `src/api/errors.ts` maps them to `RateLimitError`/
+  `ProviderError`. Preserve this — do not
   silently swallow provider failures into empty verse lists.
 
 ## Behavior notes
@@ -65,6 +74,8 @@ Talks to the `bible_research` Django API.
 ## Commands
 
 ```bash
+# node/npm live in /opt/homebrew/bin on this machine — run
+# `export PATH="/opt/homebrew/bin:$PATH"` before any npm command
 npm run dev      # dev server :5173
 npm run build    # tsc + vite build
 npm run lint     # ESLint (aim for zero new warnings)
@@ -91,5 +102,5 @@ npm test -- --run  # vitest headless (389 tests, ~85s)
 - Comment image endpoints ARE consumed by
   `CommentThread`/`CommentForm`/`CommentNode`; reading positions
   are consumed too (book-name keyed, auth-gated; see
-  `readingPositions` in `src/store.tsx`).
+  `readingPositions` in `src/store.ts`).
 - KJV audio is fetched from wordpocket.org directly, not the API.

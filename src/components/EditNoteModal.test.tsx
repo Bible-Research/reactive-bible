@@ -1,4 +1,9 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import {
   describe,
   it,
@@ -8,6 +13,7 @@ import {
   type Mock,
 } from 'vitest';
 import EditNoteModal from './EditNoteModal';
+import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import {
   renderWithProviders,
   createMockNote,
@@ -18,22 +24,29 @@ import * as api from '../api';
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
   getTags: vi.fn(),
+  UNTAGGED_TAG_ID: 'untagged',
   getNotes: vi.fn().mockResolvedValue({
     results: [],
     count: 0,
     next: null,
   }),
   editNote: vi.fn(),
+  getVersesInChapter: vi.fn().mockResolvedValue({
+    verses: [],
+    headings: [],
+  }),
+}));
+
+// PassagePicker + utils/scriptureMention import structure
+// lookups from the leaf module — mock it here so the barrel
+// mock above isn't bypassed (C10 structure-seam repoint).
+vi.mock('../api/structure', () => ({
   getBooks: vi.fn(() => [
     { book_name: 'Genesis', book_id: 'GEN' },
     { book_name: 'John', book_id: 'JHN' },
   ]),
   getChapters: vi.fn(() => [1, 2, 3]),
   getVerses: vi.fn(() => [15, 16, 17]),
-  getVersesInChapter: vi.fn().mockResolvedValue({
-    verses: [],
-    headings: [],
-  }),
 }));
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
@@ -68,6 +81,9 @@ describe('EditNoteModal Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Editor drafts are module-scoped — reset them between
+    // tests.
+    resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
       createMockTag({ id: '1', name: 'Faith' }),
@@ -239,6 +255,87 @@ describe('EditNoteModal Component', () => {
           { book: 'John', chapter: 3, verse: 16 },
           { book: 'John', chapter: 3, verse: 17 },
         ]
+      );
+    });
+  });
+
+  it('autosave PATCHes carry the picker verse refs', async () => {
+    (api.editNote as Mock).mockResolvedValue({});
+    renderWithProviders(
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={noteWithVerses}
+      />
+    );
+
+    // Add John 3:17 to the linked verses, then let an autosave
+    // tick fire — the save must include the CURRENT refs, not
+    // drop the picker change (the old bug).
+    fireEvent.click(
+      await screen.findByTitle('toggle-verse-references')
+    );
+    fireEvent.click(
+      await screen.findByTitle('edit-note-verse-17')
+    );
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, {
+      target: { value: 'Edited note text' },
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByLabelText('Auto save'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(api.editNote).toHaveBeenCalledWith(
+      'n1',
+      '1',
+      'Edited note text',
+      [
+        { book: 'John', chapter: 3, verse: 16 },
+        { book: 'John', chapter: 3, verse: 17 },
+      ]
+    );
+  });
+
+  it('refetches the viewed tag page after submit', async () => {
+    (api.editNote as Mock).mockResolvedValue({});
+    renderWithProviders(
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={mockNote}
+      />,
+      {
+        storeOverrides: {
+          notesPage: 2,
+          notesOrdering: 'created_at',
+        },
+      }
+    );
+
+    const form = screen
+      .getByText('Submit changes')
+      .closest('form');
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+
+    // The refetch targets the note's own tag at the page and
+    // ordering the route is showing — not the select's value
+    // at page 1 (the old bug).
+    await waitFor(() => {
+      expect(api.getNotes).toHaveBeenCalledWith(
+        '1',
+        expect.objectContaining({
+          ordering: 'created_at',
+          page: 2,
+        })
       );
     });
   });

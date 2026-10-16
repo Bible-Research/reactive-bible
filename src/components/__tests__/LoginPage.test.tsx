@@ -41,7 +41,9 @@ describe.skip('LoginPage', () => {
     expect(screen.getByText('Welcome to Bible Research')).toBeInTheDocument();
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /sign in/i })
+    ).toBeInTheDocument();
   });
 
   it('should show helper text about account creation', () => {
@@ -74,7 +76,7 @@ describe.skip('LoginPage', () => {
     const mockLogin = vi.fn().mockResolvedValue(undefined);
     
     useAuthStore.setState({
-      login: mockLogin as any,
+      login: mockLogin,
     });
 
     renderWithProviders(<LoginPage />);
@@ -93,7 +95,7 @@ describe.skip('LoginPage', () => {
     const mockLogin = vi.fn().mockResolvedValue(undefined);
     
     useAuthStore.setState({
-      login: mockLogin as any,
+      login: mockLogin,
     });
 
     renderWithProviders(<LoginPage />);
@@ -114,7 +116,7 @@ describe.skip('LoginPage', () => {
     );
     
     useAuthStore.setState({
-      login: mockLogin as any,
+      login: mockLogin,
       error: 'Invalid credentials',
     });
 
@@ -136,7 +138,7 @@ describe.skip('LoginPage', () => {
     );
     
     useAuthStore.setState({
-      login: mockLogin as any,
+      login: mockLogin,
     });
 
     renderWithProviders(<LoginPage />);
