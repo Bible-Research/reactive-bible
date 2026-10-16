@@ -1077,7 +1077,8 @@ it('should display error on API failure', async () => {
 
 Performance tests ensure that components render efficiently and don't cause
 performance regressions. We use custom performance testing utilities located in
-`src/__tests__/helpers/performance.tsx`.
+`src/__tests__/helpers/performanceUtils.ts` (non-component helpers) and
+`src/__tests__/helpers/performance.tsx` (`RenderCounter` only).
 
 #### When to Add Performance Tests
 
@@ -1097,16 +1098,17 @@ import {
   createLargeVerseData,
   CacheMetrics,
   useRenderCount,
-  RenderCounter,
   waitForNextFrame,
-} from '../__tests__/helpers/performance';
+} from '../__tests__/helpers/performanceUtils';
+import { RenderCounter } from '../__tests__/helpers/performance';
 ```
 
 #### Performance Test Examples
 
 **1. Measure Render Time**
 ```typescript
-import { measureRenderTime } from '../__tests__/helpers/performance';
+import { measureRenderTime }
+  from '../__tests__/helpers/performanceUtils';
 
 it('should render quickly', () => {
   const renderFn = () => {
@@ -1124,7 +1126,8 @@ it('should render quickly', () => {
 
 **2. Test Large Data Handling**
 ```typescript
-import { createLargeVerseData } from '../__tests__/helpers/performance';
+import { createLargeVerseData }
+  from '../__tests__/helpers/performanceUtils';
 
 it('should handle 200 verses efficiently', async () => {
   const verses = createLargeVerseData(200);
@@ -1171,7 +1174,8 @@ it('should minimize re-renders', () => {
 
 **4. Test Cache Performance**
 ```typescript
-import { CacheMetrics } from '../__tests__/helpers/performance';
+import { CacheMetrics }
+  from '../__tests__/helpers/performanceUtils';
 
 it('should achieve high cache hit rate', () => {
   const metrics = new CacheMetrics();

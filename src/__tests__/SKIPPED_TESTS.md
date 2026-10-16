@@ -61,8 +61,10 @@ suites were deleted after porting their still-useful cases.
   App by `audio-stop-on-chapter-switch-62`,
   `chapter-scroll-reset-63`, and
   `__tests__/bottomnav-title-sync-95`.
-- `components/NotesView.test.tsx` — tested a vestigial
-  component.
+- `components/NotesView.test.tsx` — the deleted suite was the
+  pre-refactor one (it tested a vestigial component); a live
+  file of the same path exists at
+  `src/components/NotesView.test.tsx`.
 - `routes/TagNotesRoute.test.tsx` — rotted (stale
   strings, old `fetchNotes` signature); error/empty/share
   cases ported to `TagNotesRoute.states.test.tsx`.
