@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useBibleStore, initialState } from './store';
 import { useAuthStore } from './stores/authStore';
 import * as api from './api';

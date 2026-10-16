@@ -21,7 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
-import { isNativeApp } from "../utils/nativeAudio";
+import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
 import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
