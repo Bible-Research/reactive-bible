@@ -11,6 +11,7 @@ import {
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { throwFromErrorBody } from './errors';
 
 /**
  * Keeps the locally bundled KJV reachable: the API lists an
@@ -72,7 +73,18 @@ export const getAvailableTranslations = async (
     const url =
       `${API_BASE_URL}/api/v1/` +
       `bible/translations/?language_iso=${languageIso}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
+    // A failed response must never reach cacheTranslations —
+    // an error body parsed as "no results" would poison the
+    // cache and stick until a force refresh.
+    if (!response.ok) {
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Translations not available',
+        failure:
+          `Failed to fetch translations ` +
+          `(HTTP ${response.status})`,
+      });
+    }
     const data = await response.json();
 
     // The actual translations are in the 'results' property
@@ -85,7 +97,9 @@ export const getAvailableTranslations = async (
     return translations;
   } catch (error) {
     console.error("Failed to fetch available translations:", error);
-    return []; // Return empty array on error
+    // Surface the failure — callers catch at the UI layer; a
+    // silent `[]` is indistinguishable from "no translations".
+    throw error;
   }
 };
 

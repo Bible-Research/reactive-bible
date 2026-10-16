@@ -14,6 +14,7 @@ import {
 } from '../utils/cacheManager';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
+import { publicFetch } from '../utils/apiClient';
 import { getAdjacentChapters } from './structure';
 import {
   BookNotInFilesetError,
@@ -76,8 +77,23 @@ export const fetchHeadingsOnly = async (
     const url =
       `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
+    // A failed response must never reach cacheHeadings below —
+    // an error body parsed as "no headings" would poison the
+    // cache and stick as an empty hit.
+    if (!response.ok) {
+      throw new Error(
+        `Headings fetch failed: ${response.statusText}`
+      );
+    }
     const responseData = await response.json();
+    if (responseData.error) {
+      throw new Error(
+        errorMessageFromBody(
+          responseData, 'Headings fetch failed'
+        )
+      );
+    }
     // API.Bible responses carry a FUMS token in `meta` that must
     // be reported per their license terms (silent on failure).
     reportFums(responseData.meta);
@@ -115,7 +131,7 @@ export const getVersesFromApi = async (
     const url =
       `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
 
     // Handle rate limit errors (429)
     if (response.status === 429) {
