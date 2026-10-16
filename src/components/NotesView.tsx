@@ -18,9 +18,13 @@ const NotesView = () => {
       return;
     }
     
-    // If we have cached tags and lastSelectedTagId, navigate now
-    if (storedTags.length > 0 && lastSelectedTagId &&
-        location.pathname === '/notes') {
+    // If we have cached tags and lastSelectedTagId, navigate
+    // immediately
+    if (
+      storedTags.length > 0 &&
+      lastSelectedTagId &&
+      location.pathname === '/notes'
+    ) {
       hasNavigatedRef.current = true;
       void navigate(`/notes/tag/${lastSelectedTagId}`, { replace: true });
       return;
