@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Center, Loader, Text } from '@mantine/core';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { defaultTagId } from '../utils/defaultTag';
 import { shallow } from 'zustand/shallow';
 
 export default function NotesRoute() {
@@ -49,23 +50,17 @@ export default function NotesRoute() {
         
         // Get fresh tags from store
         const currentTags = useBibleStore.getState().tags;
-        
-        if (currentTags.length === 0) {
+        const targetTagId = defaultTagId(
+          currentTags,
+          lastSelectedTagId
+        );
+
+        if (!targetTagId) {
           // No tags — stay on /notes and show the empty state.
           setStatus('empty');
           return;
         }
 
-        // Navigate to last selected tag or first tag
-        const sorted = [...currentTags].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        );
-        const targetTagId =
-          lastSelectedTagId &&
-          currentTags.some((t) => t.id === lastSelectedTagId)
-            ? lastSelectedTagId
-            : sorted[0].id;
-        
         hasNavigatedRef.current = true;
         navigate(`/notes/tag/${targetTagId}`, { replace: true });
       } catch (error) {
