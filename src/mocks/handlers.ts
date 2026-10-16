@@ -4,7 +4,6 @@ import { mockTranslations } from '../__tests__/mocks/data';
 
 // Define your request handlers
 const API_URL = `${API_BASE_URL}/api/v1`;
-const COMMENT_BASE = `${API_BASE_URL}/api/v1`;
 
 interface NoteCreateBody {
   note_text?: string;
@@ -270,7 +269,7 @@ export const handlers = [
   }),
 
   // --- Comments ---
-  http.get(`${COMMENT_BASE}/notes/:noteId/comments/`, ({ params }) => {
+  http.get(`${API_URL}/notes/:noteId/comments/`, ({ params }) => {
     return HttpResponse.json([
       {
         id: 'comment-1',
@@ -287,7 +286,7 @@ export const handlers = [
   }),
 
   http.post(
-    `${COMMENT_BASE}/notes/:noteId/comments/`,
+    `${API_URL}/notes/:noteId/comments/`,
     async ({ params, request }) => {
       const body = (await request.json()) as CommentWriteBody;
       return HttpResponse.json({
@@ -305,7 +304,7 @@ export const handlers = [
   ),
 
   http.patch(
-    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
+    `${API_URL}/notes/:noteId/comments/:commentId/`,
     async ({ params, request }) => {
       const body = (await request.json()) as CommentWriteBody;
       return HttpResponse.json({
@@ -323,7 +322,7 @@ export const handlers = [
   ),
 
   http.delete(
-    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/`,
+    `${API_URL}/notes/:noteId/comments/:commentId/`,
     () => {
       return new HttpResponse(null, { status: 204 });
     }
@@ -331,7 +330,7 @@ export const handlers = [
 
   // --- Comment Images ---
   http.post(
-    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/images/`,
+    `${API_URL}/notes/:noteId/comments/:commentId/images/`,
     async ({ params }) => {
       return HttpResponse.json({
         id: 'img-1',
@@ -348,14 +347,14 @@ export const handlers = [
   ),
 
   http.delete(
-    `${COMMENT_BASE}/images/:imageId/`,
+    `${API_URL}/images/:imageId/`,
     () => {
       return new HttpResponse(null, { status: 204 });
     }
   ),
 
   http.get(
-    `${COMMENT_BASE}/notes/:noteId/comments/:commentId/images/`,
+    `${API_URL}/notes/:noteId/comments/:commentId/images/`,
     ({ params }) => {
       return HttpResponse.json([
         {
@@ -374,7 +373,7 @@ export const handlers = [
   ),
 
   // --- Comment Counts ---
-  http.get(`${COMMENT_BASE}/comments/counts/`, ({ request }) => {
+  http.get(`${API_URL}/comments/counts/`, ({ request }) => {
     const url = new URL(request.url);
     const noteIds = url.searchParams.get('note_ids');
     const counts: Record<string, number> = {};
