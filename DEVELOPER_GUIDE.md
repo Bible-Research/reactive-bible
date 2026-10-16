@@ -3297,14 +3297,22 @@ prefetchAdjacentChapters(book, chapter, filesetId);
 ### Bundle Size Optimization
 
 **Current Bundle** (approximate):
-- **Main bundle**: ~500KB (gzipped)
-- **KJV JSON**: ~4.5MB (loaded separately)
-- **Mantine UI**: ~200KB (tree-shaken)
-- **Howler.js**: ~20KB
+- **Entry chunk**: ~220KB raw / ~51KB gzipped
+- **Vendor chunks** (`build.rolldownOptions.output.codeSplitting`
+  in `vite.config.ts`): `vendor-tiptap` ~690KB, `vendor-mantine`
+  ~216KB, `vendor-react` ~41KB, `vendor-dndkit` ~47KB,
+  `vendor-howler` ~36KB
+- **KJV JSON**: ~4.5MB gzipped (lazy-loaded chunk)
+- **Route chunks**: non-bible routes lazy via `React.lazy` in
+  `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect` stay
+  eager (landing path)
+- **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
+  `EditNoteModal` lazy + gated on their open flag, so TipTap is
+  fetched only when a note is authored
 
 **Optimizations**:
 - Tree-shaking enabled (Vite)
-- Code splitting (React.lazy could be added)
+- Route-level + vendor code splitting (above)
 - KJV JSON loaded as separate chunk
 - Production builds minified and compressed
 
