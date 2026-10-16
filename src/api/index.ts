@@ -45,6 +45,18 @@ import {
 } from '../utils/apiClient';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
+import {
+  BookNotInFilesetError,
+  ConflictError,
+  ProviderError,
+  RateLimitError,
+  errorMessageFromBody,
+  isBookNotInFilesetBody,
+  isRateLimitMessage,
+  throwFromErrorBody,
+} from './errors';
+
+export * from './errors';
 
 // Shared API/domain types live in `../types`; re-export them
 // here so every existing `from '../api'` type import (and the
@@ -220,34 +232,21 @@ export const getVersesFromApi = async (
     
     // Handle other HTTP errors
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      if (isBookNotInFilesetBody(errorData)) {
-        throw new BookNotInFilesetError(
-          errorData.error ||
-            'Book not available in this fileset'
-        );
-      }
-      const errorMsg = errorData.error || errorData.detail ||
-        `Failed to fetch verses (HTTP ${response.status})`;
-      if (
-        errorData.error_code === 'rate_limited' ||
-        isRateLimitMessage(errorMsg)
-      ) {
-        throw new RateLimitError(errorMsg);
-      }
-      if (errorData.error_code) {
-        throw new ProviderError(errorMsg);
-      }
-      throw new Error(errorMsg);
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Book not available in this fileset',
+        failure:
+          `Failed to fetch verses (HTTP ${response.status})`,
+      });
     }
 
     const data = await response.json();
 
     if (isBookNotInFilesetBody(data)) {
       throw new BookNotInFilesetError(
-        typeof data.error === 'string'
-          ? data.error
-          : 'Book not available in this fileset'
+        errorMessageFromBody(
+          data,
+          'Book not available in this fileset'
+        )
       );
     }
 
@@ -381,53 +380,6 @@ export const deleteNote = async (noteId: string) => {
     throw new Error('Failed to delete your note, please try again');
   }
 }
-
-export class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
-
-export class RateLimitError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'RateLimitError';
-  }
-}
-
-export class ProviderError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ProviderError';
-  }
-}
-
-/**
- * The requested book is not covered by the selected fileset.
- * Thrown when the backend reports
- * `error_code === 'book_not_in_fileset'` (HTTP 404), or — for
- * backwards compatibility — when an audio response arrives as
- * HTTP 200 with empty verses/a `message` and no `audio_url`.
- * Callers walk `resolveAudioFileset` alternates on this error.
- */
-export class BookNotInFilesetError extends ProviderError {
-  constructor(message: string) {
-    super(message);
-    this.name = 'BookNotInFilesetError';
-  }
-}
-
-const isBookNotInFilesetBody = (
-  body: { error_code?: unknown } | null | undefined,
-): boolean => body?.error_code === 'book_not_in_fileset';
-
-const RATE_LIMIT_PATTERN =
-  /\b429\b|too many requests|rate.?limit/i;
-
-const isRateLimitMessage = (
-  message: string
-): boolean => RATE_LIMIT_PATTERN.test(message);
 
 export const reorderNotes = async (
   tagId: string,
@@ -753,46 +705,32 @@ export const getBibleAudioUrl = async (
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      if (isBookNotInFilesetBody(errorData)) {
-        throw new BookNotInFilesetError(
-          typeof errorData.error === 'string'
-            ? errorData.error
-            : `Audio not available for ${translation} ` +
-              `${bookId} ${chapter}`
-        );
-      }
-      const errorMsg = errorData.error || errorData.detail ||
-        `Failed to fetch audio for ${translation}: ` +
-        `${response.statusText}`;
-      if (
-        errorData.error_code === 'rate_limited' ||
-        isRateLimitMessage(errorMsg)
-      ) {
-        throw new RateLimitError(errorMsg);
-      }
-      if (errorData.error_code) {
-        throw new ProviderError(errorMsg);
-      }
-      throw new Error(errorMsg);
+      await throwFromErrorBody(response, {
+        bookNotInFileset:
+          `Audio not available for ${translation} ` +
+          `${bookId} ${chapter}`,
+        failure:
+          `Failed to fetch audio for ${translation}: ` +
+          `${response.statusText}`,
+      });
     }
 
     const data = (await response.json()) as AudioApiResponse;
 
     if (isBookNotInFilesetBody(data)) {
       throw new BookNotInFilesetError(
-        typeof data.error === 'string'
-          ? data.error
-          : `Audio not available for ${translation} ` +
+        errorMessageFromBody(
+          data,
+          `Audio not available for ${translation} ` +
             `${bookId} ${chapter}`
+        )
       );
     }
 
     // Provider failures carry `error`/`error_code` fields.
     if (data.error) {
-      const errorMsg = typeof data.error === 'string'
-        ? data.error
-        : data.error.message || 'Unknown error';
+      const errorMsg =
+        errorMessageFromBody(data, 'Unknown error');
       const fullMsg =
         `Audio not available for ${translation} ${bookId} ` +
         `${chapter}: ${errorMsg}`;
