@@ -15,13 +15,22 @@ import {
   IconShare,
   IconX,
 } from "@tabler/icons-react";
-import { useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import { useMediaQuery } from "@mantine/hooks";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
-import AddTagNoteModal from "./AddTagNoteModal";
+
+// Lazy + gated below on noteModalOpened so TipTap stays out of
+// the entry chunk until a note is actually authored.
+const AddTagNoteModal = lazy(() => import("./AddTagNoteModal"));
 import {
   buildBiblePath,
   toBookName,
@@ -396,10 +405,12 @@ const VerseActionToolbar = () => {
         </Group>
       </Box>
       {noteModalOpened && (
-        <AddTagNoteModal
-          opened={noteModalOpened}
-          onClose={() => setNoteModalOpened(false)}
-        />
+        <Suspense fallback={null}>
+          <AddTagNoteModal
+            opened={noteModalOpened}
+            onClose={() => setNoteModalOpened(false)}
+          />
+        </Suspense>
       )}
       <Modal
         opened={mapModalOpened}
