@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import Pagination, { getPageNumbers } from '../Pagination';
+import Pagination from '../Pagination';
+import { pageNumberList as getPageNumbers } from
+  '../../utils/pagination';
 import { mockDomApis } from '../../__tests__/helpers';
 
 describe('getPageNumbers', () => {
@@ -91,7 +93,9 @@ describe('Pagination component', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '4' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Page 4' })
+    );
     expect(onPageChange).toHaveBeenCalledWith(4);
   });
 
@@ -134,7 +138,7 @@ describe('Pagination component', () => {
 
     expect(screen.getAllByText('...')).toHaveLength(2);
     expect(
-      screen.getByRole('button', { name: '10' })
+      screen.getByRole('button', { name: 'Page 10' })
     ).toBeInTheDocument();
   });
 });

@@ -46,6 +46,7 @@ import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 import { buildBiblePath } from '../utils/bibleUtils';
 import { shareOrCopyLink } from '../utils/share';
+import { pageCount } from '../utils/pagination';
 import {
   SortOrder,
   SORT_ORDERS,
@@ -517,7 +518,7 @@ export default function TagNotesRoute() {
       const current = useBibleStore.getState();
       const lastPage = Math.max(
         1,
-        Math.ceil(current.notesCount / current.notesPageSize)
+        pageCount(current.notesCount, current.notesPageSize)
       );
       // An emptied list would flash "No notes found" while the
       // backfill is in flight; show the page loader instead.
@@ -820,7 +821,7 @@ export default function TagNotesRoute() {
   );
 
   // Calculate total pages
-  const totalPages = Math.ceil(notesCount / notesPageSize);
+  const totalPages = pageCount(notesCount, notesPageSize);
 
   const pagination = totalPages > 1 ? (
     <Pagination
