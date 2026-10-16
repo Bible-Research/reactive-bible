@@ -36,9 +36,9 @@ describe('API Functions', () => {
       expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
     });
 
-    it('getPassage should NOT load KJV data (uses lightweight ' +
-      'structure)', () => {
-      api.getPassage();
+    it('getChapterList should NOT load KJV data (uses ' +
+      'lightweight structure)', () => {
+      api.getChapterList();
       expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
     });
 

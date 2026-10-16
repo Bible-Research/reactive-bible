@@ -52,7 +52,7 @@ export const getVerses = (
   return Array.from({ length: entry.max_verse }, (_, i) => i + 1);
 };
 
-export const getPassage = (): {
+export const getChapterList = (): {
   book_name: string;
   book_id: string;
   chapter: number;
@@ -77,9 +77,9 @@ export const getAdjacentChapters = (
   previous: { bookId: string; chapter: number } | null;
   next: { bookId: string; chapter: number } | null;
 } => {
-  const passages = getPassage();
-  const currentIndex = passages.findIndex(
-    (p) => p.book_id === bookId && p.chapter === chapter
+  const chapters = getChapterList();
+  const currentIndex = chapters.findIndex(
+    (c) => c.book_id === bookId && c.chapter === chapter
   );
 
   if (currentIndex === -1) {
@@ -89,16 +89,16 @@ export const getAdjacentChapters = (
   const previous =
     currentIndex > 0
       ? {
-          bookId: passages[currentIndex - 1].book_id,
-          chapter: passages[currentIndex - 1].chapter,
+          bookId: chapters[currentIndex - 1].book_id,
+          chapter: chapters[currentIndex - 1].chapter,
         }
       : null;
 
   const next =
-    currentIndex < passages.length - 1
+    currentIndex < chapters.length - 1
       ? {
-          bookId: passages[currentIndex + 1].book_id,
-          chapter: passages[currentIndex + 1].chapter,
+          bookId: chapters[currentIndex + 1].book_id,
+          chapter: chapters[currentIndex + 1].chapter,
         }
       : null;
 
