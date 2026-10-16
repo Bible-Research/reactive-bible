@@ -364,14 +364,18 @@ const TranslationSelector = () => {
         }
       } catch (error) {
         console.warn('Failed to refresh translations:', error);
-        notifications.show({
-          title: 'Translations unavailable',
-          message:
-            'Could not refresh the translation list. ' +
-            'Please try again later.',
-          color: 'red',
-          autoClose: 5000,
-        });
+        // A stale failure (modal closed or language switched
+        // mid-flight) must not toast over the new context.
+        if (!cancelled) {
+          notifications.show({
+            title: 'Translations unavailable',
+            message:
+              'Could not refresh the translation list. ' +
+              'Please try again later.',
+            color: 'red',
+            autoClose: 5000,
+          });
+        }
       }
     };
 

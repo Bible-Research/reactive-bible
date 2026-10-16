@@ -82,9 +82,11 @@ export const fetchHeadingsOnly = async (
     // an error body parsed as "no headings" would poison the
     // cache and stick as an empty hit.
     if (!response.ok) {
-      throw new Error(
-        `Headings fetch failed: ${response.statusText}`
-      );
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Book not available in this fileset',
+        failure:
+          `Failed to fetch headings (HTTP ${response.status})`,
+      });
     }
     const responseData = await response.json();
     if (responseData.error) {
@@ -93,6 +95,16 @@ export const fetchHeadingsOnly = async (
           responseData, 'Headings fetch failed'
         )
       );
+    }
+    // The API may also wrap provider failures in a 200 response
+    // with a `message` field and no headings — surface it
+    // instead of caching an empty heading list.
+    if (
+      typeof responseData.message === 'string' &&
+      (!Array.isArray(responseData.headings) ||
+        responseData.headings.length === 0)
+    ) {
+      throw new ProviderError(responseData.message);
     }
     // API.Bible responses carry a FUMS token in `meta` that must
     // be reported per their license terms (silent on failure).

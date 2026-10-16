@@ -51,7 +51,9 @@ export const searchBibleGrouped = async (
     typeof json.message === 'string' &&
     (!Array.isArray(groups) || groups.length === 0)
   ) {
-    throw new ProviderError(json.message);
+    throw isRateLimitMessage(json.message)
+      ? new RateLimitError(json.message)
+      : new ProviderError(json.message);
   }
   return {
     groups: groups ?? [],
