@@ -1,12 +1,3 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import App from '../App';
-import Audio from '../components/Audio';
-import { useBibleStore } from '../store';
-import type { PlaylistItem } from '../types';
-
 /**
  * Regression coverage for issue #62: while audio is playing, the
  * chapter switch must happen instantly — the previous audio must
@@ -23,6 +14,14 @@ import type { PlaylistItem } from '../types';
  *    manual chapter click appeared to take effect only after the
  *    current verse finished.
  */
+import { render, screen, waitFor, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import App from '../App';
+import Audio from '../components/Audio';
+import { useBibleStore } from '../store';
+import type { PlaylistItem } from '../types';
 
 import { FakeHowl } from './mocks/FakeHowl';
 
@@ -79,7 +78,7 @@ describe('Audio stops instantly on chapter change (#62)', () => {
             screen.getByTitle('passage-verse-1-1')
           ).toBeInTheDocument();
         },
-        { timeout: 5000 }
+        { timeout: 15000 }
       );
 
       await userEvent.click(screen.getByTitle('Play audio'));

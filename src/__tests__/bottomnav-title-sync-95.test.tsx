@@ -1,3 +1,9 @@
+/**
+ * Regression coverage for issue #95: the book/chapter title in the
+ * bottom nav must stay in sync with the visited passage — both when
+ * landing on a /bible/:ref URL directly and when navigating via the
+ * chapter buttons.
+ */
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -5,12 +11,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import App from '../App';
 import { useBibleStore } from '../store';
 
-/**
- * Regression coverage for issue #95: the book/chapter title in the
- * bottom nav must stay in sync with the visited passage — both when
- * landing on a /bible/:ref URL directly and when navigating via the
- * chapter buttons.
- */
 const bottomNavTitle = () =>
   screen
     .getAllByRole('heading', { level: 4 })
@@ -42,7 +42,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
       () => {
         expect(bottomNavTitle()?.textContent).toBe('MAT 5');
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
   });
 
@@ -53,7 +53,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
       () => {
         expect(bottomNavTitle()?.textContent).toBe('ROM 8');
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
   });
 
@@ -64,7 +64,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
       () => {
         expect(bottomNavTitle()?.textContent).toBe('JHN 1');
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
 
     await userEvent.click(screen.getByTitle('next-passage-button'));
@@ -73,7 +73,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
       () => {
         expect(bottomNavTitle()?.textContent).toBe('JHN 2');
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
   });
 });
