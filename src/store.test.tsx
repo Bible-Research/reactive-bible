@@ -3,6 +3,7 @@ import {
   useBibleStore,
   initialState,
   migratePersistedState,
+  partializeState,
 } from './store';
 import { useAuthStore } from './stores/authStore';
 import * as api from './api';
@@ -367,6 +368,72 @@ describe('useBibleStore', () => {
         expect(state.notesCount).toBe(1);
         expect(state.notesHasMore).toBe(false);
       });
+  });
+
+  describe('partializeState (persisted shape)', () => {
+    // GATE for the store slice split: this snapshot must pass
+    // unchanged after the split — it proves the persisted
+    // `bible-storage` record is identical, so no schema
+    // version bump is needed.
+    it('persists exactly the expected key set and values', () => {
+      const tag: Tag = {
+        id: 'TAG1', name: 'Test Tag', parent_tag: null,
+        created_at: '', updated_at: '',
+      };
+      const note: Note = {
+        id: 'note1', note_text: 'Persisted note', tag,
+        verses: [], public: false, is_owner: true,
+        created_at: '', updated_at: '', tag_position: 1,
+      };
+      useBibleStore.setState({
+        activeBookId: 'MRK',
+        activeChapter: 4,
+        verseSelection: { scope: 'bible', refs: [john316] },
+        bibleVersion: 'ESV',
+        lastSelectedTagId: 'TAG1',
+        audioActiveVerse: {
+          bookId: 'MRK', chapter: 4, verse: 2, scope: 'bible',
+        },
+        notes: [note],
+        tags: [tag],
+        notesPage: 3,
+        notesPageSize: 50,
+        readingPositions: { MRK: { chapter: 4, verse: 2 } },
+        // Non-persisted fields — set to non-defaults so the
+        // snapshot proves they are excluded.
+        showAudioPlayer: true,
+        pendingScrollVerse: john316,
+        headerVisible: false,
+        notesCount: 99,
+        notesHasMore: true,
+        notesOrdering: 'custom',
+        allNotesFetched: true,
+        showNotes: true,
+        versesFolded: true,
+        audioPlaylistItems: [],
+        audioPlaylistStartIndex: 2,
+      });
+
+      const persisted = partializeState(useBibleStore.getState());
+
+      expect(Object.keys(persisted).sort()).toEqual([
+        'activeAudioFilesetId',
+        'activeBookId',
+        'activeChapter',
+        'activeTextFilesetId',
+        'audioActiveVerse',
+        'bibleVersion',
+        'lastSelectedTagId',
+        'notes',
+        'notesPage',
+        'notesPageSize',
+        'readingPositions',
+        'tags',
+        'translations',
+        'verseSelection',
+      ]);
+      expect(JSON.stringify(persisted)).toMatchSnapshot();
+    });
   });
 
   describe('lastSelectedTagId', () => {

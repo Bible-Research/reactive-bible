@@ -166,7 +166,13 @@ export const initialState = {
   headerVisible: true,
 };
 
-const partializeState = (state: BibleState) => ({
+/**
+ * The persisted subset of BibleState. Exported so tests can
+ * pin the exact persisted shape — a change here changes what
+ * `bible-storage` holds, which gates whether a `version` bump
+ * is required.
+ */
+export const partializeState = (state: BibleState) => ({
   activeBookId: state.activeBookId,
   activeChapter: state.activeChapter,
   verseSelection: state.verseSelection,
