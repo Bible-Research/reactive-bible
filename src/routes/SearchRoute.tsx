@@ -192,7 +192,7 @@ export default function SearchRoute() {
   );
 
   const handleVerseClick = (v: SearchVerse) => {
-    navigate(
+    void navigate(
       buildBiblePath(v.book_id, v.chapter, [v.verse_start]),
     );
   };

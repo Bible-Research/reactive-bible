@@ -64,7 +64,7 @@ export function RegisterPage() {
       });
 
       // Navigate to notes page after successful registration
-      navigate('/notes', { replace: true });
+      void navigate('/notes', { replace: true });
     } catch (err) {
       // Error is already set in the store
       console.error('Registration failed:', err);

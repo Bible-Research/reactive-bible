@@ -302,7 +302,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         // Anonymous sessions must not hit the API: session auth
         // would land them in a shared auto-provisioned account.
         if (useAuthStore.getState().isAuthenticated) {
-          api.updateReadingPosition(bookId, chapter, verse);
+          void api.updateReadingPosition(bookId, chapter, verse);
         }
       },
       prefetchReadingPositions: async () => {

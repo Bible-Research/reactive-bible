@@ -28,7 +28,7 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
       color: 'blue',
     });
     onNavigate?.(); // Close menu if callback provided
-    navigate('/login');
+    void navigate('/login');
   };
 
   if (!isAuthenticated || !user) {
@@ -38,7 +38,7 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
         leftIcon={<IconLogin size={16} />}
         onClick={() => {
           onNavigate?.(); // Close menu if callback provided
-          navigate('/login');
+          void navigate('/login');
         }}
       >
         Sign In

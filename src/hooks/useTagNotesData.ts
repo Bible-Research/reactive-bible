@@ -232,7 +232,7 @@ export const useTagNotesData = ({
       }
     };
 
-    loadTagAndNotes();
+    void loadTagAndNotes();
 
     return () => {
       cancelled = true;

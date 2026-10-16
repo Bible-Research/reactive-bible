@@ -39,7 +39,7 @@ export default function NotesRoute() {
     // /notes/:noteId or /notes/tag/:tagId still work for them.
     if (!token) {
       hasNavigatedRef.current = true;
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
 
@@ -62,14 +62,14 @@ export default function NotesRoute() {
         }
 
         hasNavigatedRef.current = true;
-        navigate(`/notes/tag/${targetTagId}`, { replace: true });
+        void navigate(`/notes/tag/${targetTagId}`, { replace: true });
       } catch (error) {
         console.error('Error loading tags:', error);
         setStatus('error');
       }
     };
 
-    navigateToTag();
+    void navigateToTag();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 

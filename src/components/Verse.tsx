@@ -117,7 +117,7 @@ const Verse = ({
       sel && sel.scope === scope
         ? verseNumbersFor(sel.refs, bookId, chapter)
         : [];
-    navigate(buildBiblePath(bookId, chapter, verses), {
+    void navigate(buildBiblePath(bookId, chapter, verses), {
       replace: true,
     });
   };

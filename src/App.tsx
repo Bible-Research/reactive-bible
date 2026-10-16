@@ -60,7 +60,7 @@ export default function App() {
   // anonymous sessions share a server-side guest account.
   useEffect(() => {
     if (isAuthenticated) {
-      useBibleStore.getState().prefetchReadingPositions();
+      void useBibleStore.getState().prefetchReadingPositions();
     }
   }, [isAuthenticated]);
   

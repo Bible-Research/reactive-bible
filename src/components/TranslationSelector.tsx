@@ -379,7 +379,7 @@ const TranslationSelector = () => {
       }
     };
 
-    fetchTranslations();
+    void fetchTranslations();
 
     return () => {
       cancelled = true;
