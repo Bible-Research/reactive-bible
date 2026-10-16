@@ -10,7 +10,7 @@ import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
-import { getAdjacentChapters } from "../api";
+import { getAdjacentChapters } from "../api/structure";
 import { buildBiblePath } from "../utils/bibleUtils";
 
 interface BottomNavProps {
