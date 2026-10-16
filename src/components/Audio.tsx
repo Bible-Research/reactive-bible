@@ -34,6 +34,11 @@ import {
 } from "../utils/filesetGroups";
 import { orderedAudioCandidates } from "../utils/audioCandidates";
 import { disposeHowl, getPlayPosition } from "../utils/audioUtils";
+import {
+  selectedStartVerse,
+  verseStartTimestamp,
+  seekHowlWhenLoaded,
+} from "../utils/verseSeek";
 import { verseDomId } from "../utils/verseRefs";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";
@@ -1073,17 +1078,10 @@ const Audio = () => {
           // starts at its timestamp instead of 0. Only the
           // bible-scoped selection counts; note-card selections
           // ('note:<id>') and refs in other chapters are ignored.
-          const sel = useBibleStore.getState().verseSelection;
-          const startVerse = (
-            sel?.scope === 'bible' ? sel.refs : []
-          ).reduce<number | null>(
-            (min, r) =>
-              r.bookId === activeBookId &&
-              r.chapter === activeChapter &&
-              (min === null || r.verse < min)
-                ? r.verse
-                : min,
-            null,
+          const startVerse = selectedStartVerse(
+            useBibleStore.getState().verseSelection,
+            activeBookId,
+            activeChapter,
           );
 
           // Kick off the timestamp lookup in parallel with the
@@ -1091,36 +1089,14 @@ const Audio = () => {
           // (getAudioTimestamps is cache-first and the timestamps
           // effect usually warmed it). ENGKJV audio has no verse
           // timestamps — it keeps starting at 0.
-          const tsFilesetId =
-            startVerse === null ||
-            resolved.filesetId === 'ENGKJV'
-              ? null
-              : resolveTimestampsFilesetId(
-                  resolved.filesetId,
-                  resolveTextFileset(
-                    useBibleStore.getState().activeTextFilesetId,
-                    activeBookId,
-                    useBibleStore.getState().translations,
-                  ),
-                  activeBookId,
-                );
-          const startTsPromise = tsFilesetId
-            ? getAudioTimestamps(
-                activeBookId,
-                activeChapter,
-                tsFilesetId,
-              )
-                .then(
-                  (ts) =>
-                    adjustTimestampsForENGESV(
-                      ts,
-                      resolved.filesetId,
-                    ).find((t) => t.verse_start === startVerse)
-                      ?.timestamp ?? 0,
-                )
-                // Timestamp failures must not break playback.
-                .catch(() => 0)
-            : Promise.resolve(0);
+          const startTsPromise = verseStartTimestamp(
+            activeBookId,
+            activeChapter,
+            resolved.filesetId,
+            useBibleStore.getState().activeTextFilesetId,
+            useBibleStore.getState().translations,
+            startVerse,
+          );
 
           let key = chapterKey(
             resolved.filesetId,
@@ -1225,13 +1201,7 @@ const Audio = () => {
           // and disposeHowl's off() detaches the listener anyway.
           const startTs = await startTsPromise;
           if (seq === loadSeqRef.current && startTs > 0) {
-            if (audioHowl.state() === 'loaded') {
-              audioHowl.seek(startTs);
-            } else {
-              audioHowl.once('load', () => {
-                audioHowl.seek(startTs);
-              });
-            }
+            seekHowlWhenLoaded(audioHowl, startTs);
           }
         } catch (err) {
           // A superseded load must not surface errors or flip
