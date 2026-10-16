@@ -129,13 +129,20 @@ export default function App() {
             },
           })}
         >
-          {/* Keyed on the top-level route segment so navigating
-              between pages resets a caught error — without
-              remounting the route tree on intra-page URL updates
-              like verse-selection refs (/bible/JHN.1 ->
+          {/* `key` on the top-level route segment remounts the
+              boundary on section changes (/bible -> /notes)
+              without remounting the route tree on intra-page URL
+              updates like verse-selection refs (/bible/JHN.1 ->
               /bible/JHN.1.3), which would unload PassageView and
-              swallow clicks mid-remount. */}
-          <ErrorBoundary key={location.pathname.split('/')[1]}>
+              swallow clicks mid-remount. `resetKey` recovers a
+              caught error on ANY pathname change — e.g.
+              /notes/tag/a -> /notes/tag/b stays under the same
+              segment key — but only fires in the error state,
+              so healthy children are never remounted. */}
+          <ErrorBoundary
+            key={location.pathname.split('/')[1]}
+            resetKey={location.pathname}
+          >
             <AppRoutes />
           </ErrorBoundary>
           {showVerseToolbar && <VerseActionToolbar />}
