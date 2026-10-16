@@ -1,0 +1,182 @@
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest';
+import type { Howl } from 'howler';
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
+import { attachVerseBounds } from './verseBounds';
+import type { VerseTimestamp } from '../types';
+
+const ts = (
+  verseStart: number,
+  timestamp: number,
+): VerseTimestamp => ({ verse_start: verseStart, timestamp });
+
+// Five 5-second verses; the chapter file ends at t=25.
+const timestamps = [
+  ts(1, 0),
+  ts(2, 5),
+  ts(3, 10),
+  ts(4, 15),
+  ts(5, 20),
+];
+
+// FakeHowl is born 'loading' and flips to 'loaded' (emitting
+// 'load') on a microtask — getPlayPosition only reports a
+// position once loaded.
+const loadedHowl = async (): Promise<FakeHowl> => {
+  const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+  await Promise.resolve();
+  return howl;
+};
+
+const node = (howl: FakeHowl): HTMLAudioElement => {
+  const n = howl._sounds?.[0]?._node;
+  if (!n) throw new Error('FakeHowl has no <audio> node');
+  return n;
+};
+
+const attach = (
+  howl: FakeHowl,
+  opts: Partial<Parameters<typeof attachVerseBounds>[1]> = {},
+): { onAdvance: ReturnType<typeof vi.fn> } => {
+  const onAdvance = vi.fn();
+  attachVerseBounds(howl as unknown as Howl, {
+    endTs: 25,
+    verseNumbers: undefined,
+    timestamps,
+    onAdvance,
+    isStopped: () => false,
+    ...opts,
+  });
+  return { onAdvance };
+};
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  FakeHowl.reset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('attachVerseBounds', () => {
+  it('advances once the position crosses endTs - EPSILON',
+    async () => {
+      const howl = await loadedHowl();
+      const { onAdvance } = attach(howl);
+      // EPSILON is 0.2 → the bound trips at 24.8.
+      howl.seek(24.79);
+      vi.advanceTimersByTime(300);
+      expect(onAdvance).not.toHaveBeenCalled();
+      howl.seek(24.81);
+      vi.advanceTimersByTime(100);
+      expect(onAdvance).toHaveBeenCalledTimes(1);
+      // The poll stopped after the advance — no repeat calls.
+      vi.advanceTimersByTime(500);
+      expect(onAdvance).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('advances via the <audio> node timeupdate event',
+    async () => {
+      const howl = await loadedHowl();
+      const { onAdvance } = attach(howl);
+      howl.seek(24.9);
+      // Synchronous dispatch — this assertion cannot have come
+      // from the 100 ms poll.
+      node(howl).dispatchEvent(new Event('timeupdate'));
+      expect(onAdvance).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('attaches the node listener once across play/load',
+    async () => {
+      const howl = await loadedHowl();
+      const { onAdvance } = attach(howl);
+      // Re-fire the events that (re)attach the listener — the
+      // guard must keep it a single subscription.
+      howl.emit('play', 0);
+      howl.emit('load', 0);
+      howl.seek(24.9);
+      node(howl).dispatchEvent(new Event('timeupdate'));
+      expect(onAdvance).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('seeks past a non-included verse to the next included ' +
+    'one', async () => {
+      const howl = await loadedHowl();
+      const { onAdvance } = attach(howl, {
+        verseNumbers: [1, 3, 5],
+      });
+      // t=6 sits inside verse 2's window [5,10) — not included.
+      howl.seek(6);
+      vi.advanceTimersByTime(100);
+      // Skipped forward to verse 3's timestamp.
+      expect(howl._pos).toBe(10);
+      expect(onAdvance).not.toHaveBeenCalled();
+    },
+  );
+
+  it('advances when no included verse remains', async () => {
+    const howl = await loadedHowl();
+    const { onAdvance } = attach(howl, {
+      verseNumbers: [1, 3],
+    });
+    // t=16 sits inside verse 4 — no later included verse.
+    howl.seek(16);
+    vi.advanceTimersByTime(100);
+    expect(onAdvance).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing while the Howl is still loading', () => {
+    // Not awaited — the load microtask has not run.
+    const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+    const { onAdvance } = attach(howl);
+    vi.advanceTimersByTime(500);
+    expect(onAdvance).not.toHaveBeenCalled();
+  });
+
+  it('stops checking after stop — the disposeHowl teardown ' +
+    'path', async () => {
+      const howl = await loadedHowl();
+      const { onAdvance } = attach(howl);
+      // disposeHowl emits 'stop' before off()/unload() so this
+      // cleanup fires — after it, neither the poll nor the node
+      // listener may advance.
+      howl.emit('stop', 0);
+      howl.seek(24.9);
+      vi.advanceTimersByTime(500);
+      node(howl).dispatchEvent(new Event('timeupdate'));
+      expect(onAdvance).not.toHaveBeenCalled();
+    },
+  );
+
+  it('stops checking after end as well', async () => {
+    const howl = await loadedHowl();
+    const { onAdvance } = attach(howl);
+    howl.emit('end', 0);
+    howl.seek(24.9);
+    vi.advanceTimersByTime(500);
+    node(howl).dispatchEvent(new Event('timeupdate'));
+    expect(onAdvance).not.toHaveBeenCalled();
+  });
+
+  it('honors isStopped — the poll self-clears', async () => {
+    const howl = await loadedHowl();
+    let stopped = false;
+    const { onAdvance } = attach(howl, {
+      isStopped: () => stopped,
+    });
+    stopped = true;
+    howl.seek(24.9);
+    vi.advanceTimersByTime(500);
+    expect(onAdvance).not.toHaveBeenCalled();
+  });
+});
