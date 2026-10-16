@@ -22,6 +22,7 @@ import {
 } from '../utils/filesetGroups';
 import { useVerseHighlighter } from './useVerseHighlighter';
 import {
+  disposeHowl,
   getHtml5AudioNode,
   getPlayPosition,
 } from '../utils/audioUtils';
@@ -89,7 +90,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
   const unloadCurrent = useCallback(() => {
     if (audioRef.current) {
-      audioRef.current.unload();
+      // disposeHowl emits 'stop' first so the bounds-checker
+      // cleanup still runs, then detaches listeners before
+      // unload() — a pending play() rejection can't surface as
+      // a playerror retry during teardown.
+      disposeHowl(audioRef.current);
       audioRef.current = null;
     }
     setAudio(null);
@@ -319,7 +324,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 pool: 1,
                 onload: () => {
                   if (stale()) {
-                    try { howl.unload(); } catch { /* noop */ }
+                    disposeHowl(howl);
                     return;
                   }
                   howl.seek(startTs);
@@ -360,7 +365,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   if (i + 1 < candidates.length) {
                     // Release the failed Howl (stops its bounds
                     // poll) before retrying the next candidate.
-                    try { howl.unload(); } catch { /* noop */ }
+                    disposeHowl(howl);
                     retryNextCandidate(i + 1);
                     return;
                   }
@@ -381,7 +386,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     err,
                   );
                   if (i + 1 < candidates.length) {
-                    try { howl.unload(); } catch { /* noop */ }
+                    disposeHowl(howl);
                     retryNextCandidate(i + 1);
                     return;
                   }
