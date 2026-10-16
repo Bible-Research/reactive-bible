@@ -8,7 +8,8 @@ import {
   getCachedAudioUrl,
   clearAudioCache,
 } from './cacheManager';
-import { CacheMetrics } from '../__tests__/helpers/performance';
+import { CacheMetrics } from
+  '../__tests__/helpers/performanceUtils';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -27,7 +28,7 @@ const localStorageMock = (() => {
   };
 })();
 
-global.localStorage = localStorageMock as any;
+vi.stubGlobal('localStorage', localStorageMock);
 
 describe('CacheManager Performance Tests', () => {
   let metrics: CacheMetrics;
@@ -96,7 +97,8 @@ describe('CacheManager Performance Tests', () => {
   });
 
   describe('LRU Eviction', () => {
-    it('should evict least recently used verses when exceeding 500 limit', () => {
+    it('should evict least recently used verses when ' +
+      'exceeding 500 limit', () => {
       // Cache 500 verses (fill to limit)
       for (let chapter = 1; chapter <= 50; chapter++) {
         const verses = Array.from({ length: 10 }, (_, i) => ({
@@ -169,7 +171,8 @@ describe('CacheManager Performance Tests', () => {
       expect(duration).toBeLessThan(500);
 
       console.log(
-        `Audio cache performance: ${iterations} ops in ${duration.toFixed(2)}ms`
+        `Audio cache performance: ${iterations} ops ` +
+          `in ${duration.toFixed(2)}ms`
       );
     });
   });
@@ -192,7 +195,8 @@ describe('CacheManager Performance Tests', () => {
       expect(stats.verses.percentage).toBeLessThanOrEqual(100);
 
       console.log(
-        `Cache usage: ${stats.verses.usage} (${stats.verses.percentage.toFixed(1)}%)`
+        `Cache usage: ${stats.verses.usage} ` +
+          `(${stats.verses.percentage.toFixed(1)}%)`
       );
     });
 

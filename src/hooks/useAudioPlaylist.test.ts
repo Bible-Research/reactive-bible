@@ -120,6 +120,11 @@ vi.mock('howler', () => ({
       pause: mockHowlPause,
       stop: mockHowlStop,
       unload: mockHowlUnload,
+      // disposeHowl (utils/audioUtils) calls off()/volume()
+      // before unload() — without these the teardown throws and
+      // unload is skipped.
+      off: vi.fn(),
+      volume: vi.fn(),
       loop: vi.fn(),
       duration: vi.fn().mockReturnValue(60),
       on: mockHowlOn,

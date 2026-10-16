@@ -11,6 +11,10 @@ import {
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { updateTag } from '../api';
+import {
+  isTagDescendant,
+  validateTagName,
+} from '../utils/tagTree';
 
 interface EditTagModalProps {
   opened: boolean;
@@ -44,45 +48,19 @@ export function EditTagModal({
     if (!tag || !newParentId) return true;
     if (tag.id === newParentId) return false;
 
-    const isDescendant = (ancestorId: string, descendantId: string): boolean => {
-      const descendant = existingTags.find((t) => t.id === descendantId);
-      if (!descendant || !descendant.parent_tag) return false;
-      if (descendant.parent_tag === ancestorId) return true;
-      return isDescendant(ancestorId, descendant.parent_tag);
-    };
-
-    return !isDescendant(tag.id, newParentId);
+    return !isTagDescendant(existingTags, tag.id, newParentId);
   };
 
-  const validateTagName = (name: string): boolean => {
-    if (!name.trim()) {
-      setNameError('Tag name is required');
-      return false;
-    }
-
-    if (name.length > 100) {
-      setNameError('Tag name must be 100 characters or less');
-      return false;
-    }
-
-    const isDuplicate = existingTags.some(
-      (t) =>
-        t.id !== tag?.id &&
-        t.name.toLowerCase() === name.trim().toLowerCase()
-    );
-    if (isDuplicate) {
-      setNameError('A tag with this name already exists');
-      return false;
-    }
-
-    setNameError(null);
-    return true;
+  const checkTagName = (name: string): boolean => {
+    const error = validateTagName(name, existingTags, tag?.id);
+    setNameError(error);
+    return error === null;
   };
 
   const handleSubmit = async () => {
     if (!tag) return;
 
-    if (!validateTagName(tagName)) {
+    if (!checkTagName(tagName)) {
       return;
     }
 
@@ -143,10 +121,10 @@ export function EditTagModal({
             onChange={(e) => {
               setTagName(e.currentTarget.value);
               if (nameError) {
-                validateTagName(e.currentTarget.value);
+                checkTagName(e.currentTarget.value);
               }
             }}
-            onBlur={() => validateTagName(tagName)}
+            onBlur={() => checkTagName(tagName)}
             error={nameError}
             required
             maxLength={100}
@@ -166,8 +144,8 @@ export function EditTagModal({
 
           {hasChildren && (
             <Text size="xs" color="orange">
-              ⚠️ This tag has child tags. Changing its parent will affect the
-              hierarchy.
+              ⚠️ This tag has child tags. Changing its parent
+              will affect the hierarchy.
             </Text>
           )}
 

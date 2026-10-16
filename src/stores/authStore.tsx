@@ -129,7 +129,12 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
         
         try {
-          const requestBody: any = {
+          const requestBody: {
+            username: string;
+            password: string;
+            password_confirm: string;
+            email?: string;
+          } = {
             username,
             password,
             password_confirm: passwordConfirm,

@@ -3,14 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { Center, Loader } from '@mantine/core';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { shallow } from 'zustand/shallow';
 
 export default function NotesRoute() {
   const navigate = useNavigate();
   const hasNavigatedRef = useRef(false);
-  const { lastSelectedTagId, getTags } = useBibleStore((state) => ({
-    lastSelectedTagId: state.lastSelectedTagId,
-    getTags: state.getTags,
-  }));
+  const { lastSelectedTagId, getTags } = useBibleStore(
+    (state) => ({
+      lastSelectedTagId: state.lastSelectedTagId,
+      getTags: state.getTags,
+    }),
+    shallow
+  );
   // Read `token`, not `isAuthenticated`: the token rehydrates
   // synchronously from localStorage, while `isAuthenticated` only
   // flips once App's mount effect calls checkAuth — child effects
