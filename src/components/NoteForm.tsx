@@ -123,6 +123,11 @@ const NoteForm = ({
   const lastSavedRef = useRef<{ tagId: string; text: string } | null>(
     null
   );
+  // Set once a submit persisted the form: the hook deletes the
+  // draft, so the unmount flush must not run — a late save
+  // would recreate it with `savedNoteId: null` and POST a
+  // duplicate of the just-submitted note.
+  const submittedRef = useRef(false);
 
   // Unmount = the modal closed (Mantine unmounts content, and
   // parents drop the modal itself). Flush the unsaved tail so
@@ -134,15 +139,28 @@ const NoteForm = ({
       if (!save || !autoSaveRef.current) return;
       const { tagId, text } = latest.current;
       if (!tagId || !toPlainText(text).trim()) return;
-      const last = lastSavedRef.current;
-      if (last && last.tagId === tagId && last.text === text) {
-        return;
-      }
       // Chain behind an in-flight save — the draft's note id
       // only exists once its POST resolves.
       const chain = inFlightRef.current ?? Promise.resolve();
       void chain
-        .then(() => save(tagId, text))
+        .then(() => {
+          // Decide HERE, once the in-flight write settled —
+          // not at unmount. A submit still in flight marks
+          // lastSavedRef/submittedRef only when it resolves,
+          // and that resolve also deletes the draft: flushing
+          // anyway would POST the same text into a fresh
+          // draft as a duplicate note.
+          if (submittedRef.current) return undefined;
+          const last = lastSavedRef.current;
+          if (
+            last &&
+            last.tagId === tagId &&
+            last.text === text
+          ) {
+            return undefined;
+          }
+          return save(tagId, text);
+        })
         .then(() => onUnmountedSaveRef.current?.())
         .catch((error) => console.error(error));
     },
@@ -163,7 +181,12 @@ const NoteForm = ({
         return;
       }
       trackInFlight(inFlightRef, save(tagId, text))
-        .then(() => {
+        .then((result) => {
+          // A resolved-false save was declined — the content
+          // stays dirty so the next tick or the unmount
+          // flush retries, and the saved check must not
+          // flash for a write that never happened.
+          if (result === false) return;
           lastSavedRef.current = { tagId, text };
           setSavedFlash(true);
           flashTimeout.current = window.setTimeout(
@@ -203,8 +226,11 @@ const NoteForm = ({
       // `false` signals a rejected submit — leave the content
       // eligible for the unmount flush. Anything else means the
       // content is persisted; mark it saved so the flush does
-      // not rewrite it on close.
+      // not rewrite it on close. submittedRef additionally
+      // covers text typed after the submit click: the draft is
+      // finished, so those edits must not spawn a second note.
       if (result !== false) {
+        submittedRef.current = true;
         lastSavedRef.current = {
           tagId: selectedTagId,
           text: noteText,
