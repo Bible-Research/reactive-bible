@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { shallow } from 'zustand/shallow';
 import { parseBibleRef } from '../utils/bibleUtils';
 import { sameRefSet } from '../utils/verseRefs';
 import type { VerseRef } from '../types';
@@ -23,7 +24,18 @@ export default function BibleRoute() {
     setShowNotes,
     setVersesFolded,
     getTags,
-  } = useBibleStore();
+  } = useBibleStore(
+    (state) => ({
+      activeBookId: state.activeBookId,
+      activeChapter: state.activeChapter,
+      setActiveBookAndChapter: state.setActiveBookAndChapter,
+      setVerseSelection: state.setVerseSelection,
+      setShowNotes: state.setShowNotes,
+      setVersesFolded: state.setVersesFolded,
+      getTags: state.getTags,
+    }),
+    shallow
+  );
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated,
   );
@@ -31,7 +43,7 @@ export default function BibleRoute() {
   // Always refresh tags when navigating to this route
   useEffect(() => {
     if (isAuthenticated) {
-      getTags(true); // Force refresh to get latest tags
+      void getTags(true); // Force refresh to get latest tags
     }
   }, [getTags, isAuthenticated]);
 
@@ -47,17 +59,17 @@ export default function BibleRoute() {
     setVersesFolded(false);
 
     if (ref === undefined) {
-      navigate(`/bible/${activeBookId}.${activeChapter}`, {
+      void navigate(`/bible/${activeBookId}.${activeChapter}`, {
         replace: true,
       });
       return;
     }
     if (!parsed) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
     if (parsed.needsRedirect) {
-      navigate(`/bible/${parsed.canonical}`, { replace: true });
+      void navigate(`/bible/${parsed.canonical}`, { replace: true });
       return;
     }
     if (

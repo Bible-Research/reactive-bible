@@ -1,5 +1,6 @@
 import { Navbar } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { buildBiblePath } from "../utils/bibleUtils";
@@ -24,12 +25,15 @@ const BibleSelector = ({
   const setActiveBookWithPosition = useBibleStore(
     (state) => state.setActiveBookWithPosition
   );
-  const pickerVerses =
-    verseSelection?.scope === 'bible'
-      ? verseNumbersFor(
-          verseSelection.refs, activeBookId, activeChapter
-        )
-      : [];
+  const pickerVerses = useMemo(
+    () =>
+      verseSelection?.scope === 'bible'
+        ? verseNumbersFor(
+            verseSelection.refs, activeBookId, activeChapter
+          )
+        : [],
+    [verseSelection, activeBookId, activeChapter]
+  );
 
   if (isMobileLandscape && !opened) {
     return null;
@@ -56,16 +60,13 @@ const BibleSelector = ({
             await setActiveBookWithPosition(bookId);
             const chapter =
               useBibleStore.getState().activeChapter;
-            navigate(buildBiblePath(bookId, chapter));
+            void navigate(buildBiblePath(bookId, chapter));
           }}
           onSelectChapter={(chapter) => {
-            console.log(
-              `🔗 Navigating to: /bible/${activeBookId}.${chapter}`
-            );
-            navigate(buildBiblePath(activeBookId, chapter));
+            void navigate(buildBiblePath(activeBookId, chapter));
           }}
           onSelectVerse={(verse) => {
-            navigate(
+            void navigate(
               buildBiblePath(activeBookId, activeChapter, [verse])
             );
             setOpened(false);

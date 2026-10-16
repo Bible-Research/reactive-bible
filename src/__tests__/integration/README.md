@@ -12,5 +12,8 @@ working together.
 
 ## Examples
 
-- `notes-workflow.test.tsx` - Complete notes CRUD workflow
-- `parallel-async.test.tsx` - Parallel data fetching and Vercel best practices
+- `protected-tags.test.tsx` - /tags route protection (issue
+  #68): anonymous visitors redirect to /login while public
+  share pages stay reachable
+- `tag-refresh.test.tsx` - Tags force-refresh on navigating to
+  TagNotesRoute, BibleRoute, and TagManagementRoute

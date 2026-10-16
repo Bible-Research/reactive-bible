@@ -60,7 +60,9 @@ describe("check for bible verse", () => {
           "he said, How is it that ye are come so soon to day?"
         );
       },
-      { timeout: 5000 }
+      // Generous: under fileParallelism the lazy kjv.json
+      // chunk competes with ~10 workers for module eval.
+      { timeout: 15000 }
     );
   });
 
@@ -77,7 +79,7 @@ describe("check for bible verse", () => {
           screen.getByTitle("passage-verse-11-35")
         ).toHaveTextContent("Jesus wept.");
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
   });
 });

@@ -1,68 +1,105 @@
-import { screen, waitFor } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import NotesView from './NotesView';
-import {
-  renderWithProviders,
-  createMockNote,
-  createMockTag,
-} from '../__tests__/helpers';
-import { Note, Tag } from '../types';
+import { useBibleStore } from '../store';
+import { Tag } from '../types';
 
-describe.skip('NotesView Component', () => {
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
-  it('should display loading state initially', () => {
-    renderWithProviders(<NotesView />);
-    expect(screen.getByLabelText('loading')).toBeInTheDocument();
+const mockTags: Tag[] = [
+  {
+    id: 'tag2', name: 'Prayer',
+    parent_tag: null, created_at: '', updated_at: '',
+  },
+  {
+    id: 'tag1', name: 'Bible Study',
+    parent_tag: null, created_at: '', updated_at: '',
+  },
+];
+
+describe('NotesView', () => {
+  const mockGetTags = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useBibleStore.setState({ getTags: mockGetTags, tags: [] });
   });
 
-  it('should display notes when available', async () => {
-    const mockTag = createMockTag({ id: '1', name: 'Faith' });
-    const mockNote = createMockNote({
-      id: 'n1',
-      note_text: 'Test note',
-      tag: mockTag,
+  const renderComponent = (initialEntry: string) => {
+    return render(
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path="/notes" element={<NotesView />} />
+          <Route
+            path="/notes/tag/:tagId"
+            element={<div>Tag Notes Page</div>}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+  };
+
+  it('should navigate to lastSelectedTagId if it exists in ' +
+    'the store', async () => {
+    useBibleStore.setState({
+      lastSelectedTagId: 'tag-last',
+      tags: mockTags,
+    });
+    renderComponent('/notes');
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        '/notes/tag/tag-last',
+        { replace: true }
+      );
+    });
+    expect(mockGetTags).not.toHaveBeenCalled();
+  });
+
+  it('should fetch tags and navigate to the first tag if ' +
+    'lastSelectedTagId is not set', async () => {
+    useBibleStore.setState({ lastSelectedTagId: null, tags: [] });
+    mockGetTags.mockImplementation(() => {
+      useBibleStore.setState({ tags: mockTags });
+      return Promise.resolve();
     });
 
-    renderWithProviders(<NotesView />, {
-      storeOverrides: {
-        tags: [mockTag] as Tag[],
-        notes: [mockNote] as Note[],
-      },
+    renderComponent('/notes');
+
+    await waitFor(() => {
+      expect(mockGetTags).toHaveBeenCalled();
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Faith')).toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('Test note')).toBeInTheDocument();
-    });
-  });
-
-  it('should display "No notes found" when no notes are ' +
-     'available', async () => {
-    const mockTag = createMockTag({ id: '1', name: 'Faith' });
-
-    renderWithProviders(<NotesView />, {
-      storeOverrides: {
-        tags: [mockTag] as Tag[],
-        notes: [] as Note[],
-      },
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText('No notes found.')).toBeInTheDocument();
+      // Navigates to the first tag alphabetically ('Bible Study')
+      expect(mockNavigate).toHaveBeenCalledWith(
+        '/notes/tag/tag1',
+        { replace: true }
+      );
     });
   });
 
-  it.skip('should refresh notes when the refresh button is ' +
-          'clicked', async () => {
-    // This test is skipped as it requires spying on store actions,
-    // which can cause infinite loops and memory issues
+  it('should show a loading state while fetching tags', () => {
+    useBibleStore.setState({ lastSelectedTagId: null, tags: [] });
+    const { getByPlaceholderText } = renderComponent('/notes');
+    expect(getByPlaceholderText('Loading tags...')).toBeInTheDocument();
   });
 
-  it.skip('should fetch notes when tag selection changes', async () => {
-    // This test is skipped as it requires complex interaction
-    // with the Mantine Select portal
+  it('should not navigate if not on the /notes route', async () => {
+    useBibleStore.setState({ lastSelectedTagId: 'tag-last', tags: mockTags });
+    renderComponent('/notes/tag/some-other-tag');
+
+    // Use a small timeout to ensure no navigation happens
+    await new Promise(r => setTimeout(r, 100));
+
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

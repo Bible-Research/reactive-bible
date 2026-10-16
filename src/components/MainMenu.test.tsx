@@ -7,21 +7,23 @@ import { renderWithProviders } from '../__tests__/helpers';
 
 // Mock useNavigate
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual = await vi.importActual<
+    typeof import('react-router-dom')
+  >('react-router-dom');
   return {
     ...actual,
     useNavigate: vi.fn(),
   };
 });
 
-describe.skip('MainMenu Component', () => {
+describe('MainMenu Component', () => {
   const mockNavigate = vi.fn();
   const mockOnClose = vi.fn();
   const mockToggleColorScheme = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useNavigate as any).mockReturnValue(mockNavigate);
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
   });
 
   const defaultProps = {
@@ -33,53 +35,94 @@ describe.skip('MainMenu Component', () => {
 
   it('should render menu items when opened', () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
-    
+
+    expect(screen.getByText('Read Bible')).toBeInTheDocument();
     expect(screen.getByText('View Notes')).toBeInTheDocument();
     expect(screen.getByText('Theme')).toBeInTheDocument();
   });
 
   it('should not render when closed', () => {
     renderWithProviders(<MainMenu {...defaultProps} opened={false} />);
-    
-    expect(screen.queryByText('View Notes')).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByText('View Notes')
+    ).not.toBeInTheDocument();
   });
 
-  it('should render close button', () => {
+  it('should render a close button that calls onClose', async () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
-    
+
     const closeButton = screen.getByTitle('Close menu');
-    expect(closeButton).toBeInTheDocument();
+    await userEvent.click(closeButton);
+    expect(mockOnClose).toHaveBeenCalled();
   });
 
   it('should navigate to notes when clicked', async () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
-    
-    const notesToggle = screen.getByText('View Notes');
-    await userEvent.click(notesToggle);
-    
+
+    await userEvent.click(screen.getByText('View Notes'));
+
     expect(mockNavigate).toHaveBeenCalledWith('/notes');
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('should navigate to Bible when viewing notes', async () => {
-    // Set showNotes to true in store
+  it('should navigate to the active bible passage', async () => {
     renderWithProviders(<MainMenu {...defaultProps} />, {
-      storeOverrides: { showNotes: true }
+      storeOverrides: { activeBookId: 'JHN', activeChapter: 3 },
     });
-    
-    expect(screen.getByText('View Bible')).toBeInTheDocument();
-    
-    const bibleToggle = screen.getByText('View Bible');
-    await userEvent.click(bibleToggle);
-    
-    // Should navigate to current book/chapter
-    expect(mockNavigate).toHaveBeenCalled();
+
+    await userEvent.click(screen.getByText('Read Bible'));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/JHN.3');
     expect(mockOnClose).toHaveBeenCalled();
   });
 
   it('should display theme text', () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
-    
+
     expect(screen.getByText('Theme')).toBeInTheDocument();
   });
+
+  it('hides authenticated-only items from anonymous visitors',
+    () => {
+      renderWithProviders(<MainMenu {...defaultProps} />, {
+        authStoreState: { isAuthenticated: false },
+      });
+
+      expect(
+        screen.queryByText('New Note')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Tag Management')
+      ).not.toBeInTheDocument();
+    });
+
+  it('shows write affordances to authenticated users', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: {
+        isAuthenticated: true,
+        token: 'test-token',
+        user: { username: 'testuser' },
+      },
+    });
+
+    expect(screen.getByText('New Note')).toBeInTheDocument();
+    expect(screen.getByText('Tag Management')).toBeInTheDocument();
+  });
+
+  it('navigates to tag management for authenticated users',
+    async () => {
+      renderWithProviders(<MainMenu {...defaultProps} />, {
+        authStoreState: {
+          isAuthenticated: true,
+          token: 'test-token',
+          user: { username: 'testuser' },
+        },
+      });
+
+      await userEvent.click(screen.getByText('Tag Management'));
+
+      expect(mockNavigate).toHaveBeenCalledWith('/tags');
+      expect(mockOnClose).toHaveBeenCalled();
+    });
 });

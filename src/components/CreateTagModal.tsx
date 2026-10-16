@@ -11,6 +11,7 @@ import {
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { createTag } from '../api';
+import { validateTagName } from '../utils/tagTree';
 
 interface CreateTagModalProps {
   opened: boolean;
@@ -38,31 +39,14 @@ export function CreateTagModal({
     }
   }, [opened]);
 
-  const validateTagName = (name: string): boolean => {
-    if (!name.trim()) {
-      setNameError('Tag name is required');
-      return false;
-    }
-
-    if (name.length > 100) {
-      setNameError('Tag name must be 100 characters or less');
-      return false;
-    }
-
-    const isDuplicate = existingTags.some(
-      (tag) => tag.name.toLowerCase() === name.trim().toLowerCase()
-    );
-    if (isDuplicate) {
-      setNameError('A tag with this name already exists');
-      return false;
-    }
-
-    setNameError(null);
-    return true;
+  const checkTagName = (name: string): boolean => {
+    const error = validateTagName(name, existingTags);
+    setNameError(error);
+    return error === null;
   };
 
   const handleSubmit = async () => {
-    if (!validateTagName(tagName)) {
+    if (!checkTagName(tagName)) {
       return;
     }
 
@@ -117,10 +101,10 @@ export function CreateTagModal({
             onChange={(e) => {
               setTagName(e.currentTarget.value);
               if (nameError) {
-                validateTagName(e.currentTarget.value);
+                checkTagName(e.currentTarget.value);
               }
             }}
-            onBlur={() => validateTagName(tagName)}
+            onBlur={() => checkTagName(tagName)}
             error={nameError}
             required
             maxLength={100}

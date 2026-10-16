@@ -30,6 +30,16 @@ const CACHE_VERSION = 2;
 
 const storageCache = new Map<string, string | null>();
 
+/**
+ * Test-only: flush the in-memory localStorage snapshot cache.
+ * `localStorage.clear()` in test setup does NOT reach this Map —
+ * without this reset, a value read in test N is served stale to
+ * test N+1 (and fetches memoize into cache hits that bypass MSW).
+ */
+export const resetStorageCacheForTests = () => {
+  storageCache.clear();
+};
+
 // Invalidate cache on external changes (other tabs)
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
@@ -260,7 +270,10 @@ export const cacheVerses = (
     metadata.totalVerses > MAX_VERSES &&
     metadata.lruQueue.length > 1
   ) {
-    const oldestChapterKey = metadata.lruQueue.shift()!;
+    // The while condition guarantees a non-empty queue; the
+    // guard replaces a non-null assertion.
+    const oldestChapterKey = metadata.lruQueue.shift();
+    if (oldestChapterKey === undefined) break;
     Object.keys(cache).forEach((k) => {
       if (k.startsWith(oldestChapterKey + ':')) {
         metadata.totalVerses--;

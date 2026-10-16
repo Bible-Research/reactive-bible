@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   TextInput,
@@ -19,9 +19,18 @@ import { useAuthStore } from '../stores/authStore';
 export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const login = useAuthStore((state) => state.login);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
+  const clearError = useAuthStore((state) => state.clearError);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Clear any stale auth error left over from a previous visit to
+  // the login or register page.
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -38,8 +47,9 @@ export function LoginPage() {
       });
       
       // Redirect to the page they tried to visit or to notes
-      const from = (location.state as any)?.from?.pathname || '/notes';
-      navigate(from, { replace: true });
+      const state = location.state as { from?: { pathname?: string } } | null;
+      const from = state?.from?.pathname || '/notes';
+      void navigate(from, { replace: true });
     } catch (err) {
       // Error is already set in the store
       console.error('Login failed:', err);

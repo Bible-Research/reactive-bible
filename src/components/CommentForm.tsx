@@ -5,10 +5,10 @@ import {
   FileButton,
   Box,
   Text,
-  ActionIcon,
 } from '@mantine/core';
-import { IconX, IconPhoto } from '@tabler/icons-react';
+import { IconPhoto } from '@tabler/icons-react';
 import RichTextEditor from './RichTextEditor';
+import { RemoveImageButton } from './CommentImageGrid';
 import { toPlainText } from '../utils/tiptapContent';
 import { commentImageName } from '../utils/commentTree';
 import { CommentImage } from '../types';
@@ -203,20 +203,11 @@ const CommentForm = ({
                   </Box>
                 )}
                 {onDeleteImage && (
-                  <ActionIcon
-                    size="xs"
-                    color="red"
-                    variant="filled"
-                    style={{
-                      position: 'absolute',
-                      top: 2,
-                      right: 2,
-                    }}
+                  <RemoveImageButton
+                    label={`Remove image ${name}`}
+                    offset={2}
                     onClick={() => onDeleteImage(img.id)}
-                    aria-label={`Remove image ${name}`}
-                  >
-                    <IconX size={10} />
-                  </ActionIcon>
+                  />
                 )}
               </Box>
             );
@@ -234,16 +225,11 @@ const CommentForm = ({
                 alt={s.file.name}
                 style={thumbStyle}
               />
-              <ActionIcon
-                size="xs"
-                color="red"
-                variant="filled"
-                style={{ position: 'absolute', top: 2, right: 2 }}
+              <RemoveImageButton
+                label={`Remove staged image ${s.file.name}`}
+                offset={2}
                 onClick={() => removeStaged(s.id)}
-                aria-label={`Remove staged image ${s.file.name}`}
-              >
-                <IconX size={10} />
-              </ActionIcon>
+              />
             </Box>
           ))}
         </Group>

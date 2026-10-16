@@ -1,4 +1,7 @@
-export const findVersesInBetween = (startStr: string, endStr: string): number[] => {
+export const findVersesInBetween = (
+  startStr: string,
+  endStr: string
+): number[] => {
   const foundVerses: number[] = [];
 
   const start = Number(startStr);
