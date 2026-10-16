@@ -22,7 +22,7 @@ export default function LegacyBibleRedirect() {
   useEffect(() => {
     const bookId = book ? toUsfmCode(book) : null;
     if (!bookId || !chapterVerse) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
 
@@ -33,16 +33,16 @@ export default function LegacyBibleRedirect() {
       dotIdx >= 0 ? chapterVerse.slice(dotIdx + 1) : '';
     const chapter = parseInt(chapterStr, 10);
     if (!/^\d+$/.test(chapterStr) || chapter < 1) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
 
     const verses = verseStr ? decodeVerses(verseStr) : undefined;
     if (verseStr && (!verses || verses.length === 0)) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
-    navigate(buildBiblePath(bookId, chapter, verses), {
+    void navigate(buildBiblePath(bookId, chapter, verses), {
       replace: true,
     });
   }, [book, chapterVerse, navigate]);

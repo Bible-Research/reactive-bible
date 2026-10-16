@@ -10,10 +10,8 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
-import { editNote, UNTAGGED_TAG_ID } from "../api";
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
-import { clearNotesCache } from "../utils/cacheManager";
 import {
   refsInclude,
   sameRef,
@@ -21,10 +19,13 @@ import {
   verseNumbersFor,
 } from "../utils/verseRefs";
 import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
+import { useNoteEditor } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
 import PassagePicker from "./PassagePicker";
+import VerseTextGroups from "./VerseTextGroups";
 import { Note, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
+import { shallow } from "zustand/shallow";
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -36,7 +37,6 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const {
     tags,
     getTags,
-    fetchNotes,
     activeTextFilesetId,
     activeBookId,
     activeChapter,
@@ -44,12 +44,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   } = useBibleStore((state) => ({
     tags: state.tags,
     getTags: state.getTags,
-    fetchNotes: state.fetchNotes,
     activeTextFilesetId: state.activeTextFilesetId,
     activeBookId: state.activeBookId,
     activeChapter: state.activeChapter,
     translations: state.translations,
-  }));
+  }), shallow);
 
   // The note's verse links, editable via the picker below.
   const [refs, setRefs] = useState<VerseRef[]>([]);
@@ -65,7 +64,12 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
     if (!opened) return;
-    getTags(); // Uses cache if available
+    // Uses cache if available; a rejection already produced a
+    // store notification — swallow it so it stays off the
+    // global error reporter.
+    void getTags().catch(() => {
+      /* notified by the store */
+    });
     setVersesOpen(false);
     if (!note) return;
     const initial = (note.verses ?? [])
@@ -133,46 +137,38 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     );
   };
 
-  // Set when autosave wrote to the server — the cached notes
-  // list is then stale and must be refreshed on close.
-  const autosavedRef = useRef(false);
-
-  const handleAutoSave = async (tagId: string, text: string) => {
-    if (!note) return;
-    await editNote(note.id, tagId, text);
-    autosavedRef.current = true;
-    clearNotesCache();
-  };
-
-  const handleClose = () => {
-    if (autosavedRef.current && note) {
-      // Untagged notes refresh the virtual "untagged" view.
-      fetchNotes(note.tag?.id ?? UNTAGGED_TAG_ID);
-    }
-    autosavedRef.current = false;
-    onClose();
-  };
-
-  const handleSubmit = async (tagId: string, text: string) => {
-    if (!note) return;
-
-    // The notes API expects book names (verses[].book).
-    const verseReferences = sortRefs(refs).map(
-      ({ bookId, chapter, verse }) => ({
+  // The notes API expects book names (verses[].book). Read by
+  // the editor hook at save time so autosave PATCHes carry the
+  // picker's CURRENT refs — they used to be silently dropped
+  // on X/backdrop close.
+  const verseReferences = useMemo(
+    () =>
+      sortRefs(refs).map(({ bookId, chapter, verse }) => ({
         book: toBookName(bookId) ?? bookId,
         chapter,
         verse,
-      })
-    );
+      })),
+    [refs]
+  );
 
-    try {
-      await editNote(note.id, tagId, text, verseReferences);
-      clearNotesCache(); // Cached pages hold stale verse links
-      fetchNotes(tagId); // Refresh notes list
-      onClose();
-    } catch (error) {
-      console.error(error);
+  const editor = useNoteEditor({
+    mode: "edit",
+    note,
+    verseReferences,
+    onSubmitted: () => onClose(),
+  });
+
+  const handleClose = () => {
+    if (editor.hasSaved() && note) {
+      // Even if autosave moved the note to another tag, the
+      // list on screen is note.tag's — refetch it so the note
+      // disappears. Untagged notes refetch the virtual
+      // "untagged" view.
+      void editor.refreshViewedNotes().catch(() => {
+        /* fetchNotes already notified the failure */
+      });
     }
+    onClose();
   };
 
   // The notes API sets error/error_code when the upstream
@@ -196,10 +192,23 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
         <>
           <NoteForm
             tags={tags}
-            onSubmit={handleSubmit}
+            onSubmit={editor.submit}
             submitText="Submit changes"
-            onTagDropdownOpen={() => getTags()}
-            onAutoSave={handleAutoSave}
+            onTagDropdownOpen={() => {
+              void getTags().catch(() => {
+                /* notified by the store */
+              });
+            }}
+            onAutoSave={editor.save}
+            onUnmountedSave={() => {
+              // A tail save finishing after unmount sets
+              // hasSaved too late for handleClose's check —
+              // refetch the route's tag here or the list shows
+              // the pre-edit text until the next load.
+              void editor.refreshViewedNotes().catch(() => {
+                /* fetchNotes already notified the failure */
+              });
+            }}
             note={{
               tagId: note.tag?.id ?? "",
               text: note.note_text,
@@ -252,29 +261,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               </Text>
             ) : (
               <>
-                {textGroups.map(([label, groupVerses]) => (
-                  <Box key={label} mt="xl">
-                    <Divider
-                      my="sm"
-                      label={label}
-                      labelPosition="center"
-                    />
-                    {groupVerses.map((v) => (
-                      <Box key={v.verse} py={4} px={8}>
-                        <Text size="sm">
-                          <Text
-                            component="span"
-                            weight={700}
-                            mr={4}
-                          >
-                            {v.verse}
-                          </Text>
-                          {v.text}
-                        </Text>
-                      </Box>
-                    ))}
-                  </Box>
-                ))}
+                <VerseTextGroups groups={textGroups} />
                 {versesTruncated && (
                   <Text color="red" size="sm" mt="sm">
                     Cannot display more than 500 verses of the

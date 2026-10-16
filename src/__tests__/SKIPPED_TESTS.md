@@ -1,30 +1,87 @@
 # Skipped Tests
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-26 (Job 17 skip triage)
 
-This document lists tests that are intentionally skipped. The vast majority of previously skipped tests have been fixed.
+This document lists tests that are intentionally skipped via
+`it.skip` / `describe.skip` / `.skip` filenames.
 
----
+## Current state
 
-## Modal Form Submission Tests
+**There are no skipped tests.** The 2026-02 audit triage
+restored or rewrote every previously skipped suite; rotted
+suites were deleted after porting their still-useful cases.
 
-- **Files:**
-  - `src/components/AddTagNoteModal.test.tsx`
-  - `src/components/EditNoteModal.test.tsx`
+## Triage outcomes (2026-02)
 
-- **Skipped Tests:**
-  - `should call addTagNote when form submitted`
-  - `should clear selected verses after submission`
-  - `should call editNote when form submitted`
-  - `should refresh notes after successful edit`
+### Restored (fix + unskip)
 
-- **Reason for Skipping:**
-  These tests involve submitting a form within a Mantine `Modal` component. Mantine renders modals in a React Portal, which places the DOM nodes in a different part of the document, outside the main component tree. This makes it notoriously difficult for React Testing Library to reliably simulate user interactions like form submissions.
+- `components/RegisterPage.test.tsx` — renamed from
+  `.test.tsx.skip`, unskipped, fixed Mantine `PasswordInput`
+  label queries and the duplicate "Create Account" text.
+- `components/LoginPage.test.tsx` — rewritten: stale
+  copy replaced, the "loading during login" test (broken by
+  design) replaced with an `isLoading` store-state test, and a
+  stale-error-on-mount case added for the new `clearError`
+  effect.
+- `components/UserMenu.test.tsx` — unskipped; passes
+  as written under happy-dom.
+- `components/ProtectedRoute.test.tsx` — unskipped;
+  state now seeded via `renderWithProviders` `authStoreState`,
+  and a pre-checkAuth persisted-token case was added.
+- `components/MainMenu.test.tsx` — rewritten for the current
+  drawer (Read Bible / View Notes / theme + auth-gated New
+  Note and Tag Management).
+- `components/NoteCard.test.tsx` — rewritten with the current
+  `aria-label="*-note"` action selectors; covers ownership
+  gating, share/play/comment badges.
+- `stores/authStore.login.test.tsx` — unskipped;
+  the stale `bibleresearchapi.vercel.app` URL now derives
+  from `API_BASE_URL`, the duplicated "Initial State"
+  describe was dropped, and assertions read
+  `store.getState()` instead of `renderHook` results (which
+  go stale when `act()` rejects).
+- `stores/authStore.register.test.tsx` — same
+  `getState()` treatment.
+- `api.test.ts` — the `addTagNote` POST and `deleteNote`
+  DELETE tests; MSW mutation handlers were added in the
+  same change.
+- `components/AddTagNoteModal.test.tsx` — real submit test
+  (POST + close) and the verse-selection-clear case ported
+  from `notes-workflow`.
+- `components/NoteForm.test.tsx` — real `onSubmit(tagId,
+  text)` and `onTagDropdownOpen` tests; the "portal prevents
+  submission" rationale was disproved in-file.
+- `components/Audio.test.tsx` — the Media Session metadata
+  test implemented (`navigator.mediaSession` +
+  `MediaMetadata` stubbed).
 
-  While the modal's rendering and initial state are tested, the full end-to-end submission flow is skipped to avoid brittle and flaky tests. This is a known challenge when testing portal-based UI components.
+### Deleted (rotted or superseded)
 
-- **Status:**
-  This is an accepted limitation. The core logic is tested, and the risk of the submission failing due to the modal itself is low.
+- `components/BottomNav.test.tsx` — covered through the real
+  App by `audio-stop-on-chapter-switch-62`,
+  `chapter-scroll-reset-63`, and
+  `__tests__/bottomnav-title-sync-95`.
+- `components/NotesView.test.tsx` — the deleted suite was the
+  pre-refactor one (it tested a vestigial component); a live
+  file of the same path exists at
+  `src/components/NotesView.test.tsx`.
+- `routes/TagNotesRoute.test.tsx` — rotted (stale
+  strings, old `fetchNotes` signature); error/empty/share
+  cases ported to `TagNotesRoute.states.test.tsx`.
+- `components/EditNoteModal.test.tsx` empty `it.skip` — the
+  post-submit refetch-args case already exists as a live
+  test in the same file.
+- `components/TranslationSelector.test.tsx` `it.skip` —
+  stale portal rationale; live tests already drive the
+  Select dropdown.
+- `Audio.test.tsx` `it.skip` ×2 (load-and-play,
+  auto-advance) — superseded by `useChapterAudio` and the
+  `Audio.autoAdvance`/`Audio.mediaControls` suites.
+- `__tests__/integration/notes-workflow.test.tsx` — the
+  modal-close and selection-clear assertions were ported
+  into `AddTagNoteModal.test.tsx`.
+- `__tests__/integration/parallel-async.test.tsx` — tested
+  no production code.
 
 ---
 
@@ -35,15 +92,5 @@ This document lists tests that are intentionally skipped. The vast majority of p
 - **Error:** `ERR_WORKER_OUT_OF_MEMORY`
 - **When:** After all tests complete successfully
 - **Impact:** None - all tests pass correctly
-
-- **Description:**
-  An unhandled "Worker terminated due to reaching memory limit" error occurs after the test suite completes. This appears to be a cleanup issue in the test environment (happy-dom/vitest) rather than in the actual test code.
-
-- **Evidence:**
-  - All 96 tests pass successfully
-  - The error is logged as an "Unhandled Error" not tied to any specific test
-  - The error occurs during teardown/cleanup phase
-  - Increasing memory limits and running tests sequentially reduces duration but doesn't eliminate the error
-
-- **Status:**
-  This is a known issue that doesn't affect test results or code quality. The test suite is reliable and all tests execute correctly.
+- **Status:** Known happy-dom/vitest teardown quirk; does
+  not affect results.

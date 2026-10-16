@@ -6,19 +6,19 @@
 3. [Architecture](#architecture)
 4. [Client-Side Routing](#client-side-routing)
 5. [State Management](#state-management)
-6. [Core Functionalities](#core-functionalities)
-7. [Types & Interfaces](#types--interfaces)
-8. [Data Flow](#data-flow)
-9. [Component Structure](#component-structure)
-10. [API Integration](#api-integration)
-11. [Caching System](#caching-system)
-12. [Bible Utilities](#bible-utilities)
-13. [Testing](#testing)
-14. [Browser Compatibility](#browser-compatibility)
-15. [Performance Considerations](#performance-considerations)
-16. [Android App & Release Channels](#android-app--release-channels)
-17. [Contributing Guidelines](#contributing-guidelines)
-18. [Keeping Documentation Updated](#keeping-documentation-updated)
+6. [Types & Interfaces](#types--interfaces)
+7. [Testing Guidelines](#testing-guidelines)
+8. [Bible Utilities](#bible-utilities)
+9. [Core Functionalities](#core-functionalities)
+10. [Data Flow](#data-flow)
+11. [Component Structure](#component-structure)
+12. [API Integration](#api-integration)
+13. [Caching System](#caching-system)
+14. [Code Style Guidelines](#code-style-guidelines)
+15. [Keeping Documentation Updated](#keeping-documentation-updated)
+16. [Browser Compatibility](#browser-compatibility)
+17. [Performance Considerations](#performance-considerations)
+18. [Android App & Release Channels](#android-app--release-channels)
 
 ---
 
@@ -31,11 +31,15 @@ audio playback, verse tagging, and advanced search capabilities.
 
 ### Tech Stack
 - **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
+- **Build Tool**: Vite (Rolldown) + SWC
 - **UI Library**: Mantine v6
+- **Routing**: React Router v6
 - **State Management**: Zustand with localStorage persistence
+- **Rich Text**: TipTap / ProseMirror (note editor)
+- **Drag & Drop**: dnd-kit (note reordering)
 - **Audio**: Howler.js
-- **Testing**: Vitest + React Testing Library
+- **Testing**: Vitest + React Testing Library + MSW
+- **Mobile Shell**: Capacitor (Android)
 - **Icons**: Tabler Icons
 - **Analytics**: Vercel Analytics
 - **Performance Monitoring**: Vercel Speed Insights
@@ -70,10 +74,11 @@ audio playback, verse tagging, and advanced search capabilities.
 ### Available Scripts
 
 - `npm run dev` - Start development server with hot reload
-- `npm run build` - Build for production (TypeScript compilation + Vite build)
+- `npm run build` - Build for production (`tsc` typecheck + Vite build)
 - `npm run preview` - Preview production build locally
-- `npm run lint` - Run ESLint to check code quality
-- `npm test` - Run tests in headless mode
+- `npm run lint` - Run ESLint (`--max-warnings 0`: 0 errors and
+  0 warnings required)
+- `npm test` - Run tests once, headless (CI mode)
 - `npm run test:ui` - Run tests with the interactive Vitest UI
 - `npm run coverage` - Generate a test coverage report
 
@@ -82,35 +87,52 @@ audio playback, verse tagging, and advanced search capabilities.
 ```
 reactive-bible/
 ├── src/
-│   ├── components/      # React components (18 files)
-│   ├── utils/          # Utility functions
+│   ├── components/      # React components (co-located tests)
+│   ├── routes/          # React Router routes + lazy boundaries
+│   ├── hooks/           # Shared hooks (audio engine, note
+│   │                    #   editor, media session, etc.)
+│   ├── utils/           # Utility modules (co-located tests)
+│   │   ├── apiClient.ts     # publicFetch / authenticatedFetch /
+│   │                    #   fetchJson
 │   │   ├── bibleUtils.ts    # Bible book/testament helpers
 │   │   ├── filesetGroups.ts # Fileset grouping + resolution
+│   │   ├── verseRefs.ts     # USFM verse-ref parsing/formatting
+│   │   ├── errorReporter.tsx# Global error → notification
 │   │   └── cacheManager.ts  # Caching logic
 │   ├── assets/         # Static assets
 │   │   ├── kjv.json    # KJV verse text (lazy-loaded chunk)
 │   │   └── bibleStructure.json  # Book/chapter metadata (bundled)
-│   ├── api.tsx         # API functions
-│   ├── store.tsx       # Zustand state management
+│   ├── api/            # API modules split by domain
+│   │                    #   (index.ts barrel — always import
+│   │                    #   via '../api')
+│   ├── stores/         # authStore + bibleStore/ slices
+│   ├── store.ts        # Zustand composition root
 │   ├── types.ts        # TypeScript interfaces
+│   ├── mocks/          # MSW handlers + server for tests
+│   ├── __tests__/      # Shared test infra + integration/
+│   │                    #   regression tests
 │   ├── App.tsx         # Main app component
 │   ├── main.tsx        # Entry point
-│   └── setupTests.ts   # Test configuration
+│   └── setupTests.ts   # Test configuration (MSW + resets)
 ├── public/             # Public assets
 ├── dist/               # Build output (generated)
-├── vite.config.ts      # Vite configuration
+├── vite.config.ts      # Vite + Vitest configuration
 ├── tsconfig.json       # TypeScript configuration
 └── package.json        # Dependencies and scripts
 ```
 
 ### Environment Variables
 
-No environment variables are required for local development. The app uses:
+Optional: `VITE_API_BASE_URL` in a local `.env` overrides the
+default backend host — `src/config.ts` exports `API_BASE_URL`
+and falls back to the production App Engine host; always use
+it, never hardcode the URL. The app uses:
 - **Local KJV data**: `src/assets/kjv.json`, lazy-loaded on demand
   via `src/utils/kjvDataLoader.ts` (emitted as a separate bundle
   chunk). `src/assets/bibleStructure.json` holds book/chapter/verse
   metadata bundled in the entry chunk for synchronous navigation.
-- **Public APIs**: Bible Research API (no auth required)
+- **Bible Research API**: public content needs no auth; notes,
+  tags, comments, and reading positions use token auth.
 
 ### Deployment
 
@@ -136,8 +158,8 @@ src/
 ├── components/          # React components
 ├── utils/              # Utility functions (caching, bible utils)
 ├── assets/             # Static assets (kjv.json, bibleStructure)
-├── api.tsx             # API functions and data access
-├── store.tsx           # Zustand state management
+├── api/                # API functions and data access
+├── store.ts           # Zustand state management
 ├── App.tsx             # Main application component
 └── main.tsx            # Application entry point
 ```
@@ -145,10 +167,13 @@ src/
 ### Design Patterns
 - **Component-Based Architecture**: Modular, reusable components in
   `src/components`.
-- **Centralized State**: A single Zustand store (`src/store.tsx`) for global
-  state, with persistence to `localStorage`.
+- **Centralized State**: A single Zustand store (`src/store.ts` —
+  composition root; the notes orchestration lives in
+  `src/stores/bibleStore/notesSlice.ts`, persistence/migration
+  in `src/stores/bibleStore/persistence.ts`) for global state,
+  with persistence to `localStorage`.
 - **API Layer Separation**: All external data fetching and business logic is
-  handled in `src/api.tsx`.
+  handled in `src/api/`.
 - **Cache-First Strategy**: A multi-level caching system
   (`src/utils/cacheManager.ts`) minimizes API calls and improves speed.
 - **Persistent State**: User preferences (like theme and translation choice)
@@ -160,129 +185,166 @@ src/
 
 ## Client-Side Routing
 
-**Status**: ✅ Implemented (POC Complete)  
-**Library**: React Router v6.28.1  
-**Branch**: `feature/bible-routing-poc`
+**Status**: ✅ Implemented
+**Library**: React Router v6
+**Config**: `src/routes/index.tsx`
 
 The application uses React Router for client-side navigation, enabling
-shareable URLs, browser history support, and deep linking.
+shareable URLs, browser history support, and deep linking. Canonical
+Bible URLs use USFM refs — `/bible/JHN.3.16-18` selects John 3:16–18;
+`/bible/JHN.3` opens the chapter. Non-bible routes are lazy-loaded via
+`React.lazy` in `index.tsx`; `BibleRoute` and `LegacyBibleRedirect`
+stay eager because they serve the landing path.
 
 ### Routes
 
 | Route | Component | Description |
 |-------|-----------|-------------|
 | `/` | Redirect | Redirects to `/bible` |
-| `/bible` | `BibleRoute` | Redirects to current book/chapter from store |
-| `/bible/:book/:chapter` | `BibleRoute` | Displays specific Bible chapter |
-| `*` (catch-all) | Redirect | Redirects to `/bible` |
+| `/bible` | `BibleRoute` | → `/bible/{bookId}.{chapter}` |
+| `/bible/:ref` | `BibleRoute` | USFM chapter or verse ref |
+| `/bible/:book/:chapterVerse` | `LegacyBibleRedirect` | → canonical ref |
+| `/search` | `SearchRoute` | Search (`?q=`) |
+| `/notes` | `NotesRoute` | → default tag |
+| `/notes/tag/:tagId` | `TagNotesRoute` | Tag notes (`untagged`) |
+| `/notes/:noteId` | `NoteDetailRoute` | Note detail (public) |
+| `/tags` | `ProtectedRoute`→`TagManagementRoute` | Tag CRUD |
+| `/login`, `/register` | `LoginPage`, `RegisterPage` | Auth |
+| `*` | Redirect | → `/bible` |
 
 ### Route Components
 
-**Location**: `src/routes/`
+**Location**: `src/routes/` (tests co-located)
 
 ```
 src/routes/
-├── BibleRoute.tsx    # Main Bible reading route
-├── index.tsx         # Route configuration
-└── __tests__/
-    └── BibleRoute.test.tsx  # Route tests
+├── index.tsx              # Route table + lazy boundaries
+├── BibleRoute.tsx         # USFM ref parsing → store sync
+├── LegacyBibleRedirect.tsx# /bible/:book/:chapterVerse → canonical
+├── NotesRoute.tsx         # Tag load + redirect
+├── TagNotesRoute.tsx      # Tag notes list (pagination, reorder)
+├── NoteDetailRoute.tsx    # Single note view
+├── TagManagementRoute.tsx # Tag CRUD
+├── SearchRoute.tsx        # Book-grouped search results
+└── LoginPage / RegisterPage (in src/components/)
 ```
 
 ### URL/Store Synchronization
 
-The routing system maintains bidirectional sync between URL parameters and
-Zustand store:
+The routing system maintains sync between URL params and the Zustand
+store inside `BibleRoute.tsx`:
 
-**URL → Store** (One-way sync):
+**URL → Store** (one-way sync):
 ```typescript
-// BibleRoute.tsx
+// BibleRoute.tsx — `ref` is the USFM param (e.g. "JHN.3.16-18"),
+// `parsed` comes from the ref parser.
 useEffect(() => {
-  if (book && chapter) {
-    const chapterNum = parseInt(chapter, 10);
-    if (book !== activeBook || chapterNum !== activeChapter) {
-      setActiveBook(book);
-      setActiveChapter(chapterNum);
-    }
-  } else {
-    navigate(`/bible/${activeBook}/${activeChapter}`, { replace: true });
+  setShowNotes(false);
+  setVersesFolded(false);
+
+  if (ref === undefined) {
+    void navigate(`/bible/${activeBookId}.${activeChapter}`,
+      { replace: true });
+    return;
   }
-}, [book, chapter]); // Only depend on URL params
+  if (!parsed) {
+    void navigate('/bible', { replace: true });
+    return;
+  }
+  if (parsed.needsRedirect) {
+    void navigate(`/bible/${parsed.canonical}`, { replace: true });
+    return;
+  }
+  if (
+    parsed.bookId !== activeBookId ||
+    parsed.chapter !== activeChapter
+  ) {
+    setActiveBookAndChapter(parsed.bookId, parsed.chapter);
+  }
+}, [ref, parsed, activeBookId, activeChapter]);
 ```
 
-**Key Principle**: URL is the single source of truth. Navigation components use
-`navigate()` to update the URL, which triggers the store update.
+**Key Principle**: the URL is the single source of truth. Navigation
+components call `navigate()` with a canonical USFM ref; `BibleRoute`
+parses it, canonicalizes it (lowercase codes, book names, and missing
+chapters redirect to `parsed.canonical`), and syncs the store.
 
 ### Navigation Pattern
 
-**All navigation components use `useNavigate()` hook:**
+**All navigation components use `useNavigate()`:**
 
 ```typescript
 import { useNavigate } from 'react-router-dom';
 
 const navigate = useNavigate();
 
-// Navigate to a chapter
-navigate(`/bible/${book}/${chapter}`);
+// Navigate to a chapter (USFM code + chapter)
+void navigate(`/bible/${bookId}.${chapter}`);
+// With a verse range
+void navigate(`/bible/${bookId}.${chapter}.${from}-${to}`);
 ```
 
-**Updated Components**:
-- `BibleSelector.tsx` - Book/chapter selection
-- `SubHeader.tsx` - Previous/next chapter buttons
-- `BottomNav.tsx` - Footer navigation arrows
+**Navigation components**:
+- `BibleSelector.tsx` - Book/chapter/verse sidebar picker
+- `BottomNav.tsx` - Footer prev/next arrows + title
+- `Verse.tsx` - Verse click writes a USFM ref to the URL
+- `PassagePicker.tsx` - Note-modal passage selection
 
 **Pattern**:
 ```typescript
-// ❌ OLD: Direct store updates
+// ❌ OLD: Direct store updates (pre-USFM routing)
 setActiveBook('Matthew');
 setActiveChapter(5);
 
-// ✅ NEW: URL-based navigation
-navigate('/bible/Matthew/5');
-// BibleRoute automatically syncs to store
+// ✅ CURRENT: URL-based navigation (USFM ref)
+void navigate('/bible/MAT.5');
+// BibleRoute parses and syncs to the store
 ```
 
 ### Features
 
-✅ **Direct URL Access**: Type `/bible/John/3` in browser  
-✅ **Browser Navigation**: Back/forward buttons work  
-✅ **Page Refresh**: Maintains current location  
-✅ **Shareable URLs**: Share links to specific passages  
-✅ **Deep Linking**: Bookmark any passage  
+✅ **Direct URL Access**: Type `/bible/JHN.3` in the browser
+✅ **Browser Navigation**: Back/forward buttons work
+✅ **Page Refresh**: Maintains current location
+✅ **Shareable URLs**: `/bible/JHN.3.16-18` shares a verse range
+✅ **Deep Linking**: Bookmark any passage
+✅ **Legacy Redirects**: `/bible/John/3` → `/bible/JHN.3`
 
 ### Testing
 
-**Test Setup**: Tests use `MemoryRouter` for better control
+**Test Setup**: Route tests are co-located
+(`src/routes/BibleRoute.test.tsx`) and use `MemoryRouter`.
 
 ```typescript
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 render(
-  <MemoryRouter initialEntries={['/bible/John/1']}>
+  <MemoryRouter initialEntries={['/bible/JHN.1']}>
     <Routes>
-      <Route path="/bible/:book/:chapter" element={<BibleRoute />} />
+      <Route path="/bible/:ref" element={<BibleRoute />} />
     </Routes>
   </MemoryRouter>
 );
 ```
 
 **Test Coverage**:
-- ✅ URL param syncing
+- ✅ USFM ref parsing, canonicalization redirects
 - ✅ Store updates
-- ✅ Redirects
-- ✅ Error handling
+- ✅ Verse-range selection from the URL
 - ✅ No infinite loops
 
 **Run Tests**:
 ```bash
-npm test -- src/routes/__tests__/BibleRoute.test.tsx
+npm test -- src/routes/BibleRoute.test.tsx
 ```
 
 ### Implemented Routes
 
 **Bible Routes** (✅ Implemented):
 - `/` - Redirects to `/bible`
-- `/bible` - Redirects to current book/chapter from store
-- `/bible/:book/:chapter` - Displays specific Bible chapter
+- `/bible` - Redirects to `/bible/{activeBookId}.{activeChapter}`
+- `/bible/:ref` - USFM chapter or verse-range ref
+- `/bible/:book/:chapterVerse` - Legacy redirect
 - `*` (catch-all) - Redirects to `/bible`
 
 **Notes Routes** (✅ Implemented):
@@ -304,17 +366,25 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - `/search?q=<query>` - Book-grouped search results
 
 **Components**:
-- `BibleRoute` - Handles Bible navigation, syncs URL params to store
-- `NotesRoute` - Loads tags and redirects to first tag
-- `TagNotesRoute` - Displays notes for specific tag with CRUD operations
+- `BibleRoute` - USFM ref parsing, canonicalization, URL→store sync
+- `LegacyBibleRedirect` - Legacy `/bible/:book/:chapterVerse` → USFM
+- `NotesRoute` - Loads tags and redirects to the default tag
+- `TagNotesRoute` - Notes for a tag with pagination/reorder
+- `NoteDetailRoute` - Single note detail view
+- `TagManagementRoute` - Tag CRUD behind `ProtectedRoute`
 - `SearchRoute` - Book-grouped search results accordion
 
 ### Route Implementation Details
 
 **NotesRoute** (`src/routes/NotesRoute.tsx`):
 - Fetches all tags from API
-- Automatically redirects to `/notes/tag/:firstTagId`
-- Provides tag selector dropdown
+- Automatically redirects to `/notes/tag/:tagId` — the tag
+  choice is `defaultTagId` in `src/utils/defaultTag.ts`:
+  the last-viewed tag if it still exists, else the
+  alphabetically first tag
+- Anonymous visitors are bounced to `/bible`; a zero-tag user
+  sees an empty-state message and a failed tag fetch an error
+  message — neither spins on the loader forever
 - Minimal component - main logic in TagNotesRoute
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
@@ -339,7 +409,16 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - In custom sort + authenticated, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
   of every note in the tag — see "Note order badges & moves"
-  under Note Taking & Tagging
+  under Note Taking & Tagging. Reorder UI additionally
+  requires `is_owner` on every loaded note — shared/public
+  tag pages hide it for non-owners (the backend rejects
+  foreign moves with 400/409 anyway)
+- The route is thin view wiring over three hooks +
+  `TagNotesToolbar`: `useTagNotesData` (load/pagination/
+  refresh/delete orchestration), `useNoteOrderMenu` (order
+  index + moves), `useNotePlaylist` (audio playlist assembly —
+  its play-from index addresses the verse-filtered playlist
+  array, not the raw sorted notes)
 
 **Navigation Pattern**:
 ```typescript
@@ -356,97 +435,151 @@ navigate('/notes/tag/:newTagId');
 
 ### Future Routes (Planned)
 
-**Phase 3**:
-- `/bible/:book/:chapter/:verse` - Verse highlighting
-- `/notes/:noteId` - Single note detail view
-- `/notes/new` - Create new note
-- `/notes/:noteId/edit` - Edit note
-
-**Phase 4**:
-- `/tags/:tagId` - Tag detail (`/tags` list is implemented —
-  see Tag Routes above)
+- `/notes/new` - Create new note (today creation happens via
+  `AddTagNoteModal`/`AddStandaloneNoteModal`)
+- `/notes/:noteId/edit` - Edit note (today editing happens via
+  `EditNoteModal`)
 
 ---
 
 ## State Management
 
-**Location**: `src/store.tsx`
+**Location**: `src/store.ts` (composition root) +
+`src/stores/bibleStore/` (notesSlice, persistence) +
+`src/stores/authStore.ts` (auth: token, user, login/register/
+logout)
 
-The application uses Zustand for lightweight, centralized state management. The
-state is persisted to `localStorage` to remember user selections across
-sessions.
+The application uses Zustand for lightweight, centralized state
+management. The main store (`bible-storage`, schema v5 with a
+custom `migratePersistedState`) is persisted to `localStorage`;
+auth lives in a separate persisted `authStore`.
 
 ### State Shape (`BibleState`)
 
 **Navigation State**:
-- `activeBook: string` - Current book name (e.g., "Genesis")
-- `activeBookShort: string` - 3-letter book code (e.g., "Gen")
+- `activeBookId: string` - Current book's USFM code (e.g., `JHN`)
 - `activeChapter: number` - Current chapter number
-- `activeVerses: number[]` - Currently selected verse numbers
-- `selectedVerses: number[]` - Verses selected for note creation (separate from
-  activeVerses)
+- `verseSelection: VerseSelection | null` - Selected verses as
+  `{ scope, refs }`; `scope` is `'bible'` for the chapter view or
+  `note:<id>` inside a `NoteCard`, and each `ref` is a
+  `{ bookId, chapter, verse }` USFM `VerseRef`
+- `pendingScrollVerse: VerseRef | null` - Transient (not
+  persisted) scroll target queued by reading-position restores
 
 **Translation State**:
-- `bibleVersion: string` - Bible version identifier (e.g., "KJV", "ESV")
-- `translations: Translation[]` - List of available Bible translations from API
-- `activeTextFilesetId: string | null` - Fileset ID for selected text version
-  (e.g., "ENGKJV")
-- `activeAudioFilesetId: string | null` - Fileset ID for selected audio version
+- `bibleVersion: string` - Display abbreviation (e.g., "KJV")
+- `translations: Translation[]` - Available translations,
+  accumulated per language
+- `activeTextFilesetId: string | null` - Stored text id (product
+  or member; resolve via `resolveTextFileset` before use)
+- `activeAudioFilesetId: string | null` - Stored audio id
+  (`{abbr}:{kind}:{n}` product or member)
 
 **UI State**:
-- `showAudioPlayer: boolean` - Controls audio player visibility (NOT persisted)
-- `showNotes: boolean` - Toggles between Bible view and Notes view
+- `showAudioPlayer: boolean` - Audio player visibility (NOT
+  persisted)
+- `showNotes: boolean` - Toggles between Bible view and Notes
+  view inside `Passage`
+- `versesFolded: boolean` - Collapses long chapter ranges
+- `headerVisible: boolean` - Auto-hiding header state
 
-**Notes State**:
-- `notes: Note[]` - Array of user notes with tags and verse references
+**Notes State** (orchestrated in
+`src/stores/bibleStore/notesSlice.ts`):
+- `tags: Tag[]`, `notes: Note[]`, `allNotesFetched: boolean`
+- Pagination: `notesCount`, `notesPage`, `notesPageSize`,
+  `notesHasMore`, `notesOrdering`
+- `lastSelectedTagId: string | null` - remembered for the
+  `/notes` redirect
+
+**Audio Playlist State**:
+- `audioPlaylistItems: PlaylistItem[] | null` - flattened play
+  list (notes, search results, chapters)
+- `audioPlaylistStartIndex: number | null`
+- `audioActiveVerse: AudioActiveVerse | null` - verse currently
+  being played (drives highlighting)
+
+**Reading Positions**:
+- `readingPositions: Record<string, ReadingPositionValue | null>`
+  - persisted per-book cache keyed by USFM code (see "Reading
+  Position Functions")
 
 ### Actions (Setters)
 
 **Navigation Actions**:
-- `setActiveBook(activeBook: string)` - Sets book and resets chapter to 1,
-  verses to []
-- `setActiveBookOnly(activeBook: string)` - Sets book without resetting chapter
-- `setActiveBookShort(activeBookShort: string)` - Sets 3-letter book code
-- `setActiveChapter(activeChapter: number)` - Sets chapter and resets verses to
-  []
-- `setActiveVerses(activeVerses: number[])` - Sets verses and auto-scrolls to
-  them
+- `setActiveBookAndChapter(bookId, chapter)` - Canonical setter
+  used by `BibleRoute`'s URL sync
+- `setActiveChapter(chapter)` - Chapter-only update
+- `setVerseSelection(selection)` - Replace the scoped selection
+- `toggleVerseRef(scope, ref)` - Toggle one `VerseRef` in/out of
+  a scope's selection
+- `selectVerseRange(scope, refs)` - Shift-click range selection
+- `setActiveBookWithPosition(bookId)` - Restores the saved
+  reading position and queues `pendingScrollVerse`
+- `syncReadingPosition(bookId, chapter, verse)` - Local cache +
+  API push when authenticated
+- `prefetchReadingPositions()` - Bulk fetch on app load
 
 **Translation Actions**:
-- `setBibleVersion(bibleVersion: string)` - Sets Bible version identifier
-- `setTranslations(translations: Translation[])` - Updates available
-  translations list
-- `setActiveTextFilesetId(id: string | null)` - Sets text fileset ID
-- `setActiveAudioFilesetId(id: string | null)` - Sets audio fileset ID
+- `setBibleVersion`, `setTranslations`,
+  `setActiveTextFilesetId`, `setActiveAudioFilesetId`
 
 **UI Actions**:
-- `setShowAudioPlayer(show: boolean)` - Toggles audio player visibility
-- `setShowNotes(show: boolean)` - Toggles between Bible view and Notes view
+- `setShowAudioPlayer`, `setShowNotes`, `setVersesFolded`,
+  `setHeaderVisible`, `setPendingScrollVerse`
 
 **Notes Actions**:
-- `fetchNotes()` - Async function to fetch notes from API and update state
+- `fetchNotes(tagId?, options?)` - Paginated per-tag fetch with
+  cache (see notesSlice)
+- `getTags(forceRefresh?)`, `deleteNote`, `reorderNotes`,
+  `moveNoteAfter`, `setNotesPage`, `setNotesPageSize`,
+  `setLastSelectedTagId`
+
+**Audio Actions**:
+- `setAudioPlaylistItems`, `setAudioPlaylistStartIndex`,
+  `setAudioActiveVerse`
 
 ### Auto-Scroll Behavior
 
-When `setActiveVerses` is called, it automatically scrolls to the selected
-verses:
+Scroll-to-verse is handled inside `Verse.tsx`: when a verse's
+`isActive` flag flips (via `verseSelection`), the component calls
+`ref.scrollIntoView({ block: 'center', behavior: 'smooth' })`.
+Position-restore scrolls use the `pendingScrollVerse` queue.
+
+### Persistence
+
+`persist()` from `zustand/middleware` wraps the store:
 
 ```typescript
-setActiveVerses: (activeVerses) => {
-  set({ activeVerses });
-  activeVerses.forEach((verse) => {
-    document
-      .getElementById("verse-" + verse)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
-  });
-}
+persist(
+  (set, get) => ({ /* state and actions */ }),
+  {
+    name: 'bible-storage',
+    version: 5,
+    storage: createJSONStorage(() => localStorage),
+    partialize: /* in stores/bibleStore/persistence.ts */,
+    migrate: migratePersistedState,
+  }
+)
+```
+
+`showAudioPlayer`, `pendingScrollVerse`, and the audio-playlist
+fields are intentionally NOT persisted. Bump `version` and extend
+`migratePersistedState` whenever the persisted shape changes.
+
+**Usage in Components**:
+```typescript
+// Subscribe narrowly to avoid rerenders
+const activeBookId = useBibleStore((state) => state.activeBookId);
+const setActiveChapter =
+  useBibleStore((state) => state.setActiveChapter);
 ```
 
 ---
 
 ## Types & Interfaces
 
-**Location**: `src/types.ts`, `src/store.tsx`, `src/api.tsx`
+**Location**: `src/types.ts` (all shared interfaces),
+`src/api/` (response-shaping helpers)
 
 ### Core Types (`src/types.ts`)
 
@@ -463,55 +596,77 @@ export interface Tag {
 }
 ```
 
-#### `Note`
-Represents a user note with associated verses.
+#### `Verse` / `Note`
+`Verse` is the backend verse object (`book` is a title-cased
+display name, e.g. "John" — not a USFM code). `Note` adds
+ownership, ordering, and optional per-note provider errors:
 
 ```typescript
+export interface Verse {
+  book: string;      // display name, e.g. "John"
+  chapter: number;
+  verse: number;
+  text: string;
+}
+
 export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  is_owner: boolean;
   created_at: string;
   updated_at: string;
-  tag: Tag | null;  // null = untagged note
-  verses: {
-    book: string;
-    chapter: number;
-    verse: number;
-    text: string;
-  }[];
+  tag: Tag | null;           // null = untagged note
+  verses: Verse[];
+  headings?: SectionHeading[];
+  tag_position: number | null;
+  error?: string;            // provider failed to resolve text
+  error_code?: string;       // 'rate_limited' | 'provider_error'
 }
 ```
 
-### Translation Types (`src/store.tsx`)
+#### `VerseRef` / `VerseSelection`
+USFM-keyed selection model shared by `PassageView` and note
+cards:
 
-#### `Fileset`
-Represents a specific Bible translation format.
+```typescript
+export interface VerseRef {
+  bookId: string;   // USFM code, e.g. "JHN"
+  chapter: number;
+  verse: number;
+}
+
+/** 'bible' = PassageView chapter; a note id = inside that
+ *  NoteCard. */
+export type VerseScope = string;
+
+export interface VerseSelection {
+  scope: VerseScope;
+  refs: VerseRef[];
+}
+```
+
+#### `Fileset` / `Translation`
 
 ```typescript
 export interface Fileset {
-  id: string;  // e.g., "ENGKJV", "ENGESV"
+  id: string;  // e.g., "ENGKJV", "ENGESVN1DA"
   type: "text_plain" | "audio" | "audio_drama";
   size: string;  // e.g., "NT", "OT", "C" (complete)
   codec: "mp3" | "opus" | null;
   bitrate: string | null;
 }
-```
 
-#### `Translation`
-Represents a Bible translation with multiple filesets.
-
-```typescript
 export interface Translation {
-  abbr: string;        // e.g., "KJV", "ESV"
-  name: string;        // e.g., "King James Version"
-  language: string;    // e.g., "English"
-  language_iso: string; // e.g., "eng"
+  abbr: string;
+  name: string;
+  language: string;
+  language_iso: string;
   filesets: Fileset[];
+  audio_options?: unknown[];  // backend-normalized options
+  text_options?: unknown[];   // (take precedence over grouping)
 }
 ```
-
-### API Types (`src/api.tsx`)
 
 #### `KjvBook`
 Represents a verse from the local KJV JSON file.
@@ -522,35 +677,24 @@ export interface KjvBook {
   verse: number;
   text: string;
   translation_id: string;
-  book_id: string;    // 3-letter code
+  book_id: string;    // USFM-style code
   book_name: string;  // Full name
 }
 ```
 
-#### `AudioResponse`
-Response from Bible Research API for audio.
+#### `AudioApiResponse` (`src/api/audio.ts`)
+Raw response from the Bible Research audio endpoint — note the
+loose error fields; `src/api/errors.ts` maps them to typed
+errors:
 
 ```typescript
-interface AudioResponse {
-  book: string;
-  book_name: string;
-  chapter: number;
-  audio_url: string;
-  duration_seconds: number;
-  file_size_bytes: number;
-  format: string;
-}
-```
-
-#### `NoteVerse`
-Verse reference for notes.
-
-```typescript
-export interface NoteVerse {
-  book: string;
-  chapter: number;
-  verse: number;
-  text: string;
+interface AudioApiResponse {
+  error?: string | { message?: string };
+  error_code?: unknown;
+  audio_url?: unknown;
+  duration_seconds?: number;
+  file_size_bytes?: number;
+  meta?: unknown;
 }
 ```
 
@@ -597,20 +741,35 @@ src/
 ├── utils/
 │   ├── format.ts
 │   └── format.test.ts       ✅ Co-located
-├── api.tsx
+├── api/
 ├── api.test.ts              ✅ Co-located
 ├── store.ts
 └── store.test.ts            ✅ Co-located
 ```
 
-**Integration Tests**:
+**Shared Test Infra & Regression Tests**:
 
-Tests that cover the interaction of multiple components (user workflows) are
-placed in a dedicated directory:
+`src/__tests__/` holds shared test infrastructure plus
+app-level integration/regression tests — unit tests stay
+co-located, so only suites exercising the whole app (or a
+cross-component bug) live here. Regression files are named
+`<behavior-slug>[-#issue].test.tsx` with a mandatory header
+comment linking the GitHub issue or explaining context:
 
 ```
-src/__tests__/integration/
-└── notes-workflow.test.tsx
+src/__tests__/
+├── helpers.tsx          # renderWithProviders, resetStore
+├── helpers/             # factories + performance helpers
+├── mocks/               # shared doubles (FakeHowl) + fixtures
+├── integration/         # multi-route integration tests
+├── audio-stop-on-chapter-switch-62.test.tsx   # issue #62
+├── chapter-scroll-reset-63.test.tsx           # issue #63
+├── bottomnav-title-sync-95.test.tsx           # issue #95
+├── chapter-response-race-110.test.tsx         # issue #110
+├── multi-verse-selection.test.tsx             # selection flows
+├── shift-click-range-selection.test.tsx       #   (no issue # —
+├── note-card-verse-selection.test.tsx         #   see headers)
+└── SKIPPED_TESTS.md     # policy: zero skipped tests
 ```
 
 ### Running Tests
@@ -642,11 +801,25 @@ Test configuration is managed in `vite.config.ts`:
 test: {
   globals: true,
   environment: 'happy-dom', // Fast, but less complete than jsdom
-  setupFiles: 'src/__tests__/setup.ts',
+  setupFiles: ['src/setupTests.ts'],
   include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-  exclude: ['node_modules', 'dist'],
+  testTimeout: 30000,
+  fileParallelism: true, // measured ~3.3x faster (~37s vs ~125s);
+                       // peak RSS ~3GB — keep the raised
+                       // NODE_OPTIONS heap in the test script.
+                       // Isolation stays ON: --no-isolate leaks
+                       // module mocks between files and fails.
 }
 ```
+
+`src/setupTests.ts` starts the MSW server with
+`onUnhandledRequest: 'error'` (unexpected requests fail loudly
+instead of reaching a real backend) and resets shared state before
+every test: both Zustand stores, the cache manager's in-memory
+Map, `localStorage`, and `globalThis.fetch` (restoring the
+MSW-intercepted fetch after tests that stub it). Store resets use
+dynamic imports inside `beforeEach` so per-file `vi.mock()`
+declarations still intercept the app modules.
 
 ### Test Helpers
 
@@ -801,23 +974,49 @@ it('should show loading then content', async () => {
 
 Use MSW (Mock Service Worker) for API mocking instead of `vi.mock()`:
 
-**✅ CORRECT** - Use MSW handlers:
+**✅ CORRECT** - Use MSW handlers (derive URLs from `API_BASE_URL` —
+never hardcode a host):
 ```typescript
-import { server } from '../__tests__/setup';
+import { server } from '../mocks/server';
+import { API_BASE_URL } from '../config';
 import { http, HttpResponse } from 'msw';
 
 it('should fetch and display data', async () => {
   server.use(
-    http.get('/api/data', () => {
+    http.get(`${API_BASE_URL}/api/v1/data`, () => {
       return HttpResponse.json({ message: 'Hello' });
     })
   );
-  
+
   renderWithProviders(<MyComponent />);
-  
+
   const message = await screen.findByText('Hello');
   expect(message).toBeInTheDocument();
 });
+```
+
+The default handlers live in `src/mocks/handlers.ts`; `server.use`
+overrides them per test and `server.resetHandlers()` runs in
+`afterEach`. Because the server errors on unhandled requests, any
+new endpoint the app calls needs a default handler.
+
+**Mocking Howler**: audio tests share one fake —
+`src/__tests__/mocks/FakeHowl.ts`. It implements `instances[]`
+registry, born-`'loading'` → async `'load'`, real `seek` position
+tracking, constructor `on*` callbacks, deferred `'play'` with
+`playerror`-on-teardown, and an `<audio>` node stub for
+`getHtml5AudioNode`. Every method is a `vi.fn()`, so tests can both
+assert calls and drive real state:
+
+```typescript
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
+
+vi.mock('howler', async () => {
+  const { FakeHowl } = await import('../__tests__/mocks/FakeHowl');
+  return { Howl: FakeHowl };
+});
+
+beforeEach(() => FakeHowl.reset());
 ```
 
 **❌ INCORRECT** - Module-level mocking:
@@ -878,7 +1077,8 @@ it('should display error on API failure', async () => {
 
 Performance tests ensure that components render efficiently and don't cause
 performance regressions. We use custom performance testing utilities located in
-`src/__tests__/helpers/performance.tsx`.
+`src/__tests__/helpers/performanceUtils.ts` (non-component helpers) and
+`src/__tests__/helpers/performance.tsx` (`RenderCounter` only).
 
 #### When to Add Performance Tests
 
@@ -898,16 +1098,17 @@ import {
   createLargeVerseData,
   CacheMetrics,
   useRenderCount,
-  RenderCounter,
   waitForNextFrame,
-} from '../__tests__/helpers/performance';
+} from '../__tests__/helpers/performanceUtils';
+import { RenderCounter } from '../__tests__/helpers/performance';
 ```
 
 #### Performance Test Examples
 
 **1. Measure Render Time**
 ```typescript
-import { measureRenderTime } from '../__tests__/helpers/performance';
+import { measureRenderTime }
+  from '../__tests__/helpers/performanceUtils';
 
 it('should render quickly', () => {
   const renderFn = () => {
@@ -925,7 +1126,8 @@ it('should render quickly', () => {
 
 **2. Test Large Data Handling**
 ```typescript
-import { createLargeVerseData } from '../__tests__/helpers/performance';
+import { createLargeVerseData }
+  from '../__tests__/helpers/performanceUtils';
 
 it('should handle 200 verses efficiently', async () => {
   const verses = createLargeVerseData(200);
@@ -936,7 +1138,7 @@ it('should handle 200 verses efficiently', async () => {
   const { container } = render(<PassageView />);
   
   await waitFor(() => {
-    expect(container.querySelector('[data-testid="verse-1"]'))
+    expect(container.querySelector('[title="passage-verse-1-1"]'))
       .toBeInTheDocument();
   });
   
@@ -972,7 +1174,8 @@ it('should minimize re-renders', () => {
 
 **4. Test Cache Performance**
 ```typescript
-import { CacheMetrics } from '../__tests__/helpers/performance';
+import { CacheMetrics }
+  from '../__tests__/helpers/performanceUtils';
 
 it('should achieve high cache hit rate', () => {
   const metrics = new CacheMetrics();
@@ -1104,8 +1307,9 @@ getTestament('XYZ'); // null
 
 ### 1. Bible Reading & Navigation
 
-**Location**: `src/components/MyNavbar.tsx`, `src/components/Passage.tsx`,
-`src/components/PassageView.tsx`
+**Location**: `src/components/BibleSelector.tsx`,
+`src/components/Passage.tsx`, `src/components/PassageView.tsx`,
+`src/components/Verse.tsx`, `src/components/BottomNav.tsx`
 
 The app provides three-level navigation:
 - **Books**: 66 books of the Bible (Genesis to Revelation)
@@ -1113,7 +1317,9 @@ The app provides three-level navigation:
 - **Verses**: Individual verse navigation and selection
 
 **Key Features**:
-- Three-column sidebar navigation (Book | Chapter | Verse)
+- Sidebar book/chapter/verse picker (`BibleSelector`)
+- Bottom prev/next chapter bar (`BottomNav`) with the current
+  book/chapter title kept in sync
 - Active state highlighting
 - Smooth scroll-to-view for selected verses
 - Responsive design (collapsible on mobile)
@@ -1127,7 +1333,8 @@ getVerses(book: string, chapter: number): number[]
 
 ### 2. Multi-Translation Support
 
-**Location**: `src/api.tsx`, `src/components/TranslationSelector.tsx`
+**Location**: `src/api/translations.ts`,
+`src/components/TranslationSelector.tsx`
 
 Provides dynamic, API-driven support for multiple Bible translations, including
 different text and audio formats for each.
@@ -1249,6 +1456,10 @@ Full-text search across the Bible via the backend
 - No pagination - the backend returns all matches
 - Dimmed "Showing first N of M results" notice when the
   backend reports `meta.truncated`
+- Backend failures (`error`/`error_code`/`message`, including
+  provider errors wrapped in a 200 body) surface as typed
+  `RateLimitError`/`ProviderError` and render in red rather
+  than showing "No results"
 - Per-verse play button feeds a flattened playlist of all
   results into the audio player
 
@@ -1265,7 +1476,9 @@ const res = await searchBibleGrouped(
 
 ### 4. Audio Bible Playback
 
-**Location**: `src/components/Audio.tsx`, 
+**Location**: `src/components/Audio.tsx` (container —
+playlist orchestration, media-session wiring, JSX),
+`src/hooks/useChapterAudio.ts` (chapter-mode engine),
 `src/components/AudioPlayer.tsx`
 
 Streams audio Bible chapters with full playback controls.
@@ -1325,7 +1538,11 @@ const translationName =
     t => t.filesets.some(f => f.id === activeTextFilesetId)
   )?.name || 'Unknown';
 navigator.mediaSession.metadata = new MediaMetadata({
-  title: `${activeBook} ${activeChapter}`,
+  // activeBookId is a USFM code; toBookName gives the
+  // display name
+  title:
+    `${toBookName(activeBookId) ?? activeBookId} ` +
+    `${activeChapter}`,
   artist: translationName,
 });
 ```
@@ -1377,35 +1594,52 @@ This logic is handled internally using the `getTestament` utility from
 
 ### 5. Verse Selection & Highlighting
 
-**Location**: `src/components/Verse.tsx`
+**Location**: `src/components/Verse.tsx`,
+`src/utils/verseRefs.ts`, `src/utils/findVersesInBetween.ts`
 
-Interactive verse selection with visual feedback.
+Interactive, scoped verse selection with visual feedback.
+Selection state lives in the store as a single
+`verseSelection: { scope, refs }` — scope `'bible'` for the
+chapter view, `note:<id>` inside a `NoteCard` — so bible- and
+note-scope selections never collide.
 
 **Features**:
-- Click verse to select/deselect
-- Multiple verse selection support
+- Click verse to toggle it in the scope's `refs`
+- Shift-click selects a contiguous range
+  (`findVersesInBetween`)
+- Multi-verse selection across chapters (USFM refs)
 - Highlighted background for selected verses
-- Auto-scroll to selected verse
-- Unique ID for each verse (`verse-{number}`)
+- Auto-scroll to newly selected verse (handled in `Verse.tsx`)
+- Stable DOM hooks (`title="passage-verse-{chapter}-{n}"`)
 
 **Implementation**:
 ```typescript
+// Verse.tsx — isActive derives from the scoped selection
+const isActive = useBibleStore((state) =>
+  refsInclude(
+    state.verseSelection?.scope === scope
+      ? state.verseSelection.refs
+      : EMPTY,
+    thisRef
+  )
+);
+const toggleVerseRef =
+  useBibleStore((state) => state.toggleVerseRef);
+
 const handleVerseClick = () => {
-  if (isActive) {
-    // Remove from selection
-    setActiveVerses(activeVerses.filter(v => v !== verse));
+  if (shiftKey) {
+    selectVerseRange(scope, findVersesInBetween(...));
   } else {
-    // Add to selection
-    setActiveVerses([...activeVerses, verse]);
+    toggleVerseRef(scope, thisRef);
   }
 };
 
 // Auto-scroll on selection
 useEffect(() => {
-  if (isActive) {
-    ref.current?.scrollIntoView({ 
-      block: "center", 
-      behavior: "smooth" 
+  if (isActive && !userClickedRef.current) {
+    ref.current?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
     });
   }
 }, [isActive]);
@@ -1428,13 +1662,24 @@ Create and organize notes with tags for Bible verses.
 - Auto-clear selected verses after note creation
 - Linked notes: the creation modal shows a count of existing
   notes on the selected verses and lists them at the bottom
-<<<<<<< HEAD
-=======
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
-  after each successful save
->>>>>>> origin/main
+  after each successful save. The save contract lives in
+  `src/hooks/useNoteEditor.ts` — shared by all three note
+  modals: it guards tagless/empty writes, serializes saves
+  through a draft queue (a pending autosave can never race a
+  submit into a duplicate POST), keeps the draft (note id +
+  live text) in module state keyed by user + selection so it
+  survives the modal's unmount and a reopen resumes the same
+  note, and flushes the unsaved tail on close. Edit mode also
+  sends the picker's CURRENT `verse_references` with every
+  save and refetches the note's own tag at the route's
+  current page/ordering after submit or a post-unmount save.
+- `VerseTextGroups.tsx` renders the shared verse-preview
+  grouping (book/chapter divider + numbered verses) used by
+  the add/edit modals; grouping itself is `groupVerseTexts`
+  in `src/hooks/useVerseTexts.ts`.
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -1468,8 +1713,6 @@ getLinkedNotes(
   verseReferences: { book: string; chapter: number; verse: number }[],
   filesetId?: string
 ): Promise<LinkedNotesResponse>
-<<<<<<< HEAD
-=======
 
 // Compact index of every note in a tag, canonical ascending
 // order (GET /api/v1/notes/order-index/?tag_id=…)
@@ -1483,14 +1726,15 @@ moveNote(
   targetNoteId: string,
   placement: 'before' | 'after'
 ): Promise<MoveNoteResponse> // {note_id, tag_position, rebalanced}
->>>>>>> origin/main
 ```
 
 **Note order badges & moves** (`NoteOrderMenu.tsx`):
-- In `custom_asc`/`custom_desc` + authenticated, each
-  `NoteCard` renders a `#k` badge where `k` is the note's
-  1-based rank in the canonical ascending order (same IDs in
-  both sort directions — `custom_desc` only reverses display).
+- In `custom_asc`/`custom_desc` + authenticated + owned notes
+  (every loaded note reports `is_owner`; the gate lives in
+  `useNoteOrderMenu`), each `NoteCard` renders a `#k` badge
+  where `k` is the note's 1-based rank in the canonical
+  ascending order (same IDs in both sort directions —
+  `custom_desc` only reverses display).
 - Clicking the badge opens a dropdown listing **all** notes
   in the tag (`#k — Book C:V[-V]`, or `#k — no passage`), with
   a filter input and a "Move to top" item — built for tags
@@ -1499,8 +1743,9 @@ moveNote(
   order; the route translates to canonical placement
   (`custom_asc` → `after`, `custom_desc` → `before`).
 - The order index is fetched per tag via `getNoteOrderIndex`,
-  kept in route state (never persisted), and refetched after
-  every move; `moveNoteAfter` in the store patches
+  kept in `useNoteOrderMenu` state (never persisted), and
+  refetched after every move; `moveNoteAfter` in the store
+  patches
   `tag_position` locally for instant feedback, then always
   refetches the current page (cross-page moves change page
   membership).
@@ -1515,56 +1760,29 @@ moveNote(
 
 **Implementation Details**:
 ```typescript
-// In AddTagNoteModal.tsx - Auto-clear verses after note creation
-const handleSubmit = async (event) => {
-  const verseReferences = activeVerses.map((verse) => ({
-    book: activeBook,
-    chapter: activeChapter,
-    verse,
-  }));
-  
-  await addTagNote(selectedTagId, tagNoteText, verseReferences);
-  setActiveVerses([]); // Clear selected verses
-  onClose();
+// In useNoteEditor.ts - create-mode submit builds USFM
+// verse_references from the store's scoped selection
+const refs = verseSelection?.refs ?? [];
+const verseReferences = refs.map((r) => ({
+  book: toBookName(r.bookId),  // backend wants display names
+  chapter: r.chapter,
+  verse: r.verse,
+}));
+
+await addTagNote(selectedTagId, tagNoteText, verseReferences);
+setVerseSelection(null); // Clear selected verses
+onClose();
+
+// In useTagNotesData.ts (TagNotesRoute) - paginated per-tag
+// loading; switching tag or page refetches that slice
+const load = async () => {
+  await fetchNotes(tagId, {
+    ordering,
+    page: notesPage,
+    pageSize: notesPageSize,
+    filesetId,
+  });
 };
-
-// In NotesView.tsx - Lazy load notes per tag
-useEffect(() => {
-  const loadData = async () => {
-    const fetchedTags = await getTags();
-    if (fetchedTags.length > 0) {
-      const sorted = [...fetchedTags].sort((a, b) => 
-        a.name.localeCompare(b.name)
-      );
-      const firstTagId = sorted[0].id;
-      setSelectedTagId(firstTagId);
-      // Fetch notes only for the first tag
-      await fetchNotes(firstTagId);
-    }
-  };
-  loadData();
-}, []);
-
-// Handle tag selection change
-const handleTagChange = async (value: string | null) => {
-  if (value) {
-    setSelectedTagId(value);
-    await fetchNotes(value); // Fetch notes for selected tag
-  }
-};
-```
-
-**Note Structure**:
-```typescript
-interface Note {
-  id: string;
-  note_text: string;
-  public: boolean;
-  created_at: string;
-  updated_at: string;
-  tag: Tag;
-  verses: NoteVerse[];
-}
 ```
 
 ### 7. Theme System
@@ -1621,7 +1839,7 @@ development. `<Analytics />` and `<SpeedInsights />` are not
 rendered inside the Capacitor Android shell — their `/_vercel/*`
 scripts only exist on the Vercel deployment and would 404 on the
 WebView's `https://localhost` origin (see `isNativeApp()` in
-`src/utils/nativeAudio.ts`).
+`src/utils/platform.ts`).
 
 ### 9. Global Error Reporting
 
@@ -1669,70 +1887,6 @@ message, optional context label, page URL, timestamp, user
 agent, and stack trace - and writes it to the clipboard.
 Reporting never throws: failures inside the handler are logged,
 not re-raised.
-
----
-
-## State Management
-
-### Zustand Store (`src/store.tsx`)
-
-Centralized state with localStorage persistence.
-
-**State Shape**:
-```typescript
-interface BibleState {
-  // Current reading position
-  activeBook: string;           // e.g., "Genesis"
-  activeBookShort: string;       // e.g., "Gen"
-  activeChapter: number;         // e.g., 1
-  activeVerses: number[];        // e.g., [1, 2, 3]
-  selectedVerses: number[];      // For multi-select
-  
-  // Settings
-  bibleVersion: string;          // "KJV" | "ESV"
-  showAudioPlayer: boolean;      // Audio player visibility
-  
-  // Actions
-  setActiveBook: (book: string) => void;
-  setActiveBookOnly: (book: string) => void;
-  setActiveBookShort: (short: string) => void;
-  setActiveChapter: (chapter: number) => void;
-  setActiveVerses: (verses: number[]) => void;
-  setBibleVersion: (version: string) => void;
-  setShowAudioPlayer: (show: boolean) => void;
-}
-```
-
-**Persistence Strategy**:
-```typescript
-persist(
-  (set) => ({ /* state and actions */ }),
-  {
-    name: "bible-storage",
-    storage: createJSONStorage(() => localStorage),
-    partialize: (state) => ({
-      // Only persist these fields
-      activeBook: state.activeBook,
-      activeBookShort: state.activeBookShort,
-      activeChapter: state.activeChapter,
-      activeVerses: state.activeVerses,
-      selectedVerses: state.selectedVerses,
-      bibleVersion: state.bibleVersion,
-      // showAudioPlayer is NOT persisted
-    }),
-  }
-)
-```
-
-**Usage in Components**:
-```typescript
-// Subscribe to specific state
-const activeBook = useBibleStore(state => state.activeBook);
-const setActiveBook = useBibleStore(state => state.setActiveBook);
-
-// Update state
-setActiveBook("Exodus");
-```
 
 ---
 
@@ -1796,9 +1950,9 @@ or clicks play → playlist starts at that verse
 ```
 User Selects Verses (click on verses)
     ↓
-Verses added to activeVerses array
+Refs added to the scoped verseSelection ('bible' scope)
     ↓
-User Clicks "Add Note" button
+User Clicks "Add Note" (VerseActionToolbar)
     ↓
 AddTagNoteModal opens
     ↓
@@ -1812,7 +1966,7 @@ API Call: addTagNote(tagId, text, verseReferences)
     ↓
 Note created in backend
     ↓
-Clear activeVerses (auto-clear)
+Clear verseSelection (auto-clear)
     ↓
 Close modal
     ↓
@@ -1879,7 +2033,10 @@ Instant load (from cache)
 
 ## Component Structure
 
-**Total Components**: 18 files in `src/components/`
+**Total Components**: ~46 source files in `src/components/` —
+each with its unit test co-located (`Foo.test.tsx` beside
+`Foo.tsx`). This section documents the significant ones; it is
+illustrative, not exhaustive.
 
 ### Main Application Components
 
@@ -1902,35 +2059,38 @@ Main application shell with theme provider and layout.
 
 ### Navigation Components
 
-#### `MyNavbar.tsx`
-Three-column navigation sidebar for Books → Chapters → Verses.
+#### `BibleSelector.tsx`
+Drawer panel for Books → Chapters → Verses navigation.
 
 **Responsibilities**:
-- Display all 66 Bible books in first column
-- Display chapters for selected book in second column
-- Display verses for selected chapter in third column
-- Handle navigation clicks and update Zustand store
+- List all 66 Bible books (test-hook title `nav-book-{USFM}`)
+- List chapters (`nav-chapter-{n}`) and verses for the current
+  book
+- Navigate via `useNavigate()` to canonical USFM refs
 - Highlight active selections
-- Responsive collapse on mobile (`hiddenBreakpoint="sm"`)
 
-**Layout**:
-- Fixed width: 320px (sm and lg breakpoints)
-- Three ScrollArea columns with borders
-- Column widths: 185px (books) | 60px (chapters) | 60px (verses)
+#### `BottomNav.tsx`
+Footer bar for prev/next chapter navigation plus the current
+book/chapter title (kept in sync with the route — regression
+test `bottomnav-title-sync-95.test.tsx`).
+
+#### `MainMenu.tsx`
+App drawer menu (opened from the header burger): navigation,
+auth rows, "Check for updates" (native shell only), sharing.
 
 #### `MyHeader.tsx`
 Top header bar with controls.
 
 **Responsibilities**:
-- Display burger menu for the main menu drawer
-- Search button
+- Display burger menu for `MainMenu`
+- Search button (`navigate('/search')`)
 - Audio controls (`Audio`)
-- Translation selector button
 - Auto-hide on scroll: a capture-phase `window` scroll listener
   watches inner scroll containers (scroll events do not bubble).
   The header slides up after ~150px of accumulated downward scroll
   and slides back after ~150px of accumulated upward scroll; it is
-  shown again on every route change.
+  shown again on every route change (`headerVisible` in the
+  store).
 
 ---
 
@@ -1940,10 +2100,9 @@ Top header bar with controls.
 Main content container that switches between Bible view and Notes view.
 
 **Responsibilities**:
-- Toggle between PassageView and NotesView
-- Read showNotes state from Zustand store
-- Handle "View in Bible" navigation from notes
-- Render SubHeader component
+- Toggle between `PassageView` and `NotesView` via the store's
+  `showNotes` flag
+- "View in Bible" from notes clears `showNotes` and navigates
 
 **Layout**: Centered flex container with 80vh height
 
@@ -1972,14 +2131,10 @@ Individual verse component with click-to-select.
 - Active state with persistent background
 - User-select disabled for better mobile UX
 
-#### `SubHeader.tsx`
-Sub-header with view toggle and action buttons.
-
-**Responsibilities**:
-- Toggle between Bible and Notes view
-- Display Audio component
-- Show "Add Note" button when verses are selected
-- Display TranslationSelector
+#### `VerseActionToolbar.tsx`
+Floating toolbar shown when `verseSelection` is non-empty —
+the entry point for "Add Note" and other per-selection actions
+(rendered by `App.tsx`).
 
 ---
 
@@ -2085,10 +2240,19 @@ Form for creating/editing notes.
 
 **Responsibilities**:
 - Rich text editor (TipTap)
-- Tag selection
+- Tag selection (Select keyed by tag id, not name)
 - Verse reference display
 - Form validation
-- Submit handler
+- Submit handler — serialized against in-flight autosaves so
+  a submit can never race a tick into a duplicate POST; a
+  resolved `false` marks the submit rejected and leaves the
+  text eligible for the unmount flush
+- Optional autosave interval (`onAutoSave`): fires every 5s,
+  skips unchanged/tagless/empty drafts, and on unmount
+  flushes the last unsaved contents (`onUnmountedSave` runs
+  after a tail save resolves)
+- `onDraftChange` reports live contents so the editor hook's
+  draft store can restore an in-progress note after reopen
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token. Clicking a complete token once
@@ -2096,11 +2260,13 @@ previews its passage below the editor (the note is NOT linked to
 it); a second click reopens the picker to edit the reference.
 
 #### `AddTagNoteModal.tsx`
-Modal for creating new notes.
+Modal for creating new notes from selected verses.
 
 **Responsibilities**:
 - Display NoteForm in modal
-- Handle note submission to API
+- All save/submit/draft logic delegated to `useNoteEditor`
+  (create mode, draft keyed by the verse selection) — see
+  "Note Taking & Tagging" above for the shared contract
 - Auto-clear selected verses after successful creation
 - Close modal on success or cancel
 
@@ -2119,10 +2285,16 @@ Modal for editing existing notes.
 
 **Responsibilities**:
 - Display NoteForm pre-filled with note data
+- All save/submit/refetch logic delegated to `useNoteEditor`
+  (edit mode) — every autosave/submit PATCH includes the
+  picker's CURRENT `verse_references`, and closing after any
+  save refetches the note's own tag at the route's current
+  page/ordering (untagged notes refetch the `untagged`
+  sentinel view)
 - Edit the note's verse links via an embedded PassagePicker
   (click toggles a verse, shift-click extends a range)
-- Preview the selected verses' text via `useVerseTexts`
-- Handle note update to API (PATCH incl. `verse_references`)
+- Preview the selected verses' text via `useVerseTexts` +
+  `VerseTextGroups`
 - Close modal on success or cancel
 - Show at most 500 verse previews (same
   `visibleNoteVerses` copyright cap as NoteCard)
@@ -2165,16 +2337,31 @@ Modal for selecting Bible translations.
 
 ---
 
-### Utility Components
+### Other Notable Components
 
-#### `MyLoader.tsx`
-Loading spinner component.
+- `ProtectedRoute.tsx` - wraps `/tags`; redirects anonymous
+  visitors to `/login`
+- `LoginPage.tsx` / `RegisterPage.tsx` - auth forms
+- `UserMenu.tsx` - account dropdown (logout, profile)
+- `PassagePicker.tsx` - book/chapter/verse picker embedded in
+  note modals (click toggles, shift-click ranges)
+- `ScripturePassage.tsx` - renders `@USFM.C.V` mention previews
+- `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
+  read-only rendering (lazy chunk)
+- `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
+  `CommentActions.tsx` + `CommentImageGrid.tsx` +
+  `Lightbox.tsx` - threaded comments with image upload
+- `NoteVerseList.tsx` / `NoteCardActions.tsx` /
+  `SortableNoteCard.tsx` / `TagNotesToolbar.tsx` /
+  `TagTree.tsx` / `Pagination.tsx` - note-list pieces
+- `ErrorBoundary.tsx` + `ErrorNotificationContent.tsx` - render
+  errors + "Copy error details" (see Global Error Reporting)
+- `CopyrightNotice.tsx` / `SectionHeading.tsx` /
+  `VerseTextGroups.tsx` / `AddStandaloneNoteModal.tsx` -
+  supporting pieces
 
-**Responsibilities**:
-- Display Mantine Loader
-- Consistent loading indicator across app
-
-**Usage**: Used in PassageView, NotesView, Audio, etc.
+Loading indicators use Mantine `Loader` directly — there is no
+shared spinner wrapper.
 
 ---
 
@@ -2192,8 +2379,8 @@ Vite emits it as a separate `kjv-*.js` chunk that is only fetched
 when verse text is requested. Book/chapter/verse-count metadata
 needed for navigation lives in `src/assets/bibleStructure.json`
 (bundled in the entry chunk), so helpers like `getBooks`,
-`getChapters`, `getVerses`, `getPassage`, `getAdjacentChapters`,
-and `getKjvAudioUrl` stay synchronous.
+`getChapters`, `getVerses`, `getChapterList`,
+`getAdjacentChapters`, and `getKjvAudioUrl` stay synchronous.
 
 **Structure**:
 ```typescript
@@ -2213,7 +2400,9 @@ and `getKjvAudioUrl` stay synchronous.
 ### External APIs
 
 #### Bible Research API
-**Base URL**: `https://bible-research-489314.ey.r.appspot.com/api/v1`
+**Base URL**: `${API_BASE_URL}/api/v1` — `API_BASE_URL` comes
+from `src/config.ts` (`VITE_API_BASE_URL`, defaulting to the
+production App Engine host)
 
 **Endpoints**:
 
@@ -2243,8 +2432,9 @@ and `getKjvAudioUrl` stay synchronous.
 4. **Get Notes**
    ```
    GET /notes/
-   GET /notes/?tag_id={tag_id}  // Filter by tag
-   Response: Note[]
+   GET /notes/?tag_id={tag_id}&ordering={o}&page={p}
+   Response: PaginatedNotesResponse
+     { count, next, previous, results: Note[] }
    ```
 
 5. **Create Note**
@@ -2353,7 +2543,41 @@ and `getKjvAudioUrl` stay synchronous.
 
 ---
 
-### API Functions (`src/api.tsx`)
+### API Functions (`src/api/`)
+
+All backend calls live in `src/api/`, split by domain
+(`errors`, `structure`, `verses`, `audio`, `translations`,
+`notes`, `tags`, `comments`, `search`, `readingPositions`) and
+re-exported through the `index.ts` barrel — always import via
+`import { x } from '../api'`, never a leaf module, so
+`vi.mock('../api')` keeps intercepting in tests.
+
+**Fetch helpers** (`src/utils/apiClient.ts`):
+- `publicFetch(url, options?, retries?)` — attaches the token
+  when present; a 401 retries once anonymously and never logs
+  the user out (a stale token must not break public content).
+- `authenticatedFetch(url, options?, retries?)` — a valid 401
+  logs out and shows a "session expired" notification. For
+  user-owned resources (notes, tags, comments, reading
+  positions).
+- `authenticatedUpload(url, formData)` — multipart variant for
+  comment-image uploads.
+- `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
+  shared fetch→JSON boilerplate for endpoints whose error
+  handling is just "throw on `!ok`, log, rethrow". Endpoints
+  with richer contracts (typed provider errors via
+  `api/errors.ts`, 409 bodies, 204 no-content, swallowed
+  failures) keep their own `try/catch`.
+- `sendRequest` — the shared core both fetchers delegate to;
+  network-failure retry fires only for idempotent methods
+  (GET/HEAD/OPTIONS).
+
+**Error policy**: `showNotification` (from
+`@mantine/notifications`) is for expected, contextual failures
+handled at the call site. `reportError`
+(`src/utils/errorReporter.tsx`) is for unexpected/unhandled
+errors and is only called by the global handlers and
+`ErrorBoundary` — routine catch blocks should never call it.
 
 #### Bible Data Functions
 
@@ -2425,12 +2649,12 @@ getVersesFromApi(
 ): Promise<{ verse: number; text: string }[]>
 ```
 
-**`getPassage()`**
+**`getChapterList()`**
 
 Returns all book/chapter combinations for navigation.
 
 ```typescript
-getPassage(): {
+getChapterList(): {
   book_name: string;
   book_id: string;
   chapter: number;
@@ -2451,7 +2675,10 @@ getAvailableTranslations(
 
 - Checks cache first
 - Falls back to API if not cached
-- Caches result for future use
+- Caches result for future use — a failed (`!response.ok`)
+  response is never written to the cache
+- Throws on fetch failure; `TranslationSelector` catches at
+  the UI layer (warns, and notifies on refresh failure)
 
 #### Audio Functions
 
@@ -2562,12 +2789,23 @@ editNote(
 ): Promise<Note>
 ```
 
-**`getNotes()`**
+**`getNotes(tagId?, options?)`**
 
-Fetches all user notes from API.
+Fetches a paginated page of notes from the API (optionally
+filtered by tag; `ordering`, `page`, `pageSize`, and
+`filesetId` map to query params). `filesetId` is resolved
+before the call so verse text uses the active translation.
 
 ```typescript
-getNotes(): Promise<Note[]>
+getNotes(
+  tagId?: string,
+  options?: {
+    ordering?: string;
+    page?: number;
+    pageSize?: number;
+    filesetId?: string;
+  }
+): Promise<PaginatedNotesResponse>
 ```
 
 **`getTags()`**
@@ -2619,7 +2857,7 @@ getBulkReadingPositions(
 ): Promise<Record<string, { chapter: number; verse: number } | null>>
 ```
 
-**Store integration** (`src/store.tsx`):
+**Store integration** (`src/store.ts`):
 - `readingPositions` — persisted per-book cache
   (`Record<bookId, { chapter, verse } | null>`)
 - `setActiveBookWithPosition(bookId)` — restores the saved
@@ -2658,7 +2896,8 @@ performance and reduce API calls.
 - `bible_verse_cache_metadata`: LRU queue and stats
 
 **Cache Key Format**: 
-`{filesetId}:{book}:{chapter}:{verse}`
+`{filesetId}:{book}:{chapter}` (verses for the chapter are
+stored under the chapter-level key)
 
 **Note**: The cache key uses `filesetId` (e.g., `ENGESV`) not `version` (e.g.,
 `ESV`).
@@ -2666,14 +2905,14 @@ performance and reduce API calls.
 **Implementation**:
 ```typescript
 // Check cache
-const cached = getCachedVerses(book, chapter, 'ESV');
+const cached = getCachedVerses(book, chapter, filesetId);
 if (cached) return cached;
 
 // Fetch from API
 const verses = await fetchFromAPI();
 
 // Cache for future use
-cacheVerses(book, chapter, 'ESV', verses);
+cacheVerses(book, chapter, filesetId, verses);
 ```
 
 **LRU Eviction**:
@@ -2687,8 +2926,6 @@ if (newTotal > MAX_VERSES) {
 ```
 
 #### 2. Audio Cache (Unlimited with expiration)
-
-#### 3. Audio Cache (Unlimited with expiration)
 **Purpose**: Cache audio URLs to avoid repeated API calls
 
 **Features**:
@@ -2729,73 +2966,57 @@ if (Date.now() > audioData.expiresAt) {
 }
 ```
 
-#### 4. Notes Cache (Tag-based)
-**Purpose**: Cache notes by tag to eliminate redundant API calls
+#### 3. Notes Cache (Tag + page + ordering keyed)
+**Purpose**: Cache notes by tag, page, and ordering to
+eliminate redundant API calls
 
 **Features**:
 - No size limit (notes are user-generated)
-- Tag-based organization
-- Timestamp tracking
-- Selective cache invalidation
+- Cache key `{tagId}:page{page}:{ordering}` — every paginated
+  slice is cached independently
+- Stores `{ notes, timestamp, count, hasMore }` so pagination
+  metadata round-trips through the cache
+- Selective invalidation: `clearNotesCache(tagId)` wipes all
+  pages of one tag; `clearNotesCache()` wipes everything
 
 **Storage Key**: `bible_notes_cache`
 
-**Cache Key Format**: `{tagId}`
-
-**Implementation**:
+**Implementation** (in `stores/bibleStore/notesSlice.ts`):
 ```typescript
-// In store.tsx fetchNotes()
-fetchNotes: async (tagId?: string) => {
-  // Check cache first
-  if (tagId) {
-    const cachedNotes = getCachedNotes(tagId);
-    if (cachedNotes) {
-      console.log(`✅ Using cached notes for tag: ${tagId}`);
-      set({ notes: cachedNotes });
-      return;
-    }
+fetchNotes: async (tagId, options) => {
+  const cachedData = getCachedNotes(tagId, page, ordering);
+  if (cachedData) {
+    set({ notes: cachedData.notes, notesCount: cachedData.count,
+         notesHasMore: cachedData.hasMore, ... });
+    return;
   }
-  
-  // Fetch from API
-  const notes = await api.getNotes(tagId);
-  
-  // Cache the results
-  if (tagId) {
-    cacheNotes(tagId, notes);
-  }
-  
-  set({ notes });
+  const response = await api.getNotes(tagId, options);
+  cacheNotes(tagId, response.results, { count, hasMore, page,
+                                        ordering });
+  set({ notes: response.results, ... });
 }
 ```
 
 **Cache Structure**:
 ```typescript
 {
-  "TAG123": {
+  "TAG123:page1:custom_asc": {
     notes: [/* Note objects */],
-    timestamp: 1709155200000
-  },
-  "TAG456": {
-    notes: [/* Note objects */],
-    timestamp: 1709155300000
+    timestamp: 1709155200000,
+    count: 42,
+    hasMore: true
   }
 }
 ```
 
 **Cache Invalidation**:
 ```typescript
-// Clear all notes cache when note is deleted
-deleteNote: async (noteId: string) => {
-  await api.deleteNote(noteId);
-  clearNotesCache(); // Clear all cached notes
-  set((state) => ({ notes: state.notes.filter(n => n.id !== noteId) }));
-}
-
-// Clear specific tag's cache
-clearNotesCache('TAG123');
-
-// Clear all notes cache
+// Clear all notes cache when a note is deleted (the tag is
+// unknown at that point)
 clearNotesCache();
+
+// Clear every cached page of one tag (after create/edit/move)
+clearNotesCache('TAG123');
 ```
 
 **Performance Impact**:
@@ -2803,17 +3024,11 @@ clearNotesCache();
 - **Return visit**: Cached (< 10ms) ✅
 - **Improvement**: ~95% faster on cache hits
 
-**When Notes Are Cached**:
-- ✅ After successful fetch from API
-- ✅ Persists across sessions (localStorage)
-- ✅ Survives page refresh
-
 **When Cache Is Cleared**:
-- ✅ Note deletion (clears all)
+- ✅ Note create/edit/delete/move (tag-scoped or global)
 - ✅ Manual clear via `clearNotesCache()`
-- 🔄 Future: Note creation/editing
 
-#### 5. Translation Cache (Session-based)
+#### 4. Translation Cache (Session-based)
 **Purpose**: Cache translation lists to avoid refetching
 
 **Features**:
@@ -2856,6 +3071,18 @@ getCacheStats() // Returns usage info for debugging
   - Functions: camelCase (`getBooks()`)
   - Constants: UPPER_SNAKE_CASE (`MAX_VERSES`)
 - **File Organization**: Group related functionality together
+- **Line length**: 79 characters max in every file type —
+  enforced by `max-len` (ESLint) for `.ts`/`.tsx`; keep docs
+  and comments within it too
+- **Enforced lint rules** (`npm run lint`, `--max-warnings 0`):
+  - `max-len: 79`
+  - `react-hooks/exhaustive-deps`: error — fix the dep array
+    rather than disabling; a disable needs a justification
+    comment
+  - `@typescript-eslint/no-floating-promises`: error — mark
+    deliberate fire-and-forget calls with `void`
+    (`void navigate(...)`, `void prefetch(...)`) or `await`
+    them
 
 ### Testing Guidelines
 
@@ -2866,13 +3093,13 @@ getCacheStats() // Returns usage info for debugging
 
 **Example Test**:
 ```typescript
-test('should navigate to selected book', () => {
-  render(<MyNavbar opened={true} setOpened={jest.fn()} />);
-  
-  const genesisLink = screen.getByTitle('nav-book-Gen');
-  fireEvent.click(genesisLink);
-  
-  expect(useBibleStore.getState().activeBook).toBe('Genesis');
+it('should navigate to selected book', async () => {
+  renderWithProviders(<App />);
+
+  const johnLink = await screen.findByTitle('nav-book-JHN');
+  await userEvent.click(johnLink);
+
+  expect(useBibleStore.getState().activeBookId).toBe('JHN');
 });
 ```
 
@@ -2932,194 +3159,6 @@ Before submitting a PR with functionality changes:
 
 ---
 
-## Testing
-
-### Testing Stack
-- **Test Runner**: Vitest
-- **Testing Library**: React Testing Library
-- **DOM Environment**: happy-dom
-- **Assertions**: Vitest assertions + jest-dom matchers
-
-### Running Tests
-
-```bash
-# Run tests in watch mode with UI
-npm run test
-
-# Run tests once (CI mode)
-npm run test:ci
-```
-
-### Test Configuration
-
-Tests are configured in `vite.config.ts`:
-
-```typescript
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    globals: true,
-    environment: "happy-dom",
-    setupFiles: ["src/setupTests.ts"],
-  },
-});
-```
-
-### Test Setup File
-
-The `src/setupTests.ts` file contains global test configuration:
-
-```typescript
-import "@testing-library/jest-dom";
-import { vi } from "vitest";
-
-// Mock Vercel Analytics and Speed Insights to prevent
-// external script loading errors in test environment
-vi.mock("@vercel/analytics/react", () => ({
-  Analytics: () => null,
-}));
-
-vi.mock("@vercel/speed-insights/react", () => ({
-  SpeedInsights: () => null,
-}));
-```
-
-**Why mock Vercel services?**
-- Prevents external script loading in test environment
-- Eliminates "Cannot read properties of undefined" errors from happy-dom
-- Keeps tests focused on application logic, not analytics
-
-### Build Configuration for Tests
-
-To prevent TypeScript from trying to compile test files during production
-builds (e.g., on Vercel), the test files are explicitly excluded in
-`tsconfig.json`. The build process (`npm run build`) runs `tsc`, which would
-otherwise fail because it doesn't recognize Vitest globals like `vi` and
-`describe`.
-
-The `exclude` array in `tsconfig.json` ensures these files are ignored by the
-TypeScript compiler during the build, but they are still included by Vitest for
-testing.
-
-```json
-// tsconfig.json
-{
-  "compilerOptions": { ... },
-  "include": ["src"],
-  "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx",
-    "src/__tests__",
-    "setupTests.ts"
-  ],
-  "references": [{ "path": "./tsconfig.node.json" }]
-}
-```
-- Keeps tests focused on application logic, not analytics
-
-### Writing Tests
-
-#### Testing Async Components
-
-When testing components that fetch data asynchronously, use `waitFor()`:
-
-```typescript
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-
-test("should load and display verse", async () => {
-  render(<App />);
-  
-  fireEvent.click(screen.getByTitle("nav-book-John"));
-  fireEvent.click(screen.getByTitle("nav-chapter-11"));
-  
-  // Wait for async data to load
-  await waitFor(
-    () => {
-      expect(
-        screen.getByTitle("passage-verse-35")
-      ).toHaveTextContent("Jesus wept.");
-    },
-    { timeout: 5000 }
-  );
-});
-```
-
-**Key Points**:
-1. Make test functions `async`
-2. Use `waitFor()` to wait for async operations
-3. Set appropriate timeout (default is 1000ms)
-4. Wrap assertions inside `waitFor()` callback
-
-#### Testing User Interactions
-
-```typescript
-test("should select verse on click", async () => {
-  render(<App />);
-  
-  const verse = screen.getByTitle("passage-verse-1");
-  fireEvent.click(verse);
-  
-  await waitFor(() => {
-    expect(verse).toHaveClass("linkActive");
-  });
-});
-```
-
-### Common Testing Patterns
-
-#### 1. Testing Navigation
-```typescript
-fireEvent.click(screen.getByTitle("nav-book-Genesis"));
-fireEvent.click(screen.getByTitle("nav-chapter-1"));
-```
-
-#### 2. Testing State Changes
-```typescript
-await waitFor(() => {
-  expect(screen.getByText("Expected Text")).toBeInTheDocument();
-});
-```
-
-#### 3. Testing API Calls
-Mock API functions in your tests:
-```typescript
-vi.mock("../api", () => ({
-  getVersesInChapter: vi.fn(() => 
-    Promise.resolve([{ verse: 1, text: "Test" }])
-  ),
-}));
-```
-
-### Troubleshooting Tests
-
-#### React `act()` Warnings
-If you see warnings about updates not wrapped in `act()`:
-- Ensure you're using `waitFor()` for async operations
-- Make sure all state updates complete before test ends
-- Use `async/await` properly
-
-#### Element Not Found Errors
-- Check that you're waiting for async data to load
-- Verify the element's `title` or `data-testid` attribute
-- Use `screen.debug()` to see current DOM state
-
-#### Timeout Errors
-- Increase timeout in `waitFor()` options
-- Check if API mocks are returning data
-- Verify network requests aren't actually being made
-
-### Best Practices
-
-1. **Test User Behavior**: Focus on what users see and do
-2. **Avoid Implementation Details**: Don't test internal state directly
-3. **Use Semantic Queries**: Prefer `getByTitle`, `getByRole`, `getByText`
-4. **Wait for Async**: Always use `waitFor()` for async operations
-5. **Mock External Services**: Mock APIs, analytics, and third-party services
-6. **Keep Tests Isolated**: Each test should be independent
-7. **Clean Up**: Tests should not affect each other
-
----
-
 ## Browser Compatibility
 
 ### Supported Browsers
@@ -3153,7 +3192,7 @@ The app uses the Media Session API for hardware audio controls:
 ```typescript
 if ('mediaSession' in navigator) {
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: `${activeBook} ${activeChapter}`,
+    title: `${toBookName(activeBookId)} ${activeChapter}`,
     artist: translationName,
     album: 'Bible Audio',
   });
@@ -3262,14 +3301,34 @@ prefetchAdjacentChapters(book, chapter, filesetId);
 ### Bundle Size Optimization
 
 **Current Bundle** (approximate):
-- **Main bundle**: ~500KB (gzipped)
-- **KJV JSON**: ~4.5MB (loaded separately)
-- **Mantine UI**: ~200KB (tree-shaken)
-- **Howler.js**: ~20KB
+- **Entry chunk**: ~220KB raw / ~51KB gzipped
+- **Vendor chunks** (`build.rolldownOptions.output.codeSplitting`
+  in `vite.config.ts`): `vendor-mantine` ~399KB, `vendor-react`
+  ~180KB, `vendor-howler` ~36KB — eagerly modulepreloaded by
+  `index.html`. `vendor-dndkit` ~47KB is *not* preloaded; it is
+  only referenced by the lazy `TagNotesRoute` chunk.
+- **Eager JS total**: ~840KB raw / ~232KB gzipped (entry +
+  modulepreloaded chunks)
+- **TipTap/ProseMirror** (~373KB): no `vendor-tiptap` group on
+  purpose — every importer is a lazy chunk (note modals,
+  `NoteCard` → `CommentForm` → `RichTextEditor`), so rolldown
+  keeps it inside the lazy `RichTextEditor` chunk. A manual
+  group with the default `includeDependenciesRecursively`
+  dragged the whole dep closure (react, @mantine/*) into a
+  ~690KB chunk that `index.html` modulepreloaded eagerly.
+  `vendor-mantine`'s test excludes `@mantine/tiptap` so it
+  stays in the lazy editor graph.
+- **KJV JSON**: ~4.5MB gzipped (lazy-loaded chunk)
+- **Route chunks**: non-bible routes lazy via `React.lazy` in
+  `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect` stay
+  eager (landing path)
+- **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
+  `EditNoteModal` lazy + gated on their open flag, keeping
+  TipTap out of the entry graph entirely
 
 **Optimizations**:
 - Tree-shaking enabled (Vite)
-- Code splitting (React.lazy could be added)
+- Route-level + vendor code splitting (above)
 - KJV JSON loaded as separate chunk
 - Production builds minified and compressed
 
@@ -3296,7 +3355,7 @@ useEffect(() => {
     audio.unload();
     setAudio(null);
   }
-}, [activeBook, activeChapter, activeAudioFilesetId]);
+}, [activeBookId, activeChapter, activeAudioFilesetId]);
 ```
 
 **Cache Cleanup**:
@@ -3310,11 +3369,13 @@ useEffect(() => {
 ### Optimization Opportunities
 
 **Future Improvements**:
-1. **Code Splitting**: Lazy load Notes components
+1. **Code Splitting**: Routes and modals are already lazy;
+   further splitting has diminishing returns
 2. **Virtual Scrolling**: For long chapters (e.g., Psalms 119)
 3. **Service Worker**: For true offline support
 4. **Image Optimization**: If images are added
-5. **Debounced Search**: Already implemented in SearchModal
+5. **Debounced Search**: Search input on `/search` submits via
+   the `?q=` param; `/` opens it from anywhere
 
 ---
 

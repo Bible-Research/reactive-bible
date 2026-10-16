@@ -3,12 +3,14 @@ import {
   Box,
   Footer,
   Title,
+  UnstyledButton,
   rem,
 } from "@mantine/core";
 import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
-import { getPassage } from "../api";
+import { getAdjacentChapters } from "../api/structure";
 import { buildBiblePath } from "../utils/bibleUtils";
 
 interface BottomNavProps {
@@ -17,59 +19,29 @@ interface BottomNavProps {
 
 const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const navigate = useNavigate();
-  const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
-  const activeChapter = useBibleStore((state) => state.activeChapter);
-  const activeBookId = useBibleStore((state) => state.activeBookId);
-  const getPassageResult = getPassage();
+  const showAudioPlayer = useBibleStore(
+    (state) => state.showAudioPlayer
+  );
+  const activeChapter = useBibleStore(
+    (state) => state.activeChapter
+  );
+  const activeBookId = useBibleStore(
+    (state) => state.activeBookId
+  );
 
-  const checkNext = (): number | null => {
-    const index = getPassageResult.findIndex(
-      (book) =>
-        book.book_id === activeBookId &&
-        book.chapter === activeChapter
-    );
-    return index === -1 || index === getPassageResult.length - 1
-      ? null
-      : index;
-  };
+  const { previous, next } = useMemo(
+    () => getAdjacentChapters(activeBookId, activeChapter),
+    [activeBookId, activeChapter]
+  );
 
-  const checkPrev = (): number | null => {
-    const index = getPassageResult.findIndex(
-      (book) =>
-        book.book_id === activeBookId &&
-        book.chapter === activeChapter
-    );
-    return index === -1 || index === 0 ? null : index;
+  const prevHandler = () => {
+    if (previous === null) return;
+    void navigate(buildBiblePath(previous.bookId, previous.chapter));
   };
 
   const nextHandler = () => {
-    const index = checkNext();
-    if (index === null) return null;
-    if (getPassageResult) {
-      const next = getPassageResult[index + 1];
-      if (next !== null) {
-        console.log(
-          `🔗 BottomNav Next: ` +
-          `/bible/${next.book_id}.${next.chapter}`
-        );
-        navigate(buildBiblePath(next.book_id, next.chapter));
-      }
-    }
-  };
-
-  const prevHandler = () => {
-    const index = checkPrev();
-    if (index === null) return null;
-    if (getPassageResult) {
-      const prev = getPassageResult[index - 1];
-      if (prev !== null) {
-        console.log(
-          `🔗 BottomNav Prev: ` +
-          `/bible/${prev.book_id}.${prev.chapter}`
-        );
-        navigate(buildBiblePath(prev.book_id, prev.chapter));
-      }
-    }
+    if (next === null) return;
+    void navigate(buildBiblePath(next.bookId, next.chapter));
   };
 
   return (
@@ -92,29 +64,31 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         <ActionIcon
           variant="transparent"
           onClick={prevHandler}
-          disabled={checkPrev() === null}
+          disabled={previous === null}
           title="prev-passage-button"
         >
           <IconArrowLeft size={rem(20)} />
         </ActionIcon>
-        <Title
-          order={4}
-          onClick={() => setBibleSelectorOpened(true)}
-          sx={{
-            cursor: "pointer",
-            minWidth: "120px",
-            textAlign: "center",
-            "&:hover": {
-              textDecoration: "underline",
-            },
-          }}
-        >
-          {activeBookId} {activeChapter}
+        <Title order={4}>
+          <UnstyledButton
+            onClick={() => setBibleSelectorOpened(true)}
+            sx={{
+              minWidth: "120px",
+              textAlign: "center",
+              font: "inherit",
+              color: "inherit",
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
+          >
+            {activeBookId} {activeChapter}
+          </UnstyledButton>
         </Title>
         <ActionIcon
           variant="transparent"
           onClick={nextHandler}
-          disabled={checkNext() === null}
+          disabled={next === null}
           title="next-passage-button"
         >
           <IconArrowRight size={rem(20)} />
@@ -123,5 +97,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
     </Footer>
   );
 };
+
+BottomNav.displayName = "BottomNav";
 
 export default BottomNav;

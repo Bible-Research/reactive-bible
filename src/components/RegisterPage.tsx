@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Container,
@@ -18,7 +18,16 @@ import { useAuthStore } from '../stores/authStore';
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { register, isLoading, error, clearError } = useAuthStore();
+  const register = useAuthStore((state) => state.register);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
+  const clearError = useAuthStore((state) => state.clearError);
+
+  // Clear any stale auth error left over from a previous visit to
+  // the login or register page.
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -61,7 +70,7 @@ export function RegisterPage() {
       });
 
       // Navigate to notes page after successful registration
-      navigate('/notes', { replace: true });
+      void navigate('/notes', { replace: true });
     } catch (err) {
       // Error is already set in the store
       console.error('Registration failed:', err);

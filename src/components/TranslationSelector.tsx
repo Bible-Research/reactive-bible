@@ -23,6 +23,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { loadKjvData, isKjvDataLoaded } from '../utils/kjvDataLoader';
 import { useBibleStore, type Translation } from '../store';
+import { shallow } from 'zustand/shallow';
 import { getAvailableTranslations } from '../api';
 import {
   findAudioOption,
@@ -145,7 +146,17 @@ const TranslationSelector = () => {
     setActiveTextFilesetId,
     activeAudioFilesetId,
     setActiveAudioFilesetId,
-  } = useBibleStore((state) => state);
+  } = useBibleStore(
+    (state) => ({
+      translations: state.translations,
+      setTranslations: state.setTranslations,
+      activeTextFilesetId: state.activeTextFilesetId,
+      setActiveTextFilesetId: state.setActiveTextFilesetId,
+      activeAudioFilesetId: state.activeAudioFilesetId,
+      setActiveAudioFilesetId: state.setActiveAudioFilesetId,
+    }),
+    shallow
+  );
 
   // Local state for selections within the modal
   const [selectedTranslationAbbr, setSelectedTranslationAbbr] =
@@ -331,21 +342,44 @@ const TranslationSelector = () => {
       };
 
       // Show cached list immediately for snappy UX (stale)…
-      const cached = await getAvailableTranslations(languageIso);
-      if (!cancelled) {
-        merge(cached);
+      try {
+        const cached =
+          await getAvailableTranslations(languageIso);
+        if (!cancelled) {
+          merge(cached);
+        }
+      } catch (error) {
+        console.warn('Failed to load translations:', error);
       }
 
       // …then revalidate against the API so newly published
       // translations show up without requiring a cache bust.
       if (!opened) return;
-      const fresh = await getAvailableTranslations(languageIso, true);
-      if (!cancelled) {
-        merge(fresh);
+      try {
+        const fresh = await getAvailableTranslations(
+          languageIso, true
+        );
+        if (!cancelled) {
+          merge(fresh);
+        }
+      } catch (error) {
+        console.warn('Failed to refresh translations:', error);
+        // A stale failure (modal closed or language switched
+        // mid-flight) must not toast over the new context.
+        if (!cancelled) {
+          notifications.show({
+            title: 'Translations unavailable',
+            message:
+              'Could not refresh the translation list. ' +
+              'Please try again later.',
+            color: 'red',
+            autoClose: 5000,
+          });
+        }
       }
     };
 
-    fetchTranslations();
+    void fetchTranslations();
 
     return () => {
       cancelled = true;
@@ -374,7 +408,15 @@ const TranslationSelector = () => {
       ): Promise<string | null> => {
         if (!filesetId) return null;
         for (const { value: iso } of LANGUAGES) {
-          const list = await getAvailableTranslations(iso);
+          // A failed fetch counts as "not this language" —
+          // keep scanning the other tabs.
+          const list = await getAvailableTranslations(iso)
+            .catch((error) => {
+              console.warn(
+                `Failed to load ${iso} translations:`, error
+              );
+              return [] as Translation[];
+            });
           if (cancelled || userInteractedRef.current) return null;
           if (findTranslationByFilesetId(filesetId, list)) {
             return iso;

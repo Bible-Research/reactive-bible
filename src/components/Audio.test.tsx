@@ -7,43 +7,23 @@ import {
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import { useBibleStore } from '../store';
 import { getAudioTimestamps } from '../api';
 
-// Every mocked Howl instance created during a test.
-const createdHowls = vi.hoisted(
-  () => [] as Record<string, ReturnType<typeof vi.fn>>[],
-);
-
-// Mock Howler
-vi.mock('howler', () => ({
-  Howl: vi.fn().mockImplementation(function () {
-    const howl = {
-      play: vi.fn(),
-      pause: vi.fn(),
-      stop: vi.fn(),
-      unload: vi.fn(),
-      seek: vi.fn().mockReturnValue(0),
-      duration: vi.fn().mockReturnValue(100),
-      loop: vi.fn(),
-      state: vi.fn().mockReturnValue('loaded'),
-      playing: vi.fn().mockReturnValue(false),
-      volume: vi.fn(),
-      on: vi.fn(),
-      once: vi.fn(),
-      off: vi.fn(),
-    };
-    createdHowls.push(howl);
-    return howl;
-  }),
-}));
+// Shared faithful Howl fake — created instances are reachable
+// via FakeHowl.instances / FakeHowl.latest().
+vi.mock('howler', async () => {
+  const { FakeHowl } = await import('../__tests__/mocks/FakeHowl');
+  return { Howl: FakeHowl };
+});
 
 // Mock API
 vi.mock('../api', () => ({
   getKjvAudioUrl: vi.fn().mockReturnValue('http://audio.url/test.mp3'),
   getBibleAudioUrl: vi.fn()
     .mockResolvedValue('http://audio.url/test.mp3'),
-  getPassage: vi.fn().mockReturnValue({
+  getChapterList: vi.fn().mockReturnValue({
     book: 'Genesis',
     chapter: 1,
   }),
@@ -61,7 +41,7 @@ vi.mock('../api', () => ({
 describe('Audio Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    createdHowls.length = 0;
+    FakeHowl.reset();
     vi.mocked(getAudioTimestamps).mockResolvedValue([]);
   });
 
@@ -143,7 +123,7 @@ describe('Audio Component', () => {
       fireEvent.click(screen.getByTitle('Play audio'));
 
       await waitFor(() => {
-        expect(createdHowls[0]?.seek).toHaveBeenCalledWith(36);
+        expect(FakeHowl.instances[0]?.seek).toHaveBeenCalledWith(36);
       });
     });
 
@@ -169,9 +149,9 @@ describe('Audio Component', () => {
       // play() runs after the load effect's seek decision, so
       // once it fired no seek can still be pending.
       await waitFor(() => {
-        expect(createdHowls[0]?.play).toHaveBeenCalled();
+        expect(FakeHowl.instances[0]?.play).toHaveBeenCalled();
       });
-      expect(createdHowls[0].seek).not.toHaveBeenCalled();
+      expect(FakeHowl.instances[0].seek).not.toHaveBeenCalled();
     });
 
   it('does not seek for ENGKJV audio (no timestamps)', async () => {
@@ -190,9 +170,9 @@ describe('Audio Component', () => {
     fireEvent.click(screen.getByTitle('Play audio'));
 
     await waitFor(() => {
-      expect(createdHowls[0]?.play).toHaveBeenCalled();
+      expect(FakeHowl.instances[0]?.play).toHaveBeenCalled();
     });
-    expect(createdHowls[0].seek).not.toHaveBeenCalled();
+    expect(FakeHowl.instances[0].seek).not.toHaveBeenCalled();
   });
 
   it('does not seek for note-scoped verse selections',
@@ -215,23 +195,49 @@ describe('Audio Component', () => {
       fireEvent.click(screen.getByTitle('Play audio'));
 
       await waitFor(() => {
-        expect(createdHowls[0]?.play).toHaveBeenCalled();
+        expect(FakeHowl.instances[0]?.play).toHaveBeenCalled();
       });
-      expect(createdHowls[0].seek).not.toHaveBeenCalled();
+      expect(FakeHowl.instances[0].seek).not.toHaveBeenCalled();
     });
 
-  // Note: Full audio playback testing is extremely complex
-  // due to Howler.js, Media Session API, and async state.
-  // See SKIPPED_TESTS.md for details.
-  it.skip('should load and play audio when button clicked', () => {
-    // This test is skipped due to complex mocking requirements
-  });
+  it('should update Media Session metadata when playback ' +
+    'starts', async () => {
+      // happy-dom has no mediaSession — stub the navigator
+      // surface and the MediaMetadata constructor.
+      const mediaSession = {
+        metadata: null as Record<string, unknown> | null,
+        setActionHandler: vi.fn(),
+        setPositionState: vi.fn(),
+      };
+      vi.stubGlobal(
+        'MediaMetadata',
+        class {
+          constructor(init: Record<string, unknown>) {
+            Object.assign(this, init);
+          }
+        }
+      );
+      Object.defineProperty(navigator, 'mediaSession', {
+        value: mediaSession,
+        configurable: true,
+      });
 
-  it.skip('should update Media Session metadata', () => {
-    // This test is skipped due to Media Session API mocking
-  });
+      renderWithProviders(<Audio />, {
+        storeOverrides: {
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          activeAudioFilesetId: 'ENGKJV',
+          showAudioPlayer: false,
+        },
+      });
 
-  it.skip('should auto-advance to next chapter on audio end', () => {
-    // This test is skipped due to complex async behavior
-  });
+      fireEvent.click(screen.getByTitle('Play audio'));
+
+      await waitFor(() => {
+        expect(mediaSession.metadata).toMatchObject({
+          title: 'Genesis 1',
+          album: 'Bible Audio',
+        });
+      });
+    });
 });

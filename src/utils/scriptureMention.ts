@@ -1,4 +1,7 @@
-import { getBooks, getChapters, getVerses } from '../api';
+// Pure structure lookups — imported from the leaf module so the
+// mention parser never pulls the whole api barrel (network
+// modules, cache layer) into the editor chunk.
+import { getBooks, getChapters, getVerses } from '../api/structure';
 import { BOOK_NAME_TO_CODE } from './bibleUtils';
 
 export interface ParsedMention {
