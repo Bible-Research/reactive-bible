@@ -48,12 +48,6 @@ import { clearNotesCache } from '../utils/cacheManager';
 import { buildBiblePath } from '../utils/bibleUtils';
 import { shareOrCopyLink } from '../utils/share';
 import { pageCount } from '../utils/pagination';
-
-// Lazy + gated below on isEditModalOpen — the modal pulls in
-// TipTap, which should not ship with the route chunk.
-const EditNoteModal = lazy(
-  () => import('../components/EditNoteModal')
-);
 import {
   SortOrder,
   SORT_ORDERS,
@@ -62,6 +56,12 @@ import {
 } from '../utils/noteSorting';
 import { buildNotePlaylistItems } from '../utils/notePlaylist';
 import { verseDomId } from '../utils/verseRefs';
+
+// Lazy + gated below on isEditModalOpen — the modal pulls in
+// TipTap, which should not ship with the route chunk.
+const EditNoteModal = lazy(
+  () => import('../components/EditNoteModal')
+);
 
 /** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
  *  notes. `k` is the canonical 1-based order ID. */

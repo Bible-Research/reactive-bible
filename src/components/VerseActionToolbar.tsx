@@ -27,10 +27,6 @@ import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
-
-// Lazy + gated below on noteModalOpened so TipTap stays out of
-// the entry chunk until a note is actually authored.
-const AddTagNoteModal = lazy(() => import("./AddTagNoteModal"));
 import {
   buildBiblePath,
   toBookName,
@@ -49,6 +45,9 @@ import {
   faviconUrl,
 } from "../utils/externalLinks";
 
+// Lazy + gated below on noteModalOpened so TipTap stays out of
+// the entry chunk until a note is actually authored.
+const AddTagNoteModal = lazy(() => import("./AddTagNoteModal"));
 
 const formatChapterGroup = (group: {
   bookId: string;
@@ -439,7 +438,10 @@ const VerseActionToolbar = () => {
           title="BibleMapper PassageBrowser"
           width="100%"
           height={isMobile ? undefined : "600px"}
-          sandbox="allow-scripts allow-same-origin allow-popups"
+          sandbox={
+            "allow-scripts allow-same-origin allow-forms " +
+            "allow-popups allow-popups-to-escape-sandbox"
+          }
           referrerPolicy="no-referrer"
           loading="lazy"
           style={{
