@@ -1,9 +1,3 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import PassageView from '../components/PassageView';
-import { useBibleStore } from '../store';
-
 /**
  * Regression coverage for issue #110: when the user jumps between
  * chapters faster than the API responds, the last resolved
@@ -11,6 +5,11 @@ import { useBibleStore } from '../store';
  * Jumping ch1 -> ch4 -> ch3 used to render chapter 4 content once
  * its (slower) request resolved last.
  */
+import { render, screen, waitFor, act } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import PassageView from '../components/PassageView';
+import { useBibleStore } from '../store';
 
 type ChapterResult = {
   verses: { verse: number; text: string }[];

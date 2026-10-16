@@ -1,15 +1,3 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
-import { http, HttpResponse } from 'msw';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { server } from '../mocks/server';
-import App from '../App';
-import Audio from '../components/Audio';
-import { useBibleStore } from '../store';
-import { FakeHowl } from './mocks/FakeHowl';
-import type { PlaylistItem } from '../types';
-
 /**
  * Regression coverage for issue #62: while audio is playing, the
  * chapter switch must happen instantly — the previous audio must
@@ -30,6 +18,19 @@ import type { PlaylistItem } from '../types';
  *    playlist-mode early return previously skipped disposal, so
  *    chapter and playlist audio ran at once (double-stream).
  */
+import { render, screen, waitFor, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { http, HttpResponse } from 'msw';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { server } from '../mocks/server';
+import App from '../App';
+import Audio from '../components/Audio';
+import { useBibleStore } from '../store';
+import { FakeHowl } from './mocks/FakeHowl';
+import type { PlaylistItem } from '../types';
+
+
 
 vi.mock('howler', async () => ({
   Howl: (await import('./mocks/FakeHowl')).FakeHowl,

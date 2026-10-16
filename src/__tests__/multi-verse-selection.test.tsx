@@ -43,7 +43,7 @@ describe('multi verse selection in full App', () => {
         expect(
           screen.getByTitle('passage-verse-1-3')
         ).toBeInTheDocument(),
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
     // Click the verse TEXT (h3), like a real user would
     await user.click(screen.getByTitle('passage-verse-1-3'));

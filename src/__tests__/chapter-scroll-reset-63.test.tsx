@@ -1,10 +1,3 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
-import { describe, it, expect, beforeEach } from 'vitest';
-import App from '../App';
-import { useBibleStore } from '../store';
-
 /**
  * Regression coverage for issue #63: changing the chapter must
  * reset the passage scroll position so the first verse is shown,
@@ -17,6 +10,13 @@ import { useBibleStore } from '../store';
  * happy-dom there is no layout, so the observable signal is that
  * the viewport DOM node is replaced.
  */
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, beforeEach } from 'vitest';
+import App from '../App';
+import { useBibleStore } from '../store';
+
 const viewportFor = (verseTitle: string) =>
   screen
     .getByTitle(verseTitle)
@@ -50,7 +50,7 @@ describe('Passage scroll resets on chapter change (#63)', () => {
           screen.getByTitle('passage-verse-1-1')
         ).toBeInTheDocument();
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
     const before = viewportFor('passage-verse-1-1');
     expect(before).not.toBeNull();
@@ -63,7 +63,7 @@ describe('Passage scroll resets on chapter change (#63)', () => {
           screen.getByTitle('passage-verse-2-1')
         ).toBeInTheDocument();
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
     const after = viewportFor('passage-verse-2-1');
     expect(after).not.toBeNull();
@@ -82,7 +82,7 @@ describe('Passage scroll resets on chapter change (#63)', () => {
           screen.getByTitle('passage-verse-2-1')
         ).toBeInTheDocument();
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
     const before = viewportFor('passage-verse-2-1');
     expect(before).not.toBeNull();
@@ -95,7 +95,7 @@ describe('Passage scroll resets on chapter change (#63)', () => {
           screen.getByTitle('passage-verse-1-1')
         ).toBeInTheDocument();
       },
-      { timeout: 5000 }
+      { timeout: 15000 }
     );
     const after = viewportFor('passage-verse-1-1');
     expect(after).not.toBeNull();

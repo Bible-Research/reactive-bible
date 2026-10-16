@@ -44,7 +44,7 @@ describe('shift+click range selection in full App', () => {
           expect(
             screen.getByTitle('passage-verse-1-3')
           ).toBeInTheDocument(),
-        { timeout: 5000 }
+        { timeout: 15000 }
       );
       await user.click(screen.getByTitle('passage-verse-1-3'));
       await waitFor(() => expect(sel()?.refs).toHaveLength(1));

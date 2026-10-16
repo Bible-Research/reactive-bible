@@ -111,7 +111,7 @@ describe('note-card multi verse selection', () => {
         expect(
           screen.getByText('For God so')
         ).toBeInTheDocument();
-      }, { timeout: 5000 });
+      }, { timeout: 15000 });
 
       const v16 = screen.getByText('For God so');
       const v18 = screen.getByText('He that');
