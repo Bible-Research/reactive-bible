@@ -63,8 +63,17 @@ export const isRateLimitMessage = (
 
 /**
  * Best-effort displayable message out of a backend error body:
- * a string `error`, an object `error`'s `message`, or a string
- * `detail` — else `fallback`.
+ * a string `error`, an object `error`'s string `message`, or a
+ * string `detail` — else `fallback`.
+ *
+ * Deliberate deviation from the pre-split api.tsx: truthy
+ * non-string payloads are ignored instead of being fed through
+ * the thrown Error's implicit string coercion. The old
+ * `errorData.error || errorData.detail || fallback` turned
+ * `{error: {message: 'x'}}` into "[object Object]" and let a
+ * bare `{error: 429}` false-positive the rate-limit check;
+ * here only string-shaped payloads produce a message (pinned
+ * by errors.test.ts).
  */
 export const errorMessageFromBody = (
   body: ErrorBody | null | undefined,
