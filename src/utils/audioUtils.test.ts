@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Howl } from 'howler';
-import { disposeHowl } from './audioUtils';
+import type { VerseTimestamp } from '../types';
+import {
+  activeVerseAtTime,
+  disposeHowl,
+} from './audioUtils';
 
 const makeHowl = () => ({
   stop: vi.fn(),
@@ -66,5 +70,47 @@ describe('disposeHowl', () => {
     ).not.toThrow();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+const ts = (
+  verseStart: number,
+  timestamp: number,
+): VerseTimestamp => ({
+  verse_start: verseStart,
+  timestamp,
+});
+
+describe('activeVerseAtTime', () => {
+  const timestamps = [
+    ts(1, 0),
+    ts(2, 5),
+    ts(3, 10),
+    ts(5, 20),
+    ts(8, 40),
+  ];
+
+  it('returns null for an empty timestamp list', () => {
+    expect(activeVerseAtTime([], 10)).toBeNull();
+  });
+
+  it('returns the verse whose window contains the position',
+    () => {
+      expect(activeVerseAtTime(timestamps, 0)).toBe(1);
+      expect(activeVerseAtTime(timestamps, 4.9)).toBe(1);
+      expect(activeVerseAtTime(timestamps, 5)).toBe(2);
+      expect(activeVerseAtTime(timestamps, 25)).toBe(5);
+    },
+  );
+
+  it('returns the last verse for positions past the final ' +
+    'timestamp', () => {
+      expect(activeVerseAtTime(timestamps, 999)).toBe(8);
+    },
+  );
+
+  it('returns the first verse for positions before it', () => {
+    // A chapter announcement plays before verse 1's timestamp.
+    expect(activeVerseAtTime(timestamps, -3)).toBe(1);
   });
 });
