@@ -2797,11 +2797,15 @@ The scope fields exist because the response depends on them:
 - `addTagNote`/`editNote`/`deleteNote`/`reorderNotes`/`moveNote`
   clear the affected tag's pages (`clearNotesCache(tagId)` is a
   prefix delete over every scoped page).
-- A `useAuthStore.subscribe` watcher in `store.tsx` purges
+- A `useAuthStore.subscribe` watcher in `authStore.tsx` purges
   `notes`, `tags`, `readingPositions`, and the whole notes cache
   whenever the token is dropped or replaced — covers both manual
   logout and 401-driven logout, so a shared device can't expose
-  the previous user's private notes.
+  the previous user's private notes. The bible store registers
+  itself via `registerBibleStore()` at module scope rather than
+  being imported by `authStore`, keeping the dependency one-way
+  (a static `authStore → store` edge would close an
+  `api → apiClient → authStore → store → api` cycle).
 - The 409-conflict refresh clears the tag cache *before*
   refetching, so it can't read back the stale page it is trying
   to replace.
