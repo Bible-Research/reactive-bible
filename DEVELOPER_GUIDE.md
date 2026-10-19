@@ -1826,7 +1826,7 @@ User Opens TranslationSelector
     ↓
 Fetch available translations (cached)
     ↓
-User selects language (eng/lvs)
+User selects language (eng/lvs/rus)
     ↓
 Fetch translations for language
     ↓
@@ -2146,7 +2146,7 @@ Modal for selecting Bible translations.
 
 **Responsibilities**:
 - Fetch available translations from API
-- Language selector (English, Latvian)
+- Language selector (English, Latvian, Russian)
 - Version dropdown (searchable, capability chips: "Audio",
   "Text only", "Audio only")
 - Text auto-resolution per testament (dimmed info line; no

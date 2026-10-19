@@ -51,6 +51,7 @@ const useStyles = createStyles((theme) => ({
 const LANGUAGES = [
   { label: 'English', value: 'eng' },
   { label: 'Latvian', value: 'lvs' },
+  { label: 'Russian', value: 'rus' },
 ];
 
 type Capability = 'both' | 'text' | 'audio';
