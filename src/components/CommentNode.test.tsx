@@ -224,7 +224,8 @@ describe('CommentNode', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('lightbox shows fresh signed URL after comment prop update', () => {
+  it('lightbox shows fresh signed URL after comment prop update',
+    async () => {
     const img1 = makeImage('img-1');
     const { rerender } = renderWithProviders(
       <CommentNode
@@ -256,7 +257,20 @@ describe('CommentNode', () => {
     expect(lightboxImg.src).toBe(
       'https://example.com/img-1-refreshed.png'
     );
-  });
+
+    // Settle the Modal before teardown: Mantine's
+    // use-transition leaks a 10ms timer that fires after the
+    // test env is gone (window undefined) if left pending.
+    fireEvent.keyDown(screen.getByRole('dialog'), {
+      key: 'Escape',
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog')
+      ).not.toBeInTheDocument();
+    });
+    }
+  );
 
   it('submits reply content as doc-JSON', async () => {
     const onReply = vi.fn().mockResolvedValue(undefined);
@@ -322,7 +336,7 @@ describe('CommentNode', () => {
     expect(toPlainText(content)).toBe('Edited body');
   });
 
-  it('lightbox img onError calls onRequestRefresh', () => {
+  it('lightbox img onError calls onRequestRefresh', async () => {
     const onRequestRefresh = vi.fn();
     renderWithProviders(
       <CommentNode
@@ -337,5 +351,15 @@ describe('CommentNode', () => {
     fireEvent.error(screen.getByAltText('full size'));
 
     expect(onRequestRefresh).toHaveBeenCalledWith('c1');
+
+    // Settle the Modal before teardown (see above).
+    fireEvent.keyDown(screen.getByRole('dialog'), {
+      key: 'Escape',
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog')
+      ).not.toBeInTheDocument();
+    });
   });
 });
