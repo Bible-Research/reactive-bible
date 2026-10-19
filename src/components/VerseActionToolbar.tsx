@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components --
+ * BOOK_TO_BLB_ABBR and the URL/share builders are exported so
+ * their pure logic can be unit-tested. */
 import {
   ActionIcon,
   Anchor,
@@ -32,7 +35,7 @@ import {
 } from "../utils/verseRefs";
 
 
-const BOOK_TO_BLB_ABBR: Record<string, string> = {
+export const BOOK_TO_BLB_ABBR: Record<string, string> = {
   Genesis: "gen",
   Exodus: "exo",
   Leviticus: "lev",
@@ -104,11 +107,15 @@ const BOOK_TO_BLB_ABBR: Record<string, string> = {
 const faviconUrl = (domain: string) =>
   `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
 
-const formatChapterGroup = (group: {
+/** A single-chapter selection group — the primary ref used by
+ *  the external-link and share builders. */
+export interface PrimaryChapterRef {
   bookId: string;
   chapter: number;
   verses: number[];
-}): string => {
+}
+
+const formatChapterGroup = (group: PrimaryChapterRef): string => {
   const sorted = group.verses;
   const label =
     `${toBookName(group.bookId) ?? group.bookId} ` +
@@ -123,6 +130,82 @@ const formatChapterGroup = (group: {
       : `${label}:${sorted[0]}-${sorted[sorted.length - 1]}`;
   }
   return `${label}:${sorted.join(", ")}`;
+};
+
+/** YouVersion compare URL — `bookId` is the USFM code. */
+export const buildYouVersionUrl = (
+  primary: PrimaryChapterRef
+): string => {
+  const sorted = primary.verses;
+  const verseStr =
+    sorted.length === 1
+      ? `${sorted[0]}`
+      : `${sorted[0]}-${sorted[sorted.length - 1]}`;
+  return (
+    "https://www.bible.com/bible/compare/" +
+    `${primary.bookId}.${primary.chapter}.${verseStr}`
+  );
+};
+
+/** BibleHub commentary URL — `bookName` is the display name. */
+export const buildBibleHubUrl = (
+  bookName: string,
+  chapter: number,
+  verse: number
+): string => {
+  const bookPath =
+    bookName === "Song of Solomon"
+      ? "songs"
+      : bookName.toLowerCase().replace(/ /g, "_");
+  return (
+    `https://biblehub.com/${bookPath}/` +
+    `${chapter}-${verse}.htm#commentary`
+  );
+};
+
+/** Blue Letter Bible KJV URL; null when the book has no BLB
+ *  abbreviation in `BOOK_TO_BLB_ABBR`. */
+export const buildBlbUrl = (
+  bookName: string,
+  chapter: number,
+  verse: number
+): string | null => {
+  const abbr = BOOK_TO_BLB_ABBR[bookName];
+  if (!abbr) return null;
+  return (
+    `https://www.blueletterbible.org/kjv/${abbr}/` +
+    `${chapter}/${verse}/`
+  );
+};
+
+/** BibleMapper mapfinder URL scoped to the chapter, or the
+ *  generic mapfinder page when no passage is selected. */
+export const buildMapUrl = (
+  bookName: string | null,
+  chapter: number | null
+): string => {
+  if (!bookName || chapter === null) {
+    return "https://biblemapper.com/blog/mapfinder/";
+  }
+  const ref = `${bookName} ${chapter}`;
+  return (
+    "https://biblemapper.com/blog/mapfinder/?ref=" +
+    encodeURIComponent(ref)
+  );
+};
+
+/** Shared text for navigator.share and the clipboard fallback.
+ *  Verse text is DOM-scraped and may be empty — then the body
+ *  falls back to the bare passage reference. */
+export const buildShareText = (
+  verseText: string,
+  passageRef: string,
+  url: string
+): string => {
+  const body = verseText
+    ? `${verseText}\n\n${passageRef}`
+    : passageRef;
+  return `${body}\n\n${url}`;
 };
 
 const VerseActionToolbar = () => {
@@ -154,7 +237,7 @@ const VerseActionToolbar = () => {
 
   // The primary group is the first ref's book/chapter — share URLs
   // and external links are single-chapter formats.
-  const primary = useMemo(() => {
+  const primary = useMemo((): PrimaryChapterRef | null => {
     if (refs.length === 0) return null;
     const first = refs[0];
     return {
@@ -192,15 +275,13 @@ const VerseActionToolbar = () => {
       .filter(Boolean)
       .join(" ");
 
-    const shareBody = verseText
-      ? `${verseText}\n\n${passageRef}`
-      : passageRef;
+    const shareText = buildShareText(verseText, passageRef, url);
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: passageRef,
-          text: `${shareBody}\n\n${url}`,
+          text: shareText,
         });
       } catch (err) {
         if (
@@ -215,11 +296,8 @@ const VerseActionToolbar = () => {
         }
       }
     } else {
-      const clipboardText = verseText
-        ? `${verseText}\n\n${passageRef}\n\n${url}`
-        : `${passageRef}\n\n${url}`;
       try {
-        await navigator.clipboard.writeText(clipboardText);
+        await navigator.clipboard.writeText(shareText);
         showNotification({
           title: "Link copied",
           message: `Link to ${passageRef} copied to clipboard`,
@@ -257,55 +335,37 @@ const VerseActionToolbar = () => {
     }
   }, [passageRef]);
 
-  const youVersionUrl = useMemo(() => {
-    if (!primary) return null;
-    const bookCode = primary.bookId;
-    const sorted = primary.verses;
-    const verseStr =
-      sorted.length === 1
-        ? `${sorted[0]}`
-        : `${sorted[0]}-${sorted[sorted.length - 1]}`;
-    return (
-      "https://www.bible.com/bible/compare/" +
-      `${bookCode}.${primary.chapter}.${verseStr}`
-    );
-  }, [primary]);
+  const youVersionUrl = useMemo(
+    () => (primary ? buildYouVersionUrl(primary) : null),
+    [primary]
+  );
 
   const bibleHubUrl = useMemo(() => {
     if (!primary || !primaryBookName) return null;
     const verse = primary.verses[primary.verses.length - 1];
     if (verse == null) return null;
-    const bookPath =
-      primaryBookName === "Song of Solomon"
-        ? "songs"
-        : primaryBookName.toLowerCase().replace(/ /g, "_");
-    return (
-      `https://biblehub.com/${bookPath}/` +
-      `${primary.chapter}-${verse}.htm#commentary`
+    return buildBibleHubUrl(
+      primaryBookName,
+      primary.chapter,
+      verse
     );
   }, [primary, primaryBookName]);
 
   const blbUrl = useMemo(() => {
     if (!primary || !primaryBookName) return null;
     const verse = primary.verses[primary.verses.length - 1];
-    const abbr = BOOK_TO_BLB_ABBR[primaryBookName];
-    if (!abbr || verse == null) return null;
-    return (
-      `https://www.blueletterbible.org/kjv/${abbr}/` +
-      `${primary.chapter}/${verse}/`
-    );
+    if (verse == null) return null;
+    return buildBlbUrl(primaryBookName, primary.chapter, verse);
   }, [primary, primaryBookName]);
 
-  const mapUrl = useMemo(() => {
-    if (!primary || !primaryBookName) {
-      return "https://biblemapper.com/blog/mapfinder/";
-    }
-    const ref = `${primaryBookName} ${primary.chapter}`;
-    return (
-      "https://biblemapper.com/blog/mapfinder/?ref=" +
-      encodeURIComponent(ref)
-    );
-  }, [primary, primaryBookName]);
+  const mapUrl = useMemo(
+    () =>
+      buildMapUrl(
+        primaryBookName,
+        primary ? primary.chapter : null
+      ),
+    [primary, primaryBookName]
+  );
 
   const isVisible = refCount > 0;
   const bottomOffset = showAudioPlayer ? 176 : 56;

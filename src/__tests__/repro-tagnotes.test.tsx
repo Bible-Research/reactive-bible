@@ -7,7 +7,18 @@ import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import * as api from '../api';
 
-vi.mock('../api');
+vi.mock('../api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api')>();
+  return {
+    ...actual,
+    getTags: vi.fn(),
+    getNotes: vi.fn(),
+    getTag: vi.fn(),
+    fetchCommentCounts: vi.fn(),
+    getNoteOrderIndex: vi.fn(),
+    deleteNote: vi.fn(),
+  };
+});
 const mockApi = vi.mocked(api);
 
 vi.mock('@mantine/notifications', () => ({
@@ -99,14 +110,18 @@ describe('note-card multi verse selection', () => {
 
       await user.click(v16);
       await waitFor(() => {
-        console.log('SEL1', JSON.stringify(sel()));
-        expect(sel()?.refs).toHaveLength(1);
+        expect(sel()).toEqual({
+          scope: 'note-1',
+          refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+        });
       });
 
       await user.click(v18);
       await waitFor(() => {
-        console.log('SEL2', JSON.stringify(sel()));
-        expect(sel()?.refs).toHaveLength(2);
+        expect(sel()?.refs).toEqual([
+          { bookId: 'JHN', chapter: 3, verse: 16 },
+          { bookId: 'JHN', chapter: 3, verse: 18 },
+        ]);
       });
     });
 });

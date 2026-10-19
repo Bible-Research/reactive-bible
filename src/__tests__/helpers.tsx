@@ -1,5 +1,5 @@
 import React, { ReactElement } from 'react';
-import { render, RenderOptions, waitFor } from '@testing-library/react';
+import { render, RenderOptions } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
 import {
@@ -26,9 +26,10 @@ export * from './helpers/performance';
 
 /**
  * Creates a mock store state with optional overrides.
- * Use this to set up specific test scenarios.
+ * Internal building block for `resetStore` — tests should call
+ * `resetStore` (which also applies the state) rather than this.
  */
-export function createMockStore(overrides: Partial<BibleState> = {}) {
+function createMockStore(overrides: Partial<BibleState> = {}) {
   const mockFunctions = {
     setActiveBookAndChapter: vi.fn(),
     setActiveChapter: vi.fn(),
@@ -68,18 +69,24 @@ export function resetStore(overrides: Partial<BibleState> = {}) {
 
 // --- DOM Mocks ---
 
+// Captured ONCE at module load. If this were bound inside
+// mockDomApis(), a second call would bind the previous spy as the
+// "original" and the mockImplementation below would recurse
+// forever (mocks are not auto-restored between tests).
+const realGetElementById = document.getElementById.bind(document);
+
 /**
  * Mocks common DOM APIs that aren't available in happy-dom/jsdom.
  * Call this in your test setup file or beforeEach().
+ * Idempotent — safe to call more than once per test file.
  */
 export function mockDomApis() {
   // Mock scrollIntoView
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
   // Mock document.getElementById for scroll behavior
-  const originalGetElementById = document.getElementById.bind(document);
   vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
-    const element = originalGetElementById(id);
+    const element = realGetElementById(id);
     if (element) return element;
     // Return a mock element for verse scrolling
     if (id.startsWith('verse-')) {
@@ -118,29 +125,6 @@ export function mockDomApis() {
   // doesn't support File as a Blob subclass
   global.URL.createObjectURL = vi.fn(() => 'blob:test-url');
   global.URL.revokeObjectURL = vi.fn();
-}
-
-/**
- * Creates a mock localStorage implementation.
- */
-export function createMockLocalStorage() {
-  let store: Record<string, string> = {};
-  return {
-    getItem: vi.fn((key: string) => store[key] || null),
-    setItem: vi.fn((key: string, value: string) => {
-      store[key] = value.toString();
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: vi.fn(() => {
-      store = {};
-    }),
-    get length() {
-      return Object.keys(store).length;
-    },
-    key: vi.fn((index: number) => Object.keys(store)[index] || null),
-  };
 }
 
 // --- Render Helpers ---
@@ -198,75 +182,3 @@ export function renderWithProviders(
   };
 }
 
-// --- Async Helpers ---
-
-/**
- * Waits for all pending state updates to complete.
- * Use this to avoid act() warnings when components have async effects.
- */
-export async function waitForLoadingToFinish() {
-  await waitFor(
-    () => {
-      // Check for common loading indicators
-      const loadingElements = document.querySelectorAll(
-        '[aria-label="loading"], [data-loading="true"]'
-      );
-      if (loadingElements.length > 0) {
-        throw new Error('Still loading');
-      }
-    },
-    { timeout: 3000 }
-  );
-}
-
-/**
- * Flushes all pending promises and timers.
- * Useful for ensuring all async operations complete.
- */
-export async function flushPromises() {
-  await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-/**
- * Wraps an async operation to suppress act() warnings.
- * Use when you need to wait for state updates in tests.
- */
-export async function actAsync(callback: () => Promise<void>) {
-  const { act } = await import('@testing-library/react');
-  await act(async () => {
-    await callback();
-    await flushPromises();
-  });
-}
-
-// --- Fetch Mocks ---
-
-/**
- * Creates a mock fetch function that returns the specified response.
- */
-export function createMockFetch(response: unknown, ok = true) {
-  return vi.fn().mockResolvedValue({
-    ok,
-    json: () => Promise.resolve(response),
-    statusText: ok ? 'OK' : 'Error',
-  });
-}
-
-/**
- * Creates a mock fetch that fails with the specified error.
- */
-export function createMockFetchError(errorMessage: string) {
-  return vi.fn().mockRejectedValue(new Error(errorMessage));
-}
-
-// --- Cleanup Helpers ---
-
-/**
- * Cleans up all mocks and resets the store.
- * Call this in afterEach() for thorough cleanup.
- */
-export function cleanupTestEnvironment() {
-  vi.clearAllMocks();
-  vi.restoreAllMocks();
-  useBibleStore.setState(initialState);
-}

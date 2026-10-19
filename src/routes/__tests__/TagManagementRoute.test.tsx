@@ -22,8 +22,51 @@ import { useBibleStore } from '../../store';
 import { useAuthStore } from '../../stores/authStore';
 import * as api from '../../api';
 
-vi.mock('../../api');
+// Selective automock — keep real error classes so `instanceof`
+// checks in store actions still work.
+vi.mock('../../api', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../api')>();
+  const mocked: Record<string, unknown> = { ...actual };
+  for (const [key, value] of Object.entries(actual)) {
+    if (
+      typeof value === 'function' &&
+      key !== 'ConflictError'
+    ) {
+      mocked[key] = vi.fn();
+    }
+  }
+  return mocked;
+});
 const mockApi = vi.mocked(api);
+
+// The route reads {tags, getTags} off the bible store — stub it
+// directly instead of relying on the '../api' automock: that
+// factory's importOriginal evaluates the real api module, which
+// transitively evaluates a duplicate real store bound to the
+// real api (api.tsx imports Translation from './store'), so
+// api-level mocks never see the store's calls.
+const storeStub = vi.hoisted(() => {
+  const state = {
+    tags: [] as Tag[],
+    getTags: vi.fn(async (_forceRefresh?: boolean) => {}),
+  };
+  const useBibleStore = Object.assign(
+    (selector: (s: typeof state) => unknown) => selector(state),
+    {
+      setState: (partial: Partial<typeof state>) =>
+        Object.assign(state, partial),
+      getState: () => state,
+    },
+  );
+  return { state, useBibleStore };
+});
+
+vi.mock('../../store', () => ({
+  useBibleStore: storeStub.useBibleStore,
+}));
+
+const mockGetTags = storeStub.state.getTags;
 
 // Lightweight TagTree that still exercises onDelete.
 vi.mock('../../components/TagTree', () => ({
@@ -97,17 +140,23 @@ describe('TagManagementRoute refresh behavior', () => {
       isLoading: false,
       error: null,
     });
-    mockApi.getTags.mockResolvedValue(mockTags);
+    mockGetTags.mockReset().mockResolvedValue(undefined);
     mockApi.deleteTag.mockResolvedValue(undefined);
   });
 
   it('shows the full-screen loader only on first load', async () => {
     useBibleStore.setState({ tags: [] });
-    let resolveLoad: (tags: Tag[]) => void = () => undefined;
-    mockApi.getTags.mockImplementation(
+    let resolveLoad: () => void = () => undefined;
+    mockGetTags.mockImplementation(
       () =>
-        new Promise<Tag[]>((res) => {
-          resolveLoad = res;
+        new Promise<void>((res) => {
+          resolveLoad = () => {
+            // Mirror the real action: the fetch result lands
+            // in the store, and the route's own loading flag
+            // flip re-renders with the new list.
+            storeStub.state.tags = mockTags;
+            res();
+          };
         })
     );
 
@@ -117,7 +166,7 @@ describe('TagManagementRoute refresh behavior', () => {
       screen.getByLabelText('Loading tags')
     ).toBeInTheDocument();
 
-    resolveLoad(mockTags);
+    resolveLoad();
     await waitFor(() => {
       expect(
         screen.queryByLabelText('Loading tags')
@@ -128,13 +177,12 @@ describe('TagManagementRoute refresh behavior', () => {
 
   it('keeps the tag list rendered during post-delete refresh',
     async () => {
-      let resolveRefresh: (tags: Tag[]) => void =
-        () => undefined;
-      mockApi.getTags
-        .mockResolvedValueOnce(mockTags)
+      let resolveRefresh: () => void = () => undefined;
+      mockGetTags
+        .mockResolvedValueOnce(undefined)
         .mockImplementationOnce(
           () =>
-            new Promise<Tag[]>((res) => {
+            new Promise<void>((res) => {
               resolveRefresh = res;
             })
         );
@@ -151,7 +199,7 @@ describe('TagManagementRoute refresh behavior', () => {
 
       await waitFor(() => {
         expect(mockApi.deleteTag).toHaveBeenCalledWith('tag-1');
-        expect(mockApi.getTags).toHaveBeenCalledTimes(2);
+        expect(mockGetTags).toHaveBeenCalledTimes(2);
       });
 
       // While the refresh is still in flight the page must not
@@ -161,7 +209,7 @@ describe('TagManagementRoute refresh behavior', () => {
         screen.queryByLabelText('Loading tags')
       ).not.toBeInTheDocument();
 
-      resolveRefresh(mockTags);
+      resolveRefresh();
       await waitFor(() => {
         expect(
           screen.getByText('Bible Study')

@@ -12,6 +12,8 @@ import {
   toBookName,
   parseBibleRef,
   buildBiblePath,
+  encodeVerses,
+  decodeVerses,
   resolveTimestampsFilesetId,
   preferTimestampedAudioFileset,
 } from './bibleUtils';
@@ -392,6 +394,54 @@ describe('Bible Utils', () => {
       expect(sizeToCoverage(null).testaments).toEqual(['OT', 'NT']);
       expect(sizeToCoverage('').testaments).toEqual(['OT', 'NT']);
       expect(sizeToCoverage('X').testaments).toEqual(['OT', 'NT']);
+    });
+  });
+
+  describe('encodeVerses', () => {
+    it('encodes runs as ranges and gaps as commas', () => {
+      expect(encodeVerses([16, 17, 18])).toBe('16-18');
+      expect(encodeVerses([16, 18])).toBe('16,18');
+      expect(encodeVerses([1, 2, 3, 7, 9, 10])).toBe(
+        '1-3,7,9-10'
+      );
+    });
+
+    it('encodes a single verse and the empty list', () => {
+      expect(encodeVerses([16])).toBe('16');
+      expect(encodeVerses([])).toBe('');
+    });
+
+    it('sorts input before encoding', () => {
+      expect(encodeVerses([18, 16, 17])).toBe('16-18');
+    });
+
+    it('does not dedupe repeated verses', () => {
+      // Duplicates are preserved as separate terms — callers
+      // are expected to pass a clean selection.
+      expect(encodeVerses([16, 16])).toBe('16,16');
+    });
+  });
+
+  describe('decodeVerses', () => {
+    it('decodes ranges and comma lists', () => {
+      expect(decodeVerses('16-18')).toEqual([16, 17, 18]);
+      expect(decodeVerses('16,18')).toEqual([16, 18]);
+      expect(decodeVerses('1-3,7')).toEqual([1, 2, 3, 7]);
+    });
+
+    it('returns [] for empty and unparseable input', () => {
+      expect(decodeVerses('')).toEqual([]);
+      expect(decodeVerses('abc')).toEqual([]);
+    });
+
+    it('drops open ranges and reversed ranges', () => {
+      expect(decodeVerses('16-')).toEqual([]);
+      expect(decodeVerses('-3')).toEqual([]);
+      expect(decodeVerses('18-16')).toEqual([]);
+    });
+
+    it('keeps duplicates produced by repeated terms', () => {
+      expect(decodeVerses('16,16')).toEqual([16, 16]);
     });
   });
 

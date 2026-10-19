@@ -329,24 +329,24 @@ const Audio = () => {
     }
   }, []);
 
-  // Start `howl` after the inter-chapter gap. The guard keeps a
-  // Howl torn down during the pause from resurrecting.
-  const scheduleChapterPlay = useCallback(
-    (howl: Howl) => {
-      clearAdvanceTimer();
-      advanceTimerRef.current = setTimeout(() => {
-        advanceTimerRef.current = null;
-        if (
-          audioRef.current !== howl ||
-          howl.state() === 'unloaded'
-        ) {
-          return;
-        }
-        howl.play();
-      }, INTER_CHAPTER_GAP_MS);
-    },
-    [clearAdvanceTimer],
-  );
+  // Start the pending chapter after the inter-chapter gap. The
+  // guard keeps a Howl torn down during the pause from
+  // resurrecting.
+  const scheduleChapterPlay = useCallback(() => {
+    clearAdvanceTimer();
+    advanceTimerRef.current = setTimeout(() => {
+      advanceTimerRef.current = null;
+      // Play whatever Howl owns audioRef at fire time — not
+      // necessarily the one the gap was scheduled for. A mid-gap
+      // loaderror can swap in a fallback replacement; gating on
+      // the original Howl would skip play entirely and strand
+      // the replacement (the load effect's advanceTimerRef check
+      // suppresses safePlay while a timer is pending).
+      const current = audioRef.current;
+      if (!current || current.state() === 'unloaded') return;
+      current.play();
+    }, INTER_CHAPTER_GAP_MS);
+  }, [clearAdvanceTimer]);
 
   // Navigate one chapter forward/backward. Returns false when there
   // is no adjacent chapter in that direction.
@@ -734,28 +734,28 @@ const Audio = () => {
     };
   });
 
-  // Reset chapter audio when chapter/book/version changes
-  // (non-playlist only)
+  // Reset chapter audio when chapter/book/version/mode changes —
+  // playlist mode also routes here to dispose the chapter Howl.
   useEffect(() => {
     // Every run means the passage or mode changed — supersede any
     // chapter load still in flight; its post-await token check
     // will discard the result.
     loadSeqRef.current += 1;
-    if (isPlaylistMode) return;
     const key = chapterKey(
       resolveFilesetFor(activeBookId, activeAudioFilesetId),
       activeBookId,
       activeChapter,
     );
     const current = audioRef.current;
-    if (current && audioChapterKeyRef.current === key) {
-      // The ended handler already adopted the preloaded Howl for
-      // this chapter — keep it playing.
-      setTimestamps([]);
-      setAudioActiveVerse(null);
-      return;
-    }
-    if (current) {
+    // In playlist mode the chapter player must be fully silent —
+    // dispose a chapter Howl unconditionally. In chapter mode,
+    // dispose only when the passage actually changed: a key match
+    // means the ended handler already adopted this chapter's
+    // preloaded Howl and it must keep playing.
+    if (
+      current &&
+      (isPlaylistMode || audioChapterKeyRef.current !== key)
+    ) {
       disposeHowl(current, activeBlobUrlRef.current);
       activeBlobUrlRef.current = null;
       audioRef.current = null;
@@ -766,6 +766,19 @@ const Audio = () => {
       clearAdvanceTimer();
       pendingGapRef.current = false;
       setAudio(null);
+    }
+    if (isPlaylistMode) {
+      discardPreloaded();
+      return;
+    }
+    // Re-check the ref, not the captured `current` local: the
+    // dispose branch above clears it on a key mismatch. Only a
+    // still-live Howl — the ended handler adopted this chapter's
+    // preloaded one — may skip the discard and keep playing.
+    if (audioRef.current) {
+      setTimestamps([]);
+      setAudioActiveVerse(null);
+      return;
     }
     discardPreloaded();
     setTimestamps([]);
@@ -1072,7 +1085,7 @@ const Audio = () => {
           // This chapter arrived via auto-advance — start it
           // after the inter-chapter gap, not immediately.
           pendingGapRef.current = false;
-          scheduleChapterPlay(audio);
+          scheduleChapterPlay();
         } else if (advanceTimerRef.current === null) {
           // Skip safePlay while a scheduled play is pending —
           // store-sync re-runs of this effect must not jump the
@@ -1332,6 +1345,10 @@ const Audio = () => {
     setIsPlaying(false);
     isPlayingRef.current = false;
     setShowPlayer(false);
+    // Invalidate any in-flight load/fallback fetch — without this
+    // bump a pending resolve materializes a fresh Howl and
+    // re-registers media-session handlers for a closed player.
+    loadSeqRef.current += 1;
     clearAdvanceTimer();
     pendingGapRef.current = false;
     setAudioActiveVerse(null);

@@ -1,9 +1,24 @@
 import '@testing-library/jest-dom';
-import { act, render, screen, fireEvent } from
-  '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+} from 'vitest';
 import NoteForm from './NoteForm';
 import { Tag } from '../types';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../utils/tiptapContent';
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor.
 vi.mock('./RichTextEditor', async () => ({
@@ -11,6 +26,14 @@ vi.mock('./RichTextEditor', async () => ({
     await import('../__tests__/mocks/RichTextEditorStub')
   ).default,
 }));
+
+// The stub emits `JSON.stringify(getJSON())` like the real
+// editor — verify the contract, then compare the text content.
+const expectDocText = (arg: unknown, text: string) => {
+  expect(typeof arg).toBe('string');
+  expect(isTiptapDocString(arg as string)).toBe(true);
+  expect(toPlainText(arg as string)).toBe(text);
+};
 
 describe('NoteForm Component', () => {
   const mockTags: Tag[] = [
@@ -173,15 +196,52 @@ describe('NoteForm Component', () => {
     ).not.toBeInTheDocument();
   });
 
-  // Note: Testing Select dropdown interactions is problematic
-  // due to portal rendering. See SKIPPED_TESTS.md for details.
-  it.skip('should call onSubmit with correct values', () => {
-    // This test is skipped due to Select portal rendering
+  it('should call onSubmit with correct values', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <NoteForm
+        tags={mockTags}
+        onSubmit={onSubmit}
+        submitText="Submit"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    // Pick a tag through the Select dropdown (items select on
+    // mousedown, not click), then type.
+    fireEvent.mouseDown(screen.getByLabelText('Tag'));
+    fireEvent.mouseDown(
+      await screen.findByRole('option', { name: 'Faith' })
+    );
+    fireEvent.change(screen.getByLabelText('Note'), {
+      target: { value: 'Body text' },
+    });
+    fireEvent.submit(
+      screen
+        .getByRole('button', { name: 'Submit' })
+        .closest('form') as HTMLFormElement
+    );
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const [tagId, text] = onSubmit.mock.calls[0];
+    expect(tagId).toBe('1');
+    expectDocText(text, 'Body text');
   });
 
-  it.skip('should call onTagDropdownOpen when dropdown opens',
-    () => {
-    // This test is skipped due to Select portal rendering
+  it('should call onTagDropdownOpen when dropdown opens', () => {
+    render(
+      <NoteForm
+        tags={mockTags}
+        onSubmit={mockOnSubmit}
+        submitText="Submit"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByLabelText('Tag'));
+    expect(mockOnTagDropdownOpen).toHaveBeenCalledTimes(1);
   });
 
   describe('auto save', () => {
@@ -223,7 +283,8 @@ describe('NoteForm Component', () => {
           await vi.advanceTimersByTimeAsync(5000);
         });
         expect(onAutoSave).toHaveBeenCalledTimes(1);
-        expect(onAutoSave).toHaveBeenCalledWith('', 'Draft text');
+        expect(onAutoSave.mock.calls[0][0]).toBe('');
+        expectDocText(onAutoSave.mock.calls[0][1], 'Draft text');
 
         // Unchanged content is not re-saved.
         await act(async () => {
@@ -239,8 +300,8 @@ describe('NoteForm Component', () => {
           await vi.advanceTimersByTimeAsync(5000);
         });
         expect(onAutoSave).toHaveBeenCalledTimes(2);
-        expect(onAutoSave).toHaveBeenLastCalledWith(
-          '',
+        expectDocText(
+          onAutoSave.mock.calls[1][1],
           'Draft text updated'
         );
       } finally {
@@ -268,6 +329,105 @@ describe('NoteForm Component', () => {
           await vi.advanceTimersByTimeAsync(15000);
         });
         expect(onAutoSave).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('skips ticks while a save is in flight', async () => {
+      vi.useFakeTimers();
+      try {
+        let resolveSave: () => void = () => undefined;
+        const onAutoSave = vi.fn().mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              resolveSave = resolve;
+            })
+        );
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+
+        // Two more ticks fire while the save is pending — the
+        // in-flight lock must prevent overlapping writes.
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text v2' },
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          resolveSave();
+          await vi.advanceTimersByTimeAsync(0);
+        });
+
+        // The next tick saves the latest text.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(2);
+        expectDocText(
+          onAutoSave.mock.calls[1][1],
+          'Draft text v2'
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('flashes the saved indicator briefly after a save',
+      async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft text' },
+        });
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        // The Affix portals to body; the check icon marks it.
+        const flashIcon = () =>
+          document.querySelector('svg.tabler-icon-check');
+        expect(flashIcon()).toBeNull();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+        expect(flashIcon()).not.toBeNull();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+        expect(flashIcon()).toBeNull();
       } finally {
         vi.useRealTimers();
       }

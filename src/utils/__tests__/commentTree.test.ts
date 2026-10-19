@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  commentImageName,
   insertReply,
   updateNode,
   pruneDeleted,
 } from '../commentTree';
 import { Comment } from '../../api';
+import { CommentImage } from '../../types';
 
 const makeComment = (
   id: string,
@@ -52,6 +54,19 @@ describe('insertReply', () => {
     const tree = [makeComment('1')];
     insertReply(tree, null, makeComment('2'));
     expect(tree).toHaveLength(1);
+  });
+
+  it('is a silent no-op for a nonexistent parentId', () => {
+    const tree = [makeComment('1')];
+    const result = insertReply(
+      tree,
+      'missing',
+      makeComment('2', { parent_comment: 'missing' })
+    );
+    // No node matches 'missing' — the reply is dropped and the
+    // tree is returned structurally unchanged.
+    expect(result).toHaveLength(1);
+    expect(result[0].replies).toHaveLength(0);
   });
 });
 
@@ -129,5 +144,33 @@ describe('pruneDeleted', () => {
     const tree = [makeComment('1', { replies: [deleted] })];
     const result = pruneDeleted(tree);
     expect(result[0].replies).toHaveLength(0);
+  });
+});
+
+describe('commentImageName', () => {
+  const makeImage = (storageUrl: string): CommentImage => ({
+    id: 'img-1',
+    storage_url: storageUrl,
+    signed_url: null,
+    content_type: 'image/png',
+    size_bytes: 1024,
+    uploaded_by: 1,
+    created_at: '2024-01-01T00:00:00Z',
+  });
+
+  it('uses the last path segment of storage_url', () => {
+    const image = makeImage(
+      'gs://bucket/originals/img-1/photo name.png'
+    );
+    expect(commentImageName(image)).toBe('photo name.png');
+  });
+
+  it('falls back when storage_url is empty', () => {
+    expect(commentImageName(makeImage(''))).toBe(
+      'comment attachment'
+    );
+    expect(commentImageName(makeImage('no-file/'))).toBe(
+      'comment attachment'
+    );
   });
 });

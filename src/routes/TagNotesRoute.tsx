@@ -856,24 +856,33 @@ export default function TagNotesRoute() {
     }, 50);
   };
 
+  // Verse-less notes never become playlist items; "play from
+  // here" must index the same filtered list the playlist
+  // effect below builds, or the start position is off.
+  const playableNotes = sortedNotes.filter(
+    (n) => (n.verses?.length ?? 0) > 0
+  );
+
   const handlePlayFromNote = useCallback(
     (noteId: string) => {
-      const noteIndex = sortedNotes.findIndex((n) => n.id === noteId);
-      
+      const noteIndex = playableNotes.findIndex(
+        (n) => n.id === noteId
+      );
+
       if (noteIndex >= 0) {
         setAudioPlaylistStartIndex(noteIndex);
-        
+
         showNotification({
           title: 'Playlist Started',
           message:
             `Playing from note ${noteIndex + 1} ` +
-            `of ${sortedNotes.length}`,
+            `of ${playableNotes.length}`,
           color: 'blue',
           autoClose: 3000,
         });
       }
     },
-    [sortedNotes, setAudioPlaylistStartIndex]
+    [playableNotes, setAudioPlaylistStartIndex]
   );
 
   useEffect(() => {
@@ -881,8 +890,7 @@ export default function TagNotesRoute() {
       setAudioPlaylistItems(null);
       return;
     }
-    const items: PlaylistItem[] = sortedNotes
-      .filter((n) => (n.verses?.length ?? 0) > 0)
+    const items: PlaylistItem[] = playableNotes
       .map((note, i, arr) => {
         const firstVerse = note.verses[0];
         const sameBlock = note.verses.filter(
@@ -1046,6 +1054,9 @@ export default function TagNotesRoute() {
                 variant="subtle"
                 color={versesFolded ? "blue" : "gray"}
                 size="lg"
+                aria-label={
+                  versesFolded ? 'Unfold verses' : 'Fold verses'
+                }
               >
                 {versesFolded
                   ? <IconArrowsMaximize size={20} />
@@ -1058,6 +1069,7 @@ export default function TagNotesRoute() {
                 variant="subtle"
                 color="gray"
                 size="lg"
+                aria-label="Refresh notes"
               >
                 <IconRefresh size={20} />
               </ActionIcon>
@@ -1068,6 +1080,7 @@ export default function TagNotesRoute() {
                 variant="subtle"
                 color="blue"
                 size="lg"
+                aria-label="Share tag link"
               >
                 <IconShare size={20} />
               </ActionIcon>

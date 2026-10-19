@@ -30,6 +30,15 @@ const CACHE_VERSION = 2;
 
 const storageCache = new Map<string, string | null>();
 
+/**
+ * Test-only reset: clears the in-memory `storageCache` Map (and
+ * nothing else) so each test starts with a cold localStorage
+ * read cache. Called from `setupTests.ts`'s global `beforeEach`.
+ */
+export const resetStorageCacheForTests = (): void => {
+  storageCache.clear();
+};
+
 // Invalidate cache on external changes (other tabs)
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {

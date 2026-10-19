@@ -36,7 +36,9 @@ describe('Passage Component Performance Tests', () => {
     });
   });
 
-  describe('Render Performance', () => {
+  // Wall-clock thresholds and tautological render counts are
+  // environment-dependent — they only run under `PERF=1 npm test`.
+  describe.skipIf(!process.env.PERF)('Render Performance', () => {
     it('should render quickly with minimal overhead', () => {
       const renderFn = () => {
         render(
@@ -88,7 +90,9 @@ describe('Passage Component Performance Tests', () => {
     });
   });
 
-  describe('State Management Performance', () => {
+  describe.skipIf(!process.env.PERF)(
+    'State Management Performance',
+    () => {
     it('should handle rapid store updates efficiently', () => {
       render(
         <MantineProvider>
@@ -158,7 +162,7 @@ describe('Passage Component Performance Tests', () => {
     });
   });
 
-  describe('Memory Efficiency', () => {
+  describe.skipIf(!process.env.PERF)('Memory Efficiency', () => {
     it('should not leak memory with repeated renders', () => {
       const iterations = 100;
       const containers: HTMLElement[] = [];

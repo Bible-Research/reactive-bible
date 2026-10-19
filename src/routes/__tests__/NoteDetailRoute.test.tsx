@@ -1,7 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
-import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+} from 'vitest';
 import { server } from '../../mocks/server';
 import { API_BASE_URL } from '../../config';
 import NoteDetailRoute from '../NoteDetailRoute';
@@ -84,4 +91,50 @@ describe('NoteDetailRoute scrolling (#39)', () => {
       screen.getByText('Study')
     );
   });
+});
+
+describe('NoteDetailRoute error paths', () => {
+  beforeEach(() => {
+    resetStore();
+    mockDomApis();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('shows a friendly error when the note fetch fails ' +
+    '(private or missing)', async () => {
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/`,
+          () => new HttpResponse(null, { status: 404 })
+        )
+      );
+      renderRoute();
+
+      expect(
+        await screen.findByText(
+          'Note not found or is not public.'
+        )
+      ).toBeInTheDocument();
+    });
+
+  it('shows "No note ID provided" when the param is missing',
+    async () => {
+      render(
+        <MemoryRouter initialEntries={['/notes']}>
+          <Routes>
+            <Route path="/notes" element={<NoteDetailRoute />} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      expect(
+        await screen.findByText('No note ID provided')
+      ).toBeInTheDocument();
+    });
 });

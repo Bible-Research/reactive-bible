@@ -2,7 +2,11 @@ import type { ReactNode } from 'react';
 import { Anchor, Text } from '@mantine/core';
 import { isValidScriptureToken } from './scriptureMention';
 
-export const SCRIPTURE_TOKEN_REGEX = /(@[a-zA-Z0-9_+.:-]+)/g;
+// The `@` must not be preceded by a word char — otherwise the
+// `@` inside an email like `me@example.com` starts a token and
+// the address renders as a bogus red invalid-ref span.
+export const SCRIPTURE_TOKEN_REGEX =
+  /(?<!\w)(@[a-zA-Z0-9_+.:-]+)/g;
 export const VALID_REF_PREFIX =
   /^(@[a-zA-Z0-9+]+\.\d+[.:]\d+(?:-\d+)?)(.*)$/;
 
