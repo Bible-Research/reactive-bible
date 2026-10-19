@@ -1,4 +1,4 @@
-import { Translation } from "./store";
+import type { Translation } from "./store";
 import { loadKjvData } from './utils/kjvDataLoader';
 import bibleStructure from './assets/bibleStructure.json';
 import { toBookName, toUsfmCode } from "./utils/bibleUtils";

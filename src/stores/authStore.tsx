@@ -2,8 +2,24 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { showNotification } from '@mantine/notifications';
 import { API_BASE_URL } from '../config';
-import { useBibleStore } from '../store';
 import { clearNotesCache } from '../utils/cacheManager';
+
+// The bible store registers itself here from ../store's module
+// scope (registerBibleStore below). A static `../store` import
+// would evaluate the store while api.tsx's Vitest importOriginal
+// is mid-flight — api → apiClient → authStore → store → api —
+// binding the store to the real api module and silently breaking
+// vi.mock('../api') interception. Keep the dependency one-way.
+type BibleStoreRef = { setState: (partial: object) => void };
+let bibleStore: BibleStoreRef | null = null;
+export const registerBibleStore = (store: BibleStoreRef) => {
+  bibleStore = store;
+};
+const purgeBibleStore = (partial: object) => {
+  // May legitimately be unregistered — ../store absent from a
+  // bare-auth unit test's module graph — so no-op then.
+  bibleStore?.setState(partial);
+};
 
 interface User {
   /** Authoritative author identity (comments); absent for
@@ -266,11 +282,8 @@ const createAuthStore = () => create<AuthState>()(
         // Scrub user-owned data from the persisted bible store
         // so a previous session's private notes, tags and
         // reading positions can't resurface for an anonymous
-        // visitor on this device. (`useBibleStore` is a
-        // deferred-usage import — ../store also imports this
-        // module — and may be a bare mock in unit tests, so
-        // only touch it at call time.)
-        useBibleStore.setState?.({
+        // visitor on this device.
+        purgeBibleStore({
           notes: [],
           tags: [],
           notesCount: 0,
@@ -373,6 +386,29 @@ const createAuthStore = () => create<AuthState>()(
 );
 
 export const useAuthStore = createAuthStore();
+
+/**
+ * Purge private persisted data when the auth token is dropped or
+ * replaced — manual logout, the 401 session-expired logout inside
+ * authenticatedFetch, or a different account signing in. Cached
+ * note pages can hold private notes and tags/readingPositions are
+ * account-owned, so none may survive into the next session.
+ */
+useAuthStore.subscribe((auth, prevAuth) => {
+  if (!prevAuth.token || auth.token === prevAuth.token) return;
+  clearNotesCache();
+  purgeBibleStore({
+    notes: [],
+    tags: [],
+    readingPositions: {},
+    notesCount: 0,
+    allNotesFetched: false,
+    notesHasMore: false,
+    notesPage: 1,
+    notesOrdering: null,
+    lastSelectedTagId: null,
+  });
+});
 
 // Export the factory function for testing purposes
 export { createAuthStore as createTestAuthStore };

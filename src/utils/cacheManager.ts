@@ -4,7 +4,7 @@ import {
   FilesetCopyright,
   SectionHeading,
 } from '../types';
-import { Translation } from '../store';
+import type { Translation } from '../store';
 
 // Cache Manager for Bible Verses and Audio URLs
 // Verse cache: LRU with 500-verse limit (copyright compliance)

@@ -25,7 +25,10 @@ import {
   cacheNotes,
   clearNotesCache,
 } from './utils/cacheManager';
-import { useAuthStore } from './stores/authStore';
+import {
+  useAuthStore,
+  registerBibleStore,
+} from './stores/authStore';
 
 export interface Fileset {
   id: string;
@@ -980,28 +983,11 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
   )
 );
 
-/**
- * Purge private persisted data when the auth token is dropped or
- * replaced — manual logout, the 401 session-expired logout inside
- * authenticatedFetch, or a different account signing in. Cached
- * note pages can hold private notes and tags/readingPositions are
- * account-owned, so none may survive into the next session.
- */
-useAuthStore.subscribe((auth, prevAuth) => {
-  if (!prevAuth.token || auth.token === prevAuth.token) return;
-  clearNotesCache();
-  useBibleStore.setState({
-    notes: [],
-    tags: [],
-    readingPositions: {},
-    notesCount: 0,
-    allNotesFetched: false,
-    notesHasMore: false,
-    notesPage: 1,
-    notesOrdering: null,
-    lastSelectedTagId: null,
-  });
-});
+// Let authStore purge session-owned state (logout / token change)
+// without it importing this module — that edge would make the
+// store evaluate inside api.tsx's Vitest importOriginal window
+// and bind the real api, breaking vi.mock('../api').
+registerBibleStore(useBibleStore);
 
 /** Display name for the active book (e.g. "John"). */
 export const selectActiveBookName = (state: BibleState): string =>
