@@ -748,7 +748,7 @@ describe('useBibleStore', () => {
         rebalanced: false,
       });
       const movedNote = { ...makeNote('n1'), tag_position: 1.5 };
-      mockApi.getNotes.mockResolvedValue(pageOf([movedNote]));
+      mockApi.getNotes.mockResolvedValue(notePageOf([movedNote]));
       useBibleStore.setState({
         notes: [makeNote('n1'), makeNote('n2')],
         notesPage: 2,
@@ -814,7 +814,7 @@ describe('useBibleStore', () => {
       // assertion below rather than an unstubbed getNotes
       // rejection.
       mockCacheManager.getCachedNotes.mockReturnValue(null);
-      mockApi.getNotes.mockResolvedValue(pageOf([
+      mockApi.getNotes.mockResolvedValue(notePageOf([
         makeNote('n2'),
         makeNote('n1'),
       ]));

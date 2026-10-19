@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
-import type { Howl } from 'howler';
+import type { Howl, HowlOptions } from 'howler';
 
 // Captures the exact options object handed to the Howl
 // constructor — the factory's contract is the produced config.
 const seen = vi.hoisted(() => ({
-  opts: [] as Record<string, unknown>[],
+  opts: [] as HowlOptions[],
 }));
 
 vi.mock('howler', async () => {
   const { FakeHowl } = await import('../__tests__/mocks/FakeHowl');
   class SpyHowl extends FakeHowl {
-    constructor(opts: Record<string, unknown> = {}) {
+    constructor(opts: HowlOptions) {
       super(opts);
       seen.opts.push(opts);
     }
@@ -21,7 +21,7 @@ vi.mock('howler', async () => {
 
 import { createChapterHowl } from './chapterHowl';
 
-const lastOpts = (): Record<string, unknown> =>
+const lastOpts = (): HowlOptions =>
   seen.opts[seen.opts.length - 1];
 
 beforeEach(() => {

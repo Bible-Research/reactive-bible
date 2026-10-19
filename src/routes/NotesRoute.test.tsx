@@ -137,7 +137,7 @@ describe('NotesRoute', () => {
     });
   });
 
-  it('stays on the loading page when the user has no tags',
+  it('shows the empty state when the user has no tags',
     async () => {
       const { getTags } = renderRoute({ tags: [] });
 
@@ -149,8 +149,12 @@ describe('NotesRoute', () => {
       // not inside waitFor (a negative there passes at t=0).
       await act(async () => Promise.resolve());
       expect(mockNavigate).not.toHaveBeenCalled();
+      // A user with zero tags gets the empty state, not an
+      // endless spinner.
       expect(
-        screen.getByLabelText('Loading notes')
+        screen.getByText(
+          'No notes yet — create a note to get started.'
+        )
       ).toBeInTheDocument();
     });
 

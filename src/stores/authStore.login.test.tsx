@@ -181,11 +181,13 @@ describe('authStore - Login', () => {
       for (const rendered of renderedCalls(logSpy.mock.calls)) {
         expect(rendered).not.toContain(mockPassword);
       }
-      // The mask itself is applied, not just omitted.
+      // The pre-submit "Login attempt" log was removed
+      // outright — nothing carrying the request body may be
+      // logged at all.
       const attemptLog = logSpy.mock.calls
         .map((call) => JSON.stringify(call))
         .find((entry) => entry.includes('Login attempt'));
-      expect(attemptLog).toContain('"password":"***"');
+      expect(attemptLog).toBeUndefined();
 
       // The error path must not leak either — a backend that
       // echoes the request body would otherwise resurface the

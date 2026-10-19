@@ -14,7 +14,7 @@ import {
 import {
   isTiptapDocString,
   toPlainText,
-} from '../../utils/tiptapContent';
+} from '../utils/tiptapContent';
 import { showNotification } from '@mantine/notifications';
 
 vi.mock('@mantine/notifications', () => ({

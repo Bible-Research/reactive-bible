@@ -478,19 +478,12 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
         ).toHaveTextContent('sort=created_desc');
       });
       await waitFor(() => {
-        expect(mockFetchNotes).toHaveBeenCalledTimes(2);
+        expect(mockFetchNotes).toHaveBeenCalledTimes(1);
       });
-      // notesCount (60) > notesPageSize (25), so the handler
-      // makes its own server fetch (call 1); the URL change
-      // also re-runs the load effect on the new sort
-      // (call 2). Both restart at page 1.
-      expect(mockFetchNotes).toHaveBeenNthCalledWith(
-        1,
-        'tag-123',
-        { ordering: '-created', page: 1 }
-      );
-      expect(mockFetchNotes).toHaveBeenNthCalledWith(
-        2,
+      // The handler only rewrites the URL — the load effect
+      // re-runs on the new sort and issues the single server
+      // refetch, restarting at page 1.
+      expect(mockFetchNotes).toHaveBeenCalledWith(
         'tag-123',
         { ordering: '-created', page: 1 }
       );

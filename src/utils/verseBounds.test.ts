@@ -25,12 +25,12 @@ const timestamps = [
   ts(5, 20),
 ];
 
-// FakeHowl is born 'loading' and flips to 'loaded' (emitting
-// 'load') on a microtask — getPlayPosition only reports a
-// position once loaded.
-const loadedHowl = async (): Promise<FakeHowl> => {
+// FakeHowl is born 'loading'; `load()` flips it to 'loaded'
+// (emitting 'load') — getPlayPosition only reports a position
+// once loaded.
+const loadedHowl = (): FakeHowl => {
   const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
-  await Promise.resolve();
+  howl.load();
   return howl;
 };
 
@@ -117,10 +117,10 @@ describe('attachVerseBounds', () => {
       // restore it before the load microtask fires.
       const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
       const sounds = howl._sounds;
-      howl._sounds = undefined;
+      howl._sounds = [];
       const { onAdvance } = attach(howl);
       howl._sounds = sounds;
-      await Promise.resolve(); // 'load' fires here
+      howl.load(); // 'load' fires here
       howl.seek(24.9);
       node(howl).dispatchEvent(new Event('timeupdate'));
       expect(onAdvance).toHaveBeenCalledTimes(1);
@@ -131,11 +131,14 @@ describe('attachVerseBounds', () => {
     'load', async () => {
       const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
       const sounds = howl._sounds;
-      howl._sounds = undefined;
+      // _node:null keeps _sounds non-empty — an empty array
+      // would be repopulated by load() before 'play' can
+      // exercise the re-attach path.
+      howl._sounds = [{ _node: null }];
       const { onAdvance } = attach(howl);
       // 'load' fires while the node is still absent; 'play'
       // (e.g. a pooled-node swap) must re-attach.
-      await Promise.resolve();
+      howl.load();
       howl._sounds = sounds;
       howl.emit('play', 0);
       howl.seek(24.9);

@@ -440,6 +440,7 @@ describe('EditNoteModal Component', () => {
   });
 
   it('refetches the viewed tag page after submit', async () => {
+    const fetchNotes = vi.fn().mockResolvedValue(undefined);
     (api.editNote as Mock).mockResolvedValue({});
     renderWithProviders(
       <EditNoteModal
@@ -449,6 +450,7 @@ describe('EditNoteModal Component', () => {
       />,
       {
         storeOverrides: {
+          fetchNotes,
           notesPage: 2,
           notesOrdering: 'created_at',
         },
@@ -462,15 +464,14 @@ describe('EditNoteModal Component', () => {
     fireEvent.submit(form as HTMLFormElement);
 
     // The refetch targets the viewed tag's page and ordering —
-    // not the select's value at page 1 (the old bug).
+    // not the select's value at page 1 (the old bug). Assert on
+    // the store action itself: an earlier test's fetchNotes
+    // stub can otherwise linger via setState merges.
     await waitFor(() => {
-      expect(api.getNotes).toHaveBeenCalledWith(
-        '1',
-        expect.objectContaining({
-          ordering: 'created_at',
-          page: 2,
-        })
-      );
+      expect(fetchNotes).toHaveBeenCalledWith('1', {
+        ordering: 'created_at',
+        page: 2,
+      });
     });
   });
 });
