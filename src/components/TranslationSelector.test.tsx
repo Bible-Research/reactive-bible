@@ -16,6 +16,7 @@ import * as api from '../api';
 // Mock the API
 vi.mock('../api', () => ({
   getAvailableTranslations: vi.fn(),
+  searchLanguages: vi.fn(),
 }));
 
 const initialStoreState = useBibleStore.getState();
@@ -42,6 +43,15 @@ describe('TranslationSelector Component', () => {
         filesets: [
           { id: 'ENGKJV', type: 'text_plain', size: 'NT' },
         ],
+      },
+    ]);
+    (api.searchLanguages as Mock).mockResolvedValue([
+      {
+        iso: 'spa',
+        name: 'Spanish',
+        autonym: 'español',
+        bibles: 42,
+        filesets: 84,
       },
     ]);
   });
@@ -719,6 +729,169 @@ describe('TranslationSelector Component', () => {
         useBibleStore.getState().activeAudioFilesetId,
       ).toBeNull();
     });
+
+    describe('Other language tab', () => {
+      const spanish = {
+        abbr: 'SPNBDA',
+        name: 'Biblia de las Américas',
+        language: 'Spanish',
+        language_iso: 'spa',
+        filesets: [
+          textFs('SPNBDAN_ET', 'NT'),
+          audioFs('SPNBDAN1DA', 'NT'),
+        ],
+      };
+
+      const openOtherTab = async () => {
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Change Translation',
+          }),
+        );
+        await userEvent.click(
+          screen.getByRole('radio', { name: 'Other' }),
+        );
+      };
+
+      it('reveals a searchable language select', async () => {
+        useRealStore();
+        render(<TranslationSelector />);
+        await openOtherTab();
+
+        expect(
+          screen.getByPlaceholderText('Search languages…'),
+        ).toBeInTheDocument();
+        // No language picked yet — Version stays disabled.
+        expect(
+          screen.getByPlaceholderText('Pick a language first'),
+        ).toBeDisabled();
+      });
+
+      it('searches languages for a debounced ≥2-char query',
+        async () => {
+          useRealStore();
+          render(<TranslationSelector />);
+          await openOtherTab();
+
+          await userEvent.type(
+            screen.getByPlaceholderText('Search languages…'),
+            'spa',
+          );
+
+          const mock = api.searchLanguages as unknown as Mock;
+          await waitFor(() => {
+            expect(mock).toHaveBeenCalledWith('spa');
+          });
+        },
+      );
+
+      it('fetches translations for the picked language',
+        async () => {
+          useRealStore();
+          render(<TranslationSelector />);
+          await openOtherTab();
+
+          await userEvent.type(
+            screen.getByPlaceholderText('Search languages…'),
+            'spa',
+          );
+          await userEvent.click(
+            await screen.findByText('Spanish — español'),
+          );
+
+          const mock =
+            api.getAvailableTranslations as unknown as Mock;
+          await waitFor(() => {
+            expect(mock).toHaveBeenCalledWith('spa');
+          });
+          // The tab relabels once a language is chosen.
+          expect(
+            screen.getByRole('radio', {
+              name: 'Other: Spanish',
+            }),
+          ).toBeChecked();
+        },
+      );
+
+      it('shows an empty state when the language has no ' +
+        'versions', async () => {
+        useRealStore();
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(iso === 'spa' ? [] : engTranslations),
+        );
+        render(<TranslationSelector />);
+        await openOtherTab();
+
+        await userEvent.type(
+          screen.getByPlaceholderText('Search languages…'),
+          'spa',
+        );
+        await userEvent.click(
+          await screen.findByText('Spanish — español'),
+        );
+
+        expect(
+          await screen.findByText(
+            'No versions available for this language',
+          ),
+        ).toBeInTheDocument();
+      });
+
+      it('reopens on Other when the stored language is not ' +
+        'a fixed tab', async () => {
+        useRealStore({
+          translations: [spanish],
+          activeTextFilesetId: 'SPNBDAN_ET',
+          activeAudioFilesetId: null,
+        });
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(
+              iso === 'spa' ? [spanish] : engTranslations,
+            ),
+        );
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Change Translation',
+          }),
+        );
+
+        await waitFor(() => {
+          expect(
+            screen.getByRole('radio', {
+              name: 'Other: Spanish',
+            }),
+          ).toBeChecked();
+        });
+      });
+    });
+
+    it('wraps the language tabs in a horizontal scroll area',
+      async () => {
+        useRealStore();
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Change Translation',
+          }),
+        );
+
+        // The ScrollArea viewport lets the four tabs scroll
+        // horizontally on narrow screens (a no-op on desktop).
+        const viewport = await waitFor(() => {
+          const el = document.querySelector(
+            '.mantine-ScrollArea-viewport',
+          );
+          expect(el).not.toBeNull();
+          return el as Element;
+        });
+        expect(
+          viewport.querySelector('input[type="radio"]'),
+        ).not.toBeNull();
+      },
+    );
 
     it('stores null when audio is set to None', async () => {
       useRealStore({

@@ -6,7 +6,7 @@ import {
   useState,
   type ComponentPropsWithoutRef,
 } from 'react';
-import { useMediaQuery } from '@mantine/hooks';
+import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
 import {
   Accordion,
   Badge,
@@ -14,6 +14,7 @@ import {
   Group,
   Modal,
   Radio,
+  ScrollArea,
   SegmentedControl,
   Select,
   Stack,
@@ -24,7 +25,10 @@ import { notifications } from '@mantine/notifications';
 import { loadKjvData, isKjvDataLoaded } from '../utils/kjvDataLoader';
 import { useBibleStore, type Translation } from '../store';
 import { shallow } from 'zustand/shallow';
-import { getAvailableTranslations } from '../api';
+import {
+  getAvailableTranslations,
+  searchLanguages,
+} from '../api';
 import {
   findAudioOption,
   findTranslationByFilesetId,
@@ -54,6 +58,9 @@ const LANGUAGES = [
   { label: 'Latvian', value: 'lvs' },
   { label: 'Russian', value: 'rus' },
 ];
+
+/** Tab ids: the fixed languages plus the "Other" picker. */
+type LanguageTab = 'eng' | 'lvs' | 'rus' | 'other';
 
 type Capability = 'both' | 'text' | 'audio';
 
@@ -162,7 +169,29 @@ const TranslationSelector = () => {
   // Local state for selections within the modal
   const [selectedTranslationAbbr, setSelectedTranslationAbbr] =
     useState<string | null>(null);
-  const [languageIso, setLanguageIso] = useState('eng');
+  // Language tab plus the Other-tab pick: `otherIso` is the
+  // DBT iso the user chose in the language search Select and
+  // `otherLanguageName` its display name (tab relabel).
+  const [tab, setTab] = useState<LanguageTab>('eng');
+  const [otherIso, setOtherIso] = useState<string | null>(null);
+  const [otherLanguageName, setOtherLanguageName] =
+    useState<string | null>(null);
+  const [languageQuery, setLanguageQuery] = useState('');
+  const [languageOptions, setLanguageOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  // Iso of the last completed translations fetch — lets the
+  // empty state distinguish "fetch finished, genuinely empty"
+  // from "still loading" (DBT `bibles` counts are DBT-wide, not
+  // scoped to our API key, so a listed language can return no
+  // versions).
+  const [fetchedIso, setFetchedIso] =
+    useState<string | null>(null);
+  // Effective iso driving the fetch effect and the versionData
+  // filter: the picked language on Other, else the tab itself.
+  // `null` while Other has no language picked — no fetch then.
+  const languageIso: string | null =
+    tab === 'other' ? otherIso : tab;
   const [selectedTextId, setSelectedTextId] =
     useState<string | null>(null);
   const [selectedAudioId, setSelectedAudioId] =
@@ -177,6 +206,15 @@ const TranslationSelector = () => {
   // Tracks manual interaction so async language seeding never
   // stomps a pick the user just made.
   const userInteractedRef = useRef(false);
+
+  // Debounced Other-tab language search — DBT's `language_name`
+  // is a substring match, so ≥2 chars is enough to be useful.
+  const [debouncedLanguageQuery] =
+    useDebouncedValue(languageQuery, 300);
+  // Label of the picked language — Mantine refills the search
+  // input with it after a selection; the search effect skips
+  // that echo so it doesn't fire a redundant request.
+  const pickedLanguageLabelRef = useRef<string | null>(null);
 
   /**
    * Selects a version and derives the text/audio selections:
@@ -330,6 +368,10 @@ const TranslationSelector = () => {
   };
 
   useEffect(() => {
+    // No language picked on the Other tab yet — nothing to
+    // fetch until `otherIso` lands.
+    if (!languageIso) return;
+    const iso = languageIso;
     let cancelled = false;
 
     const fetchTranslations = async () => {
@@ -351,10 +393,10 @@ const TranslationSelector = () => {
 
       // Show cached list immediately for snappy UX (stale)…
       try {
-        const cached =
-          await getAvailableTranslations(languageIso);
+        const cached = await getAvailableTranslations(iso);
         if (!cancelled) {
           merge(cached);
+          setFetchedIso(iso);
         }
       } catch (error) {
         console.warn('Failed to load translations:', error);
@@ -364,11 +406,10 @@ const TranslationSelector = () => {
       // translations show up without requiring a cache bust.
       if (!opened) return;
       try {
-        const fresh = await getAvailableTranslations(
-          languageIso, true
-        );
+        const fresh = await getAvailableTranslations(iso, true);
         if (!cancelled) {
           merge(fresh);
+          setFetchedIso(iso);
         }
       } catch (error) {
         console.warn('Failed to refresh translations:', error);
@@ -407,15 +448,40 @@ const TranslationSelector = () => {
     // Seed the language tab from the active selection — without
     // it a foreign-language (e.g. Latvian) selection would show
     // the English tab and a no-op Save would wipe the stored
-    // ids. The store's `translations` only ever holds the
-    // current tab's list, so look the owner up across every tab,
+    // ids. The store's `translations` list is merged across all
+    // fetched languages, so the owner is usually already
+    // persisted — resolve its language with no extra request,
     // preferring the audio owner (that's the version the user
-    // picked when text is borrowed from another version).
+    // picked when text is borrowed from another version). The
+    // per-tab fetch loop stays as a fallback for the rare case
+    // the owner isn't persisted yet.
     const seedLanguageTab = async () => {
       const {
         activeAudioFilesetId: audioId,
         activeTextFilesetId: textId,
+        translations: persisted,
       } = useBibleStore.getState();
+      const persistedOwner =
+        findTranslationByFilesetId(audioId, persisted) ??
+        findTranslationByFilesetId(textId, persisted);
+      if (persistedOwner) {
+        const iso = persistedOwner.language_iso;
+        if (!cancelled && !userInteractedRef.current) {
+          if (LANGUAGES.some((l) => l.value === iso)) {
+            setTab(iso as LanguageTab);
+          } else {
+            // A language outside the fixed tabs — reopen on
+            // Other with the pick restored from the owner's
+            // `language`/`language_iso` fields.
+            setTab('other');
+            setOtherIso(iso);
+            setOtherLanguageName(persistedOwner.language);
+            pickedLanguageLabelRef.current =
+              persistedOwner.language;
+          }
+        }
+        return;
+      }
       const findOwnerIso = async (
         filesetId: string | null,
       ): Promise<string | null> => {
@@ -441,7 +507,7 @@ const TranslationSelector = () => {
       const iso =
         (await findOwnerIso(audioId)) ?? (await findOwnerIso(textId));
       if (!cancelled && !userInteractedRef.current && iso) {
-        setLanguageIso(iso);
+        setTab(iso as LanguageTab);
       }
     };
     void seedLanguageTab();
@@ -457,6 +523,31 @@ const TranslationSelector = () => {
     setSelectedAudioId(null);
     setTextNote(null);
   }, [languageIso]);
+
+  useEffect(() => {
+    if (tab !== 'other') return;
+    const query = debouncedLanguageQuery.trim();
+    if (
+      query.length < 2 ||
+      query === pickedLanguageLabelRef.current
+    ) {
+      if (query.length < 2) setLanguageOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void searchLanguages(query).then((results) => {
+      if (cancelled) return;
+      setLanguageOptions(
+        results.map((r) => ({
+          value: r.iso,
+          label: `${r.name} — ${r.autonym}`,
+        })),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedLanguageQuery, tab]);
 
   useEffect(() => {
     if (!opened) return;
@@ -543,6 +634,33 @@ const TranslationSelector = () => {
     [translations, languageIso],
   );
 
+  // Language Select options: the latest search results, with
+  // the picked iso pinned in so its label always renders even
+  // after the result list is replaced by a new search.
+  const languageSelectData = useMemo(() => {
+    if (!otherIso) return languageOptions;
+    const picked = languageOptions.find(
+      (o) => o.value === otherIso,
+    ) ?? {
+      value: otherIso,
+      label: otherLanguageName ?? otherIso,
+    };
+    return [
+      picked,
+      ...languageOptions.filter((o) => o.value !== otherIso),
+    ];
+  }, [languageOptions, otherIso, otherLanguageName]);
+
+  const languageTabs = [
+    ...LANGUAGES,
+    {
+      label: otherLanguageName
+        ? `Other: ${otherLanguageName}`
+        : 'Other',
+      value: 'other',
+    },
+  ];
+
   // Raw fileset radios (Advanced/debug). opus16 variants are
   // hidden: opus16 is the default codec and mp3 the automatic
   // fallback, so codec selection is never exposed.
@@ -576,18 +694,60 @@ const TranslationSelector = () => {
         fullScreen={isMobile}
       >
         <Stack>
-          <SegmentedControl
-            data={LANGUAGES}
-            value={languageIso}
-            onChange={(iso) => {
-              userInteractedRef.current = true;
-              setLanguageIso(iso);
-            }}
-            fullWidth
-          />
+          {/* ScrollArea: four tabs overflow on narrow (mobile)
+              screens — min-width on the root lets the bar scroll
+              horizontally; a no-op on desktop where it fits. */}
+          <ScrollArea>
+            <SegmentedControl
+              data={languageTabs}
+              value={tab}
+              onChange={(value) => {
+                userInteractedRef.current = true;
+                setTab(value as LanguageTab);
+              }}
+              styles={{
+                root: { minWidth: 'max-content', width: '100%' },
+                label: { whiteSpace: 'nowrap' },
+              }}
+              fullWidth
+            />
+          </ScrollArea>
+          {tab === 'other' && (
+            <Select
+              label="Language"
+              placeholder="Search languages…"
+              data={languageSelectData}
+              value={otherIso}
+              onChange={(iso) => {
+                userInteractedRef.current = true;
+                const picked = languageSelectData.find(
+                  (o) => o.value === iso,
+                );
+                pickedLanguageLabelRef.current =
+                  picked?.label ?? null;
+                setOtherIso(iso);
+                setOtherLanguageName(
+                  picked?.label.split(' — ')[0] ?? null,
+                );
+              }}
+              searchValue={languageQuery}
+              onSearchChange={setLanguageQuery}
+              nothingFound={
+                languageQuery.trim().length < 2
+                  ? 'Type at least 2 characters'
+                  : 'No languages found'
+              }
+              searchable
+              dropdownPosition="bottom"
+            />
+          )}
           <Select
             label="Version"
-            placeholder="Choose a version"
+            placeholder={
+              languageIso
+                ? 'Choose a version'
+                : 'Pick a language first'
+            }
             data={versionData}
             itemComponent={VersionItem}
             value={selectedTranslationAbbr}
@@ -595,9 +755,17 @@ const TranslationSelector = () => {
               userInteractedRef.current = true;
               applyVersionSelection(abbr);
             }}
+            disabled={!languageIso}
             searchable
             dropdownPosition="bottom"
           />
+          {languageIso !== null &&
+            fetchedIso === languageIso &&
+            versionData.length === 0 && (
+              <Text size="sm" color="dimmed">
+                No versions available for this language
+              </Text>
+            )}
 
           {selectedTranslation && (
             <>

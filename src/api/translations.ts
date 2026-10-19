@@ -8,6 +8,9 @@ import {
   cacheTranslations,
   getCachedCopyright,
   cacheCopyright,
+  getCachedLanguageSearch,
+  cacheLanguageSearch,
+  type CachedLanguage,
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
@@ -175,6 +178,46 @@ export const getCopyrightInfo = async (
     console.warn(
       'Failed to fetch copyright info:', error
     );
+    return [];
+  }
+};
+
+/** One content-bearing language row from `/bible/languages/`. */
+export type LanguageResult = CachedLanguage;
+
+/**
+ * Searches the DBT language catalog via the backend proxy:
+ * `GET /api/v1/bible/languages/?search=<q>&page=<n>` returns
+ * `{results: [{iso, name, autonym, bibles, filesets}], meta}`.
+ * Results are cached per `search:page` in localStorage — the
+ * catalog is nearly static and the language picker re-queries
+ * on every debounced keystroke.
+ */
+export const searchLanguages = async (
+  search: string,
+  page = 1
+): Promise<LanguageResult[]> => {
+  const cacheKey = `${search.toLowerCase()}:${page}`;
+  const cached = getCachedLanguageSearch(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      search,
+      page: String(page),
+    });
+    const url =
+      `${API_BASE_URL}/api/v1/` +
+      `bible/languages/?${params.toString()}`;
+    const response = await publicFetch(url);
+    const data = await response.json();
+    const results: LanguageResult[] = data.results ?? [];
+    cacheLanguageSearch(cacheKey, results);
+    return results;
+  } catch (error) {
+    console.error('Failed to search languages:', error);
     return [];
   }
 };
