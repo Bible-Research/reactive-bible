@@ -97,32 +97,23 @@ describe('Verse Cache Manager', () => {
     expect(newestCached).toEqual([{ verse: 1, text: 'Verse 501' }]);
   });
 
-  it('should update access count and timestamp on cache hit', () => {
-    const verses = [{ verse: 1, text: 'Test verse' }];
-    cacheVerses('GEN', 1, 'KJV', verses);
+  it('moves the chapter to the LRU tail on cache hit', () => {
+    // Per-verse accessCount/timestamp bookkeeping was dropped —
+    // a read now only reorders the metadata LRU queue (a tiny
+    // write instead of rewriting the whole verse blob).
+    cacheVerses('GEN', 1, 'KJV', [{ verse: 1, text: 'a' }]);
+    cacheVerses('EXO', 2, 'KJV', [{ verse: 1, text: 'b' }]);
+    expect(
+      getVerseCacheMetadata().lruQueue
+    ).toEqual(['KJV:GEN:1', 'KJV:EXO:2']);
 
-    const storedVerse = () =>
-      JSON.parse(
-        localStorageMock.getItem('bible_verse_cache') ?? '{}'
-      )['KJV:GEN:1:1'];
-
-    expect(storedVerse().accessCount).toBe(1);
-    const firstTimestamp = storedVerse().timestamp;
-
-    // Initial access bumps accessCount
-    getCachedVerses('GEN', 1, 'KJV');
-    expect(storedVerse().accessCount).toBe(2);
-    expect(storedVerse().timestamp).toBe(firstTimestamp);
-
-    // Second access records a fresh timestamp too
-    vi.advanceTimersByTime(1000);
     getCachedVerses('GEN', 1, 'KJV');
     const metadata = getVerseCacheMetadata();
-    expect(
-      metadata.lruQueue[metadata.lruQueue.length - 1]
-    ).toBe('KJV:GEN:1');
-    expect(storedVerse().accessCount).toBe(3);
-    expect(storedVerse().timestamp).toBe(firstTimestamp + 1000);
+    expect(metadata.lruQueue).toEqual([
+      'KJV:EXO:2',
+      'KJV:GEN:1',
+    ]);
+    expect(metadata.totalVerses).toBe(2);
   });
 
   it('should clear the verse cache', () => {
@@ -133,15 +124,14 @@ describe('Verse Cache Manager', () => {
     expect(cached).toBeNull();
   });
 
-  it('counts duplicate verse inputs toward totalVerses', () => {
-    // FIXME: `cache[verseKey]` dedupes the stored verse but
-    // `metadata.totalVerses += verses.length` counts both
-    // inputs — a duplicate-inflated count erodes the 500 cap.
+  it('counts unique verse numbers toward totalVerses', () => {
+    // A repeated verse number overwrites the same key — it
+    // must not double-count against the 500-verse LRU cap.
     cacheVerses('GEN', 1, 'KJV', [
       { verse: 1, text: 'a' },
       { verse: 1, text: 'b' },
     ]);
-    expect(getVerseCacheMetadata().totalVerses).toBe(2);
+    expect(getVerseCacheMetadata().totalVerses).toBe(1);
     expect(getCachedVerses('GEN', 1, 'KJV')).toEqual([
       { verse: 1, text: 'b' },
     ]);
@@ -291,8 +281,9 @@ describe('Notes Cache Manager', () => {
     const cacheStr =
       localStorageMock.getItem('bible_notes_cache_v2');
     expect(cacheStr).toBeTruthy();
+    if (!cacheStr) return; // unreachable — narrows the type
 
-    const cache = JSON.parse(cacheStr!);
+    const cache = JSON.parse(cacheStr);
     const key =
       'TAG1:anon:fs:default:ps:default:page1:default';
     expect(cache[key].timestamp).toBeGreaterThanOrEqual(

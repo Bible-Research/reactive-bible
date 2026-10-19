@@ -185,3 +185,10 @@ export function renderWithProviders(
   };
 }
 
+/**
+ * Flushes pending microtasks — use inside act() to let a chain
+ * of awaited promises settle before asserting.
+ */
+export async function flushPromises() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}

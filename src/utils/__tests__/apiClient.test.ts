@@ -144,16 +144,24 @@ describe('apiClient', () => {
     it('should not repeat the expired-session toast when ' +
       'another handler already logged out', async () => {
         // e.g. a stale-token 401 landing after checkAuth's
-        // validation ping already expired the session.
+        // validation ping already expired the session. The
+        // request IS issued with the token — the logout has to
+        // happen while it is in flight, otherwise the 401 is
+        // just anonymous.
         useAuthStore.setState({
-          token: null,
-          isAuthenticated: false,
+          token: mockToken,
+          isAuthenticated: true,
         });
 
-        global.fetch = vi.fn().mockResolvedValueOnce({
-          ok: false,
-          status: 401,
-        });
+        global.fetch = vi.fn().mockImplementationOnce(
+          async () => {
+            useAuthStore.setState({
+              token: null,
+              isAuthenticated: false,
+            });
+            return { ok: false, status: 401 };
+          }
+        );
 
         await expect(authenticatedFetch(mockUrl))
           .rejects.toThrow('Session expired');

@@ -18,45 +18,9 @@ const localStorageMock = (() => {
     },
     key: (index: number) => Object.keys(store)[index] ?? null,
   };
-  return new Proxy(target, {
-    get: (t, prop) => {
-      if (prop in t) return Reflect.get(t, prop);
-      if (typeof prop === 'string' && has(prop)) {
-        return store[prop];
-      }
-      return undefined;
-    },
-    set: (t, prop, value) => {
-      if (typeof prop === 'string' && !(prop in t)) {
-        store[prop] = String(value);
-        return true;
-      }
-      return Reflect.set(t, prop, value);
-    },
-    has: (t, prop) => prop in t || has(prop),
-    deleteProperty: (t, prop) => {
-      if (has(prop)) {
-        delete store[prop as string];
-        return true;
-      }
-      return Reflect.deleteProperty(t, prop);
-    },
-    ownKeys: () => Reflect.ownKeys(store),
-    getOwnPropertyDescriptor: (t, prop) => {
-      if (has(prop)) {
-        return {
-          value: store[prop as string],
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        };
-      }
-      return Reflect.getOwnPropertyDescriptor(t, prop);
-    },
-  }) as Storage;
-};
+})();
 
-vi.stubGlobal('localStorage', createLocalStorageMock());
+vi.stubGlobal('localStorage', localStorageMock);
 
 // Mock Vercel Analytics and Speed Insights to prevent
 // external script loading errors in test environment

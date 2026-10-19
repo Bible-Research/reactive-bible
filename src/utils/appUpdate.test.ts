@@ -151,23 +151,34 @@ describe('fetchUpdateManifest', () => {
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
-  it('currently accepts a non-https apkUrl', async () => {
-    // FIXME: isUpdateManifest only checks
-    // `typeof apkUrl === 'string'` — an `http://` (or worse)
-    // URL validates. The manifest should require https so the
-    // sideloaded APK can't come from a plaintext/mitm-able URL.
+  it('rejects a non-https apkUrl', async () => {
+    // The sideloaded APK must come from a TLS URL — a
+    // plaintext http:// link is trivially mitm-able.
     mockFetchOk(manifest({ apkUrl: 'http://x/y.apk' }));
-    const result = await fetchUpdateManifest();
-    expect(result?.apkUrl).toBe('http://x/y.apk');
+    expect(await fetchUpdateManifest()).toBeNull();
   });
 
-  it('currently accepts a manifest without versionName', async () => {
-    // FIXME: `versionName` is required by the UpdateManifest
-    // interface but isUpdateManifest never checks it — a
-    // manifest missing it passes validation.
-    mockFetchOk({ versionCode: 42, apkUrl: 'https://x/y.apk' });
-    expect(await fetchUpdateManifest()).not.toBeNull();
+  it('rejects an apkUrl from a non-GitHub host', async () => {
+    mockFetchOk(
+      manifest({ apkUrl: 'https://evil.example.com/a.apk' })
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
   });
+
+  it('accepts github.com and *.githubusercontent.com apkUrls',
+    async () => {
+      mockFetchOk(
+        manifest({ apkUrl: 'https://github.com/o/r/a.apk' })
+      );
+      expect(await fetchUpdateManifest()).not.toBeNull();
+      mockFetchOk(
+        manifest({
+          apkUrl:
+            'https://objects.githubusercontent.com/a.apk',
+        })
+      );
+      expect(await fetchUpdateManifest()).not.toBeNull();
+    });
 
   it('currently accepts a non-integer versionCode', async () => {
     // FIXME: isUpdateManifest checks `typeof versionCode ===

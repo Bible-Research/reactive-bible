@@ -148,10 +148,15 @@ describe('PassageView audio prefetch effect', () => {
         },
       });
 
-      await waitFor(() =>
-        expect(
-          screen.getByTitle('passage-verse-3-16'),
-        ).toBeInTheDocument(),
+      await waitFor(
+        () =>
+          expect(
+            screen.getByTitle('passage-verse-3-16'),
+          ).toBeInTheDocument(),
+        // First ENGKJV load in this file lazily imports the
+        // bundled kjv.json — that can edge past the default
+        // 1s waitFor window on a cold module cache.
+        { timeout: 4000 },
       );
       const callsAfterLoad = fetchSpy.mock.calls.length;
 

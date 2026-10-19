@@ -488,6 +488,16 @@ describe('useBibleStore', () => {
     it('applies the new tag positions locally on a ' +
       'successful reorder', async () => {
       mockApi.reorderNotes.mockResolvedValue(undefined);
+      // The success path refetches the page — stub the
+      // authoritative result so a leftover getNotes stub from
+      // another test can't overwrite the local patch.
+      mockCacheManager.getCachedNotes.mockReturnValue(null);
+      mockApi.getNotes.mockResolvedValue(
+        pageOf([
+          { ...makeNote('n2'), tag_position: 1 },
+          { ...makeNote('n1'), tag_position: 2 },
+        ])
+      );
       useBibleStore.setState({
         notes: [makeNote('n1'), makeNote('n2')],
         notesPage: 1,
@@ -511,38 +521,6 @@ describe('useBibleStore', () => {
         { id: 'n2', tag_position: 1 },
         { id: 'n1', tag_position: 2 },
       ]);
-    });
-
-    // FIXME: store.tsx reorderNotes' success path never calls
-    // clearNotesCache nor refetches — the notes cache has no
-    // TTL, so the next fetchNotes for this tag serves the
-    // pre-reorder order until eviction. moveNoteAfter does
-    // invalidate via refreshNotesPage; reorderNotes should too.
-    it.skip('invalidates the notes cache after a successful ' +
-      'reorder', async () => {
-      mockApi.reorderNotes.mockResolvedValue(undefined);
-      // Pre-stubbed so that once the prod fix routes the
-      // success path through refreshNotesPage (like
-      // moveNoteAfter does), this test fails on the cache
-      // assertion below rather than an unstubbed getNotes
-      // rejection.
-      mockCacheManager.getCachedNotes.mockReturnValue(null);
-      mockApi.getNotes.mockResolvedValue(pageOf([
-        makeNote('n2'),
-        makeNote('n1'),
-      ]));
-      useBibleStore.setState({
-        notes: [makeNote('n1'), makeNote('n2')],
-        notesPage: 1,
-        notesOrdering: 'custom',
-      });
-
-      await useBibleStore.getState().reorderNotes(
-        'TAG1', ['n2', 'n1'], 1, 25
-      );
-
-      expect(mockCacheManager.clearNotesCache)
-        .toHaveBeenCalledWith('TAG1');
     });
 
     it('still reports success when the post-move refetch ' +

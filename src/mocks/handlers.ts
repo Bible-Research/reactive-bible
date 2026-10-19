@@ -57,6 +57,8 @@ interface NoteWriteBody {
 
 export const handlers = [
   // --- Auth ---
+  // NOTE: the token endpoint is NOT under /api/v1 —
+  // authStore.tsx posts to `${API_BASE_URL}/api/token/`.
   http.post(`${API_BASE_URL}/api/token/`, async ({ request }) => {
     const body = (await request.json()) as {
       username?: string;
@@ -72,7 +74,19 @@ export const handlers = [
         { status: 400 }
       );
     }
-    return HttpResponse.json({ token: 'mock-token' });
+    return HttpResponse.json({
+      token: 'test-token',
+      user: { id: 1, username: body.username ?? 'testuser' },
+    });
+  }),
+  http.post(`${API_BASE_URL}/api/token`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+    };
+    return HttpResponse.json({
+      token: 'test-token',
+      user: { id: 1, username: body.username ?? 'testuser' },
+    });
   }),
 
   http.post(`${API_URL}/users/register/`, async ({ request }) => {
@@ -81,7 +95,19 @@ export const handlers = [
     };
     return HttpResponse.json(
       {
-        token: 'mock-token',
+        token: 'test-token',
+        user: { id: 1, username: body.username ?? 'newuser' },
+      },
+      { status: 201 }
+    );
+  }),
+  http.post(`${API_URL}/users/register`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+    };
+    return HttpResponse.json(
+      {
+        token: 'test-token',
         user: { id: 1, username: body.username ?? 'newuser' },
       },
       { status: 201 }
@@ -436,44 +462,6 @@ export const handlers = [
     return HttpResponse.json({});
   }),
 
-  // --- Auth ---
-  // NOTE: the token endpoint is NOT under /api/v1 — authStore.tsx
-  // posts to `${API_BASE_URL}/api/token/`.
-  http.post(`${API_BASE_URL}/api/token/`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json({
-      token: 'test-token',
-      user: { username: body.username ?? 'testuser' },
-    });
-  }),
-  http.post(`${API_BASE_URL}/api/token`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json({
-      token: 'test-token',
-      user: { username: body.username ?? 'testuser' },
-    });
-  }),
-
-  http.post(`${API_URL}/users/register/`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json(
-      {
-        token: 'test-token',
-        user: { username: body.username ?? 'testuser' },
-      },
-      { status: 201 }
-    );
-  }),
-  http.post(`${API_URL}/users/register`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json(
-      {
-        token: 'test-token',
-        user: { username: body.username ?? 'testuser' },
-      },
-      { status: 201 }
-    );
-  }),
 
   // --- Comments ---
   http.get(`${COMMENT_BASE}/notes/:noteId/comments/`, ({ params }) => {

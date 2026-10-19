@@ -8,7 +8,6 @@ import {
   initialState,
   type Translation,
 } from '../store';
-import { getBibleAudioUrl } from '../api';
 import {
   useAuthStore,
   initialState as authInitialState,
@@ -218,8 +217,13 @@ describe('Audio chapter auto-advance', () => {
       act(() => {
         preloaded.emit('loaderror', 0, new Error('decode'));
       });
+      // >= 3, not === 3: once the replacement plays, its
+      // onplay handler preloads JHN 5 and a fourth Howl can
+      // land before this assertion samples the count.
       await waitFor(() =>
-        expect(FakeHowl.instances.length).toBe(3),
+        expect(
+          FakeHowl.instances.length,
+        ).toBeGreaterThanOrEqual(3),
       );
       const replacement = FakeHowl.instances[2];
 

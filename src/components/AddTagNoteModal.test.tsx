@@ -406,7 +406,7 @@ describe('AddTagNoteModal Component', () => {
       });
       const patchArgs = (api.editNote as Mock).mock.calls[0];
       expect(patchArgs[0]).toBe('n1');
-      expect(patchArgs[1]).toBe('');
+      expect(patchArgs[1]).toBe('1');
       // The editor emits doc-JSON, not the raw typed text.
       expect(isTiptapDocString(patchArgs[2])).toBe(true);
       expect(toPlainText(patchArgs[2])).toBe('Draft');
@@ -421,6 +421,7 @@ describe('AddTagNoteModal Component', () => {
       <AddTagNoteModal
         opened={open}
         onClose={() => setOpen(false)}
+        draftRef={draftRef()}
       />
     );
   };
@@ -439,12 +440,18 @@ describe('AddTagNoteModal Component', () => {
     (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
     const onClose = vi.fn();
     renderWithProviders(
-      <AddTagNoteModal opened={true} onClose={onClose} />,
+      <AddTagNoteModal
+        opened={true}
+        onClose={onClose}
+        draftRef={draftRef()}
+      />,
       {
         storeOverrides: {
           verseSelection: genesisSelection,
           activeBookId: 'GEN',
           activeChapter: 1,
+          // Submit without a tag is rejected — pick one.
+          lastSelectedTagId: '1',
         },
       }
     );
@@ -456,7 +463,7 @@ describe('AddTagNoteModal Component', () => {
     });
     const [tagId, text, refs] =
       (api.addTagNote as Mock).mock.calls[0];
-    expect(tagId).toBe('');
+    expect(tagId).toBe('1');
     expect(isTiptapDocString(text)).toBe(true);
     expect(toPlainText(text)).toBe('A test note');
     expect(refs).toEqual([
@@ -554,6 +561,7 @@ describe('AddTagNoteModal Component', () => {
         verseSelection: genesisSelection,
         activeBookId: 'GEN',
         activeChapter: 1,
+        lastSelectedTagId: '1',
       },
     });
 

@@ -91,7 +91,9 @@ describe('Pagination component', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '4' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Page 4' })
+    );
     expect(onPageChange).toHaveBeenCalledWith(4);
   });
 
@@ -134,7 +136,7 @@ describe('Pagination component', () => {
 
     expect(screen.getAllByText('...')).toHaveLength(2);
     expect(
-      screen.getByRole('button', { name: '10' })
+      screen.getByRole('button', { name: 'Page 10' })
     ).toBeInTheDocument();
   });
 });

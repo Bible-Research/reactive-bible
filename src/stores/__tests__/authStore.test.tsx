@@ -86,14 +86,14 @@ describe('authStore', () => {
       const logSpy = vi
         .spyOn(console, 'log')
         .mockImplementation(() => undefined);
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({
           token: mockToken,
           user: { username: 'canonical' },
         }),
-      });
+      } as Response);
 
       const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
@@ -112,14 +112,14 @@ describe('authStore', () => {
       vi.spyOn(console, 'log').mockImplementation(
         () => undefined
       );
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({
           token: mockToken,
           user: { username: 'Canonical_Name' },
         }),
-      });
+      } as Response);
 
       const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
@@ -138,11 +138,11 @@ describe('authStore', () => {
       vi.spyOn(console, 'log').mockImplementation(
         () => undefined
       );
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({ token: mockToken }),
-      });
+      } as Response);
 
       const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());
@@ -161,14 +161,14 @@ describe('authStore', () => {
       vi.spyOn(console, 'log').mockImplementation(
         () => undefined
       );
-      global.fetch = vi.fn().mockResolvedValueOnce({
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
         ok: true,
         status: 201,
         json: async () => ({
           token: mockToken,
           user: { id: 7, username: 'newbie' },
         }),
-      });
+      } as Response);
 
       const useTestAuthStore = createTestAuthStore();
       const { result } = renderHook(() => useTestAuthStore());

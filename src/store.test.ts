@@ -293,6 +293,8 @@ describe('Zustand Store (useBibleStore)', () => {
     expect(migrated.readingPositions).toEqual(
       persisted.readingPositions
     );
+  });
+
   it('migratePersistedState drops a note-scoped selection ' +
     'persisted by a pre-v6 store', () => {
     const migrated = migratePersistedState(

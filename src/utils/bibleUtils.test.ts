@@ -515,8 +515,10 @@ describe('Bible Utils', () => {
       expect(decodeVerses('18-16')).toEqual([]);
     });
 
-    it('keeps duplicates produced by repeated terms', () => {
-      expect(decodeVerses('16,16')).toEqual([16, 16]);
+    it('dedupes duplicates produced by repeated terms', () => {
+      // '16,16' used to emit [16, 16] — a repeated verse is a
+      // malformed ref, not two verses.
+      expect(decodeVerses('16,16')).toEqual([16]);
     });
   });
 

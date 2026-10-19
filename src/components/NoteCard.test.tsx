@@ -130,7 +130,9 @@ describe('NoteCard Component', () => {
         onViewInBible={mockOnViewInBible}
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
-      />
+        isTagOwner
+      />,
+      { stores: { auth: { isAuthenticated: true } } }
     );
 
     fireEvent.click(
@@ -170,7 +172,9 @@ describe('NoteCard Component', () => {
           onViewInBible={mockOnViewInBible}
           onEdit={mockOnEdit}
           onDelete={mockOnDelete}
-        />
+          isTagOwner
+        />,
+        { stores: { auth: { isAuthenticated: true } } }
       );
 
       fireEvent.click(

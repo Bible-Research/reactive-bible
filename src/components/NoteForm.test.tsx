@@ -284,7 +284,7 @@ describe('NoteForm Component', () => {
           await vi.advanceTimersByTimeAsync(5000);
         });
         expect(onAutoSave).toHaveBeenCalledTimes(1);
-        expect(onAutoSave.mock.calls[0][0]).toBe('');
+        expect(onAutoSave.mock.calls[0][0]).toBe('1');
         expectDocText(onAutoSave.mock.calls[0][1], 'Draft text');
 
         // Unchanged content is not re-saved.
@@ -347,6 +347,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}
@@ -378,6 +379,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}
@@ -432,6 +434,7 @@ describe('NoteForm Component', () => {
         render(
           <NoteForm
             tags={mockTags}
+            note={{ tagId: '1', text: '' }}
             onSubmit={mockOnSubmit}
             submitText="Submit"
             onTagDropdownOpen={mockOnTagDropdownOpen}

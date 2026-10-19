@@ -8,7 +8,6 @@ import {
   afterEach,
 } from 'vitest';
 import {
-  act,
   fireEvent,
   render,
   screen,

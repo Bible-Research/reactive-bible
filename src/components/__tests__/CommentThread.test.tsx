@@ -25,6 +25,16 @@ vi.mock('../RichTextEditor', async () => ({
     await import('../../__tests__/mocks/RichTextEditorStub')
   ).default,
 }));
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../../utils/tiptapContent';
+import { showNotification } from '@mantine/notifications';
+
+vi.mock('@mantine/notifications', () => ({
+  showNotification: vi.fn(),
+}));
+
 import { http, HttpResponse } from 'msw';
 import CommentThread from '../CommentThread';
 import { renderWithProviders } from '../../__tests__/helpers';
@@ -174,6 +184,30 @@ describe('CommentThread', () => {
   });
 
   it('updates comment content after successful edit', async () => {
+    let patchContent: string | undefined;
+    server.use(
+      http.patch(
+        `${API_URL}/notes/${NOTE_ID}/comments/:commentId/`,
+        async ({ params, request }) => {
+          const body = (await request.json()) as {
+            content?: string;
+          };
+          patchContent = body.content;
+          return HttpResponse.json({
+            id: params.commentId,
+            author: { id: 1, username: 'testuser' },
+            note_id: NOTE_ID,
+            parent_comment: null,
+            content: body.content,
+            timestamp: new Date().toISOString(),
+            is_deleted: false,
+            replies: [],
+            images: [],
+          });
+        }
+      )
+    );
+
     renderWithProviders(
       <CommentThread noteId={NOTE_ID} />,
       {
@@ -209,9 +243,42 @@ describe('CommentThread', () => {
         screen.getByText('Updated content')
       ).toBeInTheDocument();
     });
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(patchContent).toBeDefined();
+    expect(isTiptapDocString(patchContent as string)).toBe(true);
+    expect(toPlainText(patchContent as string)).toBe(
+      'Updated content'
+    );
   });
 
   it('calls onCountChange with +1 after successful create', async () => {
+    let postContent: string | undefined;
+    server.use(
+      http.post(
+        `${API_URL}/notes/${NOTE_ID}/comments/`,
+        async ({ params, request }) => {
+          const body = (await request.json()) as {
+            content?: string;
+          };
+          postContent = body.content;
+          return HttpResponse.json(
+            {
+              id: 'comment-new',
+              author: { id: 1, username: 'testuser' },
+              note_id: params.noteId,
+              parent_comment: null,
+              content: body.content,
+              timestamp: new Date().toISOString(),
+              is_deleted: false,
+              replies: [],
+              images: [],
+            },
+            { status: 201 }
+          );
+        }
+      )
+    );
+
     const onCountChange = vi.fn();
     renderWithProviders(
       <CommentThread
@@ -244,6 +311,12 @@ describe('CommentThread', () => {
     await waitFor(() => {
       expect(onCountChange).toHaveBeenCalledWith(1);
     });
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(postContent).toBeDefined();
+    expect(isTiptapDocString(postContent as string)).toBe(true);
+    expect(toPlainText(postContent as string)).toBe(
+      'My new comment'
+    );
   });
 
   it('removes image from comment after delete-image', async () => {
