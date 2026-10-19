@@ -186,6 +186,14 @@ export const getCopyrightInfo = async (
 export type LanguageResult = CachedLanguage;
 
 /**
+ * A `/bible/languages/` row as the backend emits it — every
+ * field is filled via `item.get(...)` and can be null.
+ */
+type RawLanguage = {
+  [K in keyof CachedLanguage]: CachedLanguage[K] | null;
+};
+
+/**
  * Searches the DBT language catalog via the backend proxy:
  * `GET /api/v1/bible/languages/?search=<q>&page=<n>[&limit=<m>]`
  * returns
@@ -234,7 +242,14 @@ export const searchLanguages = async (
       );
       return [];
     }
-    const results: LanguageResult[] = data.results ?? [];
+    const rows = (data.results ?? []) as RawLanguage[];
+    // Rows missing an `iso` or `name` are unusable to every
+    // caller — drop them here so `LanguageResult` stays
+    // honest instead of typing those fields `| null`.
+    const results: LanguageResult[] = rows.filter(
+      (row): row is LanguageResult =>
+        row.iso !== null && row.name !== null,
+    );
     // Skip caching empty pages too — a provider hiccup
     // returning zero rows would stick just like an error.
     if (results.length > 0) {

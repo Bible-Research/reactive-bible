@@ -794,6 +794,51 @@ describe('TranslationSelector Component', () => {
         ).not.toBeInTheDocument();
       });
 
+      it('does not mirror a stored selection from another ' +
+        'language onto the picked Other tab', async () => {
+        // Stored eng ESV selection; picking Spanish merges
+        // the spa list into the store without evicting the
+        // eng rows — the mirror must not resolve ESV under
+        // the Spanish tab.
+        useRealStore({
+          translations: [esv],
+          activeTextFilesetId: 'ENGESV_API',
+          activeAudioFilesetId: 'ENGESV_API',
+        });
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(
+              iso === 'spa' ? [spanish] : engTranslations,
+            ),
+        );
+        render(<TranslationSelector />);
+        await openOtherTab();
+
+        await userEvent.type(
+          screen.getByPlaceholderText('Search languages…'),
+          'spa',
+        );
+        await userEvent.click(
+          await screen.findByText('Spanish — español'),
+        );
+
+        // Wait for the merged spa fetch to land in the store.
+        await waitFor(() => {
+          expect(
+            useBibleStore.getState().translations,
+          ).toContainEqual(spanish);
+        });
+        expect(
+          screen.getByRole('button', { name: 'Save' }),
+        ).toBeDisabled();
+        expect(
+          screen.getByPlaceholderText('Choose a version'),
+        ).toHaveValue('');
+        expect(
+          screen.queryByText(/Auto-resolved per testament/),
+        ).not.toBeInTheDocument();
+      });
+
       it('filters out language rows with null fields',
         async () => {
           useRealStore();
