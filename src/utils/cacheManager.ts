@@ -459,6 +459,60 @@ export const cacheTranslations = (
 };
 
 // ============================================
+// LANGUAGE SEARCH CACHE
+// ============================================
+
+/** One row of the `/bible/languages/` search response. */
+export interface CachedLanguage {
+  iso: string;
+  name: string;
+  autonym: string;
+  bibles: number;
+  filesets: number;
+}
+
+type LanguageSearchCache = {
+  [key: string]: CachedLanguage[];
+};
+
+const LANGUAGE_CACHE_KEY = 'bible_language_cache';
+
+/**
+ * Cached DBT language search results, keyed by `search:page`.
+ * The language catalog is nearly static, so repeat searches
+ * while the user retypes a query never hit the network.
+ */
+export const getCachedLanguageSearch = (
+  key: string
+): CachedLanguage[] | null => {
+  try {
+    const cacheStr = getCachedLocalStorage(LANGUAGE_CACHE_KEY);
+    if (!cacheStr) return null;
+
+    const cache: LanguageSearchCache = JSON.parse(cacheStr);
+    return cache[key] || null;
+  } catch (error) {
+    console.error('Error reading language search cache:', error);
+    return null;
+  }
+};
+
+export const cacheLanguageSearch = (
+  key: string,
+  results: CachedLanguage[]
+) => {
+  try {
+    const cacheStr = getCachedLocalStorage(LANGUAGE_CACHE_KEY);
+    const cache: LanguageSearchCache =
+      cacheStr ? JSON.parse(cacheStr) : {};
+    cache[key] = results;
+    setCachedLocalStorage(LANGUAGE_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.error('Error writing language search cache:', error);
+  }
+};
+
+// ============================================
 // AUDIO CACHE (Unlimited, with expiration)
 // ============================================
 

@@ -1370,12 +1370,28 @@ different text and audio formats for each.
 
 **Implementation**:
 - A `TranslationSelector` modal allows users to browse and select versions.
+- The language tab bar offers English, Latvian, Russian, and an
+  **Other** tab: a debounced (300 ms, ≥2 chars) language search
+  backed by `GET /api/v1/bible/languages/` (the backend proxies
+  DBT's `/languages`). Picking a language fetches its
+  translations like any fixed tab; the tab relabels to
+  `Other: <name>` and a stored non-listed iso re-seeds Other on
+  reopen. A language whose DBT-wide `bibles` count is non-zero
+  but which returns no versions for our API key shows a "No
+  versions available for this language" empty state.
+- The tab bar is wrapped in a `ScrollArea` (`min-width:
+  max-content`, `white-space: nowrap` labels) so the four tabs
+  scroll horizontally on narrow screens; a no-op on desktop.
 - All data fetching is now driven by a `filesetId` instead of a simple version
   string.
 
 ```typescript
 // Fetches available translations for a language
 getAvailableTranslations(languageIso: string): Promise<Translation[]>
+
+// Searches the DBT language catalog (Other tab); results are
+// cached per `search:page` in `bible_language_cache`
+searchLanguages(search: string, page = 1): Promise<LanguageResult[]>
 
 // Fetches verse content based on a specific fileset ID
 getVersesInChapter(
@@ -2042,7 +2058,8 @@ User Opens TranslationSelector
     ↓
 Fetch available translations (cached)
     ↓
-User selects language (eng/lvs/rus)
+User selects language (eng/lvs/rus, or Other → search DBT
+languages → pick an iso)
     ↓
 Fetch translations for language
     ↓
@@ -2431,7 +2448,9 @@ Modal for selecting Bible translations.
 
 **Responsibilities**:
 - Fetch available translations from API
-- Language selector (English, Latvian, Russian)
+- Language selector (English, Latvian, Russian, Other — the
+  Other tab is a debounced DBT language search; the tab bar is
+  horizontally scrollable on narrow screens via ScrollArea)
 - Version dropdown (searchable, capability chips: "Audio",
   "Text only", "Audio only")
 - Text auto-resolution per testament (dimmed info line; no
