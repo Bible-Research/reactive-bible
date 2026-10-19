@@ -29,6 +29,7 @@ import {
   getAvailableTranslations,
   searchLanguages,
 } from '../api';
+import { getCachedTranslationIsos } from '../utils/cacheManager';
 import {
   findAudioOption,
   findTranslationByFilesetId,
@@ -328,6 +329,25 @@ const TranslationSelector = () => {
     }
   };
 
+  /**
+   * Lands the picker on a language: a fixed-tab iso selects
+   * its tab; anything else goes to Other with the pick
+   * restored (`name` falls back to the iso itself). The ref
+   * pin suppresses the label the Select echoes back into the
+   * search input.
+   */
+  const seedLanguage = (iso: string, name: string | null) => {
+    if (LANGUAGES.some((l) => l.value === iso)) {
+      setTab(iso as LanguageTab);
+      return;
+    }
+    const label = name || iso;
+    setTab('other');
+    setOtherIso(iso);
+    setOtherLanguageName(label);
+    pickedLanguageLabelRef.current = label;
+  };
+
   const openModal = () => {
     setSelectedTranslationAbbr(null);
     setSelectedTextId(null);
@@ -344,6 +364,27 @@ const TranslationSelector = () => {
     setFetchedIso(null);
     pickedLanguageLabelRef.current = null;
     userInteractedRef.current = false;
+    // Seed the tab synchronously from the stored selection so
+    // a modal last closed on 'other' doesn't flash the empty
+    // Other picker before `seedLanguageTab` corrects it — and
+    // `languageIso` lands on the right value immediately, so
+    // the fetch effect never fires for a stale language. The
+    // async effect stays as the fallback for owners missing
+    // from the persisted `translations` list.
+    const owner =
+      findTranslationByFilesetId(
+        activeAudioFilesetId,
+        translations,
+      ) ??
+      findTranslationByFilesetId(
+        activeTextFilesetId,
+        translations,
+      );
+    if (owner) {
+      seedLanguage(owner.language_iso, owner.language);
+    } else {
+      setTab('eng');
+    }
     setOpened(true);
   };
 
@@ -494,28 +535,31 @@ const TranslationSelector = () => {
         findTranslationByFilesetId(audioId, persisted) ??
         findTranslationByFilesetId(textId, persisted);
       if (persistedOwner) {
-        const iso = persistedOwner.language_iso;
         if (!cancelled && !userInteractedRef.current) {
-          if (LANGUAGES.some((l) => l.value === iso)) {
-            setTab(iso as LanguageTab);
-          } else {
-            // A language outside the fixed tabs — reopen on
-            // Other with the pick restored from the owner's
-            // `language`/`language_iso` fields.
-            setTab('other');
-            setOtherIso(iso);
-            setOtherLanguageName(persistedOwner.language);
-            pickedLanguageLabelRef.current =
-              persistedOwner.language;
-          }
+          // Fixed-tab isos select their tab; anything else
+          // reopens on Other with the pick restored from the
+          // owner's `language`/`language_iso` fields.
+          seedLanguage(
+            persistedOwner.language_iso,
+            persistedOwner.language,
+          );
         }
         return;
       }
-      const findOwnerIso = async (
+      // Not persisted — scan every language with a cached
+      // list (the fixed tabs plus any Other-language cache
+      // entries) so a stored selection in a non-listed
+      // language still lands on its own tab/Other pick
+      // instead of a mismatched default.
+      const findOwner = async (
         filesetId: string | null,
-      ): Promise<string | null> => {
+      ): Promise<Translation | null> => {
         if (!filesetId) return null;
-        for (const { value: iso } of LANGUAGES) {
+        const isos = new Set([
+          ...LANGUAGES.map((l) => l.value),
+          ...getCachedTranslationIsos(),
+        ]);
+        for (const iso of isos) {
           // One failed language response must not strand the
           // seeding — a failed fetch counts as "not this
           // language", keep scanning the other tabs.
@@ -527,16 +571,15 @@ const TranslationSelector = () => {
               return [] as Translation[];
             });
           if (cancelled || userInteractedRef.current) return null;
-          if (findTranslationByFilesetId(filesetId, list)) {
-            return iso;
-          }
+          const hit = findTranslationByFilesetId(filesetId, list);
+          if (hit) return hit;
         }
         return null;
       };
-      const iso =
-        (await findOwnerIso(audioId)) ?? (await findOwnerIso(textId));
-      if (!cancelled && !userInteractedRef.current && iso) {
-        setTab(iso as LanguageTab);
+      const owner =
+        (await findOwner(audioId)) ?? (await findOwner(textId));
+      if (!cancelled && !userInteractedRef.current && owner) {
+        seedLanguage(owner.language_iso, owner.language);
       }
     };
     void seedLanguageTab();
@@ -556,13 +599,19 @@ const TranslationSelector = () => {
   useEffect(() => {
     if (tab !== 'other') return;
     const query = debouncedLanguageQuery.trim();
-    if (
-      query.length < 2 ||
-      query === pickedLanguageLabelRef.current
-    ) {
-      if (query.length < 2) setLanguageOptions([]);
+    if (query === pickedLanguageLabelRef.current) {
+      // Consume the post-pick echo once — leaving the ref set
+      // would silently skip a later real search that happens
+      // to retype the same label.
+      pickedLanguageLabelRef.current = null;
       return;
     }
+    if (query.length < 2) {
+      setLanguageOptions([]);
+      return;
+    }
+    // A real user query — the pinned echo label is stale now.
+    pickedLanguageLabelRef.current = null;
     let cancelled = false;
     void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT).then(
       (results) => {
@@ -615,15 +664,22 @@ const TranslationSelector = () => {
     // version with a borrowed same-language text, the audio owner
     // is the version the user actually picked — otherwise reopen
     // would show the borrowed text version and a Save would drop
-    // the audio selection.
+    // the audio selection. Scope the lookup to the viewed
+    // language: the merged `translations` store keeps rows from
+    // other languages, so an unscoped lookup would mirror a
+    // stored eng selection onto e.g. the Spanish tab — enabling
+    // Save and rendering the panels under the wrong language.
+    const inLanguage = translations.filter(
+      (t) => t.language_iso === languageIso,
+    );
     const owner =
       findTranslationByFilesetId(
         activeAudioFilesetId,
-        translations,
+        inLanguage,
       ) ??
       findTranslationByFilesetId(
         activeTextFilesetId,
-        translations,
+        inLanguage,
       );
     if (owner) applyVersionSelection(owner.abbr, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps

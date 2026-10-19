@@ -444,6 +444,24 @@ export const getCachedTranslations = (
   }
 };
 
+/**
+ * Every language iso with a cached translation list — lets
+ * callers resolve a stored selection's language even when it
+ * isn't one of the fixed tabs.
+ */
+export const getCachedTranslationIsos = (): string[] => {
+  try {
+    const cacheStr = getCachedLocalStorage(TRANSLATION_CACHE_KEY);
+    if (!cacheStr) return [];
+
+    const cache: TranslationCache = JSON.parse(cacheStr);
+    return Object.keys(cache);
+  } catch (error) {
+    console.error('Error reading translation cache:', error);
+    return [];
+  }
+};
+
 export const cacheTranslations = (
   languageIso: string,
   translations: Translation[]
@@ -462,13 +480,19 @@ export const cacheTranslations = (
 // LANGUAGE SEARCH CACHE
 // ============================================
 
-/** One row of the `/bible/languages/` search response. */
+/**
+ * One row of the `/bible/languages/` search response. The
+ * backend fills fields via `item.get(...)`, so `autonym`,
+ * `bibles` and `filesets` can be null; `searchLanguages`
+ * drops rows missing `iso`/`name`, so those two hold for
+ * every caller.
+ */
 export interface CachedLanguage {
   iso: string;
   name: string;
-  autonym: string;
-  bibles: number;
-  filesets: number;
+  autonym: string | null;
+  bibles: number | null;
+  filesets: number | null;
 }
 
 type LanguageSearchCache = {
@@ -478,7 +502,8 @@ type LanguageSearchCache = {
 const LANGUAGE_CACHE_KEY = 'bible_language_cache';
 
 /**
- * Cached DBT language search results, keyed by `search:page`.
+ * Cached DBT language search results, keyed by
+ * `search:page:limit`.
  * The language catalog is nearly static, so repeat searches
  * while the user retypes a query never hit the network.
  */
