@@ -187,17 +187,24 @@ export type LanguageResult = CachedLanguage;
 
 /**
  * Searches the DBT language catalog via the backend proxy:
- * `GET /api/v1/bible/languages/?search=<q>&page=<n>` returns
+ * `GET /api/v1/bible/languages/?search=<q>&page=<n>[&limit=<m>]`
+ * returns
  * `{results: [{iso, name, autonym, bibles, filesets}], meta}`.
- * Results are cached per `search:page` in localStorage — the
- * catalog is nearly static and the language picker re-queries
- * on every debounced keystroke.
+ * `limit` is forwarded verbatim — the backend clamps it to
+ * DBT's ~150/page cap. Results are cached per
+ * `search:page:limit` in localStorage — the catalog is nearly
+ * static and the language picker re-queries on every debounced
+ * keystroke. Error bodies and empty pages are never cached:
+ * the cache has no TTL or forceRefresh escape hatch, so a
+ * transient 429/502 must not permanently blank a key.
  */
 export const searchLanguages = async (
   search: string,
-  page = 1
+  page = 1,
+  limit?: number
 ): Promise<LanguageResult[]> => {
-  const cacheKey = `${search.toLowerCase()}:${page}`;
+  const cacheKey =
+    `${search.toLowerCase()}:${page}:${limit ?? 'default'}`;
   const cached = getCachedLanguageSearch(cacheKey);
   if (cached) {
     return cached;
@@ -208,13 +215,31 @@ export const searchLanguages = async (
       search,
       page: String(page),
     });
+    if (limit !== undefined) {
+      params.set('limit', String(limit));
+    }
     const url =
       `${API_BASE_URL}/api/v1/` +
       `bible/languages/?${params.toString()}`;
     const response = await publicFetch(url);
     const data = await response.json();
+    // The backend's error contract is a JSON
+    // `{error, error_code}` body — bail before it can be
+    // cached as an empty page and silently swallow the
+    // provider failure.
+    if (!response.ok || data.error) {
+      console.error(
+        `Language search failed (HTTP ${response.status}):`,
+        data.error ?? data
+      );
+      return [];
+    }
     const results: LanguageResult[] = data.results ?? [];
-    cacheLanguageSearch(cacheKey, results);
+    // Skip caching empty pages too — a provider hiccup
+    // returning zero rows would stick just like an error.
+    if (results.length > 0) {
+      cacheLanguageSearch(cacheKey, results);
+    }
     return results;
   } catch (error) {
     console.error('Failed to search languages:', error);

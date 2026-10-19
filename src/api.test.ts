@@ -848,4 +848,127 @@ describe('API Functions', () => {
     });
   });
 
+  describe('searchLanguages', () => {
+    const row = {
+      iso: 'spa',
+      name: 'Spanish',
+      autonym: 'español',
+      bibles: 42,
+      filesets: 84,
+    };
+
+    beforeEach(() => {
+      vi.spyOn(cacheManager, 'getCachedLanguageSearch')
+        .mockReturnValue(null);
+      vi.spyOn(cacheManager, 'cacheLanguageSearch');
+    });
+
+    it('passes search, page and limit through to the query ' +
+      'string and caches the page', async () => {
+      let capturedUrl: string | undefined;
+      server.use(
+        http.get(
+          `${API_URL}/bible/languages/`,
+          ({ request }) => {
+            capturedUrl = request.url;
+            return HttpResponse.json({ results: [row] });
+          }
+        )
+      );
+
+      const result = await api.searchLanguages('spa', 1, 150);
+
+      expect(result).toEqual([row]);
+      const url = new URL(capturedUrl as string);
+      expect(url.searchParams.get('search')).toBe('spa');
+      expect(url.searchParams.get('page')).toBe('1');
+      expect(url.searchParams.get('limit')).toBe('150');
+      expect(cacheManager.cacheLanguageSearch)
+        .toHaveBeenCalledWith('spa:1:150', [row]);
+    });
+
+    it('omits limit from the query string when not ' +
+      'provided', async () => {
+      let capturedUrl: string | undefined;
+      server.use(
+        http.get(
+          `${API_URL}/bible/languages/`,
+          ({ request }) => {
+            capturedUrl = request.url;
+            return HttpResponse.json({ results: [row] });
+          }
+        )
+      );
+
+      await api.searchLanguages('spa');
+
+      const url = new URL(capturedUrl as string);
+      expect(url.searchParams.has('limit')).toBe(false);
+    });
+
+    it('does not cache a non-OK error response', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/languages/`, () =>
+          HttpResponse.json(
+            {
+              error: 'Rate limited',
+              error_code: 'rate_limited',
+            },
+            { status: 429 }
+          )
+        )
+      );
+
+      const result = await api.searchLanguages('spa');
+
+      expect(result).toEqual([]);
+      expect(cacheManager.cacheLanguageSearch)
+        .not.toHaveBeenCalled();
+    });
+
+    it('does not cache a 200 response wrapping an error ' +
+      'body', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/languages/`, () =>
+          HttpResponse.json({
+            error: 'DBT upstream failed',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      const result = await api.searchLanguages('spa');
+
+      expect(result).toEqual([]);
+      expect(cacheManager.cacheLanguageSearch)
+        .not.toHaveBeenCalled();
+    });
+
+    it('does not cache an empty results page', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/languages/`, () =>
+          HttpResponse.json({ results: [] })
+        )
+      );
+
+      const result = await api.searchLanguages('zzzzz');
+
+      expect(result).toEqual([]);
+      expect(cacheManager.cacheLanguageSearch)
+        .not.toHaveBeenCalled();
+    });
+
+    it('returns a cached page without hitting the API',
+      async () => {
+        vi.spyOn(cacheManager, 'getCachedLanguageSearch')
+          .mockReturnValue([row]);
+        const fetchSpy = vi.spyOn(global, 'fetch');
+
+        const result = await api.searchLanguages('spa');
+
+        expect(result).toEqual([row]);
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+  });
+
   });

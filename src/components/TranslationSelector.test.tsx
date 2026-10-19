@@ -767,6 +767,153 @@ describe('TranslationSelector Component', () => {
         ).toBeDisabled();
       });
 
+      it('keeps Save disabled with no language picked on ' +
+        'Other', async () => {
+        useRealStore({
+          translations: [esv],
+          activeTextFilesetId: 'ENGESV_API',
+          activeAudioFilesetId: 'ENGESV_API',
+        });
+        render(<TranslationSelector />);
+        await openOtherTab();
+
+        // The store's active ESV selection must not be
+        // mirrored onto the unpicked Other tab — Save stays
+        // disabled and no Text/Audio panels render beneath
+        // the disabled "Pick a language first" Version
+        // select.
+        await new Promise((r) => setTimeout(r, 0));
+        expect(
+          screen.getByRole('button', { name: 'Save' }),
+        ).toBeDisabled();
+        expect(
+          screen.getByPlaceholderText('Pick a language first'),
+        ).toBeDisabled();
+        expect(
+          screen.queryByText(/Auto-resolved per testament/),
+        ).not.toBeInTheDocument();
+      });
+
+      it('filters out language rows with null fields',
+        async () => {
+          useRealStore();
+          (
+            api.searchLanguages as unknown as Mock
+          ).mockResolvedValue([
+            {
+              iso: 'spa',
+              name: 'Spanish',
+              autonym: 'español',
+              bibles: 42,
+              filesets: 84,
+            },
+            {
+              iso: null,
+              name: 'Ghost',
+              autonym: null,
+              bibles: 1,
+              filesets: 1,
+            },
+            {
+              iso: 'zzz',
+              name: null,
+              autonym: null,
+              bibles: 0,
+              filesets: 0,
+            },
+          ]);
+          render(<TranslationSelector />);
+          await openOtherTab();
+
+          await userEvent.type(
+            screen.getByPlaceholderText('Search languages…'),
+            'spa',
+          );
+
+          expect(
+            await screen.findByText('Spanish — español'),
+          ).toBeInTheDocument();
+          expect(
+            screen.queryByText('Ghost'),
+          ).not.toBeInTheDocument();
+          expect(
+            screen.queryByText(/null/),
+          ).not.toBeInTheDocument();
+        },
+      );
+
+      it('does not re-fire a stale language search on reopen',
+        async () => {
+          useRealStore({
+            translations: [spanish],
+            activeTextFilesetId: 'SPNBDAN_ET',
+            activeAudioFilesetId: null,
+          });
+          (
+            api.getAvailableTranslations as Mock
+          ).mockImplementation(
+            (iso: string) =>
+              Promise.resolve(
+                iso === 'spa' ? [spanish] : engTranslations,
+              ),
+          );
+          render(<TranslationSelector />);
+          fireEvent.click(
+            screen.getByRole('button', {
+              name: 'Change Translation',
+            }),
+          );
+          // Stored Spanish selection seeds the Other tab —
+          // its radio relabels to 'Other: Spanish'.
+          await waitFor(() => {
+            expect(
+              screen.getByRole('radio', {
+                name: 'Other: Spanish',
+              }),
+            ).toBeChecked();
+          });
+          // The seeded pick echoes "Spanish" into the search
+          // input — clear it so typing "spa" starts fresh.
+          const langInput =
+            screen.getByPlaceholderText('Search languages…');
+          await userEvent.clear(langInput);
+          await userEvent.type(langInput, 'spa');
+          await userEvent.click(
+            await screen.findByText('Spanish — español'),
+          );
+
+          const mock = api.searchLanguages as unknown as Mock;
+          await waitFor(() => {
+            expect(mock).toHaveBeenCalled();
+          });
+          mock.mockClear();
+
+          // Close and reopen — the leftover "Spanish —
+          // español" echo must be cleared so it cannot fire
+          // a spurious search that would wipe the restored
+          // options.
+          fireEvent.click(
+            screen.getByRole('button', { name: 'Cancel' }),
+          );
+          fireEvent.click(
+            screen.getByRole('button', {
+              name: 'Change Translation',
+            }),
+          );
+          await waitFor(() => {
+            expect(
+              screen.getByRole('radio', {
+                name: 'Other: Spanish',
+              }),
+            ).toBeChecked();
+          });
+          // Give the 300 ms debounce a chance to fire any
+          // leftover echo.
+          await new Promise((r) => setTimeout(r, 400));
+          expect(mock).not.toHaveBeenCalled();
+        },
+      );
+
       it('searches languages for a debounced ≥2-char query',
         async () => {
           useRealStore();
@@ -780,7 +927,7 @@ describe('TranslationSelector Component', () => {
 
           const mock = api.searchLanguages as unknown as Mock;
           await waitFor(() => {
-            expect(mock).toHaveBeenCalledWith('spa');
+            expect(mock).toHaveBeenCalledWith('spa', 1, 150);
           });
         },
       );

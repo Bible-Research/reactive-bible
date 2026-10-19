@@ -1389,9 +1389,14 @@ different text and audio formats for each.
 // Fetches available translations for a language
 getAvailableTranslations(languageIso: string): Promise<Translation[]>
 
-// Searches the DBT language catalog (Other tab); results are
-// cached per `search:page` in `bible_language_cache`
-searchLanguages(search: string, page = 1): Promise<LanguageResult[]>
+// Searches the DBT language catalog (Other tab); `limit` is
+// forwarded to the backend (DBT clamps to ~150/page). Results
+// are cached per `search:page:limit` in
+// `bible_language_cache` — error bodies and empty pages are
+// never cached (no TTL or forceRefresh escape hatch)
+searchLanguages(
+  search: string, page = 1, limit?: number
+): Promise<LanguageResult[]>
 
 // Fetches verse content based on a specific fileset ID
 getVersesInChapter(

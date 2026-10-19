@@ -62,6 +62,25 @@ const LANGUAGES = [
 /** Tab ids: the fixed languages plus the "Other" picker. */
 type LanguageTab = 'eng' | 'lvs' | 'rus' | 'other';
 
+/**
+ * Page size requested from the DBT language search — DBT
+ * clamps to ~150/page, so one broad query reaches nearly
+ * every match instead of being stuck on page 1's 25 rows.
+ */
+const LANGUAGE_SEARCH_LIMIT = 150;
+
+/** One row in the Other-tab language Select. */
+type LanguageOption = {
+  value: string;
+  label: string;
+  /**
+   * The untruncated DBT `name` — the display label embeds
+   * `" — "` separators too, so re-splitting it would
+   * truncate names that contain one themselves.
+   */
+  name: string | null;
+};
+
 type Capability = 'both' | 'text' | 'audio';
 
 const CAPABILITY_LABEL: Record<Capability, string> = {
@@ -178,7 +197,7 @@ const TranslationSelector = () => {
     useState<string | null>(null);
   const [languageQuery, setLanguageQuery] = useState('');
   const [languageOptions, setLanguageOptions] = useState<
-    { value: string; label: string }[]
+    LanguageOption[]
   >([]);
   // Iso of the last completed translations fetch — lets the
   // empty state distinguish "fetch finished, genuinely empty"
@@ -314,6 +333,16 @@ const TranslationSelector = () => {
     setSelectedTextId(null);
     setSelectedAudioId(null);
     setTextNote(null);
+    // Reset the Other-tab picker so a stale search echo (the
+    // previous pick's full "name — autonym" label) can't fire
+    // a spurious request on reopen — `seedLanguageTab`
+    // re-derives the pick from the active store selection.
+    setLanguageQuery('');
+    setLanguageOptions([]);
+    setOtherIso(null);
+    setOtherLanguageName(null);
+    setFetchedIso(null);
+    pickedLanguageLabelRef.current = null;
     userInteractedRef.current = false;
     setOpened(true);
   };
@@ -535,15 +564,25 @@ const TranslationSelector = () => {
       return;
     }
     let cancelled = false;
-    void searchLanguages(query).then((results) => {
-      if (cancelled) return;
-      setLanguageOptions(
-        results.map((r) => ({
-          value: r.iso,
-          label: `${r.name} — ${r.autonym}`,
-        })),
-      );
-    });
+    void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT).then(
+      (results) => {
+        if (cancelled) return;
+        setLanguageOptions(
+          results
+            // Backend rows can carry null fields — a `null`
+            // iso is not a valid Mantine Select value and a
+            // `null` name would render "null — null".
+            .filter((r) => r.iso && r.name)
+            .map((r) => ({
+              value: r.iso,
+              label: r.autonym
+                ? `${r.name} — ${r.autonym}`
+                : r.name,
+              name: r.name,
+            })),
+        );
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -567,6 +606,11 @@ const TranslationSelector = () => {
     // Until the user picks a version, mirror the currently active
     // filesets (translations may arrive after the modal opens).
     if (selectedTranslationAbbr !== null) return;
+    // Other tab with no language picked yet: skip the mirror —
+    // seeding the store's active selection here would render
+    // the Text/Audio panels and enable Save beneath the
+    // disabled "Pick a language first" Version select.
+    if (languageIso === null) return;
     // The audio owner wins when it differs: for an audio-only
     // version with a borrowed same-language text, the audio owner
     // is the version the user actually picked — otherwise reopen
@@ -644,6 +688,7 @@ const TranslationSelector = () => {
     ) ?? {
       value: otherIso,
       label: otherLanguageName ?? otherIso,
+      name: otherLanguageName,
     };
     return [
       picked,
@@ -726,8 +771,11 @@ const TranslationSelector = () => {
                 pickedLanguageLabelRef.current =
                   picked?.label ?? null;
                 setOtherIso(iso);
+                // The option carries the raw DBT `name` —
+                // re-splitting the "name — autonym" label
+                // would truncate names containing " — ".
                 setOtherLanguageName(
-                  picked?.label.split(' — ')[0] ?? null,
+                  picked?.name ?? picked?.label ?? null,
                 );
               }}
               searchValue={languageQuery}
