@@ -269,7 +269,8 @@ export const cacheVerses = (
     metadata.totalVerses > MAX_VERSES &&
     metadata.lruQueue.length > 1
   ) {
-    const oldestChapterKey = metadata.lruQueue.shift()!;
+    const oldestChapterKey = metadata.lruQueue.shift();
+    if (oldestChapterKey === undefined) break;
     Object.keys(cache).forEach((k) => {
       if (k.startsWith(oldestChapterKey + ':')) {
         metadata.totalVerses--;

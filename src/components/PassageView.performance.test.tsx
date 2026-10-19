@@ -14,10 +14,11 @@ const mockPrefetchAudioUrl = vi.fn();
 const mockPrefetchAdjacentChapters = vi.fn();
 
 vi.mock('../api', () => ({
-  getVersesInChapter: (...args: any[]) =>
+  getVersesInChapter: (...args: unknown[]) =>
     mockGetVersesInChapter(...args),
-  prefetchAudioUrl: (...args: any[]) => mockPrefetchAudioUrl(...args),
-  prefetchAdjacentChapters: (...args: any[]) =>
+  prefetchAudioUrl: (...args: unknown[]) =>
+    mockPrefetchAudioUrl(...args),
+  prefetchAdjacentChapters: (...args: unknown[]) =>
     mockPrefetchAdjacentChapters(...args),
   fetchHeadingsOnly: vi.fn().mockResolvedValue([]),
   getChapters: vi.fn().mockReturnValue([1, 2, 3]),

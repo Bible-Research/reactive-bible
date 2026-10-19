@@ -1,7 +1,19 @@
-import type { FC, ReactNode } from 'react';
+import type { FC, MouseEventHandler, ReactNode } from 'react';
 import { Button as ButtonComponent } from "@mantine/core";
 
-const Button: FC<{ children: ReactNode; variant?: string, size?: string; onClick: any }> = ({ children, variant, size, onClick }) => (
+interface ButtonProps {
+  children: ReactNode;
+  variant?: string;
+  size?: string;
+  onClick: MouseEventHandler<HTMLButtonElement>;
+}
+
+const Button: FC<ButtonProps> = ({
+  children,
+  variant,
+  size,
+  onClick,
+}) => (
   <ButtonComponent
     variant={variant}
     size={size}

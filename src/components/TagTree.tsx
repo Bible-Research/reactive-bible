@@ -60,7 +60,8 @@ export function TagTree({
     });
 
     tags.forEach((tag) => {
-      const node = map.get(tag.id)!;
+      const node = map.get(tag.id);
+      if (!node) return;
       if (tag.parent_tag) {
         const parent = map.get(tag.parent_tag);
         if (parent) {

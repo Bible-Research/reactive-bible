@@ -132,9 +132,10 @@ const CommentThread = ({
   );
 
   useEffect(() => {
+    const version = loadVersion;
     load();
     return () => {
-      loadVersion.current++;
+      version.current++;
     };
   }, [load]);
 

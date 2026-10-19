@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components --
+ * Test helper module; `export *` re-exports are intentional. */
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';

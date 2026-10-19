@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Container,
@@ -19,6 +19,12 @@ import { useAuthStore } from '../stores/authStore';
 export function RegisterPage() {
   const navigate = useNavigate();
   const { register, isLoading, error, clearError } = useAuthStore();
+
+  // Clear any stale auth error left over from a previous visit to
+  // the login or register page.
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');

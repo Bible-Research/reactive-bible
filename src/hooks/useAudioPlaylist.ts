@@ -287,7 +287,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
               const filteredTimestamps = item.verseNumbers
                 ? fetchedTimestamps.filter((t) =>
-                    item.verseNumbers!.includes(t.verse_start),
+                    item.verseNumbers?.includes(t.verse_start),
                   )
                 : fetchedTimestamps.filter(
                     (t) =>
@@ -428,7 +428,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                         fetchedTimestamps.find(
                           (t) =>
                             t.timestamp > pos &&
-                            item.verseNumbers!.includes(
+                            item.verseNumbers?.includes(
                               t.verse_start,
                             ),
                         );
@@ -532,7 +532,6 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       activeTextFilesetId,
       translations,
       unloadCurrent,
-      setAudioActiveVerse,
       setShowPlayer,
       setAudioPlaylistEnded,
     ],

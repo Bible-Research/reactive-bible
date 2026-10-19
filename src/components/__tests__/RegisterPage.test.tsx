@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { RegisterPage } from '../RegisterPage';
@@ -270,10 +275,38 @@ describe('RegisterPage', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
+  it('should clear a stale auth error on mount', () => {
+    renderWithProviders(<RegisterPage />, {
+      authStoreState: { error: 'Stale error' },
+    });
+
+    // The mount effect calls clearError — the stale error
+    // must not render.
+    expect(
+      screen.queryByText('Stale error')
+    ).not.toBeInTheDocument();
+    expect(useAuthStore.getState().error).toBeNull();
+  });
+
+  it('should display an auth error set after mount', () => {
+    renderWithProviders(<RegisterPage />);
+
+    act(() => {
+      useAuthStore.setState({ error: 'Registration failed' });
+    });
+
+    expect(
+      screen.getByText('Registration failed')
+    ).toBeInTheDocument();
+  });
+
   it('should clear the error when the alert is dismissed', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<RegisterPage />, {
-      authStoreState: { error: 'Test error' },
+    renderWithProviders(<RegisterPage />);
+
+    // Mount clears pre-existing errors; set it afterwards.
+    act(() => {
+      useAuthStore.setState({ error: 'Test error' });
     });
 
     const alert = screen.getByRole('alert');

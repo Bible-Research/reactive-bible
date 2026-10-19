@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components --
+ * Pure API module (no components); the rule can't tell this
+ * .tsx file contains no JSX. */
 import { Translation } from "./store";
 import { loadKjvData } from './utils/kjvDataLoader';
 import bibleStructure from './assets/bibleStructure.json';
@@ -353,7 +356,7 @@ export const deleteNote = async (noteId: string) => {
     }
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch(err: any | Error) {
+  } catch (err) {
     console.error('Error deleting note:', err);
     throw new Error('Failed to delete your note, please try again');
   }
@@ -441,7 +444,6 @@ export const reorderNotes = async (
  * canonical ascending order. Powers the order-ID badge
  * dropdown; the order ID is the 1-based array index.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export const getNoteOrderIndex = async (
   tagId: string
 ): Promise<NoteOrderIndexEntry[]> => {
@@ -482,7 +484,6 @@ export interface MoveNoteResponse {
  * (and rebalances when the float gap is exhausted); unlike
  * `reorderNotes` it returns 200 with the new position.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export const moveNote = async (
   tagId: string,
   noteId: string,
@@ -770,7 +771,14 @@ export const getBibleAudioUrl = async (
       throw new Error(errorMsg);
     }
 
-    const data: any = await response.json();
+    const data = (await response.json()) as {
+      audio_url?: unknown;
+      duration_seconds?: number;
+      file_size_bytes?: number;
+      error?: string | { message?: string };
+      error_code?: string;
+      meta?: unknown;
+    };
 
     if (isBookNotInFilesetBody(data)) {
       throw new BookNotInFilesetError(
