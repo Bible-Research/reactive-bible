@@ -64,6 +64,19 @@ describe('TranslationSelector Component', () => {
     ).toBeInTheDocument();
   });
 
+  it('offers English, Latvian and Russian language tabs', () => {
+    render(<TranslationSelector />);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Change Translation' })
+    );
+
+    for (const name of ['English', 'Latvian', 'Russian']) {
+      expect(
+        screen.getByRole('radio', { name })
+      ).toBeInTheDocument();
+    }
+  });
+
   it('refreshes translations from the API when modal opens', async () => {
     const mock = api.getAvailableTranslations as unknown as ReturnType<
       typeof vi.fn
