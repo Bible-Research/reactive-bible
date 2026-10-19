@@ -1188,6 +1188,13 @@ If the active text is already same-language it is kept; if no
 same-language text exists the current text is kept with an info
 note.
 
+**Audio default**: picking a version keeps the stored audio
+product when the version owns it, otherwise defaults to the
+first audio option (preferring a real option over None) —
+audio-only versions behave the same. Reopening the modal on the
+current selection restores the stored value verbatim, so a
+saved "None" is shown as None rather than re-defaulting.
+
 **Fileset groups & resolution** (`src/utils/filesetGroups.ts`):
 
 A translation's raw `filesets` are normalized into product-like
