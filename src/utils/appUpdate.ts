@@ -1,4 +1,5 @@
 import { App } from '@capacitor/app';
+import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './nativeAudio';
 
 /**
@@ -89,11 +90,20 @@ export const getInstalledVersion =
 export const fetchUpdateManifest =
   async (): Promise<UpdateManifest | null> => {
     try {
-      const res = await fetch(UPDATE_MANIFEST_URL, {
-        cache: 'no-store',
+      // github.com release downloads send no CORS headers, so a
+      // WebView fetch from the app's https://localhost origin is
+      // blocked. CapacitorHttp runs the request through the
+      // native HTTP stack on-device (on web it wraps fetch).
+      const res = await CapacitorHttp.get({
+        url: UPDATE_MANIFEST_URL,
+        responseType: 'json',
+        webFetchExtra: { cache: 'no-store' },
       });
-      if (!res.ok) return null;
-      const data: unknown = await res.json();
+      if (res.status < 200 || res.status >= 300) return null;
+      const data: unknown =
+        typeof res.data === 'string'
+          ? JSON.parse(res.data)
+          : res.data;
       return isUpdateManifest(data) ? data : null;
     } catch {
       return null;
