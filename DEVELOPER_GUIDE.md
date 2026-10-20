@@ -1921,7 +1921,9 @@ pasting into a GitHub issue.
   retry them, so reporting them would surface expected noise.
   Resource failures for `/_vercel/*` URLs (Vercel telemetry) are
   also ignored — ad blockers and non-Vercel hosts make them fail
-  routinely.
+  routinely. So are `blob:` URLs: staged comment-image previews
+  are transient object URLs whose load failures are handled
+  locally (placeholder thumbnail), never fatal.
 - **Unhandled promise rejections**: `unhandledrejection`
   listener; `AbortError` rejections are ignored (routine
   fetch cancellations on navigation races).
@@ -2601,7 +2603,10 @@ production App Engine host)
      content_type, size_bytes, uploaded_by, created_at }
    // signed_url is short-lived; img onError triggers a targeted
    // refetch (bounded per image set — a refresh that mints new
-   // URLs resets the budget), see CommentThread
+   // URLs resets the budget), see CommentThread.
+   // Staged (pre-upload) thumbnails use blob: object URLs whose
+   // revocation is deferred past unmount; a failed preview
+   // renders a photo-icon placeholder.
    ```
 
 10. **Get Reading Positions**

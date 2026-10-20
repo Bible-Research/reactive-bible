@@ -164,6 +164,13 @@ function handleGlobalError(event: Event): void {
       (target as HTMLImageElement).src ||
       (target as HTMLLinkElement).href ||
       target.tagName.toLowerCase();
+    // blob: URLs are short-lived previews minted by
+    // URL.createObjectURL (e.g. staged comment images). Their
+    // failures are local and self-evident (a broken thumbnail),
+    // never a fatal app error worth reporting.
+    if (src.startsWith('blob:')) {
+      return;
+    }
     // Optional Vercel telemetry (Analytics / Speed Insights) must
     // never surface as an app error: ad blockers and non-Vercel
     // hosts (e.g. the Capacitor shell's https://localhost origin)

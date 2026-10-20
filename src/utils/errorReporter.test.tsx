@@ -264,6 +264,19 @@ describe('errorReporter', () => {
     });
 
 
+    it('ignores blob: resource load failures', () => {
+      cleanup = initGlobalErrorHandlers();
+      const img = document.createElement('img');
+      img.src = 'blob:https://localhost/some-uuid';
+      const event = new Event('error');
+      Object.defineProperty(event, 'target', { value: img });
+      window.dispatchEvent(event);
+
+      // Transient object-URL previews (staged comment images)
+      // must never surface as fatal errors.
+      expect(mockShowNotification).not.toHaveBeenCalled();
+    });
+
     it('ignores Vercel telemetry resource load failures', () => {
       cleanup = initGlobalErrorHandlers();
       const script = document.createElement('script');

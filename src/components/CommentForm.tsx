@@ -30,10 +30,36 @@ const thumbStyle: React.CSSProperties = {
   display: 'block',
 };
 
+const UnavailableThumb = ({ label }: { label: string }) => (
+  <Box
+    role="img"
+    aria-label={label}
+    sx={(theme) => ({
+      height: 56,
+      width: 56,
+      borderRadius: 4,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        theme.colorScheme === 'dark'
+          ? theme.colors.dark[5]
+          : theme.colors.gray[2],
+      color:
+        theme.colorScheme === 'dark'
+          ? theme.colors.dark[2]
+          : theme.colors.gray[6],
+    })}
+  >
+    <IconPhoto size={14} />
+  </Box>
+);
+
 interface StagedFile {
   id: number;
   file: File;
   url: string;
+  failed?: boolean;
 }
 
 interface CommentFormProps {
@@ -107,14 +133,28 @@ const CommentForm = ({
     }
   };
 
+  // Revoking an object URL while its <img> is still mounted
+  // aborts the in-flight load and trips the global
+  // resource-error reporter, so revocation is deferred past
+  // the commit that removes the thumbnail.
+  const scheduleRevoke = (url: string) => {
+    urlsRef.current = urlsRef.current.filter((u) => u !== url);
+    setTimeout(() => URL.revokeObjectURL(url));
+  };
+
   const removeStaged = (id: number) => {
     const item = staged.find((s) => s.id === id);
     if (!item) return;
-    URL.revokeObjectURL(item.url);
-    urlsRef.current = urlsRef.current.filter(
-      (u) => u !== item.url
-    );
     setStaged((prev) => prev.filter((s) => s.id !== id));
+    scheduleRevoke(item.url);
+  };
+
+  const markStagedFailed = (id: number) => {
+    setStaged((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, failed: true } : s
+      )
+    );
   };
 
   const handleSubmit = async () => {
@@ -131,9 +171,8 @@ const CommentForm = ({
         staged.map((s) => s.file)
       );
       setValue('');
-      staged.forEach((s) => URL.revokeObjectURL(s.url));
-      urlsRef.current = [];
       setStaged([]);
+      staged.forEach((s) => scheduleRevoke(s.url));
     } catch {
       // caller already surfaced the error via notification;
       // keep form state so the user can retry
@@ -179,28 +218,9 @@ const CommentForm = ({
                     style={thumbStyle}
                   />
                 ) : (
-                  <Box
-                    role="img"
-                    aria-label={`${name} (unavailable)`}
-                    sx={(theme) => ({
-                      height: 56,
-                      width: 56,
-                      borderRadius: 4,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor:
-                        theme.colorScheme === 'dark'
-                          ? theme.colors.dark[5]
-                          : theme.colors.gray[2],
-                      color:
-                        theme.colorScheme === 'dark'
-                          ? theme.colors.dark[2]
-                          : theme.colors.gray[6],
-                    })}
-                  >
-                    <IconPhoto size={14} />
-                  </Box>
+                  <UnavailableThumb
+                    label={`${name} (unavailable)`}
+                  />
                 )}
                 {onDeleteImage && (
                   <RemoveImageButton
@@ -220,11 +240,18 @@ const CommentForm = ({
                 display: 'inline-block',
               }}
             >
-              <img
-                src={s.url}
-                alt={s.file.name}
-                style={thumbStyle}
-              />
+              {s.failed ? (
+                <UnavailableThumb
+                  label={`${s.file.name} (unavailable)`}
+                />
+              ) : (
+                <img
+                  src={s.url}
+                  alt={s.file.name}
+                  style={thumbStyle}
+                  onError={() => markStagedFailed(s.id)}
+                />
+              )}
               <RemoveImageButton
                 label={`Remove staged image ${s.file.name}`}
                 offset={2}
