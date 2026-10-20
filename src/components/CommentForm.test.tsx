@@ -184,6 +184,84 @@ describe('CommentForm', () => {
     });
   });
 
+  it('shows a placeholder when a staged thumbnail fails',
+    async () => {
+      renderWithProviders(
+        <CommentForm onSubmit={vi.fn()} />
+      );
+      const input = document
+        .querySelector('input[type="file"]') as HTMLInputElement;
+      const file = new File(
+        ['x'], 'photo.png', { type: 'image/png' }
+      );
+      Object.defineProperty(input, 'files', {
+        value: [file],
+        configurable: true,
+      });
+      fireEvent.change(input);
+      const img = await waitFor(() => {
+        const el = document.querySelector(
+          'img[alt="photo.png"]'
+        );
+        expect(el).toBeInTheDocument();
+        return el as HTMLImageElement;
+      });
+      fireEvent.error(img);
+      await waitFor(() => {
+        expect(
+          document.querySelector('img[alt="photo.png"]')
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByRole('img', {
+            name: 'photo.png (unavailable)',
+          })
+        ).toBeInTheDocument();
+      });
+    });
+
+  it('defers object URL revocation until after removal',
+    async () => {
+      // Drain deferred revokes scheduled by earlier tests.
+      await new Promise((r) => setTimeout(r, 0));
+      vi.mocked(URL.revokeObjectURL).mockClear();
+      renderWithProviders(
+        <CommentForm onSubmit={vi.fn()} />
+      );
+      const input = document
+        .querySelector('input[type="file"]') as HTMLInputElement;
+      const file = new File(
+        ['x'], 'photo.png', { type: 'image/png' }
+      );
+      Object.defineProperty(input, 'files', {
+        value: [file],
+        configurable: true,
+      });
+      fireEvent.change(input);
+      await waitFor(() => {
+        expect(
+          document.querySelectorAll('img[alt="photo.png"]')
+            .length
+        ).toBe(1);
+      });
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Remove staged image photo.png',
+        })
+      );
+      expect(
+        document.querySelector('img[alt="photo.png"]')
+      ).not.toBeInTheDocument();
+      // Revocation must happen after the <img> is gone —
+      // revoking while mounted aborts the in-flight load and
+      // surfaces a spurious global resource error.
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith(
+          'blob:test-url'
+        );
+      });
+    });
+
   it('rejects a file with wrong MIME type', async () => {
     renderWithProviders(
       <CommentForm onSubmit={vi.fn()} />
