@@ -15,15 +15,24 @@ export default function BibleRoute() {
   );
 
   const navigate = useNavigate();
-  const {
-    activeBookId,
-    activeChapter,
-    setActiveBookAndChapter,
-    setVerseSelection,
-    setShowNotes,
-    setVersesFolded,
-    getTags,
-  } = useBibleStore();
+  // Narrow selectors — subscribing to the whole store would
+  // re-render this route on every debounced position write and
+  // audio tick.
+  const activeBookId = useBibleStore((state) => state.activeBookId);
+  const activeChapter = useBibleStore(
+    (state) => state.activeChapter
+  );
+  const setActiveBookAndChapter = useBibleStore(
+    (state) => state.setActiveBookAndChapter
+  );
+  const setVerseSelection = useBibleStore(
+    (state) => state.setVerseSelection
+  );
+  const setShowNotes = useBibleStore((state) => state.setShowNotes);
+  const setVersesFolded = useBibleStore(
+    (state) => state.setVersesFolded
+  );
+  const getTags = useBibleStore((state) => state.getTags);
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated,
   );

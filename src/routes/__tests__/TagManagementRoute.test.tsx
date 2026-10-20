@@ -40,12 +40,9 @@ vi.mock('../../api', async (importOriginal) => {
 });
 const mockApi = vi.mocked(api);
 
-// The route reads {tags, getTags} off the bible store — stub it
-// directly instead of relying on the '../api' automock: that
-// factory's importOriginal evaluates the real api module, which
-// transitively evaluates a duplicate real store bound to the
-// real api (api.tsx imports Translation from './store'), so
-// api-level mocks never see the store's calls.
+// The route reads {tags, getTags} off the bible store — stub the
+// store directly rather than driving it through the api automock,
+// so each test controls the tag list without network plumbing.
 const storeStub = vi.hoisted(() => {
   const state = {
     tags: [] as Tag[],

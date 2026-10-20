@@ -115,6 +115,34 @@ describe('fetchUpdateManifest', () => {
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
+  it('rejects manifests with an untrusted apkUrl', async () => {
+    mockFetchOk(manifest({ apkUrl: 'javascript:alert(1)' }));
+    expect(await fetchUpdateManifest()).toBeNull();
+
+    mockFetchOk(
+      manifest({ apkUrl: 'http://github.com/x/y/a.apk' }),
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
+
+    mockFetchOk(
+      manifest({ apkUrl: 'https://evil.example.com/a.apk' }),
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
+  });
+
+  it('accepts GitHub release and asset hosts', async () => {
+    mockFetchOk(manifest());
+    expect(await fetchUpdateManifest()).not.toBeNull();
+
+    mockFetchOk(
+      manifest({
+        apkUrl:
+          'https://objects.githubusercontent.com/x/y/a.apk',
+      }),
+    );
+    expect(await fetchUpdateManifest()).not.toBeNull();
+  });
+
   it('returns null when fetch rejects', async () => {
     vi.stubGlobal(
       'fetch',
@@ -123,23 +151,34 @@ describe('fetchUpdateManifest', () => {
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
-  it('currently accepts a non-https apkUrl', async () => {
-    // FIXME: isUpdateManifest only checks
-    // `typeof apkUrl === 'string'` — an `http://` (or worse)
-    // URL validates. The manifest should require https so the
-    // sideloaded APK can't come from a plaintext/mitm-able URL.
+  it('rejects a non-https apkUrl', async () => {
+    // The sideloaded APK must come from a TLS URL — a
+    // plaintext http:// link is trivially mitm-able.
     mockFetchOk(manifest({ apkUrl: 'http://x/y.apk' }));
-    const result = await fetchUpdateManifest();
-    expect(result?.apkUrl).toBe('http://x/y.apk');
+    expect(await fetchUpdateManifest()).toBeNull();
   });
 
-  it('currently accepts a manifest without versionName', async () => {
-    // FIXME: `versionName` is required by the UpdateManifest
-    // interface but isUpdateManifest never checks it — a
-    // manifest missing it passes validation.
-    mockFetchOk({ versionCode: 42, apkUrl: 'https://x/y.apk' });
-    expect(await fetchUpdateManifest()).not.toBeNull();
+  it('rejects an apkUrl from a non-GitHub host', async () => {
+    mockFetchOk(
+      manifest({ apkUrl: 'https://evil.example.com/a.apk' })
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
   });
+
+  it('accepts github.com and *.githubusercontent.com apkUrls',
+    async () => {
+      mockFetchOk(
+        manifest({ apkUrl: 'https://github.com/o/r/a.apk' })
+      );
+      expect(await fetchUpdateManifest()).not.toBeNull();
+      mockFetchOk(
+        manifest({
+          apkUrl:
+            'https://objects.githubusercontent.com/a.apk',
+        })
+      );
+      expect(await fetchUpdateManifest()).not.toBeNull();
+    });
 
   it('currently accepts a non-integer versionCode', async () => {
     // FIXME: isUpdateManifest checks `typeof versionCode ===
@@ -209,24 +248,23 @@ describe('checkForUpdates', () => {
     expect(await checkForUpdates()).toEqual({ kind: 'error' });
   });
 
-  it('stamps the throttle even when the check fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('offline')),
-    );
+  it('does not burn the throttle on a failed check', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve(manifest({ versionCode: 41 })),
+      });
+    vi.stubGlobal('fetch', fetchSpy);
 
-    const before = Date.now();
     expect(await checkForUpdates()).toEqual({ kind: 'error' });
-
-    // FIXME: markUpdateChecked() runs before the fetch, so a
-    // transient network failure stamps `app_update_last_check`
-    // and suppresses automatic checks for the next hour. The
-    // stamp arguably belongs after a successful fetch.
-    const stamp = Number(
-      localStorage.getItem('app_update_last_check')
-    );
-    expect(stamp).toBeGreaterThanOrEqual(before);
-    expect(shouldCheckForUpdates()).toBe(false);
+    // The failed check left no throttle mark, so the next call
+    // retries immediately instead of waiting an hour.
+    expect(shouldCheckForUpdates()).toBe(true);
+    expect((await checkForUpdates()).kind).toBe('update');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
   it('force bypasses the throttle', async () => {

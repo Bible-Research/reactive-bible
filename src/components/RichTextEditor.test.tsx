@@ -92,7 +92,7 @@ describe('RichTextEditor', () => {
     expect(proseMirror?.style.minHeight).toBe('');
   });
 
-  it('comment editor keeps its fixed min height', () => {
+  it('comment editor grows up to a cap then scrolls', () => {
     const { container } = renderEditor(
       <RichTextEditor
         variant="comment"
@@ -104,6 +104,45 @@ describe('RichTextEditor', () => {
       '.ProseMirror'
     );
     expect(proseMirror?.style.minHeight).toBeTruthy();
-    expect(proseMirror?.style.maxHeight).toBe('');
+    expect(proseMirror?.style.maxHeight).toBeTruthy();
+    expect(proseMirror?.style.overflowY).toBe('auto');
+  });
+
+  it('preserves scriptureRef/mention nodes in stored docs', async () => {
+    const stored = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'scriptureRef',
+              attrs: {
+                code: 'JHN',
+                chapter: 3,
+                verseStart: 16,
+                verseEnd: 18,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const ref = createRef<RichTextEditorHandle>();
+    renderEditor(
+      <RichTextEditor
+        ref={ref}
+        variant="note"
+        value={stored}
+        onChange={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(ref.current?.editor).toBeTruthy());
+    const json = JSON.stringify(ref.current?.editor?.getJSON());
+    // Without the light node spec the editor strips the node on
+    // load and a save would silently lose it.
+    expect(json).toContain('scriptureRef');
+    expect(json).toContain('JHN');
+    expect(document.body.textContent).toContain('@JHN.3.16-18');
   });
 });

@@ -1,4 +1,41 @@
 // src/utils/bibleUtils.ts
+import bibleStructure from '../assets/bibleStructure.json';
+
+interface BibleStructureEntry {
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  max_verse: number;
+}
+
+// Canonical chapter/verse-count metadata (KJV versification).
+// Imported here directly — not via api.tsx — so bibleUtils
+// stays free of the bibleUtils <-> api import cycle.
+const CHAPTER_COUNT_BY_BOOK: Record<string, number> = {};
+const MAX_VERSE_BY_BOOK: Record<string, Record<number, number>> =
+  {};
+for (const entry of bibleStructure as BibleStructureEntry[]) {
+  const byChapter = (MAX_VERSE_BY_BOOK[entry.book_id] ??= {});
+  byChapter[entry.chapter] = entry.max_verse;
+  CHAPTER_COUNT_BY_BOOK[entry.book_id] = Math.max(
+    CHAPTER_COUNT_BY_BOOK[entry.book_id] ?? 0,
+    entry.chapter,
+  );
+}
+
+/** Number of chapters in a book; 0 for unknown book codes. */
+export const getChapterCount = (bookId: string): number =>
+  CHAPTER_COUNT_BY_BOOK[bookId.toUpperCase()] ?? 0;
+
+/**
+ * Verse count for a book+chapter in the canonical structure;
+ * 0 for unknown books or chapters.
+ */
+export const getMaxVerse = (
+  bookId: string,
+  chapter: number,
+): number =>
+  MAX_VERSE_BY_BOOK[bookId.toUpperCase()]?.[chapter] ?? 0;
 
 /**
  * Encodes an array of verse numbers into a compact URL string.
@@ -24,23 +61,48 @@ export function encodeVerses(verses: number[]): string {
 }
 
 /**
- * Decodes a URL verse string back into an array of verse numbers.
- * e.g. "16-18" → [16,17,18], "16,18" → [16,18]
+ * Decodes a URL verse string back into an array of verse
+ * numbers. e.g. "16-18" → [16,17,18], "16,18" → [16,18].
+ * Duplicates and non-positive numbers are dropped; when
+ * `maxVerse` is given, numbers above it are clamped away so
+ * out-of-range refs can't create phantom selections.
  */
-export function decodeVerses(verseStr: string): number[] {
+export function decodeVerses(
+  verseStr: string,
+  maxVerse?: number,
+): number[] {
+  const seen = new Set<number>();
   const verses: number[] = [];
+  const push = (v: number) => {
+    if (
+      v < 1 ||
+      seen.has(v) ||
+      (maxVerse !== undefined && v > maxVerse)
+    ) {
+      return;
+    }
+    seen.add(v);
+    verses.push(v);
+  };
   for (const part of verseStr.split(',')) {
     const trimmed = part.trim();
     if (trimmed.includes('-')) {
       const [startStr, endStr] = trimmed.split('-');
       const start = parseInt(startStr, 10);
-      const end = parseInt(endStr, 10);
+      const parsedEnd = parseInt(endStr, 10);
+      // Clamp before looping — an unbounded end ("1-2147483647")
+      // would iterate billions of dead numbers; `push` filters
+      // them but the loop itself is the DoS.
+      const end =
+        maxVerse !== undefined
+          ? Math.min(parsedEnd, maxVerse)
+          : parsedEnd;
       if (!isNaN(start) && !isNaN(end) && start <= end) {
-        for (let v = start; v <= end; v++) verses.push(v);
+        for (let v = start; v <= end; v++) push(v);
       }
     } else {
       const v = parseInt(trimmed, 10);
-      if (!isNaN(v)) verses.push(v);
+      if (!isNaN(v)) push(v);
     }
   }
   return verses;
@@ -220,7 +282,10 @@ export interface ParsedBibleRef {
  * Parses a single-segment bible ref: "JHN.3", "jhn.3",
  * "1CO.1.5-10", or "PSA.119.1-8,176". The first token may be a
  * USFM code or a book name; a missing chapter defaults to 1.
- * Returns null for unrecognized books or malformed input.
+ * Returns null for unrecognized books, malformed input, or
+ * out-of-range chapters/verses (e.g. "MAL.5", "JHN.3.999") —
+ * letting the router fall back instead of rendering a blank
+ * page.
  */
 export const parseBibleRef = (
   ref: string,
@@ -243,11 +308,16 @@ export const parseBibleRef = (
 
   if (!/^\d+$/.test(segments[1])) return null;
   const chapter = parseInt(segments[1], 10);
-  if (chapter < 1) return null;
+  if (chapter < 1 || chapter > getChapterCount(bookId)) {
+    return null;
+  }
 
   let verses: number[] = [];
   if (segments.length === 3) {
-    verses = decodeVerses(segments[2]);
+    verses = decodeVerses(
+      segments[2],
+      getMaxVerse(bookId, chapter),
+    );
     if (verses.length === 0) return null;
   }
 
