@@ -1202,6 +1202,13 @@ If the active text is already same-language it is kept; if no
 same-language text exists the current text is kept with an info
 note.
 
+**Audio default**: picking a version keeps the stored audio
+product when the version owns it, otherwise defaults to the
+first audio option (preferring a real option over None) —
+audio-only versions behave the same. Reopening the modal on the
+current selection restores the stored value verbatim, so a
+saved "None" is shown as None rather than re-defaulting.
+
 **Fileset groups & resolution** (`src/utils/filesetGroups.ts`):
 
 A translation's raw `filesets` are normalized into product-like
@@ -1871,7 +1878,7 @@ User Opens TranslationSelector
     ↓
 Fetch available translations (cached)
     ↓
-User selects language (eng/lvs)
+User selects language (eng/lvs/rus)
     ↓
 Fetch translations for language
     ↓
@@ -2191,7 +2198,7 @@ Modal for selecting Bible translations.
 
 **Responsibilities**:
 - Fetch available translations from API
-- Language selector (English, Latvian)
+- Language selector (English, Latvian, Russian)
 - Version dropdown (searchable, capability chips: "Audio",
   "Text only", "Audio only")
 - Text auto-resolution per testament (dimmed info line; no
