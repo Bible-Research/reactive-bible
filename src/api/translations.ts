@@ -82,30 +82,32 @@ export const getAvailableTranslations = async (
     const response = await publicFetch(url);
     // A failed response must never reach cacheTranslations —
     // an error body parsed as "no results" would poison the
-    // cache and stick until a force refresh.
+    // cache and stick until a force refresh. The contract
+    // pins ProviderError for ANY non-OK, so a codeless body
+    // (plain Error from throwFromErrorBody) is re-wrapped.
     if (!response.ok) {
-      await throwFromErrorBody(response, {
-        bookNotInFileset: 'Translations not available',
-        failure:
-          `Failed to fetch translations ` +
-          `(HTTP ${response.status})`,
-      }).catch((err: unknown) => {
-        // Every non-OK from this endpoint is a provider
-        // failure — a codeless body must still surface as
-        // the typed ProviderError, not a plain Error.
+      try {
+        await throwFromErrorBody(response, {
+          bookNotInFileset: 'Translations not available',
+          failure:
+            `Failed to fetch translations ` +
+            `(HTTP ${response.status})`,
+        });
+      } catch (error) {
+        // Every non-OK here is a provider failure: a codeless
+        // body comes back from throwFromErrorBody as a plain
+        // Error — rethrow it as ProviderError so callers can
+        // branch on the failure kind.
         if (
-          err instanceof RateLimitError ||
-          err instanceof ProviderError
+          error instanceof ProviderError ||
+          error instanceof RateLimitError
         ) {
-          throw err;
+          throw error;
         }
         throw new ProviderError(
-          err instanceof Error
-            ? err.message
-            : `Failed to fetch translations ` +
-              `(HTTP ${response.status})`
+          error instanceof Error ? error.message : String(error)
         );
-      });
+      }
     }
     const data = await response.json();
     // Provider failures may arrive wrapped in a 200 body —
@@ -121,14 +123,14 @@ export const getAvailableTranslations = async (
         : new ProviderError(message);
     }
 
-    // Only cache real arrays — an error body must not poison the
-    // no-TTL translation cache (it also feeds findOwnerIso).
+    // Only cache real arrays — a malformed `results` body
+    // must not poison the no-TTL translation cache (it also
+    // feeds findOwnerIso).
     if (!Array.isArray(data.results)) {
       throw new ProviderError(
         'Malformed translations response'
       );
     }
-
     // The actual translations are in the 'results' property
     const translations: Translation[] =
       injectBundledKjv(data.results);
@@ -139,8 +141,8 @@ export const getAvailableTranslations = async (
     return translations;
   } catch (error) {
     console.error("Failed to fetch available translations:", error);
-    // Surface the failure — callers catch at the UI layer; a
-    // silent `[]` is indistinguishable from "no translations".
+    // Provider failures must surface — returning [] would be a
+    // silent empty list and would get cached.
     throw error;
   }
 };

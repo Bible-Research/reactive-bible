@@ -104,8 +104,8 @@ export const deleteNote = async (noteId: string) => {
     clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (err) {
-    console.error('Error deleting note:', err);
+  } catch (error) {
+    console.error('Error deleting note:', error);
     throw new Error('Failed to delete your note, please try again');
   }
 }

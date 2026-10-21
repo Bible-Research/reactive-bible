@@ -363,10 +363,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
   )
 );
 
-// Let authStore purge session-owned state (logout / token change)
-// without it importing this module — that edge would make the
-// store evaluate inside api's Vitest importOriginal window
-// and bind the real api, breaking vi.mock('../api').
+// Let authStore purge session-owned state (logout / token
+// change) without it importing this module — that edge would
+// make the store evaluate inside api's Vitest importOriginal
+// window and bind the real api, breaking vi.mock('../api').
 registerBibleStore(useBibleStore);
 
 /** Display name for the active book (e.g. "John"). */
