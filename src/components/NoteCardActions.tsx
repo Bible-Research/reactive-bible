@@ -38,6 +38,11 @@ interface NoteCardActionsProps {
   onToggleThread: () => void;
   /** Optional `#k` order badge + move dropdown node. */
   orderMenuNode?: ReactNode;
+  /**
+   * Caller knows the viewed tag belongs to the user — covers
+   * production notes that omit `is_owner`.
+   */
+  isTagOwner?: boolean;
   /** Layout hook for the folded vs unfolded call sites. */
   sx?: Sx;
 }
@@ -52,6 +57,7 @@ const NoteCardActions = ({
   threadOpen,
   onToggleThread,
   orderMenuNode,
+  isTagOwner,
   sx,
 }: NoteCardActionsProps) => {
   const isAuthenticated = useAuthStore(
@@ -62,11 +68,16 @@ const NoteCardActions = ({
   const book = note.verses?.[0]?.book || "";
   const chapter = note.verses?.[0]?.chapter || 1;
 
-  // Ownership must be explicit — `is_owner !== false` used to
-  // fail open, rendering edit/delete whenever the payload
-  // omitted the field.
-  const canEdit = note.is_owner === true && !!onEdit;
-  const canDelete = note.is_owner === true && !!onDelete;
+  // Ownership rule: authenticated AND (the viewed tag is one of
+  // the user's own OR the note itself reports is_owner). The
+  // tag-list half covers production, where notes omit
+  // `is_owner`; the strict `is_owner === true` half keeps
+  // foreign tags read-only once the backend ships the field —
+  // fail closed rather than offering edit/delete that will 403.
+  const ownsNote =
+    isTagOwner === true || note.is_owner === true;
+  const canEdit = isAuthenticated && ownsNote && !!onEdit;
+  const canDelete = isAuthenticated && ownsNote && !!onDelete;
   const canShare = note.public;
   // Verse-less notes never enter the audio playlist
   // (buildNotePlaylistItems filters them out), so clicking
@@ -134,21 +145,13 @@ const NoteCardActions = ({
           </Box>
         </Tooltip>
       )}
-      {onPlayFromNote && (
-        <Tooltip
-          label={
-            canPlay
-              ? 'Play from here'
-              : 'No verses to play'
-          }
-          position="top"
-        >
+      {canPlay && onPlayFromNote && (
+        <Tooltip label="Play from here" position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
             <ActionIcon
               variant="subtle"
               size="sm"
               color="blue"
-              disabled={!canPlay}
               onClick={() => onPlayFromNote(note.id)}
               aria-label={`play-from-${note.id}`}
             >

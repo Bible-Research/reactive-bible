@@ -10,7 +10,6 @@ import {
 import {
   useAuthStore,
   AuthState,
-  initialState as authInitialState,
 } from '../stores/authStore';
 
 // The `export *` re-exports below are test-only barrels — they
@@ -27,11 +26,19 @@ export * from './helpers/factories';
 
 // Re-export performance helpers
 // eslint-disable-next-line react-refresh/only-export-components
-export * from './helpers/performance';
-// eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/performanceUtils';
 
 // --- Store Helpers ---
+
+// Pristine snapshots captured at module load — data AND real
+// action refs. `useBibleStore.setState` merges, and
+// `initialState`/`authInitialState` carry data keys only, so an
+// action mocked via storeOverrides (e.g. `fetchNotes: vi.fn()`)
+// would otherwise stay mocked for every later render in the
+// file. Restoring the snapshot keeps action leaks from crossing
+// test boundaries.
+const PRISTINE_BIBLE_STATE = useBibleStore.getState();
+const PRISTINE_AUTH_STATE = useAuthStore.getState();
 
 /**
  * Creates a mock store state with optional overrides.
@@ -78,12 +85,6 @@ export function resetStore(overrides: Partial<BibleState> = {}) {
 
 // --- DOM Mocks ---
 
-// Captured ONCE at module load. If this were bound inside
-// mockDomApis(), a second call would bind the previous spy as the
-// "original" and the mockImplementation below would recurse
-// forever (mocks are not auto-restored between tests).
-const realGetElementById = document.getElementById.bind(document);
-
 /**
  * Mocks common DOM APIs that aren't available in happy-dom/jsdom.
  * Call this in your test setup file or beforeEach().
@@ -93,18 +94,27 @@ export function mockDomApis() {
   // Mock scrollIntoView
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
-  // Mock document.getElementById for scroll behavior
-  vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
-    const element = realGetElementById(id);
-    if (element) return element;
-    // Return a mock element for verse scrolling
-    if (id.startsWith('verse-')) {
-      return {
-        scrollIntoView: vi.fn(),
-      } as unknown as HTMLElement;
-    }
-    return null;
-  });
+  // Mock document.getElementById for scroll behavior.
+  // Guard the spy: re-wrapping an already-spied method binds
+  // `original` to the spy itself and recurses infinitely once
+  // enough tests have rendered in the same environment.
+  if (!vi.isMockFunction(document.getElementById)) {
+    const originalGetElementById =
+      document.getElementById.bind(document);
+    vi.spyOn(document, 'getElementById').mockImplementation(
+      (id: string) => {
+        const element = originalGetElementById(id);
+        if (element) return element;
+        // Return a mock element for verse scrolling
+        if (id.startsWith('verse-')) {
+          return {
+            scrollIntoView: vi.fn(),
+          } as unknown as HTMLElement;
+        }
+        return null;
+      }
+    );
+  }
 
   // Mock matchMedia for theme tests
   Object.defineProperty(window, 'matchMedia', {
@@ -166,14 +176,14 @@ export function renderWithProviders(
 
   // Reset stores to their initial states plus any overrides
   const bibleState = bibleOverrides
-    ? { ...initialState, ...bibleOverrides }
-    : initialState;
+    ? { ...PRISTINE_BIBLE_STATE, ...bibleOverrides }
+    : PRISTINE_BIBLE_STATE;
   useBibleStore.setState(bibleState);
 
   useAuthStore.setState(
     authOverrides
-      ? { ...authInitialState, ...authOverrides }
-      : authInitialState
+      ? { ...PRISTINE_AUTH_STATE, ...authOverrides }
+      : PRISTINE_AUTH_STATE
   );
 
   // Mock DOM APIs
@@ -191,3 +201,10 @@ export function renderWithProviders(
   };
 }
 
+/**
+ * Flushes pending microtasks — use inside act() to let a chain
+ * of awaited promises settle before asserting.
+ */
+export async function flushPromises() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}

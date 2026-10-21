@@ -21,14 +21,8 @@ export default function Pagination({
   const pageNumbers = pageNumberList(currentPage, totalPages);
 
   return (
-    <Group
-      position="center"
-      spacing="xs"
-      mt="md"
-      mb="xl"
-      role="navigation"
-      aria-label="Pagination"
-    >
+    <nav aria-label="Pagination">
+      <Group position="center" spacing="xs" mt="md" mb="xl">
       <ActionIcon
         variant="outline"
         size="lg"
@@ -60,9 +54,7 @@ export default function Pagination({
             size="sm"
             onClick={() => onPageChange(page)}
             aria-label={`Page ${page}`}
-            aria-current={
-              page === currentPage ? 'page' : undefined
-            }
+            aria-current={page === currentPage ? 'page' : undefined}
           >
             {page}
           </Button>
@@ -78,6 +70,7 @@ export default function Pagination({
       >
         <IconChevronRight size={18} />
       </ActionIcon>
-    </Group>
+      </Group>
+    </nav>
   );
 }

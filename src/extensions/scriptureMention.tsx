@@ -1,8 +1,9 @@
-import { Extension } from '@tiptap/core';
+import { Extension, Node } from '@tiptap/core';
 import { ReactRenderer } from '@tiptap/react';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { EditorView } from '@tiptap/pm/view';
 import Suggestion from '@tiptap/suggestion';
 import type {
   SuggestionKeyDownProps,
@@ -18,9 +19,11 @@ import {
   parseMentionQuery,
 } from '../utils/scriptureMention';
 import {
+  isRefAttempt,
   SCRIPTURE_TOKEN_REGEX,
   VALID_REF_PREFIX,
 } from '../utils/scriptureLinkify';
+import { UNASCII_SPACES } from '../utils/clipboardSanitize';
 import { BOOK_NAME_TO_CODE } from '../utils/bibleUtils';
 import { findVersesInBetween } from '../utils/findVersesInBetween';
 
@@ -34,9 +37,16 @@ export interface ScriptureMentionOptions {
   /**
    * Single click/tap on a complete '@USFM.C.V[-E]' token.
    * Intended to reveal the passage — it does NOT link the note
-   * to that passage.
+   * to that passage. `anchor` is a Range over the token text;
+   * the popover positions itself under it.
    */
-  onRefPreview: (token: string) => void;
+  onRefPreview: (token: string, anchor: Range) => void;
+  /**
+   * Second click on a token — the picker reopens to edit the
+   * reference, so an open passage preview should close (the
+   * two floating panels would otherwise overlap).
+   */
+  onRefEditStart: () => void;
 }
 
 interface PopupActions {
@@ -131,12 +141,16 @@ export const ScriptureMention = Extension.create<
   name: 'scriptureMention',
 
   addOptions() {
-    return { onRefPreview: () => undefined };
+    return {
+      onRefPreview: () => undefined,
+      onRefEditStart: () => undefined,
+    };
   },
 
   addProseMirrorPlugins() {
     const editor = this.editor;
     const onRefPreview = this.options.onRefPreview;
+    const onRefEditStart = this.options.onRefEditStart;
     const pluginKey = new PluginKey('scriptureMention');
 
     // After inserting a token the '@…' text still matches the
@@ -148,6 +162,11 @@ export const ScriptureMention = Extension.create<
     let suppressFrom: number | null = null;
     let suppressQuery = '';
 
+    // Double-click on a finished token sets this to the '@'
+    // position so the next allow() call force-opens the picker
+    // even though the ref looks terminated/suppressed.
+    let forceOpenAt: number | null = null;
+
     const suppress = (from: number, query: string) => {
       suppressFrom = from;
       suppressQuery = query;
@@ -158,10 +177,15 @@ export const ScriptureMention = Extension.create<
       suppressQuery = '';
     };
 
-    // Marks '@…' tokens that don't resolve to a complete,
-    // in-range ref with a red inline decoration. The live
-    // suggestion range and code-formatted text are skipped.
-    const invalidRefDecorations = (state: EditorState) => {
+    // Marks every '@…' ref attempt with an inline decoration:
+    // complete, in-range refs get a `data-scripture-ref`
+    // attribute (what ScriptureRefNode.renderHTML emits — the
+    // passage popover's tap-outside dismissal keys off it so a
+    // tap on the token is left to the toggle logic), while
+    // tokens that don't resolve render red. The live
+    // suggestion range, code-formatted text, and tokens that
+    // aren't ref-shaped ('bob@example.com') are skipped.
+    const refDecorations = (state: EditorState) => {
       const suggestion = pluginKey.getState(state) as
         | { active: boolean; range: { from: number; to: number } }
         | undefined;
@@ -179,7 +203,7 @@ export const ScriptureMention = Extension.create<
           const token = match[1];
           const candidate =
             token.match(VALID_REF_PREFIX)?.[1] ?? token;
-          if (isValidScriptureToken(candidate)) continue;
+          if (!isRefAttempt(candidate)) continue;
           const from = pos + match.index;
           const to = from + candidate.length;
           if (
@@ -190,9 +214,13 @@ export const ScriptureMention = Extension.create<
             continue;
           }
           decorations.push(
-            Decoration.inline(from, to, {
-              class: 'scripture-ref-invalid',
-            })
+            isValidScriptureToken(candidate)
+              ? Decoration.inline(from, to, {
+                  'data-scripture-ref': '',
+                })
+              : Decoration.inline(from, to, {
+                  class: 'scripture-ref-invalid',
+                })
           );
         }
       });
@@ -201,7 +229,7 @@ export const ScriptureMention = Extension.create<
 
     // The '@…' token covering `pos`, if it resolves to a
     // complete, in-range ref. Same exclusions as
-    // invalidRefDecorations: code is never clickable.
+    // refDecorations: code is never clickable.
     const tokenAtPos = (
       state: EditorState,
       pos: number
@@ -240,6 +268,48 @@ export const ScriptureMention = Extension.create<
         }
       });
       return hit;
+    };
+
+    // Stored 'scriptureRef'/'mention' atom nodes (written by
+    // other clients) aren't text — tokenAtPos misses them, so
+    // they would be dead clicks that still swallow the
+    // popover's dismiss gesture (they carry data-scripture-ref).
+    // A click lands at the atom's boundary, so check the node
+    // on either side of the resolved position.
+    const atomAtPos = (
+      state: EditorState,
+      pos: number
+    ): { from: number; to: number; token: string } | null => {
+      const $pos = state.doc.resolve(pos);
+      for (const node of [$pos.nodeAfter, $pos.nodeBefore]) {
+        if (!node) continue;
+        const name = node.type.name;
+        if (name !== 'scriptureRef' && name !== 'mention') {
+          continue;
+        }
+        const token = refNodeText(node.attrs);
+        if (!isValidScriptureToken(token)) return null;
+        const from =
+          node === $pos.nodeAfter ? pos : pos - node.nodeSize;
+        return { from, to: from + node.nodeSize, token };
+      }
+      return null;
+    };
+
+    // Builds the DOM Range that anchors the passage popover —
+    // it tracks scrolling and text reflow for free, and
+    // collapses if the token is deleted.
+    const tokenRange = (
+      view: EditorView,
+      from: number,
+      to: number
+    ): Range => {
+      const range = document.createRange();
+      const start = view.domAtPos(from);
+      const end = view.domAtPos(to);
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+      return range;
     };
 
     // Single vs double click on a '@…' token: a lone click
@@ -365,15 +435,27 @@ export const ScriptureMention = Extension.create<
       };
     };
 
+    const invalidDecoKey = new PluginKey('scriptureRefInvalid');
+
     return [
       Suggestion({
         editor,
         pluginKey,
         char: '@',
         allowSpaces: true,
-        allowedPrefixes: [' ', '('],
+        // Any space variant may precede '@' — a stray non-ASCII
+        // space that slipped past the paste filter must not
+        // suppress the picker.
+        allowedPrefixes: [' ', '(', ...UNASCII_SPACES],
         items: () => [],
         allow: ({ state, range }) => {
+          // An explicit reopen intent (double-click on a token)
+          // beats every dismissal heuristic below.
+          if (forceOpenAt !== null) {
+            const forced = forceOpenAt === range.from;
+            forceOpenAt = null;
+            if (forced) return true;
+          }
           const text = state.doc.textBetween(
             range.from,
             range.to,
@@ -395,8 +477,24 @@ export const ScriptureMention = Extension.create<
         render: popupRenderer,
       }),
       new Plugin({
-        key: new PluginKey('scriptureRefInvalid'),
-        props: { decorations: invalidRefDecorations },
+        key: invalidDecoKey,
+        // The doc walk is the expensive part — recompute only
+        // when the doc or the suggestion's active range changed;
+        // selection/store updates reuse the decoration set.
+        state: {
+          init: (_, state) => refDecorations(state),
+          apply: (tr, set, oldState, newState) => {
+            const suggestionChanged =
+              pluginKey.getState(oldState) !==
+              pluginKey.getState(newState);
+            if (!tr.docChanged && !suggestionChanged) return set;
+            return refDecorations(newState);
+          },
+        },
+        props: {
+          decorations: (state) =>
+            invalidDecoKey.getState(state) as DecorationSet,
+        },
       }),
       new Plugin({
         key: new PluginKey('scriptureRefClick'),
@@ -411,13 +509,33 @@ export const ScriptureMention = Extension.create<
               })?.pos;
               if (pos === undefined) return false;
               const hit = tokenAtPos(view.state, pos);
-              if (!hit) return false;
+              if (!hit) {
+                // Atom nodes have no editable '@…' text to
+                // reopen in the picker — every click previews
+                // straight away (a second click toggles shut).
+                const atom = atomAtPos(view.state, pos);
+                if (!atom) return false;
+                mouse.preventDefault();
+                try {
+                  onRefPreview(
+                    atom.token,
+                    tokenRange(view, atom.from, atom.to)
+                  );
+                } catch {
+                  // The node vanished between event and read.
+                }
+                return true;
+              }
               mouse.preventDefault();
               if (mouse.detail > 1) {
                 // Double click: caret lands at the token end so
                 // the suggestion range covers the whole '@…'
-                // token and the picker reopens for editing.
+                // token; forceOpenAt makes allow() reopen the
+                // picker for editing. The open passage preview
+                // must close or the two panels overlap.
                 clearPreviewTimer();
+                onRefEditStart();
+                forceOpenAt = hit.from;
                 editor.commands.setTextSelection(hit.to);
                 return true;
               }
@@ -425,7 +543,15 @@ export const ScriptureMention = Extension.create<
               clearPreviewTimer();
               previewTimer = setTimeout(() => {
                 previewTimer = null;
-                onRefPreview(token);
+                try {
+                  onRefPreview(
+                    token,
+                    tokenRange(view, hit.from, hit.to)
+                  );
+                } catch {
+                  // The token moved or vanished between the
+                  // click and the timer firing — skip it.
+                }
               }, PREVIEW_CLICK_MS);
               return true;
             },
@@ -435,6 +561,59 @@ export const ScriptureMention = Extension.create<
       }),
     ];
   },
+});
+
+// Display text for a stored scriptureRef/mention node's attrs —
+// mirrors the token fallback chain in RichTextView.
+const refNodeText = (a: Record<string, unknown>): string => {
+  if (a.code && a.chapter && a.verseStart) {
+    const end = a.verseEnd ? `-${a.verseEnd}` : '';
+    return `@${a.code}.${a.chapter}.${a.verseStart}${end}`;
+  }
+  if (typeof a.id === 'string' && a.id.startsWith('@')) {
+    return a.id;
+  }
+  if (typeof a.label === 'string' && a.label) return a.label;
+  return '@…';
+};
+
+const refNodeAttributes = () => ({
+  code: { default: null },
+  chapter: { default: null },
+  verseStart: { default: null },
+  verseEnd: { default: null },
+  id: { default: null },
+  label: { default: null },
+});
+
+/**
+ * Stored docs may contain inline 'scriptureRef'/'mention' nodes
+ * written by other clients (RichTextView renders them). Without
+ * a schema entry the editor silently strips them on load, so a
+ * save would lose data. This light atom spec preserves the node
+ * and its attrs through getJSON; it displays as its '@…' token.
+ */
+export const ScriptureRefNode = Node.create({
+  name: 'scriptureRef',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes: refNodeAttributes,
+  parseHTML() {
+    return [{ tag: 'span[data-scripture-ref]' }];
+  },
+  renderHTML({ node }) {
+    return [
+      'span',
+      { 'data-scripture-ref': '' },
+      refNodeText(node.attrs),
+    ];
+  },
+});
+
+export const ScriptureMentionNode = ScriptureRefNode.extend({
+  name: 'mention',
 });
 
 export default ScriptureMention;

@@ -29,6 +29,14 @@ export const useNotePlaylist = (
     (state) => state.setAudioPlaylistStartIndex
   );
 
+  // Notes that can actually produce playlist items — the same
+  // filtered list the playlist is built from.
+  const playableNotes = useMemo(
+    () =>
+      sortedNotes.filter((n) => (n.verses?.length ?? 0) > 0),
+    [sortedNotes]
+  );
+
   const playlistItems = useMemo(
     () => buildNotePlaylistItems(sortedNotes),
     [sortedNotes]
@@ -49,26 +57,37 @@ export const useNotePlaylist = (
 
   const playFromNote = useCallback(
     (noteId: string) => {
-      // Index into the same filtered array the store received —
-      // verse-less notes are absent from it and simply no-op.
-      const noteIndex = playlistItems.findIndex(
-        (item) => item.itemId === noteId
+      // The start index must come from the same filtered item
+      // list handed to the playlist — a verse-less note earlier
+      // in sortedNotes would otherwise shift it off by one.
+      // Match on `scope` (the note id), not itemId — multi-block
+      // notes carry suffixed itemIds and several entries share
+      // one scope; the first block is the right start index.
+      const itemIndex = playlistItems.findIndex(
+        (item) => (item.scope ?? item.itemId) === noteId
       );
 
-      if (noteIndex >= 0) {
-        setAudioPlaylistStartIndex(noteIndex);
+      if (itemIndex >= 0) {
+        setAudioPlaylistStartIndex(itemIndex);
 
+        const noteIndex = playableNotes.findIndex(
+          (n) => n.id === noteId
+        );
         showNotification({
           title: 'Playlist Started',
           message:
             `Playing from note ${noteIndex + 1} ` +
-            `of ${playlistItems.length}`,
+            `of ${playableNotes.length}`,
           color: 'blue',
           autoClose: 3000,
         });
       }
     },
-    [playlistItems, setAudioPlaylistStartIndex]
+    [
+      playlistItems,
+      playableNotes,
+      setAudioPlaylistStartIndex,
+    ]
   );
 
   return { playFromNote };
