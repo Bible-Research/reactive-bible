@@ -71,6 +71,7 @@ describe('buildNotePlaylistItems', () => {
         verse('John', 3, 17),
       ]),
     ]);
+    expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       chapter: 3,
       startVerse: 16,
@@ -80,8 +81,8 @@ describe('buildNotePlaylistItems', () => {
     });
   });
 
-  it('emits one item per book+chapter block so cross-' +
-    'chapter verses are not dropped', () => {
+  it('emits one item per book+chapter block for a spanning ' +
+    'note, sharing the note id as scope', () => {
     const items = buildNotePlaylistItems([
       note('n1', [
         verse('John', 3, 16),
@@ -97,7 +98,11 @@ describe('buildNotePlaylistItems', () => {
     ]);
     // Every block carries the note id as scope so callers can
     // map an item back to its note.
-    expect(items.every((i) => i.scope === 'n1')).toBe(true);
+    expect(items.map((i) => i.scope)).toEqual([
+      'n1',
+      'n1',
+      'n1',
+    ]);
     expect(items[0]).toMatchObject({
       bookId: 'JHN',
       chapter: 3,

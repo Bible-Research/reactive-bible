@@ -1,7 +1,7 @@
 import { Box, ScrollArea, createStyles, rem } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent } from "react";
-import { getChapters, getVerses } from "../api";
+import { getChapters, getVerses } from "../api/structure";
 import { getAllBooks } from "../utils/scriptureMention";
 
 const useStyles = createStyles((theme) => ({
