@@ -9,6 +9,7 @@ module.exports = {
   parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
   reportUnusedDisableDirectives: true,
   plugins: ['react-refresh'],
+  reportUnusedDisableDirectives: true,
   rules: {
     'react-refresh/only-export-components': 'warn',
   },

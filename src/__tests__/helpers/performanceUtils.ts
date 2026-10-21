@@ -1,5 +1,7 @@
 /**
- * Performance testing utilities
+ * Non-component performance testing utilities. Kept in a `.ts`
+ * file so `react-refresh/only-export-components` (which only
+ * scans `.jsx`/`.tsx`) does not flag them.
  */
 
 /**

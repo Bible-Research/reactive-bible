@@ -387,8 +387,8 @@ export const deleteNote = async (noteId: string) => {
     clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (error) {
-    console.error('Error deleting note:', error);
+  } catch (err) {
+    console.error('Error deleting note:', err);
     throw new Error('Failed to delete your note, please try again');
   }
 }
@@ -482,7 +482,6 @@ export const reorderNotes = async (
  * canonical ascending order. Powers the order-ID badge
  * dropdown; the order ID is the 1-based array index.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export const getNoteOrderIndex = async (
   tagId: string
 ): Promise<NoteOrderIndexEntry[]> => {
@@ -523,7 +522,6 @@ export interface MoveNoteResponse {
  * (and rebalances when the float gap is exhausted); unlike
  * `reorderNotes` it returns 200 with the new position.
  */
-// eslint-disable-next-line react-refresh/only-export-components
 export const moveNote = async (
   tagId: string,
   noteId: string,
@@ -772,6 +770,15 @@ export interface AudioResponse {
   format: string;
 }
 
+interface AudioApiResponse {
+  error?: string | { message?: string };
+  error_code?: unknown;
+  audio_url?: unknown;
+  duration_seconds?: number;
+  file_size_bytes?: number;
+  meta?: unknown;
+}
+
 /**
  * Get audio URL for any Bible translation from Bible Research API
  * @param bookId - USFM book code (e.g., "GEN", "2CH")
@@ -831,14 +838,7 @@ export const getBibleAudioUrl = async (
       throw new Error(errorMsg);
     }
 
-    const data = (await response.json()) as {
-      error?: string | { message?: string };
-      error_code?: string;
-      audio_url?: unknown;
-      duration_seconds?: number;
-      file_size_bytes?: number;
-      meta?: unknown;
-    };
+    const data = (await response.json()) as AudioApiResponse;
 
     if (isBookNotInFilesetBody(data)) {
       throw new BookNotInFilesetError(
@@ -1602,8 +1602,6 @@ export const fetchCommentCounts = async (params: {
 // get_dbt_book_id), so every function below maps the USFM bookId
 // to a display name before calling the API and maps names back
 // to USFM codes in responses.
-/* eslint-disable react-refresh/only-export-components --
-   api.tsx is a pure API module; it exports no components. */
 
 export type ReadingPositionValue = {
   chapter: number;

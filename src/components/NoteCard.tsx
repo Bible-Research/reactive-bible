@@ -325,7 +325,7 @@ const NoteCard = ({
                     <ActionIcon
                       variant="subtle"
                       size="sm"
-                      onClick={() => onEdit!(note)}
+                      onClick={() => onEdit?.(note)}
                       aria-label="edit-note"
                     >
                       <IconEdit size={16} />
@@ -342,7 +342,7 @@ const NoteCard = ({
                       color="red"
                       onClick={
                         (evt: MouseEvent<HTMLButtonElement>) =>
-                          onDelete!(evt, note)
+                          onDelete?.(evt, note)
                       }
                       aria-label="remove-note"
                     >
@@ -450,7 +450,7 @@ const NoteCard = ({
                   <ActionIcon
                     variant="subtle"
                     size="sm"
-                    onClick={() => onEdit!(note)}
+                    onClick={() => onEdit?.(note)}
                     aria-label="edit-note"
                   >
                     <IconEdit size={16} />
@@ -467,7 +467,7 @@ const NoteCard = ({
                     color="red"
                     onClick={
                       (evt: MouseEvent<HTMLButtonElement>) =>
-                        onDelete!(evt, note)
+                        onDelete?.(evt, note)
                     }
                     aria-label="remove-note"
                   >

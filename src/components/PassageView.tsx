@@ -639,4 +639,5 @@ const PassageView = () => {
   );
 };
 
-export default React.memo(PassageView);
+const MemoizedPassageView = React.memo(PassageView);
+export default MemoizedPassageView;
