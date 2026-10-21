@@ -39,6 +39,15 @@ export function measureRenderTime(
 }
 
 /**
+ * Wait for next frame (useful for testing animations/transitions)
+ */
+export function waitForNextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+/**
  * Create large mock data for performance testing
  */
 export function createLargeVerseData(count: number) {
@@ -85,13 +94,4 @@ export class CacheMetrics {
       total: this.hits + this.misses,
     };
   }
-}
-
-/**
- * Wait for next frame (useful for testing animations/transitions)
- */
-export function waitForNextFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => resolve());
-  });
 }

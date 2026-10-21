@@ -28,12 +28,11 @@ import {
 } from "../utils/bibleUtils";
 import {
   findTranslationByFilesetId,
-  preferTimestampedAudio,
-  resolveAudioFileset,
   resolveTextFileset,
   splitCodec,
   type CodecKey,
 } from "../utils/filesetGroups";
+import { orderedAudioCandidates } from "../utils/audioCandidates";
 import { getPlayPosition } from "../utils/audioUtils";
 import { disposeHowl } from "../utils/howlUtils";
 import { verseDomId } from "../utils/verseRefs";
@@ -216,20 +215,6 @@ const Audio = () => {
     }
   }, [isPlaylistMode, playlistActive, stopPlaylist]);
 
-  // Resolve which audio fileset actually serves a book through
-  // the grouped "audio product" (testament splits, opus16/mp3
-  // codec pairs, generated voices). Reads store state so it is
-  // always current.
-  const resolveAudio = useCallback(
-    (bookId: string, filesetId: string | null) =>
-      resolveAudioFileset(
-        filesetId,
-        bookId,
-        useBibleStore.getState().translations,
-      ),
-    [],
-  );
-
   // Ordered candidates for a book with the codec that last
   // played for this selection moved to the front — after an
   // opus16 decode failure the mp3 sibling leads the next
@@ -239,33 +224,19 @@ const Audio = () => {
       bookId: string,
       filesetId: string | null,
     ): { filesetId: string; candidates: string[] } | null => {
-      const resolved = resolveAudio(bookId, filesetId);
-      if (!resolved) return null;
-      // Prefer the timestamp-backed sibling recording (e.g.
-      // ENGESHO1DA -> ENGESVO1DA) so single-chapter playback
-      // gets verse timestamps and highlighting; the resolved
-      // id stays in candidates as a load/decode fallback.
-      const primary = preferTimestampedAudio(
-        resolved.filesetId,
-        useBibleStore.getState().translations,
-      );
-      const candidates = [
-        primary,
-        ...resolved.alternates,
-        resolved.filesetId,
-      ].filter((id, i, arr) => arr.indexOf(id) === i);
       const remembered = filesetId
         ? workingCodecRef.current.get(filesetId)
         : undefined;
-      if (remembered) {
-        const i = candidates.findIndex(
-          (id) => splitCodec(id).codec === remembered,
-        );
-        if (i > 0) candidates.unshift(candidates.splice(i, 1)[0]);
-      }
+      const candidates = orderedAudioCandidates(
+        filesetId,
+        bookId,
+        useBibleStore.getState().translations,
+        remembered,
+      );
+      if (candidates.length === 0) return null;
       return { filesetId: candidates[0], candidates };
     },
-    [resolveAudio],
+    [],
   );
 
   // Primary concrete fileset id for a book — used where only the

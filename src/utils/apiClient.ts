@@ -206,9 +206,10 @@ export const authenticatedFetch = async (
  * Sets only the Authorization header; lets the browser generate
  * the multipart Content-Type with its boundary.
  * Mirrors authenticatedFetch's 401 (logout + notification) and
- * 403 (throw permission error) handling. There is no network-error
- * retry: an upload is a non-idempotent POST, and retrying a
- * lost-response request could double-upload the file.
+ * 403 (throw permission error) handling. There is no
+ * network-error retry: an upload is a non-idempotent POST, and
+ * retrying a lost-response request could double-upload the
+ * file.
  */
 export const authenticatedUpload = async (
   url: string,
@@ -229,7 +230,9 @@ export const authenticatedUpload = async (
   );
 
   // Same rule as authenticatedFetch: a 401 only ends the
-  // session when this request actually attached the token.
+  // session when this request actually attached the token —
+  // an anonymous 401 means "login required", not a dead
+  // session.
   if (response.status === 401) {
     // An anonymous 401 means "login required", not a dead
     // session — there is nothing to log out.

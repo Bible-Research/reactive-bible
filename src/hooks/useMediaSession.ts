@@ -6,6 +6,20 @@ import {
 import type {
   MediaSessionAction as NativeAction,
 } from '@capgo/capacitor-media-session';
+import {
+  dispatchMediaAction,
+  isValidPosition,
+  type MediaSessionControls,
+  type MediaSessionDetails,
+  type MediaSessionMetadata,
+  type MediaSessionPosition,
+} from '../utils/mediaSession';
+
+export type {
+  MediaSessionControls,
+  MediaSessionMetadata,
+  MediaSessionPosition,
+} from '../utils/mediaSession';
 
 /**
  * Single, centralized owner of the global `navigator.mediaSession`.
@@ -32,32 +46,6 @@ import type {
  * lock-screen media notification and hardware buttons keep working
  * even when the WebView's own media session is not surfaced by the OS.
  */
-
-export interface MediaSessionMetadata {
-  title: string;
-  artist: string;
-  album?: string;
-  artwork?: MediaImage[];
-}
-
-export interface MediaSessionControls {
-  play: () => void;
-  pause: () => void;
-  stop?: () => void;
-  /** Real track navigation (playlist). Falls back to seek when absent. */
-  nextTrack?: () => void;
-  previousTrack?: () => void;
-  /** Absolute seek, in seconds. */
-  seekTo?: (time: number) => void;
-  /** Relative seek, in seconds (may be negative). */
-  seekBy?: (offset: number) => void;
-}
-
-export interface MediaSessionPosition {
-  duration: number;
-  position: number;
-  playbackRate?: number;
-}
 
 export interface UseMediaSessionParams {
   /** True when there is active audio to control. */
@@ -127,18 +115,8 @@ export const useMediaSession = ({
   // it can be called from action handlers without re-registering them.
   const updatePositionState = useCallback(() => {
     const pos = getPositionRef.current?.();
-    if (!pos) return;
+    if (!isValidPosition(pos)) return;
     const { duration, position, playbackRate = 1 } = pos;
-    if (
-      !(
-        duration > 0 &&
-        Number.isFinite(position) &&
-        position >= 0 &&
-        position <= duration
-      )
-    ) {
-      return;
-    }
     if (isSupported()) {
       try {
         navigator.mediaSession.setPositionState({
@@ -170,53 +148,14 @@ export const useMediaSession = ({
     // throw: prevents Android ANR.
     const dispatch = (
       action: MediaSessionAction,
-      details: { seekTime?: number | null; seekOffset?: number | null },
-    ): void => {
-      try {
-        const c = controlsRef.current;
-        switch (action) {
-          case 'play':
-            c.play();
-            break;
-          case 'pause':
-            c.pause();
-            break;
-          case 'stop':
-            (c.stop ?? c.pause)();
-            break;
-          case 'previoustrack':
-            if (c.previousTrack) c.previousTrack();
-            else {
-              c.seekBy?.(-10);
-              updatePositionState();
-            }
-            break;
-          case 'nexttrack':
-            if (c.nextTrack) c.nextTrack();
-            else {
-              c.seekBy?.(10);
-              updatePositionState();
-            }
-            break;
-          case 'seekbackward':
-            c.seekBy?.(-(details.seekOffset ?? 10));
-            updatePositionState();
-            break;
-          case 'seekforward':
-            c.seekBy?.(details.seekOffset ?? 10);
-            updatePositionState();
-            break;
-          case 'seekto':
-            if (details.seekTime != null) {
-              c.seekTo?.(details.seekTime);
-              updatePositionState();
-            }
-            break;
-        }
-      } catch (err) {
-        console.warn('MediaSession handler error:', err);
-      }
-    };
+      details: MediaSessionDetails,
+    ): void =>
+      dispatchMediaAction(
+        action,
+        details,
+        controlsRef.current,
+        updatePositionState,
+      );
 
     // Web handlers are skipped in the Capacitor shell: the
     // native plugin owns action dispatch there, and registering
