@@ -12,9 +12,10 @@ import {
   IconChevronDown,
   IconChevronRight,
 } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { addTagNote, editNote, getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Note } from "../types";
 import { toBookName } from "../utils/bibleUtils";
 import { resolveTextFileset } from "../utils/filesetGroups";
@@ -24,10 +25,20 @@ import {
   useVerseTexts,
 } from "../hooks/useVerseTexts";
 import NoteForm from "./NoteForm";
+import {
+  emptyNoteDraft,
+  type NoteDraftRef,
+} from "./noteDraft";
 
 interface AddTagNoteModalProps {
   opened: boolean;
   onClose: () => void;
+  /**
+   * Autosave draft owned by the parent — this modal unmounts on
+   * close, and a local ref would lose the autosaved note id,
+   * turning a reopen into a duplicate POST.
+   */
+  draftRef: NoteDraftRef;
 }
 
 const linkedNoteRef = (note: Note): string => {
@@ -42,7 +53,11 @@ const linkedNoteRef = (note: Note): string => {
   return `${first.book} ${first.chapter}:${range}`;
 };
 
-const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
+const AddTagNoteModal = ({
+  opened,
+  onClose,
+  draftRef,
+}: AddTagNoteModalProps) => {
   const {
     tags,
     getTags,
@@ -98,15 +113,10 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     });
   };
 
-  // Once autosave creates the note, later saves (and Submit)
-  // must PATCH that note instead of POSTing duplicates.
-  const savedNoteIdRef = useRef<string | null>(null);
-
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
-      getTags();
-      savedNoteIdRef.current = null;
+      void getTags().catch(() => { /* notified by the store */ });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]); // Only run when opened changes
@@ -162,26 +172,55 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
     refs,
   ]);
 
-  const handleAutoSave = async (tagId: string, text: string) => {
-    if (savedNoteIdRef.current) {
-      await editNote(savedNoteIdRef.current, tagId, text);
-      return;
-    }
-    const created = await addTagNote(tagId, text, verseReferences);
-    savedNoteIdRef.current = created?.id ?? null;
+  // Serialized through the draft's queue: a reopened form's
+  // in-flight lock starts empty, so without this a save could
+  // run beside a still-pending POST from the previous mount and
+  // create a duplicate.
+  const handleAutoSave = (tagId: string, text: string) => {
+    const draft = draftRef.current;
+    const run = draft.queue.then(async () => {
+      if (draft.savedNoteId) {
+        await editNote(draft.savedNoteId, tagId, text);
+      } else {
+        const created = await addTagNote(
+          tagId,
+          text,
+          verseReferences
+        );
+        draft.savedNoteId = created?.id ?? null;
+      }
+      // Record what the server holds so a reopened modal can
+      // restore the draft.
+      draft.tagId = tagId;
+      draft.text = text;
+    });
+    draft.queue = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
   };
 
   const handleSubmit = async (tagId: string, text: string) => {
     try {
-      // Shares savedNoteIdRef with autosave: an existing draft is
+      // Shares the draft with autosave: an existing draft is
       // PATCHed, and a note created by submit is recorded so a
-      // late autosave tick PATCHes instead of POSTing a duplicate.
+      // late autosave tick PATCHes instead of POSTing a
+      // duplicate.
       await handleAutoSave(tagId, text);
+      // The draft was submitted — reset so the next open starts
+      // a new note instead of resuming this one.
+      draftRef.current = emptyNoteDraft();
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
       onClose();
     } catch (error) {
       console.error(error);
+      showNotification({
+        title: 'Error',
+        message: 'Failed to save note. Please try again.',
+        color: 'red',
+      });
     }
   };
 
@@ -204,12 +243,32 @@ const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
         tags={tags}
         onSubmit={handleSubmit}
         submitText="Submit"
-        onTagDropdownOpen={() => getTags()}
+        onTagDropdownOpen={() => {
+          void getTags().catch(() => {
+            /* notified by the store */
+          });
+        }}
         onAutoSave={handleAutoSave}
+        onDraftChange={(tagId, text) => {
+          // Track live form contents so a reopen restores the
+          // in-progress draft, not just the last saved text.
+          draftRef.current.tagId = tagId;
+          draftRef.current.text = text;
+        }}
         note={
-          lastSelectedTagId
-            ? { tagId: lastSelectedTagId, text: "" }
-            : undefined
+          // Gate on draft content, not just savedNoteId: while
+          // the unmount flush's POST is still in flight the id
+          // is null but the typed text is already tracked —
+          // keying on the id alone would reopen a blank form.
+          draftRef.current.savedNoteId || draftRef.current.text
+            ? {
+                tagId:
+                  draftRef.current.tagId || lastSelectedTagId || "",
+                text: draftRef.current.text,
+              }
+            : lastSelectedTagId
+              ? { tagId: lastSelectedTagId, text: "" }
+              : undefined
         }
       />
       {textGroups.map(([label, groupVerses]) => (
