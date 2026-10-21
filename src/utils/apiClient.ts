@@ -137,16 +137,15 @@ export const publicFetch = async (
   // A dead token poisons even public reads — retry once
   // anonymously. The token is deliberately kept: publicFetch
   // must never destroy the session (that is
-  // authenticatedFetch's job).
+  // authenticatedFetch's job). The anonymous response is
+  // returned as-is, whether it succeeds or is another 401.
   if (response.status === 401 && headers['Authorization']) {
     console.warn(
       '401 with token on public endpoint — ' +
-        'retrying without credentials'
+        'retrying anonymously'
     );
     const anonymousHeaders = { ...headers };
     delete anonymousHeaders['Authorization'];
-    // Single retry: the anonymous response is returned
-    // as-is, whether it succeeds or is another 401.
     return sendRequest(
       url, options, anonymousHeaders, retries, 'publicFetch'
     );
@@ -172,11 +171,10 @@ export const authenticatedFetch = async (
   // Capture the token this request is issued with so a stale
   // 401 can't wipe a session that rotated in the meantime.
   const issuedToken = useAuthStore.getState().token;
-  const headers = getAuthHeaders();
   const response = await sendRequest(
     url,
     options,
-    headers,
+    getAuthHeaders(),
     retries,
     'authenticatedFetch'
   );
@@ -187,7 +185,7 @@ export const authenticatedFetch = async (
   // on a public page) means "login required", not "your
   // session expired", and must not log anyone out.
   if (response.status === 401) {
-    if (!headers['Authorization']) {
+    if (!issuedToken) {
       throw new Error(
         'Authentication required for this request.'
       );
