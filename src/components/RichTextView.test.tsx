@@ -17,7 +17,7 @@ describe('RichTextView', () => {
     );
     const link = screen.getByText('@JHN.3.16');
     fireEvent.click(link);
-    expect(onRef).toHaveBeenCalledWith('@JHN.3.16');
+    expect(onRef).toHaveBeenCalledWith('@JHN.3.16', link);
   });
 
   it('renders doc-JSON paragraphs and marks', () => {
@@ -57,8 +57,9 @@ describe('RichTextView', () => {
         ])}
       />
     );
-    fireEvent.click(screen.getByText('@JHN.3.16'));
-    expect(onRef).toHaveBeenCalledWith('@JHN.3.16');
+    const link = screen.getByText('@JHN.3.16');
+    fireEvent.click(link);
+    expect(onRef).toHaveBeenCalledWith('@JHN.3.16', link);
   });
 
   it('renders invalid refs in red, not as links', () => {
@@ -217,8 +218,10 @@ describe('RichTextView', () => {
       name: 'John 3:16',
     });
     expect(link).toHaveAttribute('href', '#');
+    // Same marker the editor's ScriptureRefNode emits.
+    expect(link).toHaveAttribute('data-scripture-ref');
     fireEvent.click(link);
-    expect(onRef).toHaveBeenCalledWith('@JHN.3.16');
+    expect(onRef).toHaveBeenCalledWith('@JHN.3.16', link);
   });
 
   describe('untrusted doc-JSON (crash guards)', () => {

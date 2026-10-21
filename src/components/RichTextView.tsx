@@ -27,7 +27,9 @@ interface TiptapNode {
 interface RichTextViewProps {
   /** Stored field value — TipTap doc-JSON or legacy plain text. */
   content: string;
-  onScriptureRef: (ref: string) => void;
+  /** `anchorEl` is the clicked ref element — the popover
+   *  positions itself under it. */
+  onScriptureRef: (ref: string, anchorEl: HTMLElement) => void;
   size?: MantineSize;
 }
 
@@ -41,7 +43,7 @@ const MAX_RENDER_DEPTH = 64;
 const MAX_RENDER_NODES = 5000;
 
 interface RenderCtx {
-  onRef: (ref: string) => void;
+  onRef: (ref: string, anchorEl: HTMLElement) => void;
   size: MantineSize;
   /** Remaining node budget — decremented per rendered node. */
   remaining: number;
@@ -257,13 +259,17 @@ const renderNode = (
           : token;
       return (
         // href keeps the anchor keyboard-focusable; the click
-        // stays in-app (opens the passage preview).
+        // stays in-app (opens the passage preview). The
+        // data-scripture-ref attribute matches what the
+        // editor's ScriptureRefNode emits — the popover's
+        // tap-outside dismissal skips presses on it.
         <Anchor
           key={key}
           href="#"
+          data-scripture-ref=""
           onClick={(e) => {
             e.preventDefault();
-            ctx.onRef(token);
+            ctx.onRef(token, e.currentTarget);
           }}
         >
           {label}

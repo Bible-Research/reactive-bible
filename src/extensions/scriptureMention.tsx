@@ -36,9 +36,10 @@ export interface ScriptureMentionOptions {
   /**
    * Single click/tap on a complete '@USFM.C.V[-E]' token.
    * Intended to reveal the passage — it does NOT link the note
-   * to that passage.
+   * to that passage. `anchor` is a Range over the token text;
+   * the popover positions itself under it.
    */
-  onRefPreview: (token: string) => void;
+  onRefPreview: (token: string, anchor: Range) => void;
 }
 
 interface PopupActions {
@@ -165,11 +166,15 @@ export const ScriptureMention = Extension.create<
       suppressQuery = '';
     };
 
-    // Marks '@…' tokens that don't resolve to a complete,
-    // in-range ref with a red inline decoration. The live
+    // Marks every '@…' ref attempt with an inline decoration:
+    // complete, in-range refs get a `data-scripture-ref`
+    // attribute (what ScriptureRefNode.renderHTML emits — the
+    // passage popover's tap-outside dismissal keys off it so a
+    // tap on the token is left to the toggle logic), while
+    // tokens that don't resolve render red. The live
     // suggestion range, code-formatted text, and tokens that
     // aren't ref-shaped ('bob@example.com') are skipped.
-    const invalidRefDecorations = (state: EditorState) => {
+    const refDecorations = (state: EditorState) => {
       const suggestion = pluginKey.getState(state) as
         | { active: boolean; range: { from: number; to: number } }
         | undefined;
@@ -188,7 +193,6 @@ export const ScriptureMention = Extension.create<
           const candidate =
             token.match(VALID_REF_PREFIX)?.[1] ?? token;
           if (!isRefAttempt(candidate)) continue;
-          if (isValidScriptureToken(candidate)) continue;
           const from = pos + match.index;
           const to = from + candidate.length;
           if (
@@ -199,9 +203,13 @@ export const ScriptureMention = Extension.create<
             continue;
           }
           decorations.push(
-            Decoration.inline(from, to, {
-              class: 'scripture-ref-invalid',
-            })
+            isValidScriptureToken(candidate)
+              ? Decoration.inline(from, to, {
+                  'data-scripture-ref': '',
+                })
+              : Decoration.inline(from, to, {
+                  class: 'scripture-ref-invalid',
+                })
           );
         }
       });
@@ -210,7 +218,7 @@ export const ScriptureMention = Extension.create<
 
     // The '@…' token covering `pos`, if it resolves to a
     // complete, in-range ref. Same exclusions as
-    // invalidRefDecorations: code is never clickable.
+    // refDecorations: code is never clickable.
     const tokenAtPos = (
       state: EditorState,
       pos: number
@@ -421,13 +429,13 @@ export const ScriptureMention = Extension.create<
         // when the doc or the suggestion's active range changed;
         // selection/store updates reuse the decoration set.
         state: {
-          init: (_, state) => invalidRefDecorations(state),
+          init: (_, state) => refDecorations(state),
           apply: (tr, set, oldState, newState) => {
             const suggestionChanged =
               pluginKey.getState(oldState) !==
               pluginKey.getState(newState);
             if (!tr.docChanged && !suggestionChanged) return set;
-            return invalidRefDecorations(newState);
+            return refDecorations(newState);
           },
         },
         props: {
@@ -464,7 +472,20 @@ export const ScriptureMention = Extension.create<
               clearPreviewTimer();
               previewTimer = setTimeout(() => {
                 previewTimer = null;
-                onRefPreview(token);
+                try {
+                  // A Range over the token anchors the popover —
+                  // it tracks scrolling and text reflow for
+                  // free, and collapses if the token is deleted.
+                  const range = document.createRange();
+                  const start = view.domAtPos(hit.from);
+                  const end = view.domAtPos(hit.to);
+                  range.setStart(start.node, start.offset);
+                  range.setEnd(end.node, end.offset);
+                  onRefPreview(token, range);
+                } catch {
+                  // The token moved or vanished between the
+                  // click and the timer firing — skip it.
+                }
               }, PREVIEW_CLICK_MS);
               return true;
             },

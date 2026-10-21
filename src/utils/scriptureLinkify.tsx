@@ -25,11 +25,12 @@ export const isRefAttempt = (token: string): boolean =>
 
 const grab = (
   e: MouseEvent<HTMLAnchorElement>,
-  onGrab: (hashtag: string) => void,
+  onGrab: (hashtag: string, anchorEl: HTMLAnchorElement) => void,
   hashtag: string
 ): void => {
   e.preventDefault();
-  onGrab(hashtag);
+  // The clicked element becomes the popover's anchor.
+  onGrab(hashtag, e.currentTarget);
 };
 
 /**
@@ -41,7 +42,7 @@ const grab = (
  */
 export const linkifyScripture = (
   text: string,
-  onGrab: (hashtag: string) => void
+  onGrab: (hashtag: string, anchorEl: HTMLAnchorElement) => void
 ): ReactNode[] => {
   const parts = text.split(SCRIPTURE_TOKEN_REGEX);
   const nodes: ReactNode[] = [];
@@ -73,10 +74,13 @@ export const linkifyScripture = (
     }
     // href keeps the anchor keyboard-focusable; preventDefault
     // keeps the click in-app (passage preview, no navigation).
+    // data-scripture-ref marks the element for the popover's
+    // tap-outside dismissal, which skips presses on ref anchors.
     nodes.push(
       <Anchor
         key={i}
         href="#"
+        data-scripture-ref=""
         onClick={(e) => grab(e, onGrab, linkText)}
       >
         {linkText}

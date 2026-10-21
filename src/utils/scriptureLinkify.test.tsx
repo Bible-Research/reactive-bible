@@ -13,9 +13,12 @@ describe('linkifyScripture', () => {
 
     const anchor = screen.getByText('@JHN.3.16');
     expect(anchor.tagName).toBe('A');
+    // The popover's tap-outside dismissal keys off this attr.
+    expect(anchor).toHaveAttribute('data-scripture-ref');
 
     fireEvent.click(anchor);
-    expect(onGrab).toHaveBeenCalledWith('@JHN.3.16');
+    // Second arg is the clicked element — the popover anchor.
+    expect(onGrab).toHaveBeenCalledWith('@JHN.3.16', anchor);
   });
 
   it('keeps the ref anchor keyboard-focusable', () => {
@@ -84,10 +87,11 @@ describe('linkifyScripture', () => {
 
   it('handles a verse range', () => {
     const { onGrab } = renderTokens('see @JHN.3.16-18');
-    fireEvent.click(
-      screen.getByRole('link', { name: '@JHN.3.16-18' })
-    );
-    expect(onGrab).toHaveBeenCalledWith('@JHN.3.16-18');
+    const link = screen.getByRole('link', {
+      name: '@JHN.3.16-18',
+    });
+    fireEvent.click(link);
+    expect(onGrab).toHaveBeenCalledWith('@JHN.3.16-18', link);
   });
 
   it('still tokenizes @ after whitespace and punctuation', () => {

@@ -44,6 +44,21 @@ beforeAll(() => {
       /* noop */
     }
   };
+  // jsdom has no layout: Range.getBoundingClientRect doesn't
+  // exist at all, and an all-zero rect would make the popover
+  // treat the anchor as a deleted token and close itself.
+  Range.prototype.getBoundingClientRect = () =>
+    ({
+      top: 40,
+      bottom: 60,
+      left: 20,
+      right: 80,
+      width: 60,
+      height: 20,
+      x: 20,
+      y: 40,
+      toJSON: () => ({}),
+    } as DOMRect);
 });
 
 let editor: Editor | null = null;
@@ -254,17 +269,18 @@ describe('ScriptureMention suggestion', () => {
   const mouseDownAtPos = (pos: number, detail = 1) => {
     const view = editor?.view;
     if (!view) return;
-    vi.spyOn(view, 'posAtCoords').mockReturnValue({
-      pos,
-      inside: pos,
-    });
+    // Restore only this spy — restoreAllMocks would also undo
+    // the Range.getBoundingClientRect stub the popover needs.
+    const posSpy = vi
+      .spyOn(view, 'posAtCoords')
+      .mockReturnValue({ pos, inside: pos });
     fireEvent.mouseDown(view.dom, {
       button: 0,
       detail,
       clientX: 0,
       clientY: 0,
     });
-    vi.restoreAllMocks();
+    posSpy.mockRestore();
   };
 
   const previewOpen = () =>
@@ -294,6 +310,51 @@ describe('ScriptureMention suggestion', () => {
     // The token text is untouched by a preview click.
     expect(editor?.getText()).toContain('@JHN.3.16');
   });
+
+  it('closes the preview when the same ref is clicked again',
+    async () => {
+      await renderEditor();
+      editor?.commands.setContent(
+        '<p>See @JHN.3.16.</p><p>tail</p>'
+      );
+
+      mouseDownAtPos(8);
+      await waitFor(() => expect(previewOpen()).toBe(true), {
+        timeout: 1500,
+      });
+
+      mouseDownAtPos(8);
+      await waitFor(() => expect(previewOpen()).toBe(false), {
+        timeout: 1500,
+      });
+    });
+
+  it('marks clickable tokens with data-scripture-ref so ' +
+    'a ref tap does not dismiss the popover', async () => {
+      await renderEditor();
+      editor?.commands.setContent(
+        '<p>See @JHN.3.16.</p><p>tail</p>'
+      );
+
+      const tokenEl = document.querySelector(
+        '.ProseMirror [data-scripture-ref]'
+      ) as Element;
+      expect(tokenEl).toBeTruthy();
+      expect(tokenEl.textContent).toBe('@JHN.3.16');
+
+      mouseDownAtPos(8);
+      await waitFor(() => expect(previewOpen()).toBe(true), {
+        timeout: 1500,
+      });
+
+      // A pointer press on the token is skipped by the
+      // popover's tap-outside dismissal; the plugin's toggle
+      // logic decides.
+      fireEvent.pointerDown(tokenEl);
+      fireEvent.pointerUp(tokenEl);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(previewOpen()).toBe(true);
+    });
 
   it('reopens the picker on a double ref click', async () => {
     await renderEditor();
