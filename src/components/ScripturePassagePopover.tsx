@@ -79,9 +79,12 @@ const ScripturePassagePopover = ({
   onClose,
 }: ScripturePassagePopoverProps) => {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  // Latest close callback for listeners subscribed once.
+  // Latest close callback for listeners subscribed once —
+  // written in an effect, not during render (render purity).
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  });
   // A press begun outside the panel; only a short, stationary
   // release (a tap) dismisses — a scroll swipe must not.
   const pressRef = useRef<{
@@ -167,6 +170,17 @@ const ScripturePassagePopover = ({
     };
   }, [position]);
 
+  // The passage fills in async and grows the panel — the flip
+  // check measured a near-empty panel at mount, so re-position
+  // whenever its size changes or it can overflow the viewport.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || typeof ResizeObserver !== 'function') return;
+    const observer = new ResizeObserver(position);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [position]);
+
   // Tap-outside dismissal that survives touch scrolling: a
   // 'click'/touchstart-based handler would kill the panel the
   // moment a swipe starts, so a press is recorded at
@@ -174,6 +188,9 @@ const ScripturePassagePopover = ({
   // TAP_SLOP_PX of it, outside the panel.
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
+      // Only primary-button presses arm a dismiss — a
+      // right/middle click must not close the panel.
+      if (e.button !== 0) return;
       const target = e.target as Node | null;
       if (!target) return;
       if (panelRef.current?.contains(target)) return;
@@ -194,8 +211,10 @@ const ScripturePassagePopover = ({
     };
     const onPointerUp = (e: PointerEvent) => {
       const press = pressRef.current;
-      pressRef.current = null;
+      // Only the recorded pointer's release can dismiss —
+      // a second finger lifting must not eat the first tap.
       if (!press || press.pointerId !== e.pointerId) return;
+      pressRef.current = null;
       const target = e.target as Node | null;
       if (target && panelRef.current?.contains(target)) return;
       const moved = Math.hypot(
@@ -203,6 +222,12 @@ const ScripturePassagePopover = ({
         e.clientY - press.y
       );
       if (moved < TAP_SLOP_PX) onCloseRef.current();
+    };
+    const onPointerCancel = () => {
+      // The browser cancelled the gesture (touch became a
+      // scroll, pointer left the window) — no pointerup is
+      // coming, so drop the stale press.
+      pressRef.current = null;
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -214,6 +239,11 @@ const ScripturePassagePopover = ({
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     document.addEventListener('pointerup', onPointerUp, true);
+    document.addEventListener(
+      'pointercancel',
+      onPointerCancel,
+      true
+    );
     window.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener(
@@ -226,6 +256,11 @@ const ScripturePassagePopover = ({
         onPointerUp,
         true
       );
+      document.removeEventListener(
+        'pointercancel',
+        onPointerCancel,
+        true
+      );
       window.removeEventListener('keydown', onKeyDown, true);
     };
   }, []);
@@ -235,7 +270,9 @@ const ScripturePassagePopover = ({
         position: 'fixed',
         top: pos.top,
         left: pos.left,
-        width: pos.mobile ? '100vw' : pos.width,
+        // pos.width is already the viewport width on mobile —
+        // '100vw' would overflow by a classic scrollbar's width.
+        width: pos.width,
         zIndex: Z_INDEX,
       }
     : // Hidden until the first layout pass positions it.

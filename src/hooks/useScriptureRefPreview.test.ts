@@ -96,6 +96,37 @@ describe('useScriptureRefPreview', () => {
     expect(result.current.preview?.ref).not.toBeNull();
   });
 
+  it('toggles closed when the same invalid token reopens', () => {
+    const { result } = renderHook(() =>
+      useScriptureRefPreview()
+    );
+
+    act(() => result.current.open('@ZZZ.1.1', anchorAt(50)));
+    expect(result.current.error).toBe('Unknown book: ZZZ');
+
+    act(() => result.current.open('@ZZZ.1.1', anchorAt(80)));
+
+    expect(result.current.preview).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('closes when another instance opens a preview', () => {
+    const first = renderHook(() => useScriptureRefPreview());
+    const second = renderHook(() => useScriptureRefPreview());
+
+    act(() => first.result.current.open(
+      '@JHN.3.16', anchorAt(50)
+    ));
+    expect(first.result.current.preview).not.toBeNull();
+
+    act(() => second.result.current.open(
+      '@JHN.1.1', anchorAt(60)
+    ));
+
+    expect(first.result.current.preview).toBeNull();
+    expect(second.result.current.preview).not.toBeNull();
+  });
+
   it('close clears both preview and error', () => {
     const { result } = renderHook(() =>
       useScriptureRefPreview()

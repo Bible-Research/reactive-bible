@@ -113,7 +113,7 @@ describe('ScripturePassagePopover', () => {
       const panel = await screen.findByTestId(
         'scripture-passage-popover'
       );
-      expect(panel.style.width).toBe('100vw');
+      expect(panel.style.width).toBe('500px');
       expect(panel.style.left).toBe('0px');
     } finally {
       Object.defineProperty(window, 'innerWidth', {
@@ -197,6 +197,74 @@ describe('ScripturePassagePopover', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('only the recorded pointer can dismiss', async () => {
+    const onClose = vi.fn();
+    renderPopover({ onClose });
+    await screen.findByTestId('scripture-passage-popover');
+
+    // Finger 1's press must survive finger 2's release.
+    fireEvent.pointerDown(document.body, {
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(document.body, {
+      pointerId: 2,
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.pointerUp(document.body, {
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the armed press on pointercancel', async () => {
+    const onClose = vi.fn();
+    renderPopover({ onClose });
+    await screen.findByTestId('scripture-passage-popover');
+
+    fireEvent.pointerDown(document.body, {
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+    fireEvent(document.body, new Event('pointercancel'));
+    fireEvent.pointerUp(document.body, {
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('ignores non-primary-button presses', async () => {
+    const onClose = vi.fn();
+    renderPopover({ onClose });
+    await screen.findByTestId('scripture-passage-popover');
+
+    // A right-click press never arms a dismissal, so its
+    // release (or a later left release) cannot close.
+    fireEvent.pointerDown(document.body, {
+      button: 2,
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+    fireEvent.pointerUp(document.body, {
+      button: 0,
+      pointerId: 1,
+      clientX: 10,
+      clientY: 10,
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('closes on Escape', async () => {
     const onClose = vi.fn();
     renderPopover({ onClose });
@@ -205,6 +273,23 @@ describe('ScripturePassagePopover', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops Escape reaching an enclosing modal', async () => {
+    const onClose = vi.fn();
+    renderPopover({ onClose });
+    await screen.findByTestId('scripture-passage-popover');
+    const modalHandler = vi.fn();
+    // Stands in for a Mantine Modal's own Escape listener —
+    // the popover's capture handler must cut it off.
+    document.addEventListener('keydown', modalHandler);
+    try {
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+    } finally {
+      document.removeEventListener('keydown', modalHandler);
+    }
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(modalHandler).not.toHaveBeenCalled();
   });
 
   it('closes itself when the anchor rect collapses', async () => {

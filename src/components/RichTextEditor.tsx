@@ -99,6 +99,9 @@ const RichTextEditor = forwardRef<
       Placeholder.configure({ placeholder: placeholder ?? '' }),
       ScriptureMention.configure({
         onRefPreview: openRefPreview,
+        // The double-click picker reopen must drop the open
+        // preview or the two floating panels overlap.
+        onRefEditStart: closeRefPreview,
       }),
       // Preserve stored scriptureRef/mention nodes — without
       // schema entries the editor would strip them on load.

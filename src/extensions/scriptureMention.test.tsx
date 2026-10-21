@@ -4,6 +4,7 @@ import {
   describe,
   it,
   expect,
+  afterAll,
   afterEach,
   beforeAll,
   vi,
@@ -59,6 +60,13 @@ beforeAll(() => {
       y: 40,
       toJSON: () => ({}),
     } as DOMRect);
+});
+
+afterAll(() => {
+  // Undo the beforeAll patch so files sharing this worker
+  // don't inherit a fake rect.
+  delete (Range.prototype as Partial<Range>)
+    .getBoundingClientRect;
 });
 
 let editor: Editor | null = null;
@@ -354,6 +362,62 @@ describe('ScriptureMention suggestion', () => {
       fireEvent.pointerUp(tokenEl);
       await new Promise((r) => setTimeout(r, 50));
       expect(previewOpen()).toBe(true);
+    });
+
+  it('previews a stored scriptureRef atom node on click',
+    async () => {
+      await renderEditor();
+      // Atom nodes (written by other clients) aren't text —
+      // the click handler must resolve the token from attrs.
+      editor?.commands.setContent({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'scriptureRef',
+                attrs: {
+                  code: 'JHN',
+                  chapter: 3,
+                  verseStart: 16,
+                },
+              },
+              { type: 'text', text: ' tail' },
+            ],
+          },
+        ],
+      });
+
+      // The atom sits at doc pos 1 — posAtCoords reports the
+      // click straight at it.
+      mouseDownAtPos(1);
+
+      await waitFor(() => expect(previewOpen()).toBe(true), {
+        timeout: 1500,
+      });
+    });
+
+  it('closes an open preview when the picker reopens',
+    async () => {
+      await renderEditor();
+      editor?.commands.setContent(
+        '<p>See @JHN.3.16.</p><p>tail</p>'
+      );
+
+      mouseDownAtPos(8);
+      await waitFor(() => expect(previewOpen()).toBe(true), {
+        timeout: 1500,
+      });
+
+      // Double click reopens the picker — the floating
+      // preview must close or the two panels overlap.
+      mouseDownAtPos(8, 2);
+
+      await waitFor(() => expect(previewOpen()).toBe(false), {
+        timeout: 1500,
+      });
+      await waitFor(() => expect(popupOpen()).toBe(true));
     });
 
   it('reopens the picker on a double ref click', async () => {

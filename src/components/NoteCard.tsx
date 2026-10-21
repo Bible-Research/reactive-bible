@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActionIcon,
   Box,
@@ -103,12 +103,14 @@ const NoteCard = ({
     (state) => state.isAuthenticated
   );
 
-  const onGrabBiblePassage = (
-    hashtag: string,
-    anchorEl: HTMLElement
-  ): void => {
-    openPassage(hashtag, anchorEl);
-  };
+  // useCallback keeps memo(RichTextView)'s onScriptureRef
+  // prop stable across NoteCard re-renders.
+  const onGrabBiblePassage = useCallback(
+    (hashtag: string, anchorEl: HTMLElement): void => {
+      openPassage(hashtag, anchorEl);
+    },
+    [openPassage]
+  );
 
   const versesFolded = useBibleStore((state) => state.versesFolded);
 

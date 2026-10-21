@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Box,
   Text,
@@ -116,12 +116,14 @@ const CommentNode = ({
     setReplyOpen(false);
   };
 
-  const handleScriptureClick = (
-    hashtag: string,
-    anchorEl: HTMLElement
-  ): void => {
-    openScripture(hashtag, anchorEl);
-  };
+  // useCallback keeps memo(RichTextView)'s onScriptureRef
+  // prop stable across CommentNode re-renders.
+  const handleScriptureClick = useCallback(
+    (hashtag: string, anchorEl: HTMLElement): void => {
+      openScripture(hashtag, anchorEl);
+    },
+    [openScripture]
+  );
 
   const handleEditSubmit = async (
     content: string,

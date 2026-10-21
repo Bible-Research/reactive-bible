@@ -2151,9 +2151,13 @@ a portal-mounted `ScripturePassagePopover` containing
 click reopens the picker to edit the reference. The same popover
 serves note cards and comments (`RichTextView`/`linkifyScripture`
 anchors), driven by `useScriptureRefPreview` (parse + same-ref
-toggle). It tracks its anchor on scroll/resize, dismisses on an
-outside tap or `Escape` (capture-phase, so the enclosing modal
-stays open), and auto-closes if the token is deleted.
+toggle); only one preview is open app-wide — opening one
+broadcasts an event that closes the others. The panel tracks
+its anchor on scroll/resize and on its own size changes (the
+passage loads async), dismisses on an outside tap or `Escape`
+(capture-phase, so the enclosing modal stays open), and closes
+when the anchor leaves the layout — a deleted token's rect
+collapses to zero on the next reposition.
 
 Pasted clipboard text is normalized before ProseMirror parses it
 (`src/utils/clipboardSanitize.ts`, wired as `transformPastedText`
