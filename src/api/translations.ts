@@ -126,7 +126,6 @@ export const getAvailableTranslations = async (
         'Malformed translations response'
       );
     }
-
     // The actual translations are in the 'results' property
     const translations: Translation[] =
       injectBundledKjv(data.results);
@@ -137,8 +136,8 @@ export const getAvailableTranslations = async (
     return translations;
   } catch (error) {
     console.error("Failed to fetch available translations:", error);
-    // Surface the failure — callers catch at the UI layer; a
-    // silent `[]` is indistinguishable from "no translations".
+    // Provider failures must surface — returning [] would be a
+    // silent empty list and would get cached.
     throw error;
   }
 };

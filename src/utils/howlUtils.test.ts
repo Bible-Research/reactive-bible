@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import type { Howl } from 'howler';
 import { disposeHowl } from './howlUtils';
 
+vi.mock('howler', async () => ({
+  Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
+}));
+
 const makeHowl = () => ({
   stop: vi.fn(),
   off: vi.fn(),

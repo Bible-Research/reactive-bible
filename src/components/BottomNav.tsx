@@ -26,7 +26,9 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   );
   // Same flag MyHeader drives — both bars hide/show together on
   // scroll; slide fully off-screen by driving `bottom` negative.
-  const headerVisible = useBibleStore((state) => state.headerVisible);
+  const headerVisible = useBibleStore(
+    (state) => state.headerVisible
+  );
   const activeChapter = useBibleStore(
     (state) => state.activeChapter
   );
@@ -83,9 +85,10 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         </ActionIcon>
         <Title order={4}>
           <UnstyledButton
-            title="nav-current-passage"
             onClick={() => setBibleSelectorOpened(true)}
+            title="nav-current-passage"
             sx={{
+              cursor: "pointer",
               minWidth: "120px",
               textAlign: "center",
               font: "inherit",

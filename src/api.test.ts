@@ -724,23 +724,24 @@ describe('API Functions', () => {
   });
 
   describe('search error mapping', () => {
-    it('searchBible throws RateLimitError on 429', async () => {
-      server.use(
-        http.get(`${API_URL}/bible/search/`, () =>
-          HttpResponse.json(
-            { error: 'throttled', error_code: 'rate_limited' },
-            { status: 429 }
+    it('searchBibleGrouped throws RateLimitError on 429',
+      async () => {
+        server.use(
+          http.get(`${API_URL}/bible/search/`, () =>
+            HttpResponse.json(
+              { error: 'throttled', error_code: 'rate_limited' },
+              { status: 429 }
+            )
           )
-        )
-      );
+        );
 
-      await expect(
-        api.searchBible('love', 'ENGESV_API')
-      ).rejects.toThrow(api.RateLimitError);
-    });
+        await expect(
+          api.searchBibleGrouped('love', 'ENGESV_API')
+        ).rejects.toThrow(api.RateLimitError);
+      });
 
-    it('searchBible throws ProviderError when a 200 body ' +
-      'carries error/error_code', async () => {
+    it('searchBibleGrouped throws ProviderError when a 200 ' +
+      'body carries error/error_code', async () => {
       server.use(
         http.get(`${API_URL}/bible/search/`, () =>
           HttpResponse.json({
@@ -751,7 +752,7 @@ describe('API Functions', () => {
       );
 
       await expect(
-        api.searchBible('love', 'ENGESV_API')
+        api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.ProviderError);
     });
   });

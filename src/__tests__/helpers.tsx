@@ -25,10 +25,7 @@ export * from './mocks/data';
 // eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/factories';
 
-// Re-export performance helpers. `helpers/performance` keeps a
-// subset of the same names (measureRenderTime, CacheMetrics,
-// createLargeVerseData) for its direct importers — star-
-// re-exporting both would be an ambiguous barrel (TS2308).
+// Re-export performance helpers
 // eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/performanceUtils';
 

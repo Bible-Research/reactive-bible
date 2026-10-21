@@ -62,9 +62,9 @@ export const shareOrCopyLink = async (
     showNotification({ ...options.copySuccess, color: 'blue' });
     return;
   } catch (err) {
-    // copyTextToClipboard's execCommand fallback covers
-    // http/non-secure contexts (and older webviews) where the
-    // Clipboard API is missing or denied.
+    // `navigator.clipboard` needs a secure context — on http or
+    // webviews where it is missing/denied, retry through the
+    // legacy textarea + execCommand path.
     if (await copyTextToClipboard(content.url)) {
       showNotification({ ...options.copySuccess, color: 'blue' });
       return;
