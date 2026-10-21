@@ -774,15 +774,6 @@ interface AudioApiResponse {
   meta?: unknown;
 }
 
-interface AudioApiResponse {
-  error?: string | { message?: string };
-  error_code?: unknown;
-  audio_url?: unknown;
-  duration_seconds?: number;
-  file_size_bytes?: number;
-  meta?: unknown;
-}
-
 /**
  * Get audio URL for any Bible translation from Bible Research API
  * @param bookId - USFM book code (e.g., "GEN", "2CH")
