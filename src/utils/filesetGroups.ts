@@ -506,15 +506,22 @@ const findOptionByProductPrefix = (
       (o) => o.kind === parsed.kind,
     );
     if (candidates.length === 0) continue;
-    return {
-      translation,
-      option: candidates[parsed.index] ?? candidates[0],
-    };
+    // A stored id may be 0-based (pre-rollout client) or 1-based
+    // (backend): try the index as-is, then index-1, then the
+    // first candidate so drifted ids still land somewhere sane.
+    const option =
+      candidates[parsed.index] ??
+      candidates[parsed.index - 1] ??
+      candidates[0];
+    return { translation, option };
   }
   return null;
 };
 
-const findTextOption = (
+/** Exported so callers can inspect the resolved text option —
+ * e.g. to detect testament-split products before requesting
+ * note verse text with a single fileset id. */
+export const findTextOption = (
   storedId: string,
   translations: Translation[],
 ): { translation: Translation; option: FilesetOption } | null => {

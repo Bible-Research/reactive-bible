@@ -1,4 +1,5 @@
 import { App } from '@capacitor/app';
+import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './platform';
 
 /**
@@ -48,11 +49,30 @@ export type UpdateCheckResult =
   | { kind: 'skipped' }
   | { kind: 'error' };
 
+// The APK URL is handed to the system browser verbatim — a
+// compromised manifest must not be able to smuggle a
+// `javascript:`/`intent:` phishing URL into the WebView. Only
+// HTTPS URLs hosted on GitHub (release assets redirect to
+// *.githubusercontent.com) are trusted.
+const isTrustedApkUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      (parsed.hostname === 'github.com' ||
+        parsed.hostname.endsWith('.githubusercontent.com'))
+    );
+  } catch {
+    return false;
+  }
+};
+
 const isUpdateManifest = (data: unknown): data is UpdateManifest =>
   typeof data === 'object' &&
   data !== null &&
   typeof (data as UpdateManifest).versionCode === 'number' &&
-  typeof (data as UpdateManifest).apkUrl === 'string';
+  typeof (data as UpdateManifest).apkUrl === 'string' &&
+  isTrustedApkUrl((data as UpdateManifest).apkUrl);
 
 export const getInstalledVersion =
   async (): Promise<InstalledVersion | null> => {
@@ -70,11 +90,20 @@ export const getInstalledVersion =
 export const fetchUpdateManifest =
   async (): Promise<UpdateManifest | null> => {
     try {
-      const res = await fetch(UPDATE_MANIFEST_URL, {
-        cache: 'no-store',
+      // github.com release downloads send no CORS headers, so a
+      // WebView fetch from the app's https://localhost origin is
+      // blocked. CapacitorHttp runs the request through the
+      // native HTTP stack on-device (on web it wraps fetch).
+      const res = await CapacitorHttp.get({
+        url: UPDATE_MANIFEST_URL,
+        responseType: 'json',
+        webFetchExtra: { cache: 'no-store' },
       });
-      if (!res.ok) return null;
-      const data: unknown = await res.json();
+      if (res.status < 200 || res.status >= 300) return null;
+      const data: unknown =
+        typeof res.data === 'string'
+          ? JSON.parse(res.data)
+          : res.data;
       return isUpdateManifest(data) ? data : null;
     } catch {
       return null;
@@ -109,12 +138,15 @@ export const checkForUpdates = async (
   if (!options.force && !shouldCheckForUpdates()) {
     return { kind: 'skipped' };
   }
-  markUpdateChecked();
   const [installed, manifest] = await Promise.all([
     getInstalledVersion(),
     fetchUpdateManifest(),
   ]);
+  // A failed check must not burn the hourly throttle — a
+  // transient network blip would otherwise suppress checks for
+  // a full interval.
   if (!installed || !manifest) return { kind: 'error' };
+  markUpdateChecked();
   return isUpdateAvailable(manifest, installed)
     ? { kind: 'update', manifest, installed }
     : { kind: 'current' };
