@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { LoginPage } from './LoginPage';
@@ -184,6 +189,31 @@ describe('LoginPage', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
+  it('should clear a stale auth error on mount', () => {
+    renderWithProviders(<LoginPage />, {
+      authStoreState: { error: 'Stale error' },
+    });
+
+    // The mount effect calls clearError — the stale error
+    // must not render.
+    expect(
+      screen.queryByText('Stale error')
+    ).not.toBeInTheDocument();
+    expect(useAuthStore.getState().error).toBeNull();
+  });
+
+  it('should display an auth error set after mount', () => {
+    renderWithProviders(<LoginPage />);
+
+    act(() => {
+      useAuthStore.setState({ error: 'Login failed' });
+    });
+
+    expect(
+      screen.getByText('Login failed')
+    ).toBeInTheDocument();
+  });
+
   it('should clear the error when the alert is dismissed', async () => {
     server.use(
       http.post(TOKEN_URL, () =>
@@ -202,19 +232,6 @@ describe('LoginPage', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
-    expect(useAuthStore.getState().error).toBeNull();
-  });
-
-  it('should clear a stale auth error on mount', () => {
-    renderWithProviders(<LoginPage />, {
-      authStoreState: { error: 'Stale error' },
-    });
-
-    // The mount effect calls clearError — the stale error
-    // must not render.
-    expect(
-      screen.queryByText('Stale error')
-    ).not.toBeInTheDocument();
     expect(useAuthStore.getState().error).toBeNull();
   });
 

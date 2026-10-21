@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components --
+ * Test helper module; `export *` re-exports are intentional. */
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -17,15 +19,15 @@ import {
 // verify wildcard re-exports, so each needs a scoped disable.
 
 // Re-export mock data for convenience
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export * from './mocks/data';
 
 // Re-export factories for easy access
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export * from './helpers/factories';
 
 // Re-export performance helpers
-// eslint-disable-next-line react-refresh/only-export-components
+ 
 export * from './helpers/performanceUtils';
 
 // --- Store Helpers ---

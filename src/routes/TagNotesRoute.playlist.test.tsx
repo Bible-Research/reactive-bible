@@ -162,7 +162,7 @@ describe('TagNotesRoute playlist', () => {
       ]);
     });
 
-  it('disables the play button on verse-less notes', async () => {
+  it('hides the play button on verse-less notes', async () => {
     renderWithProviders(<TagNotesRoute />, {
       storeOverrides,
     });
@@ -174,12 +174,12 @@ describe('TagNotesRoute playlist', () => {
         )
       ).toBeTruthy();
     });
-    // Verse-less notes never enter the playlist — the button
-    // stays mounted but disabled ("No verses to play" tooltip).
+    // Verse-less notes never enter the playlist —
+    // NoteCardActions hides the play button entirely
+    // (canPlay && onPlayFromNote), matching its unit test.
     const button = document.querySelector(
       '[aria-label="play-from-note-no-verses"]'
     );
-    expect(button).not.toBeNull();
-    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button).toBeNull();
   });
 });
