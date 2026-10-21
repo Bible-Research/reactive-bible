@@ -33,7 +33,8 @@ import {
   type CodecKey,
 } from "../utils/filesetGroups";
 import { orderedAudioCandidates } from "../utils/audioCandidates";
-import { disposeHowl, getPlayPosition } from "../utils/audioUtils";
+import { getPlayPosition } from "../utils/audioUtils";
+import { disposeHowl } from "../utils/howlUtils";
 import { verseDomId } from "../utils/verseRefs";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";

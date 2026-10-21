@@ -61,8 +61,9 @@ export const shareOrCopyLink = async (
     await navigator.clipboard.writeText(content.url);
     showNotification({ ...options.copySuccess, color: 'blue' });
   } catch (err) {
-    // The Clipboard API needs a secure context — fall back to
-    // the hidden-textarea path before reporting failure.
+    // `navigator.clipboard` needs a secure context — on http or
+    // webviews where it is missing/denied, retry through the
+    // legacy textarea + execCommand path.
     if (await copyTextToClipboard(content.url)) {
       showNotification({ ...options.copySuccess, color: 'blue' });
       return;
