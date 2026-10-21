@@ -18,6 +18,8 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { Note, CommentCounts, NoteOrderMenuData } from "../types";
+import { ConflictError } from "../api";
+import { useBibleStore } from "../store";
 import NoteCard from "./NoteCard";
 import SortableNoteCard from "./SortableNoteCard";
 
@@ -38,13 +40,17 @@ interface TagSectionProps {
   commentCounts?: CommentCounts;
   onCountChange?: (noteId: string, delta: number) => void;
   isDraggable?: boolean;
+  /** True when the viewed tag belongs to the current user —
+   *  production notes lack `is_owner`, so cards use this as
+   *  the edit/delete signal for own tags. */
+  isTagOwner?: boolean;
   tagId?: string;
   onReorder?: (
     tagId: string,
     noteIds: string[],
     currentPage: number,
     pageSize: number
-  ) => void;
+  ) => void | Promise<unknown>;
   sortOrder?: string;
   currentPage?: number;
   pageSize?: number;
@@ -62,6 +68,7 @@ const TagSection = ({
   commentCounts,
   onCountChange,
   isDraggable = false,
+  isTagOwner = false,
   tagId = '',
   onReorder,
   sortOrder,
@@ -115,7 +122,23 @@ const TagSection = ({
       const idsToSend = sortOrder === 'custom_desc'
         ? [...noteIds].reverse()
         : noteIds;
-      onReorder(tagId, idsToSend, currentPage, pageSize);
+      // The reorder may reject (conflict/network) — awaiting it
+      // here both avoids an unhandled rejection and rolls the
+      // optimistic order back to the server's.
+      void Promise.resolve(
+        onReorder(tagId, idsToSend, currentPage, pageSize)
+      ).catch((error) => {
+        // A ConflictError means the store action already
+        // refetched the server's authoritative order — resync
+        // to the live store state; rolling back to this
+        // render's stale `notes` snapshot would overwrite the
+        // refresh. Plain failures keep the snapshot rollback.
+        if (error instanceof ConflictError) {
+          setLocalNotes(useBibleStore.getState().notes);
+        } else {
+          setLocalNotes(notes);
+        }
+      });
     }
   };
 
@@ -126,7 +149,7 @@ const TagSection = ({
   if (!isDraggable) {
     return (
       <Stack spacing="md" mb={30}>
-        <Title order={2} mb={5}>
+        <Title order={2} mb={5} pl={10}>
           {tagName}
         </Title>
         {notes.map((note) => (
@@ -143,6 +166,7 @@ const TagSection = ({
                 ? (delta) => onCountChange(note.id, delta)
                 : undefined
             }
+            isTagOwner={isTagOwner}
             orderMenu={orderMenu}
           />
         ))}
@@ -162,7 +186,7 @@ const TagSection = ({
         strategy={verticalListSortingStrategy}
       >
         <Stack spacing="md" mb={30}>
-          <Title order={2} mb={5}>
+          <Title order={2} mb={5} pl={10}>
             {tagName}
           </Title>
           {localNotes.map((note) => (
@@ -179,6 +203,7 @@ const TagSection = ({
                   ? (delta) => onCountChange(note.id, delta)
                   : undefined
               }
+              isTagOwner={isTagOwner}
               orderMenu={orderMenu}
             />
           ))}

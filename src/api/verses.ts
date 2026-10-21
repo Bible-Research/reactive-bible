@@ -14,7 +14,8 @@ import {
 } from '../utils/cacheManager';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
-import { getAdjacentChapters } from './structure';
+import { publicFetch } from '../utils/apiClient';
+import { getAdjacentChapters, getChapters } from './structure';
 import {
   BookNotInFilesetError,
   ProviderError,
@@ -44,6 +45,12 @@ export const getVersesInKjvChapter = async (
   bookId: string,
   thechapter: number
 ): Promise<VerseResult> => {
+  // Out-of-range book/chapter (e.g. /bible/MAL.5 or JHN.999)
+  // fails gracefully — an empty chapter instead of a crash or
+  // phantom verses — and skips loading the KJV bundle.
+  if (!getChapters(bookId).includes(thechapter)) {
+    return { verses: [], headings: [] };
+  }
   const kjvData = await loadKjvData();
   const verses = kjvData
     .filter(
@@ -76,7 +83,18 @@ export const fetchHeadingsOnly = async (
     const url =
       `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
+    if (!response.ok) {
+      // Headings are optional decoration — degrade to none, but
+      // never cache a non-2xx body: a transient 429/500 would
+      // otherwise wipe the chapter's headings permanently (the
+      // headings cache has no TTL).
+      console.warn(
+        `Failed to fetch headings for ${bookId} ${chapter}: ` +
+        `HTTP ${response.status}`
+      );
+      return [];
+    }
     const responseData = await response.json();
     // API.Bible responses carry a FUMS token in `meta` that must
     // be reported per their license terms (silent on failure).
@@ -115,7 +133,7 @@ export const getVersesFromApi = async (
     const url =
       `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
 
     // Handle rate limit errors (429)
     if (response.status === 429) {

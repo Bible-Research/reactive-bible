@@ -11,6 +11,7 @@ import {
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { ProviderError } from './errors';
 
 /**
  * Keeps the locally bundled KJV reachable: the API lists an
@@ -72,12 +73,23 @@ export const getAvailableTranslations = async (
     const url =
       `${API_BASE_URL}/api/v1/` +
       `bible/translations/?language_iso=${languageIso}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
+    if (!response.ok) {
+      throw new ProviderError(
+        `Failed to fetch translations (HTTP ${response.status})`
+      );
+    }
     const data = await response.json();
 
-    // The actual translations are in the 'results' property
+    // Only cache real arrays — an error body must not poison the
+    // no-TTL translation cache (it also feeds findOwnerIso).
+    if (!Array.isArray(data.results)) {
+      throw new ProviderError(
+        'Malformed translations response'
+      );
+    }
     const translations: Translation[] =
-      injectBundledKjv(data.results ?? []);
+      injectBundledKjv(data.results);
 
     cacheTranslations(languageIso, translations);
     console.log(`💾 Translations for ${languageIso} cached`);
@@ -85,7 +97,9 @@ export const getAvailableTranslations = async (
     return translations;
   } catch (error) {
     console.error("Failed to fetch available translations:", error);
-    return []; // Return empty array on error
+    // Provider failures must surface — returning [] would be a
+    // silent empty list and would get cached.
+    throw error;
   }
 };
 

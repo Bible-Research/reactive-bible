@@ -295,6 +295,39 @@ describe('Zustand Store (useBibleStore)', () => {
     );
   });
 
+  it('migratePersistedState drops a note-scoped selection ' +
+    'persisted by a pre-v6 store', () => {
+    const migrated = migratePersistedState(
+      {
+        activeBookId: 'JHN',
+        activeChapter: 3,
+        verseSelection: {
+          scope: 'note-abc',
+          refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+        },
+      },
+      5
+    );
+    expect(migrated.verseSelection).toBeNull();
+  });
+
+  it('migratePersistedState keeps a bible-scoped selection ' +
+    'across the v6 bump', () => {
+    const selection = {
+      scope: 'bible',
+      refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+    };
+    const migrated = migratePersistedState(
+      {
+        activeBookId: 'JHN',
+        activeChapter: 3,
+        verseSelection: selection,
+      },
+      5
+    );
+    expect(migrated.verseSelection).toEqual(selection);
+  });
+
   describe('fetchNotes', () => {
     it('should fetch all notes and update state', async () => {
       const mockResponse = {

@@ -31,6 +31,13 @@ export default function NoteDetailRoute() {
   const navigate = useNavigate();
 
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
+  // The fetched note stays in local state, but the share
+  // toolbar needs its verses for folded-note shares — park it
+  // in a transient store slot instead of polluting `notes`
+  // (the tag page's pagination state).
+  const setDetailNote = useBibleStore(
+    (state) => state.setDetailNote
+  );
 
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +57,7 @@ export default function NoteDetailRoute() {
         const fetched = await getNote(noteId);
         if (cancelled) return;
         setNote(fetched);
+        setDetailNote(fetched);
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
@@ -61,8 +69,9 @@ export default function NoteDetailRoute() {
     load();
     return () => {
       cancelled = true;
+      setDetailNote(null);
     };
-  }, [noteId]);
+  }, [noteId, setDetailNote]);
 
   const handleViewInBible = (
     book: string,

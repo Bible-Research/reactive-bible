@@ -3,9 +3,8 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
-  useState,
 } from 'react';
-import { Global, Input, Text, rem } from '@mantine/core';
+import { Global, Input, rem } from '@mantine/core';
 import { RichTextEditor as MantineRichTextEditor } from '@mantine/tiptap';
 import { useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
@@ -13,14 +12,18 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import ScriptureMention from '../extensions/scriptureMention';
-import ScripturePassage from './ScripturePassage';
-import { isTiptapDocString } from '../utils/tiptapContent';
+import ScriptureMention, {
+  ScriptureMentionNode,
+  ScriptureRefNode,
+} from '../extensions/scriptureMention';
+import ScripturePassagePopover from './ScripturePassagePopover';
+import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
 import {
-  isSameScriptureRef,
-  parseScriptureRef,
-} from '../utils/scriptureRef';
-import type { ScriptureRef } from '../utils/scriptureRef';
+  transformPastedSlice,
+  transformPastedText,
+} from '../utils/clipboardSanitize';
+import { markdownClipboardParser } from '../utils/markdownPaste';
+import { isTiptapDocString } from '../utils/tiptapContent';
 
 interface RichTextEditorProps {
   /** Doc-JSON string or legacy plain text. */
@@ -71,25 +74,15 @@ const RichTextEditor = forwardRef<
   // value changes (reload/reset) from the editor's own edits.
   const lastEmitted = useRef<string | null>(null);
 
-  // Single click on a '@…' ref reveals the passage below the
-  // editor — a preview only, it does not link the note.
-  const [previewRef, setPreviewRef] =
-    useState<ScriptureRef | null>(null);
-  const [previewError, setPreviewError] =
-    useState<string | null>(null);
-
-  const onRefPreview = (token: string) => {
-    const result = parseScriptureRef(token);
-    if (!result.ok) {
-      setPreviewRef(null);
-      setPreviewError(result.error);
-      return;
-    }
-    setPreviewError(null);
-    setPreviewRef((current) =>
-      isSameScriptureRef(current, result.ref) ? null : result.ref
-    );
-  };
+  // Single click on a '@…' ref reveals the passage in a
+  // floating panel anchored under the token — a preview only,
+  // it does not link the note.
+  const {
+    preview: refPreview,
+    error: refError,
+    open: openRefPreview,
+    close: closeRefPreview,
+  } = useScriptureRefPreview();
 
   const note = variant === 'note';
 
@@ -104,18 +97,40 @@ const RichTextEditor = forwardRef<
         protocols: ['http', 'https', 'mailto'],
       }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
-      ScriptureMention.configure({ onRefPreview }),
+      ScriptureMention.configure({
+        onRefPreview: openRefPreview,
+        // The double-click picker reopen must drop the open
+        // preview or the two floating panels overlap.
+        onRefEditStart: closeRefPreview,
+      }),
+      // Preserve stored scriptureRef/mention nodes — without
+      // schema entries the editor would strip them on load.
+      ScriptureRefNode,
+      ScriptureMentionNode,
     ],
     content: valueToContent(value),
     autofocus: autoFocus ? 'end' : false,
     editable: !disabled,
     // Note editors start one line high and grow with content up
     // to 60% of the viewport height, then scroll internally.
+    // Comment editors cap at a smaller height for the same.
     editorProps: {
+      // Pasted clipboard text (mobile keyboards, Docs, Word)
+      // carries NBSPs/zero-width chars that break '#'/'-'/'>' and
+      // '@…' token matching — normalize at the paste boundary.
+      // Both paths are needed: transformPastedText only runs for
+      // plain-text pastes; HTML pastes arrive as parsed slices.
+      transformPastedText,
+      transformPasted: transformPastedSlice,
+      // TipTap paste rules only convert marks (**bold**, links);
+      // block-level markdown ('#', '-', '>', '---') is parsed
+      // here so pasted notes keep their structure.
+      clipboardTextParser: markdownClipboardParser,
       attributes: {
         style: note
           ? 'max-height: 60vh; overflow-y: auto;'
-          : `min-height: ${rem(76)};`,
+          : `min-height: ${rem(76)};` +
+            ` max-height: ${rem(240)}; overflow-y: auto;`,
       },
     },
     onUpdate: ({ editor: e }) => {
@@ -212,12 +227,14 @@ const RichTextEditor = forwardRef<
         </MantineRichTextEditor.Toolbar>
         <MantineRichTextEditor.Content />
       </MantineRichTextEditor>
-      {previewError && (
-        <Text color="red" size="sm" mt={4}>
-          {previewError}
-        </Text>
+      {refPreview && (
+        <ScripturePassagePopover
+          reference={refPreview.ref}
+          error={refError}
+          anchor={refPreview.anchor}
+          onClose={closeRefPreview}
+        />
       )}
-      {previewRef && <ScripturePassage reference={previewRef} />}
     </Input.Wrapper>
   );
 });

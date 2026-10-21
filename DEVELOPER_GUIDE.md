@@ -286,8 +286,10 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 - `*` (catch-all) - Redirects to `/bible`
 
 **Notes Routes** (✅ Implemented):
-- `/notes` - Auto-redirects to first tag (anonymous visitors
-  redirect to `/bible`)
+- `/notes` - Auto-redirects to the last/first tag; shows a
+  real empty state when the user has no tags and an
+  error + retry state when tag loading fails; anonymous
+  visitors are redirected to `/bible`
 - `/notes/tag/:tagId` - Displays notes filtered by specific tag;
   `/notes/tag/untagged` shows notes with no tag. Public for
   sharing — write affordances are `isAuthenticated`-gated
@@ -312,9 +314,12 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
 ### Route Implementation Details
 
 **NotesRoute** (`src/routes/NotesRoute.tsx`):
-- Fetches all tags from API
-- Automatically redirects to `/notes/tag/:firstTagId`
-- Provides tag selector dropdown
+- Fetches all tags from API (authenticated users only —
+  anonymous visitors are redirected to `/bible`)
+- Automatically redirects to `/notes/tag/:lastOrFirstTagId`
+- Shows an empty state ("Create your first tag") when the
+  account has no tags, and an error + retry state when the
+  tags request fails
 - Minimal component - main logic in TagNotesRoute
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
@@ -333,13 +338,26 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
     is refetched to backfill the latest server state)
 - Handles "View in Bible" navigation
 - Updates URL when switching tags
-- Sort order comes from the `?sort=` URL param
-  (`custom_asc` default; custom orders enable dnd-kit
-  drag-and-drop reordering when authenticated)
-- In custom sort + authenticated, each note card shows a
+- Sort order comes from the `?sort=` URL param; writing the
+  param is the only fetch trigger (the load effect owns it),
+  and re-sorts use the in-page spinner, not the full loader
+- Write affordances (drag handles, edit/delete, order badge)
+  require **ownership**, not just login: the tag must appear
+  in the authenticated user's own tag list, or every visible
+  note must report `is_owner === true`, so logged-in viewers
+  of someone else's public tag get a read-only page
+- Play-from-note indexes into the filtered playlist of notes
+  that actually have verses; a note spanning several
+  book/chapter blocks produces one playlist item per block
+- In custom sort on an owned tag, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
-  of every note in the tag — see "Note order badges & moves"
+  of every note in the tag and the list is dnd-kit
+  reorderable — see "Note order badges & moves"
   under Note Taking & Tagging
+- The filter/sort toolbar rides on `headerVisible`: it
+  collapses (`Collapse`, aria-hidden) whenever MyHeader
+  slides away on a downward scroll and the notes list
+  flex-grows into the freed space
 
 **Navigation Pattern**:
 ```typescript
@@ -1189,6 +1207,13 @@ If the active text is already same-language it is kept; if no
 same-language text exists the current text is kept with an info
 note.
 
+**Audio default**: picking a version keeps the stored audio
+product when the version owns it, otherwise defaults to the
+first audio option (preferring a real option over None) —
+audio-only versions behave the same. Reopening the modal on the
+current selection restores the stored value verbatim, so a
+saved "None" is shown as None rather than re-defaulting.
+
 **Fileset groups & resolution** (`src/utils/filesetGroups.ts`):
 
 A translation's raw `filesets` are normalized into product-like
@@ -1354,6 +1379,30 @@ All prefetching happens silently in the background.
 5. New audio loads automatically via useEffect
 6. Playback continues seamlessly
 
+**Concurrency & mode invariants** (easy to regress — preserve):
+- `loadSeqRef` (Audio.tsx) and `playSeqRef`
+  (useAudioPlaylist) are generation counters: bumping them
+  invalidates any in-flight load, so a superseded coroutine can
+  never materialize a Howl that would play over current audio.
+- Chapter playback and playlist playback are mutually
+  exclusive: entering playlist mode disposes the chapter Howl
+  and forces chapter `isPlaying` off.
+- Chapter adjacency (next/previous, auto-advance, fallback
+  re-arm) is derived from `audioChapterKeyRef` — the chapter
+  actually playing — not the store, which can lag a commit
+  behind during URL->store sync.
+- Off the `/bible` route (search, notes) a chapter advance
+  updates `activeBookId`/`activeChapter` in the store directly
+  via `setActiveBookAndChapter` instead of navigating, so
+  playback continues without yanking the user back.
+- `disposeHowl` (`src/utils/howlUtils.ts`) is the shared
+  teardown: `stop()` → `off()` → `volume(0)` → `unload()`,
+  so pooled `<audio>` nodes never keep playing and listeners
+  (bounds poll, `timeupdate`) are released.
+- ENGKJV audio has no verse timestamps; playlist items play
+  their whole chapter and the user is notified once per
+  playlist.
+
 **Hardware Controls**:
 - **Play/Pause**: Works on all devices (headphones, car)
 - **Seek Forward/Backward**: Skips ±10 seconds (headphones)
@@ -1432,7 +1481,21 @@ Create and organize notes with tags for Bible verses.
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
-  after each successful save
+  after each successful save. Ticks skip empty text and
+  empty tag selections, share a write lock with Submit, and
+  failures surface as notifications. The autosaved note id
+  and latest draft live in a parent-owned `NoteDraft` ref
+  (`src/components/noteDraft.ts`), so closing and reopening
+  the editor keeps PATCHing the same note instead of POSTing
+  a duplicate, and a Submit queued behind an in-flight POST
+  resolves to a PATCH
+- `NoteCard` headings: verse-less notes show the tag name;
+  notes spanning chapters render a cross-chapter range
+  (e.g. `John 3:16–5:1`) — never a synthetic `… 1:1`
+- Edit/delete controls on note cards require the tag-owner
+  context (`isTagOwner`) or `note.is_owner === true`;
+  clipboard share falls back to `execCommand` on non-secure
+  contexts (`src/utils/clipboard.ts`)
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -1820,7 +1883,7 @@ User Opens TranslationSelector
     ↓
 Fetch available translations (cached)
     ↓
-User selects language (eng/lvs)
+User selects language (eng/lvs/rus)
     ↓
 Fetch translations for language
     ↓
@@ -1926,6 +1989,9 @@ Top header bar with controls.
   The header slides up after ~150px of accumulated downward scroll
   and slides back after ~150px of accumulated upward scroll; it is
   shown again on every route change.
+- The same `headerVisible` store flag also gates `BottomNav`
+  (slides below the viewport on hide) and the AppShell's
+  reserved footer padding, so both bars move together.
 
 ---
 
@@ -2087,8 +2153,56 @@ Form for creating/editing notes.
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token. Clicking a complete token once
-previews its passage below the editor (the note is NOT linked to
-it); a second click reopens the picker to edit the reference.
+opens the passage in a floating popover anchored under the ref —
+a portal-mounted `ScripturePassagePopover` containing
+`ScripturePassage` (the note is NOT linked to it); a second
+click reopens the picker to edit the reference. The same popover
+serves note cards and comments (`RichTextView`/`linkifyScripture`
+anchors), driven by `useScriptureRefPreview` (parse + same-ref
+toggle); only one preview is open app-wide — opening one
+broadcasts an event that closes the others. The panel tracks
+its anchor on scroll/resize and on its own size changes (the
+passage loads async), dismisses on an outside tap or `Escape`
+(capture-phase, so the enclosing modal stays open), and closes
+when the anchor leaves the layout — a deleted token's rect
+collapses to zero on the next reposition. A "View in Bible"
+header action navigates to the passage in the Bible reader
+(`buildBiblePath`), closing the panel.
+
+Pasted clipboard text is normalized before ProseMirror parses it
+(`src/utils/clipboardSanitize.ts`, wired as `transformPastedText`
++ `transformPasted` in `RichTextEditor`): non-ASCII space
+variants (NBSP, en/em/ideographic spaces) fold to ' ',
+line/paragraph separators become real newlines, and zero-width,
+directional and control characters are stripped — mobile
+keyboards and rich-text sources otherwise inject invisible
+characters that defeat the '#', '-', '>' markdown input rules
+and '@…' mention matching. ZWJ/ZWNJ are kept where they carry
+meaning (emoji sequences, cursive scripts); text pasted into
+code blocks or inline code stays verbatim. `transformPasted`
+also closes slice edges around structural nodes — ProseMirror
+otherwise merges a pasted first heading/list into the cursor's
+paragraph and loses its type — and repairs list artifacts on
+the HTML path (rich-text copies skip `clipboardTextParser`
+entirely): same-kind sibling lists split by rendered blank
+lines rejoin, empty '<li>'/'<p>' spacer nodes inside lists are
+dropped, and a slice made only of unformatted paragraphs whose
+lines carry block markdown markers is reparsed through the
+same block parser — that covers raw markdown pasted as HTML
+text. '•', '◦' and '▪' bullet glyphs count as list markers for
+plain text copied from Word/Outlook.
+
+Block-level markdown in pasted plain text is converted by
+`clipboardTextParser` (`src/utils/markdownPaste.ts`): headings,
+rules, fenced code, blockquotes and (nested) bullet/ordered
+lists. The gate only fires when a line carries a markdown block
+token — ordinary prose keeps the default line-per-paragraph
+paste, and shift-paste ('paste as plain text') skips conversion.
+Blank lines between items keep the list together (loose lists);
+a marker-type switch at the same indent ('1.' then '-') closes
+the current list and starts a sibling. Inline markdown marks
+(**bold**, *italic*, `code`, ~~strike~~, links) are handled by
+TipTap's own extension paste rules.
 
 #### `AddTagNoteModal.tsx`
 Modal for creating new notes.
@@ -2140,7 +2254,7 @@ Modal for selecting Bible translations.
 
 **Responsibilities**:
 - Fetch available translations from API
-- Language selector (English, Latvian)
+- Language selector (English, Latvian, Russian)
 - Version dropdown (searchable, capability chips: "Audio",
   "Text only", "Audio only")
 - Text auto-resolution per testament (dimmed info line; no
@@ -2293,7 +2407,8 @@ and `getKjvAudioUrl` stay synchronous.
    Response: CommentImage { id, storage_url, signed_url|null,
      content_type, size_bytes, uploaded_by, created_at }
    // signed_url is short-lived; img onError triggers a targeted
-   // refetch (bounded per comment), see CommentThread
+   // refetch (bounded per image set — a refresh that mints new
+   // URLs resets the budget), see CommentThread
    ```
 
 10. **Get Reading Positions**
@@ -2724,89 +2839,61 @@ if (Date.now() > audioData.expiresAt) {
 }
 ```
 
-#### 4. Notes Cache (Tag-based)
-**Purpose**: Cache notes by tag to eliminate redundant API calls
+#### 4. Notes Cache (Tag-based, scoped)
+**Purpose**: Cache notes pages by tag to eliminate redundant API
+calls
 
-**Features**:
-- No size limit (notes are user-generated)
-- Tag-based organization
-- Timestamp tracking
-- Selective cache invalidation
+**Storage Key**: `bible_notes_cache_v2` — the v1 `tagId`-only
+blob (`bible_notes_cache`) is dropped on load, not migrated.
 
-**Storage Key**: `bible_notes_cache`
+**Cache Key Format**:
+`{tagId}:{anon|auth}:fs:{filesetId}:ps:{pageSize}:page{n}:{ordering}`
 
-**Cache Key Format**: `{tagId}`
-
-**Implementation**:
-```typescript
-// In store.tsx fetchNotes()
-fetchNotes: async (tagId?: string) => {
-  // Check cache first
-  if (tagId) {
-    const cachedNotes = getCachedNotes(tagId);
-    if (cachedNotes) {
-      console.log(`✅ Using cached notes for tag: ${tagId}`);
-      set({ notes: cachedNotes });
-      return;
-    }
-  }
-  
-  // Fetch from API
-  const notes = await api.getNotes(tagId);
-  
-  // Cache the results
-  if (tagId) {
-    cacheNotes(tagId, notes);
-  }
-  
-  set({ notes });
-}
-```
-
-**Cache Structure**:
-```typescript
-{
-  "TAG123": {
-    notes: [/* Note objects */],
-    timestamp: 1709155200000
-  },
-  "TAG456": {
-    notes: [/* Note objects */],
-    timestamp: 1709155300000
-  }
-}
-```
+The scope fields exist because the response depends on them:
+- `anon|auth` — owners see private notes that anonymous callers
+  must never be served from cache.
+- `filesetId` — the backend fills `note.verses[].text` from the
+  requested fileset, so switching text translations must miss.
+- `pageSize` — page membership depends on it.
 
 **Cache Invalidation**:
-```typescript
-// Clear all notes cache when note is deleted
-deleteNote: async (noteId: string) => {
-  await api.deleteNote(noteId);
-  clearNotesCache(); // Clear all cached notes
-  set((state) => ({ notes: state.notes.filter(n => n.id !== noteId) }));
-}
+- `addTagNote`/`editNote`/`deleteNote`/`reorderNotes`/`moveNote`
+  clear the affected tag's pages (`clearNotesCache(tagId)` is a
+  prefix delete over every scoped page).
+- A `useAuthStore.subscribe` watcher in `authStore.tsx` purges
+  `notes`, `tags`, `readingPositions`, and the whole notes cache
+  whenever the token is dropped or replaced — covers both manual
+  logout and 401-driven logout, so a shared device can't expose
+  the previous user's private notes. The bible store registers
+  itself via `registerBibleStore()` at module scope rather than
+  being imported by `authStore`, keeping the dependency one-way
+  (a static `authStore → store` edge would close an
+  `api → apiClient → authStore → store → api` cycle).
+- The 409-conflict refresh clears the tag cache *before*
+  refetching, so it can't read back the stale page it is trying
+  to replace.
 
-// Clear specific tag's cache
+```typescript
+// Clear all pages of one tag (any scope)
 clearNotesCache('TAG123');
 
-// Clear all notes cache
+// Clear the entire notes cache
 clearNotesCache();
 ```
 
 **Performance Impact**:
 - **First visit**: API call (200-500ms)
 - **Return visit**: Cached (< 10ms) ✅
-- **Improvement**: ~95% faster on cache hits
 
-**When Notes Are Cached**:
-- ✅ After successful fetch from API
-- ✅ Persists across sessions (localStorage)
-- ✅ Survives page refresh
-
-**When Cache Is Cleared**:
-- ✅ Note deletion (clears all)
-- ✅ Manual clear via `clearNotesCache()`
-- 🔄 Future: Note creation/editing
+**Fetch wrappers** (`src/utils/apiClient.ts`):
+- `publicFetch` attaches the token when present but, on a 401,
+  retries once **without** `Authorization` — DRF authenticates
+  before `AllowAny` permission checks, so an expired token would
+  otherwise poison public reads.
+- `authenticatedFetch` keeps the 401 → logout + "session
+  expired" behaviour; `TypeError` (network drop) retries are
+  restricted to idempotent GET/HEAD so a lost POST response
+  can't double-create a note/tag/comment.
 
 #### 5. Translation Cache (Session-based)
 **Purpose**: Cache translation lists to avoid refetching

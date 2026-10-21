@@ -30,6 +30,9 @@ interface TagTreeProps {
   onDelete: (tagId: string, tagName: string) => void;
   onViewNotes: (tagId: string) => void;
   noteCounts?: Record<string, number>;
+  /** Expand every node (e.g. while a search filter is active so
+   *  matched descendants stay visible under their ancestors). */
+  forceExpand?: boolean;
 }
 
 export function TagTree({
@@ -38,6 +41,7 @@ export function TagTree({
   onDelete,
   onViewNotes,
   noteCounts = {},
+  forceExpand = false,
 }: TagTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   // Defense in depth: /tags is a protected route, but the
@@ -59,7 +63,7 @@ export function TagTree({
 
   const renderNode = (node: TagNode, level: number): JSX.Element => {
     const hasChildren = node.children.length > 0;
-    const isExpanded = expandedNodes.has(node.tag.id);
+    const isExpanded = forceExpand || expandedNodes.has(node.tag.id);
     const noteCount = noteCounts[node.tag.id] || 0;
     const indent = level * 24;
 

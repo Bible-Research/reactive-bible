@@ -12,7 +12,7 @@ import {
  * audio-active verse based on timestamps.
  *
  * `scope` ties the highlight to a rendering context: 'bible' for
- * chapter playback, or a PlaylistItem.itemId (e.g. note id) so only
+ * chapter playback, or a PlaylistItem.scope (e.g. note id) so only
  * the playing card's verses light up.
  */
 export const useVerseHighlighter = (

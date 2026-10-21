@@ -62,7 +62,7 @@ export const getBibleAudioUrl = async (
       `${API_BASE_URL}/api/v1/bible` +
       `?passage=${encodeURIComponent(passage)}` +
       `&fileset_id=${filesetId}&response_format=audio`;
-    const response = await fetch(url, {
+    const response = await publicFetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

@@ -121,6 +121,49 @@ describe('docToPlainText', () => {
     // No block type -> no trailing newline for this node.
     expect(docToPlainText(s)).toBe('loose');
   });
+
+  it('ignores non-array content and non-object children', () => {
+    const s = doc([
+      { type: 'paragraph', content: 'oops' },
+      {
+        type: 'paragraph',
+        content: [
+          null,
+          42,
+          'loose string',
+          { type: 'text', text: 17 },
+          { type: 'text', text: 'survives' },
+        ],
+      },
+    ]);
+    expect(docToPlainText(s).trim()).toBe('survives');
+  });
+
+  it('caps recursion on crafted deeply nested docs', () => {
+    // Untrusted doc-JSON must not stack-overflow the walk.
+    // The JSON is built by concatenation — JSON.stringify on a
+    // 10k-deep object overflows the stack itself on Node <22.12.
+    const OPEN = '{"type":"paragraph","content":[';
+    const s =
+      '{"type":"doc","content":[' +
+      OPEN.repeat(10000) +
+      '{"type":"text","text":"deep"}' +
+      ']}'.repeat(10000) +
+      ']}';
+    expect(() => docToPlainText(s)).not.toThrow();
+  });
+
+  it('caps extraction on huge node counts', () => {
+    const s = doc(
+      Array.from({ length: 6000 }, (_, i) => ({
+        type: 'paragraph',
+        content: [{ type: 'text', text: `v${i}` }],
+      }))
+    );
+    const plain = docToPlainText(s);
+    expect(plain).toContain('v0');
+    expect(plain).not.toContain('v5999');
+  });
 });
 
 describe('toPlainText', () => {
