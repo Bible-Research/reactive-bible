@@ -193,6 +193,10 @@ const NoteCard = ({
           title: 'Link Copied!',
           message: 'Note link copied to clipboard',
         },
+        copyFailure: {
+          title: 'Error',
+          message: 'Failed to copy link',
+        },
         // A failed share sheet retries through the clipboard
         // rather than silently dropping the share.
         clipboardOnShareError: true,

@@ -58,7 +58,6 @@ import { buildNotePlaylistItems } from '../utils/notePlaylist';
 import { verseDomId } from '../utils/verseRefs';
 
 
-
 /** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
  *  notes. `k` is the canonical 1-based order ID. */
 const entryLabel = (

@@ -90,7 +90,7 @@ reactive-bible/
 │   ├── assets/         # Static assets
 │   │   ├── kjv.json    # KJV verse text (lazy-loaded chunk)
 │   │   └── bibleStructure.json  # Book/chapter metadata (bundled)
-│   ├── api.tsx         # API functions
+│   ├── api/            # API modules (index.ts barrel)
 │   ├── store.tsx       # Zustand state management
 │   ├── types.ts        # TypeScript interfaces
 │   ├── App.tsx         # Main app component
@@ -136,7 +136,7 @@ src/
 ├── components/          # React components
 ├── utils/              # Utility functions (caching, bible utils)
 ├── assets/             # Static assets (kjv.json, bibleStructure)
-├── api.tsx             # API functions and data access
+├── api/                # API functions and data access
 ├── store.tsx           # Zustand state management
 ├── App.tsx             # Main application component
 └── main.tsx            # Application entry point
@@ -148,7 +148,7 @@ src/
 - **Centralized State**: A single Zustand store (`src/store.tsx`) for global
   state, with persistence to `localStorage`.
 - **API Layer Separation**: All external data fetching and business logic is
-  handled in `src/api.tsx`.
+  handled in `src/api/`.
 - **Cache-First Strategy**: A multi-level caching system
   (`src/utils/cacheManager.ts`) minimizes API calls and improves speed.
 - **Persistent State**: User preferences (like theme and translation choice)
@@ -464,7 +464,7 @@ setActiveVerses: (activeVerses) => {
 
 ## Types & Interfaces
 
-**Location**: `src/types.ts`, `src/store.tsx`, `src/api.tsx`
+**Location**: `src/types.ts`, `src/store.tsx`, `src/api/`
 
 ### Core Types (`src/types.ts`)
 
@@ -529,7 +529,7 @@ export interface Translation {
 }
 ```
 
-### API Types (`src/api.tsx`)
+### API Types (`src/api/index.ts` barrel)
 
 #### `KjvBook`
 Represents a verse from the local KJV JSON file.
@@ -615,7 +615,7 @@ src/
 ├── utils/
 │   ├── format.ts
 │   └── format.test.ts       ✅ Co-located
-├── api.tsx
+├── api/
 ├── api.test.ts              ✅ Co-located
 ├── store.ts
 └── store.test.ts            ✅ Co-located
@@ -1145,7 +1145,8 @@ getVerses(book: string, chapter: number): number[]
 
 ### 2. Multi-Translation Support
 
-**Location**: `src/api.tsx`, `src/components/TranslationSelector.tsx`
+**Location**: `src/api/translations.ts`,
+`src/components/TranslationSelector.tsx`
 
 Provides dynamic, API-driven support for multiple Bible translations, including
 different text and audio formats for each.
@@ -2462,7 +2463,7 @@ and `getKjvAudioUrl` stay synchronous.
 
 ---
 
-### API Functions (`src/api.tsx`)
+### API Functions (`src/api/`)
 
 #### Bible Data Functions
 
