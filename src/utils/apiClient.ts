@@ -20,12 +20,13 @@ const getAuthHeaders = (): Record<string, string> => {
 };
 
 /**
- * Network-error retries are only safe for idempotent reads: a
- * TypeError can mean the request reached the server but the
- * response was lost, so retrying a POST/PATCH/DELETE could
- * double-create notes, tags, or comments.
+ * Methods that are safe to replay automatically: they carry no
+ * side effects, so re-sending after a network failure cannot
+ * double-submit. A TypeError (network failure) on POST/PUT/
+ * PATCH/DELETE must surface to the caller instead of silently
+ * retrying.
  */
-const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD']);
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const isIdempotent = (options: RequestInit): boolean =>
   IDEMPOTENT_METHODS.has((options.method ?? 'GET').toUpperCase());
@@ -128,10 +129,7 @@ export const publicFetch = async (
   options: RequestInit = {},
   retries = 1
 ): Promise<Response> => {
-  const headers: Record<string, string> = {
-    ...getAuthHeaders(),
-    ...(options.headers as Record<string, string> | undefined),
-  };
+  const headers = getAuthHeaders();
   const response = await sendRequest(
     url, options, headers, retries, 'publicFetch'
   );
@@ -139,7 +137,8 @@ export const publicFetch = async (
   // A dead token poisons even public reads — retry once
   // anonymously. The token is deliberately kept: publicFetch
   // must never destroy the session (that is
-  // authenticatedFetch's job).
+  // authenticatedFetch's job). The anonymous response is
+  // returned as-is, whether it succeeds or is another 401.
   if (response.status === 401 && headers['Authorization']) {
     console.warn(
       '401 with token on public endpoint — ' +
@@ -147,21 +146,8 @@ export const publicFetch = async (
     );
     const anonymousHeaders = { ...headers };
     delete anonymousHeaders['Authorization'];
-    // Strip a caller-supplied Authorization too: sendRequest
-    // re-merges options.headers over the base headers.
-    const anonymousOptions: RequestInit = { ...options };
-    if (options.headers) {
-      const optionHeaders = {
-        ...(options.headers as Record<string, string>),
-      };
-      delete optionHeaders['Authorization'];
-      anonymousOptions.headers = optionHeaders;
-    }
-    // Single retry: the anonymous response is returned
-    // as-is, whether it succeeds or is another 401.
     return sendRequest(
-      url, anonymousOptions, anonymousHeaders, retries,
-      'publicFetch'
+      url, options, anonymousHeaders, retries, 'publicFetch'
     );
   }
 
@@ -185,11 +171,10 @@ export const authenticatedFetch = async (
   // Capture the token this request is issued with so a stale
   // 401 can't wipe a session that rotated in the meantime.
   const issuedToken = useAuthStore.getState().token;
-  const headers = getAuthHeaders();
   const response = await sendRequest(
     url,
     options,
-    headers,
+    getAuthHeaders(),
     retries,
     'authenticatedFetch'
   );
@@ -200,7 +185,7 @@ export const authenticatedFetch = async (
   // on a public page) means "login required", not "your
   // session expired", and must not log anyone out.
   if (response.status === 401) {
-    if (!headers['Authorization']) {
+    if (!issuedToken) {
       throw new Error(
         'Authentication required for this request.'
       );
@@ -221,13 +206,13 @@ export const authenticatedFetch = async (
  * Sets only the Authorization header; lets the browser generate
  * the multipart Content-Type with its boundary.
  * Mirrors authenticatedFetch's 401 (logout + notification) and
- * 403 (throw permission error) handling. No network-failure
- * retry — uploads are POSTs and must not be replayed silently.
+ * 403 (throw permission error) handling. There is no network-error
+ * retry: an upload is a non-idempotent POST, and retrying a
+ * lost-response request could double-upload the file.
  */
 export const authenticatedUpload = async (
   url: string,
   formData: FormData,
-  retries = 1,
 ): Promise<Response> => {
   const issuedToken = useAuthStore.getState().token;
   const headers: Record<string, string> = {};
@@ -235,19 +220,17 @@ export const authenticatedUpload = async (
     headers['Authorization'] = `Token ${issuedToken}`;
   }
 
-  const response = await sendRequest(
-    url,
-    { method: 'POST', body: formData },
+  const response = await fetch(url, {
+    method: 'POST',
     headers,
-    retries,
-    'authenticatedUpload'
-  );
+    body: formData,
+  });
 
   // Same rule as authenticatedFetch: a 401 only ends the
-  // session when this request actually attached the token —
-  // an anonymous 401 means "login required", not a dead
-  // session, and there is nothing to log out.
+  // session when this request actually attached the token.
   if (response.status === 401) {
+    // An anonymous 401 means "login required", not a dead
+    // session — there is nothing to log out.
     if (!issuedToken) {
       throw new Error(
         'Authentication required for this request.'

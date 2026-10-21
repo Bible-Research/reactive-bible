@@ -27,7 +27,7 @@ export * from './helpers/factories';
 
 // Re-export performance helpers
 // eslint-disable-next-line react-refresh/only-export-components
-export * from './helpers/performance';
+export * from './helpers/performanceUtils';
 
 // --- Store Helpers ---
 
