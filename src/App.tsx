@@ -73,8 +73,9 @@ export default function App() {
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
-  // MyHeader slides away on downward scroll; drop the padding
-  // the AppShell reserves for it so content reclaims the space.
+  // MyHeader and BottomNav slide away on downward scroll; drop
+  // the padding the AppShell reserves for them so content
+  // reclaims the space.
   const headerVisible = useBibleStore(
     (state) => state.headerVisible
   );
@@ -145,7 +146,12 @@ export default function App() {
               paddingTop: headerVisible
                 ? "var(--mantine-header-height, 0px)"
                 : 0,
-              transition: "padding-top 0.3s ease-in-out",
+              paddingBottom: headerVisible
+                ? "var(--mantine-footer-height, 0px)"
+                : 0,
+              transition:
+                "padding-top 0.3s ease-in-out, " +
+                "padding-bottom 0.3s ease-in-out",
               // Allow scrolling on auth and search pages
               overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
             },

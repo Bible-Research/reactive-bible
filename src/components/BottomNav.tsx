@@ -15,9 +15,14 @@ interface BottomNavProps {
   setBibleSelectorOpened: (opened: boolean) => void;
 }
 
+const FOOTER_HEIGHT = 56;
+
 const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const navigate = useNavigate();
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
+  // Same flag MyHeader drives — both bars hide/show together on
+  // scroll; slide fully off-screen by driving `bottom` negative.
+  const headerVisible = useBibleStore((state) => state.headerVisible);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookId = useBibleStore((state) => state.activeBookId);
   // Display name ("John") rather than the raw USFM code ("JHN").
@@ -64,9 +69,14 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
 
   return (
     <Footer
-      height={56}
+      height={FOOTER_HEIGHT}
+      data-bottom-nav-visible={headerVisible}
       sx={{
-        bottom: showAudioPlayer ? '120px' : '0',
+        bottom: headerVisible
+          ? showAudioPlayer
+            ? '120px'
+            : '0'
+          : `-${FOOTER_HEIGHT}px`,
         transition: 'bottom 0.3s ease-in-out',
       }}
     >

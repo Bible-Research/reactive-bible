@@ -1988,6 +1988,9 @@ Top header bar with controls.
   The header slides up after ~150px of accumulated downward scroll
   and slides back after ~150px of accumulated upward scroll; it is
   shown again on every route change.
+- The same `headerVisible` store flag also gates `BottomNav`
+  (slides below the viewport on hide) and the AppShell's
+  reserved footer padding, so both bars move together.
 
 ---
 

@@ -230,6 +230,7 @@ const VerseActionToolbar = () => {
     (state) => state.setVerseSelection
   );
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
+  const headerVisible = useBibleStore((state) => state.headerVisible);
   const notes = useBibleStore((state) => state.notes);
   const detailNote = useBibleStore((state) => state.detailNote);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -432,15 +433,16 @@ const VerseActionToolbar = () => {
   );
 
   const isVisible = refCount > 0;
-  // BottomNav (56px) only renders on /bible routes; on /notes
-  // the toolbar would otherwise float mid-screen. The audio
-  // player bar (~120px) sits at the bottom on every route.
+  // BottomNav (56px) only renders on /bible routes and slides
+  // away with MyHeader on downward scroll (headerVisible); on
+  // /notes the toolbar would otherwise float mid-screen. The
+  // audio player bar (~120px) sits at the bottom on every route.
   const onBibleRoute = location.pathname.startsWith('/bible');
   const bottomOffset = showAudioPlayer
-    ? onBibleRoute
+    ? onBibleRoute && headerVisible
       ? 176
       : 120
-    : onBibleRoute
+    : onBibleRoute && headerVisible
       ? 56
       : 0;
 
