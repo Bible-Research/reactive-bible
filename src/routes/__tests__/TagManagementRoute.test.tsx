@@ -46,6 +46,8 @@ const mockApi = vi.mocked(api);
 const storeStub = vi.hoisted(() => {
   const state = {
     tags: [] as Tag[],
+    // Signature mirrors the store action; the stub ignores it.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     getTags: vi.fn((_forceRefresh?: boolean) =>
       Promise.resolve(),
     ),

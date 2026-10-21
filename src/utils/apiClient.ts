@@ -226,7 +226,7 @@ export const authenticatedUpload = async (
     url,
     { method: 'POST', body: formData },
     headers,
-    retries,
+    0,
     'authenticatedUpload'
   );
 

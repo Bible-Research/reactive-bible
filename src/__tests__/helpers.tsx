@@ -25,9 +25,8 @@ export * from './mocks/data';
 // eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/factories';
 
-// Re-export performance helpers
-// eslint-disable-next-line react-refresh/only-export-components
-export * from './helpers/performance';
+// Re-export performance helpers (performanceUtils already
+// re-exports everything performance.tsx defines).
 // eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/performanceUtils';
 

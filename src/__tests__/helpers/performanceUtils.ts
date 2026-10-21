@@ -21,22 +21,15 @@ export function useRenderCount() {
   return renderCount.current;
 }
 
-/**
- * Measure component render time
- */
-export function measureRenderTime(
-  renderFn: () => void,
-  iterations = 100
-): number {
-  const start = performance.now();
-
-  for (let i = 0; i < iterations; i++) {
-    renderFn();
-  }
-
-  const end = performance.now();
-  return (end - start) / iterations;
-}
+// Shared non-component utils live in ./performance — re-export
+// them so `./performanceUtils` remains a superset barrel without
+// duplicating declarations (which would collide under the
+// `export *` chains in helpers.tsx).
+export {
+  measureRenderTime,
+  createLargeVerseData,
+  CacheMetrics,
+} from './performance';
 
 /**
  * Wait for next frame (useful for testing animations/transitions)
@@ -45,53 +38,4 @@ export function waitForNextFrame(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });
-}
-
-/**
- * Create large mock data for performance testing
- */
-export function createLargeVerseData(count: number) {
-  return {
-    verses: Array.from({ length: count }, (_, i) => ({
-      verse: i + 1,
-      text: `This is verse ${i + 1} with some sample text content that
-           represents a typical Bible verse length.`,
-    })),
-    headings: [] as { before_verse: number; text: string }[],
-  };
-}
-
-/**
- * Measure cache hit rate
- */
-export class CacheMetrics {
-  private hits = 0;
-  private misses = 0;
-
-  recordHit() {
-    this.hits++;
-  }
-
-  recordMiss() {
-    this.misses++;
-  }
-
-  getHitRate(): number {
-    const total = this.hits + this.misses;
-    return total === 0 ? 0 : this.hits / total;
-  }
-
-  reset() {
-    this.hits = 0;
-    this.misses = 0;
-  }
-
-  getStats() {
-    return {
-      hits: this.hits,
-      misses: this.misses,
-      hitRate: this.getHitRate(),
-      total: this.hits + this.misses,
-    };
-  }
 }
