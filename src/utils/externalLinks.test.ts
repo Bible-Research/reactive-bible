@@ -6,6 +6,7 @@ import {
   buildBibleHubUrl,
   buildBibleMapperUrl,
   buildBlbUrl,
+  buildShareText,
   buildYouVersionUrl,
 } from './externalLinks';
 
@@ -81,6 +82,33 @@ describe('externalLinks URL builders', () => {
   it('exposes the BibleMapper WebViewer URL constant', () => {
     expect(BIBLE_MAPPER_WEB_URL).toBe('https://biblemapper.com/web/');
   });
+
+  it('includes scraped verse text in the share body', () => {
+    expect(
+      buildShareText(
+        'For God so loved the world',
+        'John 3:16',
+        'https://app.test/bible/JHN.3.16'
+      )
+    ).toBe(
+      'For God so loved the world\n\n' +
+        'John 3:16\n\n' +
+        'https://app.test/bible/JHN.3.16'
+    );
+  });
+
+  it('falls back to the bare reference when no verse text ' +
+    'was scraped', () => {
+      expect(
+        buildShareText(
+          '',
+          'John 3:16-18',
+          'https://app.test/bible/JHN.3.16-18'
+        )
+      ).toBe(
+        'John 3:16-18\n\nhttps://app.test/bible/JHN.3.16-18'
+      );
+    });
 
   it('maps every canonical book to a BLB abbreviation', () => {
     // Every book the API can return must map, or the BLB

@@ -8,7 +8,6 @@ import {
 import { getNoteOrderIndex } from '../api';
 import { useBibleStore } from '../store';
 import type {
-  Note,
   NoteOrderIndexEntry,
   NoteOrderMenuData,
 } from '../types';
@@ -39,10 +38,19 @@ const entryLabel = (
 interface UseNoteOrderMenuOptions {
   tagId: string | undefined;
   sortOrder: SortOrder;
-  isAuthenticated: boolean;
+  /**
+   * Ownership gate computed by the route: the tag is in the
+   * caller's own tag list or every loaded note reports
+   * `is_owner === true`, failing closed on an explicit
+   * `is_owner === false` (a shared public tag can carry foreign
+   * notes, and the backend move/reorder endpoints only touch
+   * the requester's own rows — foreign anchors 400, foreign
+   * positions 409).
+   */
+  isTagOwner: boolean;
+  /** `/notes/tag/untagged` is a virtual view — no real tag id
+   *  exists for the order-index/move endpoints. */
   isUntagged: boolean;
-  /** The currently loaded page of notes — carries `is_owner`. */
-  notes: Note[];
 }
 
 interface UseNoteOrderMenuResult {
@@ -71,9 +79,8 @@ interface UseNoteOrderMenuResult {
 export const useNoteOrderMenu = ({
   tagId,
   sortOrder,
-  isAuthenticated,
+  isTagOwner,
   isUntagged,
-  notes,
 }: UseNoteOrderMenuOptions): UseNoteOrderMenuResult => {
   const moveNoteAfter = useBibleStore(
     (state) => state.moveNoteAfter
@@ -93,20 +100,12 @@ export const useNoteOrderMenu = ({
   // apply out of order.
   const orderIndexRequestRef = useRef(0);
 
-  // The order badge/menu is gated like `isDraggable`: custom
-  // sort + authenticated — plus ownership. `is_owner` is
-  // emitted per note on `GET /notes/?tag_id=`; on a shared
-  // public tag the viewer sees someone else's notes with
-  // is_owner=false, and the backend move/reorder endpoints
-  // only touch the requester's own rows (foreign anchors 400,
-  // foreign positions 409). `!== false` keeps reorder enabled
-  // when a payload omits the field entirely (e.g. the generic
-  // MSW notes stub) so existing flows are unaffected.
+  // The order badge/menu is gated exactly like `isDraggable`:
+  // custom sort + owner, never on the virtual untagged view.
   const enabled =
     (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
-    isAuthenticated &&
-    !isUntagged &&
-    notes.every((n) => n.is_owner !== false);
+    isTagOwner &&
+    !isUntagged;
 
   const reloadOrderIndex = useCallback(async () => {
     if (!tagId) return;

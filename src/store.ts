@@ -12,7 +12,10 @@ import {
 } from './types';
 import { refsInclude, sameRef } from './utils/verseRefs';
 import { toBookName } from './utils/bibleUtils';
-import { useAuthStore } from './stores/authStore';
+import {
+  useAuthStore,
+  registerBibleStore,
+} from './stores/authStore';
 import { createNotesSlice } from './stores/bibleStore/notesSlice';
 import {
   migratePersistedState,
@@ -38,6 +41,14 @@ export interface BibleState {
   activeAudioFilesetId: string | null;
   tags: Tag[];
   notes: Note[];
+  /**
+   * Transient (not persisted): the public note shown on
+   * /notes/:id. Kept out of `notes` — that list is the tag
+   * page's pagination state — but the share toolbar needs its
+   * verses so folded-note shares carry the full text.
+   */
+  detailNote: Note | null;
+  setDetailNote: (note: Note | null) => void;
   allNotesFetched: boolean;
   showNotes: boolean;
   lastSelectedTagId: string | null;
@@ -143,6 +154,7 @@ export const initialState = {
   activeAudioFilesetId: "ENGESV_API",
   tags: [] as Tag[],
   notes: [] as Note[],
+  detailNote: null as Note | null,
   allNotesFetched: false,
   showNotes: false,
   lastSelectedTagId: null,
@@ -237,6 +249,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ audioPlaylistItems }),
       setAudioPlaylistStartIndex: (audioPlaylistStartIndex) =>
         set({ audioPlaylistStartIndex }),
+      setDetailNote: (detailNote) => set({ detailNote }),
       setVersesFolded: (versesFolded) => set({ versesFolded }),
       setPendingScrollVerse: (pendingScrollVerse) =>
         set({ pendingScrollVerse }),
@@ -313,13 +326,20 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             await api.getBulkReadingPositions(bookIds);
           // Keep explicit nulls: they mark books as checked so
           // they are not refetched on every book click. A local
-          // non-null entry wins over a remote null (offline reads).
+          // non-null entry always wins — it may have been written
+          // by navigation while this request was in flight,
+          // making it fresher than the remote snapshot. A remote
+          // position still fills in over a local null (the local
+          // null only meant "checked, empty" at fetch time).
           set((state) => {
             const merged = { ...state.readingPositions };
             for (const [bookId, pos] of Object.entries(
               positions
             )) {
-              if (merged[bookId] === undefined || pos !== null) {
+              if (
+                merged[bookId] === undefined ||
+                (merged[bookId] === null && pos !== null)
+              ) {
                 merged[bookId] = pos;
               }
             }
@@ -336,12 +356,18 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 5,
+      version: 6,
       migrate: migratePersistedState,
       partialize: partializeState,
     }
   )
 );
+
+// Let authStore purge session-owned state (logout / token change)
+// without it importing this module — that edge would make the
+// store evaluate inside api's Vitest importOriginal window
+// and bind the real api, breaking vi.mock('../api').
+registerBibleStore(useBibleStore);
 
 /** Display name for the active book (e.g. "John"). */
 export const selectActiveBookName = (state: BibleState): string =>

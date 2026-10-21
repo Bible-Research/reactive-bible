@@ -15,7 +15,10 @@ import {
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { publicFetch } from '../utils/apiClient';
-import { getAdjacentChapters } from './structure';
+import {
+  getAdjacentChapters,
+  getChapters,
+} from './structure';
 import {
   BookNotInFilesetError,
   ProviderError,
@@ -45,6 +48,12 @@ export const getVersesInKjvChapter = async (
   bookId: string,
   thechapter: number
 ): Promise<VerseResult> => {
+  // Out-of-range book/chapter (e.g. /bible/MAL.5 or JHN.999)
+  // fails gracefully — an empty chapter instead of a crash or
+  // phantom verses — and skips loading the KJV bundle.
+  if (!getChapters(bookId).includes(thechapter)) {
+    return { verses: [], headings: [] };
+  }
   const kjvData = await loadKjvData();
   const verses = kjvData
     .filter(

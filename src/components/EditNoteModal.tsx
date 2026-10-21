@@ -10,6 +10,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+
 import { useBibleStore } from "../store";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import {

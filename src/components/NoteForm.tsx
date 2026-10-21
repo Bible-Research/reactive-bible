@@ -8,6 +8,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { Tag } from "../types";
 import { toPlainText } from "../utils/tiptapContent";
@@ -213,6 +214,23 @@ const NoteForm = ({
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
+    // Guard empty submissions — the API would reject the note.
+    if (!selectedTagId) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Please choose a tag.',
+        color: 'red',
+      });
+      return;
+    }
+    if (!toPlainText(noteText).trim()) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Note text is required.',
+        color: 'red',
+      });
+      return;
+    }
     // Wait for an in-flight autosave first: the parent then sees
     // the created note id and PATCHes instead of POSTing a
     // duplicate. Holding the lock while submitting also keeps an
