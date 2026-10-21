@@ -64,6 +64,13 @@ export default function SearchRoute() {
   const q = searchParams.get('q') ?? '';
 
   const [inputValue, setInputValue] = useState(q);
+
+  // Reseed the input when the `q` param changes outside the
+  // form (Back/Forward navigation, shared links) — otherwise
+  // the box keeps showing the stale query.
+  useEffect(() => {
+    setInputValue(q);
+  }, [q]);
   const [groups, setGroups] = useState<SearchVerseGroup[]>([]);
   const [total, setTotal] = useState(0);
   const [truncated, setTruncated] = useState(false);
@@ -75,6 +82,7 @@ export default function SearchRoute() {
     useState<Set<string>>(new Set());
   const [playlistItems, setPlaylistItems] =
     useState<PlaylistItem[] | null>(null);
+  const [filesetMissing, setFilesetMissing] = useState(false);
 
   const activeTextFilesetId = useBibleStore(
     (s) => s.activeTextFilesetId,
@@ -120,6 +128,10 @@ export default function SearchRoute() {
       activeBookId,
       translations,
     );
+    // A query with no resolvable text fileset (e.g. no
+    // translation selected yet) gets a hint instead of silently
+    // resetting to an empty result page.
+    setFilesetMissing(Boolean(q.trim()) && !filesetId);
     if (!q.trim() || !filesetId) {
       setGroups([]);
       setTotal(0);
@@ -230,6 +242,13 @@ export default function SearchRoute() {
         <Center mt="xl">
           <Loader aria-label="loading" />
         </Center>
+      )}
+
+      {!loading && filesetMissing && !error && (
+        <Text color="dimmed" mt="md">
+          Search is unavailable — select a Bible translation
+          first.
+        </Text>
       )}
 
       {!loading && error && (

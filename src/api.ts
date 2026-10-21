@@ -8,17 +8,20 @@ import type {
   Comment,
   CommentCounts,
   CommentImage,
+  Note,
+  Tag,
   NoteOrderIndexEntry,
   ReadingPosition,
   Translation,
   KjvBook,
-  Note,
-  Tag,
   NotePositionUpdate,
   MovePlacement,
   MoveNoteResponse,
   PaginatedNotesResponse,
   LinkedNotesResponse,
+  SearchVerse,
+  SearchResponse,
+  SearchVerseGroup,
   GroupedSearchResponse,
   ReadingPositionValue,
 } from './types';
@@ -36,6 +39,7 @@ import {
   cacheTimestamps,
   getCachedCopyright,
   cacheCopyright,
+  clearNotesCache,
 } from './utils/cacheManager';
 
 import {
@@ -70,6 +74,10 @@ export type {
   GroupedSearchResponse,
   ReadingPositionValue,
 } from './types';
+
+// Note/Tag live in ./types — re-exported so existing
+// `api.Note`/`api.Tag` type references keep working.
+export type { Note, Tag };
 
 interface BibleStructureEntry {
   book_id: string;
@@ -137,6 +145,12 @@ export const getVersesInKjvChapter = async (
   bookId: string,
   thechapter: number
 ): Promise<VerseResult> => {
+  // Out-of-range book/chapter (e.g. /bible/MAL.5 or JHN.999)
+  // fails gracefully — an empty chapter instead of a crash or
+  // phantom verses — and skips loading the KJV bundle.
+  if (!getChapters(bookId).includes(thechapter)) {
+    return { verses: [], headings: [] };
+  }
   const kjvData = await loadKjvData();
   const verses = kjvData
     .filter(
@@ -169,7 +183,18 @@ export const fetchHeadingsOnly = async (
     const url =
       `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
+    if (!response.ok) {
+      // Headings are optional decoration — degrade to none, but
+      // never cache a non-2xx body: a transient 429/500 would
+      // otherwise wipe the chapter's headings permanently (the
+      // headings cache has no TTL).
+      console.warn(
+        `Failed to fetch headings for ${bookId} ${chapter}: ` +
+        `HTTP ${response.status}`
+      );
+      return [];
+    }
     const responseData = await response.json();
     // API.Bible responses carry a FUMS token in `meta` that must
     // be reported per their license terms (silent on failure).
@@ -208,8 +233,8 @@ export const getVersesFromApi = async (
     const url =
       `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
-    const response = await fetch(url);
-    
+    const response = await publicFetch(url);
+
     // Handle rate limit errors (429)
     if (response.status === 429) {
       throw new RateLimitError(
@@ -323,7 +348,11 @@ export const addTagNote = async (
     if (!response.ok) {
       throw new Error('Failed to create note');
     }
-    return await response.json();
+    const created = await response.json();
+    // A new note changes the tag's cached pages (membership and
+    // ordering shift) — invalidate so a cached page can't hide it.
+    clearNotesCache(tagId);
+    return created;
   } catch (error) {
     console.error('Error creating note:', error);
     throw error;
@@ -356,7 +385,11 @@ export const editNote = async (
     if (!response.ok) {
       throw new Error('Failed to update note');
     }
-    return await response.json();
+    const updated = await response.json();
+    // The note may have moved to a different tag — its previous
+    // tag's cached pages are stale too, so invalidate broadly.
+    clearNotesCache();
+    return updated;
   } catch (error) {
     console.error('Error updating note:', error);
     throw error;
@@ -374,10 +407,12 @@ export const deleteNote = async (noteId: string) => {
     if (!response.ok) {
       throw new Error('Failed to delete note');
     }
+    // The note's tag is unknown here — clear all cached pages.
+    clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (err) {
-    console.error('Error deleting note:', err);
+  } catch (error) {
+    console.error('Error deleting note:', error);
     throw new Error('Failed to delete your note, please try again');
   }
 }
@@ -442,16 +477,23 @@ export const reorderNotes = async (
       updates,
     }),
   });
-  
+
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
-  
+
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Reorder failed');
   }
+
+  // Reordered pages must not keep serving the pre-reorder order.
+  clearNotesCache(tagId);
 };
 
 /**
@@ -510,8 +552,12 @@ export const moveNote = async (
   });
 
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
 
   if (!response.ok) {
@@ -521,7 +567,10 @@ export const moveNote = async (
     );
   }
 
-  return await response.json();
+  const result: MoveNoteResponse = await response.json();
+  // A move changes page membership/positions for the tag.
+  clearNotesCache(tagId);
+  return result;
 };
 
 export const getTags = async (): Promise<Tag[]> => {
@@ -688,12 +737,23 @@ export const getAvailableTranslations = async (
     const url =
       `${API_BASE_URL}/api/v1/` +
       `bible/translations/?language_iso=${languageIso}`;
-    const response = await fetch(url);
+    const response = await publicFetch(url);
+    if (!response.ok) {
+      throw new ProviderError(
+        `Failed to fetch translations (HTTP ${response.status})`
+      );
+    }
     const data = await response.json();
 
-    // The actual translations are in the 'results' property
+    // Only cache real arrays — an error body must not poison the
+    // no-TTL translation cache (it also feeds findOwnerIso).
+    if (!Array.isArray(data.results)) {
+      throw new ProviderError(
+        'Malformed translations response'
+      );
+    }
     const translations: Translation[] =
-      injectBundledKjv(data.results ?? []);
+      injectBundledKjv(data.results);
 
     cacheTranslations(languageIso, translations);
     console.log(`💾 Translations for ${languageIso} cached`);
@@ -701,7 +761,9 @@ export const getAvailableTranslations = async (
     return translations;
   } catch (error) {
     console.error("Failed to fetch available translations:", error);
-    return []; // Return empty array on error
+    // Provider failures must surface — returning [] would be a
+    // silent empty list and would get cached.
+    throw error;
   }
 };
 
@@ -745,7 +807,7 @@ export const getBibleAudioUrl = async (
       `${API_BASE_URL}/api/v1/bible` +
       `?passage=${encodeURIComponent(passage)}` +
       `&fileset_id=${filesetId}&response_format=audio`;
-    const response = await fetch(url, {
+    const response = await publicFetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -1314,6 +1376,88 @@ export const fetchCommentImages = async (
 // SEARCH FUNCTIONS
 // ============================================
 
+/**
+ * Maps a search response body to a typed error, mirroring the
+ * verse/audio paths: a 200-wrapped `{error, error_code}` or a
+ * non-OK response must not collapse into silent empty results.
+ * Returns null when the body carries no error.
+ */
+const searchBodyError = (
+  body: unknown,
+  response: Response
+): Error | null => {
+  const data = (
+    body && typeof body === 'object' ? body : {}
+  ) as {
+    error?: unknown;
+    error_code?: unknown;
+    message?: unknown;
+    detail?: unknown;
+  };
+  const rawMsg =
+    typeof data.error === 'string' && data.error
+      ? data.error
+      : typeof data.detail === 'string' && data.detail
+        ? data.detail
+        : typeof data.message === 'string' && data.message
+          ? data.message
+          : '';
+  const errorCode = data.error_code;
+
+  if (!response.ok) {
+    const message =
+      rawMsg || `Search failed: ${response.statusText}`;
+    if (
+      response.status === 429 ||
+      errorCode === 'rate_limited' ||
+      isRateLimitMessage(message)
+    ) {
+      return new RateLimitError(message);
+    }
+    if (errorCode) {
+      return new ProviderError(message);
+    }
+    return new Error(message);
+  }
+
+  if (typeof data.error === 'string' && data.error) {
+    return errorCode === 'rate_limited' ||
+      isRateLimitMessage(data.error)
+      ? new RateLimitError(data.error)
+      : new ProviderError(data.error);
+  }
+  return null;
+};
+
+export const searchBible = async (
+  query: string,
+  filesetId: string,
+  page = 1,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<SearchResponse> => {
+  const params = new URLSearchParams({
+    query,
+    fileset_id: filesetId,
+    page: String(page),
+    limit: String(limit),
+  });
+  const url =
+    `${API_BASE_URL}/api/v1/bible/search/?` +
+    params.toString();
+  const response = await publicFetch(url, { signal });
+  const json = await response.json().catch(() => null);
+  const error = searchBodyError(json, response);
+  if (error) throw error;
+  const data = (json ?? {}) as {
+    data?: { verses?: SearchVerse[]; meta?: SearchResponse['meta'] };
+  };
+  return {
+    verses: data.data?.verses ?? [],
+    meta: data.data?.meta ?? {},
+  };
+};
+
 export const searchBibleGrouped = async (
   query: string,
   filesetId: string,
@@ -1327,16 +1471,19 @@ export const searchBibleGrouped = async (
   const url =
     `${API_BASE_URL}/api/v1/bible/search/?` +
     params.toString();
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error(
-      `Search failed: ${response.statusText}`
-    );
-  }
-  const json = await response.json();
+  const response = await publicFetch(url, { signal });
+  const json = await response.json().catch(() => null);
+  const error = searchBodyError(json, response);
+  if (error) throw error;
+  const data = (json ?? {}) as {
+    data?: {
+      groups?: SearchVerseGroup[];
+      meta?: GroupedSearchResponse['meta'];
+    };
+  };
   return {
-    groups: json.data?.groups ?? [],
-    meta: json.data?.meta ?? { total: 0, truncated: false },
+    groups: data.data?.groups ?? [],
+    meta: data.data?.meta ?? { total: 0, truncated: false },
   };
 };
 

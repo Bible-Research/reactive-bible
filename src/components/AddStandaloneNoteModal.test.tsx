@@ -14,6 +14,7 @@ import {
   type Mock,
 } from 'vitest';
 import AddStandaloneNoteModal from './AddStandaloneNoteModal';
+import { emptyNoteDraft } from './noteDraft';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -35,6 +36,8 @@ vi.mock('./RichTextEditor', async () => ({
     await import('../__tests__/mocks/RichTextEditorStub')
   ).default,
 }));
+
+const newDraft = () => ({ current: emptyNoteDraft() });
 
 describe('AddStandaloneNoteModal Component', () => {
   beforeEach(() => {
@@ -58,7 +61,9 @@ describe('AddStandaloneNoteModal Component', () => {
 
   it('should not render when closed', () => {
     renderWithProviders(
-      <AddStandaloneNoteModal opened={false} onClose={vi.fn()} />
+      <AddStandaloneNoteModal opened={false} onClose={vi.fn()} 
+          draftRef={newDraft()}
+        />
     );
     expect(
       screen.queryByText('New note')
@@ -67,7 +72,9 @@ describe('AddStandaloneNoteModal Component', () => {
 
   it('should render NoteForm when opened', async () => {
     renderWithProviders(
-      <AddStandaloneNoteModal opened={true} onClose={vi.fn()} />
+      <AddStandaloneNoteModal opened={true} onClose={vi.fn()} 
+          draftRef={newDraft()}
+        />
     );
 
     await waitFor(() => {
@@ -83,6 +90,8 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={onClose}
+        
+          draftRef={newDraft()}
         />,
         { storeOverrides: { lastSelectedTagId: '1' } }
       );
@@ -116,7 +125,11 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+          draftRef={newDraft()}
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       fireEvent.change(await screen.findByLabelText('Note'), {
@@ -169,7 +182,11 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+          draftRef={newDraft()}
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       fireEvent.change(await screen.findByLabelText('Note'), {
@@ -220,6 +237,8 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
+        
+          draftRef={newDraft()}
         />
       );
 
@@ -242,13 +261,17 @@ describe('AddStandaloneNoteModal Component', () => {
           <AddStandaloneNoteModal
             opened={false}
             onClose={vi.fn()}
-          />
+          
+          draftRef={newDraft()}
+        />
         );
         rerender(
           <AddStandaloneNoteModal
             opened={true}
             onClose={vi.fn()}
-          />
+          
+          draftRef={newDraft()}
+        />
         );
         // getByLabelText, not findBy — async queries never
         // resolve under fake timers.

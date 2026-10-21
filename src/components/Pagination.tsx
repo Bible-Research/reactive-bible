@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components --
+ * getPageNumbers is exported so its windowing rules can be
+ * unit-tested as a pure function. */
 import { Group, Button, Text, ActionIcon } from '@mantine/core';
 import {
   IconChevronLeft,
@@ -11,6 +14,15 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
+/**
+ * Page window for the pagination bar: always the first and last
+ * page plus `currentPage ± 1`, with 'ellipsis' markers filling
+ * the gaps. The implementation lives in utils/pagination.ts;
+ * this alias keeps the existing component-level import (and its
+ * unit tests) working.
+ */
+export const getPageNumbers = pageNumberList;
+
 export default function Pagination({
   currentPage,
   totalPages,
@@ -21,14 +33,8 @@ export default function Pagination({
   const pageNumbers = pageNumberList(currentPage, totalPages);
 
   return (
-    <Group
-      position="center"
-      spacing="xs"
-      mt="md"
-      mb="xl"
-      role="navigation"
-      aria-label="Pagination"
-    >
+    <nav aria-label="Pagination">
+      <Group position="center" spacing="xs" mt="md" mb="xl">
       <ActionIcon
         variant="outline"
         size="lg"
@@ -78,6 +84,7 @@ export default function Pagination({
       >
         <IconChevronRight size={18} />
       </ActionIcon>
-    </Group>
+      </Group>
+    </nav>
   );
 }

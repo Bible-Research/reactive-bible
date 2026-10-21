@@ -20,6 +20,8 @@ interface SortableNoteCardProps {
   onPlayFromNote?: (noteId: string) => void;
   commentCount?: number;
   onCountChange?: (delta: number) => void;
+  /** True when the viewed tag belongs to the current user. */
+  isTagOwner?: boolean;
   orderMenu?: NoteOrderMenuData;
 }
 
@@ -31,6 +33,7 @@ const SortableNoteCard = ({
   onPlayFromNote,
   commentCount,
   onCountChange,
+  isTagOwner,
   orderMenu,
 }: SortableNoteCardProps) => {
   const {
@@ -63,6 +66,7 @@ const SortableNoteCard = ({
         onPlayFromNote={onPlayFromNote}
         commentCount={commentCount}
         onCountChange={onCountChange}
+        isTagOwner={isTagOwner}
         orderMenu={orderMenu}
         dragHandleProps={{
           ref: setActivatorNodeRef,
