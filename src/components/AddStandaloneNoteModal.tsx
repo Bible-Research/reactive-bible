@@ -4,6 +4,7 @@ import { addTagNote, editNote } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect } from "react";
 import NoteForm from "./NoteForm";
+import { shallow } from "zustand/shallow";
 import {
   emptyNoteDraft,
   type NoteDraftRef,
@@ -35,7 +36,7 @@ const AddStandaloneNoteModal = ({
     getTags: state.getTags,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
-  }));
+  }), shallow);
 
   useEffect(() => {
     if (opened) {

@@ -18,6 +18,7 @@ import {
 import AudioPlayer from "./AudioPlayer";
 import { useVerseHighlighter } from "../hooks/useVerseHighlighter";
 import { VerseTimestamp } from "../types";
+import { shallow } from "zustand/shallow";
 import { showNotification } from "@mantine/notifications";
 import {
   toBookName,
@@ -139,11 +140,14 @@ const Audio = () => {
     (s) => s.setAudioActiveVerse
   );
   const { activeAudioFilesetId, activeTextFilesetId, translations } =
-    useBibleStore((state) => ({
-      activeAudioFilesetId: state.activeAudioFilesetId,
-      activeTextFilesetId: state.activeTextFilesetId,
-      translations: state.translations,
-    }));
+    useBibleStore(
+      (state) => ({
+        activeAudioFilesetId: state.activeAudioFilesetId,
+        activeTextFilesetId: state.activeTextFilesetId,
+        translations: state.translations,
+      }),
+      shallow
+    );
   const showPlayer = useBibleStore((state) => state.showAudioPlayer);
   const setShowPlayer = useBibleStore((state) => state.setShowAudioPlayer);
   const audioPlaylistStartIndex = useBibleStore(

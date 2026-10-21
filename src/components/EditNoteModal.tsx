@@ -26,6 +26,7 @@ import NoteForm from "./NoteForm";
 import PassagePicker from "./PassagePicker";
 import { Note, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
+import { shallow } from "zustand/shallow";
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -50,7 +51,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     activeBookId: state.activeBookId,
     activeChapter: state.activeChapter,
     translations: state.translations,
-  }));
+  }), shallow);
 
   // The note's verse links, editable via the picker below.
   const [refs, setRefs] = useState<VerseRef[]>([]);

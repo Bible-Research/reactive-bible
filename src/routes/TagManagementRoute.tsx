@@ -20,13 +20,17 @@ import { TagTree } from '../components/TagTree';
 import { CreateTagModal } from '../components/CreateTagModal';
 import { EditTagModal } from '../components/EditTagModal';
 import { useBibleStore } from '../store';
+import { shallow } from 'zustand/shallow';
 
 export default function TagManagementRoute() {
   const navigate = useNavigate();
-  const { tags, getTags } = useBibleStore((state) => ({
-    tags: state.tags,
-    getTags: state.getTags,
-  }));
+  const { tags, getTags } = useBibleStore(
+    (state) => ({
+      tags: state.tags,
+      getTags: state.getTags,
+    }),
+    shallow
+  );
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

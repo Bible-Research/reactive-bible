@@ -18,10 +18,10 @@ import { useAuthStore } from '../stores/authStore';
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const register = useAuthStore((s) => s.register);
-  const isLoading = useAuthStore((s) => s.isLoading);
-  const error = useAuthStore((s) => s.error);
-  const clearError = useAuthStore((s) => s.clearError);
+  const register = useAuthStore((state) => state.register);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
+  const clearError = useAuthStore((state) => state.clearError);
 
   // A stale auth error must not greet the user returning from
   // the login page (or a previous failed attempt).

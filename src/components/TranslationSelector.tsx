@@ -23,6 +23,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { loadKjvData, isKjvDataLoaded } from '../utils/kjvDataLoader';
 import { useBibleStore, type Translation } from '../store';
+import { shallow } from 'zustand/shallow';
 import { getAvailableTranslations } from '../api';
 import {
   findAudioOption,
@@ -146,7 +147,17 @@ const TranslationSelector = () => {
     setActiveTextFilesetId,
     activeAudioFilesetId,
     setActiveAudioFilesetId,
-  } = useBibleStore((state) => state);
+  } = useBibleStore(
+    (state) => ({
+      translations: state.translations,
+      setTranslations: state.setTranslations,
+      activeTextFilesetId: state.activeTextFilesetId,
+      setActiveTextFilesetId: state.setActiveTextFilesetId,
+      activeAudioFilesetId: state.activeAudioFilesetId,
+      setActiveAudioFilesetId: state.setActiveAudioFilesetId,
+    }),
+    shallow
+  );
 
   // Local state for selections within the modal
   const [selectedTranslationAbbr, setSelectedTranslationAbbr] =
