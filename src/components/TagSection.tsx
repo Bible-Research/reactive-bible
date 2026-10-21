@@ -149,7 +149,7 @@ const TagSection = ({
   if (!isDraggable) {
     return (
       <Stack spacing="md" mb={30}>
-        <Title order={2} mb={5}>
+        <Title order={2} mb={5} pl={10}>
           {tagName}
         </Title>
         {notes.map((note) => (
@@ -186,7 +186,7 @@ const TagSection = ({
         strategy={verticalListSortingStrategy}
       >
         <Stack spacing="md" mb={30}>
-          <Title order={2} mb={5}>
+          <Title order={2} mb={5} pl={10}>
             {tagName}
           </Title>
           {localNotes.map((note) => (

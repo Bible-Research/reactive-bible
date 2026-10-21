@@ -4,7 +4,6 @@ import {
   ActionIcon,
   Box,
   Button,
-  Card,
   Group,
   Text,
   Title,
@@ -230,8 +229,18 @@ const NoteCard = ({
     ) : null;
 
   return (
-    <Card shadow="sm" padding="sm" radius="md" mb={15}>
+    <Box
+      pb="md"
+      sx={(theme) => ({
+        borderBottom: `1px solid ${
+          theme.colorScheme === "dark"
+            ? theme.colors.dark[4]
+            : theme.colors.gray[3]
+        }`,
+      })}
+    >
       <Box
+        px={10}
         sx={!versesFolded ? (theme) => ({
           display: 'flex',
           alignItems: 'flex-start',
@@ -510,6 +519,7 @@ const NoteCard = ({
 
       <Box
         mt={-10}
+        px={10}
         sx={{ position: 'relative', zIndex: 0 }}
         data-verse-scope={scope}
       >
@@ -587,7 +597,6 @@ const NoteCard = ({
               theme.colorScheme === "dark"
                 ? theme.colors.dark[4]
                 : theme.colors.gray[4],
-            borderRadius: theme.radius.sm,
           })}
         >
           <Box sx={{ fontStyle: "italic" }}>
@@ -611,6 +620,7 @@ const NoteCard = ({
         <Box
           id={`comment-thread-${note.id}`}
           mt={8}
+          px={10}
         >
           <CommentThread
             noteId={note.id}
@@ -618,7 +628,7 @@ const NoteCard = ({
           />
         </Box>
       )}
-    </Card>
+    </Box>
   );
 };
 

@@ -17,6 +17,7 @@ import {
   Select,
   ActionIcon,
   Tooltip,
+  Collapse,
 } from '@mantine/core';
 import {
   IconShare,
@@ -211,6 +212,12 @@ export default function TagNotesRoute() {
   );
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
+  );
+  // MyHeader slides away on a deliberate downward scroll via
+  // this flag; the filter/sort toolbar follows it so the notes
+  // list reclaims the freed space.
+  const headerVisible = useBibleStore(
+    (state) => state.headerVisible
   );
   
   // Get sort order from URL, default to 'created_desc'
@@ -1011,142 +1018,164 @@ export default function TagNotesRoute() {
   ) : null;
 
   return (
-    <Box p="md">
-      <Stack spacing="sm" mb="md">
-        {isAuthenticated && sortedTags.length > 0 ? (
-          <Select
-            label="Filter by tag"
-            placeholder="Select a tag"
-            value={tagId}
-            onChange={handleTagChange}
-            // Grouped items render above a divider; the
-            // ungrouped "Untagged" entry lands in its own
-            // bottom section (Mantine v6 SelectItems).
-            data={[
-              ...sortedTags.map((t) => ({
-                value: t.id,
-                label: t.name,
-                group: 'Tags',
-              })),
-              { value: UNTAGGED_TAG_ID, label: 'Untagged' },
-            ]}
-            searchable
-            style={{ maxWidth: 400 }}
-          />
-        ) : (
-          <Text fw={500} size="lg">{tag.name}</Text>
-        )}
-        <Group spacing="xs" position="apart">
-          <Group spacing="xs" noWrap>
+    // Flex column so the ScrollArea below grows into whatever
+    // space the collapsing chrome frees. The height mirrors
+    // AppShell's paddingTop: viewport minus the header while it
+    // is shown, the full viewport once it has slid away — both
+    // animate on the same 0.3s ease-in-out so they stay in sync.
+    <Box
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: headerVisible
+          ? 'calc(100vh - var(--mantine-header-height, 0px))'
+          : '100vh',
+        transition: 'height 0.3s ease-in-out',
+      }}
+    >
+      <Collapse
+        in={headerVisible}
+        transitionDuration={300}
+        data-testid="tag-notes-toolbar"
+      >
+        <Stack spacing="sm" mb="md" px="md" pt="md">
+          {isAuthenticated && sortedTags.length > 0 ? (
             <Select
-              size="xs"
-              value={sortOrder}
-              onChange={(v) => {
-                if (v) {
-                  handleSortChange(v);
-                }
-              }}
+              label="Filter by tag"
+              placeholder="Select a tag"
+              value={tagId}
+              onChange={handleTagChange}
+              // Grouped items render above a divider; the
+              // ungrouped "Untagged" entry lands in its own
+              // bottom section (Mantine v6 SelectItems).
               data={[
-                {
-                  value: 'custom_asc',
-                  label: 'Custom: Ascending',
-                },
-                {
-                  value: 'custom_desc',
-                  label: 'Custom: Descending',
-                },
-                {
-                  value: 'created_desc',
-                  label: 'Date: Newest first',
-                },
-                {
-                  value: 'created_asc',
-                  label: 'Date: Oldest first',
-                },
-                {
-                  value: 'verse_asc',
-                  label: 'Verse: Ascending',
-                },
-                {
-                  value: 'verse_desc',
-                  label: 'Verse: Descending',
-                },
+                ...sortedTags.map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                  group: 'Tags',
+                })),
+                { value: UNTAGGED_TAG_ID, label: 'Untagged' },
               ]}
-              style={{ width: 170, flexShrink: 0 }}
+              searchable
+              style={{ maxWidth: 400 }}
             />
-            <Select
-              size="xs"
-              value={String(notesPageSize)}
-              onChange={handlePageSizeChange}
-              data={[
-                { value: '5', label: '5' },
-                { value: '25', label: '25' },
-                { value: '50', label: '50' },
-                { value: '100', label: '100' },
-              ]}
-              style={{ width: 60, flexShrink: 0 }}
-            />
-          </Group>
-          <Group spacing="xs" noWrap>
-            <Text
-              color="dimmed"
-              size="sm"
-              sx={(theme) => ({
-                [theme.fn.smallerThan('sm')]: {
-                  display: 'none',
-                },
-              })}
-            >
-              {notes.length}
-              {notesCount > notes.length && ` of ${notesCount}`}
-              {' '}
-              {notes.length === 1 ? 'note' : 'notes'}
-            </Text>
-            <Tooltip
-              label={versesFolded ? "Unfold verses" : "Fold verses"}
-              position="left"
-            >
-              <ActionIcon
-                onClick={handleToggleFolded}
-                variant="subtle"
-                color={versesFolded ? "blue" : "gray"}
-                size="lg"
-                aria-label={
+          ) : (
+            <Text fw={500} size="lg">{tag.name}</Text>
+          )}
+          <Group spacing="xs" position="apart">
+            <Group spacing="xs" noWrap>
+              <Select
+                size="xs"
+                value={sortOrder}
+                onChange={(v) => {
+                  if (v) {
+                    handleSortChange(v);
+                  }
+                }}
+                data={[
+                  {
+                    value: 'custom_asc',
+                    label: 'Custom: Ascending',
+                  },
+                  {
+                    value: 'custom_desc',
+                    label: 'Custom: Descending',
+                  },
+                  {
+                    value: 'created_desc',
+                    label: 'Date: Newest first',
+                  },
+                  {
+                    value: 'created_asc',
+                    label: 'Date: Oldest first',
+                  },
+                  {
+                    value: 'verse_asc',
+                    label: 'Verse: Ascending',
+                  },
+                  {
+                    value: 'verse_desc',
+                    label: 'Verse: Descending',
+                  },
+                ]}
+                style={{ width: 170, flexShrink: 0 }}
+              />
+              <Select
+                size="xs"
+                value={String(notesPageSize)}
+                onChange={handlePageSizeChange}
+                data={[
+                  { value: '5', label: '5' },
+                  { value: '25', label: '25' },
+                  { value: '50', label: '50' },
+                  { value: '100', label: '100' },
+                ]}
+                style={{ width: 60, flexShrink: 0 }}
+              />
+            </Group>
+            <Group spacing="xs" noWrap>
+              <Text
+                color="dimmed"
+                size="sm"
+                sx={(theme) => ({
+                  [theme.fn.smallerThan('sm')]: {
+                    display: 'none',
+                  },
+                })}
+              >
+                {notes.length}
+                {notesCount > notes.length && ` of ${notesCount}`}
+                {' '}
+                {notes.length === 1 ? 'note' : 'notes'}
+              </Text>
+              <Tooltip
+                label={
                   versesFolded ? 'Unfold verses' : 'Fold verses'
                 }
+                position="left"
               >
-                {versesFolded
-                  ? <IconArrowsMaximize size={20} />
-                  : <IconArrowsMinimize size={20} />}
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Refresh notes" position="left">
-              <ActionIcon
-                onClick={handleRefresh}
-                variant="subtle"
-                color="gray"
-                size="lg"
-                aria-label="Refresh notes"
-              >
-                <IconRefresh size={20} />
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Share tag link" position="left">
-              <ActionIcon
-                onClick={handleShare}
-                variant="subtle"
-                color="blue"
-                size="lg"
-                aria-label="Share tag link"
-              >
-                <IconShare size={20} />
-              </ActionIcon>
-            </Tooltip>
+                <ActionIcon
+                  onClick={handleToggleFolded}
+                  variant="subtle"
+                  color={versesFolded ? 'blue' : 'gray'}
+                  size="lg"
+                  aria-label={
+                    versesFolded ? 'Unfold verses' : 'Fold verses'
+                  }
+                >
+                  {versesFolded
+                    ? <IconArrowsMaximize size={20} />
+                    : <IconArrowsMinimize size={20} />}
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Refresh notes" position="left">
+                <ActionIcon
+                  onClick={handleRefresh}
+                  variant="subtle"
+                  color="gray"
+                  size="lg"
+                  aria-label="Refresh notes"
+                >
+                  <IconRefresh size={20} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Share tag link" position="left">
+                <ActionIcon
+                  onClick={handleShare}
+                  variant="subtle"
+                  color="blue"
+                  size="lg"
+                  aria-label="Share tag link"
+                >
+                  <IconShare size={20} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
           </Group>
-        </Group>
-      </Stack>
+        </Stack>
+      </Collapse>
 
-      <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
+      <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         {pageLoading ? (
           <Center style={{ height: 200 }}>
             <Loader aria-label="loading" />

@@ -354,6 +354,10 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
   of every note in the tag and the list is dnd-kit
   reorderable — see "Note order badges & moves"
   under Note Taking & Tagging
+- The filter/sort toolbar rides on `headerVisible`: it
+  collapses (`Collapse`, aria-hidden) whenever MyHeader
+  slides away on a downward scroll and the notes list
+  flex-grows into the freed space
 
 **Navigation Pattern**:
 ```typescript
