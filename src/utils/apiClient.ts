@@ -129,7 +129,12 @@ export const publicFetch = async (
   options: RequestInit = {},
   retries = 1
 ): Promise<Response> => {
-  const headers = getAuthHeaders();
+  // Caller headers are merged up-front so the anonymous retry
+  // below can strip Authorization even when the caller set it.
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+    ...(options.headers as Record<string, string> | undefined),
+  };
   const response = await sendRequest(
     url, options, headers, retries, 'publicFetch'
   );
@@ -147,7 +152,11 @@ export const publicFetch = async (
     const anonymousHeaders = { ...headers };
     delete anonymousHeaders['Authorization'];
     return sendRequest(
-      url, options, anonymousHeaders, retries, 'publicFetch'
+      url,
+      { ...options, headers: anonymousHeaders },
+      anonymousHeaders,
+      retries,
+      'publicFetch'
     );
   }
 
@@ -234,8 +243,6 @@ export const authenticatedUpload = async (
   // an anonymous 401 means "login required", not a dead
   // session.
   if (response.status === 401) {
-    // An anonymous 401 means "login required", not a dead
-    // session — there is nothing to log out.
     if (!issuedToken) {
       throw new Error(
         'Authentication required for this request.'

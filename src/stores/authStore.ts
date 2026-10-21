@@ -74,6 +74,7 @@ const createAuthStore = () => create<AuthState>()(
           // ever log it with the password masked (tests pin
           // this log's shape).
           const requestBody = { username, password };
+
           console.log('🔐 Login attempt:', {
             url: `${API_BASE_URL}/api/token/`,
             body: { ...requestBody, password: '***' },

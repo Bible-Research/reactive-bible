@@ -794,6 +794,24 @@ describe('API Functions', () => {
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.ProviderError);
     });
+  });
+
+  describe('searchBibleGrouped', () => {
+    it('throws ProviderError when a 200 body carries a ' +
+      '`message` and no groups', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message: 'Search provider unavailable',
+          });
+        })
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.ProviderError);
+    });
 
     it('searchBibleGrouped throws on an error body instead of ' +
       'returning empty groups', async () => {

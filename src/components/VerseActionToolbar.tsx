@@ -54,11 +54,15 @@ import { emptyNoteDraft } from "./noteDraft";
 // the entry chunk until a note is actually authored.
 const AddTagNoteModal = lazy(() => import("./AddTagNoteModal"));
 
-const formatChapterGroup = (group: {
+/** A single-chapter selection group — the primary ref used by
+ *  the external-link and share builders. */
+export interface PrimaryChapterRef {
   bookId: string;
   chapter: number;
   verses: number[];
-}): string => {
+}
+
+const formatChapterGroup = (group: PrimaryChapterRef): string => {
   const sorted = group.verses;
   const label =
     `${toBookName(group.bookId) ?? group.bookId} ` +

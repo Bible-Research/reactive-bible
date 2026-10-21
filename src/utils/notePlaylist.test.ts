@@ -73,6 +73,8 @@ describe('buildNotePlaylistItems', () => {
     ]);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
+      itemId: 'n1:JHN:3',
+      scope: 'n1',
       chapter: 3,
       startVerse: 16,
       endVerse: 18,
@@ -87,6 +89,7 @@ describe('buildNotePlaylistItems', () => {
       note('n1', [
         verse('John', 3, 16),
         verse('John', 4, 1),
+        verse('John', 4, 2),
         verse('Mark', 1, 1),
       ]),
     ]);
@@ -113,7 +116,9 @@ describe('buildNotePlaylistItems', () => {
     expect(items[1]).toMatchObject({
       bookId: 'JHN',
       chapter: 4,
-      verseNumbers: [1],
+      startVerse: 1,
+      endVerse: 2,
+      verseNumbers: [1, 2],
     });
     expect(items[2]).toMatchObject({
       bookId: 'MRK',
@@ -128,5 +133,6 @@ describe('buildNotePlaylistItems', () => {
       note('n1', [verse('Notabook', 1, 1)]),
     ]);
     expect(items[0].bookId).toBe('Notabook');
+    expect(items[0].itemId).toBe('n1:Notabook:1');
   });
 });

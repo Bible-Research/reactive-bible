@@ -355,9 +355,19 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
   book/chapter blocks produces one playlist item per block
 - In custom sort on an owned tag, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
-  of every note in the tag and the list is dnd-kit
-  reorderable — see "Note order badges & moves"
-  under Note Taking & Tagging
+  of every note in the tag — see "Note order badges & moves"
+  under Note Taking & Tagging. Reorder UI additionally
+  requires tag ownership (`isTagOwner`: the viewed tag is in
+  the caller's own list, or every loaded note reports
+  `is_owner === true`) — shared/public tag pages hide it for
+  non-owners (the backend rejects foreign moves with 400/409
+  anyway)
+- The route is thin view wiring over three hooks +
+  `TagNotesToolbar`: `useTagNotesData` (load/pagination/
+  refresh/delete orchestration), `useNoteOrderMenu` (order
+  index + moves), `useNotePlaylist` (audio playlist assembly —
+  one item per book+chapter block; its play-from index
+  addresses the verse-filtered playlist array by `scope`)
 - The filter/sort toolbar rides on `headerVisible`: it
   collapses (`Collapse`, aria-hidden) whenever MyHeader
   slides away on a downward scroll and the notes list
@@ -1554,10 +1564,12 @@ moveNote(
 ```
 
 **Note order badges & moves** (`NoteOrderMenu.tsx`):
-- In `custom_asc`/`custom_desc` + authenticated, each
-  `NoteCard` renders a `#k` badge where `k` is the note's
-  1-based rank in the canonical ascending order (same IDs in
-  both sort directions — `custom_desc` only reverses display).
+- In `custom_asc`/`custom_desc` + authenticated + owned notes
+  (every loaded note reports `is_owner`; the gate lives in
+  `useNoteOrderMenu`), each `NoteCard` renders a `#k` badge
+  where `k` is the note's 1-based rank in the canonical
+  ascending order (same IDs in both sort directions —
+  `custom_desc` only reverses display).
 - Clicking the badge opens a dropdown listing **all** notes
   in the tag (`#k — Book C:V[-V]`, or `#k — no passage`), with
   a filter input and a "Move to top" item — built for tags
@@ -1566,8 +1578,9 @@ moveNote(
   order; the route translates to canonical placement
   (`custom_asc` → `after`, `custom_desc` → `before`).
 - The order index is fetched per tag via `getNoteOrderIndex`,
-  kept in route state (never persisted), and refetched after
-  every move; `moveNoteAfter` in the store patches
+  kept in `useNoteOrderMenu` state (never persisted), and
+  refetched after every move; `moveNoteAfter` in the store
+  patches
   `tag_position` locally for instant feedback, then always
   refetches the current page (cross-page moves change page
   membership).
@@ -2861,6 +2874,7 @@ blob (`bible_notes_cache`) is dropped on load, not migrated.
 **Cache Key Format**:
 `{tagId}:{anon|auth}:fs:{filesetId}:ps:{pageSize}:page{n}:{ordering}`
 
+**Implementation** (`src/stores/bibleStore/notesSlice.ts`):
 The scope fields exist because the response depends on them:
 - `anon|auth` — owners see private notes that anonymous callers
   must never be served from cache.

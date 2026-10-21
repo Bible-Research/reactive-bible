@@ -76,11 +76,15 @@ const tag: Tag = {
   updated_at: '',
 };
 
-const makeNote = (id: string, position: number): Note => ({
+const makeNote = (
+  id: string,
+  position: number,
+  isOwner = true
+): Note => ({
   id,
   note_text: `Note ${id}`,
   public: true,
-  is_owner: true,
+  is_owner: isOwner,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '',
   tag,
@@ -202,6 +206,41 @@ describe('TagNotesRoute order menu', () => {
       screen.queryByLabelText('note-order-note-1')
     ).not.toBeInTheDocument();
     expect(mockApi.getNoteOrderIndex).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when any loaded note is not owned ' +
+    '(is_owner=false)', async () => {
+    // A shared public tag can carry foreign notes; the backend
+    // move/reorder endpoints only touch the requester's own
+    // rows, so the whole reorder UI must stay hidden.
+    const mixed = [
+      makeNote('note-1', 1),
+      makeNote('note-2', 2, false),
+    ];
+    const { container } = renderRoute(
+      '/notes/tag/tag-123',
+      true,
+      { notes: mixed }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText('John 3:16').length
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      screen.queryByLabelText('note-order-note-1')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('note-order-note-2')
+    ).not.toBeInTheDocument();
+    expect(mockApi.getNoteOrderIndex).not.toHaveBeenCalled();
+    // Non-draggable render path: no sortable drag handles.
+    expect(
+      container.querySelector(
+        '[aria-roledescription="sortable"]'
+      )
+    ).toBeNull();
   });
 
   it('hides badges for non-custom sort orders', async () => {

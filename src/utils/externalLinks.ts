@@ -13,7 +13,10 @@ import { toBookName } from "./bibleUtils";
 import type { VerseRef } from "../types";
 
 /** USFM -> Blue Letter Bible URL abbreviation. */
-const BOOK_TO_BLB_ABBR: Record<string, string> = {
+// Exported so a test can pin canonical coverage — every book
+// the API can return must have an abbreviation, or the BLB
+// button silently disappears.
+export const BOOK_TO_BLB_ABBR: Record<string, string> = {
   GEN: "gen",
   EXO: "exo",
   LEV: "lev",
@@ -172,6 +175,20 @@ export const buildBibleMapperUrl = (
   );
 };
 
+/** Shared text for navigator.share and the clipboard fallback.
+ *  Verse text is DOM-scraped and may be empty — then the body
+ *  falls back to the bare passage reference. */
+export const buildShareText = (
+  verseText: string,
+  passageRef: string,
+  url: string
+): string => {
+  const body = verseText
+    ? `${verseText}\n\n${passageRef}`
+    : passageRef;
+  return `${body}\n\n${url}`;
+};
+
 /**
  * Scrapes the rendered verse elements for the selected refs.
  * This is intentionally the only DOM-touching piece of the
@@ -192,14 +209,3 @@ export const collectSelectedVerseText = (
     })
     .filter(Boolean)
     .join(" ");
-
-/** Share/clipboard body: scraped verse text (if any), then the
- *  reference, then the link. */
-export const buildShareText = (
-  verseText: string,
-  passageRef: string,
-  url: string
-): string =>
-  verseText
-    ? `${verseText}\n\n${passageRef}\n\n${url}`
-    : `${passageRef}\n\n${url}`;

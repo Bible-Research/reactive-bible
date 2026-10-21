@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { getBooks } from '../api/structure';
 import {
   BIBLE_MAPPER_MAPFINDER_URL,
   BIBLE_MAPPER_WEB_URL,
@@ -79,5 +80,19 @@ describe('externalLinks URL builders', () => {
 
   it('exposes the BibleMapper WebViewer URL constant', () => {
     expect(BIBLE_MAPPER_WEB_URL).toBe('https://biblemapper.com/web/');
+  });
+
+  it('maps every canonical book to a BLB abbreviation', () => {
+    // Every book the API can return must map, or the BLB
+    // button silently disappears.
+    const books = getBooks();
+    expect(books.length).toBeGreaterThan(0);
+    for (const book of books) {
+      expect(
+        buildBlbUrl(book.book_id, 1, 1),
+        `missing BLB abbr for ${book.book_name} ` +
+          `(${book.book_id})`
+      ).toBeTruthy();
+    }
   });
 });
