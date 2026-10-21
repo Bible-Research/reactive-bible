@@ -578,6 +578,144 @@ describe('API Functions', () => {
       expect(cacheManager.cacheTranslations)
         .toHaveBeenCalledWith('eng', freshInjected);
     });
+
+    it('throws on a non-OK response and does not cache it',
+      async () => {
+        vi.spyOn(cacheManager, 'getCachedTranslations')
+          .mockReturnValue(null);
+        vi.spyOn(console, 'error').mockImplementation(
+          () => undefined
+        );
+        server.use(
+          http.get(
+            `${API_URL}/bible/translations/`,
+            () => HttpResponse.json(
+              { detail: 'down' }, { status: 503 }
+            )
+          )
+        );
+
+        await expect(
+          api.getAvailableTranslations('eng', true)
+        ).rejects.toThrow(api.ProviderError);
+        // A failure must never be written to the no-TTL cache as
+        // an empty list.
+        expect(cacheManager.cacheTranslations)
+          .not.toHaveBeenCalled();
+      });
+
+    it('throws instead of caching an error body with no ' +
+      'results array', async () => {
+      vi.spyOn(cacheManager, 'getCachedTranslations')
+        .mockReturnValue(null);
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({ error: 'provider exploded' })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.ProviderError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fetchHeadingsOnly', () => {
+    beforeEach(() => {
+      vi.spyOn(cacheManager, 'getCachedHeadings')
+        .mockReturnValue(null);
+      vi.spyOn(cacheManager, 'cacheHeadings');
+    });
+
+    it('caches headings on a 2xx response', async () => {
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json({
+            headings: [{ before_verse: 16, text: 'God so loved' }],
+          })
+        )
+      );
+
+      const headings =
+        await api.fetchHeadingsOnly('JHN', 3, 'NONKJVFS');
+
+      expect(headings).toEqual([
+        { before_verse: 16, text: 'God so loved' },
+      ]);
+      expect(cacheManager.cacheHeadings).toHaveBeenCalledWith(
+        'JHN', 3, 'NONKJVFS', headings
+      );
+    });
+
+    it('returns [] without caching on a non-OK response',
+      async () => {
+        vi.spyOn(console, 'warn').mockImplementation(
+          () => undefined
+        );
+        server.use(
+          http.get(`${API_URL}/bible`, () =>
+            HttpResponse.json(
+              { error: 'boom', error_code: 'provider_error' },
+              { status: 502 }
+            )
+          )
+        );
+
+        const headings =
+          await api.fetchHeadingsOnly('JHN', 3, 'NONKJVFS');
+
+        expect(headings).toEqual([]);
+        // A transient failure must not wipe headings permanently
+        // — the cache has no TTL.
+        expect(cacheManager.cacheHeadings).not.toHaveBeenCalled();
+      });
+  });
+
+  describe('search error mapping', () => {
+    it('searchBibleGrouped throws on an error body instead of ' +
+      'returning empty groups', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json({
+            error: 'provider failed',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.ProviderError);
+    });
+  });
+
+  describe('notes mutation cache invalidation', () => {
+    it('addTagNote clears the tag cache on create', async () => {
+      const clearSpy = vi.spyOn(cacheManager, 'clearNotesCache');
+
+      await api.addTagNote('tag-9', 'hello', []);
+
+      expect(clearSpy).toHaveBeenCalledWith('tag-9');
+    });
+
+    it('editNote clears all notes cache on update', async () => {
+      const clearSpy = vi.spyOn(cacheManager, 'clearNotesCache');
+      server.use(
+        http.patch(`${API_URL}/notes/:id`, () =>
+          HttpResponse.json({ id: 'note-1' })
+        )
+      );
+
+      await api.editNote('note-1', 'tag-9', 'hello');
+
+      expect(clearSpy).toHaveBeenCalledWith();
+    });
   });
 
   });

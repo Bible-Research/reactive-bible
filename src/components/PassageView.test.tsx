@@ -1,11 +1,15 @@
-import { screen, waitFor } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { act, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { API_BASE_URL } from '../config';
 import PassageView from './PassageView';
-import { renderWithProviders } from '../__tests__/helpers';
-import type { Translation } from '../store';
+import {
+  flushPromises,
+  renderWithProviders,
+} from '../__tests__/helpers';
+import { useBibleStore, type Translation } from '../store';
+import * as api from '../api';
 
 // Split-testament translation — both members are present.
 const splitTranslation: Translation = {
@@ -105,6 +109,129 @@ describe('PassageView error display', () => {
           screen.getByText('Provider Unavailable'),
         ).toBeInTheDocument(),
       );
+    },
+  );
+
+  it('shows a "no content" hint for KJV instead of a blank ' +
+    'page', async () => {
+      // ENGKJV reads the bundled JSON — a chapter the structure
+      // doesn't have (or a failed load) must not render empty.
+      renderWithProviders(<PassageView />, {
+        storeOverrides: {
+          activeBookId: 'JHN',
+          activeChapter: 999,
+          activeTextFilesetId: 'ENGKJV',
+          translations: [],
+        },
+      });
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('No content for John 999'),
+        ).toBeInTheDocument(),
+      );
+    },
+  );
+});
+
+describe('PassageView audio prefetch effect', () => {
+  it('does not refire the text fetch when only the audio ' +
+    'version changes', async () => {
+      const fetchSpy = vi.spyOn(api, 'getVersesInChapter');
+      renderWithProviders(<PassageView />, {
+        storeOverrides: {
+          activeBookId: 'JHN',
+          activeChapter: 3,
+          activeTextFilesetId: 'ENGKJV',
+          activeAudioFilesetId: 'ENGKJV',
+          translations: [],
+        },
+      });
+
+      await waitFor(
+        () =>
+          expect(
+            screen.getByTitle('passage-verse-3-16'),
+          ).toBeInTheDocument(),
+        // First ENGKJV load in this file lazily imports the
+        // bundled kjv.json — that can edge past the default
+        // 1s waitFor window on a cold module cache.
+        { timeout: 4000 },
+      );
+      const callsAfterLoad = fetchSpy.mock.calls.length;
+
+      act(() => {
+        useBibleStore.setState({
+          activeAudioFilesetId: 'ENGNIVC1DA',
+        });
+      });
+      await act(async () => {
+        await flushPromises();
+      });
+
+      // The audio prefetch effect refires, but the chapter
+      // fetch/loading effect must not.
+      expect(fetchSpy.mock.calls.length).toBe(callsAfterLoad);
+      fetchSpy.mockRestore();
+    },
+  );
+});
+
+describe('PassageView pendingScrollVerse', () => {
+  const kjvView = {
+    activeBookId: 'JHN',
+    activeChapter: 1,
+    activeTextFilesetId: 'ENGKJV',
+    translations: [],
+  };
+
+  it('clears a pending position only when the book matches',
+    async () => {
+      renderWithProviders(<PassageView />, {
+        storeOverrides: {
+          ...kjvView,
+          pendingScrollVerse: {
+            bookId: 'MRK',
+            chapter: 1,
+            verse: 5,
+          },
+        },
+      });
+
+      await waitFor(() =>
+        expect(
+          screen.getByTitle('passage-verse-1-1'),
+        ).toBeInTheDocument(),
+      );
+      // The pending MRK position belongs to a different book —
+      // the JHN load must not discard it.
+      expect(
+        useBibleStore.getState().pendingScrollVerse,
+      ).toEqual({ bookId: 'MRK', chapter: 1, verse: 5 });
+    },
+  );
+
+  it('consumes a pending position matching the loaded chapter',
+    async () => {
+      renderWithProviders(<PassageView />, {
+        storeOverrides: {
+          ...kjvView,
+          pendingScrollVerse: {
+            bookId: 'JHN',
+            chapter: 1,
+            verse: 5,
+          },
+        },
+      });
+
+      await waitFor(() =>
+        expect(
+          screen.getByTitle('passage-verse-1-1'),
+        ).toBeInTheDocument(),
+      );
+      expect(
+        useBibleStore.getState().pendingScrollVerse,
+      ).toBeNull();
     },
   );
 });

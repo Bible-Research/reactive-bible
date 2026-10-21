@@ -3,26 +3,50 @@ import { Comment, CommentImage } from '../types';
 /**
  * Display name for an attached comment image. The original file
  * name is the last path segment of storage_url
- * (…/originals/<image_id>/<file name>).
+ * (…/originals/<image_id>/<file name>) — URL-decoded so
+ * 'my%20pic.png' shows as 'my pic.png'.
  */
 export function commentImageName(image: CommentImage): string {
   const segment = (image.storage_url ?? '').split('/').pop();
-  return segment || 'comment attachment';
+  if (!segment) return 'comment attachment';
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    // Malformed escape — show the raw segment.
+    return segment;
+  }
 }
 
 /**
- * Insert a new comment as a reply to the given parentId.
- * If parentId is null, appends to the root list.
+ * Find a node by id anywhere in the tree (deep).
  */
+export function findNode(
+  tree: Comment[],
+  id: string
+): Comment | null {
+  for (const node of tree ?? []) {
+    if (node.id === id) return node;
+    const hit = findNode(node.replies ?? [], id);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 const replies = (node: Comment): Comment[] =>
   node.replies ?? [];
 
+/**
+ * Insert a new comment as a reply to the given parentId.
+ * If parentId is null — or the parent vanished between fetch
+ * and submit (deleted while the user was writing) — appends to
+ * the root list so the reply is never silently dropped.
+ */
 export function insertReply(
   tree: Comment[],
   parentId: string | null,
   newComment: Comment
 ): Comment[] {
-  if (parentId === null) {
+  if (parentId === null || !findNode(tree ?? [], parentId)) {
     return [...(tree ?? []), newComment];
   }
   return (tree ?? []).map((node) => {

@@ -18,6 +18,7 @@ import NoteCard from '../components/NoteCard';
 import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
 import { toPlainText } from '../utils/tiptapContent';
+import { copyTextToClipboard } from '../utils/clipboard';
 import { buildBiblePath } from '../utils/bibleUtils';
 import { useBibleStore } from '../store';
 
@@ -31,6 +32,13 @@ export default function NoteDetailRoute() {
   const navigate = useNavigate();
 
   const setShowNotes = useBibleStore((state) => state.setShowNotes);
+  // The fetched note stays in local state, but the share
+  // toolbar needs its verses for folded-note shares — park it
+  // in a transient store slot instead of polluting `notes`
+  // (the tag page's pagination state).
+  const setDetailNote = useBibleStore(
+    (state) => state.setDetailNote
+  );
 
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +58,7 @@ export default function NoteDetailRoute() {
         const fetched = await getNote(noteId);
         if (cancelled) return;
         setNote(fetched);
+        setDetailNote(fetched);
         setLoading(false);
       } catch (err) {
         if (cancelled) return;
@@ -61,8 +70,9 @@ export default function NoteDetailRoute() {
     load();
     return () => {
       cancelled = true;
+      setDetailNote(null);
     };
-  }, [noteId]);
+  }, [noteId, setDetailNote]);
 
   const handleViewInBible = (
     book: string,
@@ -93,15 +103,20 @@ export default function NoteDetailRoute() {
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(url);
+    // execCommand fallback covers http/non-secure contexts where
+    // navigator.clipboard is unavailable.
+    if (await copyTextToClipboard(url)) {
       showNotification({
         title: 'Link Copied!',
         message: 'Note link copied to clipboard',
         color: 'blue',
       });
-    } catch (err) {
-      console.error('Error copying to clipboard:', err);
+    } else {
+      showNotification({
+        title: 'Error',
+        message: 'Failed to copy link',
+        color: 'red',
+      });
     }
   };
 

@@ -125,7 +125,7 @@ describe('LoginPage', () => {
     const auth = useAuthStore.getState();
     expect(auth.token).toBe('test-token');
     expect(auth.isAuthenticated).toBe(true);
-    expect(auth.user).toEqual({ username: 'testuser' });
+    expect(auth.user).toEqual({ id: 1, username: 'testuser' });
   });
 
   it('should show a success notification after login', async () => {
