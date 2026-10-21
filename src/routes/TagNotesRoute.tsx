@@ -34,7 +34,6 @@ import {
   Tag,
   CommentCounts,
   NoteOrderIndexEntry,
-  PlaylistItem,
 } from '../types';
 import TagSection from '../components/TagSection';
 import Pagination from '../components/Pagination';
@@ -47,10 +46,7 @@ import {
 } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
-import {
-  buildBiblePath,
-  toUsfmCode,
-} from '../utils/bibleUtils';
+import { buildBiblePath } from '../utils/bibleUtils';
 import { shareOrCopyLink } from '../utils/share';
 import { pageCount } from '../utils/pagination';
 import {
@@ -59,14 +55,15 @@ import {
   getApiOrdering,
   sortNotes,
 } from '../utils/noteSorting';
+import { buildNotePlaylistItems } from '../utils/notePlaylist';
 import { verseDomId } from '../utils/verseRefs';
-
 
 // Lazy + gated below on isEditModalOpen — the modal pulls in
 // TipTap, which should not ship with the route chunk.
 const EditNoteModal = lazy(
   () => import('../components/EditNoteModal')
 );
+
 
 /** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
  *  notes. `k` is the canonical 1-based order ID. */
@@ -804,50 +801,10 @@ export default function TagNotesRoute() {
   );
 
   // One item per book+chapter block: a note whose verses span
-  // several chapters used to be truncated to its first block —
-  // the later blocks were silently dropped from playback.
+  // several chapters emits one item per block — see
+  // buildNotePlaylistItems for the itemId/scope split.
   const playlistItems = useMemo(
-    (): PlaylistItem[] =>
-      playableNotes.flatMap((note, noteIndex) => {
-        const blocks = new Map<string, Note['verses']>();
-        for (const v of note.verses) {
-          const key = `${v.book}|${v.chapter}`;
-          const block = blocks.get(key);
-          if (block) {
-            block.push(v);
-          } else {
-            blocks.set(key, [v]);
-          }
-        }
-        return [...blocks.values()].map((block) => {
-          const firstVerse = block[0];
-          const bookId =
-            toUsfmCode(firstVerse.book) ?? firstVerse.book;
-          const verseNumbers = block.map((v) => v.verse);
-          const startVerse = Math.min(...verseNumbers);
-          const endVerse = Math.max(...verseNumbers);
-          const label =
-            `Note ${noteIndex + 1}/${playableNotes.length} ` +
-            `\u2013 ${firstVerse.book} ` +
-            `${firstVerse.chapter}:${startVerse}` +
-            (startVerse !== endVerse ? `-${endVerse}` : '');
-          return {
-            // Unique per block: Audio's navigation/highlight
-            // effects key on itemId, so a bare note.id would
-            // skip re-runs when playback moves between this
-            // note's chapter blocks. `scope` keeps the DOM and
-            // highlight identity at the note level.
-            itemId: `${note.id}:${bookId}:${firstVerse.chapter}`,
-            scope: note.id,
-            bookId,
-            chapter: firstVerse.chapter,
-            startVerse,
-            endVerse,
-            label,
-            verseNumbers,
-          };
-        });
-      }),
+    () => buildNotePlaylistItems(playableNotes),
     [playableNotes]
   );
 

@@ -3,22 +3,22 @@ import { toUsfmCode } from './bibleUtils';
 
 /**
  * Builds audio playlist items from notes in display order.
- * Notes without verses are skipped. A note whose verses span
- * several chapters emits ONE ITEM PER contiguous book+chapter
- * block — the pre-block version truncated to the first block
- * and silently dropped the rest from playback.
- * Labels read `Note i/n – Book C:V[-V]` where i/n is the
- * position within the playable (verse-bearing) subset.
+ * Notes without verses are skipped. One item per book+chapter
+ * block: a note whose verses span several chapters emits an
+ * item for each block instead of silently dropping the later
+ * blocks from playback. Labels read
+ * `Note i/n – Book C:V[-V]` where i/n is the position within
+ * the playable (verse-bearing) subset.
  */
 export const buildNotePlaylistItems = (
   notes: Note[]
 ): PlaylistItem[] => {
-  const playableNotes = notes.filter(
+  const playable = notes.filter(
     (n) => (n.verses?.length ?? 0) > 0
   );
-  return playableNotes.flatMap((note, noteIndex) => {
-    const blocks = new Map<string, NonNullable<Note['verses']>>();
-    for (const v of note.verses ?? []) {
+  return playable.flatMap((note, noteIndex) => {
+    const blocks = new Map<string, Note['verses']>();
+    for (const v of note.verses) {
       const key = `${v.book}|${v.chapter}`;
       const block = blocks.get(key);
       if (block) {
@@ -35,7 +35,7 @@ export const buildNotePlaylistItems = (
       const startVerse = Math.min(...verseNumbers);
       const endVerse = Math.max(...verseNumbers);
       const label =
-        `Note ${noteIndex + 1}/${playableNotes.length} ` +
+        `Note ${noteIndex + 1}/${playable.length} ` +
         `– ${firstVerse.book} ` +
         `${firstVerse.chapter}:${startVerse}` +
         (startVerse !== endVerse ? `-${endVerse}` : '');

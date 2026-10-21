@@ -316,6 +316,23 @@ describe('apiClient', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
+    it('should not retry network errors on non-idempotent ' +
+      'methods (POST)', async () => {
+        // A TypeError mid-POST may mean the request reached the
+        // server — auto-replaying it risks a double submit.
+        const mockFetch = vi
+          .fn()
+          .mockRejectedValueOnce(new TypeError('Network error'))
+          .mockResolvedValueOnce({ ok: true, status: 200 });
+        vi.stubGlobal('fetch', mockFetch);
+
+        await expect(
+          authenticatedFetch(mockUrl, { method: 'POST' })
+        ).rejects.toThrow('Network error');
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
     it('should still retry network errors on explicit GET',
       async () => {
         const mockFetch = vi
@@ -508,6 +525,21 @@ describe('apiClient', () => {
       ).rejects.toThrow('boom');
       expect(postFetch).toHaveBeenCalledTimes(1);
     });
+
+    it('should not retry network errors on non-idempotent ' +
+      'methods (POST)', async () => {
+        const mockFetch = vi
+          .fn()
+          .mockRejectedValueOnce(new TypeError('Network error'))
+          .mockResolvedValueOnce({ ok: true, status: 200 });
+        vi.stubGlobal('fetch', mockFetch);
+
+        await expect(
+          publicFetch(mockUrl, { method: 'POST' })
+        ).rejects.toThrow('Network error');
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
   });
 
   describe('isAuthenticated', () => {

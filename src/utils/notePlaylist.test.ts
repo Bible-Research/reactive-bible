@@ -90,11 +90,14 @@ describe('buildNotePlaylistItems', () => {
         verse('Mark', 1, 1),
       ]),
     ]);
+    expect(items).toHaveLength(3);
     expect(items.map((i) => i.itemId)).toEqual([
       'n1:JHN:3',
       'n1:JHN:4',
       'n1:MRK:1',
     ]);
+    // Every block carries the note id as scope so callers can
+    // map an item back to its note.
     expect(items.map((i) => i.scope)).toEqual([
       'n1',
       'n1',
@@ -106,6 +109,16 @@ describe('buildNotePlaylistItems', () => {
       startVerse: 16,
       endVerse: 16,
       verseNumbers: [16],
+    });
+    expect(items[1]).toMatchObject({
+      bookId: 'JHN',
+      chapter: 4,
+      verseNumbers: [1],
+    });
+    expect(items[2]).toMatchObject({
+      bookId: 'MRK',
+      chapter: 1,
+      verseNumbers: [1],
     });
   });
 

@@ -16,6 +16,11 @@ export const getPlayPosition = (audio: Howl | null): number | null => {
   return typeof pos === 'number' && Number.isFinite(pos) ? pos : null;
 };
 
+// The canonical teardown lives in howlUtils (shared by the
+// chapter player and the playlist hook); re-exported here so
+// existing `../utils/audioUtils` imports keep working.
+export { disposeHowl } from './howlUtils';
+
 interface HowlSoundInternals {
   _sounds?: { _node?: HTMLAudioElement }[];
 }

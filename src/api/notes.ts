@@ -16,8 +16,8 @@ import {
   authenticatedFetch,
   publicFetch,
 } from '../utils/apiClient';
-import { API_BASE_URL } from '../config';
 import { clearNotesCache } from '../utils/cacheManager';
+import { API_BASE_URL } from '../config';
 import { ConflictError } from './errors';
 
 export const addTagNote = async (
@@ -104,8 +104,8 @@ export const deleteNote = async (noteId: string) => {
     clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (err) {
-    console.error('Error deleting note:', err);
+  } catch (error) {
+    console.error('Error deleting note:', error);
     throw new Error('Failed to delete your note, please try again');
   }
 }
@@ -137,6 +137,9 @@ export const reorderNotes = async (
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Reorder failed');
   }
+
+  // Reordered pages must not keep serving the pre-reorder order.
+  clearNotesCache(tagId);
 };
 
 /**
@@ -210,7 +213,10 @@ export const moveNote = async (
     );
   }
 
-  return await response.json();
+  const result: MoveNoteResponse = await response.json();
+  // A move changes page membership/positions for the tag.
+  clearNotesCache(tagId);
+  return result;
 };
 
 /**

@@ -15,7 +15,10 @@ import {
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { publicFetch } from '../utils/apiClient';
-import { getAdjacentChapters, getChapters } from './structure';
+import {
+  getAdjacentChapters,
+  getChapters,
+} from './structure';
 import {
   BookNotInFilesetError,
   ProviderError,
