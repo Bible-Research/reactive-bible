@@ -10,7 +10,6 @@ import {
 import { IconPlus, IconRefresh } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
-
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {

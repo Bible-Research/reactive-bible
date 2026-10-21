@@ -17,7 +17,7 @@ import { AppRoutes } from "./routes";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { isNativeApp } from "./utils/nativeAudio";
+import { isNativeApp } from "./utils/platform";
 import { useAuthStore } from "./stores/authStore";
 import { useAppUpdate } from "./hooks/useAppUpdate";
 import { useBibleStore } from "./store";

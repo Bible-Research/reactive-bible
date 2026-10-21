@@ -1,6 +1,5 @@
 import { Box, ScrollArea, createStyles, rem } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
-import type { KeyboardEvent } from "react";
 import { getChapters, getVerses } from "../api";
 import { getAllBooks } from "../utils/scriptureMention";
 
@@ -14,8 +13,15 @@ const useStyles = createStyles((theme) => ({
   },
 
   link: {
+    appearance: "none",
+    background: "none",
+    border: 0,
+    cursor: "pointer",
+    font: "inherit",
+    ...theme.fn.focusStyles(),
     boxSizing: "border-box",
     display: "block",
+    textAlign: "left",
     textDecoration: "none",
     color:
       theme.colorScheme === "dark"
@@ -48,21 +54,6 @@ const useStyles = createStyles((theme) => ({
     },
   },
 }));
-
-/**
- * Enter/Space activates a picker row; Space must not scroll the
- * column. The Shift state is forwarded so Shift+Enter can extend
- * a verse range like shift+click does.
- */
-const activateOnKeyDown = (
-  event: KeyboardEvent,
-  action: (shiftKey: boolean) => void,
-) => {
-  if (event.key === 'Enter' || event.key === ' ') {
-    event.preventDefault();
-    action(event.shiftKey);
-  }
-};
 
 interface PassagePickerProps {
   /** USFM book code (e.g. "JHN"), null when unresolved. */
@@ -158,24 +149,19 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%" className={classes.border}>
           {books.map((b) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: bookId === b.book_id,
               })}
               data-active={bookId === b.book_id || undefined}
-              role="button"
-              tabIndex={0}
+              aria-current={bookId === b.book_id || undefined}
               onClick={() => onSelectBook(b.book_id)}
-              onKeyDown={(event) =>
-                activateOnKeyDown(event, () =>
-                  onSelectBook(b.book_id)
-                )
-              }
               key={b.book_id}
               title={`${titlePrefix}book-${b.book_id}`}
             >
               {b.book_name}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>
@@ -185,22 +171,19 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%" className={classes.border}>
           {chapters.map((ch) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: chapter === ch,
               })}
               data-active={chapter === ch || undefined}
-              role="button"
-              tabIndex={0}
+              aria-current={chapter === ch || undefined}
               onClick={() => onSelectChapter(ch)}
-              onKeyDown={(event) =>
-                activateOnKeyDown(event, () => onSelectChapter(ch))
-              }
               key={ch}
               title={`${titlePrefix}chapter-${ch}`}
             >
               {ch}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>
@@ -210,26 +193,21 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%">
           {verseList.map((verse) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: verses.includes(verse),
               })}
               data-active={verses.includes(verse) || undefined}
-              role="button"
-              tabIndex={0}
-              onClick={(event) =>
-                onSelectVerse(verse, event.shiftKey)
-              }
-              onKeyDown={(event) =>
-                activateOnKeyDown(event, (shiftKey) =>
-                  onSelectVerse(verse, shiftKey)
-                )
-              }
+              aria-pressed={verses.includes(verse)}
+              onClick={(event) => {
+                onSelectVerse(verse, event.shiftKey);
+              }}
               key={verse}
               title={`${titlePrefix}verse-${verse}`}
             >
               {verse}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>

@@ -116,9 +116,9 @@ const throwForbidden = (): never => {
  *
  * DRF runs authentication before permission checks, so an expired
  * token makes even `AllowAny` endpoints return 401 — worse than
- * anonymous. On a 401 with a token attached, the request is
- * retried once without the Authorization header so public reads
- * degrade to anonymous instead of breaking.
+ * anonymous. If the request carried a token and still returns
+ * 401, it is retried once without the Authorization header —
+ * a bad token must not break public content.
  *
  * @param url - The URL to fetch
  * @param options - Fetch options
@@ -220,11 +220,13 @@ export const authenticatedUpload = async (
     headers['Authorization'] = `Token ${issuedToken}`;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
+  const response = await sendRequest(
+    url,
+    { method: 'POST', body: formData },
     headers,
-    body: formData,
-  });
+    0,
+    'authenticatedUpload'
+  );
 
   // Same rule as authenticatedFetch: a 401 only ends the
   // session when this request actually attached the token.
