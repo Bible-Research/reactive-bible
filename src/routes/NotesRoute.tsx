@@ -10,6 +10,7 @@ import {
 import { IconPlus, IconRefresh } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { defaultTagId } from '../utils/defaultTag';
 import { shallow } from 'zustand/shallow';
 
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
@@ -59,22 +60,17 @@ export default function NotesRoute() {
 
         // Get fresh tags from store
         const currentTags = useBibleStore.getState().tags;
+        const targetTagId = defaultTagId(
+          currentTags,
+          lastSelectedTagId
+        );
 
-        if (currentTags.length === 0) {
-          // No tags — stay on /notes and show the empty state.
+        if (!targetTagId) {
+          // New accounts have no tags yet — show a real empty
+          // state instead of spinning forever.
           setStatus('empty');
           return;
         }
-
-        // Navigate to last selected tag or first tag
-        const sorted = [...currentTags].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        );
-        const targetTagId =
-          lastSelectedTagId &&
-          currentTags.some((t) => t.id === lastSelectedTagId)
-            ? lastSelectedTagId
-            : sorted[0].id;
 
         hasNavigatedRef.current = true;
         void navigate(`/notes/tag/${targetTagId}`, {

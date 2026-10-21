@@ -20,7 +20,6 @@ import {
   lazy,
   useCallback,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { useMediaQuery } from "@mantine/hooks";
@@ -48,7 +47,6 @@ import {
   collectSelectedVerseText,
   faviconUrl,
 } from "../utils/externalLinks";
-import { emptyNoteDraft } from "./noteDraft";
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
@@ -91,10 +89,6 @@ const VerseActionToolbar = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const location = useLocation();
   const [noteModalOpened, setNoteModalOpened] = useState(false);
-  // Owned here (not inside the modal) because the modal unmounts
-  // on close — a component-local draft would lose the autosaved
-  // note id and reopening would POST a duplicate.
-  const noteDraftRef = useRef(emptyNoteDraft());
   const [mapModalOpened, setMapModalOpened] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const navigate = useNavigate();
@@ -467,7 +461,6 @@ const VerseActionToolbar = () => {
           <AddTagNoteModal
             opened={noteModalOpened}
             onClose={() => setNoteModalOpened(false)}
-            draftRef={noteDraftRef}
           />
         </Suspense>
       )}

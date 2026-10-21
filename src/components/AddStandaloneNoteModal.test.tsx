@@ -14,7 +14,7 @@ import {
   type Mock,
 } from 'vitest';
 import AddStandaloneNoteModal from './AddStandaloneNoteModal';
-import { emptyNoteDraft } from './noteDraft';
+import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -37,11 +37,12 @@ vi.mock('./RichTextEditor', async () => ({
   ).default,
 }));
 
-const newDraft = () => ({ current: emptyNoteDraft() });
-
 describe('AddStandaloneNoteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drafts live in the hook's module-scoped map — reset them
+    // or a previous test's autosaved note resumes here.
+    resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
       { id: '1', name: 'Faith', parent_tag: null,
@@ -61,9 +62,7 @@ describe('AddStandaloneNoteModal Component', () => {
 
   it('should not render when closed', () => {
     renderWithProviders(
-      <AddStandaloneNoteModal opened={false} onClose={vi.fn()} 
-          draftRef={newDraft()}
-        />
+      <AddStandaloneNoteModal opened={false} onClose={vi.fn()} />
     );
     expect(
       screen.queryByText('New note')
@@ -72,9 +71,7 @@ describe('AddStandaloneNoteModal Component', () => {
 
   it('should render NoteForm when opened', async () => {
     renderWithProviders(
-      <AddStandaloneNoteModal opened={true} onClose={vi.fn()} 
-          draftRef={newDraft()}
-        />
+      <AddStandaloneNoteModal opened={true} onClose={vi.fn()} />
     );
 
     await waitFor(() => {
@@ -90,8 +87,6 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={onClose}
-        
-          draftRef={newDraft()}
         />,
         { storeOverrides: { lastSelectedTagId: '1' } }
       );
@@ -125,7 +120,6 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-          draftRef={newDraft()}
         />,
         // Autosave skips tagless drafts — give the form a
         // selected tag via the store.
@@ -182,7 +176,6 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-          draftRef={newDraft()}
         />,
         // Autosave skips tagless drafts — give the form a
         // selected tag via the store.
@@ -221,14 +214,10 @@ describe('AddStandaloneNoteModal Component', () => {
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
 
-  // FIXME: reopening the modal orphans the autosaved draft on
-  // the server — `savedNoteIdRef` resets in the `opened` effect
-  // (AddStandaloneNoteModal.tsx) so the next autosave POSTs a
-  // second note instead of PATCHing the existing one. The fix
-  // (delete the draft on close, or persist/resume its id across
-  // reopen) is a product decision exceeding a ~30-line
-  // test-only fix.
-  it.skip('PATCHes the autosaved draft instead of POSTing a ' +
+  // The hook's module-scoped drafts map survives the modal's
+  // unmount — a reopen resumes the autosaved note (PATCH), not
+  // a duplicate POST.
+  it('PATCHes the autosaved draft instead of POSTing a ' +
     'second note when reopened mid-session', async () => {
       (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
       (api.editNote as Mock).mockResolvedValue({});
@@ -237,9 +226,10 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        
-          draftRef={newDraft()}
-        />
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       const noteInput = await screen.findByLabelText('Note');
@@ -261,17 +251,13 @@ describe('AddStandaloneNoteModal Component', () => {
           <AddStandaloneNoteModal
             opened={false}
             onClose={vi.fn()}
-          
-          draftRef={newDraft()}
-        />
+          />
         );
         rerender(
           <AddStandaloneNoteModal
             opened={true}
             onClose={vi.fn()}
-          
-          draftRef={newDraft()}
-        />
+          />
         );
         // getByLabelText, not findBy — async queries never
         // resolve under fake timers.

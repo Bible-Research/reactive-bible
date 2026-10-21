@@ -13,6 +13,7 @@ import {
   type Mock,
 } from 'vitest';
 import EditNoteModal from './EditNoteModal';
+import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import {
   renderWithProviders,
   createMockNote,
@@ -28,6 +29,7 @@ import {
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
   getTags: vi.fn(),
+  UNTAGGED_TAG_ID: 'untagged',
   getNotes: vi.fn().mockResolvedValue({
     results: [],
     count: 0,
@@ -84,6 +86,9 @@ describe('EditNoteModal Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Editor drafts are module-scoped — reset them between
+    // tests.
+    resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
       createMockTag({ id: '1', name: 'Faith' }),
@@ -388,4 +393,84 @@ describe('EditNoteModal Component', () => {
         page: 2,
       });
     });
+
+  it('autosave PATCHes carry the picker verse refs', async () => {
+    (api.editNote as Mock).mockResolvedValue({});
+    renderWithProviders(
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={noteWithVerses}
+      />
+    );
+
+    // Add John 3:17 to the linked verses, then let an autosave
+    // tick fire — the save must include the CURRENT refs, not
+    // drop the picker change (the old bug).
+    fireEvent.click(
+      await screen.findByTitle('toggle-verse-references')
+    );
+    fireEvent.click(
+      await screen.findByTitle('edit-note-verse-17')
+    );
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, {
+      target: { value: 'Edited note text' },
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByLabelText('Auto save'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const patchArgs = (api.editNote as Mock).mock.calls[0];
+    expect(patchArgs[0]).toBe('n1');
+    expect(patchArgs[1]).toBe('1');
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(toPlainText(patchArgs[2])).toBe('Edited note text');
+    expect(patchArgs[3]).toEqual([
+      { book: 'John', chapter: 3, verse: 16 },
+      { book: 'John', chapter: 3, verse: 17 },
+    ]);
+  });
+
+  it('refetches the viewed tag page after submit', async () => {
+    (api.editNote as Mock).mockResolvedValue({});
+    renderWithProviders(
+      <EditNoteModal
+        opened={true}
+        onClose={vi.fn()}
+        note={mockNote}
+      />,
+      {
+        storeOverrides: {
+          notesPage: 2,
+          notesOrdering: 'created_at',
+        },
+      }
+    );
+
+    const form = screen
+      .getByText('Submit changes')
+      .closest('form');
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+
+    // The refetch targets the viewed tag's page and ordering —
+    // not the select's value at page 1 (the old bug).
+    await waitFor(() => {
+      expect(api.getNotes).toHaveBeenCalledWith(
+        '1',
+        expect.objectContaining({
+          ordering: 'created_at',
+          page: 2,
+        })
+      );
+    });
+  });
 });
