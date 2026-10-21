@@ -114,13 +114,11 @@ const throwForbidden = (): never => {
  * note share page) where a stray 401 should never destroy an existing
  * session.
  *
- * DRF runs authentication before permission checks, so an
- * expired token makes even `AllowAny` endpoints return 401 —
- * worse than anonymous. If the request carried a token and
- * still returns 401 (stale or expired credentials on a public
- * endpoint), it is retried once without the Authorization
- * header so public reads degrade to anonymous instead of
- * breaking.
+ * DRF runs authentication before permission checks, so an expired
+ * token makes even `AllowAny` endpoints return 401 — worse than
+ * anonymous. If the request carried a token and still returns
+ * 401, it is retried once without the Authorization header —
+ * a bad token must not break public content.
  *
  * @param url - The URL to fetch
  * @param options - Fetch options
@@ -139,16 +137,15 @@ export const publicFetch = async (
   // A dead token poisons even public reads — retry once
   // anonymously. The token is deliberately kept: publicFetch
   // must never destroy the session (that is
-  // authenticatedFetch's job).
+  // authenticatedFetch's job). The anonymous response is
+  // returned as-is, whether it succeeds or is another 401.
   if (response.status === 401 && headers['Authorization']) {
     console.warn(
       '401 with token on public endpoint — ' +
-        'retrying without credentials'
+        'retrying anonymously'
     );
     const anonymousHeaders = { ...headers };
     delete anonymousHeaders['Authorization'];
-    // Single retry: the anonymous response is returned
-    // as-is, whether it succeeds or is another 401.
     return sendRequest(
       url, options, anonymousHeaders, retries, 'publicFetch'
     );
@@ -228,7 +225,7 @@ export const authenticatedUpload = async (
     url,
     { method: 'POST', body: formData },
     headers,
-    0, // uploads are non-idempotent — never replayed
+    0,
     'authenticatedUpload'
   );
 
@@ -237,6 +234,8 @@ export const authenticatedUpload = async (
   // an anonymous 401 means "login required", not a dead
   // session.
   if (response.status === 401) {
+    // An anonymous 401 means "login required", not a dead
+    // session — there is nothing to log out.
     if (!issuedToken) {
       throw new Error(
         'Authentication required for this request.'

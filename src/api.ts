@@ -19,10 +19,8 @@ import type {
   MoveNoteResponse,
   PaginatedNotesResponse,
   LinkedNotesResponse,
-  SearchVerse,
-  SearchResponse,
-  SearchVerseGroup,
   GroupedSearchResponse,
+  SearchVerseGroup,
   ReadingPositionValue,
 } from './types';
 
@@ -407,8 +405,8 @@ export const deleteNote = async (noteId: string) => {
     clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (error) {
-    console.error('Error deleting note:', error);
+  } catch (err) {
+    console.error('Error deleting note:', err);
     throw new Error('Failed to delete your note, please try again');
   }
 }
@@ -1423,35 +1421,6 @@ const searchBodyError = (
       : new ProviderError(data.error);
   }
   return null;
-};
-
-export const searchBible = async (
-  query: string,
-  filesetId: string,
-  page = 1,
-  limit = 50,
-  signal?: AbortSignal,
-): Promise<SearchResponse> => {
-  const params = new URLSearchParams({
-    query,
-    fileset_id: filesetId,
-    page: String(page),
-    limit: String(limit),
-  });
-  const url =
-    `${API_BASE_URL}/api/v1/bible/search/?` +
-    params.toString();
-  const response = await publicFetch(url, { signal });
-  const json = await response.json().catch(() => null);
-  const error = searchBodyError(json, response);
-  if (error) throw error;
-  const data = (json ?? {}) as {
-    data?: { verses?: SearchVerse[]; meta?: SearchResponse['meta'] };
-  };
-  return {
-    verses: data.data?.verses ?? [],
-    meta: data.data?.meta ?? {},
-  };
 };
 
 export const searchBibleGrouped = async (
