@@ -33,4 +33,20 @@ describe('BottomNav', () => {
     });
     expect(isVisible()).toBe(true);
   });
+
+  it('sits above the fixed audio player (~120px) while ' +
+    'visible and still slides fully off-screen when hidden',
+  () => {
+    renderWithProviders(
+      <BottomNav setBibleSelectorOpened={vi.fn()} />,
+      { stores: { bible: { showAudioPlayer: true } } }
+    );
+
+    expect(getComputedStyle(getFooter()).bottom).toBe('120px');
+
+    act(() => {
+      useBibleStore.getState().setHeaderVisible(false);
+    });
+    expect(getComputedStyle(getFooter()).bottom).toBe('-56px');
+  });
 });

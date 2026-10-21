@@ -79,6 +79,12 @@ export default function App() {
   const headerVisible = useBibleStore(
     (state) => state.headerVisible
   );
+  // The audio player is fixed to the viewport bottom (~120px)
+  // and never hides on scroll — keep clearing it even once
+  // the header/footer chrome has slid away.
+  const showAudioPlayer = useBibleStore(
+    (state) => state.showAudioPlayer
+  );
   useWindowEvent("keydown", (event) => {
     if (event.key !== "/" || event.isComposing) return;
     // Already on the search page — another "/" must not push a
@@ -148,7 +154,9 @@ export default function App() {
                 : 0,
               paddingBottom: headerVisible
                 ? "var(--mantine-footer-height, 0px)"
-                : 0,
+                : showAudioPlayer
+                  ? "120px"
+                  : 0,
               transition:
                 "padding-top 0.3s ease-in-out, " +
                 "padding-bottom 0.3s ease-in-out",
