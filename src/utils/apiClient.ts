@@ -116,9 +116,9 @@ const throwForbidden = (): never => {
  *
  * DRF runs authentication before permission checks, so an expired
  * token makes even `AllowAny` endpoints return 401 — worse than
- * anonymous. On a 401 with a token attached, the request is
- * retried once without the Authorization header so public reads
- * degrade to anonymous instead of breaking.
+ * anonymous. If the request carried a token and still returns
+ * 401, it is retried once without the Authorization header —
+ * a bad token must not break public content.
  *
  * @param url - The URL to fetch
  * @param options - Fetch options
@@ -206,9 +206,10 @@ export const authenticatedFetch = async (
  * Sets only the Authorization header; lets the browser generate
  * the multipart Content-Type with its boundary.
  * Mirrors authenticatedFetch's 401 (logout + notification) and
- * 403 (throw permission error) handling. There is no network-error
- * retry: an upload is a non-idempotent POST, and retrying a
- * lost-response request could double-upload the file.
+ * 403 (throw permission error) handling. There is no
+ * network-error retry: an upload is a non-idempotent POST, and
+ * retrying a lost-response request could double-upload the
+ * file.
  */
 export const authenticatedUpload = async (
   url: string,
@@ -220,14 +221,18 @@ export const authenticatedUpload = async (
     headers['Authorization'] = `Token ${issuedToken}`;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
+  const response = await sendRequest(
+    url,
+    { method: 'POST', body: formData },
     headers,
-    body: formData,
-  });
+    0,
+    'authenticatedUpload'
+  );
 
   // Same rule as authenticatedFetch: a 401 only ends the
-  // session when this request actually attached the token.
+  // session when this request actually attached the token —
+  // an anonymous 401 means "login required", not a dead
+  // session.
   if (response.status === 401) {
     // An anonymous 401 means "login required", not a dead
     // session — there is nothing to log out.

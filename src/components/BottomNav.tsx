@@ -85,9 +85,10 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         </ActionIcon>
         <Title order={4}>
           <UnstyledButton
-            title="nav-current-passage"
             onClick={() => setBibleSelectorOpened(true)}
+            title="nav-current-passage"
             sx={{
+              cursor: "pointer",
               minWidth: "120px",
               textAlign: "center",
               font: "inherit",

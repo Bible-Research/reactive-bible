@@ -54,7 +54,9 @@ export default function Pagination({
             size="sm"
             onClick={() => onPageChange(page)}
             aria-label={`Page ${page}`}
-            aria-current={page === currentPage ? 'page' : undefined}
+            aria-current={
+              page === currentPage ? 'page' : undefined
+            }
           >
             {page}
           </Button>

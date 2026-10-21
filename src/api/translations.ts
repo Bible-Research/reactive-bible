@@ -82,7 +82,9 @@ export const getAvailableTranslations = async (
     const response = await publicFetch(url);
     // A failed response must never reach cacheTranslations —
     // an error body parsed as "no results" would poison the
-    // cache and stick until a force refresh.
+    // cache and stick until a force refresh. The contract
+    // pins ProviderError for ANY non-OK, so a codeless body
+    // (plain Error from throwFromErrorBody) is re-wrapped.
     if (!response.ok) {
       try {
         await throwFromErrorBody(response, {
@@ -139,8 +141,8 @@ export const getAvailableTranslations = async (
     return translations;
   } catch (error) {
     console.error("Failed to fetch available translations:", error);
-    // Surface the failure — callers catch at the UI layer; a
-    // silent `[]` is indistinguishable from "no translations".
+    // Provider failures must surface — returning [] would be a
+    // silent empty list and would get cached.
     throw error;
   }
 };
