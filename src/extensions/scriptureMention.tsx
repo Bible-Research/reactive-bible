@@ -22,6 +22,7 @@ import {
   SCRIPTURE_TOKEN_REGEX,
   VALID_REF_PREFIX,
 } from '../utils/scriptureLinkify';
+import { UNASCII_SPACES } from '../utils/clipboardSanitize';
 import { BOOK_NAME_TO_CODE } from '../utils/bibleUtils';
 import { findVersesInBetween } from '../utils/findVersesInBetween';
 
@@ -381,7 +382,10 @@ export const ScriptureMention = Extension.create<
         pluginKey,
         char: '@',
         allowSpaces: true,
-        allowedPrefixes: [' ', '('],
+        // Any space variant may precede '@' — a stray non-ASCII
+        // space that slipped past the paste filter must not
+        // suppress the picker.
+        allowedPrefixes: [' ', '(', ...UNASCII_SPACES],
         items: () => [],
         allow: ({ state, range }) => {
           // An explicit reopen intent (double-click on a token)

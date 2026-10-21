@@ -18,6 +18,11 @@ import ScriptureMention, {
   ScriptureRefNode,
 } from '../extensions/scriptureMention';
 import ScripturePassage from './ScripturePassage';
+import {
+  transformPastedSlice,
+  transformPastedText,
+} from '../utils/clipboardSanitize';
+import { markdownClipboardParser } from '../utils/markdownPaste';
 import { isTiptapDocString } from '../utils/tiptapContent';
 import {
   isSameScriptureRef,
@@ -120,6 +125,17 @@ const RichTextEditor = forwardRef<
     // to 60% of the viewport height, then scroll internally.
     // Comment editors cap at a smaller height for the same.
     editorProps: {
+      // Pasted clipboard text (mobile keyboards, Docs, Word)
+      // carries NBSPs/zero-width chars that break '#'/'-'/'>' and
+      // '@…' token matching — normalize at the paste boundary.
+      // Both paths are needed: transformPastedText only runs for
+      // plain-text pastes; HTML pastes arrive as parsed slices.
+      transformPastedText,
+      transformPasted: transformPastedSlice,
+      // TipTap paste rules only convert marks (**bold**, links);
+      // block-level markdown ('#', '-', '>', '---') is parsed
+      // here so pasted notes keep their structure.
+      clipboardTextParser: markdownClipboardParser,
       attributes: {
         style: note
           ? 'max-height: 60vh; overflow-y: auto;'

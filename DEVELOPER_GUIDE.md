@@ -2148,6 +2148,41 @@ Typing `@` in the editor opens a passage picker that inserts a
 previews its passage below the editor (the note is NOT linked to
 it); a second click reopens the picker to edit the reference.
 
+Pasted clipboard text is normalized before ProseMirror parses it
+(`src/utils/clipboardSanitize.ts`, wired as `transformPastedText`
++ `transformPasted` in `RichTextEditor`): non-ASCII space
+variants (NBSP, en/em/ideographic spaces) fold to ' ',
+line/paragraph separators become real newlines, and zero-width,
+directional and control characters are stripped — mobile
+keyboards and rich-text sources otherwise inject invisible
+characters that defeat the '#', '-', '>' markdown input rules
+and '@…' mention matching. ZWJ/ZWNJ are kept where they carry
+meaning (emoji sequences, cursive scripts); text pasted into
+code blocks or inline code stays verbatim. `transformPasted`
+also closes slice edges around structural nodes — ProseMirror
+otherwise merges a pasted first heading/list into the cursor's
+paragraph and loses its type — and repairs list artifacts on
+the HTML path (rich-text copies skip `clipboardTextParser`
+entirely): same-kind sibling lists split by rendered blank
+lines rejoin, empty '<li>'/'<p>' spacer nodes inside lists are
+dropped, and a slice made only of unformatted paragraphs whose
+lines carry block markdown markers is reparsed through the
+same block parser — that covers raw markdown pasted as HTML
+text. '•', '◦' and '▪' bullet glyphs count as list markers for
+plain text copied from Word/Outlook.
+
+Block-level markdown in pasted plain text is converted by
+`clipboardTextParser` (`src/utils/markdownPaste.ts`): headings,
+rules, fenced code, blockquotes and (nested) bullet/ordered
+lists. The gate only fires when a line carries a markdown block
+token — ordinary prose keeps the default line-per-paragraph
+paste, and shift-paste ('paste as plain text') skips conversion.
+Blank lines between items keep the list together (loose lists);
+a marker-type switch at the same indent ('1.' then '-') closes
+the current list and starts a sibling. Inline markdown marks
+(**bold**, *italic*, `code`, ~~strike~~, links) are handled by
+TipTap's own extension paste rules.
+
 #### `AddTagNoteModal.tsx`
 Modal for creating new notes.
 
