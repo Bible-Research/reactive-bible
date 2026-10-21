@@ -9,12 +9,11 @@ import { useBibleStore } from '../../store';
  * Regression coverage for issue #95: the book/chapter title in the
  * bottom nav must stay in sync with the visited passage — both when
  * landing on a /bible/:ref URL directly and when navigating via the
- * chapter buttons.
+ * chapter buttons. The title shows the display name ("John"), not
+ * the raw USFM code ("JHN").
  */
 const bottomNavTitle = () =>
-  screen
-    .getAllByRole('heading', { level: 4 })
-    .find((t) => /^[A-Z0-9]{3} \d+$/.test(t.textContent ?? ''));
+  screen.queryByTitle('nav-current-passage');
 
 const renderApp = (initialEntry: string) =>
   render(
@@ -40,7 +39,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
 
     await waitFor(
       () => {
-        expect(bottomNavTitle()?.textContent).toBe('MAT 5');
+        expect(bottomNavTitle()?.textContent).toBe('Matthew 5');
       },
       { timeout: 5000 }
     );
@@ -51,7 +50,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
 
     await waitFor(
       () => {
-        expect(bottomNavTitle()?.textContent).toBe('ROM 8');
+        expect(bottomNavTitle()?.textContent).toBe('Romans 8');
       },
       { timeout: 5000 }
     );
@@ -62,7 +61,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
 
     await waitFor(
       () => {
-        expect(bottomNavTitle()?.textContent).toBe('JHN 1');
+        expect(bottomNavTitle()?.textContent).toBe('John 1');
       },
       { timeout: 5000 }
     );
@@ -71,7 +70,7 @@ describe('BottomNav book/chapter title stays in sync (#95)', () => {
 
     await waitFor(
       () => {
-        expect(bottomNavTitle()?.textContent).toBe('JHN 2');
+        expect(bottomNavTitle()?.textContent).toBe('John 2');
       },
       { timeout: 5000 }
     );

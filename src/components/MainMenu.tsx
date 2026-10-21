@@ -16,7 +16,7 @@ import {
   IconBrandAndroid,
   IconRefresh,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
@@ -25,6 +25,7 @@ import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
 import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
+import { emptyNoteDraft } from "./noteDraft";
 
 // The rolling `continuous` prerelease always serves the newest
 // main build; `releases/latest` would serve the stale v* tag.
@@ -48,6 +49,10 @@ const MainMenu = ({
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
+  // Held here so the standalone-note draft survives the modal
+  // closing (its form unmounts) — reopening resumes the
+  // autosaved note instead of POSTing a duplicate.
+  const noteDraftRef = useRef(emptyNoteDraft());
 
   // Get Bible state for navigation
   const activeBookId = useBibleStore((state) => state.activeBookId);
@@ -225,10 +230,13 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
-      <AddStandaloneNoteModal
-        opened={newNoteOpened}
-        onClose={() => setNewNoteOpened(false)}
-      />
+      {isAuthenticated && (
+        <AddStandaloneNoteModal
+          opened={newNoteOpened}
+          onClose={() => setNewNoteOpened(false)}
+          draftRef={noteDraftRef}
+        />
+      )}
     </>
   );
 };
