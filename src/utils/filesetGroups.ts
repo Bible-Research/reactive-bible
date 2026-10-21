@@ -316,7 +316,7 @@ const groupTextFilesets = (
 };
 
 /** Backend `audio_options`/`text_options` entry (snake_case). */
-interface BackendOptionShape {
+export interface BackendOptionShape {
   id?: unknown;
   kind?: unknown;
   coverage?: unknown;

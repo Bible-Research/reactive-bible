@@ -724,6 +724,9 @@ describe('API Functions', () => {
   });
 
   describe('search error mapping', () => {
+    // The un-grouped `searchBible` export was removed as dead
+    // code (T1); `searchBibleGrouped` carries the same error
+    // contract and is what the app calls.
     it('searchBibleGrouped throws RateLimitError on 429',
       async () => {
         server.use(

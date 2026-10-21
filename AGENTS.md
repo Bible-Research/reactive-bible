@@ -22,10 +22,12 @@ Talks to the `bible_research` Django API.
 - `src/config.ts` — `API_BASE_URL` from `VITE_API_BASE_URL`, else
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
-- `src/store.tsx` — main persisted Zustand store (`bible-storage`,
-  schema v3, custom `migratePersistedState` — bump version when
-  persisted shape changes).
-- `src/stores/authStore.tsx` — auth state (token, user, login,
+- `src/store.ts` — main persisted Zustand store (`bible-storage`,
+  schema v5, custom `migratePersistedState` — bump version when
+  persisted shape changes). Composition root; notes
+  orchestration in `src/stores/bibleStore/notesSlice.ts`,
+  partialize/migration in `src/stores/bibleStore/persistence.ts`.
+- `src/stores/authStore.ts` — auth state (token, user, login,
   register, logout).
 - `src/utils/apiClient.ts` — `publicFetch` (attaches token if
   present; a 401 retries once anonymously — a stale token must
@@ -100,5 +102,5 @@ npm test -- --run  # vitest headless (389 tests, ~85s)
 - Comment image endpoints ARE consumed by
   `CommentThread`/`CommentForm`/`CommentNode`; reading positions
   are consumed too (book-name keyed, auth-gated; see
-  `readingPositions` in `src/store.tsx`).
+  `readingPositions` in `src/store.ts`).
 - KJV audio is fetched from wordpocket.org directly, not the API.

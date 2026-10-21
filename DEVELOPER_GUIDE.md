@@ -91,7 +91,8 @@ reactive-bible/
 │   │   ├── kjv.json    # KJV verse text (lazy-loaded chunk)
 │   │   └── bibleStructure.json  # Book/chapter metadata (bundled)
 │   ├── api/            # API modules (index.ts barrel)
-│   ├── store.tsx       # Zustand state management
+│   ├── stores/         # authStore + bibleStore slices
+│   ├── store.ts        # Zustand composition root
 │   ├── types.ts        # TypeScript interfaces
 │   ├── App.tsx         # Main app component
 │   ├── main.tsx        # Entry point
@@ -137,7 +138,7 @@ src/
 ├── utils/              # Utility functions (caching, bible utils)
 ├── assets/             # Static assets (kjv.json, bibleStructure)
 ├── api/                # API functions and data access
-├── store.tsx           # Zustand state management
+├── store.ts           # Zustand state management
 ├── App.tsx             # Main application component
 └── main.tsx            # Application entry point
 ```
@@ -145,8 +146,11 @@ src/
 ### Design Patterns
 - **Component-Based Architecture**: Modular, reusable components in
   `src/components`.
-- **Centralized State**: A single Zustand store (`src/store.tsx`) for global
-  state, with persistence to `localStorage`.
+- **Centralized State**: A single Zustand store (`src/store.ts` —
+  composition root; the notes orchestration lives in
+  `src/stores/bibleStore/notesSlice.ts`, persistence/migration
+  in `src/stores/bibleStore/persistence.ts`) for global state,
+  with persistence to `localStorage`.
 - **API Layer Separation**: All external data fetching and business logic is
   handled in `src/api/`.
 - **Cache-First Strategy**: A multi-level caching system
@@ -388,7 +392,8 @@ navigate('/notes/tag/:newTagId');
 
 ## State Management
 
-**Location**: `src/store.tsx`
+**Location**: `src/store.ts` (composition root) +
+`src/stores/bibleStore/` (notesSlice, persistence)
 
 The application uses Zustand for lightweight, centralized state management. The
 state is persisted to `localStorage` to remember user selections across
@@ -464,7 +469,7 @@ setActiveVerses: (activeVerses) => {
 
 ## Types & Interfaces
 
-**Location**: `src/types.ts`, `src/store.tsx`, `src/api/`
+**Location**: `src/types.ts`, `src/store.ts`, `src/api/`
 
 ### Core Types (`src/types.ts`)
 
@@ -501,7 +506,7 @@ export interface Note {
 }
 ```
 
-### Translation Types (`src/store.tsx`)
+### Translation Types (`src/store.ts`)
 
 #### `Fileset`
 Represents a specific Bible translation format.
@@ -1736,7 +1741,7 @@ not re-raised.
 
 ## State Management
 
-### Zustand Store (`src/store.tsx`)
+### Zustand Store (`src/store.ts`)
 
 Centralized state with localStorage persistence.
 
@@ -2736,7 +2741,7 @@ getBulkReadingPositions(
 ): Promise<Record<string, { chapter: number; verse: number } | null>>
 ```
 
-**Store integration** (`src/store.tsx`):
+**Store integration** (`src/store.ts`):
 - `readingPositions` — persisted per-book cache
   (`Record<bookId, { chapter, verse } | null>`)
 - `setActiveBookWithPosition(bookId)` — restores the saved

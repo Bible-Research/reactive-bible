@@ -63,17 +63,16 @@ const createAuthStore = () => create<AuthState>()(
   persist(
     (set, get) => ({
       // Initial state
-      token: null,
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-      
+      ...initialState,
+
       // Login action
       login: async (username: string, password: string) => {
         set({ isLoading: true, error: null });
 
         try {
+          // requestBody carries the plaintext password — only
+          // ever log it with the password masked (tests pin
+          // this log's shape).
           const requestBody = { username, password };
           console.log('🔐 Login attempt:', {
             url: `${API_BASE_URL}/api/token/`,

@@ -82,7 +82,7 @@ export const getAvailableTranslations = async (
     const response = await publicFetch(url);
     // A failed response must never reach cacheTranslations —
     // an error body parsed as "no results" would poison the
-    // cache and stick until a force refresh. Main's contract
+    // cache and stick until a force refresh. The contract
     // pins ProviderError for ANY non-OK, so a codeless body
     // (plain Error from throwFromErrorBody) is re-wrapped.
     if (!response.ok) {
@@ -94,14 +94,19 @@ export const getAvailableTranslations = async (
             `(HTTP ${response.status})`,
         });
       } catch (error) {
-        throw error instanceof ProviderError ||
+        // Every non-OK here is a provider failure: a codeless
+        // body comes back from throwFromErrorBody as a plain
+        // Error — rethrow it as ProviderError so callers can
+        // branch on the failure kind.
+        if (
+          error instanceof ProviderError ||
           error instanceof RateLimitError
-          ? error
-          : new ProviderError(
-              error instanceof Error
-                ? error.message
-                : String(error)
-            );
+        ) {
+          throw error;
+        }
+        throw new ProviderError(
+          error instanceof Error ? error.message : String(error)
+        );
       }
     }
     const data = await response.json();
@@ -118,9 +123,9 @@ export const getAvailableTranslations = async (
         : new ProviderError(message);
     }
 
-    // Only cache real arrays — an error body must not poison
-    // the no-TTL translation cache (it also feeds
-    // findOwnerIso).
+    // Only cache real arrays — a malformed `results` body
+    // must not poison the no-TTL translation cache (it also
+    // feeds findOwnerIso).
     if (!Array.isArray(data.results)) {
       throw new ProviderError(
         'Malformed translations response'
