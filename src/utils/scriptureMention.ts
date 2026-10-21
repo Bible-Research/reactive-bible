@@ -78,7 +78,7 @@ const emptyParsed = (): ParsedMention => ({
  */
 export const parseMentionQuery = (raw: string): ParsedMention => {
   const result = emptyParsed();
-  const tokens = raw.split(/[ .:]+/).filter((t) => t.length > 0);
+  const tokens = raw.split(/[\s.:]+/).filter((t) => t.length > 0);
   if (tokens.length === 0) return result;
 
   // Consume as many leading tokens as still prefix-match a book.
@@ -186,7 +186,7 @@ export const isTerminatedMentionQuery = (
   query: string
 ): boolean => {
   for (let i = 0; i < query.length; i++) {
-    if (query[i] !== '.' && query[i] !== ' ') continue;
+    if (query[i] !== '.' && !/\s/.test(query[i])) continue;
     if (parseMentionQuery(query.slice(0, i)).complete) {
       return true;
     }

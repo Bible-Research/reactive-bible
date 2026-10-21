@@ -58,10 +58,11 @@ const Audio = () => {
     if (location.pathname.startsWith('/notes')) {
       // Notes pages render note cards — scroll to the playing
       // card's first verse so the audio-follow highlight is
-      // visible.
+      // visible. `scope` (the note id) names the DOM ids;
+      // itemId is unique per chapter block.
       document
         .getElementById(
-          verseDomId(item.itemId, {
+          verseDomId(item.scope ?? item.itemId, {
             bookId: item.bookId,
             chapter: item.chapter,
             verse: item.startVerse,
@@ -111,6 +112,7 @@ const Audio = () => {
     isPlaying,
     setIsPlaying,
     loading,
+    setLoading,
     error,
     isLooping,
     setIsLooping,
@@ -314,6 +316,16 @@ const Audio = () => {
       }
       return;
     }
+    // While the fetch is in flight there is nothing to pause
+    // yet — the button acts as a cancel so a hung request
+    // (getBibleAudioUrl has no timeout) can never wedge the
+    // spinner. The in-flight load sees isPlaying go false and
+    // discards its result.
+    if (loading) {
+      setIsPlaying(false);
+      setLoading(false);
+      return;
+    }
     setIsPlaying((value) => !value);
     setShowPlayer(true);
   };
@@ -326,20 +338,24 @@ const Audio = () => {
       <ActionIcon
         variant="transparent"
         onClick={handlePlayPause}
-        disabled={!isPlaylistMode && loading}
         title={
           isPlaylistMode
             ? playlistPlaying
               ? "Pause playlist"
               : "Play all notes"
-            : error || (isPlaying ? "Playing..." : "Play audio")
+            : error ||
+              (loading
+                ? "Cancel loading"
+                : isPlaying
+                  ? "Pause audio"
+                  : "Play audio")
         }
       >
         {!isPlaylistMode && loading ? (
           <Loader size={rem(20)} />
         ) : !isPlaylistMode && error ? (
           <IconAlertCircle size={rem(20)} color="orange" />
-        ) : playlistPlaying ? (
+        ) : playlistPlaying || chapterPlaying ? (
           <IconPlayerPause size={rem(20)} />
         ) : (
           <IconPlayerPlay size={rem(20)} />

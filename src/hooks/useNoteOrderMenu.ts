@@ -8,7 +8,6 @@ import {
 import { getNoteOrderIndex } from '../api';
 import { useBibleStore } from '../store';
 import type {
-  Note,
   NoteOrderIndexEntry,
   NoteOrderMenuData,
 } from '../types';
@@ -39,10 +38,10 @@ const entryLabel = (
 interface UseNoteOrderMenuOptions {
   tagId: string | undefined;
   sortOrder: SortOrder;
-  isAuthenticated: boolean;
-  isUntagged: boolean;
-  /** The currently loaded page of notes — carries `is_owner`. */
-  notes: Note[];
+  /** True when the viewed tag belongs to the caller (or every
+   *  loaded note reports `is_owner === true`). Computed by the
+   *  route, which has the tag list. */
+  isTagOwner: boolean;
 }
 
 interface UseNoteOrderMenuResult {
@@ -71,9 +70,7 @@ interface UseNoteOrderMenuResult {
 export const useNoteOrderMenu = ({
   tagId,
   sortOrder,
-  isAuthenticated,
-  isUntagged,
-  notes,
+  isTagOwner,
 }: UseNoteOrderMenuOptions): UseNoteOrderMenuResult => {
   const moveNoteAfter = useBibleStore(
     (state) => state.moveNoteAfter
@@ -94,19 +91,14 @@ export const useNoteOrderMenu = ({
   const orderIndexRequestRef = useRef(0);
 
   // The order badge/menu is gated like `isDraggable`: custom
-  // sort + authenticated — plus ownership. `is_owner` is
-  // emitted per note on `GET /notes/?tag_id=`; on a shared
-  // public tag the viewer sees someone else's notes with
-  // is_owner=false, and the backend move/reorder endpoints
-  // only touch the requester's own rows (foreign anchors 400,
-  // foreign positions 409). `!== false` keeps reorder enabled
-  // when a payload omits the field entirely (e.g. the generic
-  // MSW notes stub) so existing flows are unaffected.
+  // sort + tag ownership. On a shared public tag the viewer
+  // sees someone else's notes, and the backend move/reorder
+  // endpoints only touch the requester's own rows (foreign
+  // anchors 400, foreign positions 409), so write affordances
+  // stay hidden there.
   const enabled =
     (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
-    isAuthenticated &&
-    !isUntagged &&
-    notes.every((n) => n.is_owner !== false);
+    isTagOwner;
 
   const reloadOrderIndex = useCallback(async () => {
     if (!tagId) return;

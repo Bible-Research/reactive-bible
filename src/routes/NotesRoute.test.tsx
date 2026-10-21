@@ -8,7 +8,7 @@ import {
   afterEach,
 } from 'vitest';
 import {
-  act,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -137,21 +137,26 @@ describe('NotesRoute', () => {
     });
   });
 
-  it('stays on the loading page when the user has no tags',
+  it('shows an empty state when the user has no tags',
     async () => {
+      // Zero tags used to leave the loader spinning forever —
+      // new accounts now get a real empty state with a CTA.
       const { getTags } = renderRoute({ tags: [] });
 
       await waitFor(() => {
         expect(getTags).toHaveBeenCalled();
       });
-      // Let the post-getTags async continuation settle, then
-      // confirm no navigation happened — asserting directly,
-      // not inside waitFor (a negative there passes at t=0).
-      await act(async () => Promise.resolve());
-      expect(mockNavigate).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(
+          screen.getByText(/No tags yet/)
+        ).toBeInTheDocument();
+      });
       expect(
-        screen.getByLabelText('Loading notes')
+        screen.getByRole('button', {
+          name: /create your first tag/i,
+        })
       ).toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
 
   it('navigates only once under StrictMode double-mount ' +
@@ -191,30 +196,65 @@ describe('NotesRoute', () => {
       ).toBe(true);
     });
 
-  it('does not navigate when getTags rejects', async () => {
-    vi.spyOn(console, 'error').mockImplementation(
-      () => undefined
-    );
-    useBibleStore.setState({
-      ...initialState,
-      tags: [],
-      getTags: vi.fn().mockRejectedValue(new Error('boom')),
-    });
-    useAuthStore.setState({
-      ...authInitialState,
-      token: 'test-token',
-      isAuthenticated: false,
+  it('shows an error with retry when getTags rejects',
+    async () => {
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      // First load fails; the retry succeeds so the route
+      // recovers to the tag navigation instead of sticking on
+      // the error state.
+      const getTags = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValue(undefined);
+      useBibleStore.setState({
+        ...initialState,
+        tags: [tagB, tagA],
+        getTags,
+      });
+      useAuthStore.setState({
+        ...authInitialState,
+        token: 'test-token',
+        isAuthenticated: false,
+      });
+
+      render(
+        <MemoryRouter>
+          <NotesRoute />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Failed to load your tags.')
+        ).toBeInTheDocument();
+      });
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /try again/i })
+      );
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith(
+          '/notes/tag/tag-a',
+          { replace: true }
+        );
+      });
     });
 
-    render(
-      <MemoryRouter>
-        <NotesRoute />
-      </MemoryRouter>
-    );
+  it('never fetches tags for anonymous visitors', async () => {
+    // Anonymous sessions redirect to /bible — getTags must not
+    // run at all (it would hit an authed endpoint and trip the
+    // "session expired" flow).
+    const { getTags } = renderRoute({ token: null });
 
     await waitFor(() => {
-      expect(console.error).toHaveBeenCalled();
+      expect(mockNavigate).toHaveBeenCalledWith('/bible', {
+        replace: true,
+      });
     });
-    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(getTags).not.toHaveBeenCalled();
   });
 });

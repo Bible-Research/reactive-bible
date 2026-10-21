@@ -105,9 +105,15 @@ export const getAvailableTranslations = async (
         : new ProviderError(message);
     }
 
+    // Only cache real arrays — a malformed non-array body must
+    // not poison the no-TTL translation cache (it also feeds
+    // findOwnerIso).
+    if (!Array.isArray(data.results)) {
+      throw new ProviderError('Malformed translations response');
+    }
     // The actual translations are in the 'results' property
     const translations: Translation[] =
-      injectBundledKjv(data.results ?? []);
+      injectBundledKjv(data.results);
 
     cacheTranslations(languageIso, translations);
     console.log(`💾 Translations for ${languageIso} cached`);

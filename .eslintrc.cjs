@@ -12,6 +12,7 @@ module.exports = {
     tsconfigRootDir: __dirname,
     project: ['./tsconfig.json'],
   },
+  reportUnusedDisableDirectives: true,
   plugins: ['react-refresh'],
   reportUnusedDisableDirectives: true,
   rules: {

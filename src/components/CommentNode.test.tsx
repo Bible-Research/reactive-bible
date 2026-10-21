@@ -45,7 +45,7 @@ const makeComment = (overrides: Partial<Comment> = {}): Comment => ({
 
 const defaultProps = {
   depth: 0,
-  currentUsername: 'alice',
+  currentUser: { username: 'alice' },
   isAuthenticated: true,
   onReply: vi.fn().mockResolvedValue(undefined),
   onUpdate: vi.fn().mockResolvedValue(undefined),
@@ -109,7 +109,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment()}
         {...defaultProps}
-        currentUsername="alice"
+        currentUser={{ username: 'alice' }}
       />
     );
     expect(
@@ -125,7 +125,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment()}
         {...defaultProps}
-        currentUsername="bob"
+        currentUser={{ username: 'bob' }}
       />
     );
     expect(
@@ -133,6 +133,60 @@ describe('CommentNode', () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Delete' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('identifies the author by id over username', () => {
+    // Login may store the as-typed username; the author id is
+    // the authoritative match.
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        currentUser={{ id: 1, username: 'TypedAlice' }}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Edit' })
+    ).toBeInTheDocument();
+  });
+
+  it('falls back to a normalized username compare', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        currentUser={{ username: '  ALICE ' }}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Edit' })
+    ).toBeInTheDocument();
+  });
+
+  it('still matches by username when the stored id differs', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        currentUser={{ id: 42, username: 'alice' }}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Edit' })
+    ).toBeInTheDocument();
+  });
+
+  it('renders an unparseable timestamp verbatim', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ timestamp: 'not a date' })}
+        {...defaultProps}
+      />
+    );
+    expect(screen.getByText(/not a date/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Invalid Date/)
     ).not.toBeInTheDocument();
   });
 
@@ -203,7 +257,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment({ images: [makeImage('img-1')] })}
         {...defaultProps}
-        currentUsername="alice"
+        currentUser={{ username: 'alice' }}
       />
     );
     expect(
@@ -216,7 +270,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment({ images: [makeImage('img-1')] })}
         {...defaultProps}
-        currentUsername="bob"
+        currentUser={{ username: 'bob' }}
       />
     );
     expect(

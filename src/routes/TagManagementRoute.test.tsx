@@ -49,7 +49,7 @@ const mockApi = vi.mocked(api);
 const storeStub = vi.hoisted(() => {
   const state = {
     tags: [] as Tag[],
-    getTags: vi.fn(async (_forceRefresh?: boolean) => {}),
+    getTags: vi.fn(() => Promise.resolve()),
   };
   const useBibleStore = Object.assign(
     (selector: (s: typeof state) => unknown) => selector(state),

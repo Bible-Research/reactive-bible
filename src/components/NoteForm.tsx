@@ -8,6 +8,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { Tag } from "../types";
 import { toPlainText } from "../utils/tiptapContent";
@@ -167,6 +168,31 @@ const NoteForm = ({
     []
   );
 
+  // Unmount = the modal closed (Mantine unmounts content, and
+  // parents drop the modal itself). Flush the unsaved tail so
+  // a close inside the autosave window does not drop the last
+  // seconds of typing.
+  useEffect(
+    () => () => {
+      const save = onAutoSaveRef.current;
+      if (!save || !autoSaveRef.current) return;
+      const { tagId, text } = latest.current;
+      if (!tagId || !toPlainText(text).trim()) return;
+      const last = lastSavedRef.current;
+      if (last && last.tagId === tagId && last.text === text) {
+        return;
+      }
+      // Chain behind an in-flight save — the draft's note id
+      // only exists once its POST resolves.
+      const chain = inFlightRef.current ?? Promise.resolve();
+      void chain
+        .then(() => save(tagId, text))
+        .then(() => onUnmountedSaveRef.current?.())
+        .catch((error) => console.error(error));
+    },
+    []
+  );
+
   useEffect(() => {
     if (!autoSave) return;
     const tick = () => {
@@ -213,6 +239,23 @@ const NoteForm = ({
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
+    // Guard empty submissions — the API would reject the note.
+    if (!selectedTagId) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Please choose a tag.',
+        color: 'red',
+      });
+      return;
+    }
+    if (!toPlainText(noteText).trim()) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Note text is required.',
+        color: 'red',
+      });
+      return;
+    }
     // Wait for an in-flight autosave first: the parent then sees
     // the created note id and PATCHes instead of POSTing a
     // duplicate. Holding the lock while submitting also keeps an

@@ -119,6 +119,20 @@ describe('parseMentionQuery', () => {
     expect(p.complete).toBe(true);
   });
 
+  it('treats any Unicode whitespace as a separator', () => {
+    // Non-breaking/ideographic spaces pasted from mobile apps
+    // must not defeat the parser.
+    const p = parseMentionQuery(
+      'john 3 16'
+        .replace(' ', String.fromCharCode(0xa0))
+        .replace(' ', String.fromCharCode(0x3000))
+    );
+    expect(p.bookName).toBe('John');
+    expect(p.chapter).toBe(3);
+    expect(p.verseStart).toBe(16);
+    expect(p.complete).toBe(true);
+  });
+
   it('lets + escape spaces inside book names', () => {
     const p = parseMentionQuery('1+corinthians.3.5');
     expect(p.bookName).toBe('1 Corinthians');
@@ -229,6 +243,17 @@ describe('isTerminatedMentionQuery', () => {
     expect(isTerminatedMentionQuery('john 3 16 ')).toBe(true);
     expect(
       isTerminatedMentionQuery('JHN.3.16 is true')
+    ).toBe(true);
+  });
+
+  it('accepts a ref closed by non-ASCII whitespace', () => {
+    const nbsp = String.fromCharCode(0xa0);
+    const emSpace = String.fromCharCode(0x2003);
+    expect(
+      isTerminatedMentionQuery(`JHN.3.16${nbsp}`)
+    ).toBe(true);
+    expect(
+      isTerminatedMentionQuery(`JHN.3.16${emSpace}more`)
     ).toBe(true);
   });
 

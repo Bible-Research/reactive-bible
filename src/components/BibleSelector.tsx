@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { verseNumbersFor } from "../utils/verseRefs";
+import { findVersesInBetween } from "../utils/findVersesInBetween";
 import PassagePicker from "./PassagePicker";
 
 const MOBILE_LANDSCAPE_QUERY =
@@ -25,6 +26,8 @@ const BibleSelector = ({
   const setActiveBookWithPosition = useBibleStore(
     (state) => state.setActiveBookWithPosition
   );
+  // Memoized so the picker's scroll-into-view effect (which
+  // depends on `verses`) doesn't refire on every render.
   const pickerVerses = useMemo(
     () =>
       verseSelection?.scope === 'bible'
@@ -64,10 +67,24 @@ const BibleSelector = ({
           }}
           onSelectChapter={(chapter) => {
             void navigate(buildBiblePath(activeBookId, chapter));
+            setOpened(false);
           }}
-          onSelectVerse={(verse) => {
+          onSelectVerse={(verse, extendRange) => {
+            // Shift+click extends the range from the first
+            // currently selected verse, like Verse.tsx's
+            // shift+click anchor.
+            const anchor = pickerVerses[0];
+            const verses =
+              extendRange &&
+              anchor !== undefined &&
+              anchor !== verse
+                ? findVersesInBetween(
+                    String(Math.min(anchor, verse)),
+                    String(Math.max(anchor, verse)),
+                  )
+                : [verse];
             void navigate(
-              buildBiblePath(activeBookId, activeChapter, [verse])
+              buildBiblePath(activeBookId, activeChapter, verses)
             );
             setOpened(false);
           }}

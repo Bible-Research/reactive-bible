@@ -230,7 +230,7 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
-      {newNoteOpened && (
+      {isAuthenticated && newNoteOpened && (
         <Suspense fallback={null}>
           <AddStandaloneNoteModal
             opened={newNoteOpened}

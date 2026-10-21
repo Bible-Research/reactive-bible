@@ -67,7 +67,7 @@ describe('authStore - Persistence', () => {
       expect(store.getState().isAuthenticated).toBe(false);
     });
 
-    it('should not authenticate on token rehydrate alone', () => {
+    it('authenticates optimistically on token rehydrate', () => {
       const authData = {
         state: {
           token: mockToken,
@@ -79,10 +79,12 @@ describe('authStore - Persistence', () => {
 
       const store = createTestAuthStore();
 
-      // partialize persists only { token, user } — rehydration
-      // alone must not authenticate; checkAuth is the gate.
+      // merge() derives isAuthenticated from the persisted
+      // token so the first render after rehydration already
+      // knows the session — checkAuth then validates it
+      // against the API and can still log a stale token out.
       expect(store.getState().token).toBe(mockToken);
-      expect(store.getState().isAuthenticated).toBe(false);
+      expect(store.getState().isAuthenticated).toBe(true);
 
       store.getState().checkAuth();
 

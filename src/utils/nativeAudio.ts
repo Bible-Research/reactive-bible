@@ -37,9 +37,11 @@ const promptBatteryExemptionOnce = async (): Promise<void> => {
   try {
     if (localStorage.getItem(BATTERY_PROMPT_KEY)) return;
     const BackgroundMode = await loadBackgroundMode();
-    localStorage.setItem(BATTERY_PROMPT_KEY, '1');
     const { enabled } =
       await BackgroundMode.checkBatteryOptimizations();
+    // Mark the prompt shown only after the check succeeded —
+    // a failed plugin call must not burn the one-time prompt.
+    localStorage.setItem(BATTERY_PROMPT_KEY, '1');
     if (enabled) {
       await BackgroundMode.requestDisableBatteryOptimizations();
     }

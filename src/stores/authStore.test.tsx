@@ -81,6 +81,137 @@ describe('authStore', () => {
     });
   });
 
+  describe('login security', () => {
+    it('never logs the plaintext password', async () => {
+      const logSpy = vi
+        .spyOn(console, 'log')
+        .mockImplementation(() => undefined);
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          token: mockToken,
+          user: { username: 'canonical' },
+        }),
+      } as Response);
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.login('typed-name', 'secret-pw');
+      });
+
+      const logged = JSON.stringify(logSpy.mock.calls);
+      expect(logged).not.toContain('secret-pw');
+      expect(logged).toContain('***');
+    });
+
+    it('stores the server canonical username, not the ' +
+      'as-typed one', async () => {
+      vi.spyOn(console, 'log').mockImplementation(
+        () => undefined
+      );
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          token: mockToken,
+          user: { username: 'Canonical_Name' },
+        }),
+      } as Response);
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.login('canonical_name', 'pw');
+      });
+
+      expect(result.current.user).toEqual({
+        username: 'Canonical_Name',
+      });
+    });
+
+    it('falls back to the as-typed username when ' +
+      '/api/token/ returns no user payload', async () => {
+      vi.spyOn(console, 'log').mockImplementation(
+        () => undefined
+      );
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ token: mockToken }),
+      } as Response);
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.login('typed-name', 'pw');
+      });
+
+      expect(result.current.user).toEqual({
+        username: 'typed-name',
+      });
+    });
+
+    it('stores the register response user id for comment ' +
+      'author matching', async () => {
+      vi.spyOn(console, 'log').mockImplementation(
+        () => undefined
+      );
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: async () => ({
+          token: mockToken,
+          user: { id: 7, username: 'newbie' },
+        }),
+      } as Response);
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      await act(async () => {
+        await result.current.register(
+          'newbie',
+          'pw123456',
+          'pw123456'
+        );
+      });
+
+      expect(result.current.user).toEqual({
+        id: 7,
+        username: 'newbie',
+      });
+    });
+
+    it('rehydrates isAuthenticated from a persisted token ' +
+      'before checkAuth runs', () => {
+      // A pre-change blob carries only token+user — merge must
+      // still derive isAuthenticated so first-pass effects do
+      // not double-fetch.
+      localStorage.setItem(
+        'auth-storage',
+        JSON.stringify({
+          state: {
+            token: mockToken,
+            user: { username: mockUsername },
+          },
+          version: 0,
+        })
+      );
+
+      const useTestAuthStore = createTestAuthStore();
+      const { result } = renderHook(() => useTestAuthStore());
+
+      // No checkAuth() call — the flag is derived at
+      // rehydration.
+      expect(result.current.isAuthenticated).toBe(true);
+    });
+  });
+
   describe('checkAuth', () => {
     it('should set isAuthenticated to true if token exists', () => {
       const useTestAuthStore = createTestAuthStore();
