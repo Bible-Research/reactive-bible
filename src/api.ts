@@ -75,10 +75,6 @@ export type {
   ReadingPositionValue,
 } from './types';
 
-// Note/Tag live in ./types — re-exported so existing
-// `api.Note`/`api.Tag` type references keep working.
-export type { Note, Tag };
-
 interface BibleStructureEntry {
   book_id: string;
   book_name: string;

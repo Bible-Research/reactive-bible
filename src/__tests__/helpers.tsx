@@ -28,8 +28,13 @@ export * from './helpers/factories';
 // Re-export performance helpers
 // eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/performance';
-// eslint-disable-next-line react-refresh/only-export-components
-export * from './helpers/performanceUtils';
+// measureRenderTime/createLargeVerseData/CacheMetrics also live
+// in performanceUtils — star-exporting both would collide, so
+// only that module's unique helpers are re-exported by name.
+export {
+  useRenderCount,
+  waitForNextFrame,
+} from './helpers/performanceUtils';
 
 // --- Store Helpers ---
 
