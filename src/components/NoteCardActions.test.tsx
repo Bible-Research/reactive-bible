@@ -22,6 +22,8 @@ const singleVerseNote = createMockNote({
   ],
 });
 
+// Edit/delete affordances are auth-gated — render as a signed-
+// in user unless a case overrides the auth state.
 const renderActions = (
   props: Partial<
     React.ComponentProps<typeof NoteCardActions>
@@ -36,18 +38,17 @@ const renderActions = (
       onToggleThread={vi.fn()}
       {...props}
     />,
-    options
+    {
+      authStoreState: { isAuthenticated: true },
+      ...options,
+    }
   );
 
 // Cases ported from the rotted (skipped) NoteCard suite.
 describe('NoteCardActions', () => {
   it('calls onEdit with the note when edit is clicked', () => {
     const onEdit = vi.fn();
-    // Edit/delete require a signed-in owner.
-    renderActions(
-      { onEdit },
-      { stores: { auth: { isAuthenticated: true } } }
-    );
+    renderActions({ onEdit });
 
     fireEvent.click(
       screen.getByRole('button', { name: 'edit-note' })
@@ -67,13 +68,9 @@ describe('NoteCardActions', () => {
     expect(onViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);
   });
 
-  it('calls onDelete with the event and note on remove',
-    () => {
+  it('calls onDelete with the event and note on remove', () => {
     const onDelete = vi.fn();
-    renderActions(
-      { onDelete },
-      { stores: { auth: { isAuthenticated: true } } }
-    );
+    renderActions({ onDelete });
 
     fireEvent.click(
       screen.getByRole('button', { name: 'remove-note' })
@@ -146,15 +143,15 @@ describe('NoteCardActions', () => {
     ).toBeInTheDocument();
   });
 
-  it('disables play-from-here for a verse-less note', () => {
+  it('hides play-from-here for a verse-less note', () => {
     renderActions({
       note: createMockNote({ id: 'n-vl', verses: [] }),
       onPlayFromNote: vi.fn(),
     });
 
     expect(
-      screen.getByRole('button', { name: 'play-from-n-vl' })
-    ).toBeDisabled();
+      screen.queryByRole('button', { name: 'play-from-n-vl' })
+    ).not.toBeInTheDocument();
   });
 
   it('shows the comment count and toggles the thread', () => {

@@ -27,7 +27,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
-
 import {
   buildBiblePath,
   toBookName,
@@ -55,7 +54,7 @@ const AddTagNoteModal = lazy(() => import("./AddTagNoteModal"));
 
 /** A single-chapter selection group — the primary ref used by
  *  the external-link and share builders. */
-interface PrimaryChapterRef {
+export interface PrimaryChapterRef {
   bookId: string;
   chapter: number;
   verses: number[];
@@ -111,7 +110,7 @@ const VerseActionToolbar = () => {
 
   // The primary group is the first ref's book/chapter — share URLs
   // and external links are single-chapter formats.
-  const primary = useMemo((): PrimaryChapterRef | null => {
+  const primary = useMemo(() => {
     if (refs.length === 0) return null;
     const first = refs[0];
     return {
@@ -165,12 +164,14 @@ const VerseActionToolbar = () => {
     );
     const url = `${window.location.origin}${path}`;
 
-    // Note-scoped selections can't be scraped reliably when the
-    // card's verses are folded — prefer the note's own data.
     const verseText =
       noteVerseText ?? collectSelectedVerseText(refs, scope);
 
-    const shareText = buildShareText(verseText, passageRef, url);
+    const shareText = buildShareText(
+      verseText ?? '',
+      passageRef,
+      url
+    );
 
     if (navigator.share) {
       try {
@@ -208,14 +209,8 @@ const VerseActionToolbar = () => {
   }, [primary, refs, scope, noteVerseText, passageRef]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
-    // Open the viewer first: window.open after an `await` loses
-    // the click's transient activation and popup blockers kill
-    // it. The clipboard write then lands while the tab loads.
-    window.open(
-      BIBLE_MAPPER_WEB_URL,
-      "_blank",
-      "noopener,noreferrer"
-    );
+    // Copy first — opening the viewer after a failed copy would
+    // send the user to a page with nothing on the clipboard.
     if (!(await copyTextToClipboard(passageRef))) {
       showNotification({
         title: "Error",
@@ -229,6 +224,11 @@ const VerseActionToolbar = () => {
       message: `${passageRef} copied to clipboard`,
       color: "green",
     });
+    window.open(
+      BIBLE_MAPPER_WEB_URL,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }, [passageRef]);
 
   const youVersionUrl = useMemo(
@@ -268,11 +268,8 @@ const VerseActionToolbar = () => {
   );
 
   const mapUrl = useMemo(
-    () =>
-      buildBibleMapperUrl(
-        primary?.bookId ?? null,
-        primary?.chapter ?? null
-      ),
+    () => buildBibleMapperUrl(primary?.bookId ?? null,
+      primary?.chapter ?? null),
     [primary]
   );
 
@@ -292,7 +289,7 @@ const VerseActionToolbar = () => {
 
   const handleViewInBible = useCallback(() => {
     if (!primary) return;
-    navigate(
+    void navigate(
       buildBiblePath(
         primary.bookId,
         primary.chapter,

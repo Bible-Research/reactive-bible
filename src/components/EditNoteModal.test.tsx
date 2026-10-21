@@ -14,7 +14,6 @@ import {
 } from 'vitest';
 import EditNoteModal from './EditNoteModal';
 import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
-import { useBibleStore } from '../store';
 import {
   renderWithProviders,
   createMockNote,
@@ -61,13 +60,6 @@ vi.mock('./RichTextEditor', async () => ({
     await import('../__tests__/mocks/RichTextEditorStub')
   ).default,
 }));
-
-// Captured at module load, before any test's storeOverrides
-// can shadow the real action — Zustand setState merges, so a
-// `fetchNotes: vi.fn()` override would otherwise leak into
-// later tests and the store's real fetch (which calls
-// api.getNotes) would never run.
-const realFetchNotes = useBibleStore.getState().fetchNotes;
 
 describe('EditNoteModal Component', () => {
   // Use factory function for cleaner test data
@@ -457,11 +449,6 @@ describe('EditNoteModal Component', () => {
       />,
       {
         storeOverrides: {
-          // Zustand setState merges — an earlier test's
-          // fetchNotes: vi.fn() override would otherwise leak
-          // in here and the real action (which calls
-          // api.getNotes) would never run.
-          fetchNotes: realFetchNotes,
           notesPage: 2,
           notesOrdering: 'created_at',
         },

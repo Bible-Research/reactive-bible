@@ -361,15 +361,17 @@ npm test -- src/routes/__tests__/BibleRoute.test.tsx
   of every note in the tag and the list is dnd-kit
   reorderable — see "Note order badges & moves"
   under Note Taking & Tagging. Reorder UI additionally
-  requires `is_owner` on every loaded note — shared/public
-  tag pages hide it for non-owners (the backend rejects
-  foreign moves with 400/409 anyway)
+  requires tag ownership (`isTagOwner`: the viewed tag is in
+  the caller's own list, or every loaded note reports
+  `is_owner === true`) — shared/public tag pages hide it for
+  non-owners (the backend rejects foreign moves with 400/409
+  anyway)
 - The route is thin view wiring over three hooks +
   `TagNotesToolbar`: `useTagNotesData` (load/pagination/
   refresh/delete orchestration), `useNoteOrderMenu` (order
   index + moves), `useNotePlaylist` (audio playlist assembly —
-  its play-from index addresses the verse-filtered playlist
-  array, not the raw sorted notes)
+  one item per book+chapter block; its play-from index
+  addresses the verse-filtered playlist array by `scope`)
 - The filter/sort toolbar rides on `headerVisible`: it
   collapses (`Collapse`, aria-hidden) whenever MyHeader
   slides away on a downward scroll and the notes list
@@ -2902,6 +2904,7 @@ blob (`bible_notes_cache`) is dropped on load, not migrated.
 **Cache Key Format**:
 `{tagId}:{anon|auth}:fs:{filesetId}:ps:{pageSize}:page{n}:{ordering}`
 
+**Implementation** (`src/stores/bibleStore/notesSlice.ts`):
 The scope fields exist because the response depends on them:
 - `anon|auth` — owners see private notes that anonymous callers
   must never be served from cache.
@@ -2913,7 +2916,7 @@ The scope fields exist because the response depends on them:
 - `addTagNote`/`editNote`/`deleteNote`/`reorderNotes`/`moveNote`
   clear the affected tag's pages (`clearNotesCache(tagId)` is a
   prefix delete over every scoped page).
-- A `useAuthStore.subscribe` watcher in `authStore.ts` purges
+- A `useAuthStore.subscribe` watcher in `authStore.tsx` purges
   `notes`, `tags`, `readingPositions`, and the whole notes cache
   whenever the token is dropped or replaced — covers both manual
   logout and 401-driven logout, so a shared device can't expose

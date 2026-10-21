@@ -40,8 +40,8 @@ vi.mock('./RichTextEditor', async () => ({
 describe('AddStandaloneNoteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Drafts live outside the component — reset them or a
-    // previous test's autosaved note would resume here.
+    // Drafts live in the hook's module-scoped map — reset them
+    // or a previous test's autosaved note resumes here.
     resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
@@ -214,14 +214,10 @@ describe('AddStandaloneNoteModal Component', () => {
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
 
-  // FIXME: reopening the modal orphans the autosaved draft on
-  // the server — `savedNoteIdRef` resets in the `opened` effect
-  // (AddStandaloneNoteModal.tsx) so the next autosave POSTs a
-  // second note instead of PATCHing the existing one. The fix
-  // (delete the draft on close, or persist/resume its id across
-  // reopen) is a product decision exceeding a ~30-line
-  // test-only fix.
-  it.skip('PATCHes the autosaved draft instead of POSTing a ' +
+  // The hook's module-scoped drafts map survives the modal's
+  // unmount — a reopen resumes the autosaved note (PATCH), not
+  // a duplicate POST.
+  it('PATCHes the autosaved draft instead of POSTing a ' +
     'second note when reopened mid-session', async () => {
       (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
       (api.editNote as Mock).mockResolvedValue({});
@@ -230,7 +226,10 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       const noteInput = await screen.findByLabelText('Note');

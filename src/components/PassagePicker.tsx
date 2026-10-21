@@ -172,6 +172,8 @@ const PassagePicker = ({
               })}
               data-active={bookId === b.book_id || undefined}
               aria-current={bookId === b.book_id || undefined}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectBook(b.book_id)}
               onKeyDown={(event) =>
                 activateOnKeyDown(event, () =>
@@ -199,6 +201,8 @@ const PassagePicker = ({
               })}
               data-active={chapter === ch || undefined}
               aria-current={chapter === ch || undefined}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectChapter(ch)}
               onKeyDown={(event) =>
                 activateOnKeyDown(event, () => onSelectChapter(ch))
@@ -224,9 +228,11 @@ const PassagePicker = ({
               })}
               data-active={verses.includes(verse) || undefined}
               aria-pressed={verses.includes(verse)}
-              onClick={(event) => {
-                onSelectVerse(verse, event.shiftKey);
-              }}
+              role="button"
+              tabIndex={0}
+              onClick={(event) =>
+                onSelectVerse(verse, event.shiftKey)
+              }
               onKeyDown={(event) =>
                 activateOnKeyDown(event, (shiftKey) =>
                   onSelectVerse(verse, shiftKey)

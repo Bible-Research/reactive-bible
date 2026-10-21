@@ -54,12 +54,6 @@ const NoteCard = ({
 }: NoteCardProps) => {
   const scope = verseScope ?? note.id;
   const [threadOpen, setThreadOpen] = useState(false);
-  // Verse-less notes get no play affordance at all on the
-  // route — a dead button is noise. (NoteCardActions still
-  // renders a disabled state for direct callers that pass a
-  // handler anyway.)
-  const playFromNote =
-    (note.verses?.length ?? 0) > 0 ? onPlayFromNote : undefined;
   // Clicked '@…' refs open the passage in a floating popover
   // anchored at the ref — never inline in the card.
   const {
@@ -146,7 +140,7 @@ const NoteCard = ({
               onViewInBible={onViewInBible}
               onEdit={onEdit}
               onDelete={onDelete}
-              onPlayFromNote={playFromNote}
+              onPlayFromNote={onPlayFromNote}
               commentCount={commentCount}
               threadOpen={threadOpen}
               onToggleThread={() =>
@@ -164,7 +158,7 @@ const NoteCard = ({
             onViewInBible={onViewInBible}
             onEdit={onEdit}
             onDelete={onDelete}
-            onPlayFromNote={playFromNote}
+            onPlayFromNote={onPlayFromNote}
             commentCount={commentCount}
             threadOpen={threadOpen}
             onToggleThread={() =>

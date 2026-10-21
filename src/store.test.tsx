@@ -434,6 +434,7 @@ describe('useBibleStore', () => {
         readingPositions: { MRK: { chapter: 4, verse: 2 } },
         // Non-persisted fields — set to non-defaults so the
         // snapshot proves they are excluded.
+        detailNote: note,
         showAudioPlayer: true,
         pendingScrollVerse: john316,
         headerVisible: false,
@@ -886,9 +887,7 @@ describe('useBibleStore', () => {
         rebalanced: false,
       });
       const movedNote = { ...makeNote('n1'), tag_position: 1.5 };
-      mockApi.getNotes.mockResolvedValue(
-        notePageOf([movedNote])
-      );
+      mockApi.getNotes.mockResolvedValue(notePageOf([movedNote]));
       useBibleStore.setState({
         notes: [makeNote('n1'), makeNote('n2')],
         notesPage: 2,

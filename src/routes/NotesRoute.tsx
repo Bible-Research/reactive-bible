@@ -11,16 +11,20 @@ import { IconPlus, IconRefresh } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import { defaultTagId } from '../utils/defaultTag';
+import { shallow } from 'zustand/shallow';
 
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {
   const navigate = useNavigate();
   const hasNavigatedRef = useRef(false);
-  const lastSelectedTagId = useBibleStore(
-    (state) => state.lastSelectedTagId
+  const { lastSelectedTagId, getTags } = useBibleStore(
+    (state) => ({
+      lastSelectedTagId: state.lastSelectedTagId,
+      getTags: state.getTags,
+    }),
+    shallow
   );
-  const getTags = useBibleStore((state) => state.getTags);
   // Read `token` for the anonymous check — it is the value that
   // decides whether a session exists at all. (`isAuthenticated`
   // would work too now: the persisted merge derives it from the
@@ -42,7 +46,7 @@ export default function NotesRoute() {
     // /notes/:noteId or /notes/tag/:tagId still work for them.
     if (!token) {
       hasNavigatedRef.current = true;
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
 
@@ -69,7 +73,9 @@ export default function NotesRoute() {
         }
 
         hasNavigatedRef.current = true;
-        navigate(`/notes/tag/${targetTagId}`, { replace: true });
+        void navigate(`/notes/tag/${targetTagId}`, {
+          replace: true,
+        });
       } catch (error) {
         if (cancelled) return;
         console.error('Error loading tags:', error);
@@ -80,7 +86,7 @@ export default function NotesRoute() {
     };
 
     setStatus('loading');
-    navigateToTag();
+    void navigateToTag();
     return () => {
       cancelled = true;
     };

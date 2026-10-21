@@ -88,9 +88,11 @@ export default function TagNotesRoute() {
   // tags check an owner would lose drag/order/edit/delete on
   // their own tag. For foreign public tags keep the strict
   // every-note `is_owner === true` fallback so write affordances
-  // stay hidden once the backend ships the field.
+  // stay hidden once the backend ships the field — and any
+  // explicit `is_owner === false` fails closed outright.
   const isTagOwner =
     isAuthenticated &&
+    notes.every((n) => n.is_owner !== false) &&
     (storedTags.some((t) => t.id === tagId) ||
       (notes.length > 0 &&
         notes.every((n) => n.is_owner === true)));
@@ -104,7 +106,7 @@ export default function TagNotesRoute() {
     tagId,
     sortOrder,
     isTagOwner,
-    notes,
+    isUntagged,
   });
 
   const {
