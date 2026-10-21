@@ -7,7 +7,7 @@ import {
 } from "@mantine/core";
 import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useNavigate } from "react-router-dom";
-import { useBibleStore } from "../store";
+import { useBibleStore, selectActiveBookName } from "../store";
 import { getPassage } from "../api";
 import { buildBiblePath } from "../utils/bibleUtils";
 
@@ -15,11 +15,18 @@ interface BottomNavProps {
   setBibleSelectorOpened: (opened: boolean) => void;
 }
 
+const FOOTER_HEIGHT = 56;
+
 const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const navigate = useNavigate();
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
+  // Same flag MyHeader drives — both bars hide/show together on
+  // scroll; slide fully off-screen by driving `bottom` negative.
+  const headerVisible = useBibleStore((state) => state.headerVisible);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const activeBookId = useBibleStore((state) => state.activeBookId);
+  // Display name ("John") rather than the raw USFM code ("JHN").
+  const activeBookName = useBibleStore(selectActiveBookName);
   const getPassageResult = getPassage();
 
   const checkNext = (): number | null => {
@@ -45,38 +52,31 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const nextHandler = () => {
     const index = checkNext();
     if (index === null) return null;
-    if (getPassageResult) {
-      const next = getPassageResult[index + 1];
-      if (next !== null) {
-        console.log(
-          `🔗 BottomNav Next: ` +
-          `/bible/${next.book_id}.${next.chapter}`
-        );
-        navigate(buildBiblePath(next.book_id, next.chapter));
-      }
+    const next = getPassageResult[index + 1];
+    if (next !== null) {
+      navigate(buildBiblePath(next.book_id, next.chapter));
     }
   };
 
   const prevHandler = () => {
     const index = checkPrev();
     if (index === null) return null;
-    if (getPassageResult) {
-      const prev = getPassageResult[index - 1];
-      if (prev !== null) {
-        console.log(
-          `🔗 BottomNav Prev: ` +
-          `/bible/${prev.book_id}.${prev.chapter}`
-        );
-        navigate(buildBiblePath(prev.book_id, prev.chapter));
-      }
+    const prev = getPassageResult[index - 1];
+    if (prev !== null) {
+      navigate(buildBiblePath(prev.book_id, prev.chapter));
     }
   };
 
   return (
     <Footer
-      height={56}
+      height={FOOTER_HEIGHT}
+      data-bottom-nav-visible={headerVisible}
       sx={{
-        bottom: showAudioPlayer ? '120px' : '0',
+        bottom: headerVisible
+          ? showAudioPlayer
+            ? '120px'
+            : '0'
+          : `-${FOOTER_HEIGHT}px`,
         transition: 'bottom 0.3s ease-in-out',
       }}
     >
@@ -99,7 +99,16 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         </ActionIcon>
         <Title
           order={4}
+          role="button"
+          tabIndex={0}
+          title="nav-current-passage"
           onClick={() => setBibleSelectorOpened(true)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setBibleSelectorOpened(true);
+            }
+          }}
           sx={{
             cursor: "pointer",
             minWidth: "120px",
@@ -109,7 +118,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
             },
           }}
         >
-          {activeBookId} {activeChapter}
+          {activeBookName} {activeChapter}
         </Title>
         <ActionIcon
           variant="transparent"

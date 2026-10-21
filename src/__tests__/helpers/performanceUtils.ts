@@ -1,25 +1,8 @@
-import { useRef, useEffect } from 'react';
-
 /**
- * Non-component performance testing utilities. Kept in a `.ts`
- * file so `react-refresh/only-export-components` (which only
- * scans `.jsx`/`.tsx`) does not flag them next to
- * `RenderCounter` in `performance.tsx`.
+ * Performance testing utilities. Kept in a `.ts` file so
+ * `react-refresh/only-export-components` (which only scans
+ * `.jsx`/`.tsx`) does not flag them.
  */
-
-/**
- * Hook to track component render count
- * Usage: const renderCount = useRenderCount();
- */
-export function useRenderCount() {
-  const renderCount = useRef(0);
-
-  useEffect(() => {
-    renderCount.current += 1;
-  });
-
-  return renderCount.current;
-}
 
 /**
  * Measure component render time
@@ -36,15 +19,6 @@ export function measureRenderTime(
 
   const end = performance.now();
   return (end - start) / iterations;
-}
-
-/**
- * Wait for next frame (useful for testing animations/transitions)
- */
-export function waitForNextFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => resolve());
-  });
 }
 
 /**
