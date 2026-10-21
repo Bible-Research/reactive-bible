@@ -83,14 +83,14 @@ describe('buildNotePlaylistItems', () => {
     });
   });
 
-  it('splits a note spanning chapters into one item per ' +
-    'book+chapter block', () => {
+  it('emits one item per book+chapter block for a spanning ' +
+    'note, sharing the note id as scope', () => {
     const items = buildNotePlaylistItems([
       note('n1', [
         verse('John', 3, 16),
         verse('John', 4, 1),
-        verse('Mark', 1, 1),
         verse('John', 4, 2),
+        verse('Mark', 1, 1),
       ]),
     ]);
     expect(items).toHaveLength(3);
@@ -99,16 +99,31 @@ describe('buildNotePlaylistItems', () => {
       'n1:JHN:4',
       'n1:MRK:1',
     ]);
+    // Every block carries the note id as scope so callers can
+    // map an item back to its note.
     expect(items.map((i) => i.scope)).toEqual([
       'n1',
       'n1',
       'n1',
     ]);
+    expect(items[0]).toMatchObject({
+      bookId: 'JHN',
+      chapter: 3,
+      startVerse: 16,
+      endVerse: 16,
+      verseNumbers: [16],
+    });
     expect(items[1]).toMatchObject({
+      bookId: 'JHN',
       chapter: 4,
       startVerse: 1,
       endVerse: 2,
       verseNumbers: [1, 2],
+    });
+    expect(items[2]).toMatchObject({
+      bookId: 'MRK',
+      chapter: 1,
+      verseNumbers: [1],
     });
   });
 

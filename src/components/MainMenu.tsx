@@ -16,7 +16,12 @@ import {
   IconBrandAndroid,
   IconRefresh,
 } from "@tabler/icons-react";
-import { Suspense, lazy, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
@@ -54,6 +59,9 @@ const MainMenu = ({
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
+  // Owned here (not inside the modal) because the modal unmounts
+  // on close — a component-local draft would lose the autosaved
+  // note id and reopening would POST a duplicate.
   const noteDraftRef = useRef(emptyNoteDraft());
 
   // Get Bible state for navigation

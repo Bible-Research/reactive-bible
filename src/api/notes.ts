@@ -16,9 +16,9 @@ import {
   authenticatedFetch,
   publicFetch,
 } from '../utils/apiClient';
+import { clearNotesCache } from '../utils/cacheManager';
 import { API_BASE_URL } from '../config';
 import { ConflictError } from './errors';
-import { clearNotesCache } from '../utils/cacheManager';
 
 export const addTagNote = async (
   tagId: string,

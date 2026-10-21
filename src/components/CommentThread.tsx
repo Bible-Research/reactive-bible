@@ -215,16 +215,18 @@ const CommentThread = ({
   );
 
   useEffect(() => {
+    // Alias the ref objects so the cleanup bumps the shared
+    // counters — a superseded in-flight load must drop its
+    // result. Copying `dataVersion.current` (a snapshot)
+    // would defeat the guard.
     const dataVer = dataVersion;
     const loadSeq = loadingSeq;
     const inserts = pendingInserts.current;
     const deletes = pendingDeletes.current;
     load();
-    // Alias the ref objects so the cleanup bumps the shared
-    // counters — a superseded in-flight load must drop its
-    // result, and queued pending edits must be forgotten.
-    // Copying `dataVersion.current` (a snapshot) would defeat
-    // the guard.
+    // The ref objects (not their .current snapshots) are
+    // aliased above so the cleanup bumps the shared counters —
+    // a superseded in-flight load must drop its result.
     return () => {
       dataVer.current++;
       loadSeq.current++;

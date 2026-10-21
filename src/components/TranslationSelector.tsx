@@ -422,16 +422,15 @@ const TranslationSelector = () => {
         if (!filesetId) return null;
         for (const { value: iso } of LANGUAGES) {
           // One failed language response must not strand the
-          // seeding — continue to the next language tab.
-          const list = await getAvailableTranslations(iso).catch(
-            (error) => {
-              console.error(
-                `Error loading ${iso} translations:`,
-                error,
+          // seeding — a failed fetch counts as "not this
+          // language", keep scanning the other tabs.
+          const list = await getAvailableTranslations(iso)
+            .catch((error) => {
+              console.warn(
+                `Failed to load ${iso} translations:`, error
               );
-              return [];
-            },
-          );
+              return [] as Translation[];
+            });
           if (cancelled || userInteractedRef.current) return null;
           if (findTranslationByFilesetId(filesetId, list)) {
             return iso;

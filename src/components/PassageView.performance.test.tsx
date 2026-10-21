@@ -6,7 +6,7 @@ import { useBibleStore } from '../store';
 import {
   measureRenderTime,
   createLargeVerseData,
-} from '../__tests__/helpers/performance';
+} from '../__tests__/helpers/performanceUtils';
 
 // Mock API calls
 const mockGetVersesInChapter = vi.fn();

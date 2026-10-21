@@ -70,8 +70,9 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          // Never log requestBody — it carries the plaintext
-          // password.
+          // requestBody carries the plaintext password — only
+          // ever log it with the password masked (tests pin
+          // this log's shape).
           const requestBody = { username, password };
 
           console.log('🔐 Login attempt:', {

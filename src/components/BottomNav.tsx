@@ -3,13 +3,14 @@ import {
   Box,
   Footer,
   Title,
+  UnstyledButton,
   rem,
 } from "@mantine/core";
 import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore, selectActiveBookName } from "../store";
-import { getAdjacentChapters } from "../api/structure";
+import { getAdjacentChapters } from "../api";
 import { buildBiblePath } from "../utils/bibleUtils";
 
 interface BottomNavProps {
@@ -82,28 +83,23 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         >
           <IconArrowLeft size={rem(20)} />
         </ActionIcon>
-        <Title
-          order={4}
-          role="button"
-          tabIndex={0}
-          title="nav-current-passage"
-          onClick={() => setBibleSelectorOpened(true)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              setBibleSelectorOpened(true);
-            }
-          }}
-          sx={{
-            cursor: "pointer",
-            minWidth: "120px",
-            textAlign: "center",
-            "&:hover": {
-              textDecoration: "underline",
-            },
-          }}
-        >
-          {activeBookName} {activeChapter}
+        <Title order={4}>
+          <UnstyledButton
+            onClick={() => setBibleSelectorOpened(true)}
+            title="nav-current-passage"
+            sx={{
+              cursor: "pointer",
+              minWidth: "120px",
+              textAlign: "center",
+              font: "inherit",
+              color: "inherit",
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
+          >
+            {activeBookName} {activeChapter}
+          </UnstyledButton>
         </Title>
         <ActionIcon
           variant="transparent"

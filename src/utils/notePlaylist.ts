@@ -47,6 +47,11 @@ export const buildNotePlaylistItems = (
         `${firstVerse.chapter}:${startVerse}` +
         (startVerse !== endVerse ? `-${endVerse}` : '');
       return {
+        // Unique per block: Audio's navigation/highlight
+        // effects key on itemId, so a bare note.id would
+        // skip re-runs when playback moves between this
+        // note's chapter blocks. `scope` keeps the DOM and
+        // highlight identity at the note level.
         itemId: `${note.id}:${bookId}:${firstVerse.chapter}`,
         scope: note.id,
         bookId,

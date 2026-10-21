@@ -28,7 +28,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
-import { emptyNoteDraft } from "./noteDraft";
 import {
   buildBiblePath,
   toBookName,
@@ -49,6 +48,7 @@ import {
   collectSelectedVerseText,
   faviconUrl,
 } from "../utils/externalLinks";
+import { emptyNoteDraft } from "./noteDraft";
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
@@ -116,7 +116,7 @@ const VerseActionToolbar = () => {
 
   // The primary group is the first ref's book/chapter — share URLs
   // and external links are single-chapter formats.
-  const primary = useMemo((): PrimaryChapterRef | null => {
+  const primary = useMemo(() => {
     if (refs.length === 0) return null;
     const first = refs[0];
     return {
@@ -173,7 +173,11 @@ const VerseActionToolbar = () => {
     const verseText =
       noteVerseText ?? collectSelectedVerseText(refs, scope);
 
-    const shareText = buildShareText(verseText, passageRef, url);
+    const shareText = buildShareText(
+      verseText ?? '',
+      passageRef,
+      url
+    );
 
     if (navigator.share) {
       try {
@@ -194,10 +198,7 @@ const VerseActionToolbar = () => {
         }
       }
     } else {
-      const clipboardText = verseText
-        ? `${verseText}\n\n${passageRef}\n\n${url}`
-        : `${passageRef}\n\n${url}`;
-      if (await copyTextToClipboard(clipboardText)) {
+      if (await copyTextToClipboard(shareText)) {
         showNotification({
           title: "Link copied",
           message: `Link to ${passageRef} copied to clipboard`,
