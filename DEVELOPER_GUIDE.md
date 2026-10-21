@@ -2145,8 +2145,15 @@ Form for creating/editing notes.
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token. Clicking a complete token once
-previews its passage below the editor (the note is NOT linked to
-it); a second click reopens the picker to edit the reference.
+opens the passage in a floating popover anchored under the ref —
+a portal-mounted `ScripturePassagePopover` containing
+`ScripturePassage` (the note is NOT linked to it); a second
+click reopens the picker to edit the reference. The same popover
+serves note cards and comments (`RichTextView`/`linkifyScripture`
+anchors), driven by `useScriptureRefPreview` (parse + same-ref
+toggle). It tracks its anchor on scroll/resize, dismisses on an
+outside tap or `Escape` (capture-phase, so the enclosing modal
+stays open), and auto-closes if the token is deleted.
 
 Pasted clipboard text is normalized before ProseMirror parses it
 (`src/utils/clipboardSanitize.ts`, wired as `transformPastedText`
