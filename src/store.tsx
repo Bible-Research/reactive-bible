@@ -30,29 +30,10 @@ import {
   registerBibleStore,
 } from './stores/authStore';
 
-export interface Fileset {
-  id: string;
-  type: "text_plain" | "audio" | "audio_drama";
-  size: string;
-  codec: "mp3" | "opus" | null;
-  bitrate: string | null;
-}
-
-export interface Translation {
-  abbr: string;
-  name: string;
-  language: string;
-  language_iso: string;
-  filesets: Fileset[];
-  /**
-   * Normalized audio/text options supplied by newer backends
-   * (`by_testament` member maps). When present they take
-   * precedence over client-side grouping of `filesets` — see
-   * `src/utils/filesetGroups.ts`.
-   */
-  audio_options?: unknown[];
-  text_options?: unknown[];
-}
+// Canonical definitions live in `./types`; aliased so existing
+// `from '../store'` type imports keep working.
+export type Fileset = import('./types').Fileset;
+export type Translation = import('./types').Translation;
 
 export interface BibleState {
   /** USFM book code (e.g. "JHN") — canonical passage identity. */

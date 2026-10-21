@@ -535,13 +535,9 @@ export const adjustTimestampsForENGESV = (
   }));
 };
 
-export interface Fileset {
-  id: string;
-  type: string;
-  size: string;
-  codec: string | null;
-  bitrate: string | null;
-}
+// Canonical Fileset lives in src/types.ts — re-exported here
+// for backwards compatibility with existing import sites.
+export type { Fileset } from '../types';
 
 // NOTE: testament-aware audio/text resolution moved to
 // utils/filesetGroups.ts (groupFilesets, resolveAudioFileset,
