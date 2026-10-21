@@ -31,7 +31,6 @@ import {
   Note,
   Tag,
   CommentCounts,
-  PlaylistItem,
   NoteOrderIndexEntry,
 } from '../types';
 import TagSection from '../components/TagSection';
@@ -46,102 +45,19 @@ import {
 } from '../api';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
+import { buildBiblePath } from '../utils/bibleUtils';
+import { shareOrCopyLink } from '../utils/share';
+import { pageCount } from '../utils/pagination';
 import {
-  BOOK_NAME_TO_ORDER,
-  buildBiblePath,
-  toUsfmCode,
-} from '../utils/bibleUtils';
+  SortOrder,
+  SORT_ORDERS,
+  getApiOrdering,
+  sortNotes,
+} from '../utils/noteSorting';
+import { buildNotePlaylistItems } from '../utils/notePlaylist';
 import { verseDomId } from '../utils/verseRefs';
-import { copyTextToClipboard } from '../utils/clipboard';
 
-// Type definition for sort orders
-type SortOrder =
-  | 'custom_asc'
-  | 'custom_desc'
-  | 'created_desc'
-  | 'created_asc'
-  | 'verse_asc'
-  | 'verse_desc';
 
-// Client-side ordering used for display; mirrors the server's
-// `ordering` parameter so a cached page still renders correctly.
-const sortNotes = (notes: Note[], sortOrder: SortOrder): Note[] =>
-  [...notes].sort((a, b) => {
-    switch (sortOrder) {
-      case 'custom_asc': {
-        const aPos = a.tag_position ?? 0;
-        const bPos = b.tag_position ?? 0;
-        if (aPos !== bPos) return aPos - bPos;
-        return (
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-        );
-      }
-      case 'custom_desc': {
-        const aPos = a.tag_position ?? 0;
-        const bPos = b.tag_position ?? 0;
-        if (aPos !== bPos) return bPos - aPos;
-        return (
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
-        );
-      }
-      case 'created_desc':
-        return (
-          new Date(b.created_at).getTime() -
-          new Date(a.created_at).getTime()
-        );
-      case 'created_asc':
-        return (
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
-        );
-      case 'verse_asc': {
-        const aV = a.verses?.[0];
-        const bV = b.verses?.[0];
-        if (!aV) return 1;
-        if (!bV) return -1;
-        const aBook =
-          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
-        const bBook =
-          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
-        if (aBook !== bBook) return aBook - bBook;
-        if (aV.chapter !== bV.chapter)
-          return aV.chapter - bV.chapter;
-        return aV.verse - bV.verse;
-      }
-      case 'verse_desc': {
-        const aV = a.verses?.[0];
-        const bV = b.verses?.[0];
-        if (!aV) return 1;
-        if (!bV) return -1;
-        const aBook =
-          BOOK_NAME_TO_ORDER[aV.book.toLowerCase()] ?? 999;
-        const bBook =
-          BOOK_NAME_TO_ORDER[bV.book.toLowerCase()] ?? 999;
-        if (aBook !== bBook) return bBook - aBook;
-        if (aV.chapter !== bV.chapter)
-          return bV.chapter - aV.chapter;
-        return bV.verse - aV.verse;
-      }
-      default:
-        return 0;
-    }
-  });
-
-// Map frontend sort order to API ordering parameter
-// Moved outside component to prevent re-creation on every render
-const getApiOrdering = (sortOrder: SortOrder): string => {
-  const orderingMap: Record<SortOrder, string> = {
-    custom_asc: 'custom',
-    custom_desc: '-custom',
-    created_desc: '-created',
-    created_asc: 'created',
-    verse_asc: 'verse',
-    verse_desc: '-verse',
-  };
-  return orderingMap[sortOrder];
-};
 
 /** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
  *  notes. `k` is the canonical 1-based order ID. */
@@ -193,9 +109,6 @@ export default function TagNotesRoute() {
   const setLastSelectedTagId = useBibleStore(
     (state) => state.setLastSelectedTagId
   );
-  const lastSelectedTagId = useBibleStore(
-    (state) => state.lastSelectedTagId
-  );
   const notesCount = useBibleStore((state) => state.notesCount);
   const notesPage = useBibleStore((state) => state.notesPage);
   const notesPageSize = useBibleStore((state) => state.notesPageSize);
@@ -220,30 +133,19 @@ export default function TagNotesRoute() {
     (state) => state.headerVisible
   );
   
-  // Get sort order from URL, default to 'created_desc'
+  // Get sort order from URL, default to 'custom_asc'
   const urlSortOrder = searchParams.get('sort') as SortOrder | null;
-  const validSortOrders: SortOrder[] = [
-    'custom_asc',
-    'custom_desc',
-    'created_desc',
-    'created_asc',
-    'verse_asc',
-    'verse_desc',
-  ];
   const sortOrder: SortOrder =
-    urlSortOrder && validSortOrders.includes(urlSortOrder)
+    urlSortOrder && SORT_ORDERS.includes(urlSortOrder)
       ? urlSortOrder
       : 'custom_asc';
 
-  // Page to restore on the first load, captured during the first
-  // render — the mount effect writes lastSelectedTagId, so a
-  // getState() read later could no longer tell whether the
-  // stored page belongs to this tag.
+  // Page to restore on the first load. Seeded inside the mount
+  // effect below — reading the store during render is unsafe —
+  // and it must be captured before that effect writes
+  // lastSelectedTagId (which would make the same-tag check
+  // always true).
   const initialPageRef = useRef<number | null>(null);
-  if (initialPageRef.current === null) {
-    initialPageRef.current =
-      lastSelectedTagId === tagId && notesPage > 1 ? notesPage : 1;
-  }
   // The load effect re-runs on mount (StrictMode, auth
   // hydration); remember the last requested query so repeats
   // refetch the current page instead of resetting to page 1.
@@ -277,6 +179,20 @@ export default function TagNotesRoute() {
 
   // Set showNotes to true and save lastSelectedTagId when on notes route
   useEffect(() => {
+    if (tagId) {
+      // Capture the page to restore BEFORE overwriting
+      // lastSelectedTagId — after the write the same-tag
+      // check would always pass. This runs before the
+      // loader effect (declared below) consumes the ref.
+      if (initialPageRef.current === null) {
+        const stored = useBibleStore.getState();
+        initialPageRef.current =
+          stored.lastSelectedTagId === tagId &&
+          stored.notesPage > 1
+            ? stored.notesPage
+            : 1;
+      }
+    }
     setShowNotes(true);
     if (tagId) {
       setLastSelectedTagId(tagId);
@@ -640,7 +556,7 @@ export default function TagNotesRoute() {
       const current = useBibleStore.getState();
       const lastPage = Math.max(
         1,
-        Math.ceil(current.notesCount / current.notesPageSize)
+        pageCount(current.notesCount, current.notesPageSize)
       );
       // An emptied list would flash "No notes found" while the
       // backfill is in flight; show the page loader instead.
@@ -742,48 +658,31 @@ export default function TagNotesRoute() {
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
-    const title = `Notes: ${tag?.name || 'Tag'}`;
-    const text =
-      `Check out these ${notesCount} note(s) ` +
-      `tagged with "${tag?.name}"`;
-
-    // Try Web Share API first (mobile-friendly)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title,
-          text,
-          url,
-        });
-        showNotification({
+    await shareOrCopyLink(
+      {
+        title: `Notes: ${tag?.name || 'Tag'}`,
+        // notesCount is the tag total; notes.length is only
+        // the currently loaded page.
+        text:
+          `Check out these ${notesCount} note(s) ` +
+          `tagged with "${tag?.name}"`,
+        url: window.location.href,
+      },
+      {
+        shareSuccess: {
           title: 'Shared!',
           message: 'Link shared successfully',
-          color: 'green',
-        });
-      } catch (err) {
-        // User cancelled or error occurred
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Error sharing:', err);
-        }
-      }
-    } else {
-      // Fallback: Copy to clipboard (with an execCommand
-      // fallback for non-secure contexts)
-      if (await copyTextToClipboard(url)) {
-        showNotification({
+        },
+        copySuccess: {
           title: 'Link Copied!',
           message: 'Tag link copied to clipboard',
-          color: 'blue',
-        });
-      } else {
-        showNotification({
+        },
+        copyFailure: {
           title: 'Error',
           message: 'Failed to copy link',
-          color: 'red',
-        });
+        },
       }
-    }
+    );
   };
 
   // The URL is the source of truth for sorting: writing
@@ -896,50 +795,10 @@ export default function TagNotesRoute() {
   );
 
   // One item per book+chapter block: a note whose verses span
-  // several chapters used to be truncated to its first block —
-  // the later blocks were silently dropped from playback.
+  // several chapters emits one item per block — see
+  // buildNotePlaylistItems for the itemId/scope split.
   const playlistItems = useMemo(
-    (): PlaylistItem[] =>
-      playableNotes.flatMap((note, noteIndex) => {
-        const blocks = new Map<string, Note['verses']>();
-        for (const v of note.verses) {
-          const key = `${v.book}|${v.chapter}`;
-          const block = blocks.get(key);
-          if (block) {
-            block.push(v);
-          } else {
-            blocks.set(key, [v]);
-          }
-        }
-        return [...blocks.values()].map((block) => {
-          const firstVerse = block[0];
-          const bookId =
-            toUsfmCode(firstVerse.book) ?? firstVerse.book;
-          const verseNumbers = block.map((v) => v.verse);
-          const startVerse = Math.min(...verseNumbers);
-          const endVerse = Math.max(...verseNumbers);
-          const label =
-            `Note ${noteIndex + 1}/${playableNotes.length} ` +
-            `\u2013 ${firstVerse.book} ` +
-            `${firstVerse.chapter}:${startVerse}` +
-            (startVerse !== endVerse ? `-${endVerse}` : '');
-          return {
-            // Unique per block: Audio's navigation/highlight
-            // effects key on itemId, so a bare note.id would
-            // skip re-runs when playback moves between this
-            // note's chapter blocks. `scope` keeps the DOM and
-            // highlight identity at the note level.
-            itemId: `${note.id}:${bookId}:${firstVerse.chapter}`,
-            scope: note.id,
-            bookId,
-            chapter: firstVerse.chapter,
-            startVerse,
-            endVerse,
-            label,
-            verseNumbers,
-          };
-        });
-      }),
+    () => buildNotePlaylistItems(playableNotes),
     [playableNotes]
   );
 
@@ -1007,7 +866,7 @@ export default function TagNotesRoute() {
   );
 
   // Calculate total pages
-  const totalPages = Math.ceil(notesCount / notesPageSize);
+  const totalPages = pageCount(notesCount, notesPageSize);
 
   const pagination = totalPages > 1 ? (
     <Pagination

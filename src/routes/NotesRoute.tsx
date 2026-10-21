@@ -10,20 +10,24 @@ import {
 import { IconPlus, IconRefresh } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { shallow } from 'zustand/shallow';
+
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {
   const navigate = useNavigate();
   const hasNavigatedRef = useRef(false);
-  const lastSelectedTagId = useBibleStore(
-    (state) => state.lastSelectedTagId
+  const { lastSelectedTagId, getTags } = useBibleStore(
+    (state) => ({
+      lastSelectedTagId: state.lastSelectedTagId,
+      getTags: state.getTags,
+    }),
+    shallow
   );
-  const getTags = useBibleStore((state) => state.getTags);
-  // Read `token`, not `isAuthenticated`: the token rehydrates
-  // synchronously from localStorage, while `isAuthenticated` only
-  // flips once App's mount effect calls checkAuth — child effects
-  // run first, so a cold /notes load would see `false` and bounce
-  // logged-in users to /bible.
+  // Read `token` for the anonymous check — it is the value that
+  // decides whether a session exists at all. (`isAuthenticated`
+  // would work too now: the persisted merge derives it from the
+  // token, so both rehydrate together.)
   const token = useAuthStore((state) => state.token);
 
   const [status, setStatus] = useState<NotesRouteStatus>('loading');

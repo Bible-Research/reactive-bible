@@ -2,7 +2,11 @@
  * getPageNumbers is exported so its windowing rules can be
  * unit-tested as a pure function. */
 import { Group, Button, Text, ActionIcon } from '@mantine/core';
-import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import {
+  IconChevronLeft,
+  IconChevronRight,
+} from '@tabler/icons-react';
+import { pageNumberList } from '../utils/pagination';
 
 interface PaginationProps {
   currentPage: number;
@@ -13,52 +17,11 @@ interface PaginationProps {
 /**
  * Page window for the pagination bar: always the first and last
  * page plus `currentPage ± 1`, with 'ellipsis' markers filling
- * the gaps. Exported so the windowing rules can be tested as a
- * pure function.
+ * the gaps. The implementation lives in utils/pagination.ts;
+ * this alias keeps the existing component-level import (and its
+ * unit tests) working.
  */
-export const getPageNumbers = (
-  currentPage: number,
-  totalPages: number
-): (number | 'ellipsis')[] => {
-  const pages: (number | 'ellipsis')[] = [];
-
-  if (totalPages <= 5) {
-    // Show all pages if 5 or fewer
-    for (let i = 1; i <= totalPages; i++) {
-      pages.push(i);
-    }
-  } else {
-    // Always show first page
-    pages.push(1);
-
-    if (currentPage > 3) {
-      // Show ellipsis after first page
-      pages.push('ellipsis');
-    }
-
-    // Show previous, current, and next pages
-    const start = Math.max(2, currentPage - 1);
-    const end = Math.min(totalPages - 1, currentPage + 1);
-
-    for (let i = start; i <= end; i++) {
-      if (!pages.includes(i)) {
-        pages.push(i);
-      }
-    }
-
-    if (currentPage < totalPages - 2) {
-      // Show ellipsis before last page
-      pages.push('ellipsis');
-    }
-
-    // Always show last page
-    if (!pages.includes(totalPages)) {
-      pages.push(totalPages);
-    }
-  }
-
-  return pages;
-};
+export const getPageNumbers = pageNumberList;
 
 export default function Pagination({
   currentPage,
@@ -67,7 +30,7 @@ export default function Pagination({
 }: PaginationProps) {
   if (totalPages <= 1) return null;
 
-  const pageNumbers = getPageNumbers(currentPage, totalPages);
+  const pageNumbers = pageNumberList(currentPage, totalPages);
 
   return (
     <nav aria-label="Pagination">
@@ -85,7 +48,12 @@ export default function Pagination({
       {pageNumbers.map((page, index) => {
         if (page === 'ellipsis') {
           return (
-            <Text key={`ellipsis-${index}`} color="dimmed" px="xs">
+            <Text
+              key={`ellipsis-${index}`}
+              color="dimmed"
+              px="xs"
+              aria-hidden="true"
+            >
               ...
             </Text>
           );
@@ -98,7 +66,9 @@ export default function Pagination({
             size="sm"
             onClick={() => onPageChange(page)}
             aria-label={`Page ${page}`}
-            aria-current={page === currentPage ? 'page' : undefined}
+            aria-current={
+              page === currentPage ? 'page' : undefined
+            }
           >
             {page}
           </Button>

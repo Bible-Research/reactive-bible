@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import Pagination, { getPageNumbers } from '../Pagination';
+import Pagination from '../Pagination';
+import { pageNumberList as getPageNumbers } from
+  '../../utils/pagination';
 import { mockDomApis } from '../../__tests__/helpers';
 
 describe('getPageNumbers', () => {

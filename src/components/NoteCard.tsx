@@ -9,7 +9,6 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { showNotification } from "@mantine/notifications";
 import {
   IconMessageCircle,
   IconPlayerPlay,
@@ -29,7 +28,7 @@ import ScripturePassagePopover from "./ScripturePassagePopover";
 import useScriptureRefPreview from "../hooks/useScriptureRefPreview";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
-import { copyTextToClipboard } from "../utils/clipboard";
+import { shareOrCopyLink } from "../utils/share";
 import { visibleNoteVerses } from "../utils/noteVerses";
 
 interface NoteCardProps {
@@ -176,7 +175,6 @@ const NoteCard = ({
   const canShare = note.public;
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/notes/${note.id}`;
     const title = note.tag?.name
       ? `Note: ${note.tag.name}`
       : 'Shared note';
@@ -184,29 +182,22 @@ const NoteCard = ({
       ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-        console.error('Error sharing:', err);
+    await shareOrCopyLink(
+      {
+        title,
+        text,
+        url: `${window.location.origin}/notes/${note.id}`,
+      },
+      {
+        copySuccess: {
+          title: 'Link Copied!',
+          message: 'Note link copied to clipboard',
+        },
+        // A failed share sheet retries through the clipboard
+        // rather than silently dropping the share.
+        clipboardOnShareError: true,
       }
-    }
-
-    if (await copyTextToClipboard(url)) {
-      showNotification({
-        title: 'Link Copied!',
-        message: 'Note link copied to clipboard',
-        color: 'blue',
-      });
-    } else {
-      showNotification({
-        title: 'Error',
-        message: 'Failed to copy link',
-        color: 'red',
-      });
-    }
+    );
   };
 
   // commentCount is undefined on the detail route, which renders
