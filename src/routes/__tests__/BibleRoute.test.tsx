@@ -1,13 +1,24 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import BibleRoute from '../BibleRoute';
 import LegacyBibleRedirect from '../LegacyBibleRedirect';
 import { useBibleStore } from '../../store';
 
-// Mock the Passage component
+// Mock the Passage component; the render counter lets the
+// anti-loop test count render cycles without depending on a
+// debug console.log.
+const passageRenderCount = vi.hoisted(() => ({ count: 0 }));
 vi.mock('../../components/Passage', () => ({
-  default: () => <div data-testid="passage">Passage Component</div>,
+  default: () => {
+    passageRenderCount.count += 1;
+    return <div data-testid="passage">Passage Component</div>;
+  },
 }));
 
 // Mock the API
@@ -138,23 +149,43 @@ describe('BibleRoute', () => {
   });
 
   it('does not cause infinite loops when syncing', async () => {
-    const consoleSpy = vi.spyOn(console, 'log');
-
-    renderRoutes(['/bible/JHN.1']);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('passage')).toBeInTheDocument();
+    // The URL->store sync effect calls setShowNotes and
+    // setVersesFolded unconditionally, so spying on them counts
+    // sync runs directly. Combined with the Passage render
+    // counter this catches a sync<->navigate render storm
+    // without relying on a debug log string.
+    const store = useBibleStore.getState();
+    const setShowNotesSpy = vi.fn(store.setShowNotes);
+    const setVersesFoldedSpy = vi.fn(store.setVersesFolded);
+    useBibleStore.setState({
+      setShowNotes: setShowNotesSpy,
+      setVersesFolded: setVersesFoldedSpy,
     });
+    passageRenderCount.count = 0;
 
-    // Count how many times sync happened
-    const syncLogs = consoleSpy.mock.calls.filter(
-      (call) => call[0]?.includes('Syncing URL to store')
-    );
+    try {
+      renderRoutes(['/bible/JHN.1']);
 
-    // Should only sync once or twice, not hundreds of times
-    expect(syncLogs.length).toBeLessThan(5);
+      await waitFor(() => {
+        expect(screen.getByTestId('passage')).toBeInTheDocument();
+      });
 
-    consoleSpy.mockRestore();
+      // The URL already matches the store: the sync settles
+      // after a few effect runs instead of looping.
+      expect(setShowNotesSpy.mock.calls.length).toBeLessThan(5);
+      expect(setVersesFoldedSpy.mock.calls.length).toBeLessThan(5);
+      expect(passageRenderCount.count).toBeLessThan(10);
+    } finally {
+      // The tree is still mounted here — restoring the store
+      // setters triggers subscribers, so wrap in act() to keep
+      // stderr clean.
+      act(() => {
+        useBibleStore.setState({
+          setShowNotes: store.setShowNotes,
+          setVersesFolded: store.setVersesFolded,
+        });
+      });
+    }
   });
 
   it('redirects lowercase refs to canonical form', async () => {
@@ -187,6 +218,47 @@ describe('BibleRoute', () => {
       const state = useBibleStore.getState();
       expect(state.activeBookId).toBe('JHN');
       expect(state.activeChapter).toBe(1);
+    });
+  });
+
+  it('redirects out-of-range chapters to /bible', async () => {
+    // John has 21 chapters — /bible/JHN.999 must not render a
+    // blank page; it falls back like an unparseable ref.
+    renderRoutes(['/bible/JHN.999']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('passage')).toBeInTheDocument();
+      const state = useBibleStore.getState();
+      expect(state.activeBookId).toBe('JHN');
+      expect(state.activeChapter).toBe(1);
+    });
+  });
+
+  it('redirects refs whose verses are all out of range', async () => {
+    // John 3 has 36 verses.
+    renderRoutes(['/bible/JHN.3.999']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('passage')).toBeInTheDocument();
+      const state = useBibleStore.getState();
+      expect(state.activeBookId).toBe('JHN');
+      expect(state.activeChapter).toBe(1);
+    });
+  });
+
+  it('dedupes and clamps verses in non-canonical refs', async () => {
+    renderRoutes(['/bible/JHN.3.16,16,36-40']);
+
+    await waitFor(() => {
+      const state = useBibleStore.getState();
+      expect(state.verseSelection).toEqual({
+        scope: 'bible',
+        refs: [16, 36].map((verse) => ({
+          bookId: 'JHN',
+          chapter: 3,
+          verse,
+        })),
+      });
     });
   });
 });
@@ -247,6 +319,18 @@ describe('LegacyBibleRedirect', () => {
     await waitFor(() => {
       expect(screen.getByTestId('passage')).toBeInTheDocument();
       expect(useBibleStore.getState().activeBookId).toBe('JHN');
+    });
+  });
+
+  it('redirects out-of-range legacy chapters to /bible', async () => {
+    // Malachi has 4 chapters.
+    renderRoutes(['/bible/Malachi/5']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('passage')).toBeInTheDocument();
+      const state = useBibleStore.getState();
+      expect(state.activeBookId).toBe('JHN');
+      expect(state.activeChapter).toBe(1);
     });
   });
 });

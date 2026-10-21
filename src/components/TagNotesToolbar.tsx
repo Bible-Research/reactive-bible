@@ -194,7 +194,9 @@ const TagNotesToolbar = ({
               variant="subtle"
               color={versesFolded ? "blue" : "gray"}
               size="lg"
-              aria-label="toggle-verse-fold"
+              aria-label={
+                versesFolded ? 'Unfold verses' : 'Fold verses'
+              }
             >
               {versesFolded
                 ? <IconArrowsMaximize size={20} />
@@ -207,7 +209,7 @@ const TagNotesToolbar = ({
               variant="subtle"
               color="gray"
               size="lg"
-              aria-label="refresh-notes"
+              aria-label="Refresh notes"
             >
               <IconRefresh size={20} />
             </ActionIcon>
@@ -218,7 +220,7 @@ const TagNotesToolbar = ({
               variant="subtle"
               color="blue"
               size="lg"
-              aria-label="share-tag-link"
+              aria-label="Share tag link"
             >
               <IconShare size={20} />
             </ActionIcon>

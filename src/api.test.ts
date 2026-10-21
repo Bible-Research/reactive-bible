@@ -131,7 +131,6 @@ describe('API Functions', () => {
 
     it('getVersesFromApi should throw RateLimitError when a ' +
       'non-OK error body mentions rate limiting', async () => {
-      localStorage.clear();
       server.use(
         http.get(`${API_URL}/bible`, () => {
           return HttpResponse.json(
@@ -149,7 +148,6 @@ describe('API Functions', () => {
     it('getVersesFromApi should throw RateLimitError when a ' +
       'response carries a rate_limited error_code',
       async () => {
-      localStorage.clear();
       server.use(
         http.get(`${API_URL}/bible`, () => {
           return HttpResponse.json(
@@ -171,7 +169,6 @@ describe('API Functions', () => {
     it('getVersesFromApi should throw ProviderError when a ' +
       'response carries a provider_error error_code',
       async () => {
-      localStorage.clear();
       server.use(
         http.get(`${API_URL}/bible`, () => {
           return HttpResponse.json(
@@ -195,7 +192,6 @@ describe('API Functions', () => {
     it('getVersesFromApi should throw ProviderError when the ' +
       'API wraps a provider failure in a 200 response',
       async () => {
-      localStorage.clear();
       server.use(
         http.get(`${API_URL}/bible`, () => {
           return HttpResponse.json({
@@ -246,8 +242,34 @@ describe('API Functions', () => {
 
     it('addTagNote should make a POST request with the ' +
       'correct body', async () => {
+      let capturedBody: {
+        tag?: string;
+        note_text?: string;
+        verse_references?: unknown[];
+      } | undefined;
+      server.use(
+        http.post(`${API_URL}/notes/`, async ({ request }) => {
+          capturedBody = (await request.json()) as {
+            tag?: string;
+            note_text?: string;
+            verse_references?: unknown[];
+          };
+          return HttpResponse.json({
+            id: 'note-1',
+            note_text: capturedBody.note_text,
+            verses: [],
+          });
+        })
+      );
+
       const verseRefs = [{ book: 'John', chapter: 3, verse: 16 }];
       const result = await api.addTagNote('tag1', 'My note', verseRefs);
+
+      expect(capturedBody).toEqual({
+        tag: 'tag1',
+        note_text: 'My note',
+        verse_references: verseRefs,
+      });
       expect(result.id).toBe('note-1');
       expect(result.note_text).toBe('My note');
     });
@@ -264,7 +286,6 @@ describe('API Functions', () => {
           return;
         })
       );
-      localStorage.clear();
 
       await expect(
         api.getBibleAudioUrl('GEN', 1, 'ERRORTEST')
@@ -274,9 +295,169 @@ describe('API Functions', () => {
     });
 
     it('should make a DELETE request with note id', async () => {
+      let capturedId: string | undefined;
+      server.use(
+        http.delete(`${API_URL}/notes/:id/`, ({ params }) => {
+          capturedId = params.id as string;
+          return HttpResponse.text('Deleted');
+        })
+      );
+
       const removeNote = await api.deleteNote('abc-123');
+
+      expect(capturedId).toBe('abc-123');
       expect(removeNote).toBe('Deleted');
     });
+  });
+
+  describe('error mapping', () => {
+    it('getVersesFromApi throws BookNotInFilesetError on a ' +
+      'non-OK book_not_in_fileset body', async () => {
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json(
+            {
+              error: 'Book not available in this fileset',
+              error_code: 'book_not_in_fileset',
+            },
+            { status: 404 }
+          )
+        )
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'NOJHN')
+      ).rejects.toBeInstanceOf(api.BookNotInFilesetError);
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'NOJHN')
+      ).rejects.toThrow('Book not available in this fileset');
+    });
+
+    it('getVersesFromApi throws BookNotInFilesetError when a ' +
+      '200 response wraps the error_code', async () => {
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json({
+            verses: [],
+            error: 'Book not covered by this fileset',
+            error_code: 'book_not_in_fileset',
+          })
+        )
+      );
+
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'NOJHN')
+      ).rejects.toBeInstanceOf(api.BookNotInFilesetError);
+    });
+
+    it('getBibleAudioUrl throws BookNotInFilesetError on a ' +
+      'non-OK book_not_in_fileset body', async () => {
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json(
+            {
+              error: 'Audio not available for this book',
+              error_code: 'book_not_in_fileset',
+            },
+            { status: 404 }
+          )
+        )
+      );
+
+      await expect(
+        api.getBibleAudioUrl('JHN', 3, 'NOAUDDA')
+      ).rejects.toBeInstanceOf(api.BookNotInFilesetError);
+      await expect(
+        api.getBibleAudioUrl('JHN', 3, 'NOAUDDA')
+      ).rejects.toThrow('Audio not available for this book');
+    });
+
+    it('getBibleAudioUrl throws BookNotInFilesetError when a ' +
+      '200 response wraps the error_code', async () => {
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json({
+            error: 'Book not covered by this fileset',
+            error_code: 'book_not_in_fileset',
+          })
+        )
+      );
+
+      await expect(
+        api.getBibleAudioUrl('JHN', 3, 'NOAUDDA')
+      ).rejects.toBeInstanceOf(api.BookNotInFilesetError);
+    });
+
+    it('getBibleAudioUrl throws BookNotInFilesetError when a ' +
+      '200 response has no audio_url', async () => {
+      // Older backends answer 200 with empty verses/a message for
+      // audio the fileset does not carry — callers walk the
+      // alternates chain on BookNotInFilesetError, so the
+      // mapping must not degrade into ProviderError/Error.
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json({ duration_seconds: 0 })
+        )
+      );
+
+      await expect(
+        api.getBibleAudioUrl('JHN', 3, 'NOAUDDA')
+      ).rejects.toBeInstanceOf(api.BookNotInFilesetError);
+      await expect(
+        api.getBibleAudioUrl('JHN', 3, 'NOAUDDA')
+      ).rejects.toThrow('No audio URL in API response');
+    });
+
+    it('reorderNotes throws ConflictError on a 409 response',
+      async () => {
+        server.use(
+          http.post(`${API_URL}/notes/reorder/`, () =>
+            HttpResponse.json(
+              { message: 'Positions changed by another client' },
+              { status: 409 }
+            )
+          )
+        );
+
+        await expect(
+          api.reorderNotes('tag1', [
+            { note_id: 'n1', position: 1 },
+            { note_id: 'n2', position: 2 },
+          ])
+        ).rejects.toBeInstanceOf(api.ConflictError);
+        await expect(
+          api.reorderNotes('tag1', [
+            { note_id: 'n1', position: 1 },
+          ])
+        ).rejects.toThrow('Positions changed by another client');
+      });
+
+    it('moveNote throws ConflictError on a 409 response',
+      async () => {
+        server.use(
+          http.post(`${API_URL}/notes/move/`, () =>
+            HttpResponse.json(
+              { message: 'Positions changed by another client' },
+              { status: 409 }
+            )
+          )
+        );
+
+        await expect(
+          api.moveNote('tag1', 'n1', 'n2', 'after')
+        ).rejects.toBeInstanceOf(api.ConflictError);
+      });
+
+    it('moveNote resolves with the server-assigned position',
+      async () => {
+        const result = await api.moveNote(
+          'tag1', 'n1', 'n2', 'after'
+        );
+
+        expect(result.note_id).toBe('n1');
+        expect(result.tag_position).toBe(1);
+        expect(result.rebalanced).toBe(false);
+      });
   });
 
   describe('fetchCommentCounts', () => {
@@ -315,10 +496,8 @@ describe('API Functions', () => {
       });
       expect(result).toEqual({ 'note-x': 5 });
       expect(callCount).toBe(1);
-      if (!capturedUrl) {
-        throw new Error('expected the request to be captured');
-      }
-      const url = new URL(capturedUrl);
+      expect(capturedUrl).toBeDefined();
+      const url = new URL(capturedUrl as string);
       expect(url.searchParams.get('tag_id')).toBe('tag-1');
       expect(url.searchParams.has('note_ids')).toBe(false);
     });
@@ -331,12 +510,10 @@ describe('API Functions', () => {
         name: 'King James Version',
         language: 'English',
         language_iso: 'eng',
-        filesets: [
-          {
-            id: 'ENGKJV', type: 'text_plain', size: 'NT',
-            codec: null, bitrate: null,
-          },
-        ],
+        filesets: [{
+          id: 'ENGKJV', type: 'text_plain', size: 'NT',
+          codec: null, bitrate: null,
+        }],
       },
     ];
 
@@ -347,12 +524,10 @@ describe('API Functions', () => {
         name: 'New International Version',
         language: 'English',
         language_iso: 'eng',
-        filesets: [
-          {
-            id: 'ENGNIV', type: 'text_plain', size: 'C',
-            codec: null, bitrate: null,
-          },
-        ],
+        filesets: [{
+          id: 'ENGNIV', type: 'text_plain', size: 'C',
+          codec: null, bitrate: null,
+        }],
       },
     ];
 
@@ -412,6 +587,52 @@ describe('API Functions', () => {
             error: 'Bible provider error (HTTP 503)',
             error_code: 'provider_error',
           })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.ProviderError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+
+    it('throws on a non-OK response and does not cache it',
+      async () => {
+        vi.spyOn(cacheManager, 'getCachedTranslations')
+          .mockReturnValue(null);
+        vi.spyOn(console, 'error').mockImplementation(
+          () => undefined
+        );
+        server.use(
+          http.get(
+            `${API_URL}/bible/translations/`,
+            () => HttpResponse.json(
+              { detail: 'down' }, { status: 503 }
+            )
+          )
+        );
+
+        await expect(
+          api.getAvailableTranslations('eng', true)
+        ).rejects.toThrow(api.ProviderError);
+        // A failure must never be written to the no-TTL cache as
+        // an empty list.
+        expect(cacheManager.cacheTranslations)
+          .not.toHaveBeenCalled();
+      });
+
+    it('throws instead of caching an error body with no ' +
+      'results array', async () => {
+      vi.spyOn(cacheManager, 'getCachedTranslations')
+        .mockReturnValue(null);
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({ error: 'provider exploded' })
         )
       );
 
@@ -502,6 +723,9 @@ describe('API Functions', () => {
     });
   });
 
+  // `searchBible` was removed as a dead export (no caller) —
+  // searchBibleGrouped below carries the same error-mapping
+  // coverage.
   describe('searchBibleGrouped', () => {
     it('throws ProviderError when a 200 body carries a ' +
       '`message` and no groups', async () => {
@@ -512,6 +736,22 @@ describe('API Functions', () => {
             message: 'Search provider unavailable',
           });
         })
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.ProviderError);
+    });
+
+    it('searchBibleGrouped throws on an error body instead of ' +
+      'returning empty groups', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json({
+            error: 'provider failed',
+            error_code: 'provider_error',
+          })
+        )
       );
 
       await expect(
@@ -534,6 +774,29 @@ describe('API Functions', () => {
       await expect(
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.RateLimitError);
+    });
+  });
+
+  describe('notes mutation cache invalidation', () => {
+    it('addTagNote clears the tag cache on create', async () => {
+      const clearSpy = vi.spyOn(cacheManager, 'clearNotesCache');
+
+      await api.addTagNote('tag-9', 'hello', []);
+
+      expect(clearSpy).toHaveBeenCalledWith('tag-9');
+    });
+
+    it('editNote clears all notes cache on update', async () => {
+      const clearSpy = vi.spyOn(cacheManager, 'clearNotesCache');
+      server.use(
+        http.patch(`${API_URL}/notes/:id`, () =>
+          HttpResponse.json({ id: 'note-1' })
+        )
+      );
+
+      await api.editNote('note-1', 'tag-9', 'hello');
+
+      expect(clearSpy).toHaveBeenCalledWith();
     });
   });
 

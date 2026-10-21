@@ -33,7 +33,9 @@ describe('Passage Component Performance Tests', () => {
     });
   });
 
-  describe('Render Performance', () => {
+  // Wall-clock thresholds and tautological render counts are
+  // environment-dependent — they only run under `PERF=1 npm test`.
+  describe.skipIf(!process.env.PERF)('Render Performance', () => {
     it('should render quickly with minimal overhead', () => {
       const renderFn = () => {
         render(
@@ -47,10 +49,6 @@ describe('Passage Component Performance Tests', () => {
 
       // Should render in less than 10ms on average
       expect(avgTime).toBeLessThan(10);
-
-      console.log(
-        `Passage component avg render time: ${avgTime.toFixed(2)}ms`
-      );
     });
 
     it('should handle view switching efficiently', () => {
@@ -78,14 +76,12 @@ describe('Passage Component Performance Tests', () => {
 
       // 20 re-renders should complete quickly
       expect(duration).toBeLessThan(200);
-
-      console.log(
-        `20 re-renders completed in ${duration.toFixed(2)}ms`
-      );
     });
   });
 
-  describe('State Management Performance', () => {
+  describe.skipIf(!process.env.PERF)(
+    'State Management Performance',
+    () => {
     it('should handle rapid store updates efficiently', () => {
       render(
         <MantineProvider>
@@ -108,10 +104,6 @@ describe('Passage Component Performance Tests', () => {
 
       // Should handle 100 state updates quickly
       expect(duration).toBeLessThan(100);
-
-      console.log(
-        `100 store updates completed in ${duration.toFixed(2)}ms`
-      );
     });
 
     it('should handle handleViewInBible efficiently', () => {
@@ -148,14 +140,10 @@ describe('Passage Component Performance Tests', () => {
 
       // Should complete quickly
       expect(duration).toBeLessThan(100);
-
-      console.log(
-        `${iterations} verse navigations in ${duration.toFixed(2)}ms`
-      );
     });
   });
 
-  describe('Memory Efficiency', () => {
+  describe.skipIf(!process.env.PERF)('Memory Efficiency', () => {
     it('should not leak memory with repeated renders', () => {
       const iterations = 100;
       const containers: HTMLElement[] = [];

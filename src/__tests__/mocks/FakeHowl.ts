@@ -1,136 +1,164 @@
-import { vi } from 'vitest';
-
-export type HowlHandler = (...args: unknown[]) => void;
+import type { HowlOptions } from 'howler';
 
 /**
- * Shared fake `Howl` for tests — one faithful implementation
- * instead of five divergent per-file mocks (test audit §L).
+ * Shared FakeHowl — a test double for `Howl` from 'howler' that
+ * models real Howler semantics closely enough to replace the
+ * five divergent per-suite mock classes.
  *
- * Faithful behaviors the suites rely on:
- * - `instances[]` registry — tests reach the created Howl via
- *   `FakeHowl.instances[n]` / `FakeHowl.latest()`.
- * - Born `'loading'`: construction schedules a microtask that
- *   flips `state()` to `'loaded'` and emits 'load' — like a real
- *   async load — so the "adopt a still-loading preloaded Howl"
- *   path is representable. All handlers register synchronously
- *   before the microtask runs, so nothing races.
- * - Constructor `on*` options (`onload`, `onplay`, `onend`,
- *   `onloaderror`, `onplayerror`, `onstop`, `onseek`) register
- *   as event handlers, alongside `on`/`once`/`off`/`emit`.
- * - `seek()` returns the Howl itself while `'loading'` (matching
- *   Howler — see `getPlayPosition`); once loaded, `seek(v)`
- *   stores the position and `seek()` reads it back, so
- *   verse-jump assertions can check `_pos` directly.
- * - `play()` flips `playing()` synchronously like Howler's
- *   setParams, but emits 'play' asynchronously; `unload()`
- *   while a play is still pending surfaces 'playerror' —
- *   matching the browser's AbortError teardown.
- * - `unload()` on a playing sound emits 'stop' first, like
- *   Howler's internal stop.
- * - `_sounds[0]._node` exposes a real <audio> element (when the
- *   DOM provides `HTMLAudioElement`), so `getHtml5AudioNode`
- *   works and the `timeupdate` advance path is testable.
- * - Every public method is also a `vi.fn()`, so tests may use
- *   `toHaveBeenCalledWith` without giving up real state.
+ * Faithful bits:
+ * - Lifecycle state machine: `preload !== false` starts in
+ *   `'loading'`; `load()` or `emit('load')` transitions to
+ *   `'loaded'`; `unload()` emits `'stop'`, then frees `_sounds`
+ *   and lands in `'unloaded'`.
+ * - `play()` is asynchronous like real Howler: it flips
+ *   `playing()` synchronously but emits `'play'` on a microtask;
+ *   `unload()` while the play is still pending emits
+ *   `'playerror'` (mirrors the browser's AbortError).
+ * - `seek()` returns the Howl itself (not a number) while the
+ *   sound is not `'loaded'` — the same quirk `audioUtils`
+ *   `getPlayPosition` guards against.
+ * - `_sounds = [{ _node }]` exposes an `HTMLAudioElement` stub so
+ *   `getHtml5AudioNode` returns a node and the `timeupdate`
+ *   fallback path is testable.
+ * - `on`/`once`/`off` follow Howler's handler-registry semantics
+ *   (`off()` clears all, `off(evt)` clears one event,
+ *   `off(evt, fn)` filters a single handler). `once` handlers
+ *   auto-remove after firing.
+ * - `emit(event, ...args)` is a TEST-ONLY helper (not part of
+ *   the Howl API) that fires the registered handlers. It also
+ *   applies the state transitions the real engine would perform
+ *   alongside the event: `'load'` → `'loaded'`, `'end'` →
+ *   `playing() === false` unless looping. `'loaderror'` fires
+ *   the error handlers without changing state.
  *
- * Usage in a test file:
- *   vi.mock('howler', () => ({ Howl: FakeHowl }));
- *   beforeEach(() => FakeHowl.reset());
+ * Usage:
+ *
+ *   import { FakeHowl } from '../__tests__/mocks/FakeHowl';
+ *   // adjust the relative path to this file as needed
+ *
+ *   vi.mock('howler', async () => ({
+ *     Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
+ *   }));
+ *
+ *   // or, if hoisting forbids an async factory:
+ *   vi.mock('howler', () => ({ Howl: FakeHowl })); // only when
+ *   // FakeHowl is itself imported via vi.hoisted
+ *
+ *   beforeEach(() => {
+ *     FakeHowl.reset(); // clears FakeHowl.instances
+ *   });
+ *
+ *   const howl = FakeHowl.instances[0];
+ *   howl.emit('load');       // simulate the file finishing load
+ *   howl.emit('end', 0);     // simulate natural playback end
+ *   howl.emit('loaderror', 0, new Error('boom'));
  */
+
+type Handler = (...args: unknown[]) => void;
+type HowlState = 'unloaded' | 'loading' | 'loaded';
+
+interface FakeSound {
+  _node: HTMLAudioElement | null;
+}
+
+/**
+ * Builds a real `HTMLAudioElement` when a DOM is available
+ * (happy-dom provides one) so `node instanceof HTMLAudioElement`
+ * checks in `audioUtils.getHtml5AudioNode` pass; falls back to a
+ * bare stub otherwise.
+ */
+const createAudioNode = (): HTMLAudioElement | null => {
+  if (
+    typeof document !== 'undefined' &&
+    typeof document.createElement === 'function'
+  ) {
+    return document.createElement('audio');
+  }
+  return null;
+};
+
+const OPTION_EVENT_PREFIX = 'on';
+
 export class FakeHowl {
+  /** Every FakeHowl ever constructed, in order. */
   static instances: FakeHowl[] = [];
 
-  src: string;
-  _state: 'unloaded' | 'loading' | 'loaded' = 'loading';
-  _playing = false;
-  _pendingPlay = false;
-  _pos = 0;
-  _loop = false;
-  _volume = 1;
-  _handlers: Record<string, HowlHandler[]> = {};
-  _sounds?: { _node?: HTMLAudioElement }[];
-
-  constructor(opts: Record<string, unknown> = {}) {
-    const src = opts.src;
-    this.src = Array.isArray(src)
-      ? String(src[0])
-      : String(src ?? '');
-    const map: Record<string, string> = {
-      onplay: 'play',
-      onpause: 'pause',
-      onend: 'end',
-      onload: 'load',
-      onloaderror: 'loaderror',
-      onplayerror: 'playerror',
-      onstop: 'stop',
-      onseek: 'seek',
-    };
-    Object.entries(map).forEach(([optKey, evt]) => {
-      const fn = opts[optKey] as HowlHandler | undefined;
-      if (fn) this._handlers[evt] = [fn];
-    });
-    // html5-backed Howls expose the pooled <audio> node; a DOM
-    // stub keeps `getHtml5AudioNode` on the same path as prod.
-    if (typeof HTMLAudioElement !== 'undefined') {
-      this._sounds = [{ _node: document.createElement('audio') }];
-    }
-    FakeHowl.instances.push(this);
-    // Real Howls load asynchronously — flip to 'loaded' on a
-    // microtask (after synchronous handler registration).
-    void Promise.resolve().then(() => {
-      if (this._state === 'loading') {
-        this._state = 'loaded';
-        this.emit('load', 0);
-      }
-    });
-  }
-
-  /** Clear the registry — call from beforeEach. */
+  /** Clears the instances registry — call in `beforeEach`. */
   static reset(): void {
     FakeHowl.instances = [];
   }
 
-  /** The most recently constructed instance, if any. */
-  static latest(): FakeHowl | undefined {
-    return FakeHowl.instances[FakeHowl.instances.length - 1];
+  readonly src: string[];
+  readonly html5: boolean;
+  readonly format?: string | string[];
+  readonly pool: number;
+
+  _state: HowlState;
+  _playing = false;
+  _pos = 0;
+  _duration: number;
+  _loop: boolean;
+  _muted: boolean;
+  _volume: number;
+  _rate: number;
+  _sounds: FakeSound[];
+  _pendingPlay = false;
+
+  private _handlers: Record<string, Handler[]> = {};
+
+  constructor(options: HowlOptions) {
+    const src = options.src ?? [];
+    this.src = (Array.isArray(src) ? src : [src]).map(String);
+    this.html5 = options.html5 ?? false;
+    this.format = options.format;
+    this.pool = options.pool ?? 1;
+    this._loop = options.loop ?? false;
+    this._muted = options.mute ?? false;
+    this._volume = options.volume ?? 1;
+    this._rate = options.rate ?? 1;
+    // `duration` is not a real Howl option (Howler reads it from
+    // the decoded file) but tests may inject one.
+    this._duration =
+      (options as { duration?: number }).duration ?? 0;
+    this._state = options.preload === false ? 'unloaded' : 'loading';
+    this._sounds =
+      this._state === 'unloaded'
+        ? []
+        : [{ _node: createAudioNode() }];
+
+    // Howler registers `onload`, `onplay`, `onend`, `onloaderror`,
+    // `onplayerror`, ... option callbacks as event handlers.
+    for (const [key, value] of Object.entries(options)) {
+      if (
+        key.startsWith(OPTION_EVENT_PREFIX) &&
+        key.length > OPTION_EVENT_PREFIX.length &&
+        typeof value === 'function'
+      ) {
+        this.on(key.slice(OPTION_EVENT_PREFIX.length),
+          value as Handler);
+      }
+    }
+
+    FakeHowl.instances.push(this);
   }
 
-  on = vi.fn((evt: string, fn: HowlHandler): FakeHowl => {
-    (this._handlers[evt] ??= []).push(fn);
-    return this;
-  });
-
-  once = vi.fn((evt: string, fn: HowlHandler): FakeHowl => {
-    const wrapped: HowlHandler = (...a) => {
-      this.off(evt, wrapped);
-      fn(...a);
-    };
-    return this.on(evt, wrapped);
-  });
-
-  off = vi.fn((evt?: string, fn?: HowlHandler): FakeHowl => {
-    if (!evt) {
-      this._handlers = {};
-      return this;
-    }
-    if (!fn) {
-      delete this._handlers[evt];
-      return this;
-    }
-    this._handlers[evt] = (this._handlers[evt] ?? []).filter(
-      (h) => h !== fn,
-    );
-    return this;
-  });
-
-  emit(evt: string, ...args: unknown[]): void {
-    [...(this._handlers[evt] ?? [])].forEach((h) => h(...args));
+  state(): HowlState {
+    return this._state;
   }
 
-  play = vi.fn((): number => {
+  playing(): boolean {
+    return this._playing;
+  }
+
+  /**
+   * Starts playback. Returns a sound id synchronously (like
+   * Howler), marks `playing()` immediately, and emits `'play'`
+   * on a microtask — matching the real HTMLAudioElement
+   * `play()` promise resolution.
+   */
+  play(): number {
     if (this._state === 'unloaded') return 0;
-    // playing() flips synchronously like Howler's setParams;
-    // 'play' fires when the node's promise resolves.
+    const id = 1;
     this._playing = true;
     this._pendingPlay = true;
     void Promise.resolve().then(() => {
@@ -138,72 +166,154 @@ export class FakeHowl {
         return;
       }
       this._pendingPlay = false;
-      this.emit('play', 0);
+      this.emit('play', id);
     });
-    return 0;
-  });
+    return id;
+  }
 
-  pause = vi.fn((): FakeHowl => {
+  pause(): this {
     this._playing = false;
+    this._pendingPlay = false;
     this.emit('pause', 0);
     return this;
-  });
+  }
 
-  stop = vi.fn((): FakeHowl => {
+  stop(): this {
     this._playing = false;
+    this._pendingPlay = false;
+    this._pos = 0;
     this.emit('stop', 0);
     return this;
-  });
+  }
 
-  unload = vi.fn((): FakeHowl => {
+  /**
+   * Faithful teardown: emits `'stop'` (Howler stops each sound
+   * before releasing it), then frees `_sounds` and marks the
+   * howl `'unloaded'`. A still-pending `play()` surfaces a
+   * `'playerror'` first, mirroring the browser's AbortError.
+   */
+  unload(): this {
     if (this._pendingPlay) {
       this._pendingPlay = false;
-      // Teardown aborts the in-flight node play() — the browser
-      // surfaces this as a playerror (AbortError).
       this.emit('playerror', 0, new Error('play interrupted'));
     }
-    // Howler stops the sound on unload.
-    if (this._playing) this.emit('stop', 0);
-    this._state = 'unloaded';
     this._playing = false;
+    this.emit('stop', 0);
+    this._state = 'unloaded';
+    this._sounds = [];
     return this;
-  });
+  }
 
-  state = vi.fn((): 'unloaded' | 'loading' | 'loaded' => {
-    return this._state;
-  });
-
-  playing = vi.fn((): boolean => this._playing);
-
-  loop = vi.fn((v?: boolean): boolean | FakeHowl => {
-    if (v === undefined) return this._loop;
-    this._loop = v;
+  /** Marks the sound loaded and emits `'load'`. */
+  load(): this {
+    this.finishLoad();
     return this;
-  });
+  }
 
-  seek = vi.fn((v?: number): number | FakeHowl => {
-    // While loading, Howler's seek() returns the Howl — not a
-    // number — so position reads are untrustworthy.
-    if (v === undefined) {
-      return this._state === 'loading' ? this : this._pos;
+  mute(muted?: boolean): boolean | this {
+    if (muted === undefined) return this._muted;
+    this._muted = muted;
+    this.emit('mute', 0);
+    return this;
+  }
+
+  volume(volume?: number): number | this {
+    if (volume === undefined) return this._volume;
+    this._volume = volume;
+    this.emit('volume', 0);
+    return this;
+  }
+
+  rate(rate?: number): number | this {
+    if (rate === undefined) return this._rate;
+    this._rate = rate;
+    this.emit('rate', 0);
+    return this;
+  }
+
+  loop(loop?: boolean): boolean | this {
+    if (loop === undefined) return this._loop;
+    this._loop = loop;
+    return this;
+  }
+
+  /**
+   * Howler quirk: while the sound is not `'loaded'`, the getter
+   * returns the Howl itself instead of a number.
+   */
+  seek(): number | this;
+  seek(position: number): this;
+  seek(position?: number): number | this {
+    if (position === undefined) {
+      return this._state === 'loaded' ? this._pos : this;
     }
-    if (this._state === 'loading') return this;
-    this._pos = v;
+    this._pos = position;
     return this;
-  });
+  }
 
-  duration = vi.fn((): number => 300);
+  duration(): number {
+    return this._duration;
+  }
 
-  volume = vi.fn((v?: number): number | FakeHowl => {
-    if (v === undefined) return this._volume;
-    this._volume = v;
+  on(event: string, fn: Handler): this {
+    (this._handlers[event] ??= []).push(fn);
     return this;
-  });
+  }
 
-  rate = vi.fn((v?: number): number | FakeHowl => {
-    if (v === undefined) return 1;
+  once(event: string, fn: Handler): this {
+    const wrapped: Handler = (...args) => {
+      this.off(event, wrapped);
+      fn(...args);
+    };
+    return this.on(event, wrapped);
+  }
+
+  off(event?: string, fn?: Handler): this {
+    if (!event) {
+      this._handlers = {};
+      return this;
+    }
+    if (!fn) {
+      delete this._handlers[event];
+      return this;
+    }
+    const list = this._handlers[event];
+    if (list) {
+      this._handlers[event] = list.filter((h) => h !== fn);
+    }
     return this;
-  });
+  }
 
-  mute = vi.fn((): FakeHowl => this);
+  /**
+   * TEST-ONLY helper (not part of the Howl API): fires every
+   * handler registered for `event` with `...args`, applying the
+   * state transitions the real engine performs alongside it.
+   */
+  emit(event: string, ...args: unknown[]): void {
+    if (event === 'load') {
+      // finishLoad() owns both the state transition and firing
+      // the 'load' handlers — returning early avoids a double
+      // dispatch through the generic path below.
+      this.finishLoad();
+      return;
+    }
+    if (event === 'end' && !this._loop) {
+      this._playing = false;
+    }
+    const handlers = this._handlers[event];
+    if (handlers) {
+      [...handlers].forEach((h) => h(...args));
+    }
+  }
+
+  private finishLoad(): void {
+    if (this._state === 'loaded') return;
+    this._state = 'loaded';
+    if (this._sounds.length === 0) {
+      this._sounds = [{ _node: createAudioNode() }];
+    }
+    [...(this._handlers.load ?? [])].forEach((h) => h(0));
+  }
 }
+
+export default FakeHowl;

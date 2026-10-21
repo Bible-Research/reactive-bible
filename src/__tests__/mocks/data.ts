@@ -1,6 +1,11 @@
 import { Translation, Fileset } from '../../store';
 
-// --- Filesets ---
+// Only `mockTranslations` has a live consumer (src/mocks/
+// handlers.ts); every other fixture this file used to export
+// had zero importers and was deleted in the JOB-8 dead-code
+// sweep. Prefer the factories in `../helpers/factories` for
+// per-test tag/verse/note fixtures.
+
 // Matches the real API shape for the ENGKJV translation after
 // `getAvailableTranslations` injects the bundled KJV entries:
 // the API only lists the `_ET` splits (and DBT audio), the
@@ -20,7 +25,6 @@ const mockFilesets: Fileset[] = [
     codec: 'mp3', bitrate: '64' },
 ];
 
-// --- Translations ---
 export const mockTranslations: Translation[] = [
   {
     abbr: 'ENGKJV',
@@ -58,5 +62,3 @@ export const mockTranslations: Translation[] = [
     ],
   },
 ];
-
-

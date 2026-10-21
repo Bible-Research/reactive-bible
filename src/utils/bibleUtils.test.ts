@@ -12,8 +12,12 @@ import {
   toBookName,
   parseBibleRef,
   buildBiblePath,
+  encodeVerses,
+  decodeVerses,
   resolveTimestampsFilesetId,
   preferTimestampedAudioFileset,
+  getChapterCount,
+  getMaxVerse,
 } from './bibleUtils';
 
 describe('Bible Utils', () => {
@@ -156,6 +160,79 @@ describe('Bible Utils', () => {
 
     it('returns null for non-positive chapters', () => {
       expect(parseBibleRef('JHN.0')).toBeNull();
+    });
+
+    it('returns null for out-of-range chapters', () => {
+      // John has 21 chapters, Malachi 4, Revelation 22.
+      expect(parseBibleRef('JHN.22')).toBeNull();
+      expect(parseBibleRef('JHN.999')).toBeNull();
+      expect(parseBibleRef('MAL.5')).toBeNull();
+      expect(parseBibleRef('REV.23')).toBeNull();
+    });
+
+    it('returns null when every verse is out of range', () => {
+      // John 3 has 36 verses.
+      expect(parseBibleRef('JHN.3.999')).toBeNull();
+      expect(parseBibleRef('JHN.3.40-99')).toBeNull();
+    });
+
+    it('clamps verses beyond the chapter maximum', () => {
+      const parsed = parseBibleRef('JHN.3.36-40');
+      expect(parsed?.verses).toEqual([36]);
+      expect(parsed?.canonical).toBe('JHN.3.36');
+      expect(parsed?.needsRedirect).toBe(true);
+    });
+
+    it('dedupes repeated verse numbers', () => {
+      const parsed = parseBibleRef('JHN.3.16,16');
+      expect(parsed?.verses).toEqual([16]);
+      expect(parsed?.canonical).toBe('JHN.3.16');
+      expect(parsed?.needsRedirect).toBe(true);
+    });
+  });
+
+  describe('decodeVerses', () => {
+    it('decodes ranges and comma lists', () => {
+      expect(decodeVerses('16-18')).toEqual([16, 17, 18]);
+      expect(decodeVerses('16,18')).toEqual([16, 18]);
+      expect(decodeVerses('16-18,20')).toEqual([16, 17, 18, 20]);
+    });
+
+    it('dedupes overlapping parts', () => {
+      expect(decodeVerses('16,16')).toEqual([16]);
+      expect(decodeVerses('16-18,17')).toEqual([16, 17, 18]);
+    });
+
+    it('drops non-positive verse numbers', () => {
+      expect(decodeVerses('0')).toEqual([]);
+      expect(decodeVerses('0,16')).toEqual([16]);
+    });
+
+    it('clamps against maxVerse when provided', () => {
+      expect(decodeVerses('36-40', 36)).toEqual([36]);
+      expect(decodeVerses('37-40', 36)).toEqual([]);
+    });
+
+    it('clamps the range end before iterating', () => {
+      // A hostile range end must not loop billions of dead
+      // numbers — the end is clamped to maxVerse up front.
+      expect(decodeVerses('1-2147483647', 36)).toEqual(
+        Array.from({ length: 36 }, (_, i) => i + 1)
+      );
+    });
+  });
+
+  describe('chapter/verse bounds', () => {
+    it('reports chapter counts per book', () => {
+      expect(getChapterCount('JHN')).toBe(21);
+      expect(getChapterCount('MAL')).toBe(4);
+      expect(getChapterCount('XXX')).toBe(0);
+    });
+
+    it('reports verse counts per chapter', () => {
+      expect(getMaxVerse('JHN', 3)).toBe(36);
+      expect(getMaxVerse('JHN', 99)).toBe(0);
+      expect(getMaxVerse('XXX', 1)).toBe(0);
     });
   });
 
@@ -392,6 +469,56 @@ describe('Bible Utils', () => {
       expect(sizeToCoverage(null).testaments).toEqual(['OT', 'NT']);
       expect(sizeToCoverage('').testaments).toEqual(['OT', 'NT']);
       expect(sizeToCoverage('X').testaments).toEqual(['OT', 'NT']);
+    });
+  });
+
+  describe('encodeVerses', () => {
+    it('encodes runs as ranges and gaps as commas', () => {
+      expect(encodeVerses([16, 17, 18])).toBe('16-18');
+      expect(encodeVerses([16, 18])).toBe('16,18');
+      expect(encodeVerses([1, 2, 3, 7, 9, 10])).toBe(
+        '1-3,7,9-10'
+      );
+    });
+
+    it('encodes a single verse and the empty list', () => {
+      expect(encodeVerses([16])).toBe('16');
+      expect(encodeVerses([])).toBe('');
+    });
+
+    it('sorts input before encoding', () => {
+      expect(encodeVerses([18, 16, 17])).toBe('16-18');
+    });
+
+    it('does not dedupe repeated verses', () => {
+      // Duplicates are preserved as separate terms — callers
+      // are expected to pass a clean selection.
+      expect(encodeVerses([16, 16])).toBe('16,16');
+    });
+  });
+
+  describe('decodeVerses', () => {
+    it('decodes ranges and comma lists', () => {
+      expect(decodeVerses('16-18')).toEqual([16, 17, 18]);
+      expect(decodeVerses('16,18')).toEqual([16, 18]);
+      expect(decodeVerses('1-3,7')).toEqual([1, 2, 3, 7]);
+    });
+
+    it('returns [] for empty and unparseable input', () => {
+      expect(decodeVerses('')).toEqual([]);
+      expect(decodeVerses('abc')).toEqual([]);
+    });
+
+    it('drops open ranges and reversed ranges', () => {
+      expect(decodeVerses('16-')).toEqual([]);
+      expect(decodeVerses('-3')).toEqual([]);
+      expect(decodeVerses('18-16')).toEqual([]);
+    });
+
+    it('dedupes duplicates produced by repeated terms', () => {
+      // '16,16' used to emit [16, 16] — a repeated verse is a
+      // malformed ref, not two verses.
+      expect(decodeVerses('16,16')).toEqual([16]);
     });
   });
 

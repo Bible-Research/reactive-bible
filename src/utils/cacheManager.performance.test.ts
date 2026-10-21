@@ -1,18 +1,18 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   cacheVerses,
   getCachedVerses,
-  clearVerseCache,
   getCacheStats,
   cacheAudioUrl,
   getCachedAudioUrl,
-  clearAudioCache,
 } from './cacheManager';
-import { CacheMetrics } from
-  '../__tests__/helpers/performanceUtils';
+import {
+  CacheMetrics,
+} from '../__tests__/helpers/performanceUtils';
 
-// Mock localStorage
-const localStorageMock = (() => {
+// Mock localStorage (full Storage shape — matches the
+// setupTests stub so a plain assignment type-checks).
+const localStorageMock: Storage = (() => {
   let store: Record<string, string> = {};
   return {
     getItem: (key: string) => store[key] || null,
@@ -25,23 +25,22 @@ const localStorageMock = (() => {
     clear: () => {
       store = {};
     },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
   };
 })();
 
-vi.stubGlobal('localStorage', localStorageMock);
+global.localStorage = localStorageMock;
 
 describe('CacheManager Performance Tests', () => {
   let metrics: CacheMetrics;
 
+  // localStorage and cacheManager's storageCache are reset by
+  // the global setupTests beforeEach — no flush needed here.
   beforeEach(() => {
-    localStorage.clear();
-    clearVerseCache();
-    clearAudioCache();
     metrics = new CacheMetrics();
-  });
-
-  afterEach(() => {
-    localStorage.clear();
   });
 
   describe('Cache Hit Rate', () => {
@@ -97,8 +96,7 @@ describe('CacheManager Performance Tests', () => {
   });
 
   describe('LRU Eviction', () => {
-    it('should evict least recently used verses when ' +
-      'exceeding 500 limit', () => {
+    it('should evict LRU verses when exceeding 500 limit', () => {
       // Cache 500 verses (fill to limit)
       for (let chapter = 1; chapter <= 50; chapter++) {
         const verses = Array.from({ length: 10 }, (_, i) => ({
@@ -121,6 +119,12 @@ describe('CacheManager Performance Tests', () => {
       // Total should still be at or below limit
       const newStats = getCacheStats();
       expect(newStats.verses.total).toBeLessThanOrEqual(500);
+
+      // The eviction must drop the OLDEST entry (Genesis 1),
+      // not the newest (Genesis 50) or the just-added Exodus 1.
+      expect(getCachedVerses('Genesis', 1, 'KJV')).toBeNull();
+      expect(getCachedVerses('Genesis', 50, 'KJV')).not.toBeNull();
+      expect(getCachedVerses('Exodus', 1, 'KJV')).not.toBeNull();
     });
   });
 
@@ -171,8 +175,8 @@ describe('CacheManager Performance Tests', () => {
       expect(duration).toBeLessThan(500);
 
       console.log(
-        `Audio cache performance: ${iterations} ops ` +
-          `in ${duration.toFixed(2)}ms`
+        `Audio cache performance: ${iterations} ops in ` +
+          `${duration.toFixed(2)}ms`
       );
     });
   });

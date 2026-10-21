@@ -1,16 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { act, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
 import { LoginPage } from '../LoginPage';
 import { renderWithProviders } from '../../__tests__/helpers';
 import { useAuthStore } from '../../stores/authStore';
+import { server } from '../../mocks/server';
+import { API_BASE_URL } from '../../config';
 
-// Mock useNavigate; useLocation serves the mutable redirect
-// state below.
+const TOKEN_URL = `${API_BASE_URL}/api/token/`;
+
+// Mock useNavigate / useLocation so redirects are observable and
+// the `from` location state can be varied per test.
 const mockNavigate = vi.fn();
-const mockLocation = vi.hoisted(() => ({
-  state: null as { from?: { pathname?: string } } | null,
-}));
+const mockUseLocation = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<
     typeof import('react-router-dom')
@@ -18,139 +21,188 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    useLocation: () => mockLocation,
+    useLocation: () => mockUseLocation(),
   };
 });
 
-// Mock notifications
+const mockShowNotification = vi.fn();
 vi.mock('@mantine/notifications', () => ({
-  showNotification: vi.fn(),
+  showNotification: (...args: unknown[]) =>
+    mockShowNotification(...args),
 }));
 
-const usernameInput = () => screen.getByLabelText(/username/i);
-const passwordInput = () =>
-  screen.getByPlaceholderText('Your password');
-const signInButton = () =>
-  screen.getByRole('button', { name: /sign in/i });
-
+// These tests exercise the REAL auth store against the MSW
+// token endpoint — no store action mocks — so a regression in
+// either the page or authStore.login surfaces here.
 describe('LoginPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockLocation.state = null;
-    useAuthStore.setState({
-      token: null,
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
+    // renderWithProviders' mockDomApis spyOns getElementById
+    // each render — restoring unwraps the nested spy chain.
+    vi.restoreAllMocks();
+    // A full Location shape — a bare `{ state: null }` would
+    // hand a future `location.pathname` read `undefined`.
+    mockUseLocation.mockReturnValue({
+      pathname: '/login',
+      search: '',
+      hash: '',
+      state: null,
+      key: 'test',
     });
   });
 
-  it('should render login form', () => {
+  const fillAndSubmit = async (
+    user: ReturnType<typeof userEvent.setup>,
+    username = 'testuser',
+    password = 'testpass123'
+  ) => {
+    await user.type(screen.getByLabelText(/username/i), username);
+    await user.type(screen.getByLabelText(/password/i), password);
+    await user.click(
+      screen.getByRole('button', { name: /sign in/i })
+    );
+  };
+
+  it('should render the sign-in form', () => {
     renderWithProviders(<LoginPage />);
 
     expect(
       screen.getByText('Welcome to Bible Research')
     ).toBeInTheDocument();
-    expect(usernameInput()).toBeInTheDocument();
-    expect(passwordInput()).toBeInTheDocument();
-    expect(signInButton()).toBeInTheDocument();
+    expect(
+      screen.getByText(/sign in to access your notes and tags/i)
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /sign in/i })
+    ).toBeInTheDocument();
   });
 
-  it('should show helper text and the register link', () => {
+  it('should link to the registration page', () => {
     renderWithProviders(<LoginPage />);
 
     expect(
-      screen.getByText(/Sign in to access your notes and tags/i)
+      screen.getByText(/don't have an account/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Don't have an account/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText('Create one now')).toBeInTheDocument();
+      screen.getByRole('link', { name: /create one now/i })
+    ).toHaveAttribute('href', '/register');
   });
 
   it('should handle user input', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />);
 
-    await user.type(usernameInput(), 'testuser');
-    await user.type(passwordInput(), 'testpass123');
+    const usernameInput = screen.getByLabelText(/username/i);
+    const passwordInput = screen.getByLabelText(/password/i);
 
-    expect(usernameInput()).toHaveValue('testuser');
-    expect(passwordInput()).toHaveValue('testpass123');
+    await user.type(usernameInput, 'testuser');
+    await user.type(passwordInput, 'testpass123');
+
+    expect(usernameInput).toHaveValue('testuser');
+    expect(passwordInput).toHaveValue('testpass123');
   });
 
-  it('should call login on form submit', async () => {
-    const user = userEvent.setup();
-    const mockLogin = vi.fn().mockResolvedValue(undefined);
-
-    useAuthStore.setState({ login: mockLogin });
-
+  it('should require username and password', () => {
     renderWithProviders(<LoginPage />);
 
-    await user.type(usernameInput(), 'testuser');
-    await user.type(passwordInput(), 'testpass123');
-    await user.click(signInButton());
-
-    await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith(
-        'testuser',
-        'testpass123'
-      );
-    });
+    expect(screen.getByLabelText(/username/i)).toBeRequired();
+    expect(screen.getByLabelText(/password/i)).toBeRequired();
   });
 
-  it('should navigate to /notes after successful login', async () => {
+  it('should login and navigate to /notes', async () => {
     const user = userEvent.setup();
-    const mockLogin = vi.fn().mockResolvedValue(undefined);
-
-    useAuthStore.setState({ login: mockLogin });
-
     renderWithProviders(<LoginPage />);
 
-    await user.type(usernameInput(), 'testuser');
-    await user.type(passwordInput(), 'testpass123');
-    await user.click(signInButton());
+    await fillAndSubmit(user);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith(
-        '/notes',
-        { replace: true }
-      );
-    });
-  });
-
-  it('should navigate back to the protected page that ' +
-    'redirected here', async () => {
-      const user = userEvent.setup();
-      const mockLogin = vi.fn().mockResolvedValue(undefined);
-      useAuthStore.setState({ login: mockLogin });
-      mockLocation.state = { from: { pathname: '/tags' } };
-
-      renderWithProviders(<LoginPage />);
-
-      await user.type(usernameInput(), 'testuser');
-      await user.type(passwordInput(), 'testpass123');
-      await user.click(signInButton());
-
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith(
-          '/tags',
-          { replace: true }
-        );
+      expect(mockNavigate).toHaveBeenCalledWith('/notes', {
+        replace: true,
       });
     });
 
-  it('should display an auth error set after mount', () => {
+    const auth = useAuthStore.getState();
+    expect(auth.token).toBe('test-token');
+    expect(auth.isAuthenticated).toBe(true);
+    expect(auth.user).toEqual({ id: 1, username: 'testuser' });
+  });
+
+  it('should show a success notification after login', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<LoginPage />);
 
-    act(() => {
-      useAuthStore.setState({ error: 'Invalid credentials' });
-    });
+    await fillAndSubmit(user);
 
-    expect(
-      screen.getByText(/invalid credentials/i)
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockShowNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Welcome!',
+          color: 'green',
+        })
+      );
+    });
+  });
+
+  it('should redirect back to the originally requested page', async () => {
+    mockUseLocation.mockReturnValue({
+      pathname: '/login',
+      search: '',
+      hash: '',
+      state: { from: { pathname: '/tags' } },
+      key: 'test',
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await fillAndSubmit(user);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/tags', {
+        replace: true,
+      });
+    });
+  });
+
+  it('should display an error alert when login fails', async () => {
+    server.use(
+      http.post(TOKEN_URL, () =>
+        HttpResponse.json({}, { status: 401 })
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await fillAndSubmit(user);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Invalid username or password')
+      ).toBeInTheDocument();
+    });
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it('should clear the error when the alert is dismissed', async () => {
+    server.use(
+      http.post(TOKEN_URL, () =>
+        HttpResponse.json({}, { status: 401 })
+      )
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
+
+    await fillAndSubmit(user);
+
+    const alert = await screen.findByRole('alert');
+    // The alert's only button is its close (dismiss) button.
+    await user.click(within(alert).getByRole('button'));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+    expect(useAuthStore.getState().error).toBeNull();
   });
 
   it('should clear a stale auth error on mount', () => {
@@ -166,48 +218,60 @@ describe('LoginPage', () => {
     expect(useAuthStore.getState().error).toBeNull();
   });
 
-  it('should disable inputs during loading', () => {
+  it('should disable the form while the store is loading', () => {
     renderWithProviders(<LoginPage />, {
       authStoreState: { isLoading: true },
     });
 
-    expect(usernameInput()).toBeDisabled();
-    expect(passwordInput()).toBeDisabled();
+    expect(screen.getByLabelText(/username/i)).toBeDisabled();
+    expect(screen.getByLabelText(/password/i)).toBeDisabled();
+    // Mantine's `loading` prop shows a spinner via data-loading;
+    // it does not disable the button (no `disabled` prop in prod).
+    expect(
+      screen.getByRole('button', { name: /sign in/i })
+    ).toHaveAttribute('data-loading', 'true');
   });
 
-  it('should clear the error via the alert close button',
-    async () => {
-      const user = userEvent.setup();
-      const mockClearError = vi.fn();
+  it('should disable the form while a login is in flight', async () => {
+    server.use(
+      http.post(TOKEN_URL, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return HttpResponse.json({ token: 'test-token' });
+      })
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<LoginPage />);
 
-      renderWithProviders(<LoginPage />);
+    await user.type(screen.getByLabelText(/username/i), 'testuser');
+    await user.type(
+      screen.getByLabelText(/password/i),
+      'testpass123'
+    );
+    await user.click(
+      screen.getByRole('button', { name: /sign in/i })
+    );
 
-      act(() => {
-        useAuthStore.setState({
-          error: 'Test error',
-          clearError: mockClearError,
-        });
-      });
-
-      const alert = screen.getByRole('alert');
-      const closeButton = alert.querySelector('button');
-      expect(closeButton).not.toBeNull();
-      await user.click(closeButton as HTMLElement);
-
-      expect(mockClearError).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByLabelText(/username/i)).toBeDisabled();
     });
+    expect(screen.getByLabelText(/password/i)).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /sign in/i })
+    ).toHaveAttribute('data-loading', 'true');
 
-  it('should require username and password', () => {
-    renderWithProviders(<LoginPage />);
-
-    expect(usernameInput()).toBeRequired();
-    expect(passwordInput()).toBeRequired();
+    // The in-flight login settles and navigation follows.
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/notes', {
+        replace: true,
+      });
+    });
   });
 
-  it('should autofocus username input', () => {
+  it('should autofocus the username input', () => {
     renderWithProviders(<LoginPage />);
 
-    // React's autoFocus focuses the element — no attribute.
-    expect(usernameInput()).toHaveFocus();
+    // React's autoFocus focuses programmatically; no attribute
+    // is rendered, so assert the focus outcome itself.
+    expect(screen.getByLabelText(/username/i)).toHaveFocus();
   });
 });

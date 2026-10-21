@@ -14,12 +14,18 @@ import {
 } from 'vitest';
 import EditNoteModal from './EditNoteModal';
 import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
+import { useBibleStore } from '../store';
 import {
   renderWithProviders,
   createMockNote,
   createMockTag,
 } from '../__tests__/helpers';
+
 import * as api from '../api';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../utils/tiptapContent';
 
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
@@ -55,6 +61,13 @@ vi.mock('./RichTextEditor', async () => ({
     await import('../__tests__/mocks/RichTextEditorStub')
   ).default,
 }));
+
+// Captured at module load, before any test's storeOverrides
+// can shadow the real action — Zustand setState merges, so a
+// `fetchNotes: vi.fn()` override would otherwise leak into
+// later tests and the store's real fetch (which calls
+// api.getNotes) would never run.
+const realFetchNotes = useBibleStore.getState().fetchNotes;
 
 describe('EditNoteModal Component', () => {
   // Use factory function for cleaner test data
@@ -226,20 +239,25 @@ describe('EditNoteModal Component', () => {
   });
 
   it('should submit updated verse references', async () => {
+    const fetchNotes = vi.fn().mockResolvedValue(undefined);
     (api.editNote as Mock).mockResolvedValue({});
     renderWithProviders(
       <EditNoteModal
         opened={true}
         onClose={vi.fn()}
         note={noteWithVerses}
-      />
+      />,
+      { storeOverrides: { fetchNotes } }
     );
 
-    // Add John 3:17 to the note's linked verses.
+    // Add John 3:17 to the note's linked verses and edit text.
     fireEvent.click(
       await screen.findByTitle('toggle-verse-references')
     );
     fireEvent.click(await screen.findByTitle('edit-note-verse-17'));
+    fireEvent.change(screen.getByLabelText('Note'), {
+      target: { value: 'Edited note text' },
+    });
     const form = screen
       .getByText('Submit changes')
       .closest('form');
@@ -247,17 +265,142 @@ describe('EditNoteModal Component', () => {
     fireEvent.submit(form as HTMLFormElement);
 
     await waitFor(() => {
-      expect(api.editNote).toHaveBeenCalledWith(
-        'n1',
-        '1',
-        'Original note text',
-        [
-          { book: 'John', chapter: 3, verse: 16 },
-          { book: 'John', chapter: 3, verse: 17 },
-        ]
-      );
+      expect(api.editNote).toHaveBeenCalledTimes(1);
+    });
+    const [noteId, tagId, text, refs] =
+      (api.editNote as Mock).mock.calls[0];
+    expect(noteId).toBe('n1');
+    expect(tagId).toBe('1');
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(isTiptapDocString(text)).toBe(true);
+    expect(toPlainText(text)).toBe('Edited note text');
+    expect(refs).toEqual([
+      { book: 'John', chapter: 3, verse: 16 },
+      { book: 'John', chapter: 3, verse: 17 },
+    ]);
+
+    // The viewed notes page is refreshed after the edit.
+    await waitFor(() => {
+      expect(fetchNotes).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('refreshes the viewed tag page after autosave on close',
+    async () => {
+      const fetchNotes = vi.fn().mockResolvedValue(undefined);
+      const onClose = vi.fn();
+      (api.editNote as Mock).mockResolvedValue({});
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={onClose}
+          note={mockNote}
+        />,
+        {
+          storeOverrides: {
+            fetchNotes,
+            // The route is showing tag 1, page 3, sorted.
+            lastSelectedTagId: '1',
+            notesPage: 3,
+            notesOrdering: '-created_at',
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Updated text' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // Close via the modal's X button.
+      const closeButton = document.querySelector(
+        '.mantine-Modal-close'
+      );
+      expect(closeButton).not.toBeNull();
+      fireEvent.click(closeButton as HTMLElement);
+
+      // The refresh must target the viewed tag's current page
+      // and ordering — not bounce to page 1, and not the
+      // (possibly re-tagged) note's stale tag.
+      await waitFor(() => {
+        expect(fetchNotes).toHaveBeenCalledTimes(1);
+      });
+      expect(fetchNotes).toHaveBeenCalledWith('1', {
+        ordering: '-created_at',
+        page: 3,
+      });
+      expect(onClose).toHaveBeenCalled();
+    });
+
+  it('refreshes the viewed tag after submit even when the ' +
+    'note moved tags', async () => {
+      (api.getTags as Mock).mockResolvedValue([
+        createMockTag({ id: '1', name: 'Faith' }),
+        createMockTag({ id: '2', name: 'Hope' }),
+      ]);
+      const fetchNotes = vi.fn().mockResolvedValue(undefined);
+      const onClose = vi.fn();
+      (api.editNote as Mock).mockResolvedValue({});
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={onClose}
+          note={mockNote}
+        />,
+        {
+          storeOverrides: {
+            fetchNotes,
+            lastSelectedTagId: '1',
+            notesPage: 2,
+            notesOrdering: 'verse',
+          },
+          // store.getTags no-ops without a token — the tag
+          // Select only populates for authenticated sessions.
+          authStoreState: {
+            isAuthenticated: true,
+            token: 'test-token',
+            user: { username: 'testuser' },
+          },
+        }
+      );
+
+      // Re-tag the note from Faith to Hope via the Select.
+      const tagInput = await screen.findByLabelText('Tag');
+      fireEvent.mouseDown(tagInput);
+      fireEvent.mouseDown(
+        await screen.findByRole('option', { name: 'Hope' })
+      );
+      const form = screen
+        .getByText('Submit changes')
+        .closest('form');
+      fireEvent.submit(form as HTMLFormElement);
+
+      await waitFor(() => {
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      });
+      expect((api.editNote as Mock).mock.calls[0][1]).toBe('2');
+
+      // The route still shows tag 1 — refetch that view, not
+      // the note's new tag.
+      await waitFor(() => {
+        expect(fetchNotes).toHaveBeenCalledTimes(1);
+      });
+      expect(fetchNotes).toHaveBeenCalledWith('1', {
+        ordering: 'verse',
+        page: 2,
+      });
+    });
 
   it('autosave PATCHes carry the picker verse refs', async () => {
     (api.editNote as Mock).mockResolvedValue({});
@@ -293,15 +436,15 @@ describe('EditNoteModal Component', () => {
       vi.useRealTimers();
     }
 
-    expect(api.editNote).toHaveBeenCalledWith(
-      'n1',
-      '1',
-      'Edited note text',
-      [
-        { book: 'John', chapter: 3, verse: 16 },
-        { book: 'John', chapter: 3, verse: 17 },
-      ]
-    );
+    const patchArgs = (api.editNote as Mock).mock.calls[0];
+    expect(patchArgs[0]).toBe('n1');
+    expect(patchArgs[1]).toBe('1');
+    // The editor emits doc-JSON, not the raw typed text.
+    expect(toPlainText(patchArgs[2])).toBe('Edited note text');
+    expect(patchArgs[3]).toEqual([
+      { book: 'John', chapter: 3, verse: 16 },
+      { book: 'John', chapter: 3, verse: 17 },
+    ]);
   });
 
   it('refetches the viewed tag page after submit', async () => {
@@ -314,6 +457,11 @@ describe('EditNoteModal Component', () => {
       />,
       {
         storeOverrides: {
+          // Zustand setState merges — an earlier test's
+          // fetchNotes: vi.fn() override would otherwise leak
+          // in here and the real action (which calls
+          // api.getNotes) would never run.
+          fetchNotes: realFetchNotes,
           notesPage: 2,
           notesOrdering: 'created_at',
         },
@@ -326,9 +474,8 @@ describe('EditNoteModal Component', () => {
     expect(form).not.toBeNull();
     fireEvent.submit(form as HTMLFormElement);
 
-    // The refetch targets the note's own tag at the page and
-    // ordering the route is showing — not the select's value
-    // at page 1 (the old bug).
+    // The refetch targets the viewed tag's page and ordering —
+    // not the select's value at page 1 (the old bug).
     await waitFor(() => {
       expect(api.getNotes).toHaveBeenCalledWith(
         '1',

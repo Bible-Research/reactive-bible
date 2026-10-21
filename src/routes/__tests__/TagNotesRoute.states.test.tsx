@@ -160,11 +160,11 @@ describe('TagNotesRoute states', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByLabelText('share-tag-link')
+          screen.getByLabelText('Share tag link')
         ).toBeInTheDocument();
       });
       expect(
-        screen.getByLabelText('refresh-notes')
+        screen.getByLabelText('Refresh notes')
       ).toBeInTheDocument();
     });
 });

@@ -22,6 +22,9 @@ vi.mock('../api', () => ({
     mockPrefetchAdjacentChapters(...args),
   fetchHeadingsOnly: vi.fn().mockResolvedValue([]),
   getChapters: vi.fn().mockReturnValue([1, 2, 3]),
+  getAdjacentChapters: vi
+    .fn()
+    .mockReturnValue({ previous: null, next: null }),
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -58,7 +61,11 @@ describe('PassageView Component Performance Tests', () => {
     });
   });
 
-  describe('Render Performance', () => {
+  // Wall-clock thresholds are environment-dependent — they only
+  // run under `PERF=1 npm test`. Behavioral perf asserts
+  // (no-refetch, no fetch after unmount, prefetch invoked) run
+  // always.
+  describe.skipIf(!process.env.PERF)('Render Performance', () => {
     it('should render small chapters quickly', async () => {
       const verses = createLargeVerseData(10);
       mockGetVersesInChapter.mockResolvedValue(verses);
@@ -111,7 +118,9 @@ describe('PassageView Component Performance Tests', () => {
   });
 
   describe('Re-render Performance', () => {
-    it('should minimize re-renders on chapter change', async () => {
+    it.skipIf(!process.env.PERF)(
+      'should minimize re-renders on chapter change',
+      async () => {
       const verses = createLargeVerseData(30);
       mockGetVersesInChapter.mockResolvedValue(verses);
 
@@ -235,37 +244,39 @@ describe('PassageView Component Performance Tests', () => {
   });
 
   describe('Prefetch Performance', () => {
-    it('should prefetch adjacent chapters without blocking', 
+    it('should prefetch adjacent chapters without blocking',
       async () => {
       const verses = createLargeVerseData(25);
       mockGetVersesInChapter.mockResolvedValue(verses);
 
-      const start = performance.now();
+      // Never-settling prefetches pin the non-blocking contract:
+      // if the render awaited them, the content below could
+      // never appear and this test would time out.
+      mockPrefetchAudioUrl.mockImplementation(
+        () => new Promise(() => undefined)
+      );
+      mockPrefetchAdjacentChapters.mockImplementation(
+        () => new Promise(() => undefined)
+      );
 
-      render(
+      const { container } = render(
         <MantineProvider>
           <PassageView />
         </MantineProvider>
       );
 
+      // Content appears even though the prefetches are still
+      // pending — the render path never awaited them.
       await waitFor(() => {
-        expect(mockGetVersesInChapter).toHaveBeenCalled();
+        expect(container.querySelector('[data-testid="verse-1"]'))
+          .toBeInTheDocument();
       });
-
-      const duration = performance.now() - start;
-
-      // Initial render should be fast despite prefetch calls
-      expect(duration).toBeLessThan(100);
 
       // Verify prefetch was called
       await waitFor(() => {
         expect(mockPrefetchAudioUrl).toHaveBeenCalled();
         expect(mockPrefetchAdjacentChapters).toHaveBeenCalled();
       });
-
-      console.log(
-        `Render with prefetch: ${duration.toFixed(2)}ms`
-      );
     });
 
     it('should handle prefetch errors gracefully', async () => {
@@ -290,7 +301,9 @@ describe('PassageView Component Performance Tests', () => {
     });
   });
 
-  describe('Loading State Performance', () => {
+  describe.skipIf(!process.env.PERF)(
+    'Loading State Performance',
+    () => {
     it('should render initial state quickly', () => {
       mockGetVersesInChapter.mockImplementation(
         () => new Promise(() => { /* Never resolves */ })
@@ -341,7 +354,8 @@ describe('PassageView Component Performance Tests', () => {
   });
 
   describe('Memory Efficiency', () => {
-    it('should handle rapid chapter changes without memory leak', 
+    it.skipIf(!process.env.PERF)(
+      'should handle rapid chapter changes without memory leak',
       async () => {
       const verses = createLargeVerseData(30);
       mockGetVersesInChapter.mockResolvedValue(verses);
@@ -364,8 +378,9 @@ describe('PassageView Component Performance Tests', () => {
         unmount();
       }
 
-      // Test should complete without hanging
-      expect(true).toBe(true);
+      // The soak loop must complete and every mount must have
+      // attempted a chapter fetch.
+      expect(mockGetVersesInChapter).toHaveBeenCalled();
     });
 
     it('should cleanup effects on unmount', async () => {
@@ -400,7 +415,7 @@ describe('PassageView Component Performance Tests', () => {
     });
   });
 
-  describe('Large Data Handling', () => {
+  describe.skipIf(!process.env.PERF)('Large Data Handling', () => {
     it('should handle maximum verse count efficiently', async () => {
       // Test with extreme case (200 verses)
       const verses = createLargeVerseData(200);

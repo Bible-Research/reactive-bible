@@ -36,6 +36,12 @@ interface NoteCardActionsProps {
   commentCount?: number;
   threadOpen: boolean;
   onToggleThread: () => void;
+  /**
+   * The viewed tag belongs to the signed-in user — production
+   * notes do not send `is_owner` yet, so without this every
+   * write affordance disappears on the user's own tag.
+   */
+  isTagOwner?: boolean;
   /** Optional `#k` order badge + move dropdown node. */
   orderMenuNode?: ReactNode;
   /** Layout hook for the folded vs unfolded call sites. */
@@ -51,6 +57,7 @@ const NoteCardActions = ({
   commentCount,
   threadOpen,
   onToggleThread,
+  isTagOwner = false,
   orderMenuNode,
   sx,
 }: NoteCardActionsProps) => {
@@ -62,11 +69,13 @@ const NoteCardActions = ({
   const book = note.verses?.[0]?.book || "";
   const chapter = note.verses?.[0]?.chapter || 1;
 
-  // Ownership must be explicit — `is_owner !== false` used to
-  // fail open, rendering edit/delete whenever the payload
-  // omitted the field.
-  const canEdit = note.is_owner === true && !!onEdit;
-  const canDelete = note.is_owner === true && !!onDelete;
+  // Ownership must be explicit — the tag belongs to the user
+  // (isTagOwner) or the note itself reports `is_owner`. A bare
+  // `is_owner !== false` used to fail open, rendering
+  // edit/delete whenever the payload omitted the field.
+  const ownsNote = isTagOwner === true || note.is_owner === true;
+  const canEdit = isAuthenticated && ownsNote && !!onEdit;
+  const canDelete = isAuthenticated && ownsNote && !!onDelete;
   const canShare = note.public;
   // Verse-less notes never enter the audio playlist
   // (buildNotePlaylistItems filters them out), so clicking

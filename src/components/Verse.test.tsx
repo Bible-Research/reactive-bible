@@ -122,6 +122,41 @@ describe('Verse Component', () => {
     });
   });
 
+  it('should scroll once — to the first selected verse — when ' +
+    'a multi-verse selection mounts', () => {
+    useBibleStore.setState({
+      verseSelection: {
+        scope: 'bible',
+        refs: [16, 17, 18].map((verse) => ({
+          bookId: 'JHN',
+          chapter: 3,
+          verse,
+        })),
+      },
+    });
+    render(
+      <>
+        {[16, 17, 18].map((verse) => (
+          <Verse
+            key={verse}
+            scope="bible"
+            book="John"
+            chapter={3}
+            verse={verse}
+            text={`Verse ${verse}`}
+          />
+        ))}
+      </>
+    );
+
+    // All three verses are active, but only verse 16 (the
+    // minimum) may scroll — otherwise the view settles on the
+    // last selected verse.
+    expect(
+      window.HTMLElement.prototype.scrollIntoView
+    ).toHaveBeenCalledTimes(1);
+  });
+
   it('should not be active when the selection is another scope', () => {
     useBibleStore.setState({
       verseSelection: { scope: 'note-9', refs: [JOHN_3_5] },
@@ -341,6 +376,132 @@ describe('Verse Component', () => {
         vi.restoreAllMocks();
       }
     });
+
+  it('should not toggle when the touch moves more than 10px',
+    () => {
+      renderVerse();
+      const el = verseContainer('5');
+      const dispatchTouch = (
+        type: string,
+        touch: { clientX: number; clientY: number }
+      ) => {
+        const evt = new Event(type, { bubbles: true });
+        Object.assign(evt, {
+          touches: [touch],
+          changedTouches: [touch],
+        });
+        el.dispatchEvent(evt);
+      };
+
+      act(() => {
+        dispatchTouch('touchstart', { clientX: 10, clientY: 10 });
+        // 20px vertical movement — a scroll, not a tap
+        dispatchTouch('touchend', { clientX: 10, clientY: 30 });
+      });
+
+      // The scroll must not select the verse…
+      expect(useBibleStore.getState().verseSelection).toBeNull();
+      expect(el).toHaveAttribute('data-active', 'false');
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // …and must not poison tap dedup: a real click right
+      // after the scroll still toggles normally.
+      fireEvent.click(el);
+      expect(useBibleStore.getState().verseSelection).toEqual({
+        scope: 'bible',
+        refs: [JOHN_3_5],
+      });
+    });
+
+  it('should ignore clicks and taps when selectable is false',
+    async () => {
+      renderVerse({ selectable: false });
+      const el = verseContainer('5');
+
+      await userEvent.click(el);
+      expect(useBibleStore.getState().verseSelection).toBeNull();
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // The touch path short-circuits in handleTouchClick too.
+      const touch = { clientX: 10, clientY: 10 };
+      const dispatchTouch = (type: string) => {
+        const evt = new Event(type, { bubbles: true });
+        Object.assign(evt, {
+          touches: [touch],
+          changedTouches: [touch],
+        });
+        el.dispatchEvent(evt);
+      };
+      act(() => {
+        dispatchTouch('touchstart');
+        dispatchTouch('touchend');
+      });
+      // The 50ms selection-check timer must not toggle either.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      });
+
+      expect(useBibleStore.getState().verseSelection).toBeNull();
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+  it('should prevent default on shift+mousedown to block ' +
+    'text selection', () => {
+      renderVerse();
+      const el = verseContainer('5');
+
+      const shiftDown = new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        shiftKey: true,
+      });
+      el.dispatchEvent(shiftDown);
+      expect(shiftDown.defaultPrevented).toBe(true);
+
+      const plainDown = new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+      });
+      el.dispatchEvent(plainDown);
+      expect(plainDown.defaultPrevented).toBe(false);
+    });
+  it('should clear the in-progress tap state on touchcancel ' +
+    'so context menus are not suppressed forever', () => {
+    renderVerse();
+    const el = verseContainer('5');
+    const touch = { clientX: 10, clientY: 10 };
+    const dispatchTouch = (type: string) => {
+      const evt = new Event(type, { bubbles: true });
+      Object.assign(evt, {
+        touches: [touch],
+        changedTouches: [touch],
+      });
+      el.dispatchEvent(evt);
+    };
+    const fireContextMenu = () => {
+      const evt = new Event('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+      });
+      fireEvent(el, evt);
+      return evt;
+    };
+
+    // While a touch is in progress the long-press context
+    // menu is intentionally suppressed.
+    act(() => {
+      dispatchTouch('touchstart');
+    });
+    expect(fireContextMenu().defaultPrevented).toBe(true);
+
+    // A cancelled touch (scroll hijack, incoming call) fires
+    // no touchend — the stale start position used to keep
+    // suppressing every later context menu.
+    act(() => {
+      dispatchTouch('touchcancel');
+    });
+    expect(fireContextMenu().defaultPrevented).toBe(false);
+  });
 
   it('should not have the active class when not active', () => {
     renderVerse({ verse: 1 });

@@ -14,11 +14,16 @@ import {
   beforeEach,
   type Mock,
 } from 'vitest';
+import { useState } from 'react';
 import AddTagNoteModal from './AddTagNoteModal';
 import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
 import * as api from '../api';
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../utils/tiptapContent';
 
 // Mock API (appropriate for unit testing)
 vi.mock('../api', () => ({
@@ -363,15 +368,17 @@ describe('AddTagNoteModal Component', () => {
       await waitFor(() => {
         expect(api.editNote).toHaveBeenCalledTimes(1);
       });
-      expect(api.editNote).toHaveBeenCalledWith(
-        'n1',
-        '1',
-        'Draft',
-        [
-          { book: 'Genesis', chapter: 1, verse: 1 },
-          { book: 'Genesis', chapter: 1, verse: 2 },
-        ]
-      );
+      const patchArgs = (api.editNote as Mock).mock.calls[0];
+      expect(patchArgs[0]).toBe('n1');
+      expect(patchArgs[1]).toBe('1');
+      // The editor emits doc-JSON, not the raw typed text.
+      expect(isTiptapDocString(patchArgs[2])).toBe(true);
+      expect(toPlainText(patchArgs[2])).toBe('Draft');
+      // Edit-mode saves carry the picker's current refs.
+      expect(patchArgs[3]).toEqual([
+        { book: 'Genesis', chapter: 1, verse: 1 },
+        { book: 'Genesis', chapter: 1, verse: 2 },
+      ]);
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
 
@@ -445,6 +452,62 @@ describe('AddTagNoteModal Component', () => {
     ).toBe('n-draft');
   });
 
+  // Stateful host so `onClose` actually closes the modal —
+  // the old notes-workflow integration test asserted this.
+  const ControlledModal = () => {
+    const [open, setOpen] = useState(true);
+    return (
+      <AddTagNoteModal
+        opened={open}
+        onClose={() => setOpen(false)}
+      />
+    );
+  };
+
+  const typeAndSubmit = async (text: string) => {
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, { target: { value: text } });
+    const form = screen
+      .getByRole('button', { name: 'Submit' })
+      .closest('form');
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+  };
+
+  it('should call addTagNote when form submitted', async () => {
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+    const onClose = vi.fn();
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={onClose} />,
+      {
+        storeOverrides: {
+          verseSelection: genesisSelection,
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          lastSelectedTagId: '1',
+        },
+      }
+    );
+
+    await typeAndSubmit('A test note');
+
+    await waitFor(() => {
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    });
+    const [tagId, text, refs] =
+      (api.addTagNote as Mock).mock.calls[0];
+    expect(tagId).toBe('1');
+    expect(isTiptapDocString(text)).toBe(true);
+    expect(toPlainText(text)).toBe('A test note');
+    expect(refs).toEqual([
+      { book: 'Genesis', chapter: 1, verse: 1 },
+      { book: 'Genesis', chapter: 1, verse: 2 },
+    ]);
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('does not POST a duplicate when the modal closes ' +
     'mid-submit', async () => {
     // Repro: autosave on, text typed since the last tick,
@@ -503,18 +566,45 @@ describe('AddTagNoteModal Component', () => {
     expect(api.addTagNote).toHaveBeenCalledTimes(1);
   });
 
-  it('should call addTagNote and close when the form submits',
-    async () => {
-      const onClose = vi.fn();
-      (api.addTagNote as Mock).mockResolvedValue({ id: 'n-new' });
+  it('should clear selected verses after submission', async () => {
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+    renderWithProviders(<ControlledModal />, {
+      storeOverrides: {
+        verseSelection: genesisSelection,
+        activeBookId: 'GEN',
+        activeChapter: 1,
+        lastSelectedTagId: '1',
+      },
+    });
 
-      renderWithProviders(
-        <AddTagNoteModal opened={true} onClose={onClose} />,
+    await typeAndSubmit('A test note');
+
+    // The modal closes and the bible selection is cleared —
+    // ported from the deleted notes-workflow integration test.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog')
+      ).not.toBeInTheDocument();
+    });
+    expect(useBibleStore.getState().verseSelection).toBeNull();
+  });
+
+  // The useNoteEditor drafts map persists the autosaved note id
+  // across modal unmounts, so a reopen resumes the draft and
+  // PATCHes it instead of POSTing a second note.
+  it('PATCHes the autosaved draft instead of POSTing a ' +
+    'second note when reopened mid-session', async () => {
+      (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+      (api.editNote as Mock).mockResolvedValue({});
+
+      const { rerender } = renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
             activeBookId: 'GEN',
             activeChapter: 1,
+            // Autosave skips tagless drafts.
             lastSelectedTagId: '1',
           },
         }
@@ -522,61 +612,42 @@ describe('AddTagNoteModal Component', () => {
 
       const noteInput = await screen.findByLabelText('Note');
       fireEvent.change(noteInput, {
-        target: { value: 'A study note' },
+        target: { value: 'Draft' },
       });
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Submit' })
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+
+        // Close without submitting, then reopen for the same
+        // selection and keep typing — the draft should resume.
+        rerender(
+          <AddTagNoteModal opened={false} onClose={vi.fn()} />
         );
-      });
-
-      await waitFor(() => {
-        expect(api.addTagNote).toHaveBeenCalledWith(
-          '1',
-          expect.stringContaining('A study note'),
-          [
-            { book: 'Genesis', chapter: 1, verse: 1 },
-            { book: 'Genesis', chapter: 1, verse: 2 },
-          ]
+        rerender(
+          <AddTagNoteModal opened={true} onClose={vi.fn()} />
         );
-      });
-      await waitFor(() => {
-        expect(onClose).toHaveBeenCalled();
-      });
-    });
+        // getByLabelText, not findBy — async queries never
+        // resolve under fake timers.
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft continued' },
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
 
-  // Ported from the deleted notes-workflow integration test:
-  // a submitted note must drop the verse selection so the next
-  // click isn't added to the old one.
-  it('should clear selected verses after submission', async () => {
-    (api.addTagNote as Mock).mockResolvedValue({ id: 'n-new' });
-
-    renderWithProviders(
-      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
-      {
-        storeOverrides: {
-          verseSelection: genesisSelection,
-          activeBookId: 'GEN',
-          activeChapter: 1,
-          lastSelectedTagId: '1',
-        },
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+        const patchArgs =
+          (api.editNote as Mock).mock.calls[0];
+        expect(patchArgs[0]).toBe('n1');
+        expect(toPlainText(patchArgs[2])).toBe('Draft continued');
+      } finally {
+        vi.useRealTimers();
       }
-    );
-
-    const noteInput = await screen.findByLabelText('Note');
-    fireEvent.change(noteInput, {
-      target: { value: 'A study note' },
     });
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Submit' })
-      );
-    });
-
-    await waitFor(() => {
-      expect(
-        useBibleStore.getState().verseSelection
-      ).toBeNull();
-    });
-  });
 });

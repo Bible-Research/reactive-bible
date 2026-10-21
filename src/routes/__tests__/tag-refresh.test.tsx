@@ -1,20 +1,28 @@
 /**
  * Tag Refresh Behavior Tests
- * 
- * These tests ensure that tags are always force-refreshed when navigating
- * to TagNotesRoute, BibleRoute, and TagManagementRoute.
- * 
- * Context: Tags are cached in Zustand store for performance (95% faster).
- * However, when navigating to these routes, we need fresh data to ensure
- * users see the latest tags (e.g., after creating/editing/deleting tags).
- * 
+ *
+ * BibleRoute and TagManagementRoute force-refresh tags on
+ * navigation (`getTags(true)`). TagNotesRoute deliberately
+ * calls the cache-aware `getTags()` — it only needs the tags
+ * for the authenticated switcher and tolerates staleness.
+ *
+ * Context: Tags are cached in Zustand store for performance
+ * (95% faster). Force-refreshing on these routes ensures
+ * users see the latest tags (e.g., after creating/editing/
+ * deleting tags).
+ *
  * Related commits:
  * - 5a6e14c: feat: Implement tag caching in store
  * - 2407a23: Feat: Force refresh tags on route navigation
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import TagNotesRoute from '../TagNotesRoute';
 import BibleRoute from '../BibleRoute';
@@ -23,8 +31,22 @@ import { useBibleStore } from '../../store';
 import { useAuthStore } from '../../stores/authStore';
 import * as api from '../../api';
 
-// Mock the API
-vi.mock('../../api');
+// Selective automock — keep real error classes so `instanceof`
+// checks in store actions still work.
+vi.mock('../../api', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../api')>();
+  const mocked: Record<string, unknown> = { ...actual };
+  for (const [key, value] of Object.entries(actual)) {
+    if (
+      typeof value === 'function' &&
+      key !== 'ConflictError'
+    ) {
+      mocked[key] = vi.fn();
+    }
+  }
+  return mocked;
+});
 const mockApi = vi.mocked(api);
 
 // Mock child components to isolate route behavior
@@ -177,10 +199,11 @@ describe('Tag Refresh Behavior', () => {
         </MemoryRouter>
       );
 
-      // Should NOT call API when cached tags exist
-      await waitFor(() => {
-        expect(mockApi.getTags).not.toHaveBeenCalled();
-      });
+      // Wait for the route to finish loading before the
+      // negative assert — the store's cache-aware getTags
+      // must have had its chance to call the API.
+      await screen.findByTestId('tag-section');
+      expect(mockApi.getTags).not.toHaveBeenCalled();
     });
 
     it('should only refresh tags when authenticated', async () => {
@@ -197,10 +220,9 @@ describe('Tag Refresh Behavior', () => {
         </MemoryRouter>
       );
 
-      // Wait a bit to ensure useEffect has run
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Should NOT call getTags when not authenticated
+      // Route render finished — the mount effect has run, so
+      // getTags would already have been called if buggy.
+      await screen.findByTestId('tag-section');
       expect(mockApi.getTags).not.toHaveBeenCalled();
     });
   });
@@ -264,8 +286,10 @@ describe('Tag Refresh Behavior', () => {
         </MemoryRouter>
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
+      // Flush mount effects + the canonical-URL redirect; the
+      // getTags effect would already have run if it were
+      // incorrectly firing for anonymous visitors.
+      await act(async () => Promise.resolve());
       expect(mockApi.getTags).not.toHaveBeenCalled();
     });
 
@@ -287,11 +311,17 @@ describe('Tag Refresh Behavior', () => {
         expect(mockApi.getTags).toHaveBeenCalledTimes(1);
       });
 
-      // Navigate to a different chapter
+      // Navigate to a different chapter. The `key` forces a
+      // remount (a bare initialEntries change is ignored after
+      // mount), so the mount effect fires again and re-fetches
+      // tags — mirroring a real navigation to a new route.
       mockApi.getTags.mockClear();
 
       rerender(
-        <MemoryRouter initialEntries={['/bible/Matthew/5']}>
+        <MemoryRouter
+          key="matthew"
+          initialEntries={['/bible/Matthew/5']}
+        >
           <Routes>
             <Route
               path="/bible/:book/:chapterVerse"
@@ -301,9 +331,9 @@ describe('Tag Refresh Behavior', () => {
         </MemoryRouter>
       );
 
-      // Note: This test may not work perfectly due to how MemoryRouter
-      // handles rerenders. In real usage, navigating to a new route
-      // will trigger a fresh mount and the useEffect will run again.
+      await waitFor(() => {
+        expect(mockApi.getTags).toHaveBeenCalled();
+      });
     });
   });
 

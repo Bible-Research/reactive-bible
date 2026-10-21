@@ -24,7 +24,9 @@ vi.mock('@mantine/notifications', () => ({
 
 describe('UserMenu', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // renderWithProviders' mockDomApis spyOns getElementById
+    // each render — restoring unwraps the nested spy chain.
+    vi.restoreAllMocks();
   });
 
   describe('When not authenticated', () => {

@@ -11,7 +11,13 @@ vi.mock('react-router-dom', async () => {
   >('react-router-dom');
   return {
     ...actual,
-    Navigate: ({ to, state }: { to: string; state?: unknown }) => {
+    Navigate: ({
+      to,
+      state,
+    }: {
+      to: string;
+      state?: unknown;
+    }) => {
       mockNavigate(to, state);
       return <div data-testid="navigate-mock">Redirecting to {to}</div>;
     },
@@ -25,10 +31,10 @@ describe('ProtectedRoute', () => {
   });
 
   describe('When authenticated', () => {
-    const authState = {
-      isAuthenticated: true,
-      token: 'test-token',
-      user: { username: 'testuser' },
+    // Auth overrides must go through renderWithProviders —
+    // it resets auth state to initial values on every render.
+    const renderOptions = {
+      authStoreState: { isAuthenticated: true },
     };
 
     it('should render children', () => {
@@ -36,7 +42,7 @@ describe('ProtectedRoute', () => {
         <ProtectedRoute>
           <div>Protected Content</div>
         </ProtectedRoute>,
-        { authStoreState: authState }
+        renderOptions
       );
 
       expect(
@@ -49,7 +55,7 @@ describe('ProtectedRoute', () => {
         <ProtectedRoute>
           <div>Protected Content</div>
         </ProtectedRoute>,
-        { authStoreState: authState }
+        renderOptions
       );
 
       expect(mockNavigate).not.toHaveBeenCalled();
@@ -81,11 +87,16 @@ describe('ProtectedRoute', () => {
   });
 
   describe('When not authenticated', () => {
+    const renderOptions = {
+      authStoreState: { isAuthenticated: false },
+    };
+
     it('should not render children', () => {
       renderWithProviders(
         <ProtectedRoute>
           <div>Protected Content</div>
-        </ProtectedRoute>
+        </ProtectedRoute>,
+        renderOptions
       );
 
       expect(
@@ -97,7 +108,8 @@ describe('ProtectedRoute', () => {
       renderWithProviders(
         <ProtectedRoute>
           <div>Protected Content</div>
-        </ProtectedRoute>
+        </ProtectedRoute>,
+        renderOptions
       );
 
       expect(mockNavigate).toHaveBeenCalledWith(
@@ -114,12 +126,16 @@ describe('ProtectedRoute', () => {
       renderWithProviders(
         <ProtectedRoute>
           <div>Protected Content</div>
-        </ProtectedRoute>
+        </ProtectedRoute>,
+        renderOptions
       );
 
       const callArgs = mockNavigate.mock.calls[0];
       expect(callArgs[0]).toBe('/login');
-      expect(callArgs[1].from.pathname).toBe('/notes');
+      expect(
+        (callArgs[1] as { from: { pathname: string } }).from
+          .pathname
+      ).toBe('/notes');
     });
   });
 });

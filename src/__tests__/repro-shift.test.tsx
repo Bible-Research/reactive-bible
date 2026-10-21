@@ -46,8 +46,11 @@ describe('shift+click range selection in full App', () => {
       await user.click(screen.getByTitle('passage-verse-1-6'));
       await user.keyboard('{/Shift}');
       await waitFor(() => {
-        console.log('SEL', JSON.stringify(sel()));
-        expect(sel()?.refs).toHaveLength(4);
+        expect(sel()?.refs).toEqual([3, 4, 5, 6].map((verse) => ({
+          bookId: 'JHN',
+          chapter: 1,
+          verse,
+        })));
       });
     });
 });

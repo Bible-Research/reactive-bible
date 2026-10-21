@@ -1,4 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+} from 'vitest';
 import {
   cacheVerses,
   getCachedVerses,
@@ -12,9 +19,20 @@ import {
   cacheNotes,
   getCachedNotes,
   clearNotesCache,
+  cacheTimestamps,
+  getCachedTimestamps,
+  clearTimestampCache,
+  cacheHeadings,
+  getCachedHeadings,
+  clearHeadingsCache,
 } from './cacheManager';
 import { Translation } from '../store';
-import { Note, Tag } from '../types';
+import {
+  Note,
+  Tag,
+  VerseTimestamp,
+  SectionHeading,
+} from '../types';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -38,9 +56,14 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 describe('Verse Cache Manager', () => {
+  // localStorage and cacheManager's storageCache are reset by the
+  // global setupTests beforeEach — no hand-rolled flush needed.
   beforeEach(() => {
-    localStorageMock.clear();
     vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should cache and retrieve verses', () => {
@@ -74,20 +97,23 @@ describe('Verse Cache Manager', () => {
     expect(newestCached).toEqual([{ verse: 1, text: 'Verse 501' }]);
   });
 
-  it('should update access count and timestamp on cache hit', () => {
-    const verses = [{ verse: 1, text: 'Test verse' }];
-    cacheVerses('GEN', 1, 'KJV', verses);
+  it('moves the chapter to the LRU tail on cache hit', () => {
+    // Per-verse accessCount/timestamp bookkeeping was dropped —
+    // a read now only reorders the metadata LRU queue (a tiny
+    // write instead of rewriting the whole verse blob).
+    cacheVerses('GEN', 1, 'KJV', [{ verse: 1, text: 'a' }]);
+    cacheVerses('EXO', 2, 'KJV', [{ verse: 1, text: 'b' }]);
+    expect(
+      getVerseCacheMetadata().lruQueue
+    ).toEqual(['KJV:GEN:1', 'KJV:EXO:2']);
 
-    // Initial access
     getCachedVerses('GEN', 1, 'KJV');
-    let metadata = getVerseCacheMetadata();
-    expect(metadata.lruQueue[metadata.lruQueue.length - 1]).toBe('KJV:GEN:1');
-
-    // Second access
-    vi.advanceTimersByTime(1000);
-    getCachedVerses('GEN', 1, 'KJV');
-    metadata = getVerseCacheMetadata();
-    expect(metadata.lruQueue[metadata.lruQueue.length - 1]).toBe('KJV:GEN:1');
+    const metadata = getVerseCacheMetadata();
+    expect(metadata.lruQueue).toEqual([
+      'KJV:EXO:2',
+      'KJV:GEN:1',
+    ]);
+    expect(metadata.totalVerses).toBe(2);
   });
 
   it('should clear the verse cache', () => {
@@ -97,13 +123,22 @@ describe('Verse Cache Manager', () => {
     const cached = getCachedVerses('GEN', 1, 'KJV');
     expect(cached).toBeNull();
   });
+
+  it('counts unique verse numbers toward totalVerses', () => {
+    // A repeated verse number overwrites the same key — it
+    // must not double-count against the 500-verse LRU cap.
+    cacheVerses('GEN', 1, 'KJV', [
+      { verse: 1, text: 'a' },
+      { verse: 1, text: 'b' },
+    ]);
+    expect(getVerseCacheMetadata().totalVerses).toBe(1);
+    expect(getCachedVerses('GEN', 1, 'KJV')).toEqual([
+      { verse: 1, text: 'b' },
+    ]);
+  });
 });
 
 describe('Translation Cache Manager', () => {
-  beforeEach(() => {
-    localStorageMock.clear();
-  });
-
   it('should cache and retrieve translations', () => {
     const translations: Translation[] = [
       {
@@ -126,48 +161,43 @@ describe('Translation Cache Manager', () => {
   });
 });
 
-describe('Notes Cache Manager', () => {
-  beforeEach(() => {
-    localStorageMock.clear();
-  });
+const makeTag = (id: string, name = `Tag ${id}`): Tag => ({
+  id,
+  name,
+  parent_tag: null,
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+});
 
+const makeNote = (
+  id: string,
+  tag: Tag,
+  text: string,
+  opts: Partial<Note> = {}
+): Note => ({
+  id,
+  note_text: text,
+  public: false,
+  is_owner: true,
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+  tag,
+  verses: [],
+  tag_position: null,
+  ...opts,
+});
+
+describe('Notes Cache Manager', () => {
   it('should cache and retrieve notes for a tag', () => {
-    const tag: Tag = {
-      id: 'TAG123',
-      name: 'Test Tag',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-    
+    const tag = makeTag('TAG123', 'Test Tag');
     const notes: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Test note 1',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-      {
-        id: 'note2',
-        note_text: 'Test note 2',
-        public: true,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
+      makeNote('note1', tag, 'Test note 1'),
+      makeNote('note2', tag, 'Test note 2', { public: true }),
     ];
-    
+
     cacheNotes('TAG123', notes);
     const cached = getCachedNotes('TAG123');
-    
+
     expect(cached?.notes).toEqual(notes);
   });
 
@@ -177,338 +207,179 @@ describe('Notes Cache Manager', () => {
   });
 
   it('should cache notes for multiple tags independently', () => {
-    const tag1: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-    const tag2: Tag = {
-      id: 'TAG2',
-      name: 'Tag 2',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-    
-    const notes1: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Tag 1 note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag: tag1,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    
-    const notes2: Note[] = [
-      {
-        id: 'note2',
-        note_text: 'Tag 2 note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag: tag2,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    
+    const tag1 = makeTag('TAG1');
+    const tag2 = makeTag('TAG2');
+    const notes1 = [makeNote('note1', tag1, 'Tag 1 note')];
+    const notes2 = [makeNote('note2', tag2, 'Tag 2 note')];
+
     cacheNotes('TAG1', notes1);
     cacheNotes('TAG2', notes2);
-    
+
     expect(getCachedNotes('TAG1')?.notes).toEqual(notes1);
     expect(getCachedNotes('TAG2')?.notes).toEqual(notes2);
   });
 
   it('should clear notes cache for a specific tag', () => {
-    const tag1: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-    const tag2: Tag = {
-      id: 'TAG2',
-      name: 'Tag 2',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
+    const tag1 = makeTag('TAG1');
+    const tag2 = makeTag('TAG2');
+    const notes1 = [makeNote('note1', tag1, 'Note 1')];
+    const notes2 = [makeNote('note2', tag2, 'Note 2')];
 
-    const notes1: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Note 1',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag: tag1,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    const notes2: Note[] = [
-      {
-        id: 'note2',
-        note_text: 'Note 2',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag: tag2,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    
     cacheNotes('TAG1', notes1);
     cacheNotes('TAG2', notes2);
-    
+
     clearNotesCache('TAG1');
-    
+
     expect(getCachedNotes('TAG1')).toBeNull();
     expect(getCachedNotes('TAG2')?.notes).toEqual(notes2);
   });
 
   it('should clear all notes cache', () => {
-    const tag1: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-    const tag2: Tag = {
-      id: 'TAG2',
-      name: 'Tag 2',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
+    const tag1 = makeTag('TAG1');
+    const tag2 = makeTag('TAG2');
+    const notes1 = [makeNote('note1', tag1, 'Note 1')];
+    const notes2 = [makeNote('note2', tag2, 'Note 2')];
 
-    const notes1: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Note 1',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag: tag1,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    const notes2: Note[] = [
-      {
-        id: 'note2',
-        note_text: 'Note 2',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag: tag2,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    
     cacheNotes('TAG1', notes1);
     cacheNotes('TAG2', notes2);
-    
+
     clearNotesCache();
-    
+
     expect(getCachedNotes('TAG1')).toBeNull();
     expect(getCachedNotes('TAG2')).toBeNull();
   });
 
   it('should update cached notes when caching again for same tag', () => {
-    const tag: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
+    const tag = makeTag('TAG1');
+    const initialNotes = [makeNote('note1', tag, 'Initial note')];
+    const updatedNotes = [
+      makeNote('note1', tag, 'Updated note'),
+      makeNote('note2', tag, 'New note'),
+    ];
 
-    const initialNotes: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Initial note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    const updatedNotes: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Updated note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-      {
-        id: 'note2',
-        note_text: 'New note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-    
     cacheNotes('TAG1', initialNotes);
     cacheNotes('TAG1', updatedNotes);
-    
+
     const cached = getCachedNotes('TAG1');
     expect(cached?.notes).toEqual(updatedNotes);
     expect(cached?.notes.length).toBe(2);
   });
 
   it('should store timestamp with cached notes', () => {
-    const tag: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-
-    const notes: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Test note',
-        public: false,
-        is_owner: false,
-        tag_position: null,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-      },
+    const tag = makeTag('TAG1');
+    const notes = [
+      makeNote('note1', tag, 'Test note', { is_owner: false }),
     ];
-    
+
     const beforeCache = Date.now();
     cacheNotes('TAG1', notes);
     const afterCache = Date.now();
-    
-    // Verify timestamp is stored (check localStorage directly)
-    const cacheStr = localStorageMock.getItem('bible_notes_cache');
+
+    // Verify timestamp is stored (check localStorage directly).
+    // Keys carry the request scope: auth discriminator, fileset,
+    // and page size.
+    const cacheStr =
+      localStorageMock.getItem('bible_notes_cache_v2');
     expect(cacheStr).toBeTruthy();
-    
-    if (!cacheStr) {
-      throw new Error('expected the notes cache to be populated');
-    }
+    if (!cacheStr) return; // unreachable — narrows the type
+
     const cache = JSON.parse(cacheStr);
-    expect(cache['TAG1:page1:default'].timestamp).toBeGreaterThanOrEqual(
+    const key =
+      'TAG1:anon:fs:default:ps:default:page1:default';
+    expect(cache[key].timestamp).toBeGreaterThanOrEqual(
       beforeCache
     );
-    expect(cache['TAG1:page1:default'].timestamp).toBeLessThanOrEqual(
-      afterCache
-    );
+    expect(cache[key].timestamp).toBeLessThanOrEqual(afterCache);
+  });
+
+  it('separates cached pages by auth state, fileset, and ' +
+    'page size', () => {
+    const tag = makeTag('TAG1');
+
+    const base = { count: 1, hasMore: false, page: 1 };
+    cacheNotes('TAG1', [makeNote('anon', tag, 'anon')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: false,
+    });
+    cacheNotes('TAG1', [makeNote('authed', tag, 'authed')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: true,
+    });
+    cacheNotes('TAG1', [makeNote('other-fs', tag, 'other-fs')], {
+      ...base, filesetId: 'FS_B', pageSize: 25, authed: false,
+    });
+    cacheNotes('TAG1', [makeNote('other-ps', tag, 'other-ps')], {
+      ...base, filesetId: 'FS_A', pageSize: 50, authed: false,
+    });
+
+    const scope = (
+      authed: boolean,
+      filesetId = 'FS_A',
+      pageSize = 25
+    ) => ({ filesetId, pageSize, authed });
+
+    // A private-note page cached under an authed scope must not
+    // be served to anonymous readers (and vice versa).
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false))?.notes[0].id
+    ).toBe('anon');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(true))?.notes[0].id
+    ).toBe('authed');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false, 'FS_B'))
+        ?.notes[0].id
+    ).toBe('other-fs');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false, 'FS_A', 50))
+        ?.notes[0].id
+    ).toBe('other-ps');
+  });
+
+  it('clearNotesCache(tagId) clears every scoped page of the ' +
+    'tag', () => {
+    const tag = makeTag('TAG1');
+    const note = makeNote('n1', tag, 'n');
+    const base = { count: 1, hasMore: false, page: 1 };
+    cacheNotes('TAG1', [note], {
+      ...base, filesetId: 'FS_A', authed: false,
+    });
+    cacheNotes('TAG1', [note], {
+      ...base, filesetId: 'FS_B', authed: true,
+    });
+
+    clearNotesCache('TAG1');
+
+    expect(getCachedNotes('TAG1', 1, null, {
+      filesetId: 'FS_A', authed: false,
+    })).toBeNull();
+    expect(getCachedNotes('TAG1', 1, null, {
+      filesetId: 'FS_B', authed: true,
+    })).toBeNull();
   });
 
   it('should cache different pages independently', () => {
-    const tag: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
+    const tag = makeTag('TAG1');
+    const page1Notes = [makeNote('note1', tag, 'Page 1 note')];
+    const page2Notes = [makeNote('note2', tag, 'Page 2 note')];
 
-    const page1Notes: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Page 1 note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-
-    const page2Notes: Note[] = [
-      {
-        id: 'note2',
-        note_text: 'Page 2 note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-
-    cacheNotes('TAG1', page1Notes, { count: 50, hasMore: true, page: 1 });
-    cacheNotes('TAG1', page2Notes, { count: 50, hasMore: true, page: 2 });
+    cacheNotes('TAG1', page1Notes, {
+      count: 50,
+      hasMore: true,
+      page: 1,
+    });
+    cacheNotes('TAG1', page2Notes, {
+      count: 50,
+      hasMore: true,
+      page: 2,
+    });
 
     expect(getCachedNotes('TAG1', 1)?.notes).toEqual(page1Notes);
     expect(getCachedNotes('TAG1', 2)?.notes).toEqual(page2Notes);
   });
 
   it('should cache different orderings independently', () => {
-    const tag: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-
-    const defaultNotes: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Default order',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-    ];
-
-    const customNotes: Note[] = [
-      {
-        id: 'note2',
-        note_text: 'Custom order',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-    ];
+    const tag = makeTag('TAG1');
+    const defaultNotes = [makeNote('note1', tag, 'Default order')];
+    const customNotes = [makeNote('note2', tag, 'Custom order')];
 
     cacheNotes('TAG1', defaultNotes, {
       count: 2,
@@ -523,32 +394,17 @@ describe('Notes Cache Manager', () => {
       ordering: 'custom',
     });
 
-    expect(getCachedNotes('TAG1', 1, null)?.notes).toEqual(defaultNotes);
-    expect(getCachedNotes('TAG1', 1, 'custom')?.notes).toEqual(customNotes);
+    expect(getCachedNotes('TAG1', 1, null)?.notes).toEqual(
+      defaultNotes
+    );
+    expect(getCachedNotes('TAG1', 1, 'custom')?.notes).toEqual(
+      customNotes
+    );
   });
 
   it('should clear all pages when clearing tag cache', () => {
-    const tag: Tag = {
-      id: 'TAG1',
-      name: 'Tag 1',
-      parent_tag: null,
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-
-    const notes: Note[] = [
-      {
-        id: 'note1',
-        note_text: 'Test note',
-        public: false,
-        is_owner: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        tag,
-        verses: [],
-        tag_position: null,
-      },
-    ];
+    const tag = makeTag('TAG1');
+    const notes = [makeNote('note1', tag, 'Test note')];
 
     cacheNotes('TAG1', notes, { count: 50, hasMore: true, page: 1 });
     cacheNotes('TAG1', notes, { count: 50, hasMore: true, page: 2 });
@@ -569,8 +425,11 @@ describe('Notes Cache Manager', () => {
 
 describe('Audio Cache Manager', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should cache and retrieve an audio URL', () => {
@@ -610,6 +469,47 @@ describe('Audio Cache Manager', () => {
 
     expect(expiredCached).toBeNull();
     expect(validCached).toBe(validUrl);
+  });
+
+  it('falls back to the 24h default when Expires is malformed', () => {
+    const audioUrl = 'http://audio.url/1?Expires=abc';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    // A NaN expiresAt would never expire — the guard must leave
+    // the default 24h TTL so the entry still times out.
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBeNull();
+  });
+
+  it('falls back to the 24h default when Expires is missing', () => {
+    const audioUrl = 'http://audio.url/1';
+    cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
+
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBeNull();
+  });
+
+  it('falls back to the 24h default when the URL is unparseable', () => {
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    cacheAudioUrl('GEN', 1, 'KJV', 'not-a-url', 60, 1024);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Error parsing audio URL expiration:',
+      expect.any(Error)
+    );
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe('not-a-url');
+
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+    expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBeNull();
+
+    errorSpy.mockRestore();
   });
 
   // API.Bible `resourceUrl`s are AWS SigV4-presigned: expiry is
@@ -665,5 +565,50 @@ describe('Audio Cache Manager', () => {
     cacheAudioUrl('GEN', 1, 'KJV', audioUrl, 60, 1024);
 
     expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
+  });
+});
+
+describe('Timestamp Cache', () => {
+  const stamps: VerseTimestamp[] = [
+    { verse_start: 0, timestamp: 0 },
+    { verse_start: 1, timestamp: 3.5 },
+  ];
+
+  it('caches and retrieves timestamps per fileset/book/chapter', () => {
+    cacheTimestamps('LAVNLIN1DA', 'JHN', 3, stamps);
+    expect(getCachedTimestamps('LAVNLIN1DA', 'JHN', 3)).toEqual(
+      stamps
+    );
+  });
+
+  it('scopes entries by fileset id', () => {
+    cacheTimestamps('A1DA', 'JHN', 3, stamps);
+    expect(getCachedTimestamps('B1DA', 'JHN', 3)).toBeNull();
+    expect(getCachedTimestamps('A1DA', 'JHN', 4)).toBeNull();
+  });
+
+  it('clears the timestamp cache', () => {
+    cacheTimestamps('A1DA', 'JHN', 3, stamps);
+    clearTimestampCache();
+    expect(getCachedTimestamps('A1DA', 'JHN', 3)).toBeNull();
+  });
+});
+
+describe('Headings Cache', () => {
+  const headings: SectionHeading[] = [
+    { before_verse: 1, text: 'Prologue' },
+  ];
+
+  it('caches and retrieves headings per version/book/chapter', () => {
+    cacheHeadings('JHN', 1, 'ENGESV', headings);
+    expect(getCachedHeadings('JHN', 1, 'ENGESV')).toEqual(headings);
+    expect(getCachedHeadings('JHN', 1, 'KJV')).toBeNull();
+    expect(getCachedHeadings('JHN', 2, 'ENGESV')).toBeNull();
+  });
+
+  it('clears the headings cache', () => {
+    cacheHeadings('JHN', 1, 'ENGESV', headings);
+    clearHeadingsCache();
+    expect(getCachedHeadings('JHN', 1, 'ENGESV')).toBeNull();
   });
 });

@@ -43,18 +43,17 @@ describe('multi verse selection in full App', () => {
     await waitFor(() => expect(sel()?.refs).toHaveLength(1));
     await user.click(screen.getByTitle('passage-verse-1-5'));
     await waitFor(() => {
-      console.log('SEL', JSON.stringify(sel()));
-      expect(sel()?.refs).toHaveLength(2);
+      expect(sel()?.refs).toEqual([
+        { bookId: 'JHN', chapter: 1, verse: 3 },
+        { bookId: 'JHN', chapter: 1, verse: 5 },
+      ]);
     });
     const v3 = screen.getByTitle('passage-verse-1-3')
       .parentElement as HTMLElement;
     const v5 = screen.getByTitle('passage-verse-1-5')
       .parentElement as HTMLElement;
-    console.log(
-      'v3 active=',
-      v3.dataset.active,
-      'v5 active=',
-      v5.dataset.active
-    );
+    // Both clicked verses must carry the active marker.
+    expect(v3.dataset.active).toBe('true');
+    expect(v5.dataset.active).toBe('true');
   });
 });

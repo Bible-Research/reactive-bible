@@ -89,6 +89,15 @@ export const getAvailableTranslations = async (
         failure:
           `Failed to fetch translations ` +
           `(HTTP ${response.status})`,
+      }).catch((err) => {
+        // A bare `detail` body yields a plain Error from
+        // throwFromErrorBody — but every translations failure
+        // is a provider failure, so rewrap it under the typed
+        // contract callers branch on.
+        throw err instanceof ProviderError ||
+          err instanceof RateLimitError
+          ? err
+          : new ProviderError(err.message);
       });
     }
     const data = await response.json();
@@ -105,9 +114,14 @@ export const getAvailableTranslations = async (
         : new ProviderError(message);
     }
 
-    // The actual translations are in the 'results' property
+    // Only cache real arrays — an error body must not poison
+    // the no-TTL translation cache (it also feeds
+    // findOwnerIso).
+    if (!Array.isArray(data.results)) {
+      throw new ProviderError('Malformed translations response');
+    }
     const translations: Translation[] =
-      injectBundledKjv(data.results ?? []);
+      injectBundledKjv(data.results);
 
     cacheTranslations(languageIso, translations);
     console.log(`💾 Translations for ${languageIso} cached`);

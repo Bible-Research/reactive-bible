@@ -2,18 +2,25 @@ import '@testing-library/jest-dom';
 import { vi, beforeAll, afterEach, afterAll, beforeEach } from 'vitest';
 import { server } from './mocks/server';
 
-// happy-dom provides a real localStorage (with length/key()) —
-// no stub is needed. The old bespoke stub lacked enumeration
-// support, a latent drift source.
-//
-// IMPORTANT: do not statically import app modules (store,
-// authStore, cacheManager) here — setup files run before the
-// test file's vi.mock() registrations, so an eager import would
-// permanently bind the REAL module into the file's module
-// registry and vi.mock('../api') would silently stop
-// intercepting the store's calls. The resets below use lazy
-// dynamic imports instead, which resolve through each test
-// file's own (mock-aware) registry.
+// Mock localStorage for tests. Includes `length`/`key()` so code
+// paths that enumerate keys behave like the real Storage object.
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  };
+})();
+
+vi.stubGlobal('localStorage', localStorageMock);
 
 // Mock Vercel Analytics and Speed Insights to prevent
 // external script loading errors in test environment
@@ -26,72 +33,76 @@ vi.mock('@vercel/speed-insights/react', () => ({
 }));
 
 // Restore the MSW-intercepted fetch (captured after listen())
-// each test — tests that do `global.fetch = vi.fn()` would
-// otherwise leak their replacement into later tests, silently
-// bypassing MSW.
+// each test — tests that assign `global.fetch = vi.fn()`
+// directly (rather than vi.stubGlobal) would otherwise leak
+// their replacement into later tests, silently bypassing MSW.
 let interceptedFetch: typeof fetch;
 
-// Establish API mocking before all tests. 'error' makes any
-// unstubbed request — including writes to the real production
-// API — fail loudly instead of passing through.
+// Establish API mocking before all tests. 'error' (not 'warn')
+// fails any test whose code path hits an endpoint with no
+// matching handler — proof that every production egress is
+// covered by src/mocks/handlers.ts.
 beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' });
   interceptedFetch = globalThis.fetch;
-});
-
-interface StoreLike {
-  getInitialState?: () => unknown;
-  setState?: unknown;
-}
-
-const resetStoreToInitial = (store: StoreLike) => {
-  // When a test file vi.mock's the store module the binding
-  // here resolves to the mock — skip rather than crash.
-  if (typeof store.getInitialState !== 'function') return;
-  const setState = store.setState as
-    | ((state: unknown, replace?: boolean) => void)
-    | undefined;
-  setState?.(store.getInitialState(), true);
-};
-
-// Per-test isolation: stores, storage snapshot cache, and
-// localStorage all reset before every test.
-beforeEach(async () => {
-  localStorage.clear();
-  globalThis.fetch = interceptedFetch;
-  const [storeMod, authMod, cacheMod] = await Promise.all([
-    import('./store'),
-    import('./stores/authStore'),
-    import('./utils/cacheManager'),
-  ]);
-  // try/catch guard: a test file that vi.mock's the module
-  // (e.g. '../utils/cacheManager') swaps this binding for the
-  // automock proxy, which THROWS on missing-export access —
-  // even `?.()` can't help there.
-  try {
-    cacheMod.resetStorageCacheForTests?.();
-  } catch {
-    /* module is mocked in this file */
-  }
-  try {
-    resetStoreToInitial(storeMod.useBibleStore);
-  } catch {
-    /* module is mocked in this file */
-  }
-  try {
-    resetStoreToInitial(authMod.useAuthStore);
-  } catch {
-    /* module is mocked in this file */
-  }
 });
 
 // Reset any request handlers that we may add during the tests,
 // so they don't affect other tests.
 afterEach(() => {
   server.resetHandlers();
+});
+
+// Reset all shared state before each test: localStorage, the
+// cacheManager module-level read-through cache, and both
+// persisted zustand stores back to their initial state.
+//
+// The imports MUST be lazy: a static import here would populate
+// this file's module cache during setup — before the test file's
+// `vi.mock` factories register — and bind `./store`/`./api`/
+// `./utils/cacheManager` to real implementations, silently
+// defeating per-file mocks. Dynamic import inside the hook
+// resolves the same module instance the test file sees (mocked
+// deps included). Files that mock `../store` wholesale are
+// guarded by the `?.`/`initialState` checks.
+beforeEach(async () => {
   localStorage.clear();
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
+  globalThis.fetch = interceptedFetch;
+
+  // try/catch: a test file may factory-mock the module without
+  // the export — merely accessing it then throws (vitest).
+  try {
+    const cacheManager = await import('./utils/cacheManager');
+    cacheManager.resetStorageCacheForTests?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+
+  // structuredClone gives each test fresh nested objects —
+  // sharing initialState's arrays/objects would let one test's
+  // in-place mutation leak into later tests. Both initialState
+  // objects are plain data (no functions), so cloning is safe.
+  try {
+    const bible = await import('./store');
+    if (bible.initialState) {
+      bible.useBibleStore?.setState?.(
+        structuredClone(bible.initialState)
+      );
+    }
+  } catch {
+    // mocked without the store — nothing to reset
+  }
+
+  try {
+    const auth = await import('./stores/authStore');
+    if (auth.initialState) {
+      auth.useAuthStore?.setState?.(
+        structuredClone(auth.initialState)
+      );
+    }
+  } catch {
+    // mocked without the store — nothing to reset
+  }
 });
 
 // Clean up after the tests are finished.

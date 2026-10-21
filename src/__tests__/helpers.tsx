@@ -27,17 +27,16 @@ export * from './helpers/factories';
 
 // Re-export performance helpers
 // eslint-disable-next-line react-refresh/only-export-components
-export * from './helpers/performance';
-// eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/performanceUtils';
 
 // --- Store Helpers ---
 
 /**
  * Creates a mock store state with optional overrides.
- * Use this to set up specific test scenarios.
+ * Internal building block for `resetStore` — tests should call
+ * `resetStore` (which also applies the state) rather than this.
  */
-export function createMockStore(overrides: Partial<BibleState> = {}) {
+function createMockStore(overrides: Partial<BibleState> = {}) {
   const mockFunctions = {
     setActiveBookAndChapter: vi.fn(),
     setActiveChapter: vi.fn(),
@@ -80,24 +79,33 @@ export function resetStore(overrides: Partial<BibleState> = {}) {
 /**
  * Mocks common DOM APIs that aren't available in happy-dom/jsdom.
  * Call this in your test setup file or beforeEach().
+ * Idempotent — safe to call more than once per test file.
  */
 export function mockDomApis() {
   // Mock scrollIntoView
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
-  // Mock document.getElementById for scroll behavior
-  const originalGetElementById = document.getElementById.bind(document);
-  vi.spyOn(document, 'getElementById').mockImplementation((id: string) => {
-    const element = originalGetElementById(id);
-    if (element) return element;
-    // Return a mock element for verse scrolling
-    if (id.startsWith('verse-')) {
-      return {
-        scrollIntoView: vi.fn(),
-      } as unknown as HTMLElement;
-    }
-    return null;
-  });
+  // Mock document.getElementById for scroll behavior.
+  // Guard the spy: re-wrapping an already-spied method binds
+  // `original` to the spy itself and recurses infinitely once
+  // enough tests have rendered in the same environment.
+  if (!vi.isMockFunction(document.getElementById)) {
+    const originalGetElementById =
+      document.getElementById.bind(document);
+    vi.spyOn(document, 'getElementById').mockImplementation(
+      (id: string) => {
+        const element = originalGetElementById(id);
+        if (element) return element;
+        // Return a mock element for verse scrolling
+        if (id.startsWith('verse-')) {
+          return {
+            scrollIntoView: vi.fn(),
+          } as unknown as HTMLElement;
+        }
+        return null;
+      }
+    );
+  }
 
   // Mock matchMedia for theme tests
   Object.defineProperty(window, 'matchMedia', {
@@ -184,4 +192,10 @@ export function renderWithProviders(
   };
 }
 
-
+/**
+ * Flushes pending microtasks — use inside act() to let a chain
+ * of awaited promises settle before asserting.
+ */
+export async function flushPromises() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}

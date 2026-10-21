@@ -21,10 +21,10 @@ import {
 import { orderedAudioCandidates } from '../utils/audioCandidates';
 import { useVerseHighlighter } from './useVerseHighlighter';
 import {
-  disposeHowl,
   getHtml5AudioNode,
   getPlayPosition,
 } from '../utils/audioUtils';
+import { disposeHowl } from '../utils/howlUtils';
 
 export interface UseAudioPlaylistReturn {
   isActive: boolean;
@@ -50,6 +50,12 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
   const audioRef = useRef<Howl | null>(null);
   const stoppedRef = useRef(false);
+  // Generation counter for playIndex runs. start()/next()/
+  // previous() can supersede a run whose URL/timestamp fetches
+  // are still in flight — without this the stale run resumes and
+  // materializes a Howl for the wrong item, overwriting
+  // audioRef while the orphaned Howl keeps loading/playing.
+  const playSeqRef = useRef(0);
   // Guards the "no verse timestamps" notification so a playlist
   // of timestampless recordings warns once, not per item.
   const timestampsNoticeShownRef = useRef(false);
@@ -75,18 +81,15 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
     timestamps,
     currentItem?.bookId ?? '',
     currentItem?.chapter ?? 0,
-    currentItem?.itemId ?? '',
+    currentItem?.scope ?? currentItem?.itemId ?? '',
   );
 
   const unloadCurrent = useCallback(() => {
-    if (audioRef.current) {
-      // disposeHowl emits 'stop' first so the bounds-checker
-      // cleanup still runs, then detaches listeners before
-      // unload() — a pending play() rejection can't surface as
-      // a playerror retry during teardown.
-      disposeHowl(audioRef.current);
-      audioRef.current = null;
-    }
+    // Null the ref before disposing — no re-entrant 'stop'
+    // handler can observe a half-torn-down Howl.
+    const current = audioRef.current;
+    audioRef.current = null;
+    disposeHowl(current);
     setAudio(null);
     setTimestamps([]);
     setAudioActiveVerse(null);
@@ -94,6 +97,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
   const playIndex = useCallback(
     async (allItems: PlaylistItem[], index: number) => {
+      // Every run is a new generation — a superseded coroutine
+      // must never materialize a Howl or advance the playlist.
+      const seq = ++playSeqRef.current;
+      const stale = () =>
+        stoppedRef.current || seq !== playSeqRef.current;
       if (stoppedRef.current) return;
       if (index >= allItems.length) {
         unloadCurrent();
@@ -110,7 +118,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       // checker and then unloading would otherwise skip an item.
       let advanced = false;
       const advanceNext = () => {
-        if (advanced || stoppedRef.current) return;
+        if (advanced || stale()) return;
         advanced = true;
         playIndex(allItems, index + 1);
       };
@@ -203,7 +211,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                       candidateId,
                     );
 
-              if (stoppedRef.current) return;
+              if (stale()) return;
+
 
               let fetchedTimestamps: VerseTimestamp[] = [];
               if (candidateId !== 'ENGKJV') {
@@ -230,7 +239,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 }
               }
 
-              if (stoppedRef.current) return;
+              if (stale()) return;
 
               // Graceful degradation for recordings with no
               // verse timestamps at all (ENGKJV wordpocket
@@ -282,12 +291,22 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 return afterEnd ? afterEnd.timestamp : null;
               })();
 
+              // Loop seeks back to the item's first verse — for
+              // verseNumbers lists that is the first included
+              // verse, not necessarily startVerse.
+              const verses = item.verseNumbers;
+              const loopStartTs = verses
+                ? fetchedTimestamps.find(
+                    (t) => verses.includes(t.verse_start),
+                  )?.timestamp ?? startTs
+                : startTs;
+
               const howl = new Howl({
                 src: [audioUrl],
                 html5: true,
                 pool: 1,
                 onload: () => {
-                  if (stoppedRef.current) {
+                  if (stale()) {
                     disposeHowl(howl);
                     return;
                   }
@@ -296,15 +315,18 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   prefetchNext(index);
                 },
                 onplay: () => {
+                  if (stale()) return;
                   // Media Session metadata/state is owned
                   // centrally by useMediaSession (wired in
                   // Audio.tsx). Do not write to
                   // navigator.mediaSession here to avoid
                   // duplicate owners.
+                  if (stale()) return;
                   setIsPlaying(true);
                   setShowPlayer(true);
                 },
                 onpause: () => {
+                  if (stale()) return;
                   setIsPlaying(false);
                 },
                 onend: () => {
@@ -316,14 +338,19 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   advanceNext();
                 },
                 onloaderror: (_id, err) => {
+                  // A superseded run must stay inert — unloading
+                  // during a pending play can surface a playerror,
+                  // which must not spawn a detached retry.
+                  if (stale()) return;
                   console.error(
                     'Playlist audio load error:',
                     err,
                   );
+                  // Release the failed Howl (stops its bounds
+                  // poll) — whether we retry or were superseded.
+                  disposeHowl(howl);
+                  if (stale()) return;
                   if (i + 1 < candidates.length) {
-                    // Release the failed Howl (stops its bounds
-                    // poll) before retrying the next candidate.
-                    disposeHowl(howl);
                     retryNextCandidate(i + 1);
                     return;
                   }
@@ -338,12 +365,14 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   advanceNext();
                 },
                 onplayerror: (_id, err) => {
+                  if (stale()) return;
                   console.error(
                     'Playlist audio play error:',
                     err,
                   );
+                  disposeHowl(howl);
+                  if (stale()) return;
                   if (i + 1 < candidates.length) {
-                    disposeHowl(howl);
                     retryNextCandidate(i + 1);
                     return;
                   }
@@ -364,10 +393,17 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 // Returns true when the checker should stop (item
                 // advanced or playback halted).
                 const checkBounds = (): boolean => {
-                  if (!howl || stoppedRef.current) return true;
+                  if (!howl || stale()) return true;
                   const pos = getPlayPosition(howl);
                   if (pos === null) return false;
                   if (endTs !== null && pos >= endTs - EPSILON) {
+                    // Looping replays the item's verses instead
+                    // of advancing — the toggle must not be a
+                    // no-op for bounded items.
+                    if (howl.loop()) {
+                      howl.seek(loopStartTs);
+                      return false;
+                    }
                     advanceNext();
                     return true;
                   }
@@ -399,6 +435,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                       if (nextIncludedVerse) {
                         howl.seek(nextIncludedVerse.timestamp);
                       } else if (endTs !== null) {
+                        if (howl.loop()) {
+                          howl.seek(loopStartTs);
+                          return false;
+                        }
                         advanceNext();
                         return true;
                       }
@@ -437,17 +477,25 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 howl.on('stop', cleanup);
               }
 
+              // A newer playIndex superseded this coroutine
+              // while the Howl was being set up — dispose it
+              // instead of overwriting the current item's audio.
+              if (stale()) {
+                disposeHowl(howl);
+                return;
+              }
               audioRef.current = howl;
               setAudio(howl);
               return;
             } catch (err) {
-              if (stoppedRef.current) return;
+              if (stale()) return;
               if (err instanceof BookNotInFilesetError) continue;
               throw err;
             }
           }
 
           // Every candidate was exhausted — report once.
+          if (stale()) return;
           showNotification({
             title: 'Audio not available',
             message:
@@ -465,7 +513,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         // playlist with no notification and no advance.
         const retryNextCandidate = (startAt: number) => {
           void loadFromIndex(startAt).catch((err) => {
-            if (stoppedRef.current) return;
+            if (stale()) return;
             console.error('Playlist retry failed:', err);
             showNotification({
               title: 'Audio unavailable',
@@ -481,6 +529,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
         await loadFromIndex(0);
       } catch (err) {
+        if (stale()) return;
         console.error('Playlist error loading item:', err);
         showNotification({
           title: 'Audio unavailable',
@@ -531,6 +580,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
   const stop = useCallback(() => {
     stoppedRef.current = true;
+    // Invalidate any load still in flight so it cannot
+    // materialize a Howl after the stop.
+    playSeqRef.current += 1;
     unloadCurrent();
     setIsPlaying(false);
     setCurrentIndex(-1);

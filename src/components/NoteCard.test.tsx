@@ -1,5 +1,9 @@
-import { screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import NoteCard from './NoteCard';
 import {
   renderWithProviders,
@@ -8,10 +12,18 @@ import {
   createMockTag,
 } from '../__tests__/helpers';
 
+// CommentThread is covered by its own suite; stub it so the
+// badge-toggle test only asserts the mount, not the thread's
+// fetch/render internals.
+vi.mock('./CommentThread', () => ({
+  default: () => <div data-testid="comment-thread" />,
+}));
+
 describe('NoteCard Component', () => {
   const singleVerseNote = createMockNote({
     id: 'n1',
     note_text: 'This is a single verse note.',
+    public: true,
     tag: createMockTag({ id: '1', name: 'Faith' }),
     verses: [
       createMockVerse({
@@ -43,12 +55,27 @@ describe('NoteCard Component', () => {
     ],
   });
 
+  const noteWithScriptureRef = createMockNote({
+    id: 'n3',
+    note_text: 'Compare with @JHN.1.1-5 here.',
+    tag: createMockTag({ id: '2', name: 'Jesus is God' }),
+    verses: [
+      createMockVerse({
+        book: 'John',
+        chapter: 1,
+        verse: 1,
+        text: 'In the beginning was the Word...',
+      }),
+    ],
+  });
+
   const mockOnViewInBible = vi.fn();
   const mockOnEdit = vi.fn();
   const mockOnDelete = vi.fn();
 
-  beforeEach(() => {
+  afterEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('should render correctly for a single verse note', () => {
@@ -67,8 +94,9 @@ describe('NoteCard Component', () => {
     expect(
       screen.getByText('This is a single verse note.')
     ).toBeInTheDocument();
-    expect(screen.getByText('In the beginning...'))
-      .toBeInTheDocument();
+    expect(
+      screen.getByText('In the beginning...')
+    ).toBeInTheDocument();
   });
 
   it('should render correctly for a multi-verse note', () => {
@@ -88,6 +116,9 @@ describe('NoteCard Component', () => {
       screen.getByText('This is a multi-verse note.')
     ).toBeInTheDocument();
     expect(
+      screen.getByText('In the beginning...')
+    ).toBeInTheDocument();
+    expect(
       screen.getByText('The earth was without form...')
     ).toBeInTheDocument();
   });
@@ -99,56 +130,20 @@ describe('NoteCard Component', () => {
         onViewInBible={mockOnViewInBible}
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
-      />
+        isTagOwner
+      />,
+      { stores: { auth: { isAuthenticated: true } } }
     );
 
-    fireEvent.click(screen.getByLabelText('edit-note'));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'edit-note' })
+    );
 
     expect(mockOnEdit).toHaveBeenCalledWith(singleVerseNote);
   });
 
-  it('hides edit and remove for notes the user does not own',
-    () => {
-      const foreign = createMockNote({
-        id: 'n-foreign',
-        is_owner: false,
-        verses: [createMockVerse()],
-      });
-      renderWithProviders(
-        <NoteCard
-          note={foreign}
-          onViewInBible={mockOnViewInBible}
-          onEdit={mockOnEdit}
-          onDelete={mockOnDelete}
-        />
-      );
-
-      expect(
-        screen.queryByLabelText('edit-note')
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByLabelText('remove-note')
-      ).not.toBeInTheDocument();
-    });
-
-  it('should call onViewInBible when the view button is clicked',
-    () => {
-      renderWithProviders(
-        <NoteCard
-          note={singleVerseNote}
-          onViewInBible={mockOnViewInBible}
-          onEdit={mockOnEdit}
-          onDelete={mockOnDelete}
-        />
-      );
-
-      fireEvent.click(screen.getByLabelText('view-in-bible'));
-
-      expect(mockOnViewInBible)
-        .toHaveBeenCalledWith('Genesis', 1, 1);
-    });
-
-  it('should call onDelete on remove click', () => {
+  it('should call onViewInBible when the view button ' +
+    'is clicked', () => {
     renderWithProviders(
       <NoteCard
         note={singleVerseNote}
@@ -158,83 +153,216 @@ describe('NoteCard Component', () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText('remove-note'));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'view-in-bible' })
+    );
 
-    expect(mockOnDelete).toHaveBeenCalledWith(
-      expect.any(Object),
-      singleVerseNote
+    expect(mockOnViewInBible).toHaveBeenCalledWith(
+      'Genesis',
+      1,
+      1
     );
   });
 
-  it('should show the share button only for public notes', () => {
-    const publicNote = createMockNote({
-      id: 'n-pub',
-      public: true,
-      verses: [createMockVerse()],
-    });
-    renderWithProviders(
-      <NoteCard note={publicNote} onViewInBible={mockOnViewInBible} />
-    );
-
-    expect(screen.getByLabelText('share-note')).toBeInTheDocument();
-  });
-
-  it('should not show the share button for private notes', () => {
-    renderWithProviders(
-      <NoteCard
-        note={singleVerseNote}
-        onViewInBible={mockOnViewInBible}
-      />
-    );
-
-    expect(
-      screen.queryByLabelText('share-note')
-    ).not.toBeInTheDocument();
-  });
-
-  it('should call onPlayFromNote with the note id', () => {
-    const mockOnPlayFromNote = vi.fn();
-    renderWithProviders(
-      <NoteCard
-        note={singleVerseNote}
-        onViewInBible={mockOnViewInBible}
-        onPlayFromNote={mockOnPlayFromNote}
-      />
-    );
-
-    fireEvent.click(screen.getByLabelText('play-from-n1'));
-
-    expect(mockOnPlayFromNote).toHaveBeenCalledWith('n1');
-  });
-
-  it('shows the comment count badge', () => {
-    renderWithProviders(
-      <NoteCard
-        note={singleVerseNote}
-        onViewInBible={mockOnViewInBible}
-        commentCount={3}
-      />
-    );
-
-    expect(
-      screen.getByRole('button', { name: '3' })
-    ).toBeInTheDocument();
-  });
-
-  it('hides the comment badge for anonymous viewers on an ' +
-    'uncommented note', () => {
+  it('should call onDelete with the event and the note',
+    () => {
       renderWithProviders(
         <NoteCard
           note={singleVerseNote}
           onViewInBible={mockOnViewInBible}
-          commentCount={0}
+          onEdit={mockOnEdit}
+          onDelete={mockOnDelete}
+          isTagOwner
         />,
-        { authStoreState: { isAuthenticated: false } }
+        { stores: { auth: { isAuthenticated: true } } }
+      );
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'remove-note' })
+      );
+
+      expect(mockOnDelete).toHaveBeenCalledWith(
+        expect.any(Object),
+        singleVerseNote
+      );
+    });
+
+  it('copies the note link to the clipboard when share is ' +
+    'clicked and navigator.share is unavailable', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal('navigator', {
+        ...navigator,
+        share: undefined,
+        clipboard: { writeText },
+      });
+
+      renderWithProviders(
+        <NoteCard
+          note={singleVerseNote}
+          onViewInBible={mockOnViewInBible}
+        />
+      );
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'share-note' })
+      );
+
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(
+          `${window.location.origin}/notes/n1`
+        );
+      });
+    });
+
+  it('hides the share button for private notes', () => {
+    renderWithProviders(
+      <NoteCard
+        note={createMockNote({
+          id: 'n-priv',
+          public: false,
+          verses: [
+            createMockVerse({
+              book: 'John',
+              chapter: 3,
+              verse: 16,
+            }),
+          ],
+        })}
+        onViewInBible={mockOnViewInBible}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'share-note' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('calls onPlayFromNote with the note id when play ' +
+    'is clicked', () => {
+      const onPlayFromNote = vi.fn();
+      renderWithProviders(
+        <NoteCard
+          note={singleVerseNote}
+          onViewInBible={mockOnViewInBible}
+          onPlayFromNote={onPlayFromNote}
+        />
+      );
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'play-from-n1' })
+      );
+
+      expect(onPlayFromNote).toHaveBeenCalledWith('n1');
+    });
+
+  it('shows only the first verse when verses are folded',
+    () => {
+      renderWithProviders(
+        <NoteCard
+          note={multiVerseNote}
+          onViewInBible={mockOnViewInBible}
+        />,
+        { storeOverrides: { versesFolded: true } }
       );
 
       expect(
-        screen.queryByLabelText('Add a comment')
+        screen.getByText('In the beginning...')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText('The earth was without form...')
       ).not.toBeInTheDocument();
+      // The action group still renders in the folded header.
+      expect(
+        screen.getByRole('button', { name: 'view-in-bible' })
+      ).toBeInTheDocument();
+    });
+
+  it('toggles the comment thread via the comment badge',
+    async () => {
+      renderWithProviders(
+        <NoteCard
+          note={singleVerseNote}
+          onViewInBible={mockOnViewInBible}
+          commentCount={3}
+        />,
+        { stores: { auth: { isAuthenticated: true } } }
+      );
+
+      const badge = document.querySelector(
+        '[aria-controls="comment-thread-n1"]'
+      ) as HTMLElement;
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveAttribute('aria-expanded', 'false');
+      expect(
+        screen.queryByTestId('comment-thread')
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(badge);
+
+      expect(
+        await screen.findByTestId('comment-thread')
+      ).toBeInTheDocument();
+      expect(badge).toHaveAttribute('aria-expanded', 'true');
+    });
+
+  it('hides the comment badge on the detail route where ' +
+    'commentCount is undefined', () => {
+      renderWithProviders(
+        <NoteCard
+          note={singleVerseNote}
+          onViewInBible={mockOnViewInBible}
+        />
+      );
+
+      expect(
+        screen.queryByRole('button', { name: 'Add a comment' })
+      ).not.toBeInTheDocument();
+    });
+
+  it('opens the passage preview popover when a scripture ' +
+    'link in the note text is clicked', async () => {
+      renderWithProviders(
+        <NoteCard
+          note={noteWithScriptureRef}
+          onViewInBible={mockOnViewInBible}
+        />
+      );
+
+      // The linkified token renders as a clickable Anchor; the
+      // popover anchors to it. happy-dom has no layout, so the
+      // rect is stubbed — an all-zero rect is read as a
+      // deleted anchor and would close the popover instantly.
+      const link = screen.getByText('@JHN.1.1-5');
+      vi.spyOn(link, 'getBoundingClientRect').mockReturnValue(
+        {
+          top: 100,
+          bottom: 120,
+          left: 40,
+          right: 90,
+          width: 50,
+          height: 20,
+          x: 40,
+          y: 100,
+          toJSON: () => ({}),
+        } as DOMRect
+      );
+      fireEvent.click(link);
+
+      expect(
+        await screen.findByTestId('passage-container')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('scripture-passage-popover')
+          .parentElement
+      ).toBe(document.body);
+
+      // A second click on the same ref toggles it closed.
+      fireEvent.click(link);
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId('passage-container')
+        ).not.toBeInTheDocument()
+      );
     });
 });
 

@@ -1,6 +1,8 @@
 import { render, screen, act, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe, it, expect, vi, beforeEach, afterEach,
+} from 'vitest';
 import Audio from './Audio';
 import BibleRoute from '../routes/BibleRoute';
 import { useBibleStore, initialState } from '../store';
@@ -11,14 +13,14 @@ import {
 import { getAudioTimestamps } from '../api';
 import { mockDomApis } from '../__tests__/helpers';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
+import {
+  stubMediaSession,
+  type MediaSessionStub,
+} from '../__tests__/mocks/mediaSession';
 
-// Shared faithful Howl fake with real position tracking:
-// seek(v) stores the position and seek() returns it, so
-// verse-jump assertions read the resulting _pos directly.
-vi.mock('howler', async () => {
-  const { FakeHowl } = await import('../__tests__/mocks/FakeHowl');
-  return { Howl: FakeHowl };
-});
+vi.mock('howler', async () => ({
+  Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
+}));
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>(
@@ -48,29 +50,7 @@ const TIMESTAMPS = [
   { verse_start: 4, timestamp: 30 },
 ];
 
-// Handlers captured from navigator.mediaSession.setActionHandler.
-const capturedHandlers: Record<
-  string,
-  MediaSessionActionHandler | null
-> = {};
-
-const stubMediaSession = () => {
-  Object.defineProperty(window.navigator, 'mediaSession', {
-    configurable: true,
-    writable: true,
-    value: {
-      metadata: null,
-      playbackState: 'none',
-      setActionHandler: (
-        action: MediaSessionAction,
-        handler: MediaSessionActionHandler | null,
-      ) => {
-        capturedHandlers[action] = handler;
-      },
-      setPositionState: vi.fn(),
-    },
-  });
-};
+let session: MediaSessionStub;
 
 const renderAndStartPlayback = async () => {
   render(
@@ -90,9 +70,13 @@ const renderAndStartPlayback = async () => {
     expect(FakeHowl.instances.length).toBeGreaterThan(0),
   );
   const howl = FakeHowl.instances[0];
+  // The file finishes loading — only then is seek() a position.
+  act(() => {
+    howl.emit('load');
+  });
   await waitFor(() => expect(howl._playing).toBe(true));
   await waitFor(() =>
-    expect(capturedHandlers.nexttrack).toBeTruthy(),
+    expect(session.handlers.has('nexttrack')).toBe(true),
   );
   return howl;
 };
@@ -112,19 +96,16 @@ const pressTrackButton = (
   action: 'nexttrack' | 'previoustrack',
 ) => {
   act(() => {
-    capturedHandlers[action]?.({ action });
+    session.handlers.get(action)?.({ action });
   });
 };
 
 describe('Audio media session track controls', () => {
   beforeEach(() => {
     FakeHowl.reset();
-    Object.keys(capturedHandlers).forEach(
-      (k) => delete capturedHandlers[k],
-    );
     vi.clearAllMocks();
     mockDomApis();
-    stubMediaSession();
+    session = stubMediaSession();
     vi.stubGlobal(
       'MediaMetadata',
       class {
@@ -148,6 +129,11 @@ describe('Audio media session track controls', () => {
     });
     useAuthStore.setState(authInitialState);
     vi.mocked(getAudioTimestamps).mockResolvedValue(TIMESTAMPS);
+  });
+
+  afterEach(() => {
+    session.restore();
+    vi.unstubAllGlobals();
   });
 
   it('nexttrack seeks to the next verse start', async () => {

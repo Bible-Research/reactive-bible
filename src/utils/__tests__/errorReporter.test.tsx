@@ -156,10 +156,71 @@ describe('errorReporter', () => {
       window.dispatchEvent(event);
 
       expect(mockShowNotification).toHaveBeenCalledTimes(1);
-      expect(notificationContent().error.message).toContain(
-        'Failed to load resource'
+      const call = mockShowNotification.mock.calls[0][0];
+      expect(call.title).toBe('Resource failed to load');
+      expect(call.color).toBe('yellow');
+      expect(call.autoClose).not.toBe(false);
+      expect(call.message).toContain('Failed to load resource');
+    });
+
+    it('dedupes repeat failures for the same resource', () => {
+      cleanup = initGlobalErrorHandlers();
+      const img = document.createElement('img');
+      img.src = 'https://example.com/missing.png';
+      const makeEvent = () => {
+        const event = new Event('error');
+        Object.defineProperty(event, 'target', { value: img });
+        return event;
+      };
+
+      window.dispatchEvent(makeEvent());
+      window.dispatchEvent(makeEvent());
+
+      expect(mockShowNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it('suppresses AbortError rejections', () => {
+      cleanup = initGlobalErrorHandlers();
+      const reason = new Error('aborted');
+      reason.name = 'AbortError';
+      const event = new Event('unhandledrejection');
+      Object.defineProperty(event, 'reason', { value: reason });
+
+      window.dispatchEvent(event);
+
+      // Routine fetch cancellations must not notify.
+      expect(mockShowNotification).not.toHaveBeenCalled();
+    });
+
+    it('ignores audio/video element load failures', () => {
+      cleanup = initGlobalErrorHandlers();
+      for (const tag of ['audio', 'video']) {
+        const el = document.createElement(tag);
+        const event = new Event('error');
+        Object.defineProperty(event, 'target', { value: el });
+        window.dispatchEvent(event);
+      }
+
+      // Media failures are handled by the app's own fallback
+      // chains — never surfaced as fatal errors.
+      expect(mockShowNotification).not.toHaveBeenCalled();
+    });
+
+    it('reports an ErrorEvent message with no error object', () => {
+      cleanup = initGlobalErrorHandlers();
+
+      window.dispatchEvent(
+        new ErrorEvent('error', {
+          message: 'Script error.',
+        })
+      );
+
+      expect(mockShowNotification).toHaveBeenCalledTimes(1);
+      expect(notificationContent().error.message).toBe(
+        'Script error.'
       );
     });
+
 
     it('ignores Vercel telemetry resource load failures', () => {
       cleanup = initGlobalErrorHandlers();
@@ -167,12 +228,9 @@ describe('errorReporter', () => {
       script.src = 'https://localhost/_vercel/insights/script.js';
       const event = new Event('error');
       Object.defineProperty(event, 'target', { value: script });
-
       window.dispatchEvent(event);
-
       expect(mockShowNotification).not.toHaveBeenCalled();
     });
-
     it('stops reporting after cleanup', () => {
       cleanup = initGlobalErrorHandlers();
       cleanup();

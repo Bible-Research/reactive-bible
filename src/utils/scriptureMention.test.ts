@@ -119,6 +119,20 @@ describe('parseMentionQuery', () => {
     expect(p.complete).toBe(true);
   });
 
+  it('treats any Unicode whitespace as a separator', () => {
+    // Non-breaking/ideographic spaces pasted from mobile apps
+    // must not defeat the parser.
+    const p = parseMentionQuery(
+      'john 3 16'
+        .replace(' ', String.fromCharCode(0xa0))
+        .replace(' ', String.fromCharCode(0x3000))
+    );
+    expect(p.bookName).toBe('John');
+    expect(p.chapter).toBe(3);
+    expect(p.verseStart).toBe(16);
+    expect(p.complete).toBe(true);
+  });
+
   it('lets + escape spaces inside book names', () => {
     const p = parseMentionQuery('1+corinthians.3.5');
     expect(p.bookName).toBe('1 Corinthians');
@@ -156,6 +170,28 @@ describe('parseMentionQuery', () => {
   it('rejects reversed ranges', () => {
     const p = parseMentionQuery('JHN.3.18-16');
     expect(p.error).toBe('Invalid verse range 18-16');
+  });
+
+  it('errors on a non-numeric chapter', () => {
+    const p = parseMentionQuery('JHN.x');
+    expect(p.error).toBe('Invalid chapter: x');
+    expect(p.chapter).toBeNull();
+    expect(p.complete).toBe(false);
+  });
+
+  it('errors on text after a complete ref', () => {
+    const p = parseMentionQuery('JHN.3.16 extra');
+    expect(p.verseStart).toBe(16);
+    expect(p.error).toBe('Unexpected text: extra');
+    expect(p.complete).toBe(false);
+  });
+
+  it('errors on trailing letters after a verse number', () => {
+    // '16a' never matches the verse grammar — pinned as an
+    // 'Invalid verse' error rather than silently truncating.
+    const p = parseMentionQuery('JHN.3.16a');
+    expect(p.error).toBe('Invalid verse: 16a');
+    expect(p.complete).toBe(false);
   });
 });
 
@@ -207,6 +243,17 @@ describe('isTerminatedMentionQuery', () => {
     expect(isTerminatedMentionQuery('john 3 16 ')).toBe(true);
     expect(
       isTerminatedMentionQuery('JHN.3.16 is true')
+    ).toBe(true);
+  });
+
+  it('accepts a ref closed by non-ASCII whitespace', () => {
+    const nbsp = String.fromCharCode(0xa0);
+    const emSpace = String.fromCharCode(0x2003);
+    expect(
+      isTerminatedMentionQuery(`JHN.3.16${nbsp}`)
+    ).toBe(true);
+    expect(
+      isTerminatedMentionQuery(`JHN.3.16${emSpace}more`)
     ).toBe(true);
   });
 

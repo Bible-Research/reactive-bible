@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -79,5 +80,83 @@ describe("check for bible verse", () => {
       },
       { timeout: 5000 }
     );
+  });
+});
+
+describe('"/" search hotkey', () => {
+  const searchInput = () =>
+    screen.queryByPlaceholderText(
+      'Search for words or phrases...'
+    );
+
+  test('navigates to /search on a plain "/" press', async () => {
+    fireEvent.keyDown(document.body, { key: '/' });
+    await waitFor(() => {
+      expect(searchInput()).toBeInTheDocument();
+    });
+  });
+
+  test('ignores "/" typed inside a contenteditable editor',
+    async () => {
+      // TipTap renders a contenteditable DIV — "/" there must
+      // type into the note, not hijack navigation.
+      const editor = document.createElement('div');
+      editor.setAttribute('contenteditable', 'true');
+      document.body.appendChild(editor);
+      try {
+        const event = new KeyboardEvent('keydown', {
+          key: '/',
+          bubbles: true,
+          cancelable: true,
+        });
+        act(() => {
+          editor.dispatchEvent(event);
+        });
+        await act(async () => {
+          await new Promise((r) => setTimeout(r, 0));
+        });
+        expect(event.defaultPrevented).toBe(false);
+        expect(searchInput()).toBeNull();
+      } finally {
+        editor.remove();
+      }
+    },
+  );
+
+  test('ignores "/" on focused select elements', async () => {
+    const select = document.createElement('select');
+    document.body.appendChild(select);
+    try {
+      fireEvent.keyDown(select, { key: '/' });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(searchInput()).toBeNull();
+    } finally {
+      select.remove();
+    }
+  });
+
+  test('does not re-navigate when already on /search', async () => {
+    fireEvent.keyDown(document.body, { key: '/' });
+    await waitFor(() => {
+      expect(searchInput()).toBeInTheDocument();
+    });
+
+    // On /search a "/" press must not be swallowed or push a
+    // duplicate history entry — the event stays un-prevented.
+    const event = new KeyboardEvent('keydown', {
+      key: '/',
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      document.body.dispatchEvent(event);
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(event.defaultPrevented).toBe(false);
+    expect(searchInput()).toBeInTheDocument();
   });
 });

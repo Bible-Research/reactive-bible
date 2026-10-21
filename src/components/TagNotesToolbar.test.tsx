@@ -153,7 +153,7 @@ describe('TagNotesToolbar', () => {
   it('renders a share button', () => {
     renderToolbar();
     expect(
-      screen.getByLabelText('share-tag-link')
+      screen.getByLabelText('Share tag link')
     ).toBeInTheDocument();
   });
 
@@ -161,7 +161,7 @@ describe('TagNotesToolbar', () => {
     () => {
       const { onRefresh } = renderToolbar();
 
-      fireEvent.click(screen.getByLabelText('refresh-notes'));
+      fireEvent.click(screen.getByLabelText('Refresh notes'));
 
       expect(onRefresh).toHaveBeenCalledTimes(1);
     });
@@ -170,7 +170,7 @@ describe('TagNotesToolbar', () => {
     () => {
       const { onToggleFolded } = renderToolbar();
 
-      fireEvent.click(screen.getByLabelText('toggle-verse-fold'));
+      fireEvent.click(screen.getByLabelText('Fold verses'));
 
       expect(onToggleFolded).toHaveBeenCalledTimes(1);
     });

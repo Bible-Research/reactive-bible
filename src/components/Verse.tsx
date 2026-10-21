@@ -90,6 +90,23 @@ const Verse = ({
   const selectVerseRange = useBibleStore(
     (state) => state.selectVerseRange
   );
+  // Only the lowest selected verse in this chapter may scroll
+  // itself into view — otherwise every selected verse scrolls
+  // and the view settles on the last one, not the first.
+  const isFirstSelected = useBibleStore((state) => {
+    const selection = state.verseSelection;
+    if (
+      selection === null ||
+      selection.scope !== scope ||
+      !refsInclude(selection.refs, thisRef)
+    ) {
+      return false;
+    }
+    return (
+      verseNumbersFor(selection.refs, bookId, chapter)[0] ===
+      verse
+    );
+  });
 
   // Track touch state to differentiate tap from scroll
   const touchStartPos = useRef<{ x: number; y: number } | null>(
@@ -122,27 +139,15 @@ const Verse = ({
     });
   };
 
-  const handleVerseClick = (
-    event: React.MouseEvent | React.KeyboardEvent
-  ) => {
-    if (!selectable) return;
-
-    // Ignore the synthetic click fired after a handled touch tap
-    if (Date.now() - lastTouchTapRef.current < 700) return;
-
-    // Only handle click if no text is selected (allow users to copy text)
-    const selection = window.getSelection();
-    if (selection && selection.toString().length > 0 && !event.shiftKey) {
-      return;
-    }
-
+  // Shared toggle/range logic for click and keyboard activation.
+  const applySelection = (shiftKey: boolean) => {
     userClickedRef.current = true;
 
     // Shift+click for range selection — only within the same scope
     // and same book/chapter.
     const anchor = lastClickedVerse;
     if (
-      event.shiftKey &&
+      shiftKey &&
       anchor !== null &&
       anchor.scope === scope &&
       anchor.ref.bookId === bookId &&
@@ -161,10 +166,27 @@ const Verse = ({
     }
   };
 
-  const handleVerseKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault(); // Keep Space from scrolling the page
-    handleVerseClick(event);
+  const handleVerseClick = (event: React.MouseEvent) => {
+    if (!selectable) return;
+
+    // Ignore the synthetic click fired after a handled touch tap
+    if (Date.now() - lastTouchTapRef.current < 700) return;
+
+    // Only handle click if no text is selected (allow users to copy text)
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0 && !event.shiftKey) {
+      return;
+    }
+
+    applySelection(event.shiftKey);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (!selectable) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    // Keep Space from scrolling the page.
+    event.preventDefault();
+    applySelection(event.shiftKey);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -209,6 +231,14 @@ const Verse = ({
     touchStartPos.current = null;
   };
 
+  // A cancelled touch (scroll hijack, incoming call) fires no
+  // touchend — reset the tap state or the stale start position
+  // keeps suppressing context menus via onContextMenu below.
+  const handleTouchCancel = () => {
+    touchStartPos.current = null;
+    selectionAtTouchStart.current = null;
+  };
+
   const handleTouchClick = () => {
     if (!selectable) return;
     userClickedRef.current = true;
@@ -221,14 +251,16 @@ const Verse = ({
   };
 
   useEffect(() => {
-    if (isActive && !userClickedRef.current) {
+    if (isActive && isFirstSelected && !userClickedRef.current) {
       // Only scroll if verse was selected programmatically
-      // (e.g., from notes view), not by user click
+      // (e.g., from notes view), not by user click — and only
+      // the first selected verse, so a multi-verse URL lands at
+      // its start instead of its last verse.
       ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
     }
     // Reset the flag after effect runs
     userClickedRef.current = false;
-  }, [isActive]);
+  }, [isActive, isFirstSelected]);
 
   useEffect(() => {
     if (isAudioActive) {
@@ -243,10 +275,10 @@ const Verse = ({
     <Box
       component="div"
       display="flex"
-      role={selectable ? "button" : undefined}
-      aria-pressed={selectable ? isActive : undefined}
+      role={selectable ? 'button' : undefined}
       tabIndex={selectable ? 0 : undefined}
-      onKeyDown={selectable ? handleVerseKeyDown : undefined}
+      aria-pressed={selectable ? isActive : undefined}
+      onKeyDown={handleKeyDown}
       data-active={isActive}
       data-audio-active={isAudioActive}
       className={cx({
@@ -268,7 +300,15 @@ const Verse = ({
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onContextMenu={(e) => e.preventDefault()} // Prevent context menu
+      onTouchCancel={handleTouchCancel}
+      onContextMenu={(e) => {
+        // Only suppress the long-press context menu while a
+        // touch is in progress — mouse right-click keeps the
+        // standard menu so users can copy text.
+        if (touchStartPos.current !== null) {
+          e.preventDefault();
+        }
+      }}
       id={verseDomId(scope, thisRef)}
       ref={ref}
       sx={{

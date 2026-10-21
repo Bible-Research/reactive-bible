@@ -244,14 +244,24 @@ export const useNoteEditor = ({
   const refreshViewedNotes = useCallback(async () => {
     const target = noteRef.current;
     if (!target) return;
-    const { notesOrdering, notesPage, fetchNotes } =
-      useBibleStore.getState();
-    // A null tag means the note lives in the route's virtual
-    // "untagged" section — refetch via the sentinel id.
-    await fetchNotes(target.tag?.id ?? UNTAGGED_TAG_ID, {
-      ordering: notesOrdering ?? undefined,
-      page: notesPage,
-    });
+    const {
+      lastSelectedTagId,
+      notesOrdering,
+      notesPage,
+      fetchNotes,
+    } = useBibleStore.getState();
+    // Refetch the tag page the route is actually showing: the
+    // note's own tag may have changed mid-edit (and the note
+    // prop is stale by then), and dropping the current page +
+    // ordering would bounce the user back to page 1. A null
+    // tag falls back to the route's virtual "untagged" view.
+    await fetchNotes(
+      lastSelectedTagId ?? target.tag?.id ?? UNTAGGED_TAG_ID,
+      {
+        ordering: notesOrdering ?? undefined,
+        page: notesPage,
+      }
+    );
   }, []);
 
   const submit = useCallback(
