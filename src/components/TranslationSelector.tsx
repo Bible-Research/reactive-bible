@@ -350,17 +350,40 @@ const TranslationSelector = () => {
       };
 
       // Show cached list immediately for snappy UX (stale)…
-      const cached = await getAvailableTranslations(languageIso);
-      if (!cancelled) {
-        merge(cached);
+      try {
+        const cached =
+          await getAvailableTranslations(languageIso);
+        if (!cancelled) {
+          merge(cached);
+        }
+      } catch (error) {
+        console.warn('Failed to load translations:', error);
       }
 
       // …then revalidate against the API so newly published
       // translations show up without requiring a cache bust.
       if (!opened) return;
-      const fresh = await getAvailableTranslations(languageIso, true);
-      if (!cancelled) {
-        merge(fresh);
+      try {
+        const fresh = await getAvailableTranslations(
+          languageIso, true
+        );
+        if (!cancelled) {
+          merge(fresh);
+        }
+      } catch (error) {
+        console.warn('Failed to refresh translations:', error);
+        // A stale failure (modal closed or language switched
+        // mid-flight) must not toast over the new context.
+        if (!cancelled) {
+          notifications.show({
+            title: 'Translations unavailable',
+            message:
+              'Could not refresh the translation list. ' +
+              'Please try again later.',
+            color: 'red',
+            autoClose: 5000,
+          });
+        }
       }
     };
 
@@ -400,15 +423,13 @@ const TranslationSelector = () => {
         for (const { value: iso } of LANGUAGES) {
           // One failed language response must not strand the
           // seeding — continue to the next language tab.
-          const list = await getAvailableTranslations(iso).catch(
-            (error) => {
-              console.error(
-                `Error loading ${iso} translations:`,
-                error,
+          const list = await getAvailableTranslations(iso)
+            .catch((error) => {
+              console.warn(
+                `Failed to load ${iso} translations:`, error
               );
-              return [];
-            },
-          );
+              return [] as Translation[];
+            });
           if (cancelled || userInteractedRef.current) return null;
           if (findTranslationByFilesetId(filesetId, list)) {
             return iso;

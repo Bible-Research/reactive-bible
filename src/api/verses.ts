@@ -15,7 +15,10 @@ import {
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { publicFetch } from '../utils/apiClient';
-import { getAdjacentChapters, getChapters } from './structure';
+import {
+  getAdjacentChapters,
+  getChapters,
+} from './structure';
 import {
   BookNotInFilesetError,
   ProviderError,
@@ -84,18 +87,34 @@ export const fetchHeadingsOnly = async (
       `${API_BASE_URL}/api/v1/bible?passage=` +
       `${encodeURIComponent(passage)}&fileset_id=${filesetId}`;
     const response = await publicFetch(url);
+    // A failed response must never reach cacheHeadings below —
+    // an error body parsed as "no headings" would poison the
+    // cache and stick as an empty hit.
     if (!response.ok) {
-      // Headings are optional decoration — degrade to none, but
-      // never cache a non-2xx body: a transient 429/500 would
-      // otherwise wipe the chapter's headings permanently (the
-      // headings cache has no TTL).
-      console.warn(
-        `Failed to fetch headings for ${bookId} ${chapter}: ` +
-        `HTTP ${response.status}`
-      );
-      return [];
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Book not available in this fileset',
+        failure:
+          `Failed to fetch headings (HTTP ${response.status})`,
+      });
     }
     const responseData = await response.json();
+    if (responseData.error) {
+      throw new Error(
+        errorMessageFromBody(
+          responseData, 'Headings fetch failed'
+        )
+      );
+    }
+    // The API may also wrap provider failures in a 200 response
+    // with a `message` field and no headings — surface it
+    // instead of caching an empty heading list.
+    if (
+      typeof responseData.message === 'string' &&
+      (!Array.isArray(responseData.headings) ||
+        responseData.headings.length === 0)
+    ) {
+      throw new ProviderError(responseData.message);
+    }
     // API.Bible responses carry a FUMS token in `meta` that must
     // be reported per their license terms (silent on failure).
     reportFums(responseData.meta);

@@ -60,6 +60,7 @@ export const shareOrCopyLink = async (
   try {
     await navigator.clipboard.writeText(content.url);
     showNotification({ ...options.copySuccess, color: 'blue' });
+    return;
   } catch (err) {
     // `navigator.clipboard` needs a secure context — on http or
     // webviews where it is missing/denied, retry through the

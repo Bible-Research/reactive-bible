@@ -36,9 +36,9 @@ describe('API Functions', () => {
       expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
     });
 
-    it('getPassage should NOT load KJV data (uses lightweight ' +
-      'structure)', () => {
-      api.getPassage();
+    it('getChapterList should NOT load KJV data (uses ' +
+      'lightweight structure)', () => {
+      api.getChapterList();
       expect(kjvDataLoader.loadKjvData).not.toHaveBeenCalled();
     });
 
@@ -579,6 +579,24 @@ describe('API Functions', () => {
         .toHaveBeenCalledWith('eng', freshInjected);
     });
 
+    it('throws instead of caching a 200 error body', async () => {
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({
+            error: 'Bible provider error (HTTP 503)',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.ProviderError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+
     it('throws on a non-OK response and does not cache it',
       async () => {
         vi.spyOn(cacheManager, 'getCachedTranslations')
@@ -624,6 +642,24 @@ describe('API Functions', () => {
       expect(cacheManager.cacheTranslations)
         .not.toHaveBeenCalled();
     });
+
+    it('throws RateLimitError for a rate-limit-shaped 200 ' +
+      'error body', async () => {
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({
+            error: '(429) Reason: Too Many Requests',
+          })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.RateLimitError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
   });
 
   describe('fetchHeadingsOnly', () => {
@@ -633,48 +669,58 @@ describe('API Functions', () => {
       vi.spyOn(cacheManager, 'cacheHeadings');
     });
 
-    it('caches headings on a 2xx response', async () => {
-      server.use(
-        http.get(`${API_URL}/bible`, () =>
-          HttpResponse.json({
-            headings: [{ before_verse: 16, text: 'God so loved' }],
-          })
-        )
-      );
-
-      const headings =
-        await api.fetchHeadingsOnly('JHN', 3, 'NONKJVFS');
-
-      expect(headings).toEqual([
-        { before_verse: 16, text: 'God so loved' },
-      ]);
-      expect(cacheManager.cacheHeadings).toHaveBeenCalledWith(
-        'JHN', 3, 'NONKJVFS', headings
-      );
-    });
-
-    it('returns [] without caching on a non-OK response',
+    it('returns and caches headings from a 200 response',
       async () => {
-        vi.spyOn(console, 'warn').mockImplementation(
-          () => undefined
-        );
+        const headings = [
+          { before_verse: 1, text: 'The beginning' },
+        ];
         server.use(
-          http.get(`${API_URL}/bible`, () =>
-            HttpResponse.json(
-              { error: 'boom', error_code: 'provider_error' },
-              { status: 502 }
-            )
-          )
+          http.get(`${API_URL}/bible`, () => {
+            return HttpResponse.json({ headings });
+          })
         );
 
-        const headings =
-          await api.fetchHeadingsOnly('JHN', 3, 'NONKJVFS');
+        const result = await api.fetchHeadingsOnly(
+          'JHN', 3, 'NONKJVFS');
 
-        expect(headings).toEqual([]);
-        // A transient failure must not wipe headings permanently
-        // — the cache has no TTL.
+        expect(result).toEqual(headings);
+        expect(cacheManager.cacheHeadings).toHaveBeenCalledWith(
+          'JHN', 3, 'NONKJVFS', headings);
+      });
+
+    it('does not cache a 200 body carrying a `message`',
+      async () => {
+        server.use(
+          http.get(`${API_URL}/bible`, () => {
+            return HttpResponse.json({
+              verses: [],
+              message:
+                'No verses found for the specified passage',
+            });
+          })
+        );
+
+        const result = await api.fetchHeadingsOnly(
+          'JHN', 3, 'NONKJVFS');
+
+        expect(result).toEqual([]);
         expect(cacheManager.cacheHeadings).not.toHaveBeenCalled();
       });
+
+    it('does not cache a non-OK response', async () => {
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          return HttpResponse.json(
+            { error: 'provider broke' }, { status: 500 });
+        })
+      );
+
+      const result = await api.fetchHeadingsOnly(
+        'JHN', 3, 'NONKJVFS');
+
+      expect(result).toEqual([]);
+      expect(cacheManager.cacheHeadings).not.toHaveBeenCalled();
+    });
   });
 
   describe('search error mapping', () => {
@@ -709,6 +755,24 @@ describe('API Functions', () => {
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.ProviderError);
     });
+  });
+
+  describe('searchBibleGrouped', () => {
+    it('throws ProviderError when a 200 body carries a ' +
+      '`message` and no groups', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message: 'Search provider unavailable',
+          });
+        })
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.ProviderError);
+    });
 
     it('searchBibleGrouped throws on an error body instead of ' +
       'returning empty groups', async () => {
@@ -724,6 +788,23 @@ describe('API Functions', () => {
       await expect(
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.ProviderError);
+    });
+
+    it('throws RateLimitError when a 200 `message` body is ' +
+      'rate-limit-shaped', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message:
+              'Bible provider rate limit exceeded (HTTP 429)',
+          });
+        })
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.RateLimitError);
     });
   });
 

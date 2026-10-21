@@ -39,7 +39,7 @@ vi.mock('../api', async () => {
       .mockResolvedValue('http://audio.url/test.mp3'),
     // Real signature returns an array of {book_name, book_id,
     // chapter} entries — previously mocked as a single object.
-    getPassage: vi.fn().mockReturnValue([
+    getChapterList: vi.fn().mockReturnValue([
       { book_name: 'Genesis', book_id: 'GEN', chapter: 1 },
     ]),
     getAudioTimestamps: vi.fn().mockResolvedValue([]),

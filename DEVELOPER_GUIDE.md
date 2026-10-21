@@ -1275,6 +1275,10 @@ Full-text search across the Bible via the backend
 - No pagination - the backend returns all matches
 - Dimmed "Showing first N of M results" notice when the
   backend reports `meta.truncated`
+- Backend failures (`error`/`error_code`/`message`, including
+  provider errors wrapped in a 200 body) surface as typed
+  `RateLimitError`/`ProviderError` and render in red rather
+  than showing "No results"
 - Per-verse play button feeds a flattened playlist of all
   results into the audio player
 
@@ -2301,8 +2305,8 @@ Vite emits it as a separate `kjv-*.js` chunk that is only fetched
 when verse text is requested. Book/chapter/verse-count metadata
 needed for navigation lives in `src/assets/bibleStructure.json`
 (bundled in the entry chunk), so helpers like `getBooks`,
-`getChapters`, `getVerses`, `getPassage`, `getAdjacentChapters`,
-and `getKjvAudioUrl` stay synchronous.
+`getChapters`, `getVerses`, `getChapterList`,
+`getAdjacentChapters`, and `getKjvAudioUrl` stay synchronous.
 
 **Structure**:
 ```typescript
@@ -2535,12 +2539,12 @@ getVersesFromApi(
 ): Promise<{ verse: number; text: string }[]>
 ```
 
-**`getPassage()`**
+**`getChapterList()`**
 
 Returns all book/chapter combinations for navigation.
 
 ```typescript
-getPassage(): {
+getChapterList(): {
   book_name: string;
   book_id: string;
   chapter: number;
@@ -2561,7 +2565,10 @@ getAvailableTranslations(
 
 - Checks cache first
 - Falls back to API if not cached
-- Caches result for future use
+- Caches result for future use — a failed (`!response.ok`)
+  response is never written to the cache
+- Throws on fetch failure; `TranslationSelector` catches at
+  the UI layer (warns, and notifies on refresh failure)
 
 #### Audio Functions
 

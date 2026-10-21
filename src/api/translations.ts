@@ -11,7 +11,13 @@ import {
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
-import { ProviderError } from './errors';
+import {
+  ProviderError,
+  RateLimitError,
+  errorMessageFromBody,
+  isRateLimitMessage,
+  throwFromErrorBody,
+} from './errors';
 
 /**
  * Keeps the locally bundled KJV reachable: the API lists an
@@ -74,20 +80,53 @@ export const getAvailableTranslations = async (
       `${API_BASE_URL}/api/v1/` +
       `bible/translations/?language_iso=${languageIso}`;
     const response = await publicFetch(url);
+    // A failed response must never reach cacheTranslations —
+    // an error body parsed as "no results" would poison the
+    // cache and stick until a force refresh. Main's contract
+    // pins ProviderError for ANY non-OK, so a codeless body
+    // (plain Error from throwFromErrorBody) is re-wrapped.
     if (!response.ok) {
-      throw new ProviderError(
-        `Failed to fetch translations (HTTP ${response.status})`
-      );
+      try {
+        await throwFromErrorBody(response, {
+          bookNotInFileset: 'Translations not available',
+          failure:
+            `Failed to fetch translations ` +
+            `(HTTP ${response.status})`,
+        });
+      } catch (error) {
+        throw error instanceof ProviderError ||
+          error instanceof RateLimitError
+          ? error
+          : new ProviderError(
+              error instanceof Error
+                ? error.message
+                : String(error)
+            );
+      }
     }
     const data = await response.json();
+    // Provider failures may arrive wrapped in a 200 body —
+    // surface the error/error_code contract instead of
+    // caching an empty translation list.
+    if (data.error || data.error_code) {
+      const message = errorMessageFromBody(
+        data, 'Failed to fetch translations'
+      );
+      throw data.error_code === 'rate_limited' ||
+        isRateLimitMessage(message)
+        ? new RateLimitError(message)
+        : new ProviderError(message);
+    }
 
-    // Only cache real arrays — an error body must not poison the
-    // no-TTL translation cache (it also feeds findOwnerIso).
+    // Only cache real arrays — an error body must not poison
+    // the no-TTL translation cache (it also feeds
+    // findOwnerIso).
     if (!Array.isArray(data.results)) {
       throw new ProviderError(
         'Malformed translations response'
       );
     }
+    // The actual translations are in the 'results' property
     const translations: Translation[] =
       injectBundledKjv(data.results);
 

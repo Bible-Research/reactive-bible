@@ -29,7 +29,7 @@ vi.mock('../../api', () => ({
   ],
   getChapters: () => [1, 2, 3, 4, 5],
   getVerses: () => [1, 2, 3, 4, 5],
-  getPassage: () => [
+  getChapterList: () => [
     { book_name: 'John', book_id: 'JHN', chapter: 1 },
     { book_name: 'John', book_id: 'JHN', chapter: 2 },
     { book_name: 'John', book_id: 'JHN', chapter: 3 },
