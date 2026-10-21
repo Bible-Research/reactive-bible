@@ -14,13 +14,15 @@ import {
   getBibleAudioUrl,
   getAudioTimestamps,
 } from '../api';
-import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import {
   stubMediaSession,
   type MediaSessionStub,
 } from '../__tests__/mocks/mediaSession';
 import type { BibleState, Translation } from '../store';
 
+// Shared faithful Howl fake — created instances are reachable
+// via FakeHowl.instances / FakeHowl.latest().
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
 }));

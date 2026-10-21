@@ -31,21 +31,43 @@ import { useBibleStore } from '../../store';
 import { useAuthStore } from '../../stores/authStore';
 import * as api from '../../api';
 
-// Selective automock — keep real error classes so `instanceof`
-// checks in store actions still work.
-vi.mock('../../api', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../api')>();
-  const mocked: Record<string, unknown> = { ...actual };
-  for (const [key, value] of Object.entries(actual)) {
-    if (
-      typeof value === 'function' &&
-      key !== 'ConflictError'
-    ) {
-      mocked[key] = vi.fn();
-    }
-  }
-  return mocked;
+// Manual automock — no importOriginal: evaluating the real
+// barrel pulls apiClient → authStore → store in a cycle, which
+// binds the REAL api into the store slices (their calls then
+// bypass every mock and hit MSW). The proxy mocks any function
+// on first access, keeping the namespace complete without eager
+// eval; error classes + constants stay real for instanceof.
+vi.mock('../../api', async () => {
+  const errors = await vi.importActual<
+    typeof import('../../api/errors')
+  >('../../api/errors');
+  const constants: Record<PropertyKey, unknown> = {
+    ...errors,
+    UNTAGGED_TAG_ID: 'untagged',
+  };
+  const fns = new Map<PropertyKey, unknown>();
+  return new Proxy(constants, {
+    get(target, prop) {
+      if (prop in target) return target[prop];
+      if (
+        prop === 'then' ||
+        prop === 'default' ||
+        prop === Symbol.toStringTag
+      ) {
+        return undefined;
+      }
+      if (!fns.has(prop)) fns.set(prop, vi.fn());
+      return fns.get(prop);
+    },
+    // Vitest verifies `key in mockedModule` for every used
+    // export — report everything except thenables.
+    has(target, prop) {
+      return (
+        prop in target ||
+        (prop !== 'then' && prop !== 'default')
+      );
+    },
+  });
 });
 const mockApi = vi.mocked(api);
 
@@ -162,14 +184,25 @@ describe('Tag Refresh Behavior', () => {
     mockApi.fetchCommentCounts.mockResolvedValue({});
   });
 
+  // Never vi.spyOn the store's state object: setState spreads
+  // the spy into every later state snapshot, where it survives
+  // restore and swallows calls. Override via setState and put
+  // the real action back in afterEach instead.
+  const realGetTags = useBibleStore.getState().getTags;
+  const spyOnGetTags = () => {
+    const spy = vi.fn(realGetTags);
+    useBibleStore.setState({ getTags: spy });
+    return spy;
+  };
+
   afterEach(() => {
+    useBibleStore.setState({ getTags: realGetTags });
     vi.restoreAllMocks();
   });
 
   describe('TagNotesRoute', () => {
     it('should call getTags on mount when authenticated', async () => {
-      // Spy on the store's getTags method
-      const getTagsSpy = vi.spyOn(useBibleStore.getState(), 'getTags');
+      const getTagsSpy = spyOnGetTags();
 
       render(
         <MemoryRouter initialEntries={['/notes/tag/tag-1']}>
@@ -229,7 +262,7 @@ describe('Tag Refresh Behavior', () => {
 
   describe('BibleRoute', () => {
     it('should call getTags with forceRefresh=true on mount', async () => {
-      const getTagsSpy = vi.spyOn(useBibleStore.getState(), 'getTags');
+      const getTagsSpy = spyOnGetTags();
 
       render(
         <MemoryRouter initialEntries={['/bible/John/3']}>
@@ -339,7 +372,7 @@ describe('Tag Refresh Behavior', () => {
 
   describe('TagManagementRoute', () => {
     it('should call getTags with forceRefresh=true on mount', async () => {
-      const getTagsSpy = vi.spyOn(useBibleStore.getState(), 'getTags');
+      const getTagsSpy = spyOnGetTags();
 
       render(
         <MemoryRouter initialEntries={['/tags']}>

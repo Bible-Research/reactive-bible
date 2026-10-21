@@ -3050,10 +3050,35 @@ calls
 **Storage Key**: `bible_notes_cache_v2` — the v1 `tagId`-only
 blob (`bible_notes_cache`) is dropped on load, not migrated.
 
+**Features**:
+- No size limit (notes are user-generated)
+- Stores `{ notes, timestamp, count, hasMore }` so pagination
+  metadata round-trips through the cache
+- Selective invalidation: `clearNotesCache(tagId)` wipes all
+  pages of one tag; `clearNotesCache()` wipes everything
+
 **Cache Key Format**:
 `{tagId}:{anon|auth}:fs:{filesetId}:ps:{pageSize}:page{n}:{ordering}`
 
-**Implementation** (`src/stores/bibleStore/notesSlice.ts`):
+**Implementation** (in `stores/bibleStore/notesSlice.ts`):
+```typescript
+fetchNotes: async (tagId, options) => {
+  const scope = { filesetId, pageSize: notesPageSize,
+                  authed: Boolean(token) };
+  const cachedData = getCachedNotes(tagId, page, ordering,
+                                    scope);
+  if (cachedData) {
+    set({ notes: cachedData.notes, notesCount: cachedData.count,
+         notesHasMore: cachedData.hasMore, ... });
+    return;
+  }
+  const response = await api.getNotes(tagId, options);
+  cacheNotes(tagId, response.results, { count, hasMore, page,
+                                      ordering, ...scope });
+  set({ notes: response.results, ... });
+}
+```
+
 The scope fields exist because the response depends on them:
 - `anon|auth` — owners see private notes that anonymous callers
   must never be served from cache.
@@ -3092,6 +3117,8 @@ clearNotesCache();
 
 **When Cache Is Cleared**:
 - ✅ Note create/edit/delete/move (tag-scoped or global)
+- ✅ Token drop/replace (logout or 401) via the authStore
+  watcher
 - ✅ Manual clear via `clearNotesCache()`
 
 **Fetch wrappers** (`src/utils/apiClient.ts`):

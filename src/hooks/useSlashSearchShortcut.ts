@@ -6,8 +6,10 @@ import { useLocation, useNavigate } from "react-router-dom";
  *
  * The guard must skip rich-text editors, not just form fields:
  * TipTap renders a `contenteditable` div, so without the
- * `isContentEditable` check typing "/" inside a note editor
- * would hijack the keystroke and navigate away mid-edit.
+ * `isContentEditable`/`closest` checks typing "/" inside a
+ * note editor would hijack the keystroke, navigate away, and
+ * destroy the draft. On `/search` itself the key is left
+ * un-prevented so no duplicate history entry is pushed.
  */
 export const useSlashSearchShortcut = () => {
   const navigate = useNavigate();

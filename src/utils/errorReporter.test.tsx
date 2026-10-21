@@ -221,6 +221,48 @@ describe('errorReporter', () => {
       );
     });
 
+    it('suppresses AbortError rejections', () => {
+      cleanup = initGlobalErrorHandlers();
+      const reason = new Error('aborted');
+      reason.name = 'AbortError';
+      const event = new Event('unhandledrejection');
+      Object.defineProperty(event, 'reason', { value: reason });
+
+      window.dispatchEvent(event);
+
+      // Routine fetch cancellations must not notify.
+      expect(mockShowNotification).not.toHaveBeenCalled();
+    });
+
+    it('ignores audio/video element load failures', () => {
+      cleanup = initGlobalErrorHandlers();
+      for (const tag of ['audio', 'video']) {
+        const el = document.createElement(tag);
+        const event = new Event('error');
+        Object.defineProperty(event, 'target', { value: el });
+        window.dispatchEvent(event);
+      }
+
+      // Media failures are handled by the app's own fallback
+      // chains — never surfaced as fatal errors.
+      expect(mockShowNotification).not.toHaveBeenCalled();
+    });
+
+    it('reports an ErrorEvent message with no error object', () => {
+      cleanup = initGlobalErrorHandlers();
+
+      window.dispatchEvent(
+        new ErrorEvent('error', {
+          message: 'Script error.',
+        })
+      );
+
+      expect(mockShowNotification).toHaveBeenCalledTimes(1);
+      expect(notificationContent().error.message).toBe(
+        'Script error.'
+      );
+    });
+
 
     it('ignores Vercel telemetry resource load failures', () => {
       cleanup = initGlobalErrorHandlers();

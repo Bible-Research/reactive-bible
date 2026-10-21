@@ -32,6 +32,8 @@ import type { PlaylistItem } from '../types';
 
 
 
+// Shared faithful Howl fake — instances reachable via
+// FakeHowl.instances; state/playing mirror real Howler.
 vi.mock('howler', async () => ({
   Howl: (await import('./mocks/FakeHowl')).FakeHowl,
 }));

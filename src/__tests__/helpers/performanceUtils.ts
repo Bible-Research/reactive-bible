@@ -2,8 +2,9 @@ import { useRef, useEffect } from 'react';
 
 /**
  * Non-component performance testing utilities. Kept in a `.ts`
- * file so `react-refresh/only-export-components` does not
- * flag them.
+ * file so `react-refresh/only-export-components` (which only
+ * scans `.jsx`/`.tsx`) does not flag them next to
+ * `RenderCounter` in `performance.tsx`.
  */
 
 /**

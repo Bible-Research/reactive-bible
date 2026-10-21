@@ -104,7 +104,10 @@ describe('authStore', () => {
 
       const logged = JSON.stringify(logSpy.mock.calls);
       expect(logged).not.toContain('secret-pw');
-      expect(logged).toContain('***');
+      // The pre-submit request body is never logged at all —
+      // see authStore.login.test.tsx, which pins the
+      // "Login attempt" log's absence.
+      expect(logged).not.toContain('Login attempt');
     });
 
     it('stores the server canonical username, not the ' +

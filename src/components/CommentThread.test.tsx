@@ -11,6 +11,9 @@ import {
   vi,
   beforeEach,
 } from 'vitest';
+vi.mock('@mantine/notifications', () => ({
+  showNotification: vi.fn(),
+}));
 
 vi.mock('@mantine/modals', () => ({
   openConfirmModal: vi.fn(
@@ -30,10 +33,6 @@ import {
   toPlainText,
 } from '../utils/tiptapContent';
 import { showNotification } from '@mantine/notifications';
-
-vi.mock('@mantine/notifications', () => ({
-  showNotification: vi.fn(),
-}));
 
 import { http, HttpResponse } from 'msw';
 import CommentThread from './CommentThread';
@@ -774,6 +773,87 @@ describe('CommentThread', () => {
       images: [],
     },
   ];
+
+  it('polls for new comments every 30 seconds', async () => {
+    let fetches = 0;
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () => {
+        fetches += 1;
+        return HttpResponse.json(commentsFixture());
+      })
+    );
+
+    // Fake timers must be on before render so the component's
+    // interval is scheduled under them.
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(
+        <CommentThread noteId={NOTE_ID} />
+      );
+      // Flush the initial fetch — MSW resolves off microtasks,
+      // and a long vi.waitFor would advance fake time into a
+      // poll tick.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+      const baseline = fetches;
+      expect(baseline).toBe(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29999);
+      });
+      expect(fetches).toBe(baseline);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetches).toBe(baseline + 1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetches).toBe(baseline + 2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('re-polls when the tab becomes visible', async () => {
+    let fetches = 0;
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () => {
+        fetches += 1;
+        return HttpResponse.json(commentsFixture());
+      })
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+    });
+    const baseline = fetches;
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await waitFor(() => {
+      expect(fetches).toBe(baseline + 1);
+    });
+  });
 
   it('polls for new comments every 30 seconds', async () => {
     let fetches = 0;

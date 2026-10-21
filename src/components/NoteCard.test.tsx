@@ -187,6 +187,30 @@ describe('NoteCard Component', () => {
       );
     });
 
+  it('hides edit and remove for notes the user does not own',
+    () => {
+      const foreign = createMockNote({
+        id: 'n-foreign',
+        is_owner: false,
+        verses: [createMockVerse()],
+      });
+      renderWithProviders(
+        <NoteCard
+          note={foreign}
+          onViewInBible={mockOnViewInBible}
+          onEdit={mockOnEdit}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      expect(
+        screen.queryByRole('button', { name: 'edit-note' })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'remove-note' })
+      ).not.toBeInTheDocument();
+    });
+
   it('copies the note link to the clipboard when share is ' +
     'clicked and navigator.share is unavailable', async () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
@@ -213,6 +237,19 @@ describe('NoteCard Component', () => {
         );
       });
     });
+
+  it('shows the share button for public notes', () => {
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'share-note' })
+    ).toBeInTheDocument();
+  });
 
   it('hides the share button for private notes', () => {
     renderWithProviders(
@@ -303,6 +340,36 @@ describe('NoteCard Component', () => {
         await screen.findByTestId('comment-thread')
       ).toBeInTheDocument();
       expect(badge).toHaveAttribute('aria-expanded', 'true');
+    });
+
+  it('shows the comment count badge', () => {
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+        commentCount={3}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: '3' })
+    ).toBeInTheDocument();
+  });
+
+  it('hides the comment badge for anonymous viewers on an ' +
+    'uncommented note', () => {
+      renderWithProviders(
+        <NoteCard
+          note={singleVerseNote}
+          onViewInBible={mockOnViewInBible}
+          commentCount={0}
+        />,
+        { authStoreState: { isAuthenticated: false } }
+      );
+
+      expect(
+        screen.queryByRole('button', { name: 'Add a comment' })
+      ).not.toBeInTheDocument();
     });
 
   it('hides the comment badge on the detail route where ' +

@@ -7,7 +7,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Howl } from "howler";
 import { useBibleStore } from "../store";
 import {
@@ -32,7 +32,8 @@ import {
   type CodecKey,
 } from "../utils/filesetGroups";
 import { orderedAudioCandidates } from "../utils/audioCandidates";
-import { disposeHowl } from "../utils/howlUtils";
+import { disposeHowl } from "../utils/audioUtils";
+import { createChapterHowl } from "../utils/chapterHowl";
 import {
   selectedStartVerse,
   verseStartTimestamp,
@@ -137,8 +138,6 @@ export const useChapterAudio = (
     seq: number;
     ids: string[];
     nextIndex: number;
-    bookId: string;
-    chapter: number;
   } | null>(null);
   const tryNextFallbackRef = useRef<() => boolean>(() => false);
   // Remembers the codec that last played per audio selection —
@@ -255,9 +254,9 @@ export const useChapterAudio = (
     }, INTER_CHAPTER_GAP_MS);
   }, [clearAdvanceTimer]);
 
-  // Move the reader to `target`. On /bible the URL is the source
-  // of truth, so navigate and let BibleRoute's URL->store sync
-  // apply it (writing the store first would let a commit see the
+  // On the reader the URL is the source of truth, so chapter
+  // moves navigate and let BibleRoute's URL->store sync write
+  // the store (writing the store first would let a commit see the
   // old URL with the new chapter and revert the advance,
   // tearing down the adopted Howl mid-play). Off the reader
   // (/search, /notes) a chapter boundary must not yank the user
@@ -370,11 +369,8 @@ export const useChapterAudio = (
         const format = /^[a-z0-9]{1,5}$/.test(ext)
           ? [ext]
           : undefined;
-        const howl = new Howl({
-          src: [src],
+        const howl = createChapterHowl(src, {
           format,
-          html5: true,
-          pool: 1,
           preload: true,
         });
         preloadedRef.current = { key, howl, blobUrl };
@@ -595,18 +591,20 @@ export const useChapterAudio = (
         // fallback record (or the record belongs to the previous
         // chapter) — re-resolve this chapter's candidates so a
         // decode failure walks THIS product's alternates. The
-        // playing chapter comes from audioChapterKeyRef, not the
-        // store: during the URL->store sync window the store can
-        // still show the previous chapter and the comparison
-        // would misfire, surfacing 'Failed to load audio'
-        // instead of walking the alternates.
+        // chapter-key check stops a superseded load's late
+        // error from starting a fallback for a passage the user
+        // already navigated away from.
         const keyNow = audioChapterKeyRef.current;
         if (!keyNow) return false;
-        const parsed = parseChapterKey(keyNow);
-        if (!parsed) return false;
-        const playingId = keyNow.split(':').slice(0, -2).join(':');
+        const [playingId, bookId, chapter] = keyNow.split(':');
+        if (
+          bookId !== state.activeBookId ||
+          Number(chapter) !== state.activeChapter
+        ) {
+          return false;
+        }
         const resolved = resolveCandidates(
-          parsed.bookId,
+          state.activeBookId,
           state.activeAudioFilesetId,
         );
         if (!resolved) return false;
@@ -615,18 +613,20 @@ export const useChapterAudio = (
           seq: loadSeqRef.current,
           ids: resolved.candidates,
           nextIndex: i >= 0 ? i + 1 : 1,
-          bookId: parsed.bookId,
-          chapter: parsed.chapter,
         };
         fallbackRef.current = pending;
       }
       const nextId = pending.ids[pending.nextIndex];
       if (!nextId) return false;
       pending.nextIndex += 1;
-      const { bookId, chapter } = pending;
+      const { activeBookId, activeChapter } = state;
       void (async () => {
         try {
-          const url = await resolveAudioUrl(bookId, chapter, nextId);
+          const url = await resolveAudioUrl(
+            activeBookId,
+            activeChapter,
+            nextId,
+          );
           if (pending.seq !== loadSeqRef.current) return;
           if (!url || typeof url !== 'string') {
             tryNextFallbackRef.current();
@@ -642,10 +642,7 @@ export const useChapterAudio = (
           clearAdvanceTimer();
           disposeHowl(audioRef.current, activeBlobUrlRef.current);
           activeBlobUrlRef.current = null;
-          const howl = new Howl({
-            src: [url],
-            html5: true,
-            pool: 1,
+          const howl = createChapterHowl(url, {
             loop: isLoopingRef.current,
             onplay: handleChapterPlay,
             onpause: handleChapterPause,
@@ -655,8 +652,8 @@ export const useChapterAudio = (
           });
           audioChapterKeyRef.current = chapterKey(
             nextId,
-            bookId,
-            chapter,
+            activeBookId,
+            activeChapter,
           );
           audioRef.current = howl;
           setAudio(howl);
@@ -673,7 +670,7 @@ export const useChapterAudio = (
           ) {
             return;
           }
-          reportChapterAudioFailure(err, bookId);
+          reportChapterAudioFailure(err, activeBookId);
         }
       })();
       return true;
@@ -681,7 +678,7 @@ export const useChapterAudio = (
   });
 
   // Reset chapter audio when chapter/book/version/mode changes —
-  // playlist mode routes here for a full chapter-engine teardown.
+  // playlist mode also routes here to dispose the chapter Howl.
   useEffect(() => {
     // Every run means the passage or mode changed — supersede any
     // chapter load still in flight; its post-await token check
@@ -985,8 +982,6 @@ export const useChapterAudio = (
               seq,
               ids: candidates,
               nextIndex: adopted >= 0 ? adopted + 1 : 1,
-              bookId: activeBookId,
-              chapter: activeChapter,
             };
           } else {
             if (pre) discardPreloaded();
@@ -1044,18 +1039,9 @@ export const useChapterAudio = (
             // Remaining candidates are consumed on Howler
             // load/play errors (codec fallback: opus16 → mp3
             // is always the first retry).
-            fallbackRef.current = {
-              seq,
-              ids: candidates,
-              nextIndex,
-              bookId: activeBookId,
-              chapter: activeChapter,
-            };
+            fallbackRef.current = { seq, ids: candidates, nextIndex };
 
-            audioHowl = new Howl({
-              src: [audioUrl],
-              html5: true,
-              pool: 1,
+            audioHowl = createChapterHowl(audioUrl, {
               loop: isLoopingRef.current,
               onplay: handleChapterPlay,
               onpause: handleChapterPause,

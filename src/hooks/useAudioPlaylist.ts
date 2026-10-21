@@ -20,11 +20,8 @@ import {
 } from '../utils/filesetGroups';
 import { orderedAudioCandidates } from '../utils/audioCandidates';
 import { useVerseHighlighter } from './useVerseHighlighter';
-import {
-  getHtml5AudioNode,
-  getPlayPosition,
-} from '../utils/audioUtils';
-import { disposeHowl } from '../utils/howlUtils';
+import { disposeHowl } from '../utils/audioUtils';
+import { attachVerseBounds } from '../utils/verseBounds';
 
 export interface UseAudioPlaylistReturn {
   isActive: boolean;
@@ -213,7 +210,6 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
               if (stale()) return;
 
-
               let fetchedTimestamps: VerseTimestamp[] = [];
               if (candidateId !== 'ENGKJV') {
                 const tsId = resolveTimestampsFilesetId(
@@ -389,92 +385,19 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               });
 
               if (endTs !== null || item.verseNumbers) {
-                const EPSILON = 0.2;
-                // Returns true when the checker should stop (item
-                // advanced or playback halted).
-                const checkBounds = (): boolean => {
-                  if (!howl || stale()) return true;
-                  const pos = getPlayPosition(howl);
-                  if (pos === null) return false;
-                  if (endTs !== null && pos >= endTs - EPSILON) {
-                    // Looping replays the item's verses instead
-                    // of advancing — the toggle must not be a
-                    // no-op for bounded items.
-                    if (howl.loop()) {
-                      howl.seek(loopStartTs);
-                      return false;
-                    }
-                    advanceNext();
-                    return true;
-                  }
-                  if (item.verseNumbers) {
-                    const verseNumbers = item.verseNumbers;
-                    const currentVerse = fetchedTimestamps.find(
-                      (t, i) => {
-                        const nextT = fetchedTimestamps[i + 1];
-                        return (
-                          t.timestamp <= pos &&
-                          (!nextT || pos < nextT.timestamp)
-                        );
-                      },
-                    );
-                    if (
-                      currentVerse &&
-                      !verseNumbers.includes(
-                        currentVerse.verse_start,
-                      )
-                    ) {
-                      const nextIncludedVerse =
-                        fetchedTimestamps.find(
-                          (t) =>
-                            t.timestamp > pos &&
-                            verseNumbers.includes(
-                              t.verse_start,
-                            ),
-                        );
-                      if (nextIncludedVerse) {
-                        howl.seek(nextIncludedVerse.timestamp);
-                      } else if (endTs !== null) {
-                        if (howl.loop()) {
-                          howl.seek(loopStartTs);
-                          return false;
-                        }
-                        advanceNext();
-                        return true;
-                      }
-                    }
-                  }
-                  return false;
-                };
-
-                // Advance on the <audio> element's timeupdate
-                // event as well as the poll: media events are
-                // still delivered to a backgrounded/frozen page
-                // when JS timers are suspended.
-                let node: HTMLAudioElement | null = null;
-                const attachNode = () => {
-                  if (node) return;
-                  node = getHtml5AudioNode(howl);
-                  node?.addEventListener('timeupdate', checkBounds);
-                };
-                attachNode();
-                howl.on('play', attachNode);
-                howl.on('load', attachNode);
-
-                const poll = setInterval(() => {
-                  if (checkBounds() && poll) clearInterval(poll);
-                }, 100);
-
-                const cleanup = () => {
-                  clearInterval(poll);
-                  node?.removeEventListener(
-                    'timeupdate',
-                    checkBounds,
-                  );
-                  node = null;
-                };
-                howl.on('end', cleanup);
-                howl.on('stop', cleanup);
+                attachVerseBounds(howl, {
+                  endTs,
+                  verseNumbers: item.verseNumbers,
+                  // The FULL chapter's rows — skipped-verse
+                  // detection must recognize playback drifting
+                  // into a non-included verse.
+                  timestamps: fetchedTimestamps,
+                  loopStartTs,
+                  onAdvance: advanceNext,
+                  // `stale` (not just stoppedRef): a superseded
+                  // seq must also halt the bounds checker.
+                  isStopped: stale,
+                });
               }
 
               // A newer playIndex superseded this coroutine

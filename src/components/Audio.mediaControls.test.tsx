@@ -18,6 +18,9 @@ import {
   type MediaSessionStub,
 } from '../__tests__/mocks/mediaSession';
 
+// Shared faithful Howl fake with real position tracking:
+// seek(v) stores the position and seek() returns it, so
+// verse-jump assertions read the resulting _pos directly.
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
 }));

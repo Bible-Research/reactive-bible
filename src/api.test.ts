@@ -643,6 +643,24 @@ describe('API Functions', () => {
         .not.toHaveBeenCalled();
     });
 
+    it('throws instead of caching a 200 error body', async () => {
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({
+            error: 'Bible provider error (HTTP 503)',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.ProviderError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+
     it('throws RateLimitError for a rate-limit-shaped 200 ' +
       'error body', async () => {
       server.use(
@@ -723,120 +741,62 @@ describe('API Functions', () => {
     });
   });
 
-  describe('search error mapping', () => {
-    // The un-grouped `searchBible` export was removed as dead
-    // code (T1); `searchBibleGrouped` carries the same error
-    // contract and is what the app calls.
-    it('searchBibleGrouped throws RateLimitError on 429',
-      async () => {
-        server.use(
-          http.get(`${API_URL}/bible/search/`, () =>
-            HttpResponse.json(
-              { error: 'throttled', error_code: 'rate_limited' },
-              { status: 429 }
-            )
-          )
-        );
+  describe('searchBibleGrouped', () => {
+    it('throws ProviderError when a 200 body carries a ' +
+      '`message` and no groups', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message: 'Search provider unavailable',
+          });
+        })
+      );
 
-        await expect(
-          api.searchBibleGrouped('love', 'ENGESV_API')
-        ).rejects.toThrow(api.RateLimitError);
-      });
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.ProviderError);
+    });
+    it('throws RateLimitError when a 200 `message` body is ' +
+      'rate-limit-shaped', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message:
+              'Bible provider rate limit exceeded (HTTP 429)',
+          });
+        })
+      );
 
-    it('searchBibleGrouped throws ProviderError when a 200 ' +
-      'body carries error/error_code', async () => {
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.RateLimitError);
+    });
+
+    // Ported from main's `searchBible` tests — the merged api
+    // exposes only `searchBibleGrouped`.
+    it('throws RateLimitError on 429', async () => {
       server.use(
         http.get(`${API_URL}/bible/search/`, () =>
-          HttpResponse.json({
-            error: 'upstream exploded',
-            error_code: 'provider_error',
-          })
+          HttpResponse.json(
+            { error: 'throttled', error_code: 'rate_limited' },
+            { status: 429 }
+          )
         )
       );
 
       await expect(
         api.searchBibleGrouped('love', 'ENGESV_API')
-      ).rejects.toThrow(api.ProviderError);
-    });
-  });
-
-  describe('searchBibleGrouped', () => {
-    it('throws ProviderError when a 200 body carries a ' +
-      '`message` and no groups', async () => {
-      server.use(
-        http.get(`${API_URL}/bible/search/`, () => {
-          return HttpResponse.json({
-            data: { groups: [] },
-            message: 'Search provider unavailable',
-          });
-        })
-      );
-
-      await expect(
-        api.searchBibleGrouped('love', 'ENGESV_API')
-      ).rejects.toThrow(api.ProviderError);
-    });
-  });
-
-  describe('searchBibleGrouped', () => {
-    it('throws ProviderError when a 200 body carries a ' +
-      '`message` and no groups', async () => {
-      server.use(
-        http.get(`${API_URL}/bible/search/`, () => {
-          return HttpResponse.json({
-            data: { groups: [] },
-            message: 'Search provider unavailable',
-          });
-        })
-      );
-
-      await expect(
-        api.searchBibleGrouped('love', 'ENGESV_API')
-      ).rejects.toThrow(api.ProviderError);
-    });
-  });
-
-  describe('searchBibleGrouped', () => {
-    it('throws ProviderError when a 200 body carries a ' +
-      '`message` and no groups', async () => {
-      server.use(
-        http.get(`${API_URL}/bible/search/`, () => {
-          return HttpResponse.json({
-            data: { groups: [] },
-            message: 'Search provider unavailable',
-          });
-        })
-      );
-
-      await expect(
-        api.searchBibleGrouped('love', 'ENGESV_API')
-      ).rejects.toThrow(api.ProviderError);
-    });
-  });
-
-  describe('searchBibleGrouped', () => {
-    it('throws ProviderError when a 200 body carries a ' +
-      '`message` and no groups', async () => {
-      server.use(
-        http.get(`${API_URL}/bible/search/`, () => {
-          return HttpResponse.json({
-            data: { groups: [] },
-            message: 'Search provider unavailable',
-          });
-        })
-      );
-
-      await expect(
-        api.searchBibleGrouped('love', 'ENGESV_API')
-      ).rejects.toThrow(api.ProviderError);
+      ).rejects.toThrow(api.RateLimitError);
     });
 
-    it('searchBibleGrouped throws on an error body instead of ' +
-      'returning empty groups', async () => {
+    it('throws ProviderError when a 200 body ' +
+      'carries error/error_code', async () => {
       server.use(
         http.get(`${API_URL}/bible/search/`, () =>
           HttpResponse.json({
-            error: 'provider failed',
+            error: 'upstream exploded',
             error_code: 'provider_error',
           })
         )

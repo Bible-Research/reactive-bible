@@ -6,6 +6,7 @@ import { Translation, Fileset } from '../../store';
 // sweep. Prefer the factories in `../helpers/factories` for
 // per-test tag/verse/note fixtures.
 
+// --- Filesets ---
 // Matches the real API shape for the ENGKJV translation after
 // `getAvailableTranslations` injects the bundled KJV entries:
 // the API only lists the `_ET` splits (and DBT audio), the
@@ -62,3 +63,4 @@ export const mockTranslations: Translation[] = [
     ],
   },
 ];
+

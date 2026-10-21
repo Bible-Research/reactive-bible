@@ -278,7 +278,8 @@ describe('CommentNode', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('lightbox shows fresh signed URL after comment prop update', () => {
+  it('lightbox shows fresh signed URL after comment prop update',
+    async () => {
     const img1 = makeImage('img-1');
     const { rerender } = renderWithProviders(
       <CommentNode
@@ -310,6 +311,54 @@ describe('CommentNode', () => {
     expect(lightboxImg.src).toBe(
       'https://example.com/img-1-refreshed.png'
     );
+
+    // Settle the Modal before teardown: Mantine's
+    // use-transition leaks a 10ms timer that fires after the
+    // test env is gone (window undefined) if left pending.
+    fireEvent.keyDown(screen.getByRole('dialog'), {
+      key: 'Escape',
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog')
+      ).not.toBeInTheDocument();
+    });
+    }
+  );
+
+  it('submits reply content as doc-JSON', async () => {
+    const onReply = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        onReply={onReply}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reply' })
+    );
+    const replyInput =
+      screen.getByPlaceholderText('Write a reply…');
+    fireEvent.change(replyInput, {
+      target: { value: 'Reply body' },
+    });
+    // The actions row keeps its own 'Reply' button — click the
+    // submit inside the reply form container.
+    const formRoot = replyInput.closest('div') as HTMLElement;
+    fireEvent.click(
+      within(formRoot).getByRole('button', { name: 'Reply' })
+    );
+
+    await waitFor(() => {
+      expect(onReply).toHaveBeenCalledTimes(1);
+    });
+    const [parentId, content, files] = onReply.mock.calls[0];
+    expect(parentId).toBe('c1');
+    expect(isTiptapDocString(content)).toBe(true);
+    expect(toPlainText(content)).toBe('Reply body');
+    expect(files).toEqual([]);
   });
 
   it('submits reply content as doc-JSON', async () => {
@@ -376,7 +425,7 @@ describe('CommentNode', () => {
     expect(toPlainText(content)).toBe('Edited body');
   });
 
-  it('lightbox img onError calls onRequestRefresh', () => {
+  it('lightbox img onError calls onRequestRefresh', async () => {
     const onRequestRefresh = vi.fn();
     renderWithProviders(
       <CommentNode
@@ -391,5 +440,15 @@ describe('CommentNode', () => {
     fireEvent.error(screen.getByAltText('full size'));
 
     expect(onRequestRefresh).toHaveBeenCalledWith('c1');
+
+    // Settle the Modal before teardown (see above).
+    fireEvent.keyDown(screen.getByRole('dialog'), {
+      key: 'Escape',
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog')
+      ).not.toBeInTheDocument();
+    });
   });
 });
