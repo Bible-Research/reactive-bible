@@ -64,6 +64,19 @@ describe('TranslationSelector Component', () => {
     ).toBeInTheDocument();
   });
 
+  it('offers English, Latvian and Russian language tabs', () => {
+    render(<TranslationSelector />);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Change Translation' })
+    );
+
+    for (const name of ['English', 'Latvian', 'Russian']) {
+      expect(
+        screen.getByRole('radio', { name })
+      ).toBeInTheDocument();
+    }
+  });
+
   it('refreshes translations from the API when modal opens', async () => {
     const mock = api.getAvailableTranslations as unknown as ReturnType<
       typeof vi.fn
@@ -558,6 +571,77 @@ describe('TranslationSelector Component', () => {
           'ENGESV:audio:1',
         );
       });
+
+    it('prefers the first audio option over None when ' +
+      'picking a version with text and audio', async () => {
+      // Stored text belongs to a text-only version so picking
+      // ESV exercises the fresh-pick default: audio must land
+      // on the first real option, not None.
+      const niv = {
+        abbr: 'ENGNIV',
+        name: 'New International Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [
+          textFs('ENGNIVO_ET', 'OT'),
+          textFs('ENGNIVN_ET', 'NT'),
+        ],
+      };
+      useRealStore({
+        translations: [niv, esv],
+        activeTextFilesetId: 'ENGNIVN_ET',
+        activeAudioFilesetId: null,
+      });
+      (api.getAvailableTranslations as Mock).mockResolvedValue([
+        niv,
+        esv,
+      ]);
+      render(<TranslationSelector />);
+      await openAndPickVersion(
+        'English Standard Version (ENGESV)',
+      );
+
+      expect(
+        await screen.findByRole('radio', {
+          name: 'Read aloud — Full Bible',
+        }),
+      ).toBeChecked();
+      expect(
+        screen.getByRole('radio', { name: 'None' }),
+      ).not.toBeChecked();
+
+      save();
+      expect(useBibleStore.getState().activeAudioFilesetId).toBe(
+        'ENGESV:audio:1',
+      );
+    });
+
+    it('restores a saved None selection on reopen', async () => {
+      // A stored null audio is an explicit "None" — seeding the
+      // current selection must show None again, not silently
+      // re-select the first audio option on a no-op Save.
+      useRealStore({
+        translations: [esv],
+        activeTextFilesetId: 'ENGESV_API',
+        activeAudioFilesetId: null,
+      });
+      (api.getAvailableTranslations as Mock).mockResolvedValue([
+        esv,
+      ]);
+      render(<TranslationSelector />);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Change Translation' }),
+      );
+
+      expect(
+        await screen.findByRole('radio', { name: 'None' }),
+      ).toBeChecked();
+
+      save();
+      expect(
+        useBibleStore.getState().activeAudioFilesetId,
+      ).toBeNull();
+    });
 
     it('stores null when audio is set to None', async () => {
       useRealStore({

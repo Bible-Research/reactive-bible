@@ -144,21 +144,51 @@ describe('apiClient', () => {
     it('should not repeat the expired-session toast when ' +
       'another handler already logged out', async () => {
         // e.g. a stale-token 401 landing after checkAuth's
-        // validation ping already expired the session.
+        // validation ping already expired the session. The
+        // request IS issued with the token — the logout has to
+        // happen while it is in flight, otherwise the 401 is
+        // just anonymous.
         useAuthStore.setState({
-          token: null,
-          isAuthenticated: false,
+          token: mockToken,
+          isAuthenticated: true,
         });
 
-        global.fetch = vi.fn().mockResolvedValueOnce({
-          ok: false,
-          status: 401,
-        });
+        global.fetch = vi.fn().mockImplementationOnce(
+          async () => {
+            useAuthStore.setState({
+              token: null,
+              isAuthenticated: false,
+            });
+            return { ok: false, status: 401 };
+          }
+        );
 
         await expect(authenticatedFetch(mockUrl))
           .rejects.toThrow('Session expired');
         expect(showNotification).not.toHaveBeenCalled();
       });
+
+    it('does not log out or toast on a 401 when no token ' +
+      'was attached', async () => {
+      // Anonymous reads that happen to go through
+      // authenticatedFetch must not flash a spurious
+      // "Session Expired" — there was no session.
+      const { showNotification } = await import(
+        '@mantine/notifications'
+      );
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      await expect(authenticatedFetch(mockUrl))
+        .rejects.toThrow('Authentication required');
+      expect(showNotification).not.toHaveBeenCalled();
+      expect(
+        useAuthStore.getState().isAuthenticated
+      ).toBe(false);
+    });
+
 
     it('should not log out when the token rotated while ' +
       'the request was in flight', async () => {
@@ -255,6 +285,24 @@ describe('apiClient', () => {
       expect(response.ok).toBe(true);
     });
 
+    it('should NOT retry network errors on non-idempotent ' +
+      'methods (a lost-response POST could double-create)',
+      async () => {
+      const mockFetch = vi
+        .fn()
+        .mockRejectedValue(new TypeError('Network error'));
+      global.fetch = mockFetch;
+
+      await expect(
+        authenticatedFetch(mockUrl, {
+          method: 'POST',
+          body: '{}',
+        })
+      ).rejects.toThrow('Network error');
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
     it('should not retry on non-network errors', async () => {
       const mockFetch = vi.fn().mockRejectedValueOnce(
         new Error('Not a network error')
@@ -267,23 +315,6 @@ describe('apiClient', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
-
-    it('should not retry network errors on non-idempotent ' +
-      'methods (POST)', async () => {
-        // A TypeError mid-POST may mean the request reached the
-        // server — auto-replaying it risks a double submit.
-        const mockFetch = vi
-          .fn()
-          .mockRejectedValueOnce(new TypeError('Network error'))
-          .mockResolvedValueOnce({ ok: true, status: 200 });
-        vi.stubGlobal('fetch', mockFetch);
-
-        await expect(
-          authenticatedFetch(mockUrl, { method: 'POST' })
-        ).rejects.toThrow('Network error');
-
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-      });
 
     it('should still retry network errors on explicit GET',
       async () => {
@@ -376,8 +407,6 @@ describe('apiClient', () => {
       expect(showNotification).toHaveBeenCalledWith(
         expect.objectContaining({ title: 'Session Expired' })
       );
-      // A 401 is a response, not a network error — it must
-      // NOT consume the retry.
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
@@ -402,41 +431,6 @@ describe('apiClient', () => {
       });
     });
 
-    it('should retry a 401 once without the token when the ' +
-      'request carried one', async () => {
-        // Stale/expired token on a public endpoint must not
-        // break public content.
-        useAuthStore.setState({
-          token: mockToken,
-          isAuthenticated: true,
-        });
-        const logoutSpy = vi.spyOn(
-          useAuthStore.getState(),
-          'logout'
-        );
-
-        const mockFetch = vi
-          .fn()
-          .mockResolvedValueOnce({ ok: false, status: 401 })
-          .mockResolvedValueOnce({ ok: true, status: 200 });
-        vi.stubGlobal('fetch', mockFetch);
-
-        const response = await publicFetch(mockUrl);
-
-        expect(response.ok).toBe(true);
-        expect(mockFetch).toHaveBeenCalledTimes(2);
-        // First call carried the token; the retry did not.
-        expect(
-          mockFetch.mock.calls[0][1].headers['Authorization']
-        ).toBe(`Token ${mockToken}`);
-        expect(
-          mockFetch.mock.calls[1][1].headers['Authorization']
-        ).toBeUndefined();
-        // Never logs out on 401.
-        expect(logoutSpy).not.toHaveBeenCalled();
-        expect(showNotification).not.toHaveBeenCalled();
-      });
-
     it('should return the anonymous retry response as-is, ' +
       'even another 401', async () => {
         useAuthStore.setState({ token: mockToken });
@@ -455,50 +449,65 @@ describe('apiClient', () => {
         expect(useAuthStore.getState().token).toBe(mockToken);
       });
 
-    it('should not retry a 401 when no token was sent',
-      async () => {
-        const mockFetch = vi.fn().mockResolvedValueOnce({
-          ok: false,
-          status: 401,
-        });
-        vi.stubGlobal('fetch', mockFetch);
-
-        const response = await publicFetch(mockUrl);
-
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-        expect(response.status).toBe(401);
+    it('retries a 401 once without the Authorization header — ' +
+      'a dead token must not poison public reads', async () => {
+      useAuthStore.setState({
+        token: 'dead-token',
+        isAuthenticated: true,
       });
 
-    it('retries once on network error', async () => {
       const mockFetch = vi
         .fn()
-        .mockRejectedValueOnce(new TypeError('Network error'))
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-        });
+        .mockResolvedValueOnce({ ok: false, status: 401 })
+        .mockResolvedValueOnce({ ok: true, status: 200 });
       vi.stubGlobal('fetch', mockFetch);
 
       const response = await publicFetch(mockUrl);
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch.mock.calls[0][1].headers['Authorization'])
+        .toBe('Token dead-token');
+      expect(mockFetch.mock.calls[1][1].headers['Authorization'])
+        .toBeUndefined();
       expect(response.ok).toBe(true);
+      // The session is deliberately kept — publicFetch never
+      // destroys it.
+      expect(useAuthStore.getState().token).toBe('dead-token');
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(showNotification).not.toHaveBeenCalled();
     });
 
-    it('should not retry network errors on non-idempotent ' +
-      'methods (POST)', async () => {
-        const mockFetch = vi
-          .fn()
-          .mockRejectedValueOnce(new TypeError('Network error'))
-          .mockResolvedValueOnce({ ok: true, status: 200 });
-        vi.stubGlobal('fetch', mockFetch);
+    it('returns a bare 401 without retry when no token was ' +
+      'attached', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 401 });
+      vi.stubGlobal('fetch', mockFetch);
 
-        await expect(
-          publicFetch(mockUrl, { method: 'POST' })
-        ).rejects.toThrow('Network error');
+      const response = await publicFetch(mockUrl);
 
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(response.status).toBe(401);
+    });
+
+    it('retries network errors on GET but not POST', async () => {
+      const getFetch = vi
+        .fn()
+        .mockRejectedValueOnce(new TypeError('boom'))
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+      vi.stubGlobal('fetch', getFetch);
+      await publicFetch(mockUrl);
+      expect(getFetch).toHaveBeenCalledTimes(2);
+
+      const postFetch = vi
+        .fn()
+        .mockRejectedValue(new TypeError('boom'));
+      vi.stubGlobal('fetch', postFetch);
+      await expect(
+        publicFetch(mockUrl, { method: 'POST', body: '{}' })
+      ).rejects.toThrow('boom');
+      expect(postFetch).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('isAuthenticated', () => {

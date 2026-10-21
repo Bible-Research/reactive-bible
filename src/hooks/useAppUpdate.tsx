@@ -37,6 +37,13 @@ const openUpdateModal = (
       </Stack>
     ),
     labels: { confirm: 'Update', cancel: 'Later' },
+    // `@capacitor/browser` is not installed, so `Browser.open`
+    // is unavailable. `window.open(url, '_system')` relies on
+    // Capacitor's WebView handling `_system` targets by handing
+    // the URL to the OS browser — the manifest's apkUrl is
+    // already restricted to https GitHub hosts, so a hostile
+    // scheme cannot reach this call. Verify on-device that the
+    // APK opens externally rather than inside the WebView.
     onConfirm: () => window.open(manifest.apkUrl, '_system'),
   });
 };

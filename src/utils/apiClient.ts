@@ -20,13 +20,12 @@ const getAuthHeaders = (): Record<string, string> => {
 };
 
 /**
- * Methods that are safe to replay automatically: they carry no
- * side effects, so re-sending after a network failure cannot
- * double-submit. A TypeError (network failure) on POST/PUT/
- * PATCH/DELETE must surface to the caller instead of silently
- * retrying.
+ * Network-error retries are only safe for idempotent reads: a
+ * TypeError can mean the request reached the server but the
+ * response was lost, so retrying a POST/PATCH/DELETE could
+ * double-create notes, tags, or comments.
  */
-const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD']);
 
 const isIdempotent = (options: RequestInit): boolean =>
   IDEMPOTENT_METHODS.has((options.method ?? 'GET').toUpperCase());
@@ -114,9 +113,11 @@ const throwForbidden = (): never => {
  * note share page) where a stray 401 should never destroy an existing
  * session.
  *
- * If the request carried a token and still returns 401 (stale or
- * expired credentials on a public endpoint), it retries once
- * without the token — a bad token must not break public content.
+ * DRF runs authentication before permission checks, so an expired
+ * token makes even `AllowAny` endpoints return 401 — worse than
+ * anonymous. On a 401 with a token attached, the request is
+ * retried once without the Authorization header so public reads
+ * degrade to anonymous instead of breaking.
  *
  * @param url - The URL to fetch
  * @param options - Fetch options
@@ -127,22 +128,40 @@ export const publicFetch = async (
   options: RequestInit = {},
   retries = 1
 ): Promise<Response> => {
-  const headers = getAuthHeaders();
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+    ...(options.headers as Record<string, string> | undefined),
+  };
   const response = await sendRequest(
     url, options, headers, retries, 'publicFetch'
   );
 
+  // A dead token poisons even public reads — retry once
+  // anonymously. The token is deliberately kept: publicFetch
+  // must never destroy the session (that is
+  // authenticatedFetch's job).
   if (response.status === 401 && headers['Authorization']) {
     console.warn(
       '401 with token on public endpoint — ' +
-        'retrying without credentials'
+        'retrying anonymously'
     );
     const anonymousHeaders = { ...headers };
     delete anonymousHeaders['Authorization'];
+    // Strip a caller-supplied Authorization too: sendRequest
+    // re-merges options.headers over the base headers.
+    const anonymousOptions: RequestInit = { ...options };
+    if (options.headers) {
+      const optionHeaders = {
+        ...(options.headers as Record<string, string>),
+      };
+      delete optionHeaders['Authorization'];
+      anonymousOptions.headers = optionHeaders;
+    }
     // Single retry: the anonymous response is returned
     // as-is, whether it succeeds or is another 401.
     return sendRequest(
-      url, options, anonymousHeaders, retries, 'publicFetch'
+      url, anonymousOptions, anonymousHeaders, retries,
+      'publicFetch'
     );
   }
 
@@ -166,16 +185,26 @@ export const authenticatedFetch = async (
   // Capture the token this request is issued with so a stale
   // 401 can't wipe a session that rotated in the meantime.
   const issuedToken = useAuthStore.getState().token;
+  const headers = getAuthHeaders();
   const response = await sendRequest(
     url,
     options,
-    getAuthHeaders(),
+    headers,
     retries,
     'authenticatedFetch'
   );
 
-  // Handle 401 Unauthorized - token expired or invalid
+  // Handle 401 Unauthorized - token expired or invalid. Only
+  // destroy the session when this request actually carried the
+  // token — an anonymous 401 (e.g. an auth-only endpoint hit
+  // on a public page) means "login required", not "your
+  // session expired", and must not log anyone out.
   if (response.status === 401) {
+    if (!headers['Authorization']) {
+      throw new Error(
+        'Authentication required for this request.'
+      );
+    }
     expireSession(issuedToken);
   }
 
@@ -214,7 +243,16 @@ export const authenticatedUpload = async (
     'authenticatedUpload'
   );
 
+  // Same rule as authenticatedFetch: a 401 only ends the
+  // session when this request actually attached the token —
+  // an anonymous 401 means "login required", not a dead
+  // session, and there is nothing to log out.
   if (response.status === 401) {
+    if (!issuedToken) {
+      throw new Error(
+        'Authentication required for this request.'
+      );
+    }
     expireSession(issuedToken);
   }
 
