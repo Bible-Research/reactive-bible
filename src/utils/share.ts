@@ -60,7 +60,15 @@ export const shareOrCopyLink = async (
   // copyTextToClipboard's execCommand fallback covers
   // http/non-secure contexts where navigator.clipboard is
   // unavailable.
-  if (await copyTextToClipboard(content.url)) {
+  // When no copyFailure notice will tell the user, at least
+  // log why the copy silently did nothing.
+  const copied = await copyTextToClipboard(
+    content.url,
+    options.copyFailure
+      ? undefined
+      : (error) => console.error('Error copying to clipboard:', error)
+  );
+  if (copied) {
     showNotification({ ...options.copySuccess, color: 'blue' });
   } else {
     if (options.copyFailure) {
