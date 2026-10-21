@@ -405,8 +405,8 @@ export const deleteNote = async (noteId: string) => {
     clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (error) {
-    console.error('Error deleting note:', error);
+  } catch (err) {
+    console.error('Error deleting note:', err);
     throw new Error('Failed to delete your note, please try again');
   }
 }
@@ -764,6 +764,15 @@ export const getAvailableTranslations = async (
 // ============================================
 // AUDIO FUNCTIONS
 // ============================================
+
+interface AudioApiResponse {
+  error?: string | { message?: string };
+  error_code?: unknown;
+  audio_url?: unknown;
+  duration_seconds?: number;
+  file_size_bytes?: number;
+  meta?: unknown;
+}
 
 interface AudioApiResponse {
   error?: string | { message?: string };
