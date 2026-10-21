@@ -73,21 +73,41 @@ export default function App() {
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
-  // MyHeader slides away on downward scroll; drop the padding
-  // the AppShell reserves for it so content reclaims the space.
+  // MyHeader and BottomNav slide away on downward scroll; drop
+  // the padding the AppShell reserves for them so content
+  // reclaims the space.
   const headerVisible = useBibleStore(
     (state) => state.headerVisible
   );
+  // The audio player is fixed to the viewport bottom (~120px)
+  // and never hides on scroll — keep clearing it even once
+  // the header/footer chrome has slid away.
+  const showAudioPlayer = useBibleStore(
+    (state) => state.showAudioPlayer
+  );
   useWindowEvent("keydown", (event) => {
-    const tag = (event.target as HTMLElement).tagName;
-    if (
-      event.key === "/" &&
-      tag !== "INPUT" &&
-      tag !== "TEXTAREA"
-    ) {
-      event.preventDefault();
-      navigate("/search");
+    if (event.key !== "/" || event.isComposing) return;
+    // Already on the search page — another "/" must not push a
+    // duplicate history entry or swallow the keystroke.
+    if (location.pathname === "/search") return;
+    const target = event.target;
+    if (target instanceof HTMLElement) {
+      const tag = target.tagName;
+      // Bail while typing: inputs, selects, and contenteditable
+      // surfaces (TipTap's .ProseMirror) — otherwise the
+      // swallowed "/" navigates away and destroys drafts.
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable ||
+        target.closest("[contenteditable]") !== null
+      ) {
+        return;
+      }
     }
+    event.preventDefault();
+    navigate("/search");
   });
   return (
     <ColorSchemeProvider
@@ -132,7 +152,14 @@ export default function App() {
               paddingTop: headerVisible
                 ? "var(--mantine-header-height, 0px)"
                 : 0,
-              transition: "padding-top 0.3s ease-in-out",
+              paddingBottom: headerVisible
+                ? "var(--mantine-footer-height, 0px)"
+                : showAudioPlayer
+                  ? "120px"
+                  : 0,
+              transition:
+                "padding-top 0.3s ease-in-out, " +
+                "padding-bottom 0.3s ease-in-out",
               // Allow scrolling on auth and search pages
               overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
             },

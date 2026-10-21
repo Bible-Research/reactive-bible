@@ -2,7 +2,6 @@ import { useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
-import { shallow } from 'zustand/shallow';
 import { parseBibleRef } from '../utils/bibleUtils';
 import { sameRefSet } from '../utils/verseRefs';
 import type { VerseRef } from '../types';
@@ -16,26 +15,24 @@ export default function BibleRoute() {
   );
 
   const navigate = useNavigate();
-  const {
-    activeBookId,
-    activeChapter,
-    setActiveBookAndChapter,
-    setVerseSelection,
-    setShowNotes,
-    setVersesFolded,
-    getTags,
-  } = useBibleStore(
-    (state) => ({
-      activeBookId: state.activeBookId,
-      activeChapter: state.activeChapter,
-      setActiveBookAndChapter: state.setActiveBookAndChapter,
-      setVerseSelection: state.setVerseSelection,
-      setShowNotes: state.setShowNotes,
-      setVersesFolded: state.setVersesFolded,
-      getTags: state.getTags,
-    }),
-    shallow
+  // Narrow selectors — subscribing to the whole store would
+  // re-render this route on every debounced position write and
+  // audio tick.
+  const activeBookId = useBibleStore((state) => state.activeBookId);
+  const activeChapter = useBibleStore(
+    (state) => state.activeChapter
   );
+  const setActiveBookAndChapter = useBibleStore(
+    (state) => state.setActiveBookAndChapter
+  );
+  const setVerseSelection = useBibleStore(
+    (state) => state.setVerseSelection
+  );
+  const setShowNotes = useBibleStore((state) => state.setShowNotes);
+  const setVersesFolded = useBibleStore(
+    (state) => state.setVersesFolded
+  );
+  const getTags = useBibleStore((state) => state.getTags);
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated,
   );
