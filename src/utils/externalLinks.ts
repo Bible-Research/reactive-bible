@@ -192,3 +192,14 @@ export const collectSelectedVerseText = (
     })
     .filter(Boolean)
     .join(" ");
+
+/** Share/clipboard body: scraped verse text (if any), then the
+ *  reference, then the link. */
+export const buildShareText = (
+  verseText: string,
+  passageRef: string,
+  url: string
+): string =>
+  verseText
+    ? `${verseText}\n\n${passageRef}\n\n${url}`
+    : `${passageRef}\n\n${url}`;

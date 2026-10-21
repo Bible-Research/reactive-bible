@@ -17,6 +17,7 @@ import {
   publicFetch,
 } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { clearNotesCache } from '../utils/cacheManager';
 import { ConflictError } from './errors';
 
 export const addTagNote = async (
@@ -40,7 +41,11 @@ export const addTagNote = async (
     if (!response.ok) {
       throw new Error('Failed to create note');
     }
-    return await response.json();
+    const created = await response.json();
+    // A new note changes the tag's cached pages (membership and
+    // ordering shift) — invalidate so a cached page can't hide it.
+    clearNotesCache(tagId);
+    return created;
   } catch (error) {
     console.error('Error creating note:', error);
     throw error;
@@ -73,7 +78,11 @@ export const editNote = async (
     if (!response.ok) {
       throw new Error('Failed to update note');
     }
-    return await response.json();
+    const updated = await response.json();
+    // The note may have moved to a different tag — its previous
+    // tag's cached pages are stale too, so invalidate broadly.
+    clearNotesCache();
+    return updated;
   } catch (error) {
     console.error('Error updating note:', error);
     throw error;
@@ -91,6 +100,8 @@ export const deleteNote = async (noteId: string) => {
     if (!response.ok) {
       throw new Error('Failed to delete note');
     }
+    // The note's tag is unknown here — clear all cached pages.
+    clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
   } catch (err) {
@@ -114,12 +125,16 @@ export const reorderNotes = async (
   });
 
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Reorder failed');
   }
 };
@@ -180,8 +195,12 @@ export const moveNote = async (
   });
 
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
 
   if (!response.ok) {

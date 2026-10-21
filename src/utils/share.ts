@@ -1,4 +1,5 @@
 import { showNotification } from '@mantine/notifications';
+import { copyTextToClipboard } from './clipboard';
 
 /** Payload handed to the Web Share API / clipboard fallback. */
 export interface ShareContent {
@@ -56,11 +57,12 @@ export const shareOrCopyLink = async (
     }
   }
 
-  try {
-    await navigator.clipboard.writeText(content.url);
+  // copyTextToClipboard's execCommand fallback covers
+  // http/non-secure contexts where navigator.clipboard is
+  // unavailable.
+  if (await copyTextToClipboard(content.url)) {
     showNotification({ ...options.copySuccess, color: 'blue' });
-  } catch (err) {
-    console.error('Error copying to clipboard:', err);
+  } else {
     if (options.copyFailure) {
       showNotification({ ...options.copyFailure, color: 'red' });
     }

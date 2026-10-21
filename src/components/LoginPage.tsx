@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   TextInput,
@@ -26,6 +26,12 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // A stale auth error must not greet the user returning from
+  // the register page (or a previous failed attempt).
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     clearError();
@@ -40,9 +46,14 @@ export function LoginPage() {
         color: 'green',
       });
       
-      // Redirect to the page they tried to visit or to notes
-      const state = location.state as { from?: { pathname?: string } } | null;
-      const from = state?.from?.pathname || '/notes';
+      // Redirect to the page they tried to visit or to notes.
+      // ProtectedRoute passes `{ from: location }`; only the
+      // pathname is honoured so a full Location-like object with
+      // an external `origin` cannot smuggle an open redirect.
+      const state = location.state as {
+        from?: { pathname?: string };
+      } | null;
+      const from = state?.from?.pathname ?? '/notes';
       navigate(from, { replace: true });
     } catch (err) {
       // Error is already set in the store

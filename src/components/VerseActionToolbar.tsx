@@ -20,17 +20,20 @@ import {
   lazy,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useMediaQuery } from "@mantine/hooks";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
 import {
   buildBiblePath,
   toBookName,
+  toUsfmCode,
 } from "../utils/bibleUtils";
+import { copyTextToClipboard } from "../utils/clipboard";
 import {
   groupRefsByChapter,
   verseNumbersFor,
@@ -40,10 +43,12 @@ import {
   buildBibleHubUrl,
   buildBibleMapperUrl,
   buildBlbUrl,
+  buildShareText,
   buildYouVersionUrl,
   collectSelectedVerseText,
   faviconUrl,
 } from "../utils/externalLinks";
+import { emptyNoteDraft } from "./noteDraft";
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
@@ -76,8 +81,16 @@ const VerseActionToolbar = () => {
     (state) => state.setVerseSelection
   );
   const showAudioPlayer = useBibleStore((state) => state.showAudioPlayer);
+  const headerVisible = useBibleStore((state) => state.headerVisible);
+  const notes = useBibleStore((state) => state.notes);
+  const detailNote = useBibleStore((state) => state.detailNote);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const location = useLocation();
   const [noteModalOpened, setNoteModalOpened] = useState(false);
+  // Owned here (not inside the modal) because the modal unmounts
+  // on close — a component-local draft would lose the autosaved
+  // note id and reopening would POST a duplicate.
+  const noteDraftRef = useRef(emptyNoteDraft());
   const [mapModalOpened, setMapModalOpened] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const navigate = useNavigate();
@@ -113,6 +126,37 @@ const VerseActionToolbar = () => {
     return groupRefsByChapter(refs).map(formatChapterGroup).join("; ");
   }, [refs]);
 
+  // Selected verse text from the note's own data when the
+  // selection lives inside a note card — DOM scraping only sees
+  // rendered verses, so folded cards shared a partial passage.
+  // 'bible'-scope selections still scrape the passage DOM below.
+  // `detailNote` covers /notes/:id — that page's note is fetched
+  // into local state and never joins `notes`.
+  const noteVerseText = useMemo(() => {
+    if (!scope || scope === 'bible' || refs.length === 0) {
+      return null;
+    }
+    const note =
+      notes.find((n) => n.id === scope) ??
+      (detailNote?.id === scope ? detailNote : null);
+    if (!note) return null;
+    const text = refs
+      .map(
+        (r) =>
+          note.verses
+            .find(
+              (v) =>
+                toUsfmCode(v.book) === r.bookId &&
+                v.chapter === r.chapter &&
+                v.verse === r.verse
+            )
+            ?.text.trim() ?? ''
+      )
+      .filter(Boolean)
+      .join(' ');
+    return text || null;
+  }, [scope, refs, notes, detailNote]);
+
   const handleShare = useCallback(async () => {
     if (!primary) return;
     const path = buildBiblePath(
@@ -122,17 +166,20 @@ const VerseActionToolbar = () => {
     );
     const url = `${window.location.origin}${path}`;
 
-    const verseText = collectSelectedVerseText(refs, scope);
+    const verseText =
+      noteVerseText ?? collectSelectedVerseText(refs, scope);
 
-    const shareBody = verseText
-      ? `${verseText}\n\n${passageRef}`
-      : passageRef;
+    const shareText = buildShareText(
+      verseText ?? '',
+      passageRef,
+      url
+    );
 
     if (navigator.share) {
       try {
         await navigator.share({
           title: passageRef,
-          text: `${shareBody}\n\n${url}`,
+          text: shareText,
         });
       } catch (err) {
         if (
@@ -147,17 +194,13 @@ const VerseActionToolbar = () => {
         }
       }
     } else {
-      const clipboardText = verseText
-        ? `${verseText}\n\n${passageRef}\n\n${url}`
-        : `${passageRef}\n\n${url}`;
-      try {
-        await navigator.clipboard.writeText(clipboardText);
+      if (await copyTextToClipboard(shareText)) {
         showNotification({
           title: "Link copied",
           message: `Link to ${passageRef} copied to clipboard`,
           color: "blue",
         });
-      } catch {
+      } else {
         showNotification({
           title: "Error",
           message: "Failed to copy link",
@@ -165,28 +208,29 @@ const VerseActionToolbar = () => {
         });
       }
     }
-  }, [primary, refs, scope, passageRef]);
+  }, [primary, refs, scope, noteVerseText, passageRef]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
-    window.open(
-      BIBLE_MAPPER_WEB_URL,
-      "_blank",
-      "noopener,noreferrer"
-    );
-    try {
-      await navigator.clipboard.writeText(passageRef);
-      showNotification({
-        title: "Copied",
-        message: `${passageRef} copied to clipboard`,
-        color: "green",
-      });
-    } catch {
+    // Copy first — opening the viewer after a failed copy would
+    // send the user to a page with nothing on the clipboard.
+    if (!(await copyTextToClipboard(passageRef))) {
       showNotification({
         title: "Error",
         message: "Failed to copy to clipboard",
         color: "red",
       });
+      return;
     }
+    showNotification({
+      title: "Copied",
+      message: `${passageRef} copied to clipboard`,
+      color: "green",
+    });
+    window.open(
+      BIBLE_MAPPER_WEB_URL,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }, [passageRef]);
 
   const youVersionUrl = useMemo(
@@ -232,7 +276,18 @@ const VerseActionToolbar = () => {
   );
 
   const isVisible = refCount > 0;
-  const bottomOffset = showAudioPlayer ? 176 : 56;
+  // BottomNav (56px) only renders on /bible routes and slides
+  // away with MyHeader on downward scroll (headerVisible); on
+  // /notes the toolbar would otherwise float mid-screen. The
+  // audio player bar (~120px) sits at the bottom on every route.
+  const onBibleRoute = location.pathname.startsWith('/bible');
+  const bottomOffset = showAudioPlayer
+    ? onBibleRoute && headerVisible
+      ? 176
+      : 120
+    : onBibleRoute && headerVisible
+      ? 56
+      : 0;
 
   const handleViewInBible = useCallback(() => {
     if (!primary) return;
@@ -408,6 +463,7 @@ const VerseActionToolbar = () => {
           <AddTagNoteModal
             opened={noteModalOpened}
             onClose={() => setNoteModalOpened(false)}
+            draftRef={noteDraftRef}
           />
         </Suspense>
       )}

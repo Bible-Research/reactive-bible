@@ -1,10 +1,6 @@
 // Leaf import: keeps the network/cache barrel out of pure ref
 // parsing (bundle-split friendly).
-import {
-  getBooks,
-  getChapters,
-  getVerses,
-} from '../api/structure';
+import { getBooks } from '../api/structure';
 import { findVersesInBetween } from './findVersesInBetween';
 
 export interface ScriptureRef {
@@ -54,42 +50,14 @@ export const parseScriptureRef = (
     return { ok: false, error: `Unknown book: ${bookQuery}` };
   }
 
-  // Range validation against the bundled structure data — the
-  // same source parseMentionQuery uses, so a stored '@' token
-  // and a typed mention agree on what is in range.
-  const chapter = Number(chapterStr);
-  const start = Number(startStr);
-  const end = endStr !== undefined ? Number(endStr) : null;
-  const where = `${bookEntry.book_name} ${chapter}`;
-
-  if (!getChapters(bookEntry.book_id).includes(chapter)) {
-    return {
-      ok: false,
-      error: `No chapter ${chapter} in ${bookEntry.book_name}`,
-    };
-  }
-  const chapterVerses = getVerses(bookEntry.book_id, chapter);
-  if (!chapterVerses.includes(start)) {
-    return { ok: false, error: `No verse ${start} in ${where}` };
-  }
-  if (end !== null && !chapterVerses.includes(end)) {
-    return { ok: false, error: `No verse ${end} in ${where}` };
-  }
-  if (end !== null && end < start) {
-    return {
-      ok: false,
-      error: `Invalid verse range ${start}-${end}`,
-    };
-  }
-
   return {
     ok: true,
     ref: {
       book: bookEntry.book_name,
-      chapter,
+      chapter: Number(chapterStr),
       verses: endStr
         ? findVersesInBetween(startStr, endStr)
-        : [start],
+        : [Number(startStr)],
     },
   };
 };
