@@ -35,7 +35,10 @@ describe('buildNotePlaylistItems', () => {
     ]);
     expect(items).toEqual([
       {
-        itemId: 'n1',
+        // itemId carries the :book:chapter suffix — Audio keys
+        // effects on it; `scope` keeps the note-level identity.
+        itemId: 'n1:JHN:3',
+        scope: 'n1',
         bookId: 'JHN',
         chapter: 3,
         startVerse: 16,
@@ -53,7 +56,10 @@ describe('buildNotePlaylistItems', () => {
       note('n1', [verse('John', 3, 16)]),
       note('n2', [verse('John', 3, 17)]),
     ]);
-    expect(items.map((i) => i.itemId)).toEqual(['n1', 'n2']);
+    expect(items.map((i) => i.itemId)).toEqual([
+      'n1:JHN:3',
+      'n2:JHN:3',
+    ]);
     expect(items[0].label).toBe('Note 1/2 – John 3:16');
     expect(items[1].label).toBe('Note 2/2 – John 3:17');
   });
@@ -76,8 +82,11 @@ describe('buildNotePlaylistItems', () => {
     });
   });
 
-  it('ignores verses outside the first verse\'s chapter ' +
-    'when computing the range', () => {
+  it('splits a multi-chapter note into one item per ' +
+    'book+chapter block', () => {
+    // Verses outside the first verse's chapter used to be
+    // silently dropped from playback — they now form their
+    // own blocks sharing the note's scope.
     const items = buildNotePlaylistItems([
       note('n1', [
         verse('John', 3, 16),
@@ -85,12 +94,27 @@ describe('buildNotePlaylistItems', () => {
         verse('Mark', 1, 1),
       ]),
     ]);
+    expect(items.map((i) => i.itemId)).toEqual([
+      'n1:JHN:3',
+      'n1:JHN:4',
+      'n1:MRK:1',
+    ]);
+    expect(items.map((i) => i.scope)).toEqual([
+      'n1',
+      'n1',
+      'n1',
+    ]);
     expect(items[0]).toMatchObject({
       bookId: 'JHN',
       chapter: 3,
       startVerse: 16,
       endVerse: 16,
       verseNumbers: [16],
+    });
+    expect(items[2]).toMatchObject({
+      bookId: 'MRK',
+      chapter: 1,
+      label: 'Note 1/1 – Mark 1:1',
     });
   });
 

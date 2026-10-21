@@ -24,6 +24,13 @@ const ScripturePassage = ({
   useEffect(() => {
     let cancelled = false;
 
+    // Reset up front: a transient failure must not brick the
+    // preview forever, and a ref change must not flash stale
+    // verses while the new passage loads.
+    setError(null);
+    setPassages([]);
+    setHeadings([]);
+
     const getPassage = async () => {
       try {
         // reference.book is a display name; the API helper
@@ -64,10 +71,9 @@ const ScripturePassage = ({
   }
 
   return (
+    // No heading of its own — the popover header already
+    // carries the 'Book C:V[-E]' title.
     <Box data-testid="passage-container">
-      <h1>
-        {book} {chapter}
-      </h1>
       {passages.map((passage) => {
         const heading = headings.find(
           (h) => h.before_verse === passage.verse

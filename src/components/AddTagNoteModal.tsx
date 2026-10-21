@@ -45,7 +45,10 @@ const linkedNoteRef = (note: Note): string => {
   return `${first.book} ${first.chapter}:${range}`;
 };
 
-const AddTagNoteModal = ({ opened, onClose }: AddTagNoteModalProps) => {
+const AddTagNoteModal = ({
+  opened,
+  onClose,
+}: AddTagNoteModalProps) => {
   const {
     tags,
     getTags,

@@ -43,7 +43,11 @@ const renderActions = (
 describe('NoteCardActions', () => {
   it('calls onEdit with the note when edit is clicked', () => {
     const onEdit = vi.fn();
-    renderActions({ onEdit });
+    // Edit/delete require a signed-in owner.
+    renderActions(
+      { onEdit },
+      { stores: { auth: { isAuthenticated: true } } }
+    );
 
     fireEvent.click(
       screen.getByRole('button', { name: 'edit-note' })
@@ -63,9 +67,13 @@ describe('NoteCardActions', () => {
     expect(onViewInBible).toHaveBeenCalledWith('Genesis', 1, 1);
   });
 
-  it('calls onDelete with the event and note on remove', () => {
+  it('calls onDelete with the event and note on remove',
+    () => {
     const onDelete = vi.fn();
-    renderActions({ onDelete });
+    renderActions(
+      { onDelete },
+      { stores: { auth: { isAuthenticated: true } } }
+    );
 
     fireEvent.click(
       screen.getByRole('button', { name: 'remove-note' })

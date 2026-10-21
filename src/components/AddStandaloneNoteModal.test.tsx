@@ -14,6 +14,7 @@ import {
   type Mock,
 } from 'vitest';
 import AddStandaloneNoteModal from './AddStandaloneNoteModal';
+import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -39,6 +40,9 @@ vi.mock('./RichTextEditor', async () => ({
 describe('AddStandaloneNoteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drafts live outside the component — reset them or a
+    // previous test's autosaved note would resume here.
+    resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
       { id: '1', name: 'Faith', parent_tag: null,
@@ -116,7 +120,10 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       fireEvent.change(await screen.findByLabelText('Note'), {
@@ -169,7 +176,10 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       fireEvent.change(await screen.findByLabelText('Note'), {

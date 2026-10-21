@@ -51,8 +51,11 @@ export const useNotePlaylist = (
     (noteId: string) => {
       // Index into the same filtered array the store received —
       // verse-less notes are absent from it and simply no-op.
+      // Match on `scope` (the note id), not itemId — multi-block
+      // notes carry suffixed itemIds and several entries share
+      // one scope; the first block is the right start index.
       const noteIndex = playlistItems.findIndex(
-        (item) => item.itemId === noteId
+        (item) => (item.scope ?? item.itemId) === noteId
       );
 
       if (noteIndex >= 0) {

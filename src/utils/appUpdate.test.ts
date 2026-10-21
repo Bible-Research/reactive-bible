@@ -10,11 +10,21 @@ import {
   UpdateManifest,
 } from './appUpdate';
 import { App } from '@capacitor/app';
+import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './platform';
 
 vi.mock('@capacitor/app', () => ({
   App: { getInfo: vi.fn() },
 }));
+
+vi.mock('@capacitor/core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@capacitor/core')>();
+  return {
+    ...actual,
+    CapacitorHttp: { get: vi.fn() },
+  };
+});
 
 vi.mock('./platform', () => ({
   isNativeApp: vi.fn(),
@@ -30,13 +40,12 @@ const manifest = (
 });
 
 const mockFetchOk = (body: unknown) => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(body),
-    }),
-  );
+  vi.mocked(CapacitorHttp.get).mockResolvedValue({
+    status: 200,
+    data: body,
+    headers: {},
+    url: UPDATE_MANIFEST_URL,
+  });
 };
 
 beforeEach(() => {
@@ -94,17 +103,29 @@ describe('fetchUpdateManifest', () => {
     mockFetchOk(manifest());
     const result = await fetchUpdateManifest();
     expect(result?.versionCode).toBe(42);
-    expect(fetch).toHaveBeenCalledWith(
-      UPDATE_MANIFEST_URL,
-      expect.objectContaining({ cache: 'no-store' }),
+    expect(CapacitorHttp.get).toHaveBeenCalledWith(
+      expect.objectContaining({ url: UPDATE_MANIFEST_URL }),
     );
   });
 
+  it('parses a manifest returned as a JSON string', async () => {
+    vi.mocked(CapacitorHttp.get).mockResolvedValue({
+      status: 200,
+      data: JSON.stringify(manifest()),
+      headers: {},
+      url: UPDATE_MANIFEST_URL,
+    });
+    const result = await fetchUpdateManifest();
+    expect(result?.versionCode).toBe(42);
+  });
+
   it('returns null on a non-ok response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: false }),
-    );
+    vi.mocked(CapacitorHttp.get).mockResolvedValue({
+      status: 404,
+      data: '',
+      headers: {},
+      url: UPDATE_MANIFEST_URL,
+    });
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
@@ -115,31 +136,69 @@ describe('fetchUpdateManifest', () => {
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
-  it('returns null when fetch rejects', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('offline')),
+  it('rejects manifests with an untrusted apkUrl', async () => {
+    mockFetchOk(manifest({ apkUrl: 'javascript:alert(1)' }));
+    expect(await fetchUpdateManifest()).toBeNull();
+
+    mockFetchOk(
+      manifest({ apkUrl: 'http://github.com/x/y/a.apk' }),
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
+
+    mockFetchOk(
+      manifest({ apkUrl: 'https://evil.example.com/a.apk' }),
     );
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
-  it('currently accepts a non-https apkUrl', async () => {
-    // FIXME: isUpdateManifest only checks
-    // `typeof apkUrl === 'string'` — an `http://` (or worse)
-    // URL validates. The manifest should require https so the
-    // sideloaded APK can't come from a plaintext/mitm-able URL.
-    mockFetchOk(manifest({ apkUrl: 'http://x/y.apk' }));
-    const result = await fetchUpdateManifest();
-    expect(result?.apkUrl).toBe('http://x/y.apk');
-  });
+  it('accepts GitHub release and asset hosts', async () => {
+    mockFetchOk(manifest());
+    expect(await fetchUpdateManifest()).not.toBeNull();
 
-  it('currently accepts a manifest without versionName', async () => {
-    // FIXME: `versionName` is required by the UpdateManifest
-    // interface but isUpdateManifest never checks it — a
-    // manifest missing it passes validation.
-    mockFetchOk({ versionCode: 42, apkUrl: 'https://x/y.apk' });
+    mockFetchOk(
+      manifest({
+        apkUrl:
+          'https://objects.githubusercontent.com/x/y/a.apk',
+      }),
+    );
     expect(await fetchUpdateManifest()).not.toBeNull();
   });
+
+  it('returns null when the request rejects', async () => {
+    vi.mocked(CapacitorHttp.get).mockRejectedValue(
+      new Error('offline'),
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
+  });
+
+  it('rejects a non-https apkUrl', async () => {
+    // The sideloaded APK must come from a TLS URL — a
+    // plaintext http:// link is trivially mitm-able.
+    mockFetchOk(manifest({ apkUrl: 'http://x/y.apk' }));
+    expect(await fetchUpdateManifest()).toBeNull();
+  });
+
+  it('rejects an apkUrl from a non-GitHub host', async () => {
+    mockFetchOk(
+      manifest({ apkUrl: 'https://evil.example.com/a.apk' })
+    );
+    expect(await fetchUpdateManifest()).toBeNull();
+  });
+
+  it('accepts github.com and *.githubusercontent.com apkUrls',
+    async () => {
+      mockFetchOk(
+        manifest({ apkUrl: 'https://github.com/o/r/a.apk' })
+      );
+      expect(await fetchUpdateManifest()).not.toBeNull();
+      mockFetchOk(
+        manifest({
+          apkUrl:
+            'https://objects.githubusercontent.com/a.apk',
+        })
+      );
+      expect(await fetchUpdateManifest()).not.toBeNull();
+    });
 
   it('currently accepts a non-integer versionCode', async () => {
     // FIXME: isUpdateManifest checks `typeof versionCode ===
@@ -180,10 +239,8 @@ describe('checkForUpdates', () => {
 
   it('is skipped when throttled', async () => {
     markUpdateChecked();
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
     expect(await checkForUpdates()).toEqual({ kind: 'skipped' });
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(CapacitorHttp.get).not.toHaveBeenCalled();
   });
 
   it('returns update when a newer build exists', async () => {
@@ -202,31 +259,28 @@ describe('checkForUpdates', () => {
   });
 
   it('returns error when the manifest cannot be fetched', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('offline')),
+    vi.mocked(CapacitorHttp.get).mockRejectedValue(
+      new Error('offline'),
     );
     expect(await checkForUpdates()).toEqual({ kind: 'error' });
   });
 
-  it('stamps the throttle even when the check fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockRejectedValue(new Error('offline')),
-    );
+  it('does not burn the throttle on a failed check', async () => {
+    vi.mocked(CapacitorHttp.get)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({
+        status: 200,
+        data: manifest({ versionCode: 41 }),
+        headers: {},
+        url: UPDATE_MANIFEST_URL,
+      });
 
-    const before = Date.now();
     expect(await checkForUpdates()).toEqual({ kind: 'error' });
-
-    // FIXME: markUpdateChecked() runs before the fetch, so a
-    // transient network failure stamps `app_update_last_check`
-    // and suppresses automatic checks for the next hour. The
-    // stamp arguably belongs after a successful fetch.
-    const stamp = Number(
-      localStorage.getItem('app_update_last_check')
-    );
-    expect(stamp).toBeGreaterThanOrEqual(before);
-    expect(shouldCheckForUpdates()).toBe(false);
+    // The failed check left no throttle mark, so the next call
+    // retries immediately instead of waiting an hour.
+    expect(shouldCheckForUpdates()).toBe(true);
+    expect((await checkForUpdates()).kind).toBe('update');
+    expect(CapacitorHttp.get).toHaveBeenCalledTimes(2);
   });
 
   it('force bypasses the throttle', async () => {

@@ -3,14 +3,17 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Audio from './Audio';
 import BibleRoute from '../routes/BibleRoute';
-import { useBibleStore, initialState } from '../store';
+import {
+  useBibleStore,
+  initialState,
+  type Translation,
+} from '../store';
 import {
   useAuthStore,
   initialState as authInitialState,
 } from '../stores/authStore';
 import { mockDomApis } from '../__tests__/helpers';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
-import type { Translation } from '../store';
 
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
@@ -180,7 +183,6 @@ describe('Audio chapter auto-advance', () => {
       await act(async () => {
         screen.getByTitle('Play audio').click();
       });
-
       await waitFor(() =>
         expect(FakeHowl.instances.length).toBeGreaterThan(0),
       );
@@ -198,7 +200,7 @@ describe('Audio chapter auto-advance', () => {
         preloaded.emit('load');
       });
 
-      // Chapter 3 ends — the player adopts the preloaded JHN 4
+      // Chapter 3 ends -- the player adopts the preloaded JHN 4
       // Howl and schedules its play() after the inter-chapter gap.
       await act(async () => {
         first.emit('end', 0);
@@ -209,21 +211,26 @@ describe('Audio chapter auto-advance', () => {
       );
       expect(preloaded._playing).toBe(false);
 
-      // The adopted Howl fails to decode BEFORE the gap elapses —
+      // The adopted Howl fails to decode BEFORE the gap elapses --
       // the fallback walk replaces it with the mp3 sibling while
       // the scheduled-play timer still points at the dead Howl.
       act(() => {
         preloaded.emit('loaderror', 0, new Error('decode'));
       });
+      // >= 3, not === 3: once the replacement plays, its
+      // onplay handler preloads JHN 5 and a fourth Howl can
+      // land before this assertion samples the count.
       await waitFor(() =>
-        expect(FakeHowl.instances.length).toBe(3),
+        expect(
+          FakeHowl.instances.length,
+        ).toBeGreaterThanOrEqual(3),
       );
       const replacement = FakeHowl.instances[2];
 
       // When the gap elapses the replacement must start playing.
       // Without the fix the timer checked `audioRef === howl`
       // (the dead Howl), returned early, and nothing ever called
-      // play() on the replacement — silent deadlock.
+      // play() on the replacement -- silent deadlock.
       await waitFor(
         () => expect(replacement._playing).toBe(true),
         { timeout: 4000 },
@@ -232,6 +239,58 @@ describe('Audio chapter auto-advance', () => {
       expect(
         screen.queryByTitle('Failed to load audio'),
       ).not.toBeInTheDocument();
+    },
+  );
+
+  it('advances the store without navigating off /search',
+    async () => {
+      render(
+        <MemoryRouter initialEntries={['/search']}>
+          <Audio />
+          <Routes>
+            <Route
+              path="/search"
+              element={<div>search page</div>}
+            />
+            <Route path="/bible/:ref" element={<BibleRoute />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      await act(async () => {
+        screen.getByTitle('Play audio').click();
+      });
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBeGreaterThan(0),
+      );
+      const first = FakeHowl.instances[0];
+      act(() => {
+        first.emit('load');
+      });
+      await waitFor(() => expect(first._playing).toBe(true));
+      // Next chapter is pre-created while chapter 3 plays.
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(2),
+      );
+      const preloaded = FakeHowl.instances[1];
+
+      // Chapter 3 finishes while the user sits on /search --
+      // the store must advance WITHOUT navigating back to
+      // /bible.
+      await act(async () => {
+        first.emit('end', 0);
+        await Promise.resolve();
+      });
+
+      expect(useBibleStore.getState().activeChapter).toBe(4);
+      expect(screen.getByText('search page')).toBeInTheDocument();
+
+      // The adopted Howl still plays after the inter-chapter
+      // gap.
+      await waitFor(
+        () => expect(preloaded._playing).toBe(true),
+        { timeout: 4000 },
+      );
     },
   );
 });

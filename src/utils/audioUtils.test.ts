@@ -3,10 +3,10 @@ import type { Howl } from 'howler';
 import type { VerseTimestamp } from '../types';
 import {
   activeVerseAtTime,
-  disposeHowl,
   getPlayPosition,
   getHtml5AudioNode,
 } from './audioUtils';
+import { disposeHowl } from './howlUtils';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 
 vi.mock('howler', async () => ({

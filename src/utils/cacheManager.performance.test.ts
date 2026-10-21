@@ -6,7 +6,9 @@ import {
   cacheAudioUrl,
   getCachedAudioUrl,
 } from './cacheManager';
-import { CacheMetrics } from '../__tests__/helpers/performance';
+import {
+  CacheMetrics,
+} from '../__tests__/helpers/performanceUtils';
 
 // Mock localStorage (full Storage shape — matches the
 // setupTests stub so a plain assignment type-checks).
