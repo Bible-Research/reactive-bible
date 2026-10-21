@@ -853,7 +853,7 @@ describe('useBibleStore', () => {
         rebalanced: false,
       });
       const movedNote = { ...makeNote('n1'), tag_position: 1.5 };
-      mockApi.getNotes.mockResolvedValue(pageOf([movedNote]));
+      mockApi.getNotes.mockResolvedValue(notePageOf([movedNote]));
       useBibleStore.setState({
         notes: [makeNote('n1'), makeNote('n2')],
         notesPage: 2,
@@ -885,7 +885,7 @@ describe('useBibleStore', () => {
       // another test can't overwrite the local patch.
       mockCacheManager.getCachedNotes.mockReturnValue(null);
       mockApi.getNotes.mockResolvedValue(
-        pageOf([
+        notePageOf([
           { ...makeNote('n2'), tag_position: 1 },
           { ...makeNote('n1'), tag_position: 2 },
         ])
@@ -948,7 +948,7 @@ describe('useBibleStore', () => {
       'successful reorder', async () => {
       mockCacheManager.getCachedNotes.mockReturnValue(null);
       mockApi.reorderNotes.mockResolvedValue(undefined);
-      mockApi.getNotes.mockResolvedValue(pageOf([makeNote('n2')]));
+      mockApi.getNotes.mockResolvedValue(notePageOf([makeNote('n2')]));
       useBibleStore.setState({
         notes: [makeNote('n1'), makeNote('n2')],
         notesPage: 2,

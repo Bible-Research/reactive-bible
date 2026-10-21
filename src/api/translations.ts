@@ -12,6 +12,7 @@ import {
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
 import {
+  BookNotInFilesetError,
   ProviderError,
   RateLimitError,
   errorMessageFromBody,
@@ -89,6 +90,21 @@ export const getAvailableTranslations = async (
         failure:
           `Failed to fetch translations ` +
           `(HTTP ${response.status})`,
+      }).catch((error) => {
+        // Translations failures are provider failures — an
+        // uncoded body still maps to ProviderError.
+        if (
+          error instanceof RateLimitError ||
+          error instanceof ProviderError ||
+          error instanceof BookNotInFilesetError
+        ) {
+          throw error;
+        }
+        throw new ProviderError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch translations'
+        );
       });
     }
     const data = await response.json();
