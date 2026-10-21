@@ -275,36 +275,24 @@ describe('RegisterPage', () => {
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 
-  it('should clear a stale auth error on mount', () => {
+  it('clears a stale error on mount', () => {
+    // A failed login followed by navigating to /register used
+    // to flash the old error — the mount effect clears it.
     renderWithProviders(<RegisterPage />, {
       authStoreState: { error: 'Stale error' },
     });
-
-    // The mount effect calls clearError — the stale error
-    // must not render.
-    expect(
-      screen.queryByText('Stale error')
-    ).not.toBeInTheDocument();
     expect(useAuthStore.getState().error).toBeNull();
-  });
-
-  it('should display an auth error set after mount', () => {
-    renderWithProviders(<RegisterPage />);
-
-    act(() => {
-      useAuthStore.setState({ error: 'Registration failed' });
-    });
-
     expect(
-      screen.getByText('Registration failed')
-    ).toBeInTheDocument();
+      screen.queryByRole('alert')
+    ).not.toBeInTheDocument();
   });
 
   it('should clear the error when the alert is dismissed', async () => {
     const user = userEvent.setup();
     renderWithProviders(<RegisterPage />);
 
-    // Mount clears pre-existing errors; set it afterwards.
+    // Set the error after mount — a mount-time error is cleared
+    // by the stale-error effect before render settles.
     act(() => {
       useAuthStore.setState({ error: 'Test error' });
     });

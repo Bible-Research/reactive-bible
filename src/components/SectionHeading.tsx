@@ -32,6 +32,17 @@ const SectionHeading = ({
       id={id}
       className={cx({ [classes.clickable]: !!onClick })}
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (
+          onClick &&
+          (event.key === 'Enter' || event.key === ' ')
+        ) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
     >
       <Title order={4} weight={700} color="dimmed">
         {text}

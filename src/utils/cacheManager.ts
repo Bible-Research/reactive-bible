@@ -4,7 +4,7 @@ import {
   FilesetCopyright,
   SectionHeading,
 } from '../types';
-import { Translation } from '../store';
+import type { Translation } from '../store';
 
 // Cache Manager for Bible Verses and Audio URLs
 // Verse cache: LRU with 500-verse limit (copyright compliance)
@@ -17,7 +17,8 @@ import { Translation } from '../store';
 const VERSE_CACHE_KEY = 'bible_verse_cache';
 const VERSE_CACHE_METADATA_KEY = 'bible_verse_cache_metadata';
 const AUDIO_CACHE_KEY = 'bible_audio_cache';
-const NOTES_CACHE_KEY = 'bible_notes_cache';
+const NOTES_CACHE_KEY = 'bible_notes_cache_v2';
+const LEGACY_NOTES_CACHE_KEY = 'bible_notes_cache';
 const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
 const MAX_VERSES = 500;
 const CACHE_VERSION = 2;
@@ -102,8 +103,6 @@ function removeCachedLocalStorage(key: string): void {
 interface VerseData {
   verse: number;
   text: string;
-  timestamp: number;
-  accessCount: number;
 }
 
 interface VerseCache {
@@ -215,14 +214,19 @@ export const getCachedVerses = (
         verse: verseData.verse,
         text: verseData.text,
       });
-      verseData.accessCount++;
-      verseData.timestamp = Date.now();
     }
   });
 
   if (cachedVerses.length === 0) return null;
 
-  setVerseCache(cache, metadata);
+  // Only the LRU queue moves on a read — persist just the small
+  // metadata blob. The old per-verse accessCount/timestamp
+  // bookkeeping was never read and rewrote the whole verse cache
+  // on every hit.
+  setCachedLocalStorage(
+    VERSE_CACHE_METADATA_KEY,
+    JSON.stringify(metadata)
+  );
   return cachedVerses.sort((a, b) => a.verse - b.verse);
 };
 
@@ -234,7 +238,6 @@ export const cacheVerses = (
 ) => {
   const cache = getVerseCache();
   const metadata = getVerseCacheMetadata();
-  const now = Date.now();
   const chapterKey = `${bibleVersion}:${book}:${chapter}`;
 
   // Remove existing entry for this chapter (supports re-caching)
@@ -255,14 +258,17 @@ export const cacheVerses = (
     cache[verseKey] = {
       verse: verse.verse,
       text: verse.text,
-      timestamp: now,
-      accessCount: 1,
     };
   });
 
-  // Add chapter to end of LRU queue (most recently used)
+  // Add chapter to end of LRU queue (most recently used).
+  // Count unique verse numbers — a repeated verse number
+  // overwrites the same key and must not double-count against
+  // the LRU limit.
   metadata.lruQueue.push(chapterKey);
-  metadata.totalVerses += verses.length;
+  metadata.totalVerses += new Set(
+    verses.map((v) => v.verse)
+  ).size;
 
   // Evict oldest chapters until within verse limit
   while (
@@ -288,8 +294,40 @@ export const clearVerseCache = () => {
 };
 
 // ============================================
-// NOTES CACHE (by tag ID)
+// NOTES CACHE (by tag ID + request scope)
 // ============================================
+//
+// Cache keys carry a scope segment so content that varies with
+// the request never collides:
+// - auth discriminator: notes can be private — an anonymous
+//   visitor on a shared browser must never be served a previous
+//   user's cached pages without a network request.
+// - filesetId: the backend fills `note.verses[].text` from the
+//   requested fileset, so switching text translations must miss.
+// - pageSize: page membership depends on it.
+// The v1 blob ('bible_notes_cache') used tagId-only keys and is
+// dropped on load rather than migrated.
+
+removeCachedLocalStorage(LEGACY_NOTES_CACHE_KEY);
+
+/**
+ * Request context folded into the notes cache key. Defaults
+ * reproduce the anonymous, unscoped request.
+ */
+export interface NotesCacheScope {
+  /** Concrete text fileset used to fill note verse text. */
+  filesetId?: string;
+  /** Page size used for the request. */
+  pageSize?: number;
+  /**
+   * True when the request carried an auth token. Authenticated
+   * and anonymous reads must be keyed separately: an anon-keyed
+   * page filled while a token was expired would shadow the
+   * authed view (public vs owner visibility differs — private
+   * notes and `is_owner` only appear for the authed request).
+   */
+  authed?: boolean;
+}
 
 export const getNotesCache = (): NotesCache => {
   try {
@@ -312,19 +350,25 @@ export const setNotesCache = (cache: NotesCache) => {
 const getNotesCacheKey = (
   tagId: string,
   page = 1,
-  ordering: string | null = null
+  ordering: string | null = null,
+  scope: NotesCacheScope = {}
 ): string => {
   const orderingPart = ordering || 'default';
-  return `${tagId}:page${page}:${orderingPart}`;
+  const scopePart =
+    `${scope.authed ? 'auth' : 'anon'}:` +
+    `fs:${scope.filesetId || 'default'}:` +
+    `ps:${scope.pageSize ?? 'default'}`;
+  return `${tagId}:${scopePart}:page${page}:${orderingPart}`;
 };
 
 export const getCachedNotes = (
   tagId: string,
   page = 1,
-  ordering: string | null = null
+  ordering: string | null = null,
+  scope: NotesCacheScope = {}
 ): NotesData | null => {
   const cache = getNotesCache();
-  const cacheKey = getNotesCacheKey(tagId, page, ordering);
+  const cacheKey = getNotesCacheKey(tagId, page, ordering, scope);
   const notesData = cache[cacheKey];
 
   if (!notesData) return null;
@@ -341,13 +385,20 @@ export const cacheNotes = (
     hasMore: boolean;
     page?: number;
     ordering?: string | null;
+    filesetId?: string;
+    pageSize?: number;
+    authed?: boolean;
   }
 ) => {
   const cache = getNotesCache();
   const page = metadata?.page ?? 1;
   const ordering = metadata?.ordering ?? null;
-  const cacheKey = getNotesCacheKey(tagId, page, ordering);
-  
+  const cacheKey = getNotesCacheKey(tagId, page, ordering, {
+    filesetId: metadata?.filesetId,
+    pageSize: metadata?.pageSize,
+    authed: metadata?.authed,
+  });
+
   cache[cacheKey] = {
     notes,
     timestamp: Date.now(),

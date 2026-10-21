@@ -17,7 +17,7 @@ describe('RichTextView', () => {
     );
     const link = screen.getByText('@JHN.3.16');
     fireEvent.click(link);
-    expect(onRef).toHaveBeenCalledWith('@JHN.3.16');
+    expect(onRef).toHaveBeenCalledWith('@JHN.3.16', link);
   });
 
   it('renders doc-JSON paragraphs and marks', () => {
@@ -57,8 +57,9 @@ describe('RichTextView', () => {
         ])}
       />
     );
-    fireEvent.click(screen.getByText('@JHN.3.16'));
-    expect(onRef).toHaveBeenCalledWith('@JHN.3.16');
+    const link = screen.getByText('@JHN.3.16');
+    fireEvent.click(link);
+    expect(onRef).toHaveBeenCalledWith('@JHN.3.16', link);
   });
 
   it('renders invalid refs in red, not as links', () => {
@@ -189,5 +190,171 @@ describe('RichTextView', () => {
       />
     );
     expect(screen.getByText('still here')).toBeInTheDocument();
+  });
+
+  it('renders scriptureRef nodes as focusable anchors', () => {
+    const onRef = vi.fn();
+    renderWithProviders(
+      <RichTextView
+        onScriptureRef={onRef}
+        content={doc([
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'scriptureRef',
+                attrs: {
+                  code: 'JHN',
+                  chapter: 3,
+                  verseStart: 16,
+                },
+              },
+            ],
+          },
+        ])}
+      />
+    );
+    const link = screen.getByRole('link', {
+      name: 'John 3:16',
+    });
+    expect(link).toHaveAttribute('href', '#');
+    // Same marker the editor's ScriptureRefNode emits.
+    expect(link).toHaveAttribute('data-scripture-ref');
+    fireEvent.click(link);
+    expect(onRef).toHaveBeenCalledWith('@JHN.3.16', link);
+  });
+
+  describe('untrusted doc-JSON (crash guards)', () => {
+    it('ignores non-array content and non-object children', () => {
+      renderWithProviders(
+        <RichTextView
+          onScriptureRef={vi.fn()}
+          content={doc([
+            { type: 'paragraph', content: 'oops' },
+            { type: 'paragraph', content: 42 },
+            {
+              type: 'paragraph',
+              content: [
+                null,
+                7,
+                'loose string',
+                { type: 'text', text: 'survives' },
+              ],
+            },
+          ])}
+        />
+      );
+      expect(screen.getByText('survives')).toBeInTheDocument();
+    });
+
+    it('ignores non-array marks and non-object mark entries', () => {
+      renderWithProviders(
+        <RichTextView
+          onScriptureRef={vi.fn()}
+          content={doc([
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: 'plain1',
+                  marks: { type: 'bold' },
+                },
+                {
+                  type: 'text',
+                  text: 'plain2',
+                  marks: [null, 'x', { type: 'bold' }],
+                },
+              ],
+            },
+          ])}
+        />
+      );
+      expect(screen.getByText('plain1')).toBeInTheDocument();
+      expect(
+        screen.getByText('plain2').tagName
+      ).toBe('STRONG');
+    });
+
+    it('ignores non-string text values', () => {
+      renderWithProviders(
+        <RichTextView
+          onScriptureRef={vi.fn()}
+          content={doc([
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 123 },
+                { type: 'text', text: 'after' },
+              ],
+            },
+          ])}
+        />
+      );
+      expect(screen.getByText('after')).toBeInTheDocument();
+    });
+
+    it('caps recursion on a deeply nested doc', () => {
+      let node: Record<string, unknown> = {
+        type: 'text',
+        text: 'deep',
+      };
+      // list-in-list is valid HTML — keeps the test quiet.
+      for (let i = 0; i < 100; i++) {
+        node = {
+          type: 'bulletList',
+          content: [{ type: 'listItem', content: [node] }],
+        };
+      }
+      const content = JSON.stringify({
+        type: 'doc',
+        content: [
+          node,
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'sibling' }],
+          },
+        ],
+      });
+      renderWithProviders(
+        <RichTextView
+          onScriptureRef={vi.fn()}
+          content={content}
+        />
+      );
+      // No stack overflow; siblings still render.
+      expect(screen.getByText('sibling')).toBeInTheDocument();
+    });
+
+    it('caps rendering on a huge doc', () => {
+      const content = doc(
+        Array.from({ length: 6000 }, (_, i) => ({
+          type: 'paragraph',
+          content: [{ type: 'text', text: `v${i}` }],
+        }))
+      );
+      renderWithProviders(
+        <RichTextView
+          onScriptureRef={vi.fn()}
+          content={content}
+        />
+      );
+      expect(screen.getByText('v0')).toBeInTheDocument();
+      expect(screen.queryByText('v5999')).toBeNull();
+    });
+
+    it('renders raw text for a doc that fails to parse', () => {
+      // JSON.parse bomb — so deep even parsing throws. The
+      // boundary must degrade to a safe render, not a blank page.
+      const content = `${'['.repeat(200000)}`;
+      renderWithProviders(
+        <RichTextView
+          onScriptureRef={vi.fn()}
+          content={`{"type":"doc","content":${content}}`}
+        />
+      );
+      // No crash — anything rendered is fine.
+      expect(document.body).toBeInTheDocument();
+    });
   });
 });

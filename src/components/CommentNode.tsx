@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Box,
   Text,
@@ -13,19 +13,22 @@ import { IconX, IconPhoto } from '@tabler/icons-react';
 import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
-import ScripturePassage from './ScripturePassage';
+import ScripturePassagePopover from './ScripturePassagePopover';
+import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
 import RichTextView from './RichTextView';
 import { commentImageName } from '../utils/commentTree';
-import {
-  isSameScriptureRef,
-  parseScriptureRef,
-  ScriptureRef,
-} from '../utils/scriptureRef';
+
+/** The signed-in viewer. `id` is optional until the auth store
+ *  persists it — the username fallback below covers that. */
+interface CurrentUser {
+  id?: number;
+  username: string;
+}
 
 interface CommentNodeProps {
   comment: Comment;
   depth: number;
-  currentUsername: string | null;
+  currentUser: CurrentUser | null;
   isAuthenticated: boolean;
   onReply: (
     parentId: string,
@@ -50,7 +53,7 @@ const MAX_DEPTH = 6;
 const CommentNode = ({
   comment,
   depth,
-  currentUsername,
+  currentUser,
   isAuthenticated,
   onReply,
   onUpdate,
@@ -60,21 +63,35 @@ const CommentNode = ({
 }: CommentNodeProps) => {
   const [replyOpen, setReplyOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [scripture, setScripture] =
-    useState<ScriptureRef | null>(null);
-  const [scriptureError, setScriptureError] =
-    useState<string | null>(null);
+  // Clicked '@…' refs open the passage in a floating popover
+  // anchored at the ref — never inline in the thread.
+  const {
+    preview: scripturePreview,
+    error: scriptureError,
+    open: openScripture,
+    close: closeScripture,
+  } = useScriptureRefPreview();
   const [lightboxImageId, setLightboxImageId] =
     useState<string | null>(null);
 
+  // Prefer the stable author id; fall back to a normalized
+  // username compare (login may have stored the as-typed,
+  // non-canonical casing).
   const isAuthor =
-    !!currentUsername &&
-    comment.author.username === currentUsername;
+    !!currentUser &&
+    ((typeof currentUser.id === 'number' &&
+      comment.author.id === currentUser.id) ||
+      (typeof currentUser.username === 'string' &&
+        comment.author.username.trim().toLowerCase() ===
+          currentUser.username.trim().toLowerCase()));
   const indent = Math.min(depth, MAX_DEPTH) * 16;
 
   const formatTime = (ts: string): string => {
     try {
-      const diff = Date.now() - new Date(ts).getTime();
+      const parsed = new Date(ts);
+      // Unparseable timestamp — show it raw, not 'Invalid Date'.
+      if (Number.isNaN(parsed.getTime())) return ts;
+      const diff = Date.now() - parsed.getTime();
       const seconds = Math.floor(diff / 1000);
       if (seconds < 60) return 'just now';
       const minutes = Math.floor(seconds / 60);
@@ -85,7 +102,7 @@ const CommentNode = ({
       if (hours < 24) return `${hours}h ago`;
       const days = Math.floor(hours / 24);
       if (days < 30) return `${days}d ago`;
-      return new Date(ts).toLocaleDateString();
+      return parsed.toLocaleDateString();
     } catch {
       return ts;
     }
@@ -99,19 +116,14 @@ const CommentNode = ({
     setReplyOpen(false);
   };
 
-  const handleScriptureClick = (hashtag: string): void => {
-    const result = parseScriptureRef(hashtag);
-
-    if (!result.ok) {
-      setScriptureError(result.error);
-      return;
-    }
-
-    setScriptureError(null);
-    setScripture((current) =>
-      isSameScriptureRef(current, result.ref) ? null : result.ref
-    );
-  };
+  // useCallback keeps memo(RichTextView)'s onScriptureRef
+  // prop stable across CommentNode re-renders.
+  const handleScriptureClick = useCallback(
+    (hashtag: string, anchorEl: HTMLElement): void => {
+      openScripture(hashtag, anchorEl);
+    },
+    [openScripture]
+  );
 
   const handleEditSubmit = async (
     content: string,
@@ -132,6 +144,7 @@ const CommentNode = ({
   };
 
   const images = comment.images ?? [];
+  const replyList = comment.replies ?? [];
   const lightboxImage =
     images.find((img) => img.id === lightboxImageId) ?? null;
 
@@ -283,13 +296,13 @@ const CommentNode = ({
             </>
           )}
 
-          {scriptureError && (
-            <Text size="sm" color="red">
-              {scriptureError}
-            </Text>
-          )}
-          {scripture && (
-            <ScripturePassage reference={scripture} />
+          {scripturePreview && (
+            <ScripturePassagePopover
+              reference={scripturePreview.ref}
+              error={scriptureError}
+              anchor={scripturePreview.anchor}
+              onClose={closeScripture}
+            />
           )}
 
           {!editing && (
@@ -317,14 +330,14 @@ const CommentNode = ({
         </Stack>
       )}
 
-      {(comment.replies?.length ?? 0) > 0 && (
+      {replyList.length > 0 && (
         <Stack spacing={8} mt={8}>
-          {(comment.replies ?? []).map((reply) => (
+          {replyList.map((reply) => (
             <CommentNode
               key={reply.id}
               comment={reply}
               depth={depth + 1}
-              currentUsername={currentUsername}
+              currentUser={currentUser}
               isAuthenticated={isAuthenticated}
               onReply={onReply}
               onUpdate={onUpdate}
