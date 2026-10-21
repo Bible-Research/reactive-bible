@@ -20,6 +20,7 @@ import {
   fetchCommentImages,
 } from '../api';
 import {
+  findNode,
   insertReply,
   updateNode,
   pruneDeleted,
@@ -38,9 +39,25 @@ const normalize = (
   }));
 
 // A comment's images are refetched at most this many times per
-// mount — bounds the retry loop when the backend keeps minting
-// signed URLs that still fail to load.
+// image set — bounds the retry loop when the backend keeps
+// minting signed URLs that still fail to load.
 const MAX_IMAGE_REFRESHES = 3;
+
+// A failed refresh fetch hands its attempt back so a flaky
+// network can't permanently burn the retry budget.
+const refundAttempt = (
+  attempts: Map<string, { sig: string; count: number }>,
+  commentId: string,
+  sig: string
+): void => {
+  const cur = attempts.get(commentId);
+  if (!cur || cur.sig !== sig) return;
+  if (cur.count <= 1) {
+    attempts.delete(commentId);
+  } else {
+    attempts.set(commentId, { sig, count: cur.count - 1 });
+  }
+};
 
 interface CommentThreadProps {
   noteId: string;
@@ -56,62 +73,123 @@ const CommentThread = ({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadVersion = useRef(0);
+  // Two independent generations: the latest fetch wins for data
+  // (a silentLoad starting after a load must supersede it), but
+  // only load() owns the spinner — an interleaved poll can no
+  // longer stale out load's setLoading(false).
+  const dataVersion = useRef(0);
+  const loadingSeq = useRef(0);
+
+  // Mutations not yet confirmed by a fetch: the server can lag
+  // behind a POST/DELETE, so a silentLoad response may omit the
+  // change — merge it back in until the server returns it.
+  const pendingInserts = useRef(
+    new Map<string, { parentId: string | null; comment: Comment }>()
+  );
+  const pendingDeletes = useRef(new Set<string>());
 
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
-  const currentUsername =
-    useAuthStore((state) => state.user)?.username ?? null;
+  const currentUser = useAuthStore((state) => state.user);
+
+  const mergePending = useCallback(
+    (list: Comment[]): Comment[] => {
+      let merged = list;
+      pendingInserts.current.forEach((entry, id) => {
+        if (findNode(merged, id)) {
+          pendingInserts.current.delete(id);
+          return;
+        }
+        merged = insertReply(merged, entry.parentId, entry.comment);
+      });
+      pendingDeletes.current.forEach((id) => {
+        const node = findNode(merged, id);
+        if (!node || node.is_deleted) {
+          pendingDeletes.current.delete(id);
+          return;
+        }
+        merged = updateNode(merged, id, (n) => ({
+          ...n,
+          is_deleted: true,
+          content: '[deleted]',
+        }));
+      });
+      return merged;
+    },
+    []
+  );
+
+  const applyFetched = useCallback(
+    (data: Comment[] | undefined) =>
+      setComments(mergePending(normalize(data))),
+    [mergePending]
+  );
 
   const load = useCallback(() => {
-    const version = ++loadVersion.current;
+    const seq = ++loadingSeq.current;
+    const version = ++dataVersion.current;
     setLoading(true);
     setError(null);
     fetchComments(noteId)
       .then((data) => {
-        if (loadVersion.current === version)
-          setComments(normalize(data));
+        if (dataVersion.current === version) applyFetched(data);
       })
       .catch(() => {
-        if (loadVersion.current === version)
+        if (dataVersion.current === version)
           setError('Failed to load comments.');
       })
       .finally(() => {
-        if (loadVersion.current === version)
-          setLoading(false);
+        if (loadingSeq.current === seq) setLoading(false);
       });
-  }, [noteId]);
+  }, [noteId, applyFetched]);
 
   const silentLoad = useCallback(() => {
-    const version = ++loadVersion.current;
+    const version = ++dataVersion.current;
     fetchComments(noteId)
       .then((data) => {
-        if (loadVersion.current === version)
-          setComments(normalize(data));
+        if (dataVersion.current === version) applyFetched(data);
       })
       .catch(() => {
         // background refresh — don't surface errors
       });
-  }, [noteId]);
+  }, [noteId, applyFetched]);
 
   const pendingImageRefresh = useRef(new Set<string>());
-  const imageRefreshCount = useRef(new Map<string, number>());
+  // Attempts are keyed to the comment's current image set: a
+  // refresh that mints new signed URLs resets the budget, and a
+  // failed fetch hands its attempt back so a flaky network can't
+  // permanently burn it.
+  const imageRefreshAttempts = useRef(
+    new Map<string, { sig: string; count: number }>()
+  );
+  const commentsRef = useRef<Comment[]>(comments);
+  useEffect(() => {
+    commentsRef.current = comments;
+  }, [comments]);
 
   // Targeted refresh of one comment's images when a signed URL
   // fails to load. Concurrent errors on the same comment collapse
-  // into a single fetch; retries are capped per comment.
+  // into a single fetch.
   const handleImageError = useCallback(
     (commentId: string) => {
-      const attempts =
-        imageRefreshCount.current.get(commentId) ?? 0;
+      const node = findNode(commentsRef.current, commentId);
+      const sig = (node?.images ?? [])
+        .map((i) => i.signed_url ?? '')
+        .join('|');
+      const entry = imageRefreshAttempts.current.get(commentId);
+      const count =
+        entry && entry.sig === sig ? entry.count : 0;
       if (
-        attempts >= MAX_IMAGE_REFRESHES ||
+        count >= MAX_IMAGE_REFRESHES ||
         pendingImageRefresh.current.has(commentId)
       )
         return;
       pendingImageRefresh.current.add(commentId);
-      imageRefreshCount.current.set(commentId, attempts + 1);
+      imageRefreshAttempts.current.set(commentId, {
+        sig,
+        count: count + 1,
+      });
       fetchCommentImages(noteId, commentId)
         .then((images) => {
           setComments((prev) =>
@@ -123,6 +201,11 @@ const CommentThread = ({
         })
         .catch(() => {
           // background refresh — don't surface errors
+          refundAttempt(
+            imageRefreshAttempts.current,
+            commentId,
+            sig
+          );
         })
         .finally(() => {
           pendingImageRefresh.current.delete(commentId);
@@ -132,9 +215,16 @@ const CommentThread = ({
   );
 
   useEffect(() => {
+    const dataVer = dataVersion;
+    const loadSeq = loadingSeq;
+    const inserts = pendingInserts.current;
+    const deletes = pendingDeletes.current;
     load();
     return () => {
-      loadVersion.current++;
+      dataVer.current++;
+      loadSeq.current++;
+      inserts.clear();
+      deletes.clear();
     };
   }, [load]);
 
@@ -188,6 +278,10 @@ const CommentThread = ({
         ...normalize([newComment])[0],
         images: uploadedImages,
       };
+      pendingInserts.current.set(newComment.id, {
+        parentId,
+        comment: normalizedNew,
+      });
       setComments((prev) =>
         insertReply(prev, parentId, normalizedNew)
       );
@@ -279,6 +373,7 @@ const CommentThread = ({
   const handleDelete = async (id: string) => {
     try {
       await deleteComment(noteId, id);
+      pendingDeletes.current.add(id);
       setComments((prev) =>
         updateNode(prev, id, (n) => ({
           ...n,
@@ -347,7 +442,7 @@ const CommentThread = ({
               key={c.id}
               comment={c}
               depth={0}
-              currentUsername={currentUsername}
+              currentUser={currentUser}
               isAuthenticated={isAuthenticated}
               onReply={(parentId, content, files) =>
                 handleCreate(parentId, content, files)

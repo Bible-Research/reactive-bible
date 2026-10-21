@@ -16,13 +16,19 @@ import {
   toBookName,
   toUsfmCode,
 } from './utils/bibleUtils';
-import { resolveTextFileset } from './utils/filesetGroups';
+import {
+  findTextOption,
+  resolveTextFileset,
+} from './utils/filesetGroups';
 import {
   getCachedNotes,
   cacheNotes,
   clearNotesCache,
 } from './utils/cacheManager';
-import { useAuthStore } from './stores/authStore';
+import {
+  useAuthStore,
+  registerBibleStore,
+} from './stores/authStore';
 
 export interface Fileset {
   id: string;
@@ -60,6 +66,14 @@ export interface BibleState {
   activeAudioFilesetId: string | null;
   tags: Tag[];
   notes: Note[];
+  /**
+   * Transient (not persisted): the public note shown on
+   * /notes/:id. Kept out of `notes` — that list is the tag
+   * page's pagination state — but the share toolbar needs its
+   * verses so folded-note shares carry the full text.
+   */
+  detailNote: Note | null;
+  setDetailNote: (note: Note | null) => void;
   allNotesFetched: boolean;
   showNotes: boolean;
   lastSelectedTagId: string | null;
@@ -74,8 +88,6 @@ export interface BibleState {
   setAudioPlaylistItems: (items: PlaylistItem[] | null) => void;
   audioPlaylistStartIndex: number | null;
   setAudioPlaylistStartIndex: (index: number | null) => void;
-  audioPlaylistEnded: boolean;
-  setAudioPlaylistEnded: (ended: boolean) => void;
   versesFolded: boolean;
   setVersesFolded: (folded: boolean) => void;
   /**
@@ -167,6 +179,7 @@ export const initialState = {
   activeAudioFilesetId: "ENGESV_API",
   tags: [] as Tag[],
   notes: [] as Note[],
+  detailNote: null as Note | null,
   allNotesFetched: false,
   showNotes: false,
   lastSelectedTagId: null,
@@ -178,7 +191,6 @@ export const initialState = {
   audioActiveVerse: null as AudioActiveVerse | null,
   audioPlaylistItems: null as PlaylistItem[] | null,
   audioPlaylistStartIndex: null as number | null,
-  audioPlaylistEnded: false,
   versesFolded: false,
   readingPositions: {} as Record<
     string,
@@ -191,7 +203,13 @@ export const initialState = {
 const partializeState = (state: BibleState) => ({
   activeBookId: state.activeBookId,
   activeChapter: state.activeChapter,
-  verseSelection: state.verseSelection,
+  // Only 'bible'-scoped selections make sense after reload — a
+  // persisted 'note:<id>' scope would resurrect the verse
+  // toolbar against a note that isn't mounted.
+  verseSelection:
+    state.verseSelection?.scope === 'bible'
+      ? state.verseSelection
+      : null,
   bibleVersion: state.bibleVersion,
   translations: state.translations,
   activeTextFilesetId: state.activeTextFilesetId,
@@ -204,6 +222,7 @@ const partializeState = (state: BibleState) => ({
   notesPageSize: state.notesPageSize,
   readingPositions: state.readingPositions,
   // showAudioPlayer is NOT persisted
+  // detailNote is NOT persisted (transient share context)
   // pendingScrollVerse is NOT persisted
   // headerVisible is NOT persisted
 });
@@ -240,6 +259,8 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  * - pre-v5: `readingPositions` is introduced; any pre-existing
  *   value is sanitized and name-keyed entries are re-keyed to
  *   USFM codes.
+ * - pre-v6: persisted `verseSelection` is dropped unless its
+ *   scope is 'bible' — note scopes are transient UI state.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -324,6 +345,17 @@ export const migratePersistedState = (
     migrated = { ...migrated, readingPositions: positions };
   }
 
+  if (version < 6) {
+    // A note-scoped selection persisted by an older build must
+    // not be resurrected on reload — its note is unmounted.
+    const sel = migrated.verseSelection as
+      | { scope?: unknown }
+      | null;
+    if (sel && sel.scope !== 'bible') {
+      migrated = { ...migrated, verseSelection: null };
+    }
+  }
+
   return migrated as PersistedBibleState;
 };
 
@@ -333,6 +365,53 @@ export const migratePersistedState = (
  * Only the most recently issued request may write `notes`.
  */
 let fetchNotesRequestSeq = 0;
+
+/**
+ * Resolves the stored text selection to the fileset id sent as
+ * `fileset_id` on notes requests. A testament-split product
+ * (different OT/NT member filesets, e.g. `*_ET` pairs) has no
+ * single fileset that can serve every note's verses — resolving
+ * against the *viewed* book would hand the backend an id that
+ * cannot serve cross-testament notes — so the param is omitted
+ * and the server falls back to its default fileset.
+ */
+const resolveNotesFilesetId = (
+  storedId: string | null,
+  bookId: string,
+  translations: Translation[]
+): string | undefined => {
+  if (!storedId) return undefined;
+  const found = findTextOption(storedId, translations);
+  if (found) {
+    const { OT, NT } = found.option.byTestament;
+    const otId = OT ? Object.values(OT)[0] : undefined;
+    const ntId = NT ? Object.values(NT)[0] : undefined;
+    if (otId && ntId && otId !== ntId) return undefined;
+  }
+  return resolveTextFileset(storedId, bookId, translations)
+    ?? storedId;
+};
+
+/**
+ * True when `tagId` belongs to the current user: authenticated
+ * AND either the tag is in the user's own tag list, or fetched
+ * notes carry `is_owner === true` for it. The tag-list branch
+ * covers production, where notes do not send `is_owner` yet;
+ * the `is_owner` branch keeps foreign public tags read-only
+ * once the backend ships the field. `lastSelectedTagId` must
+ * not be hijacked by browsing someone else's public tag.
+ */
+const isOwnedTag = (
+  tagId: string,
+  notes: Note[],
+  tags: Tag[]
+): boolean => {
+  if (!useAuthStore.getState().isAuthenticated) return false;
+  return (
+    tags.some((t) => t.id === tagId) ||
+    notes.some((n) => n.tag?.id === tagId && n.is_owner === true)
+  );
+};
 
 /**
  * Refetches the tag's current page preserving ordering+page so
@@ -427,15 +506,28 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
 
           // The stored id may be a grouped product id
           // (`{abbr}:text:n`) — resolve to a concrete fileset
-          // before sending it as `fileset_id`.
-          const filesetId = activeTextFilesetId
-            ? resolveTextFileset(
-                activeTextFilesetId,
-                activeBookId,
-                translations,
-              ) ?? activeTextFilesetId
-            : undefined;
-          
+          // before sending it as `fileset_id`. Testament-split
+          // products yield undefined (see resolveNotesFilesetId).
+          const filesetId = resolveNotesFilesetId(
+            activeTextFilesetId,
+            activeBookId,
+            translations,
+          );
+
+          // The cache key scope mirrors exactly what shapes the
+          // response: the fileset fills verse text, pageSize
+          // shapes page membership, and auth decides visibility
+          // of private notes. Residual edge: a token that is
+          // present but expired marks the scope `authed: true`
+          // even though publicFetch's anonymous retry fills the
+          // entry with the anonymous payload — logout clears the
+          // cache, so the stale view only lasts until then.
+          const notesScope = {
+            filesetId,
+            pageSize: notesPageSize,
+            authed: Boolean(useAuthStore.getState().token),
+          };
+
           // Check cache for any page/ordering combination —
           // but never for anonymous visitors: the localStorage
           // cache may hold private notes from a previous
@@ -445,7 +537,12 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           // runs, so gating on it would miss the cache on
           // every cold load.)
           if (!append && tagId && useAuthStore.getState().token) {
-            const cachedData = getCachedNotes(tagId, page, ordering);
+            const cachedData = getCachedNotes(
+              tagId,
+              page,
+              ordering,
+              notesScope,
+            );
             if (cachedData) {
               console.log(
                 `✅ Using cached notes for tag: ${tagId} ` +
@@ -453,18 +550,26 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
                 `${cachedData.notes.length} notes, ` +
                 `total: ${cachedData.count ?? 'unknown'})`
               );
-              set({
+              set((state) => ({
                 notes: cachedData.notes,
-                notesCount: cachedData.count ?? cachedData.notes.length,
+                notesCount:
+                  cachedData.count ?? cachedData.notes.length,
                 notesPage: page,
                 notesHasMore: cachedData.hasMore ?? false,
                 notesOrdering: ordering || null,
-                lastSelectedTagId: tagId,
-              });
+                // Remember the selection only for the user's own
+                // tags — a foreign public tag must not hijack the
+                // next /notes visit.
+                lastSelectedTagId: isOwnedTag(
+                  tagId, cachedData.notes, state.tags
+                )
+                  ? tagId
+                  : state.lastSelectedTagId,
+              }));
               return;
             }
           }
-          
+
           // Fetch from API
           console.log(
             `📝 Fetching notes from API for tag: ` +
@@ -480,13 +585,18 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             filesetId,
           });
           
-          // Cache all page results
-          if (tagId) {
+          // Cache all page results — but only for authed
+          // sessions; anonymous reads skip the cache entirely
+          // so writing entries for it would be dead weight.
+          if (tagId && useAuthStore.getState().token) {
             cacheNotes(tagId, response.results, {
               count: response.count,
               hasMore: response.next !== null,
               page,
               ordering,
+              filesetId,
+              pageSize: notesPageSize,
+              authed: notesScope.authed,
             });
           }
 
@@ -504,7 +614,13 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             notesHasMore: response.next !== null,
             notesOrdering: ordering || null,
             allNotesFetched: !tagId && !response.next,
-            lastSelectedTagId: tagId || null,
+            // Browsing a foreign public tag must not rewrite the
+            // remembered own-tag selection.
+            lastSelectedTagId: tagId
+              ? (isOwnedTag(tagId, response.results, state.tags)
+                  ? tagId
+                  : state.lastSelectedTagId)
+              : null,
           }));
         } catch (error) {
           // A superseded request owns no state: no retry and
@@ -615,7 +731,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           }));
           
           await api.reorderNotes(tagId, updates);
-          
+
           // Update local state to reflect new order
           set((state) => {
             const ordered = noteIds
@@ -631,7 +747,17 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             );
             return { notes: [...ordered, ...rest] };
           });
-          
+
+          // The dense integers we sent are interim: the server
+          // may rebalance to float positions, and cached pages
+          // still hold the pre-reorder order (api.reorderNotes
+          // already invalidated them). Refresh so the visible
+          // positions are the server's authoritative ones.
+          // Best-effort — fetchNotes notifies on its own failure.
+          await refreshNotesPage(tagId).catch(() => {
+            /* fetchNotes already notified the failure */
+          });
+
           showNotification({
             title: 'Success',
             message: 'Notes reordered',
@@ -743,8 +869,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ audioPlaylistItems }),
       setAudioPlaylistStartIndex: (audioPlaylistStartIndex) =>
         set({ audioPlaylistStartIndex }),
-      setAudioPlaylistEnded: (audioPlaylistEnded) =>
-        set({ audioPlaylistEnded }),
+      setDetailNote: (detailNote) => set({ detailNote }),
       setVersesFolded: (versesFolded) => set({ versesFolded }),
       setPendingScrollVerse: (pendingScrollVerse) =>
         set({ pendingScrollVerse }),
@@ -821,13 +946,20 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             await api.getBulkReadingPositions(bookIds);
           // Keep explicit nulls: they mark books as checked so
           // they are not refetched on every book click. A local
-          // non-null entry wins over a remote null (offline reads).
+          // non-null entry always wins — it may have been written
+          // by navigation while this request was in flight,
+          // making it fresher than the remote snapshot. A remote
+          // position still fills in over a local null (the local
+          // null only meant "checked, empty" at fetch time).
           set((state) => {
             const merged = { ...state.readingPositions };
             for (const [bookId, pos] of Object.entries(
               positions
             )) {
-              if (merged[bookId] === undefined || pos !== null) {
+              if (
+                merged[bookId] === undefined ||
+                (merged[bookId] === null && pos !== null)
+              ) {
                 merged[bookId] = pos;
               }
             }
@@ -844,12 +976,18 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 5,
+      version: 6,
       migrate: migratePersistedState,
       partialize: partializeState,
     }
   )
 );
+
+// Let authStore purge session-owned state (logout / token change)
+// without it importing this module — that edge would make the
+// store evaluate inside api.tsx's Vitest importOriginal window
+// and bind the real api, breaking vi.mock('../api').
+registerBibleStore(useBibleStore);
 
 /** Display name for the active book (e.g. "John"). */
 export const selectActiveBookName = (state: BibleState): string =>

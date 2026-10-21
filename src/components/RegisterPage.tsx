@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Container,
@@ -18,7 +18,16 @@ import { useAuthStore } from '../stores/authStore';
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { register, isLoading, error, clearError } = useAuthStore();
+  const register = useAuthStore((s) => s.register);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const error = useAuthStore((s) => s.error);
+  const clearError = useAuthStore((s) => s.clearError);
+
+  // A stale auth error must not greet the user returning from
+  // the login page (or a previous failed attempt).
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');

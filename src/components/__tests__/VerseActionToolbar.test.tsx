@@ -8,6 +8,7 @@ import {
   buildYouVersionUrl,
 } from '../VerseActionToolbar';
 import { getBooks } from '../../api';
+import { toUsfmCode } from '../../utils/bibleUtils';
 
 describe('VerseActionToolbar URL builders', () => {
   it('builds a YouVersion compare URL for a single verse',
@@ -34,43 +35,52 @@ describe('VerseActionToolbar URL builders', () => {
 
   it('builds a BibleHub commentary URL from the book name',
     () => {
-      expect(buildBibleHubUrl('John', 3, 16)).toBe(
+      expect(buildBibleHubUrl('JHN', 'John', 3, 16)).toBe(
         'https://biblehub.com/john/3-16.htm#commentary'
       );
-      expect(buildBibleHubUrl('1 Samuel', 17, 40)).toBe(
+      expect(
+        buildBibleHubUrl('1SA', '1 Samuel', 17, 40)
+      ).toBe(
         'https://biblehub.com/1_samuel/17-40.htm#commentary'
       );
     });
 
-  it('maps Song of Solomon to BibleHub\'s "songs" path', () => {
-    expect(buildBibleHubUrl('Song of Solomon', 2, 4)).toBe(
-      'https://biblehub.com/songs/2-4.htm#commentary'
-    );
-  });
+  it('maps Song of Solomon to BibleHub\'s "songs" path even ' +
+    'when the display name arrives title-cased', () => {
+      // toBookName yields "Song Of Solomon" — a name-keyed
+      // override never matched, so the path was "/song_of_"
+      // until the lookup moved to USFM codes.
+      expect(
+        buildBibleHubUrl('SNG', 'Song Of Solomon', 2, 4)
+      ).toBe('https://biblehub.com/songs/2-4.htm#commentary');
+    });
 
   it('builds a Blue Letter Bible KJV URL via the abbr map',
     () => {
-      expect(buildBlbUrl('John', 3, 16)).toBe(
+      expect(buildBlbUrl('JHN', 3, 16)).toBe(
         'https://www.blueletterbible.org/kjv/jhn/3/16/'
       );
-      expect(buildBlbUrl('Psalms', 23, 1)).toBe(
+      expect(buildBlbUrl('PSA', 23, 1)).toBe(
         'https://www.blueletterbible.org/kjv/psa/23/1/'
       );
     });
 
   it('returns null from buildBlbUrl for unmapped books', () => {
-    expect(buildBlbUrl('Not a Book', 1, 1)).toBeNull();
+    expect(buildBlbUrl('XXX', 1, 1)).toBeNull();
   });
 
   it('covers every canonical book in BOOK_TO_BLB_ABBR', () => {
-    // Every book name the API can return must have an
-    // abbreviation, or the BLB button silently disappears.
-    const bookNames = getBooks().map((b) => b.book_name);
-    expect(bookNames.length).toBeGreaterThan(0);
-    for (const name of bookNames) {
+    // Every book the API can return must have an abbreviation,
+    // or the BLB button silently disappears. The map is keyed
+    // by USFM code because display names are title-cased and
+    // lost the "of"/"Of" distinction.
+    const books = getBooks();
+    expect(books.length).toBeGreaterThan(0);
+    for (const book of books) {
+      const code = toUsfmCode(book.book_name);
       expect(
-        BOOK_TO_BLB_ABBR[name],
-        `missing BLB abbr for ${name}`
+        code && BOOK_TO_BLB_ABBR[code],
+        `missing BLB abbr for ${book.book_name}`
       ).toBeTruthy();
     }
   });
