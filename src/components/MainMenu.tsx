@@ -16,7 +16,7 @@ import {
   IconBrandAndroid,
   IconRefresh,
 } from "@tabler/icons-react";
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
@@ -24,6 +24,7 @@ import { buildBiblePath } from "../utils/bibleUtils";
 import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
+import { emptyNoteDraft } from "./noteDraft";
 
 // Lazy + gated below on newNoteOpened — the modal pulls in
 // TipTap, which must stay out of the app-shell chunk.
@@ -53,6 +54,7 @@ const MainMenu = ({
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
+  const noteDraftRef = useRef(emptyNoteDraft());
 
   // Get Bible state for navigation
   const activeBookId = useBibleStore((state) => state.activeBookId);
@@ -230,11 +232,12 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
-      {newNoteOpened && (
+      {isAuthenticated && newNoteOpened && (
         <Suspense fallback={null}>
           <AddStandaloneNoteModal
             opened={newNoteOpened}
             onClose={() => setNewNoteOpened(false)}
+            draftRef={noteDraftRef}
           />
         </Suspense>
       )}

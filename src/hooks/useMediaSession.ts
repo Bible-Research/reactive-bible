@@ -157,7 +157,11 @@ export const useMediaSession = ({
         updatePositionState,
       );
 
-    if (isSupported()) {
+    // Web handlers are skipped in the Capacitor shell: the
+    // native plugin owns action dispatch there, and registering
+    // both can double-fire seekBy/nexttrack when the OS also
+    // surfaces the WebView's media session.
+    if (isSupported() && !native) {
       const wrap = (
         action: MediaSessionAction,
       ): MediaSessionActionHandler => (details) =>
@@ -183,7 +187,7 @@ export const useMediaSession = ({
     }
 
     return () => {
-      if (isSupported()) {
+      if (isSupported() && !native) {
         ALL_ACTIONS.forEach((a) => safeSetHandler(a, null));
       }
       if (native) {
@@ -206,6 +210,16 @@ export const useMediaSession = ({
         } catch {
           // ignore
         }
+      }
+      // Clear the native notification's stale track info too —
+      // the plugin has no clearMetadata, so write an empty one.
+      if (isNative()) {
+        void NativeMediaSession.setMetadata({
+          title: '',
+          artist: '',
+          album: '',
+          artwork: [],
+        }).catch(ignoreRejection);
       }
       return;
     }

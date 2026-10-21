@@ -14,7 +14,13 @@ import type { BibleState } from '../../store';
 export const partializeState = (state: BibleState) => ({
   activeBookId: state.activeBookId,
   activeChapter: state.activeChapter,
-  verseSelection: state.verseSelection,
+  // Only 'bible'-scoped selections make sense after reload — a
+  // persisted 'note:<id>' scope would resurrect the verse
+  // toolbar against a note that isn't mounted.
+  verseSelection:
+    state.verseSelection?.scope === 'bible'
+      ? state.verseSelection
+      : null,
   bibleVersion: state.bibleVersion,
   translations: state.translations,
   activeTextFilesetId: state.activeTextFilesetId,
@@ -27,6 +33,7 @@ export const partializeState = (state: BibleState) => ({
   notesPageSize: state.notesPageSize,
   readingPositions: state.readingPositions,
   // showAudioPlayer is NOT persisted
+  // detailNote is NOT persisted (transient share context)
   // pendingScrollVerse is NOT persisted
   // headerVisible is NOT persisted
 });
@@ -63,6 +70,8 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  * - pre-v5: `readingPositions` is introduced; any pre-existing
  *   value is sanitized and name-keyed entries are re-keyed to
  *   USFM codes.
+ * - pre-v6: persisted `verseSelection` is dropped unless its
+ *   scope is 'bible' — note scopes are transient UI state.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -145,6 +154,17 @@ export const migratePersistedState = (
       }
     }
     migrated = { ...migrated, readingPositions: positions };
+  }
+
+  if (version < 6) {
+    // A note-scoped selection persisted by an older build must
+    // not be resurrected on reload — its note is unmounted.
+    const sel = migrated.verseSelection as
+      | { scope?: unknown }
+      | null;
+    if (sel && sel.scope !== 'bible') {
+      migrated = { ...migrated, verseSelection: null };
+    }
   }
 
   return migrated as PersistedBibleState;

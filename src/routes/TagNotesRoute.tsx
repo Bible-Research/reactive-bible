@@ -12,6 +12,7 @@ import {
   Text,
   Loader,
   Box,
+  Collapse,
 } from '@mantine/core';
 import { Note } from '../types';
 import TagSection from '../components/TagSection';
@@ -68,6 +69,12 @@ export default function TagNotesRoute() {
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
+  // MyHeader slides away on a deliberate downward scroll via
+  // this flag; the filter/sort toolbar follows it so the notes
+  // list reclaims the freed space.
+  const headerVisible = useBibleStore(
+    (state) => state.headerVisible
+  );
 
   // Get sort order from URL, default to 'custom_asc'
   const urlSortOrder = searchParams.get('sort') as SortOrder | null;
@@ -75,6 +82,20 @@ export default function TagNotesRoute() {
     urlSortOrder && SORT_ORDERS.includes(urlSortOrder)
       ? urlSortOrder
       : 'custom_asc';
+
+  // Ownership: the caller's own tag list is the primary signal —
+  // production notes do not send `is_owner` yet, so without the
+  // tags check an owner would lose drag/order/edit/delete on
+  // their own tag. For foreign public tags keep the strict
+  // every-note `is_owner === true` fallback so write affordances
+  // stay hidden once the backend ships the field — and any
+  // explicit `is_owner === false` fails closed outright.
+  const isTagOwner =
+    isAuthenticated &&
+    notes.every((n) => n.is_owner !== false) &&
+    (storedTags.some((t) => t.id === tagId) ||
+      (notes.length > 0 &&
+        notes.every((n) => n.is_owner === true)));
 
   const {
     enabled: orderMenuEnabled,
@@ -84,9 +105,8 @@ export default function TagNotesRoute() {
   } = useNoteOrderMenu({
     tagId,
     sortOrder,
-    isAuthenticated,
+    isTagOwner,
     isUntagged,
-    notes,
   });
 
   const {
@@ -198,47 +218,70 @@ export default function TagNotesRoute() {
   ) : null;
 
   return (
-    <Box p="md">
-      <TagNotesToolbar
-        tags={storedTags}
-        isAuthenticated={isAuthenticated}
-        tagId={tagId}
-        tagName={tag.name}
-        sortOrder={sortOrder}
-        pageSize={notesPageSize}
-        shownCount={notes.length}
-        totalCount={notesCount}
-        versesFolded={versesFolded}
-        onTagChange={handleTagChange}
-        onSortChange={handleSortChange}
-        onPageSizeChange={handlePageSizeChange}
-        onToggleFolded={handleToggleFolded}
-        onRefresh={handleRefresh}
-      />
+    // Flex column so the ScrollArea below grows into whatever
+    // space the collapsing chrome frees. The height mirrors
+    // AppShell's paddingTop: viewport minus the header while it
+    // is shown, the full viewport once it has slid away — both
+    // animate on the same 0.3s ease-in-out so they stay in sync.
+    <Box
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: headerVisible
+          ? 'calc(100vh - var(--mantine-header-height, 0px))'
+          : '100vh',
+        transition: 'height 0.3s ease-in-out',
+      }}
+    >
+      <Collapse
+        in={headerVisible}
+        transitionDuration={300}
+        data-testid="tag-notes-toolbar"
+      >
+        <Box px="md" pt="md">
+          <TagNotesToolbar
+            tags={storedTags}
+            isAuthenticated={isAuthenticated}
+            tagId={tagId}
+            tagName={tag.name}
+            sortOrder={sortOrder}
+            pageSize={notesPageSize}
+            shownCount={notes.length}
+            totalCount={notesCount}
+            versesFolded={versesFolded}
+            onTagChange={handleTagChange}
+            onSortChange={handleSortChange}
+            onPageSizeChange={handlePageSizeChange}
+            onToggleFolded={handleToggleFolded}
+            onRefresh={handleRefresh}
+          />
+        </Box>
+      </Collapse>
 
-      <ScrollArea style={{ height: 'calc(100vh - 200px)' }}>
+      <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         {pageLoading ? (
           <Center style={{ height: 200 }}>
             <Loader aria-label="loading" />
           </Center>
         ) : notes.length > 0 ? (
-          <Stack spacing="md" pb="xl">
+          <Stack spacing="md" pb="xl" px="md">
             {pagination}
             <TagSection
               tagName={tag.name}
               notes={sortedNotes}
               onViewInBible={handleViewInBible}
               onEditNote={
-                isAuthenticated ? handleEditNote : undefined
+                isTagOwner ? handleEditNote : undefined
               }
               onDeleteNote={
-                isAuthenticated
+                isTagOwner
                   ? handleDeleteNote
                   : undefined
               }
               onPlayFromNote={playFromNote}
               commentCounts={commentCounts}
               onCountChange={handleCountChange}
+              isTagOwner={isTagOwner}
               isDraggable={orderMenuEnabled}
               tagId={tagId || ''}
               onReorder={handleReorder}

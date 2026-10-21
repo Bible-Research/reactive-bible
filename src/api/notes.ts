@@ -18,6 +18,7 @@ import {
 } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
 import { ConflictError } from './errors';
+import { clearNotesCache } from '../utils/cacheManager';
 
 export const addTagNote = async (
   tagId: string,
@@ -40,7 +41,11 @@ export const addTagNote = async (
     if (!response.ok) {
       throw new Error('Failed to create note');
     }
-    return await response.json();
+    const created = await response.json();
+    // A new note changes the tag's cached pages (membership and
+    // ordering shift) — invalidate so a cached page can't hide it.
+    clearNotesCache(tagId);
+    return created;
   } catch (error) {
     console.error('Error creating note:', error);
     throw error;
@@ -73,7 +78,11 @@ export const editNote = async (
     if (!response.ok) {
       throw new Error('Failed to update note');
     }
-    return await response.json();
+    const updated = await response.json();
+    // The note may have moved to a different tag — its previous
+    // tag's cached pages are stale too, so invalidate broadly.
+    clearNotesCache();
+    return updated;
   } catch (error) {
     console.error('Error updating note:', error);
     throw error;
@@ -91,10 +100,12 @@ export const deleteNote = async (noteId: string) => {
     if (!response.ok) {
       throw new Error('Failed to delete note');
     }
+    // The note's tag is unknown here — clear all cached pages.
+    clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (err) {
-    console.error('Error deleting note:', err);
+  } catch (error) {
+    console.error('Error deleting note:', error);
     throw new Error('Failed to delete your note, please try again');
   }
 }
@@ -114,14 +125,21 @@ export const reorderNotes = async (
   });
 
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Reorder failed');
   }
+
+  // Reordered pages must not keep serving the pre-reorder order.
+  clearNotesCache(tagId);
 };
 
 /**
@@ -180,8 +198,12 @@ export const moveNote = async (
   });
 
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
 
   if (!response.ok) {
@@ -191,7 +213,10 @@ export const moveNote = async (
     );
   }
 
-  return await response.json();
+  const result: MoveNoteResponse = await response.json();
+  // A move changes page membership/positions for the tag.
+  clearNotesCache(tagId);
+  return result;
 };
 
 /**

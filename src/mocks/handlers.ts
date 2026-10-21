@@ -56,6 +56,64 @@ interface NoteWriteBody {
 }
 
 export const handlers = [
+  // --- Auth ---
+  // NOTE: the token endpoint is NOT under /api/v1 —
+  // authStore.tsx posts to `${API_BASE_URL}/api/token/`.
+  http.post(`${API_BASE_URL}/api/token/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+      password?: string;
+    };
+    if (!body.username || !body.password) {
+      return HttpResponse.json(
+        {
+          non_field_errors: [
+            'Unable to log in with provided credentials.',
+          ],
+        },
+        { status: 400 }
+      );
+    }
+    return HttpResponse.json({
+      token: 'test-token',
+      user: { id: 1, username: body.username ?? 'testuser' },
+    });
+  }),
+  http.post(`${API_BASE_URL}/api/token`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+    };
+    return HttpResponse.json({
+      token: 'test-token',
+      user: { id: 1, username: body.username ?? 'testuser' },
+    });
+  }),
+
+  http.post(`${API_URL}/users/register/`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+    };
+    return HttpResponse.json(
+      {
+        token: 'test-token',
+        user: { id: 1, username: body.username ?? 'newuser' },
+      },
+      { status: 201 }
+    );
+  }),
+  http.post(`${API_URL}/users/register`, async ({ request }) => {
+    const body = (await request.json()) as {
+      username?: string;
+    };
+    return HttpResponse.json(
+      {
+        token: 'test-token',
+        user: { id: 1, username: body.username ?? 'newuser' },
+      },
+      { status: 201 }
+    );
+  }),
+
   // --- Single /bible Endpoint Handler ---
   http.get(`${API_URL}/bible`, ({ request }) => {
     const url = new URL(request.url);
@@ -158,7 +216,10 @@ export const handlers = [
       ...mockTag,
       id: params.id,
       name: body.name ?? mockTag.name,
-      parent_tag: body.parent_tag ?? null,
+      parent_tag:
+        body.parent_tag !== undefined
+          ? body.parent_tag
+          : mockTag.parent_tag,
     });
   }),
   http.patch(`${API_URL}/tags/:id/`, async ({ params, request }) => {
@@ -170,7 +231,10 @@ export const handlers = [
       ...mockTag,
       id: params.id,
       name: body.name ?? mockTag.name,
-      parent_tag: body.parent_tag ?? null,
+      parent_tag:
+        body.parent_tag !== undefined
+          ? body.parent_tag
+          : mockTag.parent_tag,
     });
   }),
 
@@ -398,44 +462,6 @@ export const handlers = [
     return HttpResponse.json({});
   }),
 
-  // --- Auth ---
-  // NOTE: the token endpoint is NOT under /api/v1 — authStore.tsx
-  // posts to `${API_BASE_URL}/api/token/`.
-  http.post(`${API_BASE_URL}/api/token/`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json({
-      token: 'test-token',
-      user: { username: body.username ?? 'testuser' },
-    });
-  }),
-  http.post(`${API_BASE_URL}/api/token`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json({
-      token: 'test-token',
-      user: { username: body.username ?? 'testuser' },
-    });
-  }),
-
-  http.post(`${API_URL}/users/register/`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json(
-      {
-        token: 'test-token',
-        user: { username: body.username ?? 'testuser' },
-      },
-      { status: 201 }
-    );
-  }),
-  http.post(`${API_URL}/users/register`, async ({ request }) => {
-    const body = (await request.json()) as { username?: string };
-    return HttpResponse.json(
-      {
-        token: 'test-token',
-        user: { username: body.username ?? 'testuser' },
-      },
-      { status: 201 }
-    );
-  }),
 
   // --- Comments ---
   http.get(`${COMMENT_BASE}/notes/:noteId/comments/`, ({ params }) => {

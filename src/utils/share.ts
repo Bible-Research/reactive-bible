@@ -1,4 +1,5 @@
 import { showNotification } from '@mantine/notifications';
+import { copyTextToClipboard } from './clipboard';
 
 /** Payload handed to the Web Share API / clipboard fallback. */
 export interface ShareContent {
@@ -60,6 +61,12 @@ export const shareOrCopyLink = async (
     await navigator.clipboard.writeText(content.url);
     showNotification({ ...options.copySuccess, color: 'blue' });
   } catch (err) {
+    // A rejected writeText can just mean a non-secure context —
+    // try the legacy textarea path before giving up.
+    if (await copyTextToClipboard(content.url)) {
+      showNotification({ ...options.copySuccess, color: 'blue' });
+      return;
+    }
     console.error('Error copying to clipboard:', err);
     if (options.copyFailure) {
       showNotification({ ...options.copyFailure, color: 'red' });

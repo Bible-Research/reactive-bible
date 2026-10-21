@@ -35,7 +35,8 @@ describe('buildNotePlaylistItems', () => {
     ]);
     expect(items).toEqual([
       {
-        itemId: 'n1',
+        itemId: 'n1:JHN:3',
+        scope: 'n1',
         bookId: 'JHN',
         chapter: 3,
         startVerse: 16,
@@ -53,7 +54,10 @@ describe('buildNotePlaylistItems', () => {
       note('n1', [verse('John', 3, 16)]),
       note('n2', [verse('John', 3, 17)]),
     ]);
-    expect(items.map((i) => i.itemId)).toEqual(['n1', 'n2']);
+    expect(items.map((i) => i.itemId)).toEqual([
+      'n1:JHN:3',
+      'n2:JHN:3',
+    ]);
     expect(items[0].label).toBe('Note 1/2 – John 3:16');
     expect(items[1].label).toBe('Note 2/2 – John 3:17');
   });
@@ -67,7 +71,10 @@ describe('buildNotePlaylistItems', () => {
         verse('John', 3, 17),
       ]),
     ]);
+    expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
+      itemId: 'n1:JHN:3',
+      scope: 'n1',
       chapter: 3,
       startVerse: 16,
       endVerse: 18,
@@ -76,21 +83,32 @@ describe('buildNotePlaylistItems', () => {
     });
   });
 
-  it('ignores verses outside the first verse\'s chapter ' +
-    'when computing the range', () => {
+  it('splits a note spanning chapters into one item per ' +
+    'book+chapter block', () => {
     const items = buildNotePlaylistItems([
       note('n1', [
         verse('John', 3, 16),
         verse('John', 4, 1),
         verse('Mark', 1, 1),
+        verse('John', 4, 2),
       ]),
     ]);
-    expect(items[0]).toMatchObject({
-      bookId: 'JHN',
-      chapter: 3,
-      startVerse: 16,
-      endVerse: 16,
-      verseNumbers: [16],
+    expect(items).toHaveLength(3);
+    expect(items.map((i) => i.itemId)).toEqual([
+      'n1:JHN:3',
+      'n1:JHN:4',
+      'n1:MRK:1',
+    ]);
+    expect(items.map((i) => i.scope)).toEqual([
+      'n1',
+      'n1',
+      'n1',
+    ]);
+    expect(items[1]).toMatchObject({
+      chapter: 4,
+      startVerse: 1,
+      endVerse: 2,
+      verseNumbers: [1, 2],
     });
   });
 
@@ -100,5 +118,6 @@ describe('buildNotePlaylistItems', () => {
       note('n1', [verse('Notabook', 1, 1)]),
     ]);
     expect(items[0].bookId).toBe('Notabook');
+    expect(items[0].itemId).toBe('n1:Notabook:1');
   });
 });

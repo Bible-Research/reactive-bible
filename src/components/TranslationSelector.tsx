@@ -52,6 +52,7 @@ const useStyles = createStyles((theme) => ({
 const LANGUAGES = [
   { label: 'English', value: 'eng' },
   { label: 'Latvian', value: 'lvs' },
+  { label: 'Russian', value: 'rus' },
 ];
 
 type Capability = 'both' | 'text' | 'audio';
@@ -181,10 +182,16 @@ const TranslationSelector = () => {
    * Selects a version and derives the text/audio selections:
    * text resolves to the version's grouped text product (or a
    * same-language fallback for audio-only versions); audio keeps
-   * the active product when this version owns it, defaults to the
-   * first option for audio-only versions, else None.
+   * the active product when this version owns it, otherwise
+   * prefers the first audio option over None. `restoreStored`
+   * (seeding the modal with the current selection) restores a
+   * stored `null` audio verbatim so a saved "None" survives a
+   * no-op reopen.
    */
-  const applyVersionSelection = (abbr: string | null) => {
+  const applyVersionSelection = (
+    abbr: string | null,
+    restoreStored = false,
+  ) => {
     setSelectedTranslationAbbr(abbr);
     setTextNote(null);
     const translation = translations.find((t) => t.abbr === abbr);
@@ -255,11 +262,12 @@ const TranslationSelector = () => {
         : undefined;
     if (audioOption) {
       setSelectedAudioId(audioOption.id);
-    } else if (!grouped.text && grouped.audio.length > 0) {
-      // Audio-only versions default to their primary audio.
-      setSelectedAudioId(grouped.audio[0].id);
-    } else {
+    } else if (restoreStored && activeAudioFilesetId === null) {
+      // Seeding the current selection: keep a saved "None".
       setSelectedAudioId(null);
+    } else {
+      // Prefer the first real audio option over None.
+      setSelectedAudioId(grouped.audio[0]?.id ?? null);
     }
   };
 
@@ -379,7 +387,12 @@ const TranslationSelector = () => {
       }
     };
 
-    fetchTranslations();
+    // A failed fetch must not surface as an unhandled
+    // rejection (global errorReporter toast) — the stale store
+    // list stays usable.
+    fetchTranslations().catch((error) => {
+      console.error('Error loading translations:', error);
+    });
 
     return () => {
       cancelled = true;
@@ -408,15 +421,17 @@ const TranslationSelector = () => {
       ): Promise<string | null> => {
         if (!filesetId) return null;
         for (const { value: iso } of LANGUAGES) {
-          // A failed fetch counts as "not this language" —
-          // keep scanning the other tabs.
-          const list = await getAvailableTranslations(iso)
-            .catch((error) => {
-              console.warn(
-                `Failed to load ${iso} translations:`, error
+          // One failed language response must not strand the
+          // seeding — continue to the next language tab.
+          const list = await getAvailableTranslations(iso).catch(
+            (error) => {
+              console.error(
+                `Error loading ${iso} translations:`,
+                error,
               );
-              return [] as Translation[];
-            });
+              return [];
+            },
+          );
           if (cancelled || userInteractedRef.current) return null;
           if (findTranslationByFilesetId(filesetId, list)) {
             return iso;
@@ -476,7 +491,7 @@ const TranslationSelector = () => {
         activeTextFilesetId,
         translations,
       );
-    if (owner) applyVersionSelection(owner.abbr);
+    if (owner) applyVersionSelection(owner.abbr, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, translations, selectedTranslationAbbr]);
 
