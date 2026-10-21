@@ -60,6 +60,30 @@ describe('ProtectedRoute', () => {
 
       expect(mockNavigate).not.toHaveBeenCalled();
     });
+
+    it('should render children on a persisted token before ' +
+      'checkAuth flips isAuthenticated', () => {
+      // The token rehydrates from localStorage before App's
+      // checkAuth runs — gating on isAuthenticated alone would
+      // bounce logged-in users on refresh.
+      renderWithProviders(
+        <ProtectedRoute>
+          <div>Protected Content</div>
+        </ProtectedRoute>,
+        {
+          authStoreState: {
+            isAuthenticated: false,
+            token: 'test-token',
+            user: { username: 'testuser' },
+          },
+        }
+      );
+
+      expect(
+        screen.getByText('Protected Content')
+      ).toBeInTheDocument();
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
   });
 
   describe('When not authenticated', () => {

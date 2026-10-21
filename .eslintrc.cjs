@@ -7,7 +7,6 @@ module.exports = {
   ],
   parser: '@typescript-eslint/parser',
   parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
-  reportUnusedDisableDirectives: true,
   plugins: ['react-refresh'],
   reportUnusedDisableDirectives: true,
   rules: {
