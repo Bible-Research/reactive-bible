@@ -4,6 +4,8 @@ import {
   toUsfmCode,
   buildBiblePath,
   decodeVerses,
+  getChapterCount,
+  getMaxVerse,
 } from '../utils/bibleUtils';
 
 /**
@@ -32,12 +34,20 @@ export default function LegacyBibleRedirect() {
     const verseStr =
       dotIdx >= 0 ? chapterVerse.slice(dotIdx + 1) : '';
     const chapter = parseInt(chapterStr, 10);
-    if (!/^\d+$/.test(chapterStr) || chapter < 1) {
+    // Out-of-range chapters (e.g. /bible/Malachi/5) fall back to
+    // /bible rather than routing to a blank page.
+    if (
+      !/^\d+$/.test(chapterStr) ||
+      chapter < 1 ||
+      chapter > getChapterCount(bookId)
+    ) {
       void navigate('/bible', { replace: true });
       return;
     }
 
-    const verses = verseStr ? decodeVerses(verseStr) : undefined;
+    const verses = verseStr
+      ? decodeVerses(verseStr, getMaxVerse(bookId, chapter))
+      : undefined;
     if (verseStr && (!verses || verses.length === 0)) {
       void navigate('/bible', { replace: true });
       return;

@@ -130,7 +130,9 @@ describe('NoteCard Component', () => {
         onViewInBible={mockOnViewInBible}
         onEdit={mockOnEdit}
         onDelete={mockOnDelete}
-      />
+        isTagOwner
+      />,
+      { stores: { auth: { isAuthenticated: true } } }
     );
 
     fireEvent.click(
@@ -170,7 +172,9 @@ describe('NoteCard Component', () => {
           onViewInBible={mockOnViewInBible}
           onEdit={mockOnEdit}
           onDelete={mockOnDelete}
-        />
+          isTagOwner
+        />,
+        { stores: { auth: { isAuthenticated: true } } }
       );
 
       fireEvent.click(
@@ -181,6 +185,30 @@ describe('NoteCard Component', () => {
         expect.any(Object),
         singleVerseNote
       );
+    });
+
+  it('hides edit and remove for notes the user does not own',
+    () => {
+      const foreign = createMockNote({
+        id: 'n-foreign',
+        is_owner: false,
+        verses: [createMockVerse()],
+      });
+      renderWithProviders(
+        <NoteCard
+          note={foreign}
+          onViewInBible={mockOnViewInBible}
+          onEdit={mockOnEdit}
+          onDelete={mockOnDelete}
+        />
+      );
+
+      expect(
+        screen.queryByRole('button', { name: 'edit-note' })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'remove-note' })
+      ).not.toBeInTheDocument();
     });
 
   it('copies the note link to the clipboard when share is ' +
@@ -209,6 +237,19 @@ describe('NoteCard Component', () => {
         );
       });
     });
+
+  it('shows the share button for public notes', () => {
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'share-note' })
+    ).toBeInTheDocument();
+  });
 
   it('hides the share button for private notes', () => {
     renderWithProviders(
@@ -301,6 +342,36 @@ describe('NoteCard Component', () => {
       expect(badge).toHaveAttribute('aria-expanded', 'true');
     });
 
+  it('shows the comment count badge', () => {
+    renderWithProviders(
+      <NoteCard
+        note={singleVerseNote}
+        onViewInBible={mockOnViewInBible}
+        commentCount={3}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: '3' })
+    ).toBeInTheDocument();
+  });
+
+  it('hides the comment badge for anonymous viewers on an ' +
+    'uncommented note', () => {
+      renderWithProviders(
+        <NoteCard
+          note={singleVerseNote}
+          onViewInBible={mockOnViewInBible}
+          commentCount={0}
+        />,
+        { authStoreState: { isAuthenticated: false } }
+      );
+
+      expect(
+        screen.queryByRole('button', { name: 'Add a comment' })
+      ).not.toBeInTheDocument();
+    });
+
   it('hides the comment badge on the detail route where ' +
     'commentCount is undefined', () => {
       renderWithProviders(
@@ -315,8 +386,8 @@ describe('NoteCard Component', () => {
       ).not.toBeInTheDocument();
     });
 
-  it('opens the passage preview when a scripture link ' +
-    'in the note text is clicked', async () => {
+  it('opens the passage preview popover when a scripture ' +
+    'link in the note text is clicked', async () => {
       renderWithProviders(
         <NoteCard
           note={noteWithScriptureRef}
@@ -324,12 +395,41 @@ describe('NoteCard Component', () => {
         />
       );
 
-      // The linkified token renders as a clickable Anchor.
-      fireEvent.click(screen.getByText('@JHN.1.1-5'));
+      // The linkified token renders as a clickable Anchor; the
+      // popover anchors to it. happy-dom has no layout, so the
+      // rect is stubbed — an all-zero rect is read as a
+      // deleted anchor and would close the popover instantly.
+      const link = screen.getByText('@JHN.1.1-5');
+      vi.spyOn(link, 'getBoundingClientRect').mockReturnValue(
+        {
+          top: 100,
+          bottom: 120,
+          left: 40,
+          right: 90,
+          width: 50,
+          height: 20,
+          x: 40,
+          y: 100,
+          toJSON: () => ({}),
+        } as DOMRect
+      );
+      fireEvent.click(link);
 
       expect(
         await screen.findByTestId('passage-container')
       ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('scripture-passage-popover')
+          .parentElement
+      ).toBe(document.body);
+
+      // A second click on the same ref toggles it closed.
+      fireEvent.click(link);
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId('passage-container')
+        ).not.toBeInTheDocument()
+      );
     });
 });
 

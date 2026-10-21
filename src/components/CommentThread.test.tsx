@@ -11,12 +11,6 @@ import {
   vi,
   beforeEach,
 } from 'vitest';
-import {
-  isTiptapDocString,
-  toPlainText,
-} from '../utils/tiptapContent';
-import { showNotification } from '@mantine/notifications';
-
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
 }));
@@ -34,6 +28,12 @@ vi.mock('./RichTextEditor', async () => ({
     await import('../__tests__/mocks/RichTextEditorStub')
   ).default,
 }));
+import {
+  isTiptapDocString,
+  toPlainText,
+} from '../utils/tiptapContent';
+import { showNotification } from '@mantine/notifications';
+
 import { http, HttpResponse } from 'msw';
 import CommentThread from './CommentThread';
 import { renderWithProviders } from '../__tests__/helpers';
@@ -488,7 +488,10 @@ describe('CommentThread', () => {
     });
   });
 
-  const useStaleImageThread = (onImagesFetch: () => void) => {
+  const useStaleImageThread = (
+    onImagesFetch: () => void,
+    refreshedUrl = 'https://example.com/fresh.png'
+  ) => {
     const staleImg = {
       id: 'img-1',
       storage_url: 'gs://bucket/originals/img-1/pic.png',
@@ -521,7 +524,7 @@ describe('CommentThread', () => {
           return HttpResponse.json([
             {
               ...staleImg,
-              signed_url: 'https://example.com/fresh.png',
+              signed_url: refreshedUrl,
             },
           ]);
         }
@@ -557,11 +560,16 @@ describe('CommentThread', () => {
     expect(fetchCalls).toBe(1);
   });
 
-  it('caps image refreshes per comment', async () => {
+  it('caps image refreshes per image set', async () => {
     let fetchCalls = 0;
-    useStaleImageThread(() => {
-      fetchCalls += 1;
-    });
+    // The refresh mints no new URL, so the image set never
+    // changes and the retry budget binds at 3.
+    useStaleImageThread(
+      () => {
+        fetchCalls += 1;
+      },
+      'https://example.com/stale.png'
+    );
 
     renderWithProviders(
       <CommentThread noteId={NOTE_ID} />
@@ -579,6 +587,179 @@ describe('CommentThread', () => {
     expect(fetchCalls).toBe(3);
   });
 
+  it('grants a fresh retry budget to a changed image set', async () => {
+    let fetchCalls = 0;
+    useStaleImageThread(() => {
+      fetchCalls += 1;
+    });
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />
+    );
+    await waitFor(() => {
+      expect(staleThumb()).toBeInTheDocument();
+    });
+
+    // First refresh changes stale.png -> fresh.png, which earns
+    // a fresh budget: 4 more errors yield 3 more fetches.
+    for (let i = 0; i < 5; i++) {
+      fireEvent.error(staleThumb());
+      await waitFor(() => {
+        expect(fetchCalls).toBe(Math.min(i + 1, 4));
+      });
+    }
+    expect(fetchCalls).toBe(4);
+  });
+
+  it('clears the loader when a silent refresh lands mid-Retry', async () => {
+    let calls = 0;
+    let releaseLoad: () => void = () => undefined;
+    const loadGate = new Promise<void>((resolve) => {
+      releaseLoad = resolve;
+    });
+    const commentFor = (content: string) => ({
+      id: 'comment-1',
+      author: { id: 1, username: 'testuser' },
+      note_id: NOTE_ID,
+      parent_comment: null,
+      content,
+      timestamp: new Date().toISOString(),
+      is_deleted: false,
+      replies: [],
+      images: [],
+    });
+    server.use(
+      http.get(
+        `${API_URL}/notes/${NOTE_ID}/comments/`,
+        async () => {
+          calls += 1;
+          // A 500 fails fast — HttpResponse.error() would be
+          // retried by publicFetch and consume call 2.
+          if (calls === 1) {
+            return HttpResponse.json({}, { status: 500 });
+          }
+          if (calls === 2) {
+            // The Retry load hangs until released.
+            await loadGate;
+            return HttpResponse.json([
+              commentFor('from load'),
+            ]);
+          }
+          return HttpResponse.json([
+            commentFor('from poll'),
+          ]);
+        }
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: /retry loading comments/i,
+        })
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /retry loading comments/i,
+      })
+    );
+    await waitFor(() => expect(calls).toBe(2));
+
+    // A poll landing while the load is in flight must not
+    // stale out the loader.
+    await act(async () => {
+      fireEvent(
+        document,
+        new Event('visibilitychange', { bubbles: true })
+      );
+    });
+    await waitFor(() => expect(calls).toBe(3));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('thread-loader')
+      ).toBeInTheDocument();
+    });
+
+    releaseLoad();
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('thread-loader')
+      ).not.toBeInTheDocument();
+    });
+    // The poll response was newer — its data wins.
+    expect(screen.getByText('from poll')).toBeInTheDocument();
+  });
+
+  it('keeps a new comment when the refresh misses it', async () => {
+    // The GET response lags behind the POST (eventual
+    // consistency) — the optimistic insert must survive.
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () =>
+        HttpResponse.json([
+          {
+            id: 'comment-1',
+            author: { id: 1, username: 'testuser' },
+            note_id: NOTE_ID,
+            parent_comment: null,
+            content: 'Old comment',
+            timestamp: new Date().toISOString(),
+            is_deleted: false,
+            replies: [],
+            images: [],
+          },
+        ])
+      )
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />,
+      {
+        stores: {
+          auth: {
+            isAuthenticated: true,
+            user: { username: 'testuser' },
+            token: 'fake-token',
+          },
+        },
+      }
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByPlaceholderText('Add a comment…')
+      ).toBeInTheDocument();
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText('Add a comment…'),
+      { target: { value: 'My new comment' } }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Post' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('My new comment')
+      ).toBeInTheDocument();
+    });
+
+    // The post-create silentLoad and any later poll must not
+    // wipe the optimistic insert.
+    await act(async () => {
+      fireEvent(
+        document,
+        new Event('visibilitychange', { bubbles: true })
+      );
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(
+      screen.getByText('My new comment')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Old comment')).toBeInTheDocument();
+  });
   const commentsFixture = () => [
     {
       id: 'comment-1',
@@ -592,6 +773,87 @@ describe('CommentThread', () => {
       images: [],
     },
   ];
+
+  it('polls for new comments every 30 seconds', async () => {
+    let fetches = 0;
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () => {
+        fetches += 1;
+        return HttpResponse.json(commentsFixture());
+      })
+    );
+
+    // Fake timers must be on before render so the component's
+    // interval is scheduled under them.
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(
+        <CommentThread noteId={NOTE_ID} />
+      );
+      // Flush the initial fetch — MSW resolves off microtasks,
+      // and a long vi.waitFor would advance fake time into a
+      // poll tick.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+      const baseline = fetches;
+      expect(baseline).toBe(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29999);
+      });
+      expect(fetches).toBe(baseline);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetches).toBe(baseline + 1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(fetches).toBe(baseline + 2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('re-polls when the tab becomes visible', async () => {
+    let fetches = 0;
+    server.use(
+      http.get(`${API_URL}/notes/${NOTE_ID}/comments/`, () => {
+        fetches += 1;
+        return HttpResponse.json(commentsFixture());
+      })
+    );
+
+    renderWithProviders(
+      <CommentThread noteId={NOTE_ID} />
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByText('Test comment')
+      ).toBeInTheDocument();
+    });
+    const baseline = fetches;
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await waitFor(() => {
+      expect(fetches).toBe(baseline + 1);
+    });
+  });
 
   it('polls for new comments every 30 seconds', async () => {
     let fetches = 0;

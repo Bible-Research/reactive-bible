@@ -24,6 +24,12 @@ export interface VerseBoundsOptions {
    * verse requires knowing every verse window.
    */
   timestamps: VerseTimestamp[];
+  /**
+   * Seek target when the Howl's `loop` flag is set: a looping
+   * item replays its verses instead of advancing — the toggle
+   * must not be a no-op for bounded items.
+   */
+  loopStartTs: number;
   /** Advance to the next playlist item (idempotent). */
   onAdvance: () => void;
   /** True once the playlist has been stopped/torn down. */
@@ -52,6 +58,7 @@ export const attachVerseBounds = (
     endTs,
     verseNumbers,
     timestamps,
+    loopStartTs,
     onAdvance,
     isStopped,
   }: VerseBoundsOptions,
@@ -63,6 +70,13 @@ export const attachVerseBounds = (
     const pos = getPlayPosition(howl);
     if (pos === null) return false;
     if (endTs !== null && pos >= endTs - EPSILON) {
+      // Looping replays the item's verses instead of
+      // advancing — the toggle must not be a no-op for
+      // bounded items.
+      if (howl.loop()) {
+        howl.seek(loopStartTs);
+        return false;
+      }
       onAdvance();
       return true;
     }
@@ -86,6 +100,10 @@ export const attachVerseBounds = (
         if (nextIncludedVerse) {
           howl.seek(nextIncludedVerse.timestamp);
         } else if (endTs !== null) {
+          if (howl.loop()) {
+            howl.seek(loopStartTs);
+            return false;
+          }
           onAdvance();
           return true;
         }

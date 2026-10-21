@@ -18,14 +18,15 @@ import {
   publicFetch,
 } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { clearNotesCache } from '../utils/cacheManager';
 import { ConflictError } from './errors';
 
-export const addTagNote = (
+export const addTagNote = async (
   tagId: string,
   tagNoteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[]
-): Promise<Note> =>
-  fetchJson<Note>(
+): Promise<Note> => {
+  const created = await fetchJson<Note>(
     authenticatedFetch,
     `${API_BASE_URL}/api/v1/notes/`,
     'Failed to create note',
@@ -38,16 +39,21 @@ export const addTagNote = (
       }),
     }
   );
+  // A new note changes the tag's cached pages (membership and
+  // ordering shift) — invalidate so a cached page can't hide it.
+  clearNotesCache(tagId);
+  return created;
+};
 
-export const editNote = (
+export const editNote = async (
   noteId: string,
   tagId: string,
   noteText: string,
   verseReferences?: { book: string; chapter: number; verse: number }[]
-): Promise<Note> =>
+): Promise<Note> => {
   // verse_references replaces the note's verse links when
   // present; omitting it leaves them untouched.
-  fetchJson<Note>(
+  const updated = await fetchJson<Note>(
     authenticatedFetch,
     `${API_BASE_URL}/api/v1/notes/${noteId}/`,
     'Failed to update note',
@@ -62,6 +68,11 @@ export const editNote = (
       }),
     }
   );
+  // The note may have moved to a different tag — its previous
+  // tag's cached pages are stale too, so invalidate broadly.
+  clearNotesCache();
+  return updated;
+};
 
 export const deleteNote = async (noteId: string) => {
   try {
@@ -74,6 +85,8 @@ export const deleteNote = async (noteId: string) => {
     if (!response.ok) {
       throw new Error('Failed to delete note');
     }
+    // The note's tag is unknown here — clear all cached pages.
+    clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
   } catch (err) {
@@ -97,14 +110,21 @@ export const reorderNotes = async (
   });
 
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Reorder failed');
   }
+
+  // Reordered pages must not keep serving the pre-reorder order.
+  clearNotesCache(tagId);
 };
 
 /**
@@ -163,8 +183,12 @@ export const moveNote = async (
   });
 
   if (response.status === 409) {
-    const error = await response.json();
-    throw new ConflictError(error.message);
+    // A non-JSON 409 body must still surface as ConflictError —
+    // callers branch on `instanceof`.
+    const error = await response.json().catch(() => ({}));
+    throw new ConflictError(
+      error.message || 'Notes were modified elsewhere'
+    );
   }
 
   if (!response.ok) {
@@ -174,7 +198,10 @@ export const moveNote = async (
     );
   }
 
-  return await response.json();
+  const result: MoveNoteResponse = await response.json();
+  // A move changes page membership/positions for the tag.
+  clearNotesCache(tagId);
+  return result;
 };
 
 /**

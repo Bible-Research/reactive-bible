@@ -14,13 +14,15 @@ import {
   getBibleAudioUrl,
   getAudioTimestamps,
 } from '../api';
-import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import {
   stubMediaSession,
   type MediaSessionStub,
 } from '../__tests__/mocks/mediaSession';
 import type { BibleState, Translation } from '../store';
 
+// Shared faithful Howl fake — created instances are reachable
+// via FakeHowl.instances / FakeHowl.latest().
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
 }));
@@ -262,6 +264,41 @@ describe('Audio Component', () => {
     });
     expect(seekSpy).not.toHaveBeenCalled();
   });
+
+  it('cancelling a stalled load keeps it from materializing a ' +
+    'Howl', async () => {
+      let resolveUrl!: (url: string) => void;
+      vi.mocked(getBibleAudioUrl).mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveUrl = resolve;
+          }),
+      );
+      renderAudio({
+        activeBookId: 'JHN',
+        activeChapter: 3,
+        activeAudioFilesetId: 'ENGESHN1DA',
+      });
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+
+      // While loading the button stays enabled and cancels.
+      const cancel = await screen.findByTitle('Cancel loading');
+      expect(cancel).toBeEnabled();
+      fireEvent.click(cancel);
+
+      // The fetch resolving after the cancel must not create a
+      // Howl or leave the spinner stuck.
+      await act(async () => {
+        resolveUrl('http://audio.url/test.mp3');
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByTitle('Play audio'),
+        ).toBeInTheDocument(),
+      );
+      expect(FakeHowl.instances.length).toBe(0);
+    });
 
   it('does not seek for note-scoped verse selections',
     async () => {

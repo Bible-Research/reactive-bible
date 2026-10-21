@@ -35,7 +35,8 @@ describe('buildNotePlaylistItems', () => {
     ]);
     expect(items).toEqual([
       {
-        itemId: 'n1',
+        itemId: 'n1:JHN:3',
+        scope: 'n1',
         bookId: 'JHN',
         chapter: 3,
         startVerse: 16,
@@ -53,7 +54,10 @@ describe('buildNotePlaylistItems', () => {
       note('n1', [verse('John', 3, 16)]),
       note('n2', [verse('John', 3, 17)]),
     ]);
-    expect(items.map((i) => i.itemId)).toEqual(['n1', 'n2']);
+    expect(items.map((i) => i.itemId)).toEqual([
+      'n1:JHN:3',
+      'n2:JHN:3',
+    ]);
     expect(items[0].label).toBe('Note 1/2 – John 3:16');
     expect(items[1].label).toBe('Note 2/2 – John 3:17');
   });
@@ -76,8 +80,8 @@ describe('buildNotePlaylistItems', () => {
     });
   });
 
-  it('ignores verses outside the first verse\'s chapter ' +
-    'when computing the range', () => {
+  it('splits verses in other chapters into their own ' +
+    'block items', () => {
     const items = buildNotePlaylistItems([
       note('n1', [
         verse('John', 3, 16),
@@ -85,13 +89,21 @@ describe('buildNotePlaylistItems', () => {
         verse('Mark', 1, 1),
       ]),
     ]);
+    expect(items).toHaveLength(3);
     expect(items[0]).toMatchObject({
+      itemId: 'n1:JHN:3',
+      scope: 'n1',
       bookId: 'JHN',
       chapter: 3,
       startVerse: 16,
       endVerse: 16,
       verseNumbers: [16],
     });
+    expect(items.map((i) => i.itemId)).toEqual([
+      'n1:JHN:3',
+      'n1:JHN:4',
+      'n1:MRK:1',
+    ]);
   });
 
   it('falls back to the raw book name when no USFM code ' +

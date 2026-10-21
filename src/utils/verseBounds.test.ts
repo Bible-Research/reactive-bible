@@ -25,11 +25,14 @@ const timestamps = [
   ts(5, 20),
 ];
 
-// FakeHowl is born 'loading'; `load()` flips it to 'loaded'
-// (emitting 'load') — getPlayPosition only reports a position
+// FakeHowl is born 'loading' — load() flips it to 'loaded'
+// and emits 'load'. getPlayPosition only reports a position
 // once loaded.
 const loadedHowl = (): FakeHowl => {
-  const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+  const howl = new FakeHowl({
+    src: ['http://x/a.mp3'],
+    html5: true,
+  });
   howl.load();
   return howl;
 };
@@ -49,6 +52,7 @@ const attach = (
     endTs: 25,
     verseNumbers: undefined,
     timestamps,
+    loopStartTs: 0,
     onAdvance,
     isStopped: () => false,
     ...opts,
@@ -67,8 +71,8 @@ afterEach(() => {
 
 describe('attachVerseBounds', () => {
   it('advances once the position crosses endTs - EPSILON',
-    async () => {
-      const howl = await loadedHowl();
+    () => {
+      const howl = loadedHowl();
       const { onAdvance } = attach(howl);
       // EPSILON is 0.2 → the bound trips at 24.8.
       howl.seek(24.79);
@@ -84,8 +88,8 @@ describe('attachVerseBounds', () => {
   );
 
   it('advances via the <audio> node timeupdate event',
-    async () => {
-      const howl = await loadedHowl();
+    () => {
+      const howl = loadedHowl();
       const { onAdvance } = attach(howl);
       howl.seek(24.9);
       // Synchronous dispatch — this assertion cannot have come
@@ -96,8 +100,8 @@ describe('attachVerseBounds', () => {
   );
 
   it('attaches the node listener once across play/load',
-    async () => {
-      const howl = await loadedHowl();
+    () => {
+      const howl = loadedHowl();
       const { onAdvance } = attach(howl);
       // Re-fire the events that (re)attach the listener — the
       // guard must keep it a single subscription.
@@ -110,17 +114,20 @@ describe('attachVerseBounds', () => {
   );
 
   it('attaches via the load event when the node is not ready ' +
-    'at attach time', async () => {
+    'at attach time', () => {
       // Production: _sounds[0]._node is null until the Howl
       // loads — the 'load' wiring is the real attach path, not
       // the eager call. Withhold the node through attach, then
-      // restore it before the load microtask fires.
-      const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+      // restore it before 'load' fires.
+      const howl = new FakeHowl({
+        src: ['http://x/a.mp3'],
+        html5: true,
+      });
       const sounds = howl._sounds;
       howl._sounds = [];
       const { onAdvance } = attach(howl);
       howl._sounds = sounds;
-      howl.load(); // 'load' fires here
+      howl.emit('load');
       howl.seek(24.9);
       node(howl).dispatchEvent(new Event('timeupdate'));
       expect(onAdvance).toHaveBeenCalledTimes(1);
@@ -128,17 +135,18 @@ describe('attachVerseBounds', () => {
   );
 
   it('attaches via the play event when the node arrives after ' +
-    'load', async () => {
-      const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+    'load', () => {
+      const howl = new FakeHowl({
+        src: ['http://x/a.mp3'],
+        html5: true,
+      });
       const sounds = howl._sounds;
-      // _node:null keeps _sounds non-empty — an empty array
-      // would be repopulated by load() before 'play' can
-      // exercise the re-attach path.
+      // A sound entry whose node is still null: 'load' fires
+      // while getHtml5AudioNode finds nothing; 'play' (e.g. a
+      // pooled-node swap) must re-attach.
       howl._sounds = [{ _node: null }];
       const { onAdvance } = attach(howl);
-      // 'load' fires while the node is still absent; 'play'
-      // (e.g. a pooled-node swap) must re-attach.
-      howl.load();
+      howl.emit('load');
       howl._sounds = sounds;
       howl.emit('play', 0);
       howl.seek(24.9);
@@ -148,8 +156,8 @@ describe('attachVerseBounds', () => {
   );
 
   it('seeks past a non-included verse to the next included ' +
-    'one', async () => {
-      const howl = await loadedHowl();
+    'one', () => {
+      const howl = loadedHowl();
       const { onAdvance } = attach(howl, {
         verseNumbers: [1, 3, 5],
       });
@@ -162,8 +170,8 @@ describe('attachVerseBounds', () => {
     },
   );
 
-  it('advances when no included verse remains', async () => {
-    const howl = await loadedHowl();
+  it('advances when no included verse remains', () => {
+    const howl = loadedHowl();
     const { onAdvance } = attach(howl, {
       verseNumbers: [1, 3],
     });
@@ -174,16 +182,19 @@ describe('attachVerseBounds', () => {
   });
 
   it('does nothing while the Howl is still loading', () => {
-    // Not awaited — the load microtask has not run.
-    const howl = new FakeHowl({ src: ['http://x/a.mp3'] });
+    // load() is never called — the Howl stays 'loading'.
+    const howl = new FakeHowl({
+      src: ['http://x/a.mp3'],
+      html5: true,
+    });
     const { onAdvance } = attach(howl);
     vi.advanceTimersByTime(500);
     expect(onAdvance).not.toHaveBeenCalled();
   });
 
   it('stops checking after stop — the disposeHowl teardown ' +
-    'path', async () => {
-      const howl = await loadedHowl();
+    'path', () => {
+      const howl = loadedHowl();
       const { onAdvance } = attach(howl);
       // disposeHowl emits 'stop' before off()/unload() so this
       // cleanup fires — after it, neither the poll nor the node
@@ -196,8 +207,21 @@ describe('attachVerseBounds', () => {
     },
   );
 
-  it('stops checking after end as well', async () => {
-    const howl = await loadedHowl();
+  it('seeks back to loopStartTs instead of advancing when ' +
+    'the Howl loops', () => {
+      const howl = loadedHowl();
+      const { onAdvance } = attach(howl, { loopStartTs: 3 });
+      howl.loop(true);
+      howl.seek(24.9);
+      vi.advanceTimersByTime(100);
+      // A looping item replays its verses — no advance.
+      expect(onAdvance).not.toHaveBeenCalled();
+      expect(howl._pos).toBe(3);
+    },
+  );
+
+  it('stops checking after end as well', () => {
+    const howl = loadedHowl();
     const { onAdvance } = attach(howl);
     howl.emit('end', 0);
     howl.seek(24.9);
@@ -206,8 +230,8 @@ describe('attachVerseBounds', () => {
     expect(onAdvance).not.toHaveBeenCalled();
   });
 
-  it('honors isStopped — the poll self-clears', async () => {
-    const howl = await loadedHowl();
+  it('honors isStopped — the poll self-clears', () => {
+    const howl = loadedHowl();
     let stopped = false;
     const { onAdvance } = attach(howl, {
       isStopped: () => stopped,

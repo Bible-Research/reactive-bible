@@ -579,6 +579,52 @@ describe('API Functions', () => {
         .toHaveBeenCalledWith('eng', freshInjected);
     });
 
+    it('throws on a non-OK response and does not cache it',
+      async () => {
+        vi.spyOn(cacheManager, 'getCachedTranslations')
+          .mockReturnValue(null);
+        vi.spyOn(console, 'error').mockImplementation(
+          () => undefined
+        );
+        server.use(
+          http.get(
+            `${API_URL}/bible/translations/`,
+            () => HttpResponse.json(
+              { detail: 'down' }, { status: 503 }
+            )
+          )
+        );
+
+        await expect(
+          api.getAvailableTranslations('eng', true)
+        ).rejects.toThrow(api.ProviderError);
+        // A failure must never be written to the no-TTL cache as
+        // an empty list.
+        expect(cacheManager.cacheTranslations)
+          .not.toHaveBeenCalled();
+      });
+
+    it('throws instead of caching an error body with no ' +
+      'results array', async () => {
+      vi.spyOn(cacheManager, 'getCachedTranslations')
+        .mockReturnValue(null);
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({ error: 'provider exploded' })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.ProviderError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+
     it('throws instead of caching a 200 error body', async () => {
       server.use(
         http.get(
@@ -693,7 +739,6 @@ describe('API Functions', () => {
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.ProviderError);
     });
-
     it('throws RateLimitError when a 200 `message` body is ' +
       'rate-limit-shaped', async () => {
       server.use(
@@ -709,6 +754,62 @@ describe('API Functions', () => {
       await expect(
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.RateLimitError);
+    });
+
+    // Ported from main's `searchBible` tests — the merged api
+    // exposes only `searchBibleGrouped`.
+    it('throws RateLimitError on 429', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json(
+            { error: 'throttled', error_code: 'rate_limited' },
+            { status: 429 }
+          )
+        )
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.RateLimitError);
+    });
+
+    it('throws ProviderError when a 200 body ' +
+      'carries error/error_code', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json({
+            error: 'upstream exploded',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.ProviderError);
+    });
+  });
+
+  describe('notes mutation cache invalidation', () => {
+    it('addTagNote clears the tag cache on create', async () => {
+      const clearSpy = vi.spyOn(cacheManager, 'clearNotesCache');
+
+      await api.addTagNote('tag-9', 'hello', []);
+
+      expect(clearSpy).toHaveBeenCalledWith('tag-9');
+    });
+
+    it('editNote clears all notes cache on update', async () => {
+      const clearSpy = vi.spyOn(cacheManager, 'clearNotesCache');
+      server.use(
+        http.patch(`${API_URL}/notes/:id`, () =>
+          HttpResponse.json({ id: 'note-1' })
+        )
+      );
+
+      await api.editNote('note-1', 'tag-9', 'hello');
+
+      expect(clearSpy).toHaveBeenCalledWith();
     });
   });
 

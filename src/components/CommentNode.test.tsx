@@ -45,7 +45,7 @@ const makeComment = (overrides: Partial<Comment> = {}): Comment => ({
 
 const defaultProps = {
   depth: 0,
-  currentUsername: 'alice',
+  currentUser: { username: 'alice' },
   isAuthenticated: true,
   onReply: vi.fn().mockResolvedValue(undefined),
   onUpdate: vi.fn().mockResolvedValue(undefined),
@@ -109,7 +109,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment()}
         {...defaultProps}
-        currentUsername="alice"
+        currentUser={{ username: 'alice' }}
       />
     );
     expect(
@@ -125,7 +125,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment()}
         {...defaultProps}
-        currentUsername="bob"
+        currentUser={{ username: 'bob' }}
       />
     );
     expect(
@@ -133,6 +133,60 @@ describe('CommentNode', () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Delete' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('identifies the author by id over username', () => {
+    // Login may store the as-typed username; the author id is
+    // the authoritative match.
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        currentUser={{ id: 1, username: 'TypedAlice' }}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Edit' })
+    ).toBeInTheDocument();
+  });
+
+  it('falls back to a normalized username compare', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        currentUser={{ username: '  ALICE ' }}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Edit' })
+    ).toBeInTheDocument();
+  });
+
+  it('still matches by username when the stored id differs', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        currentUser={{ id: 42, username: 'alice' }}
+      />
+    );
+    expect(
+      screen.getByRole('button', { name: 'Edit' })
+    ).toBeInTheDocument();
+  });
+
+  it('renders an unparseable timestamp verbatim', () => {
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment({ timestamp: 'not a date' })}
+        {...defaultProps}
+      />
+    );
+    expect(screen.getByText(/not a date/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Invalid Date/)
     ).not.toBeInTheDocument();
   });
 
@@ -203,7 +257,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment({ images: [makeImage('img-1')] })}
         {...defaultProps}
-        currentUsername="alice"
+        currentUser={{ username: 'alice' }}
       />
     );
     expect(
@@ -216,7 +270,7 @@ describe('CommentNode', () => {
       <CommentNode
         comment={makeComment({ images: [makeImage('img-1')] })}
         {...defaultProps}
-        currentUsername="bob"
+        currentUser={{ username: 'bob' }}
       />
     );
     expect(
@@ -271,6 +325,41 @@ describe('CommentNode', () => {
     });
     }
   );
+
+  it('submits reply content as doc-JSON', async () => {
+    const onReply = vi.fn().mockResolvedValue(undefined);
+    renderWithProviders(
+      <CommentNode
+        comment={makeComment()}
+        {...defaultProps}
+        onReply={onReply}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reply' })
+    );
+    const replyInput =
+      screen.getByPlaceholderText('Write a reply…');
+    fireEvent.change(replyInput, {
+      target: { value: 'Reply body' },
+    });
+    // The actions row keeps its own 'Reply' button — click the
+    // submit inside the reply form container.
+    const formRoot = replyInput.closest('div') as HTMLElement;
+    fireEvent.click(
+      within(formRoot).getByRole('button', { name: 'Reply' })
+    );
+
+    await waitFor(() => {
+      expect(onReply).toHaveBeenCalledTimes(1);
+    });
+    const [parentId, content, files] = onReply.mock.calls[0];
+    expect(parentId).toBe('c1');
+    expect(isTiptapDocString(content)).toBe(true);
+    expect(toPlainText(content)).toBe('Reply body');
+    expect(files).toEqual([]);
+  });
 
   it('submits reply content as doc-JSON', async () => {
     const onReply = vi.fn().mockResolvedValue(undefined);

@@ -474,4 +474,121 @@ describe('EditNoteModal Component', () => {
       });
     });
   });
+
+  it('refreshes the viewed tag page after autosave on close',
+    async () => {
+      const fetchNotes = vi.fn().mockResolvedValue(undefined);
+      const onClose = vi.fn();
+      (api.editNote as Mock).mockResolvedValue({});
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={onClose}
+          note={mockNote}
+        />,
+        {
+          storeOverrides: {
+            fetchNotes,
+            // The route is showing tag 1, page 3, sorted.
+            lastSelectedTagId: '1',
+            notesPage: 3,
+            notesOrdering: '-created_at',
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Updated text' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // Close via the modal's X button.
+      const closeButton = document.querySelector(
+        '.mantine-Modal-close'
+      );
+      expect(closeButton).not.toBeNull();
+      fireEvent.click(closeButton as HTMLElement);
+
+      // The refresh must target the viewed tag's current page
+      // and ordering — not bounce to page 1, and not the
+      // (possibly re-tagged) note's stale tag.
+      await waitFor(() => {
+        expect(fetchNotes).toHaveBeenCalledTimes(1);
+      });
+      expect(fetchNotes).toHaveBeenCalledWith('1', {
+        ordering: '-created_at',
+        page: 3,
+      });
+      expect(onClose).toHaveBeenCalled();
+    });
+
+  it('refreshes the viewed tag after submit even when the ' +
+    'note moved tags', async () => {
+      (api.getTags as Mock).mockResolvedValue([
+        createMockTag({ id: '1', name: 'Faith' }),
+        createMockTag({ id: '2', name: 'Hope' }),
+      ]);
+      const fetchNotes = vi.fn().mockResolvedValue(undefined);
+      const onClose = vi.fn();
+      (api.editNote as Mock).mockResolvedValue({});
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={onClose}
+          note={mockNote}
+        />,
+        {
+          storeOverrides: {
+            fetchNotes,
+            lastSelectedTagId: '1',
+            notesPage: 2,
+            notesOrdering: 'verse',
+          },
+          // store.getTags no-ops without a token — the tag
+          // Select only populates for authenticated sessions.
+          authStoreState: {
+            isAuthenticated: true,
+            token: 'test-token',
+            user: { username: 'testuser' },
+          },
+        }
+      );
+
+      // Re-tag the note from Faith to Hope via the Select.
+      const tagInput = await screen.findByLabelText('Tag');
+      fireEvent.mouseDown(tagInput);
+      fireEvent.mouseDown(
+        await screen.findByRole('option', { name: 'Hope' })
+      );
+      const form = screen
+        .getByText('Submit changes')
+        .closest('form');
+      fireEvent.submit(form as HTMLFormElement);
+
+      await waitFor(() => {
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+      });
+      expect((api.editNote as Mock).mock.calls[0][1]).toBe('2');
+
+      // The route still shows tag 1 — refetch that view, not
+      // the note's new tag.
+      await waitFor(() => {
+        expect(fetchNotes).toHaveBeenCalledTimes(1);
+      });
+      expect(fetchNotes).toHaveBeenCalledWith('1', {
+        ordering: 'verse',
+        page: 2,
+      });
+    });
 });

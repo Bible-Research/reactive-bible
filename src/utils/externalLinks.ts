@@ -192,3 +192,17 @@ export const collectSelectedVerseText = (
     })
     .filter(Boolean)
     .join(" ");
+
+/** Shared text for navigator.share and the clipboard fallback.
+ *  Verse text is DOM-scraped and may be empty — then the body
+ *  falls back to the bare passage reference. */
+export const buildShareText = (
+  verseText: string,
+  passageRef: string,
+  url: string
+): string => {
+  const body = verseText
+    ? `${verseText}\n\n${passageRef}`
+    : passageRef;
+  return `${body}\n\n${url}`;
+};

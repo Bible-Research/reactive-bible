@@ -22,6 +22,8 @@ const singleVerseNote = createMockNote({
   ],
 });
 
+// Edit/delete affordances are auth-gated — render as a signed-
+// in user unless a case overrides the auth state.
 const renderActions = (
   props: Partial<
     React.ComponentProps<typeof NoteCardActions>
@@ -36,7 +38,10 @@ const renderActions = (
       onToggleThread={vi.fn()}
       {...props}
     />,
-    options
+    {
+      authStoreState: { isAuthenticated: true },
+      ...options,
+    }
   );
 
 // Cases ported from the rotted (skipped) NoteCard suite.

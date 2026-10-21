@@ -422,7 +422,12 @@ describe('TagNotesRoute play from note', () => {
 
       const state = useBibleStore.getState();
       expect(state.audioPlaylistItems).toHaveLength(1);
+      // Playlist itemIds carry a :book:chapter suffix (one
+      // item per chapter block); `scope` keeps the note id.
       expect(state.audioPlaylistItems?.[0].itemId).toBe(
+        'note-audible:JHN:3'
+      );
+      expect(state.audioPlaylistItems?.[0].scope).toBe(
         'note-audible'
       );
       // 0 in the filtered playlist — the buggy code said 1.
@@ -480,10 +485,12 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       await waitFor(() => {
         expect(mockFetchNotes).toHaveBeenCalledTimes(1);
       });
-      // The handler only rewrites the URL — the load effect
-      // re-runs on the new sort and issues the single server
-      // refetch, restarting at page 1.
-      expect(mockFetchNotes).toHaveBeenCalledWith(
+      // The handler no longer fetches itself — writing ?sort=
+      // re-runs the load effect, which issues the single
+      // server fetch on the new ordering, restarting at
+      // page 1.
+      expect(mockFetchNotes).toHaveBeenNthCalledWith(
+        1,
         'tag-123',
         { ordering: '-created', page: 1 }
       );

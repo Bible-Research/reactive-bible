@@ -5,7 +5,7 @@ import type { Howl, HowlOptions } from 'howler';
 // Captures the exact options object handed to the Howl
 // constructor — the factory's contract is the produced config.
 const seen = vi.hoisted(() => ({
-  opts: [] as HowlOptions[],
+  opts: [] as import('howler').HowlOptions[],
 }));
 
 vi.mock('howler', async () => {
