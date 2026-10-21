@@ -8,6 +8,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { Tag } from "../types";
 import { toPlainText } from "../utils/tiptapContent";
@@ -16,10 +17,22 @@ import RichTextEditor from "./RichTextEditor";
 interface NoteFormProps {
   tags: Tag[];
   note?: { tagId: string; text: string };
-  onSubmit: (tagId: string, text: string) => void;
+  onSubmit: (tagId: string, text: string) => void | Promise<unknown>;
   submitText: string;
   onTagDropdownOpen: () => void;
   onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
+  /**
+   * Called after a save triggered by the unmount flush
+   * resolves — the parent's own close handler already ran, so
+   * this is its only chance to react (e.g. refetch stale UI).
+   */
+  onUnmountedSave?: () => void;
+  /**
+   * Reports every draft change so a parent-owned draft object
+   * can restore the autosaved note after the form remounts
+   * (the modal unmounts it on close).
+   */
+  onDraftChange?: (tagId: string, text: string) => void;
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
@@ -52,6 +65,8 @@ const NoteForm = ({
   submitText,
   onTagDropdownOpen,
   onAutoSave,
+  onUnmountedSave,
+  onDraftChange,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
@@ -59,6 +74,9 @@ const NoteForm = ({
   const [savedFlash, setSavedFlash] = useState(false);
   const latest = useRef({ tagId: "", text: "" });
   const onAutoSaveRef = useRef(onAutoSave);
+  const onUnmountedSaveRef = useRef(onUnmountedSave);
+  const onDraftChangeRef = useRef(onDraftChange);
+  const autoSaveRef = useRef(autoSave);
   // Shared save lock for autosave ticks and submit: overlapping
   // writes could POST two notes for one draft (or let stale text
   // win over a submit), so both paths must respect it.
@@ -68,7 +86,16 @@ const NoteForm = ({
   useEffect(() => {
     latest.current = { tagId: selectedTagId, text: noteText };
     onAutoSaveRef.current = onAutoSave;
+    onUnmountedSaveRef.current = onUnmountedSave;
+    onDraftChangeRef.current = onDraftChange;
+    autoSaveRef.current = autoSave;
   });
+
+  // Keep the parent-owned draft object in sync — a reopened
+  // modal restores `note` from it.
+  useEffect(() => {
+    onDraftChangeRef.current?.(selectedTagId, noteText);
+  }, [selectedTagId, noteText]);
 
   // Sync on the primitive fields, not the `note` object itself:
   // every call site passes a fresh inline object each render, so
@@ -89,13 +116,40 @@ const NoteForm = ({
     null
   );
 
+  // Unmount = the modal closed (Mantine unmounts content, and
+  // parents drop the modal itself). Flush the unsaved tail so
+  // a close inside the autosave window does not drop the last
+  // seconds of typing.
+  useEffect(
+    () => () => {
+      const save = onAutoSaveRef.current;
+      if (!save || !autoSaveRef.current) return;
+      const { tagId, text } = latest.current;
+      if (!tagId || !toPlainText(text).trim()) return;
+      const last = lastSavedRef.current;
+      if (last && last.tagId === tagId && last.text === text) {
+        return;
+      }
+      // Chain behind an in-flight save — the draft's note id
+      // only exists once its POST resolves.
+      const chain = inFlightRef.current ?? Promise.resolve();
+      void chain
+        .then(() => save(tagId, text))
+        .then(() => onUnmountedSaveRef.current?.())
+        .catch((error) => console.error(error));
+    },
+    []
+  );
+
   useEffect(() => {
     if (!autoSave) return;
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
       const { tagId, text } = latest.current;
-      if (!toPlainText(text).trim()) return;
+      // Skip empty text AND empty tag — the latter used to POST
+      // `tag: ''` every 5s, generating a stream of silent 400s.
+      if (!tagId || !toPlainText(text).trim()) return;
       const last = lastSavedRef.current;
       if (last && last.tagId === tagId && last.text === text) {
         return;
@@ -128,6 +182,23 @@ const NoteForm = ({
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
+    // Guard empty submissions — the API would reject the note.
+    if (!selectedTagId) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Please choose a tag.',
+        color: 'red',
+      });
+      return;
+    }
+    if (!toPlainText(noteText).trim()) {
+      showNotification({
+        title: 'Cannot save note',
+        message: 'Note text is required.',
+        color: 'red',
+      });
+      return;
+    }
     // Wait for an in-flight autosave first: the parent then sees
     // the created note id and PATCHes instead of POSTing a
     // duplicate. Holding the lock while submitting also keeps an
@@ -138,26 +209,31 @@ const NoteForm = ({
         inFlightRef,
         Promise.resolve(onSubmit(selectedTagId, noteText))
       );
+      // The submitted content is persisted — mark it saved so
+      // the unmount flush does not rewrite it on close.
+      lastSavedRef.current = {
+        tagId: selectedTagId,
+        text: noteText,
+      };
     } catch (error) {
       console.error(error);
     }
   };
-
-  const selectedTagName =
-    tags.find((tag) => tag.id === selectedTagId)?.name || "";
 
   return (
     <form onSubmit={handleSubmit}>
       <Select
         variant="transparent"
         label="Tag"
-        value={selectedTagName}
-        onChange={(item: string) => {
-          const tagId = tags.find((tag) => tag.name === item)?.id;
-          setSelectedTagId(tagId ?? "");
+        value={selectedTagId || null}
+        onChange={(item: string | null) => {
+          setSelectedTagId(item ?? "");
         }}
         onDropdownOpen={onTagDropdownOpen}
-        data={tags.map((tag) => tag.name)}
+        data={tags.map((tag) => ({
+          value: tag.id,
+          label: tag.name,
+        }))}
         searchable
         maxDropdownHeight={window.innerHeight * 0.7}
       />
