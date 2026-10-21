@@ -507,6 +507,21 @@ describe('apiClient', () => {
       ).rejects.toThrow('boom');
       expect(postFetch).toHaveBeenCalledTimes(1);
     });
+
+    it('should not retry network errors on non-idempotent ' +
+      'methods (POST)', async () => {
+        const mockFetch = vi
+          .fn()
+          .mockRejectedValueOnce(new TypeError('Network error'))
+          .mockResolvedValueOnce({ ok: true, status: 200 });
+        vi.stubGlobal('fetch', mockFetch);
+
+        await expect(
+          publicFetch(mockUrl, { method: 'POST' })
+        ).rejects.toThrow('Network error');
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
   });
 
   describe('isAuthenticated', () => {

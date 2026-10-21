@@ -70,9 +70,11 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
+          // requestBody carries the plaintext password — only
+          // ever log it with the password masked (tests pin
+          // this log's shape).
           const requestBody = { username, password };
-          // Mask the password in the log — requestBody carries
-          // the plaintext credential.
+
           console.log('🔐 Login attempt:', {
             url: `${API_BASE_URL}/api/token/`,
             body: { ...requestBody, password: '***' },
@@ -293,7 +295,7 @@ const createAuthStore = () => create<AuthState>()(
         });
         clearNotesCache();
       },
-      
+
       // Clear error
       clearError: () => {
         set({ error: null });

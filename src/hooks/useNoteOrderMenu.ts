@@ -8,7 +8,6 @@ import {
 import { getNoteOrderIndex } from '../api';
 import { useBibleStore } from '../store';
 import type {
-  Note,
   NoteOrderIndexEntry,
   NoteOrderMenuData,
 } from '../types';
@@ -39,16 +38,12 @@ const entryLabel = (
 interface UseNoteOrderMenuOptions {
   tagId: string | undefined;
   sortOrder: SortOrder;
-  /**
-   * The viewed tag belongs to the signed-in user — either it
-   * appears in their tag list, or every loaded note reports
-   * `is_owner === true`. Computed by the route.
-   */
+  /** Full ownership gate from the route — authenticated AND
+   *  (tag in the caller's list OR every loaded note reports
+   *  `is_owner === true`), failing closed on any explicit
+   *  `is_owner === false`. */
   isTagOwner: boolean;
-  /**
-   * The currently loaded page of notes — carries `is_owner`.
-   */
-  notes: Note[];
+  isUntagged: boolean;
 }
 
 interface UseNoteOrderMenuResult {
@@ -78,7 +73,7 @@ export const useNoteOrderMenu = ({
   tagId,
   sortOrder,
   isTagOwner,
-  notes,
+  isUntagged,
 }: UseNoteOrderMenuOptions): UseNoteOrderMenuResult => {
   const moveNoteAfter = useBibleStore(
     (state) => state.moveNoteAfter
@@ -98,20 +93,17 @@ export const useNoteOrderMenu = ({
   // apply out of order.
   const orderIndexRequestRef = useRef(0);
 
-  // The order badge/menu is gated exactly like `isDraggable`:
-  // custom sort + owner. `isTagOwner` is resolved by the
-  // route: the tag appears in the user's own tag list, or
-  // every loaded note reports `is_owner === true`. The loaded
-  // page gets a second, harder check — a note that explicitly
-  // reports `is_owner === false` vetoes reorder even on a tag
-  // in the user's list, since the backend move/reorder
-  // endpoints only touch the requester's own rows (foreign
-  // anchors 400, foreign positions 409). `!== false` keeps
-  // reorder enabled when a payload omits the field entirely.
+  // The order badge/menu is gated like `isDraggable`: custom
+  // sort + ownership, and never on the synthetic untagged view.
+  // `isTagOwner` already fails closed on any explicit
+  // `is_owner === false` (a shared public tag can carry foreign
+  // notes whose move/reorder endpoints 400/409 for the
+  // requester), while a payload that omits the field still
+  // counts as owned via the tag-list check.
   const enabled =
     (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
     isTagOwner &&
-    notes.every((n) => n.is_owner !== false);
+    !isUntagged;
 
   const reloadOrderIndex = useCallback(async () => {
     if (!tagId) return;

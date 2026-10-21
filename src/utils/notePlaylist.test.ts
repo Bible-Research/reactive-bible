@@ -35,8 +35,6 @@ describe('buildNotePlaylistItems', () => {
     ]);
     expect(items).toEqual([
       {
-        // itemId carries the :book:chapter suffix — Audio keys
-        // effects on it; `scope` keeps the note-level identity.
         itemId: 'n1:JHN:3',
         scope: 'n1',
         bookId: 'JHN',
@@ -73,7 +71,10 @@ describe('buildNotePlaylistItems', () => {
         verse('John', 3, 17),
       ]),
     ]);
+    expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
+      itemId: 'n1:JHN:3',
+      scope: 'n1',
       chapter: 3,
       startVerse: 16,
       endVerse: 18,
@@ -82,23 +83,24 @@ describe('buildNotePlaylistItems', () => {
     });
   });
 
-  it('splits a multi-chapter note into one item per ' +
-    'book+chapter block', () => {
-    // Verses outside the first verse's chapter used to be
-    // silently dropped from playback — they now form their
-    // own blocks sharing the note's scope.
+  it('emits one item per book+chapter block for a spanning ' +
+    'note, sharing the note id as scope', () => {
     const items = buildNotePlaylistItems([
       note('n1', [
         verse('John', 3, 16),
         verse('John', 4, 1),
+        verse('John', 4, 2),
         verse('Mark', 1, 1),
       ]),
     ]);
+    expect(items).toHaveLength(3);
     expect(items.map((i) => i.itemId)).toEqual([
       'n1:JHN:3',
       'n1:JHN:4',
       'n1:MRK:1',
     ]);
+    // Every block carries the note id as scope so callers can
+    // map an item back to its note.
     expect(items.map((i) => i.scope)).toEqual([
       'n1',
       'n1',
@@ -111,10 +113,17 @@ describe('buildNotePlaylistItems', () => {
       endVerse: 16,
       verseNumbers: [16],
     });
+    expect(items[1]).toMatchObject({
+      bookId: 'JHN',
+      chapter: 4,
+      startVerse: 1,
+      endVerse: 2,
+      verseNumbers: [1, 2],
+    });
     expect(items[2]).toMatchObject({
       bookId: 'MRK',
       chapter: 1,
-      label: 'Note 1/1 – Mark 1:1',
+      verseNumbers: [1],
     });
   });
 
@@ -124,5 +133,6 @@ describe('buildNotePlaylistItems', () => {
       note('n1', [verse('Notabook', 1, 1)]),
     ]);
     expect(items[0].bookId).toBe('Notabook');
+    expect(items[0].itemId).toBe('n1:Notabook:1');
   });
 });
