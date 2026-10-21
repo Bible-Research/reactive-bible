@@ -205,6 +205,19 @@ describe('LoginPage', () => {
     expect(useAuthStore.getState().error).toBeNull();
   });
 
+  it('should clear a stale auth error on mount', () => {
+    renderWithProviders(<LoginPage />, {
+      authStoreState: { error: 'Stale error' },
+    });
+
+    // The mount effect calls clearError — the stale error
+    // must not render.
+    expect(
+      screen.queryByText('Stale error')
+    ).not.toBeInTheDocument();
+    expect(useAuthStore.getState().error).toBeNull();
+  });
+
   it('should disable the form while the store is loading', () => {
     renderWithProviders(<LoginPage />, {
       authStoreState: { isLoading: true },

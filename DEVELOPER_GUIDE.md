@@ -419,7 +419,8 @@ npm test -- src/routes/BibleRoute.test.tsx
   book/chapter blocks produces one playlist item per block
 - In custom sort on an owned tag, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
-  of every note in the tag — see "Note order badges & moves"
+  of every note in the tag and the list is dnd-kit
+  reorderable — see "Note order badges & moves"
   under Note Taking & Tagging. Reorder UI additionally
   requires tag ownership (`isTagOwner`: the viewed tag is in
   the caller's own list, or every loaded note reports

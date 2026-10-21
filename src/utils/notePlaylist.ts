@@ -1,24 +1,31 @@
 import type { Note, PlaylistItem } from '../types';
 import { toUsfmCode } from './bibleUtils';
 
+/** Notes that can actually produce playlist items — the same
+ *  filtered set the playlist and play-from index are built
+ *  from. */
+export const playableNotes = (notes: Note[]): Note[] =>
+  notes.filter((n) => (n.verses?.length ?? 0) > 0);
+
 /**
- * Builds audio playlist items from notes in display order.
- * Notes without verses are skipped. A note whose verses span
- * several chapters emits ONE ITEM PER contiguous book+chapter
- * block — the pre-block version truncated to the first block
- * and silently dropped the rest from playback.
+ * Builds audio playlist items from notes in display order —
+ * one item per book+chapter block. A note whose verses span
+ * several chapters used to be truncated to its first block;
+ * the later blocks were silently dropped from playback.
+ * `itemId` suffixes the note id with `book:chapter` so Audio's
+ * navigation/highlight effects (keyed on itemId) re-run when
+ * playback crosses a block boundary, while `scope` keeps DOM
+ * and highlight identity at the note level.
  * Labels read `Note i/n – Book C:V[-V]` where i/n is the
  * position within the playable (verse-bearing) subset.
  */
 export const buildNotePlaylistItems = (
   notes: Note[]
 ): PlaylistItem[] => {
-  const playableNotes = notes.filter(
-    (n) => (n.verses?.length ?? 0) > 0
-  );
-  return playableNotes.flatMap((note, noteIndex) => {
-    const blocks = new Map<string, NonNullable<Note['verses']>>();
-    for (const v of note.verses ?? []) {
+  const playable = playableNotes(notes);
+  return playable.flatMap((note, noteIndex) => {
+    const blocks = new Map<string, Note['verses']>();
+    for (const v of note.verses) {
       const key = `${v.book}|${v.chapter}`;
       const block = blocks.get(key);
       if (block) {
@@ -35,7 +42,7 @@ export const buildNotePlaylistItems = (
       const startVerse = Math.min(...verseNumbers);
       const endVerse = Math.max(...verseNumbers);
       const label =
-        `Note ${noteIndex + 1}/${playableNotes.length} ` +
+        `Note ${noteIndex + 1}/${playable.length} ` +
         `– ${firstVerse.book} ` +
         `${firstVerse.chapter}:${startVerse}` +
         (startVerse !== endVerse ? `-${endVerse}` : '');

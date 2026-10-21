@@ -14,7 +14,6 @@ module.exports = {
   },
   reportUnusedDisableDirectives: true,
   plugins: ['react-refresh'],
-  reportUnusedDisableDirectives: true,
   rules: {
     'react-refresh/only-export-components': 'warn',
     // Repo convention: max 79 chars per line (AGENTS.md).

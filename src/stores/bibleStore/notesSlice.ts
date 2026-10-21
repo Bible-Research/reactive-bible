@@ -348,10 +348,10 @@ export const createNotesSlice: StateCreator<
 
         // The dense integers we sent are interim: the server
         // may rebalance to float positions, and cached pages
-        // still hold the pre-reorder order. Refresh so the
-        // visible positions are the server's authoritative
-        // ones. Best-effort — fetchNotes notifies on its own
-        // failure.
+        // still hold the pre-reorder order (api.reorderNotes
+        // already invalidated them). Refresh so the visible
+        // positions are the server's authoritative ones.
+        // Best-effort — fetchNotes notifies on its own failure.
         await refreshNotesPage(tagId).catch(() => {
           /* fetchNotes already notified the failure */
         });

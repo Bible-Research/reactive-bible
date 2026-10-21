@@ -122,6 +122,9 @@ export const reorderNotes = async (
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'Reorder failed');
   }
+
+  // Reordered pages must not keep serving the pre-reorder order.
+  clearNotesCache(tagId);
 };
 
 /**
@@ -195,7 +198,10 @@ export const moveNote = async (
     );
   }
 
-  return await response.json();
+  const result: MoveNoteResponse = await response.json();
+  // A move changes page membership/positions for the tag.
+  clearNotesCache(tagId);
+  return result;
 };
 
 /**

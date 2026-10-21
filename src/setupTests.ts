@@ -32,11 +32,20 @@ vi.mock('@vercel/speed-insights/react', () => ({
   SpeedInsights: () => null,
 }));
 
+// Restore the MSW-intercepted fetch (captured after listen())
+// each test — tests that assign `global.fetch = vi.fn()`
+// directly (rather than vi.stubGlobal) would otherwise leak
+// their replacement into later tests, silently bypassing MSW.
+let interceptedFetch: typeof fetch;
+
 // Establish API mocking before all tests. 'error' (not 'warn')
 // fails any test whose code path hits an endpoint with no
 // matching handler — proof that every production egress is
 // covered by src/mocks/handlers.ts.
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' });
+  interceptedFetch = globalThis.fetch;
+});
 
 // Reset any request handlers that we may add during the tests,
 // so they don't affect other tests.
@@ -58,6 +67,7 @@ afterEach(() => {
 // guarded by the `?.`/`initialState` checks.
 beforeEach(async () => {
   localStorage.clear();
+  globalThis.fetch = interceptedFetch;
 
   // try/catch: a test file may factory-mock the module without
   // the export — merely accessing it then throws (vitest).
