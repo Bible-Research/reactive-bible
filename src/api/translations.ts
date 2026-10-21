@@ -89,6 +89,22 @@ export const getAvailableTranslations = async (
         failure:
           `Failed to fetch translations ` +
           `(HTTP ${response.status})`,
+      }).catch((err: unknown) => {
+        // Every non-OK from this endpoint is a provider
+        // failure — a codeless body must still surface as
+        // the typed ProviderError, not a plain Error.
+        if (
+          err instanceof RateLimitError ||
+          err instanceof ProviderError
+        ) {
+          throw err;
+        }
+        throw new ProviderError(
+          err instanceof Error
+            ? err.message
+            : `Failed to fetch translations ` +
+              `(HTTP ${response.status})`
+        );
       });
     }
     const data = await response.json();

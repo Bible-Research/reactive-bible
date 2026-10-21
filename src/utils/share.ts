@@ -57,12 +57,19 @@ export const shareOrCopyLink = async (
     }
   }
 
-  // copyTextToClipboard's execCommand fallback covers
-  // http/non-secure contexts where navigator.clipboard is
-  // unavailable.
-  if (await copyTextToClipboard(content.url)) {
+  try {
+    await navigator.clipboard.writeText(content.url);
     showNotification({ ...options.copySuccess, color: 'blue' });
-  } else {
+    return;
+  } catch (err) {
+    // copyTextToClipboard's execCommand fallback covers
+    // http/non-secure contexts (and older webviews) where the
+    // Clipboard API is missing or denied.
+    if (await copyTextToClipboard(content.url)) {
+      showNotification({ ...options.copySuccess, color: 'blue' });
+      return;
+    }
+    console.error('Error copying to clipboard:', err);
     if (options.copyFailure) {
       showNotification({ ...options.copyFailure, color: 'red' });
     }

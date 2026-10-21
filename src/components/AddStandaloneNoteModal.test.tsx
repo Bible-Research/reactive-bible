@@ -16,6 +16,7 @@ import {
 import AddStandaloneNoteModal from './AddStandaloneNoteModal';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
+import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import * as api from '../api';
 import {
   isTiptapDocString,
@@ -39,6 +40,9 @@ vi.mock('./RichTextEditor', async () => ({
 describe('AddStandaloneNoteModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Editor drafts are module-scoped — reset them between
+    // tests.
+    resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
       { id: '1', name: 'Faith', parent_tag: null,
@@ -116,7 +120,10 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       fireEvent.change(await screen.findByLabelText('Note'), {
@@ -169,7 +176,10 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       fireEvent.change(await screen.findByLabelText('Note'), {

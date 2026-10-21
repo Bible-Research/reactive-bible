@@ -145,21 +145,13 @@ const NoteCardActions = ({
           </Box>
         </Tooltip>
       )}
-      {onPlayFromNote && (
-        <Tooltip
-          label={
-            canPlay
-              ? 'Play from here'
-              : 'No verses to play'
-          }
-          position="top"
-        >
+      {canPlay && onPlayFromNote && (
+        <Tooltip label="Play from here" position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
             <ActionIcon
               variant="subtle"
               size="sm"
               color="blue"
-              disabled={!canPlay}
               onClick={() => onPlayFromNote(note.id)}
               aria-label={`play-from-${note.id}`}
             >
