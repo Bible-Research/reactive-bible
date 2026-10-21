@@ -982,9 +982,7 @@ describe('useBibleStore', () => {
       'successful reorder', async () => {
       mockCacheManager.getCachedNotes.mockReturnValue(null);
       mockApi.reorderNotes.mockResolvedValue(undefined);
-      mockApi.getNotes.mockResolvedValue(
-        notePageOf([makeNote('n2')])
-      );
+      mockApi.getNotes.mockResolvedValue(notePageOf([makeNote('n2')]));
       useBibleStore.setState({
         notes: [makeNote('n1'), makeNote('n2')],
         notesPage: 2,

@@ -24,7 +24,7 @@ export default function LegacyBibleRedirect() {
   useEffect(() => {
     const bookId = book ? toUsfmCode(book) : null;
     if (!bookId || !chapterVerse) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
 
@@ -41,7 +41,7 @@ export default function LegacyBibleRedirect() {
       chapter < 1 ||
       chapter > getChapterCount(bookId)
     ) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
 
@@ -49,10 +49,10 @@ export default function LegacyBibleRedirect() {
       ? decodeVerses(verseStr, getMaxVerse(bookId, chapter))
       : undefined;
     if (verseStr && (!verses || verses.length === 0)) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
-    navigate(buildBiblePath(bookId, chapter, verses), {
+    void navigate(buildBiblePath(bookId, chapter, verses), {
       replace: true,
     });
   }, [book, chapterVerse, navigate]);

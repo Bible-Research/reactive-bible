@@ -40,7 +40,7 @@ export default function BibleRoute() {
   // Always refresh tags when navigating to this route
   useEffect(() => {
     if (isAuthenticated) {
-      getTags(true); // Force refresh to get latest tags
+      void getTags(true); // Force refresh to get latest tags
     }
   }, [getTags, isAuthenticated]);
 
@@ -56,17 +56,17 @@ export default function BibleRoute() {
     setVersesFolded(false);
 
     if (ref === undefined) {
-      navigate(`/bible/${activeBookId}.${activeChapter}`, {
+      void navigate(`/bible/${activeBookId}.${activeChapter}`, {
         replace: true,
       });
       return;
     }
     if (!parsed) {
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
     if (parsed.needsRedirect) {
-      navigate(`/bible/${parsed.canonical}`, { replace: true });
+      void navigate(`/bible/${parsed.canonical}`, { replace: true });
       return;
     }
     if (

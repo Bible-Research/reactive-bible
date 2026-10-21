@@ -268,9 +268,10 @@ export const useChapterAudio = (
   const goToChapter = useCallback(
     (target: { bookId: string; chapter: number }) => {
       if (location.pathname.startsWith('/bible')) {
-        navigate(buildBiblePath(target.bookId, target.chapter), {
-          replace: true,
-        });
+        void navigate(
+          buildBiblePath(target.bookId, target.chapter),
+          { replace: true },
+        );
       } else {
         useBibleStore
           .getState()
@@ -680,7 +681,7 @@ export const useChapterAudio = (
   });
 
   // Reset chapter audio when chapter/book/version/mode changes —
-  // playlist mode also routes here to dispose the chapter Howl.
+  // playlist mode routes here for a full chapter-engine teardown.
   useEffect(() => {
     // Every run means the passage or mode changed — supersede any
     // chapter load still in flight; its post-await token check
@@ -774,7 +775,7 @@ export const useChapterAudio = (
       activeBookId,
     );
     if (!tsFilesetId) return;
-    getAudioTimestamps(
+    void getAudioTimestamps(
       activeBookId,
       activeChapter,
       tsFilesetId,
@@ -981,11 +982,11 @@ export const useChapterAudio = (
             // not the previous chapter's (already consumed) list.
             const adopted = candidates.indexOf(resolved.filesetId);
             fallbackRef.current = {
-              bookId: activeBookId,
-              chapter: activeChapter,
               seq,
               ids: candidates,
               nextIndex: adopted >= 0 ? adopted + 1 : 1,
+              bookId: activeBookId,
+              chapter: activeChapter,
             };
           } else {
             if (pre) discardPreloaded();

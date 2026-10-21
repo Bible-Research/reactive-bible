@@ -66,7 +66,7 @@ export default function NoteDetailRoute() {
         setLoading(false);
       }
     };
-    load();
+    void load();
     return () => {
       cancelled = true;
       setDetailNote(null);
@@ -78,7 +78,7 @@ export default function NoteDetailRoute() {
     chapter: number,
     verse: number,
   ) => {
-    navigate(buildBiblePath(book, chapter, [verse]));
+    void navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
   };
 

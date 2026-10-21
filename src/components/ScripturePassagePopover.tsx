@@ -110,7 +110,7 @@ const ScripturePassagePopover = ({
   const openInBible = () => {
     if (!reference) return;
     onCloseRef.current();
-    navigate(
+    void navigate(
       buildBiblePath(
         reference.book,
         reference.chapter,

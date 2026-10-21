@@ -130,7 +130,7 @@ const CommentImageGrid = ({
                 label={`Delete image ${img.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onDeleteImage(commentId, img.id);
+                  void onDeleteImage(commentId, img.id);
                 }}
               />
             )}

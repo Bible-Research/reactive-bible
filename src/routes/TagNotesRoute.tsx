@@ -88,8 +88,10 @@ export default function TagNotesRoute() {
   // tags check an owner would lose drag/order/edit/delete on
   // their own tag. For foreign public tags keep the strict
   // every-note `is_owner === true` fallback so write affordances
-  // stay hidden once the backend ships the field — and any
-  // explicit `is_owner === false` fails closed outright.
+  // stay hidden once the backend ships the field. An explicit
+  // `is_owner === false` on ANY loaded note fails closed even
+  // when the tag sits in the caller's list — the backend
+  // move/reorder endpoints only touch the requester's rows.
   const isTagOwner =
     isAuthenticated &&
     notes.every((n) => n.is_owner !== false) &&
@@ -105,6 +107,8 @@ export default function TagNotesRoute() {
   } = useNoteOrderMenu({
     tagId,
     sortOrder,
+    // Reorder is meaningless on the virtual "untagged" view even
+    // when every listed note is owned — the hook disables it.
     isTagOwner,
     isUntagged,
   });
@@ -152,13 +156,13 @@ export default function TagNotesRoute() {
     chapter: number,
     verse: number
   ) => {
-    navigate(buildBiblePath(book, chapter, [verse]));
+    void navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
   };
 
   const handleTagChange = (value: string | null) => {
     if (value && value !== tagId) {
-      navigate(`/notes/tag/${value}`);
+      void navigate(`/notes/tag/${value}`);
     }
   };
 

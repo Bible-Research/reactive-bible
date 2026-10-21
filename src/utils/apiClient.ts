@@ -116,9 +116,11 @@ const throwForbidden = (): never => {
  *
  * DRF runs authentication before permission checks, so an expired
  * token makes even `AllowAny` endpoints return 401 — worse than
- * anonymous. If the request carried a token and still returns
- * 401, it is retried once without the Authorization header —
- * a bad token must not break public content.
+ * anonymous. On a 401 with a token attached, the request is
+ * retried once without the Authorization header so public reads
+ * degrade to anonymous instead of breaking. The token is
+ * deliberately kept in the store: publicFetch must never destroy
+ * the session (that is authenticatedFetch's job).
  *
  * @param url - The URL to fetch
  * @param options - Fetch options
@@ -256,6 +258,39 @@ export const authenticatedUpload = async (
   }
 
   return response;
+};
+
+type Fetcher = (
+  url: string,
+  options?: RequestInit,
+  retries?: number
+) => Promise<Response>;
+
+/**
+ * Shared fetch→JSON boilerplate for endpoints whose failure
+ * handling is just "throw on !ok, log, rethrow": runs
+ * `fetcher`, throws `Error(fallbackMessage)` on a non-OK
+ * status, and returns the parsed body. Endpoints with richer
+ * error contracts — typed provider errors, 409/error-body
+ * reads, 204 no-content, swallowed failures — keep their own
+ * handling and should not use this helper.
+ */
+export const fetchJson = async <T>(
+  fetcher: Fetcher,
+  url: string,
+  fallbackMessage: string,
+  options?: RequestInit
+): Promise<T> => {
+  try {
+    const response = await fetcher(url, options);
+    if (!response.ok) {
+      throw new Error(fallbackMessage);
+    }
+    return (await response.json()) as T;
+  } catch (error) {
+    console.error(`${fallbackMessage}:`, error);
+    throw error;
+  }
 };
 
 /**

@@ -15,10 +15,7 @@ import {
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { publicFetch } from '../utils/apiClient';
-import {
-  getAdjacentChapters,
-  getChapters,
-} from './structure';
+import { getAdjacentChapters, getChapters } from './structure';
 import {
   BookNotInFilesetError,
   ProviderError,
@@ -257,11 +254,11 @@ export const prefetchAdjacentChapters = async (
   };
 
   if (previous) {
-    prefetch(
+    void prefetch(
       previous.bookId, previous.chapter, filesetId, 'previous'
     );
   }
   if (next) {
-    prefetch(next.bookId, next.chapter, filesetId, 'next');
+    void prefetch(next.bookId, next.chapter, filesetId, 'next');
   }
 };

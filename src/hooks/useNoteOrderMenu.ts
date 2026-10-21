@@ -127,7 +127,7 @@ export const useNoteOrderMenu = ({
   // Refetched after every move via the handlers below.
   useEffect(() => {
     if (enabled) {
-      reloadOrderIndex();
+      void reloadOrderIndex();
     } else {
       // Invalidate any in-flight fetch before clearing.
       orderIndexRequestRef.current += 1;

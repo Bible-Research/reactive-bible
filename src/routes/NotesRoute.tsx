@@ -66,16 +66,13 @@ export default function NotesRoute() {
         );
 
         if (!targetTagId) {
-          // New accounts have no tags yet — show a real empty
-          // state instead of spinning forever.
+          // No tags — stay on /notes and show the empty state.
           setStatus('empty');
           return;
         }
 
         hasNavigatedRef.current = true;
-        void navigate(`/notes/tag/${targetTagId}`, {
-          replace: true,
-        });
+        void navigate(`/notes/tag/${targetTagId}`, { replace: true });
       } catch (error) {
         if (cancelled) return;
         console.error('Error loading tags:', error);

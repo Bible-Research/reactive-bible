@@ -10,28 +10,19 @@ import type {
 import {
   authenticatedFetch,
   authenticatedUpload,
+  fetchJson,
   publicFetch,
 } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
 
-export const fetchComments = async (
-  noteId: string
-): Promise<Comment[]> => {
-  try {
-    const response = await publicFetch(
-      `${API_BASE_URL}/api/v1/notes/${noteId}/comments/`
-    );
-    if (!response.ok) {
-      throw new Error('Failed to fetch comments');
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching comments:', error);
-    throw error;
-  }
-};
+export const fetchComments = (noteId: string): Promise<Comment[]> =>
+  fetchJson<Comment[]>(
+    publicFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/`,
+    'Failed to fetch comments'
+  );
 
-export const createComment = async (
+export const createComment = (
   noteId: string,
   content: string,
   parentCommentId?: string | null
@@ -40,46 +31,31 @@ export const createComment = async (
   if (parentCommentId) {
     body.parent_comment = parentCommentId;
   }
-  try {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/api/v1/notes/${noteId}/comments/`,
-      {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to create comment');
+  return fetchJson<Comment>(
+    authenticatedFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/`,
+    'Failed to create comment',
+    {
+      method: 'POST',
+      body: JSON.stringify(body),
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Error creating comment:', error);
-    throw error;
-  }
+  );
 };
 
-export const updateComment = async (
+export const updateComment = (
   noteId: string,
   commentId: string,
   content: string
-): Promise<Comment> => {
-  try {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ content }),
-      }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to update comment');
+): Promise<Comment> =>
+  fetchJson<Comment>(
+    authenticatedFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/`,
+    'Failed to update comment',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ content }),
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating comment:', error);
-    throw error;
-  }
-};
+  );
 
 export const deleteComment = async (
   noteId: string,
@@ -133,18 +109,16 @@ export const deleteImage = async (
   }
 };
 
-export const fetchCommentImages = async (
+export const fetchCommentImages = (
   noteId: string,
   commentId: string,
-): Promise<CommentImage[]> => {
-  const response = await publicFetch(
-    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/${commentId}/images/`,
+): Promise<CommentImage[]> =>
+  fetchJson<CommentImage[]>(
+    publicFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/comments/` +
+      `${commentId}/images/`,
+    'Failed to fetch images.'
   );
-  if (!response.ok) {
-    throw new Error('Failed to fetch images.');
-  }
-  return response.json();
-};
 
 export const fetchCommentCounts = async (params: {
   tagId?: string;
@@ -172,35 +146,30 @@ export const fetchCommentCounts = async (params: {
   const fetchBatch = async (
     ids?: string
   ): Promise<CommentCounts> => {
-    const response = await publicFetch(buildUrl(ids));
-    if (!response.ok) {
-      throw new Error('Failed to fetch comment counts');
-    }
-    const data = await response.json();
-    return data.counts as CommentCounts;
+    const data = await fetchJson<{ counts: CommentCounts }>(
+      publicFetch,
+      buildUrl(ids),
+      'Failed to fetch comment counts'
+    );
+    return data.counts;
   };
 
-  try {
-    if (tagId) {
-      return await fetchBatch();
-    }
-    if (!noteIds || noteIds.length === 0) {
-      return await fetchBatch();
-    }
-    const CHUNK_SIZE = 200;
-    if (noteIds.length <= CHUNK_SIZE) {
-      return await fetchBatch(noteIds.join(','));
-    }
-    const chunks: string[][] = [];
-    for (let i = 0; i < noteIds.length; i += CHUNK_SIZE) {
-      chunks.push(noteIds.slice(i, i + CHUNK_SIZE));
-    }
-    const results = await Promise.all(
-      chunks.map((chunk) => fetchBatch(chunk.join(',')))
-    );
-    return Object.assign({}, ...results) as CommentCounts;
-  } catch (error) {
-    console.error('Error fetching comment counts:', error);
-    throw error;
+  if (tagId) {
+    return fetchBatch();
   }
+  if (!noteIds || noteIds.length === 0) {
+    return fetchBatch();
+  }
+  const CHUNK_SIZE = 200;
+  if (noteIds.length <= CHUNK_SIZE) {
+    return fetchBatch(noteIds.join(','));
+  }
+  const chunks: string[][] = [];
+  for (let i = 0; i < noteIds.length; i += CHUNK_SIZE) {
+    chunks.push(noteIds.slice(i, i + CHUNK_SIZE));
+  }
+  const results = await Promise.all(
+    chunks.map((chunk) => fetchBatch(chunk.join(',')))
+  );
+  return Object.assign({}, ...results) as CommentCounts;
 };

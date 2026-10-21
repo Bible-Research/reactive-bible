@@ -14,42 +14,35 @@ import type {
 } from '../types';
 import {
   authenticatedFetch,
+  fetchJson,
   publicFetch,
 } from '../utils/apiClient';
-import { clearNotesCache } from '../utils/cacheManager';
 import { API_BASE_URL } from '../config';
+import { clearNotesCache } from '../utils/cacheManager';
 import { ConflictError } from './errors';
 
 export const addTagNote = async (
   tagId: string,
   tagNoteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[]
-) => {
-  const body = JSON.stringify({
-    tag: tagId,
-    note_text: tagNoteText,
-    verse_references: verseReferences
-  });
-  try {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/api/v1/notes/`,
-      {
-        method: 'POST',
-        body: body,
-      }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to create note');
+): Promise<Note> => {
+  const created = await fetchJson<Note>(
+    authenticatedFetch,
+    `${API_BASE_URL}/api/v1/notes/`,
+    'Failed to create note',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        tag: tagId,
+        note_text: tagNoteText,
+        verse_references: verseReferences,
+      }),
     }
-    const created = await response.json();
-    // A new note changes the tag's cached pages (membership and
-    // ordering shift) — invalidate so a cached page can't hide it.
-    clearNotesCache(tagId);
-    return created;
-  } catch (error) {
-    console.error('Error creating note:', error);
-    throw error;
-  }
+  );
+  // A new note changes the tag's cached pages (membership and
+  // ordering shift) — invalidate so a cached page can't hide it.
+  clearNotesCache(tagId);
+  return created;
 };
 
 export const editNote = async (
@@ -57,36 +50,28 @@ export const editNote = async (
   tagId: string,
   noteText: string,
   verseReferences?: { book: string; chapter: number; verse: number }[]
-) => {
-  // verse_references replaces the note's verse links when present;
-  // omitting it leaves them untouched.
-  const body = JSON.stringify({
-    tag: tagId,
-    note_text: noteText,
-    ...(verseReferences !== undefined
-      ? { verse_references: verseReferences }
-      : {}),
-  });
-  try {
-    const response = await authenticatedFetch(
-      `${API_BASE_URL}/api/v1/notes/${noteId}/`,
-      {
-        method: 'PATCH',
-        body: body,
-      }
-    );
-    if (!response.ok) {
-      throw new Error('Failed to update note');
+): Promise<Note> => {
+  // verse_references replaces the note's verse links when
+  // present; omitting it leaves them untouched.
+  const updated = await fetchJson<Note>(
+    authenticatedFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/`,
+    'Failed to update note',
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        tag: tagId,
+        note_text: noteText,
+        ...(verseReferences !== undefined
+          ? { verse_references: verseReferences }
+          : {}),
+      }),
     }
-    const updated = await response.json();
-    // The note may have moved to a different tag — its previous
-    // tag's cached pages are stale too, so invalidate broadly.
-    clearNotesCache();
-    return updated;
-  } catch (error) {
-    console.error('Error updating note:', error);
-    throw error;
-  }
+  );
+  // The note may have moved to a different tag — its previous
+  // tag's cached pages are stale too, so invalidate broadly.
+  clearNotesCache();
+  return updated;
 };
 
 export const deleteNote = async (noteId: string) => {
@@ -104,8 +89,8 @@ export const deleteNote = async (noteId: string) => {
     clearNotesCache();
     // 204 No Content response
     return response.status === 204 ? '' : await response.text();
-  } catch (error) {
-    console.error('Error deleting note:', error);
+  } catch (err) {
+    console.error('Error deleting note:', err);
     throw new Error('Failed to delete your note, please try again');
   }
 }
@@ -261,19 +246,12 @@ export const getNotes = async (
 
   const url = `${API_BASE_URL}/api/v1/notes/?${params.toString()}`;
 
-  try {
-    const response = await publicFetch(url);
-    if (!response.ok) {
-      throw new Error('Failed to fetch notes');
-    }
-    const data = await response.json();
-
-    // API returns paginated response
-    return data;
-  } catch (error) {
-    console.error('Error fetching notes:', error);
-    throw error;
-  }
+  // API returns paginated response
+  return fetchJson<PaginatedNotesResponse>(
+    publicFetch,
+    url,
+    'Failed to fetch notes'
+  );
 };
 
 export const getLinkedNotes = async (
@@ -288,34 +266,22 @@ export const getLinkedNotes = async (
   const url =
     `${API_BASE_URL}/api/v1/notes/linked/` +
     (query ? `?${query}` : '');
-  try {
-    const response = await authenticatedFetch(url, {
+  return fetchJson<LinkedNotesResponse>(
+    authenticatedFetch,
+    url,
+    'Failed to fetch linked notes',
+    {
       method: 'POST',
       body: JSON.stringify({
         verse_references: verseReferences,
       }),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch linked notes');
     }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching linked notes:', error);
-    throw error;
-  }
+  );
 };
 
-export const getNote = async (noteId: string): Promise<Note> => {
-  try {
-    const response = await publicFetch(
-      `${API_BASE_URL}/api/v1/notes/${noteId}/`
-    );
-    if (!response.ok) {
-      throw new Error('Failed to fetch note');
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching note:', error);
-    throw error;
-  }
-};
+export const getNote = (noteId: string): Promise<Note> =>
+  fetchJson<Note>(
+    publicFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/`,
+    'Failed to fetch note'
+  );

@@ -39,8 +39,9 @@ interface NoteCardActionsProps {
   /** Optional `#k` order badge + move dropdown node. */
   orderMenuNode?: ReactNode;
   /**
-   * Caller knows the viewed tag belongs to the user — covers
-   * production notes that omit `is_owner`.
+   * True when the viewed tag is in the caller's own tag list.
+   * Production notes do not send `is_owner` yet — without this,
+   * owners could not edit/delete notes on their own tags.
    */
   isTagOwner?: boolean;
   /** Layout hook for the folded vs unfolded call sites. */
@@ -74,8 +75,7 @@ const NoteCardActions = ({
   // `is_owner`; the strict `is_owner === true` half keeps
   // foreign tags read-only once the backend ships the field —
   // fail closed rather than offering edit/delete that will 403.
-  const ownsNote =
-    isTagOwner === true || note.is_owner === true;
+  const ownsNote = isTagOwner === true || note.is_owner === true;
   const canEdit = isAuthenticated && ownsNote && !!onEdit;
   const canDelete = isAuthenticated && ownsNote && !!onDelete;
   const canShare = note.public;

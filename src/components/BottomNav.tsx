@@ -10,7 +10,7 @@ import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore, selectActiveBookName } from "../store";
-import { getAdjacentChapters } from "../api";
+import { getAdjacentChapters } from "../api/structure";
 import { buildBiblePath } from "../utils/bibleUtils";
 
 interface BottomNavProps {
@@ -45,12 +45,12 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
 
   const prevHandler = () => {
     if (previous === null) return;
-    navigate(buildBiblePath(previous.bookId, previous.chapter));
+    void navigate(buildBiblePath(previous.bookId, previous.chapter));
   };
 
   const nextHandler = () => {
     if (next === null) return;
-    navigate(buildBiblePath(next.bookId, next.chapter));
+    void navigate(buildBiblePath(next.bookId, next.chapter));
   };
 
   return (
@@ -83,12 +83,10 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         >
           <IconArrowLeft size={rem(20)} />
         </ActionIcon>
-        <Title order={4}>
+        <Title order={4} title="nav-current-passage">
           <UnstyledButton
             onClick={() => setBibleSelectorOpened(true)}
-            title="nav-current-passage"
             sx={{
-              cursor: "pointer",
               minWidth: "120px",
               textAlign: "center",
               font: "inherit",
