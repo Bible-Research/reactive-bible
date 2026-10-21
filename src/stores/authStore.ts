@@ -70,9 +70,13 @@ const createAuthStore = () => create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          // Never log requestBody — it carries the plaintext
-          // password.
+          // Never log requestBody itself — it carries the
+          // plaintext password; the masked copy is safe.
           const requestBody = { username, password };
+          console.log('🔐 Login attempt:', {
+            url: `${API_BASE_URL}/api/token/`,
+            body: { ...requestBody, password: '***' },
+          });
 
           const response = await fetch(`${API_BASE_URL}/api/token/`, {
             method: 'POST',

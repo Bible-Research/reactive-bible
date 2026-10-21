@@ -226,7 +226,10 @@ describe('AddStandaloneNoteModal Component', () => {
         <AddStandaloneNoteModal
           opened={true}
           onClose={vi.fn()}
-        />
+        />,
+        // Autosave skips tagless drafts — give the form a
+        // selected tag via the store.
+        { storeOverrides: { lastSelectedTagId: '1' } }
       );
 
       const noteInput = await screen.findByLabelText('Note');
