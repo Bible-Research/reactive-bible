@@ -10,22 +10,29 @@ import {
 import { IconPlus, IconRefresh } from '@tabler/icons-react';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { shallow } from 'zustand/shallow';
 
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {
   const navigate = useNavigate();
   const hasNavigatedRef = useRef(false);
-  const lastSelectedTagId = useBibleStore(
-    (state) => state.lastSelectedTagId
+  const { lastSelectedTagId, getTags } = useBibleStore(
+    (state) => ({
+      lastSelectedTagId: state.lastSelectedTagId,
+      getTags: state.getTags,
+    }),
+    shallow
   );
-  const getTags = useBibleStore((state) => state.getTags);
   // Read `token` for the anonymous check — it is the value that
   // decides whether a session exists at all. (`isAuthenticated`
   // would work too now: the persisted merge derives it from the
   // token, so both rehydrate together.)
   const token = useAuthStore((state) => state.token);
-
+  // 'empty' = tags loaded but the user has none; 'error' = the
+  // tags request failed. Both replace the spinner — otherwise
+  // a fresh signup (zero tags) or a failed fetch would sit on
+  // the Loader forever.
   const [status, setStatus] = useState<NotesRouteStatus>('loading');
   const [retryCount, setRetryCount] = useState(0);
 
@@ -38,7 +45,7 @@ export default function NotesRoute() {
     // /notes/:noteId or /notes/tag/:tagId still work for them.
     if (!token) {
       hasNavigatedRef.current = true;
-      navigate('/bible', { replace: true });
+      void navigate('/bible', { replace: true });
       return;
     }
 
@@ -54,8 +61,7 @@ export default function NotesRoute() {
         const currentTags = useBibleStore.getState().tags;
 
         if (currentTags.length === 0) {
-          // New accounts have no tags yet — show a real empty
-          // state instead of spinning forever.
+          // No tags — stay on /notes and show the empty state.
           setStatus('empty');
           return;
         }
@@ -71,7 +77,9 @@ export default function NotesRoute() {
             : sorted[0].id;
 
         hasNavigatedRef.current = true;
-        navigate(`/notes/tag/${targetTagId}`, { replace: true });
+        void navigate(`/notes/tag/${targetTagId}`, {
+          replace: true,
+        });
       } catch (error) {
         if (cancelled) return;
         console.error('Error loading tags:', error);
@@ -82,7 +90,7 @@ export default function NotesRoute() {
     };
 
     setStatus('loading');
-    navigateToTag();
+    void navigateToTag();
     return () => {
       cancelled = true;
     };

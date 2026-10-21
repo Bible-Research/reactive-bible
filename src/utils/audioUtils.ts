@@ -16,39 +16,10 @@ export const getPlayPosition = (audio: Howl | null): number | null => {
   return typeof pos === 'number' && Number.isFinite(pos) ? pos : null;
 };
 
-/**
- * Tears down a Howl (and its blob: URL, when preloaded bytes were
- * fetched locally) without letting teardown events reach handlers.
- *
- * stop() runs first so 'stop' subscribers still fire — the
- * playlist's bounds checker clears its poll and <audio> listener
- * from that event. off() then detaches every listener, BEFORE
- * unload() clears the node's src: the pending play() rejection
- * unload() can cause reaches no handler (it propagates on a
- * microtask, after off() has run), so teardown never surfaces as
- * a playerror. volume(0) silences the node even if the pooled
- * <audio> element drains buffered audio after release —
- * mute(true) would set node.muted, which the pool never resets
- * and would silence the NEXT chapter's Howl. unload() alone can
- * let the underlying html5 <audio> element keep playing for a
- * few seconds until the next chapter finishes loading.
- */
-export const disposeHowl = (
-  howl: Howl | null,
-  blobUrl: string | null = null,
-): void => {
-  if (howl) {
-    try {
-      howl.stop();
-      howl.off();
-      howl.volume(0);
-      howl.unload();
-    } catch (err) {
-      console.warn('Failed to dispose audio:', err);
-    }
-  }
-  if (blobUrl) URL.revokeObjectURL(blobUrl);
-};
+// The canonical teardown lives in howlUtils (shared by the
+// chapter player and the playlist hook); re-exported here so
+// existing `../utils/audioUtils` imports keep working.
+export { disposeHowl } from './howlUtils';
 
 interface HowlSoundInternals {
   _sounds?: { _node?: HTMLAudioElement }[];

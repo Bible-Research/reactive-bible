@@ -86,12 +86,10 @@ export default function TagNotesRoute() {
   // Ownership: the caller's own tag list is the primary signal —
   // production notes do not send `is_owner` yet, so without the
   // tags check an owner would lose drag/order/edit/delete on
-  // their own tag. Two fail-closed terms cover the shared public
-  // tag case: an explicit `is_owner === false` on any loaded
-  // note hides write affordances outright (the backend only
-  // mutates the requester's own rows), and a tag outside the
-  // caller's list only passes when every loaded note reports
-  // `is_owner === true`.
+  // their own tag. For foreign public tags keep the strict
+  // every-note `is_owner === true` fallback so write affordances
+  // stay hidden once the backend ships the field — and any
+  // explicit `is_owner === false` fails closed outright.
   const isTagOwner =
     isAuthenticated &&
     notes.every((n) => n.is_owner !== false) &&

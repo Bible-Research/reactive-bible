@@ -4,10 +4,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 /**
  * Global `/` shortcut that navigates to the search page.
  *
- * The guard must skip rich-text editors and form fields: TipTap
- * renders a `contenteditable` div, so without the
- * `isContentEditable`/closest check typing "/" inside a note
- * editor would hijack the keystroke and navigate away
+ * The guard must skip rich-text editors, not just form fields:
+ * TipTap renders a `contenteditable` div, so without the
+ * `isContentEditable`/`closest` checks typing "/" inside a
+ * note editor would hijack the keystroke and navigate away
  * mid-edit.
  */
 export const useSlashSearchShortcut = () => {

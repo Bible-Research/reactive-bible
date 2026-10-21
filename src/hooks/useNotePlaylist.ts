@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { showNotification } from '@mantine/notifications';
 import { useBibleStore } from '../store';
 import type { Note } from '../types';
-import { buildNotePlaylistItems } from '../utils/notePlaylist';
+import {
+  buildNotePlaylistItems,
+  playableNotes,
+} from '../utils/notePlaylist';
 
 /**
  * Audio-playlist assembly for TagNotesRoute: keeps
@@ -29,11 +32,8 @@ export const useNotePlaylist = (
     (state) => state.setAudioPlaylistStartIndex
   );
 
-  // Notes that can actually produce playlist items — the same
-  // filtered list the playlist is built from.
-  const playableNotes = useMemo(
-    () =>
-      sortedNotes.filter((n) => (n.verses?.length ?? 0) > 0),
+  const playable = useMemo(
+    () => playableNotes(sortedNotes),
     [sortedNotes]
   );
 
@@ -57,37 +57,30 @@ export const useNotePlaylist = (
 
   const playFromNote = useCallback(
     (noteId: string) => {
-      // The start index must come from the same filtered item
-      // list handed to the playlist — a verse-less note earlier
-      // in sortedNotes would otherwise shift it off by one.
-      // Match on `scope` (the note id), not itemId — multi-block
-      // notes carry suffixed itemIds and several entries share
-      // one scope; the first block is the right start index.
+      // The start index must come from the same item list the
+      // store received. Match on `scope` (the note id), not
+      // itemId — multi-block notes carry suffixed itemIds and
+      // several entries share one scope; the first block is
+      // the right start index.
       const itemIndex = playlistItems.findIndex(
         (item) => (item.scope ?? item.itemId) === noteId
       );
+      if (itemIndex < 0) return;
+      setAudioPlaylistStartIndex(itemIndex);
 
-      if (itemIndex >= 0) {
-        setAudioPlaylistStartIndex(itemIndex);
-
-        const noteIndex = playableNotes.findIndex(
-          (n) => n.id === noteId
-        );
-        showNotification({
-          title: 'Playlist Started',
-          message:
-            `Playing from note ${noteIndex + 1} ` +
-            `of ${playableNotes.length}`,
-          color: 'blue',
-          autoClose: 3000,
-        });
-      }
+      const noteIndex = playable.findIndex(
+        (n) => n.id === noteId
+      );
+      showNotification({
+        title: 'Playlist Started',
+        message:
+          `Playing from note ${noteIndex + 1} ` +
+          `of ${playable.length}`,
+        color: 'blue',
+        autoClose: 3000,
+      });
     },
-    [
-      playlistItems,
-      playableNotes,
-      setAudioPlaylistStartIndex,
-    ]
+    [playlistItems, playable, setAudioPlaylistStartIndex]
   );
 
   return { playFromNote };
