@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -20,13 +25,17 @@ import { TagTree } from '../components/TagTree';
 import { CreateTagModal } from '../components/CreateTagModal';
 import { EditTagModal } from '../components/EditTagModal';
 import { useBibleStore } from '../store';
+import { shallow } from 'zustand/shallow';
 
 export default function TagManagementRoute() {
   const navigate = useNavigate();
-  const { tags, getTags } = useBibleStore((state) => ({
-    tags: state.tags,
-    getTags: state.getTags,
-  }));
+  const { tags, getTags } = useBibleStore(
+    (state) => ({
+      tags: state.tags,
+      getTags: state.getTags,
+    }),
+    shallow
+  );
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,89 +43,113 @@ export default function TagManagementRoute() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
 
-  useEffect(() => {
-    loadTags(true); // Force refresh on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadTags = async (
-    forceRefresh = false,
-    { silent = false }: { silent?: boolean } = {}
-  ) => {
-    if (silent) {
-      setRefreshing(true);
-    } else {
-      setInitialLoading(true);
-    }
-    try {
-      await getTags(forceRefresh);
-      setInitialError(false);
-    } catch (error) {
-      console.error('Error loading tags:', error);
-      // A failed first load must not fall through to the
-      // "No tags yet" empty state — offer a retry instead.
-      if (!silent) {
-        setInitialError(true);
-      }
-      showNotification({
-        title: 'Error',
-        message: 'Failed to load tags',
-        color: 'red',
-      });
-    } finally {
+  // Handlers below are useCallback'd so memoized children
+  // (TagTree, the tag modals) don't re-render on unrelated
+  // state changes like search typing.
+  const loadTags = useCallback(
+    async (
+      forceRefresh = false,
+      { silent = false }: { silent?: boolean } = {}
+    ) => {
       if (silent) {
-        setRefreshing(false);
+        setRefreshing(true);
       } else {
-        setInitialLoading(false);
+        setInitialLoading(true);
       }
-    }
-  };
-
-  const handleDeleteTag = async (tagId: string, tagName: string) => {
-    const childCount = tags.filter(
-      (t) => t.parent_tag === tagId
-    ).length;
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${tagName}"? ` +
-          'Notes assigned to it will lose this tag' +
-          (childCount > 0
-            ? `, and its ${childCount} child tag(s) may ` +
-              'be affected'
-            : '') +
-          '. This action cannot be undone.'
-      )
-    ) {
       try {
-        await deleteTagApi(tagId);
-        showNotification({
-          title: 'Success',
-          message: 'Tag deleted successfully',
-          color: 'green',
-        });
-        await loadTags(true, { silent: true }); // Force refresh
+        await getTags(forceRefresh);
+        setInitialError(false);
       } catch (error) {
-        console.error('Error deleting tag:', error);
+        console.error('Error loading tags:', error);
+        // A failed first load must not fall through to the
+        // "No tags yet" empty state — offer a retry instead.
+        if (!silent) {
+          setInitialError(true);
+        }
         showNotification({
           title: 'Error',
-          message: 'Failed to delete tag. It may have associated notes.',
+          message: 'Failed to load tags',
           color: 'red',
         });
+      } finally {
+        if (silent) {
+          setRefreshing(false);
+        } else {
+          setInitialLoading(false);
+        }
       }
-    }
-  };
+    },
+    [getTags]
+  );
 
-  const handleEditTag = (tag: Tag) => {
+  useEffect(() => {
+    void loadTags(true); // Force refresh on mount
+  }, [loadTags]);
+
+  const handleDeleteTag = useCallback(
+    async (tagId: string, tagName: string) => {
+      const childCount = tags.filter(
+        (t) => t.parent_tag === tagId
+      ).length;
+      if (
+        window.confirm(
+          `Are you sure you want to delete "${tagName}"? ` +
+            'Notes assigned to it will lose this tag' +
+            (childCount > 0
+              ? `, and its ${childCount} child tag(s) may ` +
+                'be affected'
+              : '') +
+            '. This action cannot be undone.'
+        )
+      ) {
+        try {
+          await deleteTagApi(tagId);
+          showNotification({
+            title: 'Success',
+            message: 'Tag deleted successfully',
+            color: 'green',
+          });
+          await loadTags(true, { silent: true }); // Force refresh
+        } catch (error) {
+          console.error('Error deleting tag:', error);
+          showNotification({
+            title: 'Error',
+            message:
+              'Failed to delete tag. It may have associated notes.',
+            color: 'red',
+          });
+        }
+      }
+    },
+    [loadTags, tags]
+  );
+
+  const handleEditTag = useCallback((tag: Tag) => {
     setEditingTag(tag);
-  };
+  }, []);
 
-  const handleCreateTag = () => {
+  const handleCreateTag = useCallback(() => {
     setCreateModalOpen(true);
-  };
+  }, []);
 
-  const handleViewNotes = (tagId: string) => {
-    navigate(`/notes/tag/${tagId}`);
-  };
+  const handleViewNotes = useCallback(
+    (tagId: string) => {
+      void navigate(`/notes/tag/${tagId}`);
+    },
+    [navigate]
+  );
+
+  const closeCreateModal = useCallback(() => {
+    setCreateModalOpen(false);
+  }, []);
+
+  const closeEditModal = useCallback(() => {
+    setEditingTag(null);
+  }, []);
+
+  const refreshTagsSilently = useCallback(() => {
+    void loadTags(true, { silent: true });
+  }, [loadTags]);
 
   // Matching a child must keep its ancestors in the list —
   // otherwise the tree renders the match as a root and the
@@ -240,15 +273,15 @@ export default function TagManagementRoute() {
 
       <CreateTagModal
         opened={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-        onSuccess={() => loadTags(true, { silent: true })}
+        onClose={closeCreateModal}
+        onSuccess={refreshTagsSilently}
         existingTags={tags}
       />
 
       <EditTagModal
         opened={!!editingTag}
-        onClose={() => setEditingTag(null)}
-        onSuccess={() => loadTags(true, { silent: true })}
+        onClose={closeEditModal}
+        onSuccess={refreshTagsSilently}
         tag={editingTag}
         existingTags={tags}
       />

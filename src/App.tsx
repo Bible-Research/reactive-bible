@@ -6,23 +6,24 @@ import {
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { ModalsProvider } from "@mantine/modals";
-import { useLocalStorage, useWindowEvent } from "@mantine/hooks";
+import { useLocalStorage } from "@mantine/hooks";
 import BibleSelector from "./components/BibleSelector";
 import MyHeader from "./components/MyHeader";
 import MainMenu from "./components/MainMenu";
 import BottomNav from "./components/BottomNav";
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { AppRoutes } from "./routes";
 import { clearExpiredAudioUrls } from "./utils/cacheManager";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import { isNativeApp } from "./utils/nativeAudio";
+import { isNativeApp } from "./utils/platform";
 import { useAuthStore } from "./stores/authStore";
 import { useAppUpdate } from "./hooks/useAppUpdate";
 import { useBibleStore } from "./store";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
+import { useSlashSearchShortcut } from "./hooks/useSlashSearchShortcut";
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -37,8 +38,6 @@ export default function App() {
   
   // MainMenu state
   const [mainMenuOpened, setMainMenuOpened] = useState(false);
-  
-  const navigate = useNavigate();
 
   // Check authentication on app load
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -61,7 +60,7 @@ export default function App() {
   // anonymous sessions share a server-side guest account.
   useEffect(() => {
     if (isAuthenticated) {
-      useBibleStore.getState().prefetchReadingPositions();
+      void useBibleStore.getState().prefetchReadingPositions();
     }
   }, [isAuthenticated]);
   
@@ -85,30 +84,9 @@ export default function App() {
   const showAudioPlayer = useBibleStore(
     (state) => state.showAudioPlayer
   );
-  useWindowEvent("keydown", (event) => {
-    if (event.key !== "/" || event.isComposing) return;
-    // Already on the search page — another "/" must not push a
-    // duplicate history entry or swallow the keystroke.
-    if (location.pathname === "/search") return;
-    const target = event.target;
-    if (target instanceof HTMLElement) {
-      const tag = target.tagName;
-      // Bail while typing: inputs, selects, and contenteditable
-      // surfaces (TipTap's .ProseMirror) — otherwise the
-      // swallowed "/" navigates away and destroys drafts.
-      if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        tag === "SELECT" ||
-        target.isContentEditable ||
-        target.closest("[contenteditable]") !== null
-      ) {
-        return;
-      }
-    }
-    event.preventDefault();
-    navigate("/search");
-  });
+  // "/" opens search — the hook also guards contenteditable
+  // targets so TipTap note edits are not hijacked.
+  useSlashSearchShortcut();
   return (
     <ColorSchemeProvider
       colorScheme={colorScheme}
@@ -165,7 +143,20 @@ export default function App() {
             },
           })}
         >
-          <ErrorBoundary>
+          {/* `key` on the top-level route segment remounts the
+              boundary on section changes (/bible -> /notes)
+              without remounting the route tree on intra-page URL
+              updates like verse-selection refs (/bible/JHN.1 ->
+              /bible/JHN.1.3), which would unload PassageView and
+              swallow clicks mid-remount. `resetKey` recovers a
+              caught error on ANY pathname change — e.g.
+              /notes/tag/a -> /notes/tag/b stays under the same
+              segment key — but only fires in the error state,
+              so healthy children are never remounted. */}
+          <ErrorBoundary
+            key={location.pathname.split('/')[1]}
+            resetKey={location.pathname}
+          >
             <AppRoutes />
           </ErrorBoundary>
           {showVerseToolbar && <VerseActionToolbar />}

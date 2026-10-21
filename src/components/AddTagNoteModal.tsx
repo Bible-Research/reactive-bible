@@ -12,8 +12,7 @@ import {
   IconChevronDown,
   IconChevronRight,
 } from "@tabler/icons-react";
-import { showNotification } from "@mantine/notifications";
-import { addTagNote, editNote, getLinkedNotes } from "../api";
+import { getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useMemo, useState } from "react";
 import { Note } from "../types";
@@ -24,21 +23,14 @@ import {
   groupVerseTexts,
   useVerseTexts,
 } from "../hooks/useVerseTexts";
+import { useNoteEditor } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
-import {
-  emptyNoteDraft,
-  type NoteDraftRef,
-} from "./noteDraft";
+import VerseTextGroups from "./VerseTextGroups";
+import { shallow } from "zustand/shallow";
 
 interface AddTagNoteModalProps {
   opened: boolean;
   onClose: () => void;
-  /**
-   * Autosave draft owned by the parent — this modal unmounts on
-   * close, and a local ref would lose the autosaved note id,
-   * turning a reopen into a duplicate POST.
-   */
-  draftRef: NoteDraftRef;
 }
 
 const linkedNoteRef = (note: Note): string => {
@@ -56,7 +48,6 @@ const linkedNoteRef = (note: Note): string => {
 const AddTagNoteModal = ({
   opened,
   onClose,
-  draftRef,
 }: AddTagNoteModalProps) => {
   const {
     tags,
@@ -78,7 +69,7 @@ const AddTagNoteModal = ({
     translations: state.translations,
     lastSelectedTagId: state.lastSelectedTagId,
     setLastSelectedTagId: state.setLastSelectedTagId,
-  }));
+  }), shallow);
 
   const refs = useMemo(
     () => verseSelection?.refs ?? [],
@@ -116,7 +107,11 @@ const AddTagNoteModal = ({
   useEffect(() => {
     // Only fetch tags when modal opens (not on mount when closed)
     if (opened) {
-      void getTags().catch(() => { /* notified by the store */ });
+      // A rejection already produced a store notification —
+      // swallow it so it stays off the global error reporter.
+      void getTags().catch(() => {
+        /* notified by the store */
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]); // Only run when opened changes
@@ -172,57 +167,28 @@ const AddTagNoteModal = ({
     refs,
   ]);
 
-  // Serialized through the draft's queue: a reopened form's
-  // in-flight lock starts empty, so without this a save could
-  // run beside a still-pending POST from the previous mount and
-  // create a duplicate.
-  const handleAutoSave = (tagId: string, text: string) => {
-    const draft = draftRef.current;
-    const run = draft.queue.then(async () => {
-      if (draft.savedNoteId) {
-        await editNote(draft.savedNoteId, tagId, text);
-      } else {
-        const created = await addTagNote(
-          tagId,
-          text,
-          verseReferences
-        );
-        draft.savedNoteId = created?.id ?? null;
-      }
-      // Record what the server holds so a reopened modal can
-      // restore the draft.
-      draft.tagId = tagId;
-      draft.text = text;
-    });
-    draft.queue = run.then(
-      () => undefined,
-      () => undefined
-    );
-    return run;
-  };
+  // The draft key carries the selection fingerprint: a draft
+  // left over from a different passage must not resume here.
+  const draftKey = useMemo(
+    () =>
+      "tag-note:" +
+      refs
+        .map((r) => `${r.bookId}.${r.chapter}.${r.verse}`)
+        .sort()
+        .join(","),
+    [refs]
+  );
 
-  const handleSubmit = async (tagId: string, text: string) => {
-    try {
-      // Shares the draft with autosave: an existing draft is
-      // PATCHed, and a note created by submit is recorded so a
-      // late autosave tick PATCHes instead of POSTing a
-      // duplicate.
-      await handleAutoSave(tagId, text);
-      // The draft was submitted — reset so the next open starts
-      // a new note instead of resuming this one.
-      draftRef.current = emptyNoteDraft();
+  const editor = useNoteEditor({
+    mode: "create",
+    draftKey,
+    verseReferences,
+    onSubmitted: (tagId) => {
       setLastSelectedTagId(tagId || null);
       setVerseSelection(null); // Clear selected verses
       onClose();
-    } catch (error) {
-      console.error(error);
-      showNotification({
-        title: 'Error',
-        message: 'Failed to save note. Please try again.',
-        color: 'red',
-      });
-    }
-  };
+    },
+  });
 
   const textGroups = useMemo(
     () => groupVerseTexts(verseTexts),
@@ -241,51 +207,33 @@ const AddTagNoteModal = ({
       )}
       <NoteForm
         tags={tags}
-        onSubmit={handleSubmit}
+        onSubmit={editor.submit}
         submitText="Submit"
         onTagDropdownOpen={() => {
           void getTags().catch(() => {
             /* notified by the store */
           });
         }}
-        onAutoSave={handleAutoSave}
-        onDraftChange={(tagId, text) => {
-          // Track live form contents so a reopen restores the
-          // in-progress draft, not just the last saved text.
-          draftRef.current.tagId = tagId;
-          draftRef.current.text = text;
-        }}
+        onAutoSave={editor.save}
+        onDraftChange={editor.trackDraft}
         note={
           // Gate on draft content, not just savedNoteId: while
           // the unmount flush's POST is still in flight the id
           // is null but the typed text is already tracked —
           // keying on the id alone would reopen a blank form.
-          draftRef.current.savedNoteId || draftRef.current.text
+          editor.draft &&
+          (editor.draft.savedNoteId || editor.draft.text)
             ? {
                 tagId:
-                  draftRef.current.tagId || lastSelectedTagId || "",
-                text: draftRef.current.text,
+                  editor.draft.tagId || lastSelectedTagId || "",
+                text: editor.draft.text,
               }
             : lastSelectedTagId
               ? { tagId: lastSelectedTagId, text: "" }
               : undefined
         }
       />
-      {textGroups.map(([label, groupVerses]) => (
-        <Box key={label} mt="xl">
-          <Divider my="sm" label={label} labelPosition="center" />
-          {groupVerses.map((v) => (
-            <Box key={v.verse} py={4} px={8}>
-              <Text size="sm">
-                <Text component="span" weight={700} mr={4}>
-                  {v.verse}
-                </Text>
-                {v.text}
-              </Text>
-            </Box>
-          ))}
-        </Box>
-      ))}
+      <VerseTextGroups groups={textGroups} />
       {linkedNotes && linkedNotes.length > 0 && (
         <Box mt="xl">
           <Divider

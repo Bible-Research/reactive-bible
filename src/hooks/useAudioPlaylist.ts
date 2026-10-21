@@ -16,16 +16,12 @@ import {
 } from '../utils/bibleUtils';
 import {
   findTranslationByFilesetId,
-  preferTimestampedAudio,
-  resolveAudioFileset,
   resolveTextFileset,
 } from '../utils/filesetGroups';
+import { orderedAudioCandidates } from '../utils/audioCandidates';
 import { useVerseHighlighter } from './useVerseHighlighter';
-import {
-  getHtml5AudioNode,
-  getPlayPosition,
-} from '../utils/audioUtils';
-import { disposeHowl } from '../utils/howlUtils';
+import { disposeHowl } from '../utils/audioUtils';
+import { attachVerseBounds } from '../utils/verseBounds';
 
 export interface UseAudioPlaylistReturn {
   isActive: boolean;
@@ -86,6 +82,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   );
 
   const unloadCurrent = useCallback(() => {
+    // Null the ref before disposing — no re-entrant 'stop'
+    // handler can observe a half-torn-down Howl.
     const current = audioRef.current;
     audioRef.current = null;
     disposeHowl(current);
@@ -119,7 +117,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       const advanceNext = () => {
         if (advanced || stale()) return;
         advanced = true;
-        playIndex(allItems, index + 1);
+        void playIndex(allItems, index + 1);
       };
 
       if (!item.bookId || item.startVerse == null) {
@@ -128,32 +126,15 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       }
 
       const itemBookName = toBookName(item.bookId) ?? item.bookId;
-      const resolved = activeAudioFilesetId
-        ? resolveAudioFileset(
-            activeAudioFilesetId,
-            item.bookId,
-            translations,
-          )
-        : null;
-      // Ordered candidates: resolved primary, then codec sibling,
-      // other-testament member, and the translation's remaining
-      // audio options. A timestamp-backed sibling recording
-      // (TIMESTAMP_BACKED_AUDIO, e.g. ENGESHO1DA -> ENGESVO1DA)
-      // leads when one exists — verse timestamps only match the
-      // recording they were generated from, and swapping the
-      // recording is what lets a verse-ranged item seek to the
-      // linked verse and stop after it. The resolved id stays
-      // in the list as a load/decode fallback.
-      const candidates = (() => {
-        if (!resolved) return [];
-        const primary = preferTimestampedAudio(
-          resolved.filesetId,
-          translations,
-        );
-        const rest = [...resolved.alternates, resolved.filesetId]
-          .filter((id) => id !== primary);
-        return [primary, ...rest];
-      })();
+      // Ordered candidates: timestamp-backed sibling recording,
+      // then resolved primary, codec sibling, other-testament
+      // member, and the translation's remaining audio options —
+      // see orderedAudioCandidates.
+      const candidates = orderedAudioCandidates(
+        activeAudioFilesetId,
+        item.bookId,
+        translations,
+      );
       const translationName =
         findTranslationByFilesetId(
           activeAudioFilesetId,
@@ -166,20 +147,15 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       const prefetchNext = (i: number) => {
         const next = allItems[i + 1];
         if (!next || !activeAudioFilesetId) return;
-        const nextResolved = resolveAudioFileset(
-          activeAudioFilesetId,
-          next.bookId,
-          translations,
-        );
         // Same timestamp-backed substitution as the playing
         // item so the prefetched URL/timestamps match what will
         // actually be loaded.
-        const nextFilesetId = nextResolved
-          ? preferTimestampedAudio(
-              nextResolved.filesetId,
-              translations,
-            )
-          : activeAudioFilesetId;
+        const nextFilesetId =
+          orderedAudioCandidates(
+            activeAudioFilesetId,
+            next.bookId,
+            translations,
+          )[0] ?? activeAudioFilesetId;
         if (nextFilesetId !== 'ENGKJV') {
           getBibleAudioUrl(
             next.bookId,
@@ -234,7 +210,6 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
               if (stale()) return;
 
-
               let fetchedTimestamps: VerseTimestamp[] = [];
               if (candidateId !== 'ENGKJV') {
                 const tsId = resolveTimestampsFilesetId(
@@ -284,9 +259,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 });
               }
 
-              const filteredTimestamps = item.verseNumbers
+              const verseNumbers = item.verseNumbers;
+              const filteredTimestamps = verseNumbers
                 ? fetchedTimestamps.filter((t) =>
-                    item.verseNumbers?.includes(t.verse_start),
+                    verseNumbers.includes(t.verse_start),
                   )
                 : fetchedTimestamps.filter(
                     (t) =>
@@ -409,91 +385,19 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               });
 
               if (endTs !== null || item.verseNumbers) {
-                const EPSILON = 0.2;
-                // Returns true when the checker should stop (item
-                // advanced or playback halted).
-                const checkBounds = (): boolean => {
-                  if (!howl || stale()) return true;
-                  const pos = getPlayPosition(howl);
-                  if (pos === null) return false;
-                  if (endTs !== null && pos >= endTs - EPSILON) {
-                    // Looping replays the item's verses instead
-                    // of advancing — the toggle must not be a
-                    // no-op for bounded items.
-                    if (howl.loop()) {
-                      howl.seek(loopStartTs);
-                      return false;
-                    }
-                    advanceNext();
-                    return true;
-                  }
-                  if (item.verseNumbers) {
-                    const currentVerse = fetchedTimestamps.find(
-                      (t, i) => {
-                        const nextT = fetchedTimestamps[i + 1];
-                        return (
-                          t.timestamp <= pos &&
-                          (!nextT || pos < nextT.timestamp)
-                        );
-                      },
-                    );
-                    if (
-                      currentVerse &&
-                      !item.verseNumbers.includes(
-                        currentVerse.verse_start,
-                      )
-                    ) {
-                      const nextIncludedVerse =
-                        fetchedTimestamps.find(
-                          (t) =>
-                            t.timestamp > pos &&
-                            item.verseNumbers?.includes(
-                              t.verse_start,
-                            ),
-                        );
-                      if (nextIncludedVerse) {
-                        howl.seek(nextIncludedVerse.timestamp);
-                      } else if (endTs !== null) {
-                        if (howl.loop()) {
-                          howl.seek(loopStartTs);
-                          return false;
-                        }
-                        advanceNext();
-                        return true;
-                      }
-                    }
-                  }
-                  return false;
-                };
-
-                // Advance on the <audio> element's timeupdate
-                // event as well as the poll: media events are
-                // still delivered to a backgrounded/frozen page
-                // when JS timers are suspended.
-                let node: HTMLAudioElement | null = null;
-                const attachNode = () => {
-                  if (node) return;
-                  node = getHtml5AudioNode(howl);
-                  node?.addEventListener('timeupdate', checkBounds);
-                };
-                attachNode();
-                howl.on('play', attachNode);
-                howl.on('load', attachNode);
-
-                const poll = setInterval(() => {
-                  if (checkBounds() && poll) clearInterval(poll);
-                }, 100);
-
-                const cleanup = () => {
-                  clearInterval(poll);
-                  node?.removeEventListener(
-                    'timeupdate',
-                    checkBounds,
-                  );
-                  node = null;
-                };
-                howl.on('end', cleanup);
-                howl.on('stop', cleanup);
+                attachVerseBounds(howl, {
+                  endTs,
+                  verseNumbers: item.verseNumbers,
+                  // The FULL chapter's rows — skipped-verse
+                  // detection must recognize playback drifting
+                  // into a non-included verse.
+                  timestamps: fetchedTimestamps,
+                  loopStartTs,
+                  onAdvance: advanceNext,
+                  // `stale` (not just stoppedRef): a superseded
+                  // seq must also halt the bounds checker.
+                  isStopped: stale,
+                });
               }
 
               // A newer playIndex superseded this coroutine
@@ -573,7 +477,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       stoppedRef.current = false;
       timestampsNoticeShownRef.current = false;
       setItems(newItems);
-      playIndex(newItems, startIndex);
+      void playIndex(newItems, startIndex);
     },
     [playIndex],
   );
@@ -588,13 +492,13 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
   const next = useCallback(() => {
     if (items.length === 0) return;
-    playIndex(items, currentIndex + 1);
+    void playIndex(items, currentIndex + 1);
   }, [items, currentIndex, playIndex]);
 
   const previous = useCallback(() => {
     if (items.length === 0) return;
     const target = Math.max(0, currentIndex - 1);
-    playIndex(items, target);
+    void playIndex(items, target);
   }, [items, currentIndex, playIndex]);
 
   const stop = useCallback(() => {

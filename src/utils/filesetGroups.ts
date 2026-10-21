@@ -316,7 +316,7 @@ const groupTextFilesets = (
 };
 
 /** Backend `audio_options`/`text_options` entry (snake_case). */
-interface BackendOptionShape {
+export interface BackendOptionShape {
   id?: unknown;
   kind?: unknown;
   coverage?: unknown;
@@ -734,7 +734,7 @@ export const resolveTextFileset = (
   // Product ids minted for the bundled KJV (`ENGKJV:text:1`)
   // resolve to the offline bundle even before the translations
   // list is loaded — the `filesetId === 'ENGKJV'` fast paths in
-  // api.tsx must keep working.
+  // src/api/ must keep working.
   if (storedId === 'ENGKJV' || storedId.startsWith('ENGKJV:')) {
     return 'ENGKJV';
   }

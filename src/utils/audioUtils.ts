@@ -1,4 +1,5 @@
 import { Howl } from 'howler';
+import type { VerseTimestamp } from '../types';
 
 /**
  * Returns the Howl's current playback position in seconds, or null
@@ -14,6 +15,11 @@ export const getPlayPosition = (audio: Howl | null): number | null => {
   const pos = audio.seek();
   return typeof pos === 'number' && Number.isFinite(pos) ? pos : null;
 };
+
+// The canonical teardown lives in howlUtils (shared by the
+// chapter player and the playlist hook); re-exported here so
+// existing `../utils/audioUtils` imports keep working.
+export { disposeHowl } from './howlUtils';
 
 interface HowlSoundInternals {
   _sounds?: { _node?: HTMLAudioElement }[];
@@ -33,4 +39,31 @@ export const getHtml5AudioNode = (
   const node = (audio as unknown as HowlSoundInternals)._sounds?.[0]
     ?._node;
   return node instanceof HTMLAudioElement ? node : null;
+};
+
+/**
+ * Binary search: the `verse_start` of the last timestamp row at
+ * or before `currentTime` — i.e. the verse being read aloud.
+ * A position before the first row (e.g. a chapter announcement)
+ * still yields that first verse. Returns null for an empty
+ * timestamp list.
+ */
+export const activeVerseAtTime = (
+  timestamps: VerseTimestamp[],
+  currentTime: number,
+): number | null => {
+  if (timestamps.length === 0) return null;
+  let lo = 0;
+  let hi = timestamps.length - 1;
+  let activeVerseNum = timestamps[0].verse_start;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (timestamps[mid].timestamp <= currentTime) {
+      activeVerseNum = timestamps[mid].verse_start;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return activeVerseNum;
 };

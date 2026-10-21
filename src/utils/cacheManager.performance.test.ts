@@ -6,10 +6,12 @@ import {
   cacheAudioUrl,
   getCachedAudioUrl,
 } from './cacheManager';
-import { CacheMetrics } from '../__tests__/helpers/performance';
+import { CacheMetrics } from
+  '../__tests__/helpers/performanceUtils';
 
 // Mock localStorage (full Storage shape — matches the
-// setupTests stub so a plain assignment type-checks).
+// happy-dom implementation so enumeration paths behave the
+// same under the stub).
 const localStorageMock: Storage = (() => {
   let store: Record<string, string> = {};
   return {

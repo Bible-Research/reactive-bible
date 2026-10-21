@@ -43,6 +43,37 @@ const normalize = (
 // minting signed URLs that still fail to load.
 const MAX_IMAGE_REFRESHES = 3;
 
+// Sequential per-file upload shared by create and update — one
+// failure notifies and the rest still attempt.
+const uploadImages = async (
+  noteId: string,
+  commentId: string,
+  files: File[]
+): Promise<CommentImage[]> => {
+  const uploaded: CommentImage[] = [];
+  for (const file of files) {
+    try {
+      const img = await uploadCommentImage(
+        noteId,
+        commentId,
+        file
+      );
+      uploaded.push(img);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Failed to upload image.';
+      showNotification({
+        color: 'red',
+        title: 'Upload failed',
+        message: msg,
+      });
+    }
+  }
+  return uploaded;
+};
+
 // A failed refresh fetch hands its attempt back so a flaky
 // network can't permanently burn the retry budget.
 const refundAttempt = (
@@ -215,11 +246,18 @@ const CommentThread = ({
   );
 
   useEffect(() => {
+    // Alias the ref objects so the cleanup bumps the shared
+    // counters — a superseded in-flight load must drop its
+    // result. Copying `dataVersion.current` (a snapshot)
+    // would defeat the guard.
     const dataVer = dataVersion;
     const loadSeq = loadingSeq;
     const inserts = pendingInserts.current;
     const deletes = pendingDeletes.current;
     load();
+    // The ref objects (not their .current snapshots) are
+    // aliased above so the cleanup bumps the shared counters —
+    // a superseded in-flight load must drop its result.
     return () => {
       dataVer.current++;
       loadSeq.current++;
@@ -253,27 +291,11 @@ const CommentThread = ({
         content,
         parentId
       );
-      const uploadedImages: CommentImage[] = [];
-      for (const file of files) {
-        try {
-          const img = await uploadCommentImage(
-            noteId,
-            newComment.id,
-            file
-          );
-          uploadedImages.push(img);
-        } catch (err: unknown) {
-          const msg =
-            err instanceof Error
-              ? err.message
-              : 'Failed to upload image.';
-          showNotification({
-            color: 'red',
-            title: 'Upload failed',
-            message: msg,
-          });
-        }
-      }
+      const uploadedImages = await uploadImages(
+        noteId,
+        newComment.id,
+        files
+      );
       const normalizedNew = {
         ...normalize([newComment])[0],
         images: uploadedImages,
@@ -306,27 +328,11 @@ const CommentThread = ({
   ) => {
     try {
       const updated = await updateComment(noteId, id, content);
-      const uploadedImages: CommentImage[] = [];
-      for (const file of files) {
-        try {
-          const img = await uploadCommentImage(
-            noteId,
-            id,
-            file
-          );
-          uploadedImages.push(img);
-        } catch (err: unknown) {
-          const msg =
-            err instanceof Error
-              ? err.message
-              : 'Failed to upload image.';
-          showNotification({
-            color: 'red',
-            title: 'Upload failed',
-            message: msg,
-          });
-        }
-      }
+      const uploadedImages = await uploadImages(
+        noteId,
+        id,
+        files
+      );
       setComments((prev) =>
         updateNode(prev, id, (n) => ({
           ...normalize([updated])[0],

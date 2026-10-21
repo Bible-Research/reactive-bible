@@ -63,10 +63,10 @@ const BibleSelector = ({
             await setActiveBookWithPosition(bookId);
             const chapter =
               useBibleStore.getState().activeChapter;
-            navigate(buildBiblePath(bookId, chapter));
+            void navigate(buildBiblePath(bookId, chapter));
           }}
           onSelectChapter={(chapter) => {
-            navigate(buildBiblePath(activeBookId, chapter));
+            void navigate(buildBiblePath(activeBookId, chapter));
             setOpened(false);
           }}
           onSelectVerse={(verse, extendRange) => {
@@ -83,7 +83,7 @@ const BibleSelector = ({
                     String(Math.max(anchor, verse)),
                   )
                 : [verse];
-            navigate(
+            void navigate(
               buildBiblePath(activeBookId, activeChapter, verses)
             );
             setOpened(false);

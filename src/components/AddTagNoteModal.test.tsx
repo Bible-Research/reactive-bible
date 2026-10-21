@@ -16,7 +16,7 @@ import {
 } from 'vitest';
 import { useState } from 'react';
 import AddTagNoteModal from './AddTagNoteModal';
-import { emptyNoteDraft } from './noteDraft';
+import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
 import * as api from '../api';
@@ -42,12 +42,11 @@ vi.mock('./RichTextEditor', async () => ({
 }));
 
 describe('AddTagNoteModal Component', () => {
-  // Fresh parent-owned draft per render — mirrors how
-  // VerseActionToolbar keeps the ref outside the modal.
-  const draftRef = () => ({ current: emptyNoteDraft() });
-
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drafts live outside the component — reset them or a
+    // previous test's autosaved note would resume here.
+    resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
       { id: '1', name: 'Faith', parent_tag: null,
@@ -74,11 +73,7 @@ describe('AddTagNoteModal Component', () => {
 
   it('should not render when closed', () => {
     renderWithProviders(
-      <AddTagNoteModal
-        opened={false}
-        onClose={vi.fn()}
-        draftRef={draftRef()}
-      />,
+      <AddTagNoteModal opened={false} onClose={vi.fn()} />,
       {
         storeOverrides: {
           verseSelection: genesisSelection,
@@ -92,11 +87,7 @@ describe('AddTagNoteModal Component', () => {
 
   it('should render when opened', async () => {
     renderWithProviders(
-      <AddTagNoteModal
-        opened={true}
-        onClose={vi.fn()}
-        draftRef={draftRef()}
-      />,
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
       {
         storeOverrides: {
           verseSelection: genesisSelection,
@@ -113,11 +104,7 @@ describe('AddTagNoteModal Component', () => {
 
   it('should render NoteForm when opened', async () => {
     renderWithProviders(
-      <AddTagNoteModal
-        opened={true}
-        onClose={vi.fn()}
-        draftRef={draftRef()}
-      />,
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
       {
         storeOverrides: {
           verseSelection: genesisSelection,
@@ -136,8 +123,9 @@ describe('AddTagNoteModal Component', () => {
   it('resolves stored product ids before fetching verse text',
     async () => {
       // `ENGKJV:text:0` must collapse to 'ENGKJV' so the offline
-      // bundle fast-path in api.tsx is used; a split-text product
-      // resolves to the member covering the selected book.
+      // bundle fast-path in src/api/verses.ts is used; a
+      // split-text product resolves to the member covering the
+      // selected book.
       const kjv = {
         abbr: 'ENGKJV',
         name: 'King James Version',
@@ -162,11 +150,7 @@ describe('AddTagNoteModal Component', () => {
       };
 
       renderWithProviders(
-        <AddTagNoteModal
-          opened={true}
-          onClose={vi.fn()}
-          draftRef={draftRef()}
-        />,
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -188,11 +172,7 @@ describe('AddTagNoteModal Component', () => {
 
       (api.getVersesInChapter as Mock).mockClear();
       renderWithProviders(
-        <AddTagNoteModal
-          opened={true}
-          onClose={vi.fn()}
-          draftRef={draftRef()}
-        />,
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -241,11 +221,7 @@ describe('AddTagNoteModal Component', () => {
       });
 
       renderWithProviders(
-        <AddTagNoteModal
-          opened={true}
-          onClose={vi.fn()}
-          draftRef={draftRef()}
-        />,
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -290,11 +266,7 @@ describe('AddTagNoteModal Component', () => {
       });
 
       renderWithProviders(
-        <AddTagNoteModal
-          opened={true}
-          onClose={vi.fn()}
-          draftRef={draftRef()}
-        />,
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -328,11 +300,7 @@ describe('AddTagNoteModal Component', () => {
   it('queries linked notes only when opened with a selection',
     async () => {
       renderWithProviders(
-        <AddTagNoteModal
-          opened={false}
-          onClose={vi.fn()}
-          draftRef={draftRef()}
-        />,
+        <AddTagNoteModal opened={false} onClose={vi.fn()} />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -360,11 +328,7 @@ describe('AddTagNoteModal Component', () => {
       (api.editNote as Mock).mockResolvedValue({});
 
       renderWithProviders(
-        <AddTagNoteModal
-          opened={true}
-          onClose={vi.fn()}
-          draftRef={draftRef()}
-        />,
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
         {
           storeOverrides: {
             verseSelection: genesisSelection,
@@ -410,76 +374,18 @@ describe('AddTagNoteModal Component', () => {
       // The editor emits doc-JSON, not the raw typed text.
       expect(isTiptapDocString(patchArgs[2])).toBe(true);
       expect(toPlainText(patchArgs[2])).toBe('Draft');
+      // Edit-mode saves carry the picker's current refs.
+      expect(patchArgs[3]).toEqual([
+        { book: 'Genesis', chapter: 1, verse: 1 },
+        { book: 'Genesis', chapter: 1, verse: 2 },
+      ]);
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
     });
-
-  // Stateful host so `onClose` actually closes the modal —
-  // the old notes-workflow integration test asserted this.
-  const ControlledModal = () => {
-    const [open, setOpen] = useState(true);
-    return (
-      <AddTagNoteModal
-        opened={open}
-        onClose={() => setOpen(false)}
-        draftRef={draftRef()}
-      />
-    );
-  };
-
-  const typeAndSubmit = async (text: string) => {
-    const noteInput = await screen.findByLabelText('Note');
-    fireEvent.change(noteInput, { target: { value: text } });
-    const form = screen
-      .getByRole('button', { name: 'Submit' })
-      .closest('form');
-    expect(form).not.toBeNull();
-    fireEvent.submit(form as HTMLFormElement);
-  };
-
-  it('should call addTagNote when form submitted', async () => {
-    (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
-    const onClose = vi.fn();
-    renderWithProviders(
-      <AddTagNoteModal
-        opened={true}
-        onClose={onClose}
-        draftRef={draftRef()}
-      />,
-      {
-        storeOverrides: {
-          verseSelection: genesisSelection,
-          activeBookId: 'GEN',
-          activeChapter: 1,
-          // Submit without a tag is rejected — pick one.
-          lastSelectedTagId: '1',
-        },
-      }
-    );
-
-    await typeAndSubmit('A test note');
-
-    await waitFor(() => {
-      expect(api.addTagNote).toHaveBeenCalledTimes(1);
-    });
-    const [tagId, text, refs] =
-      (api.addTagNote as Mock).mock.calls[0];
-    expect(tagId).toBe('1');
-    expect(isTiptapDocString(text)).toBe(true);
-    expect(toPlainText(text)).toBe('A test note');
-    expect(refs).toEqual([
-      { book: 'Genesis', chapter: 1, verse: 1 },
-      { book: 'Genesis', chapter: 1, verse: 2 },
-    ]);
-    await waitFor(() => {
-      expect(onClose).toHaveBeenCalledTimes(1);
-    });
-  });
 
   it('reopening after autosave PATCHes the draft instead ' +
     'of POSTing a duplicate', async () => {
-    // Mantine unmounts the form on close — the shared draft
+    // Mantine unmounts the form on close — the editor draft
     // carries the autosaved note id across the remount.
-    const sharedDraft = draftRef();
     (api.addTagNote as Mock).mockResolvedValue({ id: 'n-draft' });
     (api.editNote as Mock).mockResolvedValue({});
 
@@ -491,18 +397,15 @@ describe('AddTagNoteModal Component', () => {
     };
 
     const { unmount } = renderWithProviders(
-      <AddTagNoteModal
-        opened={true}
-        onClose={vi.fn()}
-        draftRef={sharedDraft}
-      />,
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
       { storeOverrides: overrides }
     );
 
     const noteInput = await screen.findByLabelText('Note');
     fireEvent.change(noteInput, { target: { value: 'Draft' } });
-    // Fake timers must be installed before the Auto save click —
-    // the interval registers on whichever clock is active.
+    // Fake timers must be installed before the Auto save
+    // click — the interval registers on whichever clock is
+    // active.
     vi.useFakeTimers();
     try {
       fireEvent.click(screen.getByLabelText('Auto save'));
@@ -513,18 +416,13 @@ describe('AddTagNoteModal Component', () => {
       vi.useRealTimers();
     }
     expect(api.addTagNote).toHaveBeenCalledTimes(1);
-    expect(sharedDraft.current.savedNoteId).toBe('n-draft');
 
     // Closing unmounts the form; the unmount flush may PATCH
-    // the latest text behind the draft queue.
+    // the latest text behind the draft's save queue.
     unmount();
 
     renderWithProviders(
-      <AddTagNoteModal
-        opened={true}
-        onClose={vi.fn()}
-        draftRef={sharedDraft}
-      />,
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
       { storeOverrides: overrides }
     );
 
@@ -549,9 +447,123 @@ describe('AddTagNoteModal Component', () => {
     // Still exactly one POST — every later write PATCHes.
     expect(api.addTagNote).toHaveBeenCalledTimes(1);
     expect(api.editNote).toHaveBeenCalled();
-    expect(vi.mocked(api.editNote).mock.calls[0][0]).toBe(
-      'n-draft'
+    expect(
+      vi.mocked(api.editNote).mock.calls[0][0]
+    ).toBe('n-draft');
+  });
+
+  // Stateful host so `onClose` actually closes the modal —
+  // the old notes-workflow integration test asserted this.
+  const ControlledModal = () => {
+    const [open, setOpen] = useState(true);
+    return (
+      <AddTagNoteModal
+        opened={open}
+        onClose={() => setOpen(false)}
+      />
     );
+  };
+
+  const typeAndSubmit = async (text: string) => {
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, { target: { value: text } });
+    const form = screen
+      .getByRole('button', { name: 'Submit' })
+      .closest('form');
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
+  };
+
+  it('should call addTagNote when form submitted', async () => {
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+    const onClose = vi.fn();
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={onClose} />,
+      {
+        storeOverrides: {
+          verseSelection: genesisSelection,
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          lastSelectedTagId: '1',
+        },
+      }
+    );
+
+    await typeAndSubmit('A test note');
+
+    await waitFor(() => {
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    });
+    const [tagId, text, refs] =
+      (api.addTagNote as Mock).mock.calls[0];
+    expect(tagId).toBe('1');
+    expect(isTiptapDocString(text)).toBe(true);
+    expect(toPlainText(text)).toBe('A test note');
+    expect(refs).toEqual([
+      { book: 'Genesis', chapter: 1, verse: 1 },
+      { book: 'Genesis', chapter: 1, verse: 2 },
+    ]);
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not POST a duplicate when the modal closes ' +
+    'mid-submit', async () => {
+    // Repro: autosave on, text typed since the last tick,
+    // Submit clicked, modal closed while the submit's POST
+    // is still in flight. The unmount flush used to chain
+    // save() behind the whole submit promise — it resolved
+    // only after drafts.delete(), so the flush recreated a
+    // fresh draft and POSTed the same note twice.
+    let resolvePost: (value: { id: string }) => void =
+      () => undefined;
+    (api.addTagNote as Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePost = resolve;
+        })
+    );
+
+    const { unmount } = renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+      {
+        storeOverrides: {
+          verseSelection: genesisSelection,
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          lastSelectedTagId: '1',
+        },
+      }
+    );
+
+    const noteInput = await screen.findByLabelText('Note');
+    fireEvent.change(noteInput, { target: { value: 'Draft' } });
+    // The unmount flush only runs when autosave is enabled.
+    fireEvent.click(screen.getByLabelText('Auto save'));
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Submit' })
+      );
+    });
+    await waitFor(() => {
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    });
+
+    // Close while the submit's POST is still pending.
+    unmount();
+
+    await act(async () => {
+      resolvePost({ id: 'n1' });
+      // Flush every queued continuation — submit completion
+      // and the deferred flush decision behind it.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+
+    expect(api.addTagNote).toHaveBeenCalledTimes(1);
   });
 
   it('should clear selected verses after submission', async () => {
@@ -577,4 +589,65 @@ describe('AddTagNoteModal Component', () => {
     expect(useBibleStore.getState().verseSelection).toBeNull();
   });
 
+  // The useNoteEditor drafts map persists the autosaved note id
+  // across modal unmounts, so a reopen resumes the draft and
+  // PATCHes it instead of POSTing a second note.
+  it('PATCHes the autosaved draft instead of POSTing a ' +
+    'second note when reopened mid-session', async () => {
+      (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+      (api.editNote as Mock).mockResolvedValue({});
+
+      const { rerender } = renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        {
+          storeOverrides: {
+            verseSelection: genesisSelection,
+            activeBookId: 'GEN',
+            activeChapter: 1,
+            // Autosave skips tagless drafts.
+            lastSelectedTagId: '1',
+          },
+        }
+      );
+
+      const noteInput = await screen.findByLabelText('Note');
+      fireEvent.change(noteInput, {
+        target: { value: 'Draft' },
+      });
+
+      vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByLabelText('Auto save'));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+
+        // Close without submitting, then reopen for the same
+        // selection and keep typing — the draft should resume.
+        rerender(
+          <AddTagNoteModal opened={false} onClose={vi.fn()} />
+        );
+        rerender(
+          <AddTagNoteModal opened={true} onClose={vi.fn()} />
+        );
+        // getByLabelText, not findBy — async queries never
+        // resolve under fake timers.
+        fireEvent.change(screen.getByLabelText('Note'), {
+          target: { value: 'Draft continued' },
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+
+        expect(api.addTagNote).toHaveBeenCalledTimes(1);
+        expect(api.editNote).toHaveBeenCalledTimes(1);
+        const patchArgs =
+          (api.editNote as Mock).mock.calls[0];
+        expect(patchArgs[0]).toBe('n1');
+        expect(toPlainText(patchArgs[2])).toBe('Draft continued');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 });

@@ -253,7 +253,7 @@ const PassageView = () => {
     } else {
       pendingScrollHeadingRef.current = beforeVerse;
       setHeadingsOnlyMode(false);
-      navigate(buildBiblePath(activeBookId, chapter));
+      void navigate(buildBiblePath(activeBookId, chapter));
     }
   };
 
@@ -383,6 +383,8 @@ const PassageView = () => {
             restoreVerse ?? 1
           );
 
+
+
         // Prefetch adjacent chapters (parallel) — the resolver
         // handles adjacent chapters that cross a book boundary.
         // Read the latest selection straight from the store so
@@ -391,7 +393,7 @@ const PassageView = () => {
           activeTextFilesetId: storedTextId,
           translations: tls,
         } = useBibleStore.getState();
-        prefetchAdjacentChapters(
+        void prefetchAdjacentChapters(
           activeBookId,
           activeChapter,
           textFilesetId,
@@ -432,7 +434,7 @@ const PassageView = () => {
   // saved reading position).
   useEffect(() => {
     // Prefetch current chapter audio.
-    prefetchAudioUrl(
+    void prefetchAudioUrl(
       activeBookId, activeChapter, resolvedAudioFilesetId
     );
 
@@ -447,7 +449,7 @@ const PassageView = () => {
         activeAudioFilesetId: storedAudioId,
         translations: tls,
       } = useBibleStore.getState();
-      prefetchAudioUrl(
+      void prefetchAudioUrl(
         next.bookId,
         next.chapter,
         resolveAudioFileset(storedAudioId, next.bookId, tls)

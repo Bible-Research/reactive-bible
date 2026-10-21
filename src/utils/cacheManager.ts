@@ -275,6 +275,8 @@ export const cacheVerses = (
     metadata.totalVerses > MAX_VERSES &&
     metadata.lruQueue.length > 1
   ) {
+    // The while condition guarantees a non-empty queue; the
+    // guard replaces a non-null assertion.
     const oldestChapterKey = metadata.lruQueue.shift();
     if (oldestChapterKey === undefined) break;
     Object.keys(cache).forEach((k) => {

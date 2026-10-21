@@ -11,7 +11,7 @@ import {
 } from './appUpdate';
 import { App } from '@capacitor/app';
 import { CapacitorHttp } from '@capacitor/core';
-import { isNativeApp } from './nativeAudio';
+import { isNativeApp } from './platform';
 
 vi.mock('@capacitor/app', () => ({
   App: { getInfo: vi.fn() },
@@ -26,7 +26,7 @@ vi.mock('@capacitor/core', async (importOriginal) => {
   };
 });
 
-vi.mock('./nativeAudio', () => ({
+vi.mock('./platform', () => ({
   isNativeApp: vi.fn(),
 }));
 

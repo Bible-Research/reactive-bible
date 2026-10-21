@@ -13,7 +13,11 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ onNavigate }: UserMenuProps = {}) {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore(
+    (state) => state.isAuthenticated
+  );
+  const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -24,7 +28,7 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
       color: 'blue',
     });
     onNavigate?.(); // Close menu if callback provided
-    navigate('/login');
+    void navigate('/login');
   };
 
   if (!isAuthenticated || !user) {
@@ -34,7 +38,7 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
         leftIcon={<IconLogin size={16} />}
         onClick={() => {
           onNavigate?.(); // Close menu if callback provided
-          navigate('/login');
+          void navigate('/login');
         }}
       >
         Sign In

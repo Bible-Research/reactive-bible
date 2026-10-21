@@ -19,10 +19,10 @@ import { useAuthStore } from '../stores/authStore';
 export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const login = useAuthStore((s) => s.login);
-  const isLoading = useAuthStore((s) => s.isLoading);
-  const error = useAuthStore((s) => s.error);
-  const clearError = useAuthStore((s) => s.clearError);
+  const login = useAuthStore((state) => state.login);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const error = useAuthStore((state) => state.error);
+  const clearError = useAuthStore((state) => state.clearError);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -54,7 +54,7 @@ export function LoginPage() {
         from?: { pathname?: string };
       } | null;
       const from = state?.from?.pathname ?? '/notes';
-      navigate(from, { replace: true });
+      void navigate(from, { replace: true });
     } catch (err) {
       // Error is already set in the store
       console.error('Login failed:', err);

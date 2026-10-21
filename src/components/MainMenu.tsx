@@ -16,16 +16,20 @@ import {
   IconBrandAndroid,
   IconRefresh,
 } from "@tabler/icons-react";
-import { useRef, useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
-import { isNativeApp } from "../utils/nativeAudio";
+import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
-import AddStandaloneNoteModal from "./AddStandaloneNoteModal";
-import { emptyNoteDraft } from "./noteDraft";
+
+// Lazy + gated below on newNoteOpened — the modal pulls in
+// TipTap, which must stay out of the app-shell chunk.
+const AddStandaloneNoteModal = lazy(
+  () => import("./AddStandaloneNoteModal")
+);
 
 // The rolling `continuous` prerelease always serves the newest
 // main build; `releases/latest` would serve the stale v* tag.
@@ -49,10 +53,6 @@ const MainMenu = ({
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
-  // Held here so the standalone-note draft survives the modal
-  // closing (its form unmounts) — reopening resumes the
-  // autosaved note instead of POSTing a duplicate.
-  const noteDraftRef = useRef(emptyNoteDraft());
 
   // Get Bible state for navigation
   const activeBookId = useBibleStore((state) => state.activeBookId);
@@ -105,7 +105,7 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              navigate(buildBiblePath(activeBookId, activeChapter));
+              void navigate(buildBiblePath(activeBookId, activeChapter));
               onClose();
             }}
             sx={{ cursor: "pointer" }}
@@ -119,7 +119,7 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              navigate('/notes');
+              void navigate('/notes');
               onClose();
             }}
             sx={{ cursor: "pointer" }}
@@ -146,7 +146,7 @@ const MainMenu = ({
                 weight={500}
                 size="lg"
                 onClick={() => {
-                  navigate('/tags');
+                  void navigate('/tags');
                   onClose();
                 }}
                 sx={{ cursor: "pointer" }}
@@ -230,12 +230,13 @@ const MainMenu = ({
         </Group>
       </Stack>
     </Drawer>
-      {isAuthenticated && (
-        <AddStandaloneNoteModal
-          opened={newNoteOpened}
-          onClose={() => setNewNoteOpened(false)}
-          draftRef={noteDraftRef}
-        />
+      {isAuthenticated && newNoteOpened && (
+        <Suspense fallback={null}>
+          <AddStandaloneNoteModal
+            opened={newNoteOpened}
+            onClose={() => setNewNoteOpened(false)}
+          />
+        </Suspense>
       )}
     </>
   );

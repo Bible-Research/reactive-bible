@@ -12,14 +12,13 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconShare } from '@tabler/icons-react';
-import { showNotification } from '@mantine/notifications';
 import { Note } from '../types';
 import NoteCard from '../components/NoteCard';
 import CommentThread from '../components/CommentThread';
 import { getNote } from '../api';
 import { toPlainText } from '../utils/tiptapContent';
-import { copyTextToClipboard } from '../utils/clipboard';
 import { buildBiblePath } from '../utils/bibleUtils';
+import { shareOrCopyLink } from '../utils/share';
 import { useBibleStore } from '../store';
 
 /**
@@ -67,7 +66,7 @@ export default function NoteDetailRoute() {
         setLoading(false);
       }
     };
-    load();
+    void load();
     return () => {
       cancelled = true;
       setDetailNote(null);
@@ -79,12 +78,11 @@ export default function NoteDetailRoute() {
     chapter: number,
     verse: number,
   ) => {
-    navigate(buildBiblePath(book, chapter, [verse]));
+    void navigate(buildBiblePath(book, chapter, [verse]));
     setShowNotes(false);
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
     const title = note?.tag?.name
       ? `Note: ${note.tag.name}`
       : 'Shared note';
@@ -92,32 +90,15 @@ export default function NoteDetailRoute() {
       ? toPlainText(note.note_text).slice(0, 140)
       : 'Shared Bible note';
 
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') {
-          console.error('Error sharing:', err);
-        }
+    await shareOrCopyLink(
+      { title, text, url: window.location.href },
+      {
+        copySuccess: {
+          title: 'Link Copied!',
+          message: 'Note link copied to clipboard',
+        },
       }
-      return;
-    }
-
-    // execCommand fallback covers http/non-secure contexts where
-    // navigator.clipboard is unavailable.
-    if (await copyTextToClipboard(url)) {
-      showNotification({
-        title: 'Link Copied!',
-        message: 'Note link copied to clipboard',
-        color: 'blue',
-      });
-    } else {
-      showNotification({
-        title: 'Error',
-        message: 'Failed to copy link',
-        color: 'red',
-      });
-    }
+    );
   };
 
   if (loading) {

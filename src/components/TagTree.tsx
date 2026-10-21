@@ -21,12 +21,8 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { Tag } from '../types';
+import { buildTagTree, TagNode } from '../utils/tagTree';
 import { useAuthStore } from '../stores/authStore';
-
-interface TagNode {
-  tag: Tag;
-  children: TagNode[];
-}
 
 interface TagTreeProps {
   tags: Tag[];
@@ -54,41 +50,6 @@ export function TagTree({
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
-
-  const buildTree = (tags: Tag[]): TagNode[] => {
-    const map = new Map<string, TagNode>();
-    const roots: TagNode[] = [];
-
-    tags.forEach((tag) => {
-      map.set(tag.id, { tag, children: [] });
-    });
-
-    tags.forEach((tag) => {
-      const node = map.get(tag.id);
-      if (!node) return;
-      if (tag.parent_tag) {
-        const parent = map.get(tag.parent_tag);
-        if (parent) {
-          parent.children.push(node);
-        } else {
-          roots.push(node);
-        }
-      } else {
-        roots.push(node);
-      }
-    });
-
-    const sortNodes = (nodes: TagNode[]): TagNode[] => {
-      return nodes
-        .sort((a, b) => a.tag.name.localeCompare(b.tag.name))
-        .map((node) => ({
-          ...node,
-          children: sortNodes(node.children),
-        }));
-    };
-
-    return sortNodes(roots);
-  };
 
   const toggleNode = (nodeId: string) => {
     const newExpanded = new Set(expandedNodes);
@@ -141,9 +102,9 @@ export function TagTree({
               {hasChildren ? (
                 isExpanded ? (
                   <IconFolderOpen
-                   size={18}
-                   color="var(--mantine-color-blue-6)"
-                 />
+                    size={18}
+                    color="var(--mantine-color-blue-6)"
+                  />
                 ) : (
                   <IconFolder size={18} color="var(--mantine-color-blue-6)" />
                 )
@@ -230,7 +191,7 @@ export function TagTree({
     );
   };
 
-  const tree = buildTree(tags);
+  const tree = buildTagTree(tags);
 
   if (tree.length === 0) {
     return null;

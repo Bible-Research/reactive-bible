@@ -146,6 +146,24 @@ const TagSection = ({
     ? localNotes.find(n => n.id === activeId) 
     : null;
 
+  // The static list and the sortable list hand NoteCard /
+  // SortableNoteCard an identical prop set — build it once.
+  // (The drag overlay stays explicit: it deliberately gets a
+  // minimal, read-only prop set plus its own verse scope.)
+  const noteCardProps = (note: Note) => ({
+    note,
+    onViewInBible,
+    onEdit: onEditNote,
+    onDelete: onDeleteNote,
+    onPlayFromNote,
+    commentCount: commentCounts?.[note.id],
+    onCountChange: onCountChange
+      ? (delta: number) => onCountChange(note.id, delta)
+      : undefined,
+    isTagOwner,
+    orderMenu,
+  });
+
   if (!isDraggable) {
     return (
       <Stack spacing="md" mb={30}>
@@ -153,22 +171,7 @@ const TagSection = ({
           {tagName}
         </Title>
         {notes.map((note) => (
-          <NoteCard
-            key={note.id}
-            note={note}
-            onViewInBible={onViewInBible}
-            onEdit={onEditNote}
-            onDelete={onDeleteNote}
-            onPlayFromNote={onPlayFromNote}
-            commentCount={commentCounts?.[note.id]}
-            onCountChange={
-              onCountChange
-                ? (delta) => onCountChange(note.id, delta)
-                : undefined
-            }
-            isTagOwner={isTagOwner}
-            orderMenu={orderMenu}
-          />
+          <NoteCard key={note.id} {...noteCardProps(note)} />
         ))}
       </Stack>
     );
@@ -192,19 +195,7 @@ const TagSection = ({
           {localNotes.map((note) => (
             <SortableNoteCard
               key={note.id}
-              note={note}
-              onViewInBible={onViewInBible}
-              onEdit={onEditNote}
-              onDelete={onDeleteNote}
-              onPlayFromNote={onPlayFromNote}
-              commentCount={commentCounts?.[note.id]}
-              onCountChange={
-                onCountChange
-                  ? (delta) => onCountChange(note.id, delta)
-                  : undefined
-              }
-              isTagOwner={isTagOwner}
-              orderMenu={orderMenu}
+              {...noteCardProps(note)}
             />
           ))}
         </Stack>

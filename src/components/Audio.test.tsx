@@ -14,13 +14,15 @@ import {
   getBibleAudioUrl,
   getAudioTimestamps,
 } from '../api';
-import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import {
   stubMediaSession,
   type MediaSessionStub,
 } from '../__tests__/mocks/mediaSession';
 import type { BibleState, Translation } from '../store';
 
+// Shared faithful Howl fake — created instances are reachable
+// via FakeHowl.instances / FakeHowl.latest().
+import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
 }));
@@ -39,7 +41,7 @@ vi.mock('../api', async () => {
       .mockResolvedValue('http://audio.url/test.mp3'),
     // Real signature returns an array of {book_name, book_id,
     // chapter} entries — previously mocked as a single object.
-    getPassage: vi.fn().mockReturnValue([
+    getChapterList: vi.fn().mockReturnValue([
       { book_name: 'Genesis', book_id: 'GEN', chapter: 1 },
     ]),
     getAudioTimestamps: vi.fn().mockResolvedValue([]),

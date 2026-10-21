@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import {
   disableAudioKeepAlive,
   enableAudioKeepAlive,
-  isNativeApp,
 } from '../utils/nativeAudio';
+import { isNativeApp } from '../utils/platform';
 
 // How long to keep the foreground service running while paused
 // before releasing it (the user may resume from the lock screen).

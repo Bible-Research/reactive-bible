@@ -1,7 +1,7 @@
 import { Box, ScrollArea, createStyles, rem } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent } from "react";
-import { getChapters, getVerses } from "../api";
+import { getChapters, getVerses } from "../api/structure";
 import { getAllBooks } from "../utils/scriptureMention";
 
 const useStyles = createStyles((theme) => ({
@@ -14,8 +14,15 @@ const useStyles = createStyles((theme) => ({
   },
 
   link: {
+    appearance: "none",
+    background: "none",
+    border: 0,
+    cursor: "pointer",
+    font: "inherit",
+    ...theme.fn.focusStyles(),
     boxSizing: "border-box",
     display: "block",
+    textAlign: "left",
     textDecoration: "none",
     color:
       theme.colorScheme === "dark"
@@ -158,11 +165,13 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%" className={classes.border}>
           {books.map((b) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: bookId === b.book_id,
               })}
               data-active={bookId === b.book_id || undefined}
+              aria-current={bookId === b.book_id || undefined}
               role="button"
               tabIndex={0}
               onClick={() => onSelectBook(b.book_id)}
@@ -175,7 +184,7 @@ const PassagePicker = ({
               title={`${titlePrefix}book-${b.book_id}`}
             >
               {b.book_name}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>
@@ -185,11 +194,13 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%" className={classes.border}>
           {chapters.map((ch) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: chapter === ch,
               })}
               data-active={chapter === ch || undefined}
+              aria-current={chapter === ch || undefined}
               role="button"
               tabIndex={0}
               onClick={() => onSelectChapter(ch)}
@@ -200,7 +211,7 @@ const PassagePicker = ({
               title={`${titlePrefix}chapter-${ch}`}
             >
               {ch}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>
@@ -210,11 +221,13 @@ const PassagePicker = ({
       >
         <ScrollArea h="100%">
           {verseList.map((verse) => (
-            <a
+            <button
+              type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: verses.includes(verse),
               })}
               data-active={verses.includes(verse) || undefined}
+              aria-pressed={verses.includes(verse)}
               role="button"
               tabIndex={0}
               onClick={(event) =>
@@ -229,7 +242,7 @@ const PassagePicker = ({
               title={`${titlePrefix}verse-${verse}`}
             >
               {verse}
-            </a>
+            </button>
           ))}
         </ScrollArea>
       </Box>

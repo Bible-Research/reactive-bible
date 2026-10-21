@@ -79,15 +79,20 @@ describe('MainMenu Component', () => {
   it('should not render when closed', () => {
     renderWithProviders(<MainMenu {...defaultProps} opened={false} />);
 
-    expect(screen.queryByText('View Notes')).not.toBeInTheDocument();
-    expect(screen.queryByText('Read Bible')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('View Notes')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Read Bible')
+    ).not.toBeInTheDocument();
   });
 
-  it('should call onClose when the close button is clicked', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<MainMenu {...defaultProps} />);
+  it('should call onClose when the close button is clicked',
+    async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<MainMenu {...defaultProps} />);
 
-    await user.click(screen.getByTitle('Close menu'));
+      await user.click(screen.getByTitle('Close menu'));
 
     expect(mockOnClose).toHaveBeenCalled();
   });
@@ -113,15 +118,14 @@ describe('MainMenu Component', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
-  it('should navigate to /tags on Tag Management', async () => {
-    const user = userEvent.setup();
+  it('should navigate to the active bible passage', async () => {
     renderWithProviders(<MainMenu {...defaultProps} />, {
-      authStoreState: authed,
+      storeOverrides: { activeBookId: 'JHN', activeChapter: 3 },
     });
 
-    await user.click(screen.getByText('Tag Management'));
+    await userEvent.click(screen.getByText('Read Bible'));
 
-    expect(mockNavigate).toHaveBeenCalledWith('/tags');
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/JHN.3');
     expect(mockOnClose).toHaveBeenCalled();
   });
 
@@ -170,4 +174,47 @@ describe('MainMenu Component', () => {
       screen.queryByText('Download Android App')
     ).not.toBeInTheDocument();
   });
+
+  it('hides authenticated-only items from anonymous visitors',
+    () => {
+      renderWithProviders(<MainMenu {...defaultProps} />, {
+        authStoreState: { isAuthenticated: false },
+      });
+
+      expect(
+        screen.queryByText('New Note')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Tag Management')
+      ).not.toBeInTheDocument();
+    });
+
+  it('shows write affordances to authenticated users', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: {
+        isAuthenticated: true,
+        token: 'test-token',
+        user: { username: 'testuser' },
+      },
+    });
+
+    expect(screen.getByText('New Note')).toBeInTheDocument();
+    expect(screen.getByText('Tag Management')).toBeInTheDocument();
+  });
+
+  it('navigates to tag management for authenticated users',
+    async () => {
+      renderWithProviders(<MainMenu {...defaultProps} />, {
+        authStoreState: {
+          isAuthenticated: true,
+          token: 'test-token',
+          user: { username: 'testuser' },
+        },
+      });
+
+      await userEvent.click(screen.getByText('Tag Management'));
+
+      expect(mockNavigate).toHaveBeenCalledWith('/tags');
+      expect(mockOnClose).toHaveBeenCalled();
+    });
 });

@@ -64,35 +64,49 @@ const Verse = ({
   const ref = useRef<HTMLDivElement>(null);
   const { classes, cx } = useStyles();
   const navigate = useNavigate();
-  const verseSelection = useBibleStore((state) => state.verseSelection);
+  const bookId = toUsfmCode(book) ?? book;
+  const thisRef: VerseRef = { bookId, chapter, verse };
+  // Per-verse boolean selectors: this verse only re-renders when
+  // its own selection/audio flags flip, not on every store change.
+  const isActive = useBibleStore((state) => {
+    const selection = state.verseSelection;
+    return (
+      selection !== null &&
+      selection.scope === scope &&
+      refsInclude(selection.refs, thisRef)
+    );
+  });
+  const isAudioActive = useBibleStore((state) => {
+    const active = state.audioActiveVerse;
+    return (
+      active !== null &&
+      active.scope === scope &&
+      active.bookId === bookId &&
+      active.chapter === chapter &&
+      active.verse === verse
+    );
+  });
   const toggleVerseRef = useBibleStore((state) => state.toggleVerseRef);
   const selectVerseRange = useBibleStore(
     (state) => state.selectVerseRange
   );
-  const audioActiveVerse = useBibleStore(
-    (state) => state.audioActiveVerse
-  );
-  const bookId = toUsfmCode(book) ?? book;
-  const thisRef: VerseRef = { bookId, chapter, verse };
-  const isActive =
-    verseSelection?.scope === scope &&
-    refsInclude(verseSelection.refs, thisRef);
   // Only the lowest selected verse in this chapter may scroll
   // itself into view — otherwise every selected verse scrolls
   // and the view settles on the last one, not the first.
-  const selectedNumbers = verseNumbersFor(
-    verseSelection?.refs ?? [],
-    bookId,
-    chapter,
-  );
-  const isFirstSelected =
-    isActive && selectedNumbers[0] === verse;
-  const isAudioActive =
-    audioActiveVerse !== null &&
-    audioActiveVerse.scope === scope &&
-    audioActiveVerse.bookId === bookId &&
-    audioActiveVerse.chapter === chapter &&
-    audioActiveVerse.verse === verse;
+  const isFirstSelected = useBibleStore((state) => {
+    const selection = state.verseSelection;
+    if (
+      selection === null ||
+      selection.scope !== scope ||
+      !refsInclude(selection.refs, thisRef)
+    ) {
+      return false;
+    }
+    return (
+      verseNumbersFor(selection.refs, bookId, chapter)[0] ===
+      verse
+    );
+  });
 
   // Track touch state to differentiate tap from scroll
   const touchStartPos = useRef<{ x: number; y: number } | null>(
@@ -120,7 +134,7 @@ const Verse = ({
       sel && sel.scope === scope
         ? verseNumbersFor(sel.refs, bookId, chapter)
         : [];
-    navigate(buildBiblePath(bookId, chapter, verses), {
+    void navigate(buildBiblePath(bookId, chapter, verses), {
       replace: true,
     });
   };
@@ -261,12 +275,12 @@ const Verse = ({
     <Box
       component="div"
       display="flex"
-      data-active={isActive}
-      data-audio-active={isAudioActive}
       role={selectable ? 'button' : undefined}
       tabIndex={selectable ? 0 : undefined}
       aria-pressed={selectable ? isActive : undefined}
       onKeyDown={handleKeyDown}
+      data-active={isActive}
+      data-audio-active={isAudioActive}
       className={cx({
         [classes.link]: selectable,
         [classes.linkReadOnly]: !selectable,

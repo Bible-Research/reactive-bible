@@ -1,201 +1,101 @@
-# Media Session API Best Practices for React PWAs
+# Media Session — how it works here
 
-## Core Principle
+Lock-screen / headphone / car-stereo media controls for audio
+playback. This document describes the architecture as
+implemented — read it before touching `src/hooks/
+useMediaSession.ts`, `src/utils/mediaSession.ts`, or the media
+wiring in `src/components/Audio.tsx`.
 
-**Media Session action handlers must be synchronous,
-fire-and-forget, and never throw.** The single owner is
-`useMediaSession` (`src/hooks/useMediaSession.ts`), wired once in
-`Audio.tsx` for both chapter and playlist playback.
+## Architecture
 
-Why: on Android the WebView can be frozen on the lock screen. A
-handler that `await`s a playback promise may never return, which
-blocks the main thread and triggers ANR crashes. All playback
-work is dispatched to fire-and-forget callbacks instead.
+- **Single owner.** `useMediaSession` (src/hooks/
+  useMediaSession.ts) is the only writer to the global
+  `navigator.mediaSession` and to the native
+  `@capgo/capacitor-media-session` bridge. It is wired once in
+  `Audio.tsx`, covering both chapter playback and playlist
+  playback — do not add a second `setActionHandler` caller
+  anywhere (two owners desynced the lock screen from Howler in
+  the past).
+- **Pure dispatch.** `dispatchMediaAction` in
+  `src/utils/mediaSession.ts` routes each action to a
+  `MediaSessionControls` entry; both the web handlers and the
+  native plugin handlers call it, so behavior is identical on
+  lock screen, bluetooth remotes and browser media keys.
+- **One registration per session.** Action handlers register
+  once per `active` session and read the latest controls from
+  refs, so re-renders never churn OS-level handlers while the
+  page is backgrounded.
 
----
+## Rules that prevent ANR / lock-screen breakage
 
-## DO: Single owner for `navigator.mediaSession`
+1. **Handlers are synchronous fire-and-forget.** They return
+   immediately and never throw. Howler's html5 `play()` returns
+   a sound id (not a promise) and reports failures via
+   `onplayerror`, so controls stay sync by design — an
+   `await`-ed handler can hang on a frozen tab and block the
+   main thread (observed as Android ANR).
+2. **Every MediaSession API call is wrapped in try/catch.**
+   Some Android WebViews throw `NotSupportedError` for
+   individual actions; `dispatchMediaAction` also swallows
+   control errors into `console.warn`.
+3. **Guard every position push with `isValidPosition`.**
+   `setPositionState` throws RangeError for `duration <= 0` or
+   a position outside `[0, duration]` — states a frozen
+   renderer produces. The hook also pushes position after every
+   seek action and polls it at 1s while playing.
+4. **Never trust `seek()` mid-load.** Use `getPlayPosition`
+   (utils/audioUtils.ts): while loading it returns the Howl,
+   not a number, and frozen pages produce NaN/stale values.
+   Feeding those back into `seek()` corrupts the `<audio>`
+   element ("stuck/broken noise" on headphone seeks).
+5. **Teardown order matters.** `disposeHowl` (utils/
+   audioUtils.ts) stops first so 'stop' subscribers still run,
+   detaches all listeners before `unload()` so a rejected
+   pending `play()` can't surface as a `playerror`, and mutes
+   via `volume(0)` — `mute(true)` sets `node.muted`, which the
+   html5 pool never resets and would silence the next chapter.
 
-`navigator.mediaSession` is a global singleton. Registering
-handlers from multiple components produces stale or duplicated
-owners. `useMediaSession` registers all action handlers once per
-active session and reads the latest callbacks from refs:
+## Wiring contract (Audio.tsx)
 
-```typescript
-const controlsRef = useRef(controls);
-useEffect(() => {
-  controlsRef.current = controls;
-}, [controls]);
-```
+- `active` = playlist active OR a chapter Howl exists;
+  `isPlaying` mirrors the same source. `metadata` /
+  `controls` / `getPosition` are memoized per mode — playlist
+  mode forwards to `useAudioPlaylist`, chapter mode to
+  `safePlay`/`safePause`/`safeSeek` and verse-aware
+  next/previous.
+- `stop` falls back to `pause` when absent; `previoustrack`/
+  `nexttrack` fall back to a 10s `seekBy` when the session has
+  no real track navigation.
+- `useAudioKeepAlive` keeps the Capacitor WebView alive during
+  lock-screen playback (no-op in the browser).
+- Cleanup on `active -> false` clears every handler
+  (`setActionHandler(action, null)` on both web and native)
+  and nulls metadata.
 
-**Why:** refs don't trigger re-renders and never re-register
-handlers mid-session, which matters while backgrounded.
+## Testing checklist
 
----
+### Lock screen (Android, Capacitor shell)
 
-## DO: Keep handlers synchronous — never await inside them
+- [ ] Play/pause from the lock screen
+- [ ] Seek forward/backward (10s) from the lock screen
+- [ ] Drag the seek bar; position updates on the lock screen
+- [ ] Chapter auto-advance while the screen stays locked
+- [ ] Unlock mid-playback — controls and highlight in sync
 
-```typescript
-// GOOD: handler returns immediately, work is detached
-const dispatch = (action, details) => {
-  try {
-    const c = controlsRef.current;
-    if (action === 'play') c.play();   // fire-and-forget
-  } catch (err) {
-    console.warn('MediaSession handler error:', err);
-  }
-};
-```
-
-Note: Howler's html5 `play()` returns a sound **id** (number),
-not a promise — the underlying `<audio>` element's play promise
-is managed internally and rejections surface via `onplayerror`.
-There is nothing to await; the handler just kicks the work off.
-
-```typescript
-// BAD: awaiting inside a handler can hang forever on a frozen
-// lock-screen renderer and never lets the handler return.
-navigator.mediaSession.setActionHandler('play', async () => {
-  await audio.play(); // ANR risk — do NOT do this
-});
-```
-
----
-
-## DO: Call setState from handlers if needed — but return fast
-
-An earlier revision of this doc claimed state updates must never
-run inside handlers. The real constraint is **blocking**: a
-synchronous `setIsPlaying(...)` is fine — React batches it and the
-handler still returns immediately. What is dangerous is awaiting
-promises or doing heavy synchronous work.
-
-```typescript
-const safePlay = useCallback(() => {
-  const currentAudio = audioRef.current;
-  if (!currentAudio || currentAudio.playing()) return;
-  try {
-    currentAudio.play();       // returns a number, not a promise
-    isPlayingRef.current = true;
-    setIsPlaying(true);        // synchronous — handler stays fast
-  } catch (err) {
-    console.warn('Play operation failed:', err);
-  }
-}, []);
-```
-
----
-
-## DO: Wrap every MediaSession API call in try/catch
-
-Some Android WebView versions throw `NotSupportedError` for
-certain actions or invalid `setPositionState` values. Validate
-position data before sending (`duration > 0`,
-`0 <= position <= duration`, all finite) and never let a call
-escape the hook's try/catch.
-
----
-
-## DO: Clean up handlers and metadata
-
-```typescript
-return () => {
-  ALL_ACTIONS.forEach((a) => safeSetHandler(a, null));
-};
-```
-
-On deactivate also clear `mediaSession.metadata = null` and set
-`playbackState = 'none'` — and mirror an empty
-`setMetadata({title: '', artist: '', album: '', artwork: []})`
-to the native plugin (it has no dedicated clear call).
-
----
-
-## DO: Prefer the native plugin's handlers on Capacitor
-
-In the Capacitor shell, `@capgo/capacitor-media-session` mirrors
-metadata/state/position to the Android MediaSession. Action
-**handlers** are registered only on the native side when
-`Capacitor.isNativePlatform()` — registering both web and native
-handlers can double-dispatch `seekBy`/`nexttrack` if the OS also
-surfaces the WebView's media session.
-
----
-
-## DON'T: Create circular dependencies
-
-```typescript
-// BAD: isPlaying is both a dependency and modified inside
-useEffect(() => {
-  navigator.mediaSession.setActionHandler('play', () => {
-    setIsPlaying(true);
-  });
-}, [isPlaying]);
-
-// GOOD: register once; read latest state from refs
-useEffect(() => {
-  navigator.mediaSession.setActionHandler('play', () =>
-    controlsRef.current.play(),
-  );
-}, []);
-```
-
----
-
-## Testing Checklist
-
-### Lock Screen Testing
-
-- [ ] Play/pause from lock screen
-- [ ] Seek forward/backward from lock screen
-- [ ] Drag seek bar on lock screen
-- [ ] Rapid tapping of controls
-- [ ] Unlock device after interaction
-
-### Headphone Controls
+### Headphone / bluetooth / car controls
 
 - [ ] Play/pause button
-- [ ] Next/previous track buttons
-- [ ] Seek buttons (if available)
+- [ ] Next/previous (verse jumps in chapter mode, item jumps in
+      playlist mode)
+- [ ] No ANR or frozen WebView after rapid button presses
 
-### Car Stereo
+### Common pitfalls (learned from production bugs)
 
-- [ ] Bluetooth controls
-- [ ] Android Auto integration
-
-### Performance
-
-- [ ] No ANR crashes
-- [ ] No UI freezing
-- [ ] Smooth audio playback
-- [ ] Responsive controls
-
----
-
-## Common Pitfalls
-
-| Issue | Symptom | Fix |
-|-------|---------|-----|
-| Awaiting in handlers | ANR on lock screen | Fire-and-forget |
-| Multiple handler owners | Desynced controls | `useMediaSession` only |
-| Missing cleanup | Stale handlers fire | Clear in effect return |
-| Circular dependencies | Infinite re-renders | Refs, not state deps |
-| Invalid position state | API throws | Validate range/finite |
-| Web+native handlers | Double seeks/skips | Native only on Capacitor |
-
----
-
-## Resources
-
-- [Media Session API Spec](https://w3c.github.io/mediasession/)
-- Android media session guide:
-  developer.android.com/guide/topics/media-apps/
-  working-with-a-media-session
-- [React useRef Documentation](https://react.dev/reference/react/useRef)
-- [Howler.js API](https://github.com/goldfire/howler.js#documentation)
-
----
-
-**Remember:** the key to preventing ANR crashes is handlers that
-**return immediately** — synchronous, fire-and-forget, and
-never throwing. Detached functions own the actual playback work.
+| Issue | Symptom | Guard |
+|-------|---------|-------|
+| Two owners of mediaSession | Playlist buttons dead | useMediaSession |
+| Awaited/throwing handlers | Android ANR on frozen tab | dispatchMediaAction |
+| seek() of a loading Howl | Broken noise on headphone seek | getPlayPosition |
+| Invalid position state | RangeError spam | isValidPosition |
+| unload() on a playing Howl | Audio plays after teardown | disposeHowl |
+| mute(true) in teardown | Next chapter silent | volume(0) instead |

@@ -64,7 +64,7 @@ const CopyrightNotice = () => {
     const bibleId = translation.abbr;
     let stale = false;
 
-    getCopyrightInfo(bibleId).then((data) => {
+    void getCopyrightInfo(bibleId).then((data) => {
       if (stale) return;
 
       // Find the text fileset's copyright

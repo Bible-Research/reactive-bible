@@ -18,11 +18,15 @@ const NotesView = () => {
       return;
     }
     
-    // If we have cached tags and lastSelectedTagId, navigate now
-    if (storedTags.length > 0 && lastSelectedTagId &&
-        location.pathname === '/notes') {
+    // If we have cached tags and lastSelectedTagId, navigate
+    // immediately
+    if (
+      storedTags.length > 0 &&
+      lastSelectedTagId &&
+      location.pathname === '/notes'
+    ) {
       hasNavigatedRef.current = true;
-      navigate(`/notes/tag/${lastSelectedTagId}`, { replace: true });
+      void navigate(`/notes/tag/${lastSelectedTagId}`, { replace: true });
       return;
     }
 
@@ -45,7 +49,7 @@ const NotesView = () => {
             [...fetchedTags]
               .sort((a, b) => a.name.localeCompare(b.name))[0].id;
           hasNavigatedRef.current = true;
-          navigate(`/notes/tag/${tagId}`, { replace: true });
+          void navigate(`/notes/tag/${tagId}`, { replace: true });
         }
       } catch (error) {
         console.error('Error loading data:', error);
@@ -56,7 +60,7 @@ const NotesView = () => {
     // Always fetch if we don't have cached tags
     // We need tags in the store for TagNotesRoute to work
     if (!storedTags.length) {
-      loadData();
+      void loadData();
     }
   }, [location.pathname, navigate, lastSelectedTagId, storedTags, getTags]);
 
@@ -66,7 +70,7 @@ const NotesView = () => {
   const handleTagChange = (value: string | null) => {
     if (value) {
       // Navigate to tag-specific route
-      navigate(`/notes/tag/${value}`);
+      void navigate(`/notes/tag/${value}`);
     }
   };
 
