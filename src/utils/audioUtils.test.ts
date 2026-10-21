@@ -3,8 +3,8 @@ import type { Howl } from 'howler';
 import type { VerseTimestamp } from '../types';
 import {
   activeVerseAtTime,
-  getPlayPosition,
   getHtml5AudioNode,
+  getPlayPosition,
 } from './audioUtils';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 

@@ -24,8 +24,7 @@ const getAuthHeaders = (): Record<string, string> => {
  * side effects, so re-sending after a network failure cannot
  * double-submit. A TypeError (network failure) on POST/PUT/
  * PATCH/DELETE must surface to the caller instead of silently
- * retrying — a lost-response POST could double-create notes,
- * tags, or comments.
+ * retrying.
  */
 const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -117,10 +116,9 @@ const throwForbidden = (): never => {
  *
  * DRF runs authentication before permission checks, so an expired
  * token makes even `AllowAny` endpoints return 401 — worse than
- * anonymous. If the request carried a token and still returns 401
- * (stale or expired credentials on a public endpoint), it retries
- * once without the Authorization header so public reads degrade
- * to anonymous — a bad token must not break public content.
+ * anonymous. If the request carried a token and still returns
+ * 401, it is retried once without the Authorization header —
+ * a bad token must not break public content.
  *
  * @param url - The URL to fetch
  * @param options - Fetch options
@@ -139,16 +137,15 @@ export const publicFetch = async (
   // A dead token poisons even public reads — retry once
   // anonymously. The token is deliberately kept: publicFetch
   // must never destroy the session (that is
-  // authenticatedFetch's job).
+  // authenticatedFetch's job). The anonymous response is
+  // returned as-is, whether it succeeds or is another 401.
   if (response.status === 401 && headers['Authorization']) {
     console.warn(
       '401 with token on public endpoint — ' +
-        'retrying without credentials'
+        'retrying anonymously'
     );
     const anonymousHeaders = { ...headers };
     delete anonymousHeaders['Authorization'];
-    // Single retry: the anonymous response is returned
-    // as-is, whether it succeeds or is another 401.
     return sendRequest(
       url, options, anonymousHeaders, retries, 'publicFetch'
     );
@@ -174,11 +171,10 @@ export const authenticatedFetch = async (
   // Capture the token this request is issued with so a stale
   // 401 can't wipe a session that rotated in the meantime.
   const issuedToken = useAuthStore.getState().token;
-  const headers = getAuthHeaders();
   const response = await sendRequest(
     url,
     options,
-    headers,
+    getAuthHeaders(),
     retries,
     'authenticatedFetch'
   );
@@ -189,7 +185,7 @@ export const authenticatedFetch = async (
   // on a public page) means "login required", not "your
   // session expired", and must not log anyone out.
   if (response.status === 401) {
-    if (!headers['Authorization']) {
+    if (!issuedToken) {
       throw new Error(
         'Authentication required for this request.'
       );
@@ -210,14 +206,14 @@ export const authenticatedFetch = async (
  * Sets only the Authorization header; lets the browser generate
  * the multipart Content-Type with its boundary.
  * Mirrors authenticatedFetch's 401 (logout + notification) and
- * 403 (throw permission error) handling. No network-failure
- * retry — an upload is a non-idempotent POST, and retrying a
- * lost-response request could double-upload the file.
+ * 403 (throw permission error) handling. There is no
+ * network-error retry: an upload is a non-idempotent POST, and
+ * retrying a lost-response request could double-upload the
+ * file.
  */
 export const authenticatedUpload = async (
   url: string,
   formData: FormData,
-  retries = 1,
 ): Promise<Response> => {
   const issuedToken = useAuthStore.getState().token;
   const headers: Record<string, string> = {};
@@ -229,12 +225,14 @@ export const authenticatedUpload = async (
     url,
     { method: 'POST', body: formData },
     headers,
-    retries,
+    0,
     'authenticatedUpload'
   );
 
   // Same rule as authenticatedFetch: a 401 only ends the
-  // session when this request actually attached the token.
+  // session when this request actually attached the token —
+  // an anonymous 401 means "login required", not a dead
+  // session.
   if (response.status === 401) {
     // An anonymous 401 means "login required", not a dead
     // session — there is nothing to log out.

@@ -6,20 +6,20 @@ vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
 }));
 
-describe('disposeHowl', () => {
-  const makeHowl = () => ({
-    stop: vi.fn(),
-    off: vi.fn(),
-    volume: vi.fn(),
-    unload: vi.fn(),
-  });
+const makeHowl = () => ({
+  stop: vi.fn(),
+  off: vi.fn(),
+  volume: vi.fn(),
+  unload: vi.fn(),
+});
 
+describe('disposeHowl', () => {
   it('stops, detaches listeners, mutes and unloads in order',
     () => {
       // stop() must run before off() so 'stop' subscribers (the
       // playlist bounds-checker cleanup) still fire; off() must
-      // precede unload() so a rejected pending play() reaches
-      // no handler.
+      // precede unload() so a rejected pending play() reaches no
+      // handler.
       const howl = makeHowl();
       disposeHowl(howl as unknown as Howl);
       expect(howl.stop).toHaveBeenCalledOnce();
