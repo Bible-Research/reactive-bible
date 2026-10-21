@@ -13,10 +13,7 @@ import { toBookName } from "./bibleUtils";
 import type { VerseRef } from "../types";
 
 /** USFM -> Blue Letter Bible URL abbreviation. */
-// Exported so a test can pin canonical coverage — every book
-// the API can return must have an abbreviation, or the BLB
-// button silently disappears.
-export const BOOK_TO_BLB_ABBR: Record<string, string> = {
+const BOOK_TO_BLB_ABBR: Record<string, string> = {
   GEN: "gen",
   EXO: "exo",
   LEV: "lev",

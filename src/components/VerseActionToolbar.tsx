@@ -295,7 +295,7 @@ const VerseActionToolbar = () => {
 
   const handleViewInBible = useCallback(() => {
     if (!primary) return;
-    navigate(
+    void navigate(
       buildBiblePath(
         primary.bookId,
         primary.chapter,

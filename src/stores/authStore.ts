@@ -295,7 +295,7 @@ const createAuthStore = () => create<AuthState>()(
         });
         clearNotesCache();
       },
-      
+
       // Clear error
       clearError: () => {
         set({ error: null });

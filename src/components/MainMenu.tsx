@@ -115,7 +115,7 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              navigate(buildBiblePath(activeBookId, activeChapter));
+              void navigate(buildBiblePath(activeBookId, activeChapter));
               onClose();
             }}
             sx={{ cursor: "pointer" }}
@@ -129,7 +129,7 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              navigate('/notes');
+              void navigate('/notes');
               onClose();
             }}
             sx={{ cursor: "pointer" }}
@@ -156,7 +156,7 @@ const MainMenu = ({
                 weight={500}
                 size="lg"
                 onClick={() => {
-                  navigate('/tags');
+                  void navigate('/tags');
                   onClose();
                 }}
                 sx={{ cursor: "pointer" }}
