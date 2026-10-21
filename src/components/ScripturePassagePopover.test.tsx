@@ -4,10 +4,26 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  vi,
+} from 'vitest';
+import { useNavigate } from 'react-router-dom';
 import ScripturePassagePopover from './ScripturePassagePopover';
 import type { ScriptureRefAnchor } from '../hooks/useScriptureRefPreview';
 import type { ScriptureRef } from '../utils/scriptureRef';
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<
+    typeof import('react-router-dom')
+  >('react-router-dom');
+  return { ...actual, useNavigate: vi.fn() };
+});
+
+const mockNavigate = vi.fn();
 
 const JHN316: ScriptureRef = {
   book: 'John',
@@ -68,6 +84,13 @@ const tap = (
 };
 
 describe('ScripturePassagePopover', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (useNavigate as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockNavigate
+    );
+  });
+
   it('portals a fixed panel under the anchor', async () => {
     renderPopover();
     const panel = await screen.findByTestId(
@@ -322,5 +345,29 @@ describe('ScripturePassagePopover', () => {
     expect(
       screen.queryByTestId('passage-container')
     ).toBeNull();
+    // Nothing to navigate to without a parsed ref.
+    expect(
+      screen.queryByLabelText('view-in-bible')
+    ).toBeNull();
+  });
+
+  it('opens the passage in the Bible reader', async () => {
+    const onClose = vi.fn();
+    renderPopover({
+      onClose,
+      reference: {
+        book: 'John',
+        chapter: 3,
+        verses: [16, 17, 18],
+      },
+    });
+    await screen.findByTestId('scripture-passage-popover');
+
+    fireEvent.click(screen.getByLabelText('view-in-bible'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/bible/JHN.3.16-18'
+    );
   });
 });

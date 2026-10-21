@@ -2157,7 +2157,9 @@ its anchor on scroll/resize and on its own size changes (the
 passage loads async), dismisses on an outside tap or `Escape`
 (capture-phase, so the enclosing modal stays open), and closes
 when the anchor leaves the layout — a deleted token's rect
-collapses to zero on the next reposition.
+collapses to zero on the next reposition. A "View in Bible"
+header action navigates to the passage in the Bible reader
+(`buildBiblePath`), closing the panel.
 
 Pasted clipboard text is normalized before ProseMirror parses it
 (`src/utils/clipboardSanitize.ts`, wired as `transformPastedText`

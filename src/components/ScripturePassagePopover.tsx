@@ -7,15 +7,18 @@ import {
 } from 'react';
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   ActionIcon,
   Box,
   Group,
   Paper,
   Text,
+  Tooltip,
 } from '@mantine/core';
-import { IconX } from '@tabler/icons-react';
+import { IconBook, IconX } from '@tabler/icons-react';
 import ScripturePassage from './ScripturePassage';
+import { buildBiblePath } from '../utils/bibleUtils';
 import type { ScriptureRefAnchor } from '../hooks/useScriptureRefPreview';
 import type { ScriptureRef } from '../utils/scriptureRef';
 
@@ -98,6 +101,22 @@ const ScripturePassagePopover = ({
     width: number;
     mobile: boolean;
   } | null>(null);
+  const navigate = useNavigate();
+
+  // Jumps to the passage in the Bible reader — the preview is
+  // only ever ESV, so "read the full passage" means opening
+  // the real route where the user's own translation applies.
+  const openInBible = () => {
+    if (!reference) return;
+    onCloseRef.current();
+    navigate(
+      buildBiblePath(
+        reference.book,
+        reference.chapter,
+        reference.verses
+      )
+    );
+  };
 
   const position = useCallback(() => {
     const rect = anchor.getBoundingClientRect();
@@ -291,14 +310,33 @@ const ScripturePassagePopover = ({
         <Text size="sm" weight={600}>
           {error ? 'Scripture reference' : refLabel(reference)}
         </Text>
-        <ActionIcon
-          size="sm"
-          variant="subtle"
-          onClick={onClose}
-          aria-label="close-passage-preview"
-        >
-          <IconX size={14} />
-        </ActionIcon>
+        <Group spacing={4}>
+          {reference && (
+            <Tooltip label="View in Bible" position="top">
+              <Box
+                component="span"
+                sx={{ display: 'inline-block' }}
+              >
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  onClick={openInBible}
+                  aria-label="view-in-bible"
+                >
+                  <IconBook size={14} />
+                </ActionIcon>
+              </Box>
+            </Tooltip>
+          )}
+          <ActionIcon
+            size="sm"
+            variant="subtle"
+            onClick={onClose}
+            aria-label="close-passage-preview"
+          >
+            <IconX size={14} />
+          </ActionIcon>
+        </Group>
       </Group>
       <Box sx={{ maxHeight: '50vh', overflowY: 'auto' }}>
         {error ? (
