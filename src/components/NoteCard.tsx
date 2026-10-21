@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActionIcon,
   Box,
@@ -26,16 +26,12 @@ import Verse from "./Verse";
 import NoteOrderMenu from "./NoteOrderMenu";
 import CommentThread from "./CommentThread";
 import SectionHeadingComponent from "./SectionHeading";
-import ScripturePassage from "./ScripturePassage";
+import ScripturePassagePopover from "./ScripturePassagePopover";
+import useScriptureRefPreview from "../hooks/useScriptureRefPreview";
 import RichTextView from "./RichTextView";
 import { toPlainText } from "../utils/tiptapContent";
 import { copyTextToClipboard } from "../utils/clipboard";
 import { visibleNoteVerses } from "../utils/noteVerses";
-import {
-  isSameScriptureRef,
-  parseScriptureRef,
-  ScriptureRef,
-} from "../utils/scriptureRef";
 
 interface NoteCardProps {
   note: Note;
@@ -79,9 +75,14 @@ const NoteCard = ({
 }: NoteCardProps) => {
   const scope = verseScope ?? note.id;
   const [threadOpen, setThreadOpen] = useState(false);
-  const [passageContainer, setPassageContainer] =
-    useState<ScriptureRef | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Clicked '@…' refs open the passage in a floating popover
+  // anchored at the ref — never inline in the card.
+  const {
+    preview: passagePreview,
+    error: passageError,
+    open: openPassage,
+    close: closePassage,
+  } = useScriptureRefPreview();
 
   // Use headings from the note (provided by backend)
   const noteHeadings = note.headings || [];
@@ -102,19 +103,14 @@ const NoteCard = ({
     (state) => state.isAuthenticated
   );
 
-  const onGrabBiblePassage = (hashtag: string): void => {
-    const result = parseScriptureRef(hashtag);
-
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-
-    setError(null);
-    setPassageContainer((current) =>
-      isSameScriptureRef(current, result.ref) ? null : result.ref
-    );
-  };
+  // useCallback keeps memo(RichTextView)'s onScriptureRef
+  // prop stable across NoteCard re-renders.
+  const onGrabBiblePassage = useCallback(
+    (hashtag: string, anchorEl: HTMLElement): void => {
+      openPassage(hashtag, anchorEl);
+    },
+    [openPassage]
+  );
 
   const versesFolded = useBibleStore((state) => state.versesFolded);
 
@@ -235,9 +231,6 @@ const NoteCard = ({
 
   return (
     <Card shadow="sm" padding="sm" radius="md" mb={15}>
-      {error && (
-        <Text color="red">{error}</Text>
-      )}
       <Box
         sx={!versesFolded ? (theme) => ({
           display: 'flex',
@@ -605,8 +598,13 @@ const NoteCard = ({
           </Box>
         </Box>
       )}
-      {passageContainer && (
-        <ScripturePassage reference={passageContainer} />
+      {passagePreview && (
+        <ScripturePassagePopover
+          reference={passagePreview.ref}
+          error={passageError}
+          anchor={passagePreview.anchor}
+          onClose={closePassage}
+        />
       )}
 
       {threadOpen && (

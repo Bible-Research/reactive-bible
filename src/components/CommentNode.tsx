@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Box,
   Text,
@@ -13,14 +13,10 @@ import { IconX, IconPhoto } from '@tabler/icons-react';
 import { Comment } from '../types';
 import CommentForm from './CommentForm';
 import CommentActions from './CommentActions';
-import ScripturePassage from './ScripturePassage';
+import ScripturePassagePopover from './ScripturePassagePopover';
+import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
 import RichTextView from './RichTextView';
 import { commentImageName } from '../utils/commentTree';
-import {
-  isSameScriptureRef,
-  parseScriptureRef,
-  ScriptureRef,
-} from '../utils/scriptureRef';
 
 /** The signed-in viewer. `id` is optional until the auth store
  *  persists it — the username fallback below covers that. */
@@ -67,10 +63,14 @@ const CommentNode = ({
 }: CommentNodeProps) => {
   const [replyOpen, setReplyOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [scripture, setScripture] =
-    useState<ScriptureRef | null>(null);
-  const [scriptureError, setScriptureError] =
-    useState<string | null>(null);
+  // Clicked '@…' refs open the passage in a floating popover
+  // anchored at the ref — never inline in the thread.
+  const {
+    preview: scripturePreview,
+    error: scriptureError,
+    open: openScripture,
+    close: closeScripture,
+  } = useScriptureRefPreview();
   const [lightboxImageId, setLightboxImageId] =
     useState<string | null>(null);
 
@@ -116,19 +116,14 @@ const CommentNode = ({
     setReplyOpen(false);
   };
 
-  const handleScriptureClick = (hashtag: string): void => {
-    const result = parseScriptureRef(hashtag);
-
-    if (!result.ok) {
-      setScriptureError(result.error);
-      return;
-    }
-
-    setScriptureError(null);
-    setScripture((current) =>
-      isSameScriptureRef(current, result.ref) ? null : result.ref
-    );
-  };
+  // useCallback keeps memo(RichTextView)'s onScriptureRef
+  // prop stable across CommentNode re-renders.
+  const handleScriptureClick = useCallback(
+    (hashtag: string, anchorEl: HTMLElement): void => {
+      openScripture(hashtag, anchorEl);
+    },
+    [openScripture]
+  );
 
   const handleEditSubmit = async (
     content: string,
@@ -301,13 +296,13 @@ const CommentNode = ({
             </>
           )}
 
-          {scriptureError && (
-            <Text size="sm" color="red">
-              {scriptureError}
-            </Text>
-          )}
-          {scripture && (
-            <ScripturePassage reference={scripture} />
+          {scripturePreview && (
+            <ScripturePassagePopover
+              reference={scripturePreview.ref}
+              error={scriptureError}
+              anchor={scripturePreview.anchor}
+              onClose={closeScripture}
+            />
           )}
 
           {!editing && (

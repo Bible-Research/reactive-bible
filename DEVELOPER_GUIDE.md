@@ -2145,8 +2145,21 @@ Form for creating/editing notes.
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token. Clicking a complete token once
-previews its passage below the editor (the note is NOT linked to
-it); a second click reopens the picker to edit the reference.
+opens the passage in a floating popover anchored under the ref —
+a portal-mounted `ScripturePassagePopover` containing
+`ScripturePassage` (the note is NOT linked to it); a second
+click reopens the picker to edit the reference. The same popover
+serves note cards and comments (`RichTextView`/`linkifyScripture`
+anchors), driven by `useScriptureRefPreview` (parse + same-ref
+toggle); only one preview is open app-wide — opening one
+broadcasts an event that closes the others. The panel tracks
+its anchor on scroll/resize and on its own size changes (the
+passage loads async), dismisses on an outside tap or `Escape`
+(capture-phase, so the enclosing modal stays open), and closes
+when the anchor leaves the layout — a deleted token's rect
+collapses to zero on the next reposition. A "View in Bible"
+header action navigates to the passage in the Bible reader
+(`buildBiblePath`), closing the panel.
 
 Pasted clipboard text is normalized before ProseMirror parses it
 (`src/utils/clipboardSanitize.ts`, wired as `transformPastedText`

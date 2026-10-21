@@ -71,10 +71,9 @@ const ScripturePassage = ({
   }
 
   return (
+    // No heading of its own — the popover header already
+    // carries the 'Book C:V[-E]' title.
     <Box data-testid="passage-container">
-      <h1>
-        {book} {chapter}
-      </h1>
       {passages.map((passage) => {
         const heading = headings.find(
           (h) => h.before_verse === passage.verse

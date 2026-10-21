@@ -3,6 +3,7 @@ import { ReactRenderer } from '@tiptap/react';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { EditorView } from '@tiptap/pm/view';
 import Suggestion from '@tiptap/suggestion';
 import type {
   SuggestionKeyDownProps,
@@ -36,9 +37,16 @@ export interface ScriptureMentionOptions {
   /**
    * Single click/tap on a complete '@USFM.C.V[-E]' token.
    * Intended to reveal the passage — it does NOT link the note
-   * to that passage.
+   * to that passage. `anchor` is a Range over the token text;
+   * the popover positions itself under it.
    */
-  onRefPreview: (token: string) => void;
+  onRefPreview: (token: string, anchor: Range) => void;
+  /**
+   * Second click on a token — the picker reopens to edit the
+   * reference, so an open passage preview should close (the
+   * two floating panels would otherwise overlap).
+   */
+  onRefEditStart: () => void;
 }
 
 interface PopupActions {
@@ -133,12 +141,16 @@ export const ScriptureMention = Extension.create<
   name: 'scriptureMention',
 
   addOptions() {
-    return { onRefPreview: () => undefined };
+    return {
+      onRefPreview: () => undefined,
+      onRefEditStart: () => undefined,
+    };
   },
 
   addProseMirrorPlugins() {
     const editor = this.editor;
     const onRefPreview = this.options.onRefPreview;
+    const onRefEditStart = this.options.onRefEditStart;
     const pluginKey = new PluginKey('scriptureMention');
 
     // After inserting a token the '@…' text still matches the
@@ -165,11 +177,15 @@ export const ScriptureMention = Extension.create<
       suppressQuery = '';
     };
 
-    // Marks '@…' tokens that don't resolve to a complete,
-    // in-range ref with a red inline decoration. The live
+    // Marks every '@…' ref attempt with an inline decoration:
+    // complete, in-range refs get a `data-scripture-ref`
+    // attribute (what ScriptureRefNode.renderHTML emits — the
+    // passage popover's tap-outside dismissal keys off it so a
+    // tap on the token is left to the toggle logic), while
+    // tokens that don't resolve render red. The live
     // suggestion range, code-formatted text, and tokens that
     // aren't ref-shaped ('bob@example.com') are skipped.
-    const invalidRefDecorations = (state: EditorState) => {
+    const refDecorations = (state: EditorState) => {
       const suggestion = pluginKey.getState(state) as
         | { active: boolean; range: { from: number; to: number } }
         | undefined;
@@ -188,7 +204,6 @@ export const ScriptureMention = Extension.create<
           const candidate =
             token.match(VALID_REF_PREFIX)?.[1] ?? token;
           if (!isRefAttempt(candidate)) continue;
-          if (isValidScriptureToken(candidate)) continue;
           const from = pos + match.index;
           const to = from + candidate.length;
           if (
@@ -199,9 +214,13 @@ export const ScriptureMention = Extension.create<
             continue;
           }
           decorations.push(
-            Decoration.inline(from, to, {
-              class: 'scripture-ref-invalid',
-            })
+            isValidScriptureToken(candidate)
+              ? Decoration.inline(from, to, {
+                  'data-scripture-ref': '',
+                })
+              : Decoration.inline(from, to, {
+                  class: 'scripture-ref-invalid',
+                })
           );
         }
       });
@@ -210,7 +229,7 @@ export const ScriptureMention = Extension.create<
 
     // The '@…' token covering `pos`, if it resolves to a
     // complete, in-range ref. Same exclusions as
-    // invalidRefDecorations: code is never clickable.
+    // refDecorations: code is never clickable.
     const tokenAtPos = (
       state: EditorState,
       pos: number
@@ -249,6 +268,48 @@ export const ScriptureMention = Extension.create<
         }
       });
       return hit;
+    };
+
+    // Stored 'scriptureRef'/'mention' atom nodes (written by
+    // other clients) aren't text — tokenAtPos misses them, so
+    // they would be dead clicks that still swallow the
+    // popover's dismiss gesture (they carry data-scripture-ref).
+    // A click lands at the atom's boundary, so check the node
+    // on either side of the resolved position.
+    const atomAtPos = (
+      state: EditorState,
+      pos: number
+    ): { from: number; to: number; token: string } | null => {
+      const $pos = state.doc.resolve(pos);
+      for (const node of [$pos.nodeAfter, $pos.nodeBefore]) {
+        if (!node) continue;
+        const name = node.type.name;
+        if (name !== 'scriptureRef' && name !== 'mention') {
+          continue;
+        }
+        const token = refNodeText(node.attrs);
+        if (!isValidScriptureToken(token)) return null;
+        const from =
+          node === $pos.nodeAfter ? pos : pos - node.nodeSize;
+        return { from, to: from + node.nodeSize, token };
+      }
+      return null;
+    };
+
+    // Builds the DOM Range that anchors the passage popover —
+    // it tracks scrolling and text reflow for free, and
+    // collapses if the token is deleted.
+    const tokenRange = (
+      view: EditorView,
+      from: number,
+      to: number
+    ): Range => {
+      const range = document.createRange();
+      const start = view.domAtPos(from);
+      const end = view.domAtPos(to);
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+      return range;
     };
 
     // Single vs double click on a '@…' token: a lone click
@@ -421,13 +482,13 @@ export const ScriptureMention = Extension.create<
         // when the doc or the suggestion's active range changed;
         // selection/store updates reuse the decoration set.
         state: {
-          init: (_, state) => invalidRefDecorations(state),
+          init: (_, state) => refDecorations(state),
           apply: (tr, set, oldState, newState) => {
             const suggestionChanged =
               pluginKey.getState(oldState) !==
               pluginKey.getState(newState);
             if (!tr.docChanged && !suggestionChanged) return set;
-            return invalidRefDecorations(newState);
+            return refDecorations(newState);
           },
         },
         props: {
@@ -448,14 +509,32 @@ export const ScriptureMention = Extension.create<
               })?.pos;
               if (pos === undefined) return false;
               const hit = tokenAtPos(view.state, pos);
-              if (!hit) return false;
+              if (!hit) {
+                // Atom nodes have no editable '@…' text to
+                // reopen in the picker — every click previews
+                // straight away (a second click toggles shut).
+                const atom = atomAtPos(view.state, pos);
+                if (!atom) return false;
+                mouse.preventDefault();
+                try {
+                  onRefPreview(
+                    atom.token,
+                    tokenRange(view, atom.from, atom.to)
+                  );
+                } catch {
+                  // The node vanished between event and read.
+                }
+                return true;
+              }
               mouse.preventDefault();
               if (mouse.detail > 1) {
                 // Double click: caret lands at the token end so
                 // the suggestion range covers the whole '@…'
                 // token; forceOpenAt makes allow() reopen the
-                // picker for editing.
+                // picker for editing. The open passage preview
+                // must close or the two panels overlap.
                 clearPreviewTimer();
+                onRefEditStart();
                 forceOpenAt = hit.from;
                 editor.commands.setTextSelection(hit.to);
                 return true;
@@ -464,7 +543,15 @@ export const ScriptureMention = Extension.create<
               clearPreviewTimer();
               previewTimer = setTimeout(() => {
                 previewTimer = null;
-                onRefPreview(token);
+                try {
+                  onRefPreview(
+                    token,
+                    tokenRange(view, hit.from, hit.to)
+                  );
+                } catch {
+                  // The token moved or vanished between the
+                  // click and the timer firing — skip it.
+                }
               }, PREVIEW_CLICK_MS);
               return true;
             },
