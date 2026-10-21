@@ -14,6 +14,7 @@ import {
   Group,
   Paper,
   Text,
+  Title,
   Tooltip,
 } from '@mantine/core';
 import { IconBook, IconX } from '@tabler/icons-react';
@@ -307,9 +308,11 @@ const ScripturePassagePopover = ({
       data-testid="scripture-passage-popover"
     >
       <Group position="apart" spacing={4} mb={4}>
-        <Text size="sm" weight={600}>
+        {/* The ref label doubles as the passage heading —
+            ScripturePassage renders no h1 of its own. */}
+        <Title order={4}>
           {error ? 'Scripture reference' : refLabel(reference)}
-        </Text>
+        </Title>
         <Group spacing={4}>
           {reference && (
             <Tooltip label="View in Bible" position="top">
