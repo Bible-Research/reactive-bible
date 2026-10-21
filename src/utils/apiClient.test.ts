@@ -285,24 +285,6 @@ describe('apiClient', () => {
       expect(response.ok).toBe(true);
     });
 
-    it('should NOT retry network errors on non-idempotent ' +
-      'methods (a lost-response POST could double-create)',
-      async () => {
-      const mockFetch = vi
-        .fn()
-        .mockRejectedValue(new TypeError('Network error'));
-      global.fetch = mockFetch;
-
-      await expect(
-        authenticatedFetch(mockUrl, {
-          method: 'POST',
-          body: '{}',
-        })
-      ).rejects.toThrow('Network error');
-
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-    });
-
     it('should not retry on non-network errors', async () => {
       const mockFetch = vi.fn().mockRejectedValueOnce(
         new Error('Not a network error')

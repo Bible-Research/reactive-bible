@@ -434,6 +434,7 @@ describe('useBibleStore', () => {
         readingPositions: { MRK: { chapter: 4, verse: 2 } },
         // Non-persisted fields — set to non-defaults so the
         // snapshot proves they are excluded.
+        detailNote: note,
         showAudioPlayer: true,
         pendingScrollVerse: john316,
         headerVisible: false,

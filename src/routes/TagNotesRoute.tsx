@@ -108,8 +108,9 @@ export default function TagNotesRoute() {
     tagId,
     sortOrder,
     // Reorder is meaningless on the virtual "untagged" view even
-    // when every listed note is owned — keep it disabled there.
-    isTagOwner: isTagOwner && !isUntagged,
+    // when every listed note is owned — the hook disables it.
+    isTagOwner,
+    isUntagged,
   });
 
   const {

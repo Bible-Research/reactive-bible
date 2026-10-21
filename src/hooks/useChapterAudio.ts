@@ -867,6 +867,14 @@ export const useChapterAudio = (
   useEffect(() => {
     const loadAndPlayAudio = async () => {
       if (isPlaying && audio !== null) {
+        // `audio` can lag the refs by a commit: the adoption path
+        // writes audioRef synchronously and publishes through
+        // setAudio, and an off-reader advance writes the store
+        // directly — a render can land in between with the
+        // disposed predecessor still in state. Never drive a
+        // torn-down Howl; the successor arrives next render with
+        // pendingGap still armed.
+        if (audio.state() === 'unloaded') return;
         if (pendingGapRef.current) {
           // This chapter arrived via auto-advance — start it
           // after the inter-chapter gap, not immediately.

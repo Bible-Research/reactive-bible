@@ -421,8 +421,9 @@ const TranslationSelector = () => {
       ): Promise<string | null> => {
         if (!filesetId) return null;
         for (const { value: iso } of LANGUAGES) {
-          // A failed fetch counts as "not this language" —
-          // keep scanning the other tabs.
+          // One failed language response must not strand the
+          // seeding — a failed fetch counts as "not this
+          // language", keep scanning the other tabs.
           const list = await getAvailableTranslations(iso)
             .catch((error) => {
               console.warn(

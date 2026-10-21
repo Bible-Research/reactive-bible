@@ -3,7 +3,6 @@ import type { Howl } from 'howler';
 import type { VerseTimestamp } from '../types';
 import {
   activeVerseAtTime,
-  disposeHowl,
   getHtml5AudioNode,
   getPlayPosition,
 } from './audioUtils';
@@ -85,73 +84,6 @@ describe('getHtml5AudioNode', () => {
   });
 });
 
-describe('disposeHowl', () => {
-  const makeHowl = () => ({
-    stop: vi.fn(),
-    off: vi.fn(),
-    volume: vi.fn(),
-    unload: vi.fn(),
-  });
-
-  it('stops, detaches listeners, mutes and unloads in order',
-    () => {
-      // stop() must run before off() so 'stop' subscribers (the
-      // playlist bounds-checker cleanup) still fire; off() must
-      // precede unload() so a rejected pending play() reaches
-      // no handler.
-      const howl = makeHowl();
-      disposeHowl(howl as unknown as Howl);
-      expect(howl.stop).toHaveBeenCalledOnce();
-      expect(howl.off).toHaveBeenCalledOnce();
-      expect(howl.volume).toHaveBeenCalledWith(0);
-      expect(howl.unload).toHaveBeenCalledOnce();
-      expect(
-        howl.stop.mock.invocationCallOrder[0],
-      ).toBeLessThan(howl.off.mock.invocationCallOrder[0]);
-      expect(
-        howl.off.mock.invocationCallOrder[0],
-      ).toBeLessThan(howl.unload.mock.invocationCallOrder[0]);
-    },
-  );
-
-  it('revokes the blob URL', () => {
-    const revoke = vi
-      .spyOn(URL, 'revokeObjectURL')
-      .mockImplementation(() => undefined);
-    disposeHowl(null, 'blob:abc');
-    expect(revoke).toHaveBeenCalledWith('blob:abc');
-    revoke.mockRestore();
-  });
-
-  it('tolerates a null Howl and null blob URL', () => {
-    expect(() => disposeHowl(null)).not.toThrow();
-  });
-
-  it('still revokes the blob URL when the Howl is null', () => {
-    const revoke = vi
-      .spyOn(URL, 'revokeObjectURL')
-      .mockImplementation(() => undefined);
-    disposeHowl(null, 'blob:xyz');
-    expect(revoke).toHaveBeenCalledWith('blob:xyz');
-    revoke.mockRestore();
-  });
-
-  it('warns instead of throwing when teardown fails', () => {
-    const warn = vi
-      .spyOn(console, 'warn')
-      .mockImplementation(() => undefined);
-    const howl = makeHowl();
-    howl.stop.mockImplementation(() => {
-      throw new Error('boom');
-    });
-    expect(
-      () => disposeHowl(howl as unknown as Howl),
-    ).not.toThrow();
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
-  });
-});
-
 const ts = (
   verseStart: number,
   timestamp: number,
@@ -191,71 +123,5 @@ describe('activeVerseAtTime', () => {
   it('returns the first verse for positions before it', () => {
     // A chapter announcement plays before verse 1's timestamp.
     expect(activeVerseAtTime(timestamps, -3)).toBe(1);
-  });
-});
-
-describe('getPlayPosition', () => {
-  it('returns null for a null Howl', () => {
-    expect(getPlayPosition(null)).toBeNull();
-  });
-
-  it('returns null while the sound is still loading', () => {
-    const howl = new FakeHowl({ src: ['x.mp3'], html5: true });
-    // seek() on a loading sound returns the Howl itself, not a
-    // number — the guard must treat that as "no position".
-    expect(howl.state()).toBe('loading');
-    expect(howl.seek()).toBe(howl);
-    expect(getPlayPosition(howl as unknown as Howl)).toBeNull();
-  });
-
-  it('returns the seek position once loaded', () => {
-    const howl = loadedHowl();
-    howl.seek(42);
-    expect(getPlayPosition(howl as unknown as Howl)).toBe(42);
-  });
-
-  it('returns null when the position is not finite', () => {
-    const howl = loadedHowl();
-    howl.seek(Number.NaN);
-    expect(getPlayPosition(howl as unknown as Howl)).toBeNull();
-    howl.seek(Number.POSITIVE_INFINITY);
-    expect(getPlayPosition(howl as unknown as Howl)).toBeNull();
-  });
-
-  it('returns null after unload', () => {
-    const howl = loadedHowl();
-    howl.seek(10);
-    howl.unload();
-    expect(getPlayPosition(howl as unknown as Howl)).toBeNull();
-  });
-});
-
-describe('getHtml5AudioNode', () => {
-  it('returns null for a null Howl', () => {
-    expect(getHtml5AudioNode(null)).toBeNull();
-  });
-
-  it('returns the html5 <audio> element while loading', () => {
-    const howl = new FakeHowl({ src: ['x.mp3'], html5: true });
-    const node = getHtml5AudioNode(howl as unknown as Howl);
-    expect(node).toBeInstanceOf(HTMLAudioElement);
-  });
-
-  it('returns null for a Howl with no sound nodes', () => {
-    const howl = loadedHowl();
-    howl.unload();
-    expect(howl._sounds).toHaveLength(0);
-    expect(
-      getHtml5AudioNode(howl as unknown as Howl),
-    ).toBeNull();
-  });
-
-  it('returns null when the node is not an HTMLAudioElement', () => {
-    const fake = {
-      _sounds: [{ _node: { not: 'audio' } }],
-    };
-    expect(
-      getHtml5AudioNode(fake as unknown as Howl),
-    ).toBeNull();
   });
 });

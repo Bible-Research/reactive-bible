@@ -101,6 +101,10 @@ export const useTagNotesData = ({
   // Set while a delete is in flight; a second confirm + DELETE
   // would 404 and surface a spurious error notification.
   const deletingRef = useRef(false);
+  // Once the first load completes, later effect re-runs (sort
+  // change, auth hydration) use the in-place page spinner
+  // instead of blanking the screen behind the full loader.
+  const hasLoadedRef = useRef(false);
 
   // Set showNotes to true and save lastSelectedTagId when on
   // notes route.
@@ -136,7 +140,11 @@ export const useTagNotesData = ({
         return;
       }
 
-      setLoading(true);
+      if (hasLoadedRef.current) {
+        setPageLoading(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       try {
@@ -217,7 +225,9 @@ export const useTagNotesData = ({
         } else {
           setTag(resolvedTag);
         }
+        hasLoadedRef.current = true;
         setLoading(false);
+        setPageLoading(false);
 
         if (!cancelled && tagId) {
           fetchCommentCounts({ tagId }).then((counts) => {
@@ -227,8 +237,13 @@ export const useTagNotesData = ({
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading tag notes:', err);
-        setError('Failed to load notes');
+        // A re-run failure (sort change, auth flip) keeps the
+        // loaded list on screen — fetchNotes already toasted.
+        if (!hasLoadedRef.current) {
+          setError('Failed to load notes');
+        }
         setLoading(false);
+        setPageLoading(false);
       }
     };
 
@@ -335,7 +350,15 @@ export const useTagNotesData = ({
         page: notesPage,
       });
 
-      await getTags();
+      // getTags is an authenticated call — skip it on shared
+      // public-tag pages so anon refreshes don't 401/logout.
+      if (isAuthenticated) {
+        try {
+          await getTags();
+        } catch {
+          // The store action already showed the error toast.
+        }
+      }
 
       // Keep the order index current with whatever the
       // refetch brought back.
@@ -362,6 +385,7 @@ export const useTagNotesData = ({
     notesPage,
     fetchNotes,
     getTags,
+    isAuthenticated,
     orderMenuEnabled,
     reloadOrderIndex,
   ]);

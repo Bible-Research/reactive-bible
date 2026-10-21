@@ -49,7 +49,11 @@ const mockApi = vi.mocked(api);
 const storeStub = vi.hoisted(() => {
   const state = {
     tags: [] as Tag[],
-    getTags: vi.fn(async (): Promise<void> => undefined),
+    // Signature mirrors the store action; the stub ignores it.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    getTags: vi.fn((_forceRefresh?: boolean) =>
+      Promise.resolve(),
+    ),
   };
   const useBibleStore = Object.assign(
     (selector: (s: typeof state) => unknown) => selector(state),

@@ -84,25 +84,28 @@ export const getAvailableTranslations = async (
     // an error body parsed as "no results" would poison the
     // cache and stick until a force refresh.
     if (!response.ok) {
-      try {
-        await throwFromErrorBody(response, {
-          bookNotInFileset: 'Translations not available',
-          failure:
-            `Failed to fetch translations ` +
-            `(HTTP ${response.status})`,
-        });
-      } catch (error) {
-        // A provider failure is a ProviderError even when the
-        // body carries no error_code (e.g. `{detail: 'down'}`).
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Translations not available',
+        failure:
+          `Failed to fetch translations ` +
+          `(HTTP ${response.status})`,
+      }).catch((err: unknown) => {
+        // Every non-OK from this endpoint is a provider
+        // failure — a codeless body must still surface as
+        // the typed ProviderError, not a plain Error.
         if (
-          !(error instanceof ProviderError) &&
-          !(error instanceof RateLimitError) &&
-          error instanceof Error
+          err instanceof RateLimitError ||
+          err instanceof ProviderError
         ) {
-          throw new ProviderError(error.message);
+          throw err;
         }
-        throw error;
-      }
+        throw new ProviderError(
+          err instanceof Error
+            ? err.message
+            : `Failed to fetch translations ` +
+              `(HTTP ${response.status})`
+        );
+      });
     }
     const data = await response.json();
     // Provider failures may arrive wrapped in a 200 body —
@@ -117,12 +120,13 @@ export const getAvailableTranslations = async (
         ? new RateLimitError(message)
         : new ProviderError(message);
     }
-    // A body with no results array is malformed, not an empty
-    // list — throwing keeps it out of the no-TTL cache.
+
+    // Only cache real arrays — a malformed non-array body must
+    // not poison the no-TTL translation cache (it also feeds
+    // findOwnerIso).
     if (!Array.isArray(data.results)) {
       throw new ProviderError('Malformed translations response');
     }
-
     // The actual translations are in the 'results' property
     const translations: Translation[] =
       injectBundledKjv(data.results);

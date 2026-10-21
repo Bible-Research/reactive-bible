@@ -143,15 +143,15 @@ describe('NoteCardActions', () => {
     ).toBeInTheDocument();
   });
 
-  it('disables play-from-here for a verse-less note', () => {
+  it('hides play-from-here for a verse-less note', () => {
     renderActions({
       note: createMockNote({ id: 'n-vl', verses: [] }),
       onPlayFromNote: vi.fn(),
     });
 
     expect(
-      screen.getByRole('button', { name: 'play-from-n-vl' })
-    ).toBeDisabled();
+      screen.queryByRole('button', { name: 'play-from-n-vl' })
+    ).not.toBeInTheDocument();
   });
 
   it('shows the comment count and toggles the thread', () => {

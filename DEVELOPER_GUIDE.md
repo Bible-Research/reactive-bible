@@ -379,14 +379,15 @@ npm test -- src/routes/BibleRoute.test.tsx
 ### Route Implementation Details
 
 **NotesRoute** (`src/routes/NotesRoute.tsx`):
-- Fetches all tags from API
+- Fetches all tags from API (authenticated users only —
+  anonymous visitors are redirected to `/bible`)
 - Automatically redirects to `/notes/tag/:tagId` — the tag
   choice is `defaultTagId` in `src/utils/defaultTag.ts`:
   the last-viewed tag if it still exists, else the
   alphabetically first tag
-- Anonymous visitors are bounced to `/bible`; a zero-tag user
-  sees an empty-state message and a failed tag fetch an error
-  + retry state — neither spins on the loader forever
+- A zero-tag user sees an empty state ("Create your first
+  tag") and a failed tag fetch an error + retry state —
+  neither spins on the loader forever
 - Minimal component - main logic in TagNotesRoute
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
@@ -421,15 +422,17 @@ npm test -- src/routes/BibleRoute.test.tsx
   of every note in the tag and the list is dnd-kit
   reorderable — see "Note order badges & moves"
   under Note Taking & Tagging. Reorder UI additionally
-  requires `is_owner` on every loaded note — shared/public
-  tag pages hide it for non-owners (the backend rejects
-  foreign moves with 400/409 anyway)
+  requires tag ownership (`isTagOwner`: the viewed tag is in
+  the caller's own list, or every loaded note reports
+  `is_owner === true`) — shared/public tag pages hide it for
+  non-owners (the backend rejects foreign moves with 400/409
+  anyway)
 - The route is thin view wiring over three hooks +
   `TagNotesToolbar`: `useTagNotesData` (load/pagination/
   refresh/delete orchestration), `useNoteOrderMenu` (order
   index + moves), `useNotePlaylist` (audio playlist assembly —
-  its play-from index addresses the verse-filtered playlist
-  array, not the raw sorted notes)
+  one item per book+chapter block; its play-from index
+  addresses the verse-filtered playlist array by `scope`)
 - The filter/sort toolbar rides on `headerVisible`: it
   collapses (`Collapse`, aria-hidden) whenever MyHeader
   slides away on a downward scroll and the notes list
@@ -1676,8 +1679,10 @@ Create and organize notes with tags for Bible verses.
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
-  after each successful save. The save contract lives in
-  `src/hooks/useNoteEditor.ts` — shared by all three note
+  after each successful save. Ticks skip empty text and
+  empty tag selections, share a write lock with Submit, and
+  failures surface as notifications. The save contract lives
+  in `src/hooks/useNoteEditor.ts` — shared by all three note
   modals: it guards tagless/empty writes, serializes saves
   through a draft queue (a pending autosave can never race a
   submit into a duplicate POST), keeps the draft (note id +
@@ -1691,14 +1696,15 @@ Create and organize notes with tags for Bible verses.
   grouping (book/chapter divider + numbered verses) used by
   the add/edit modals; grouping itself is `groupVerseTexts`
   in `src/hooks/useVerseTexts.ts`.
-- `NoteCard` headings (`src/utils/noteHeading.ts`):
-  verse-less notes show the tag name; notes spanning
-  chapters render a cross-chapter range
-  (e.g. `John 3:16–5:1`) — never a synthetic `… 1:1`
-- Edit/delete controls on note cards require the tag-owner
-  context (`isTagOwner`) or `note.is_owner === true`;
-  clipboard share falls back to `execCommand` on non-secure
-  contexts (`src/utils/clipboard.ts`)
+- `NoteCard` headings (`src/utils/noteHeading.ts`): verse-less
+  notes show the tag name; notes spanning chapters render a
+  cross-chapter range (e.g. `John 3:16–5:1`) — never a
+  synthetic `… 1:1`
+- Edit/delete controls on note cards (`NoteCardActions`)
+  require the tag-owner context (`isTagOwner`) or
+  `note.is_owner === true`; clipboard share falls back to
+  `execCommand` on non-secure contexts
+  (`src/utils/clipboard.ts`)
 
 **Workflow**:
 1. User selects one or more verses by clicking them

@@ -10,7 +10,6 @@ import {
 import {
   useAuthStore,
   AuthState,
-  initialState as authInitialState,
 } from '../stores/authStore';
 
 // The `export *` re-exports below are test-only barrels — they
@@ -27,11 +26,19 @@ export * from './helpers/factories';
 
 // Re-export performance helpers
 // eslint-disable-next-line react-refresh/only-export-components
-export * from './helpers/performance';
-// eslint-disable-next-line react-refresh/only-export-components
 export * from './helpers/performanceUtils';
 
 // --- Store Helpers ---
+
+// Pristine snapshots captured at module load — data AND real
+// action refs. `useBibleStore.setState` merges, and
+// `initialState`/`authInitialState` carry data keys only, so an
+// action mocked via storeOverrides (e.g. `fetchNotes: vi.fn()`)
+// would otherwise stay mocked for every later render in the
+// file. Restoring the snapshot keeps action leaks from crossing
+// test boundaries.
+const PRISTINE_BIBLE_STATE = useBibleStore.getState();
+const PRISTINE_AUTH_STATE = useAuthStore.getState();
 
 /**
  * Creates a mock store state with optional overrides.
@@ -169,14 +176,14 @@ export function renderWithProviders(
 
   // Reset stores to their initial states plus any overrides
   const bibleState = bibleOverrides
-    ? { ...initialState, ...bibleOverrides }
-    : initialState;
+    ? { ...PRISTINE_BIBLE_STATE, ...bibleOverrides }
+    : PRISTINE_BIBLE_STATE;
   useBibleStore.setState(bibleState);
 
   useAuthStore.setState(
     authOverrides
-      ? { ...authInitialState, ...authOverrides }
-      : authInitialState
+      ? { ...PRISTINE_AUTH_STATE, ...authOverrides }
+      : PRISTINE_AUTH_STATE
   );
 
   // Mock DOM APIs

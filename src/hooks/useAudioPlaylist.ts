@@ -82,14 +82,11 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   );
 
   const unloadCurrent = useCallback(() => {
-    if (audioRef.current) {
-      // disposeHowl emits 'stop' first so the bounds-checker
-      // cleanup still runs, then detaches listeners before
-      // unload() — a pending play() rejection can't surface as
-      // a playerror retry during teardown.
-      disposeHowl(audioRef.current);
-      audioRef.current = null;
-    }
+    // Null the ref before disposing — no re-entrant 'stop'
+    // handler can observe a half-torn-down Howl.
+    const current = audioRef.current;
+    audioRef.current = null;
+    disposeHowl(current);
     setAudio(null);
     setTimestamps([]);
     setAudioActiveVerse(null);

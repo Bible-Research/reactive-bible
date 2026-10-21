@@ -579,6 +579,24 @@ describe('API Functions', () => {
         .toHaveBeenCalledWith('eng', freshInjected);
     });
 
+    it('throws instead of caching a 200 error body', async () => {
+      server.use(
+        http.get(
+          `${API_URL}/bible/translations/`,
+          () => HttpResponse.json({
+            error: 'Bible provider error (HTTP 503)',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      await expect(
+        api.getAvailableTranslations('eng', true)
+      ).rejects.toThrow(api.ProviderError);
+      expect(cacheManager.cacheTranslations)
+        .not.toHaveBeenCalled();
+    });
+
     it('throws on a non-OK response and does not cache it',
       async () => {
         vi.spyOn(cacheManager, 'getCachedTranslations')
@@ -787,6 +805,23 @@ describe('API Functions', () => {
       await expect(
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.ProviderError);
+    });
+
+    it('throws RateLimitError when a 200 `message` body is ' +
+      'rate-limit-shaped', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () => {
+          return HttpResponse.json({
+            data: { groups: [] },
+            message:
+              'Bible provider rate limit exceeded (HTTP 429)',
+          });
+        })
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'ENGESV_API')
+      ).rejects.toThrow(api.RateLimitError);
     });
   });
 
