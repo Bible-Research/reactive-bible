@@ -114,19 +114,24 @@ const MainMenu = ({
           </Text>
         </Group>
 
-        <Group position="apart" spacing="xs">
-          <Text
-            weight={500}
-            size="lg"
-            onClick={() => {
-              void navigate('/notes');
-              onClose();
-            }}
-            sx={{ cursor: "pointer" }}
-          >
-            View Notes
-          </Text>
-        </Group>
+        {/* /notes bounces anonymous visitors to /bible
+            (NotesRoute), so the link is a dead end for
+            them — hide it like the write affordances. */}
+        {isAuthenticated && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/notes');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              View Notes
+            </Text>
+          </Group>
+        )}
 
         {isAuthenticated && (
           <>

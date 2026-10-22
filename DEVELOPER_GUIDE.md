@@ -2162,6 +2162,9 @@ test `bottomnav-title-sync-95.test.tsx`).
 #### `MainMenu.tsx`
 App drawer menu (opened from the header burger): navigation,
 auth rows, "Check for updates" (native shell only), sharing.
+"View Notes", "New Note", and "Tag Management" only render for
+authenticated users — `/notes` redirects anonymous visitors to
+`/bible`, so the menu must not offer a dead-end link.
 
 #### `MyHeader.tsx`
 Top header bar with controls.
@@ -2963,8 +2966,8 @@ getTags(): Promise<Tag[]>
 Reading positions track the user's last location per book and
 restore it on book switch. All functions take USFM book codes
 and map to backend book names internally; all calls are gated
-on `useAuthStore.getState().isAuthenticated` (anonymous sessions
-would otherwise write to a shared auto-provisioned account).
+on `useAuthStore.getState().isAuthenticated` — the endpoints
+require auth, so anonymous calls would 401.
 
 **`getReadingPosition(bookId)`**
 

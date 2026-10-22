@@ -1,7 +1,9 @@
 /**
  * MainMenu auth gating (issue #68): "New Note" and "Tag
  * Management" lead to write flows — they must not be offered
- * to anonymous visitors.
+ * to anonymous visitors. "View Notes" is hidden too: /notes
+ * redirects anonymous visitors to /bible, making the link a
+ * dead end for them.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -46,8 +48,11 @@ describe('MainMenu auth gating (issue #68)', () => {
       .not.toBeInTheDocument();
     expect(screen.queryByText('Tag Management'))
       .not.toBeInTheDocument();
+    // /notes redirects anonymous visitors to /bible — the
+    // link is a dead end for them.
+    expect(screen.queryByText('View Notes'))
+      .not.toBeInTheDocument();
     // Read-only navigation stays visible.
-    expect(screen.getByText('View Notes')).toBeInTheDocument();
     expect(screen.getByText('Read Bible')).toBeInTheDocument();
   });
 
@@ -60,6 +65,7 @@ describe('MainMenu auth gating (issue #68)', () => {
 
     renderMenu();
 
+    expect(screen.getByText('View Notes')).toBeInTheDocument();
     expect(screen.getByText('New Note')).toBeInTheDocument();
     expect(screen.getByText('Tag Management'))
       .toBeInTheDocument();

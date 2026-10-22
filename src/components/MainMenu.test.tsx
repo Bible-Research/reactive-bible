@@ -110,7 +110,9 @@ describe('MainMenu Component', () => {
 
   it('should navigate to /notes on View Notes', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<MainMenu {...defaultProps} />);
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: authed,
+    });
 
     await user.click(screen.getByText('View Notes'));
 
@@ -187,6 +189,11 @@ describe('MainMenu Component', () => {
       expect(
         screen.queryByText('Tag Management')
       ).not.toBeInTheDocument();
+      // /notes bounces anonymous visitors to /bible — the
+      // link is a dead end for them.
+      expect(
+        screen.queryByText('View Notes')
+      ).not.toBeInTheDocument();
     });
 
   it('shows write affordances to authenticated users', () => {
@@ -198,6 +205,7 @@ describe('MainMenu Component', () => {
       },
     });
 
+    expect(screen.getByText('View Notes')).toBeInTheDocument();
     expect(screen.getByText('New Note')).toBeInTheDocument();
     expect(screen.getByText('Tag Management')).toBeInTheDocument();
   });
