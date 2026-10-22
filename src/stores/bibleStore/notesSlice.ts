@@ -254,11 +254,11 @@ export const createNotesSlice: StateCreator<
       // Anonymous sessions own no tags. Drop any persisted
       // leftovers from a previous session instead of serving
       // them, and never hit the authed endpoint — it requires
-      // auth, so an anonymous call would only 401. `token` is
-      // the synchronous
-      // anonymous check — `isAuthenticated` lags until
-      // checkAuth runs, and NotesRoute legitimately calls
-      // getTags before that on a cold /notes load.
+      // auth, so an anonymous call would only 401.
+      // `token` is the synchronous anonymous check —
+      // `isAuthenticated` lags until checkAuth runs, and
+      // NotesRoute legitimately calls getTags before that on a
+      // cold /notes load.
       if (!useAuthStore.getState().token) {
         if (get().tags.length > 0) {
           set({ tags: [] });
