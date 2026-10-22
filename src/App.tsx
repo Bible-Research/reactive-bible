@@ -57,7 +57,7 @@ export default function App() {
   useAppUpdate();
 
   // Reading positions are only synced for authenticated users;
-  // anonymous sessions share a server-side guest account.
+  // anonymous visitors have no server-side account to sync to.
   useEffect(() => {
     if (isAuthenticated) {
       void useBibleStore.getState().prefetchReadingPositions();

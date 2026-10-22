@@ -312,8 +312,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             [bookId]: { chapter, verse },
           },
         }));
-        // Anonymous sessions must not hit the API: session auth
-        // would land them in a shared auto-provisioned account.
+        // Reading positions are user-owned and auth-required;
+        // anonymous calls would only 401.
         if (useAuthStore.getState().isAuthenticated) {
           void api.updateReadingPosition(bookId, chapter, verse);
         }
