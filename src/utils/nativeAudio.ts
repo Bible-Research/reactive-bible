@@ -6,21 +6,28 @@ import { isNativeApp } from './platform';
  * few minutes after screen-off unless the app runs a foreground
  * service — this module wraps @anuradev/capacitor-background-mode
  * and the one-time battery-optimization exemption prompt.
- *
- * The plugin is loaded lazily: this module is statically reachable
- * from the app shell, so a static import would keep the plugin code
- * in the entry chunk even though it only runs on native builds.
+ */
+/**
+ * Dynamic-import the plugin lazily (this module is statically
+ * reachable from the app shell, so a static import would keep the
+ * plugin code in the entry chunk even though it only runs on
+ * native builds) and return its namespace — NOT `m.BackgroundMode`.
+ * The plugin export is a Capacitor Proxy whose get-trap returns a
+ * callable method wrapper for every property, including `then`.
+ * Resolving a promise with the proxy itself makes the promise
+ * machinery invoke `BackgroundMode.then()`, which throws
+ * "not implemented on android": that rejection is unhandled while
+ * the awaiting promise never settles. Destructuring the namespace
+ * keeps the proxy out of promise resolution entirely.
  */
 const loadBackgroundMode = () =>
-  import('@anuradev/capacitor-background-mode').then(
-    (m) => m.BackgroundMode
-  );
+  import('@anuradev/capacitor-background-mode');
 
 const BATTERY_PROMPT_KEY = 'android_battery_prompt_shown';
 
 const ensureNotificationPermission = async (): Promise<void> => {
   try {
-    const BackgroundMode = await loadBackgroundMode();
+    const { BackgroundMode } = await loadBackgroundMode();
     const status =
       await BackgroundMode.checkNotificationsPermission();
     if (status.notifications !== 'granted') {
@@ -36,7 +43,7 @@ const ensureNotificationPermission = async (): Promise<void> => {
 const promptBatteryExemptionOnce = async (): Promise<void> => {
   try {
     if (localStorage.getItem(BATTERY_PROMPT_KEY)) return;
-    const BackgroundMode = await loadBackgroundMode();
+    const { BackgroundMode } = await loadBackgroundMode();
     const { enabled } =
       await BackgroundMode.checkBatteryOptimizations();
     // Mark the prompt shown only after the check succeeded —
@@ -59,7 +66,7 @@ const promptBatteryExemptionOnce = async (): Promise<void> => {
 export const enableAudioKeepAlive = async (): Promise<void> => {
   if (!isNativeApp()) return;
   try {
-    const BackgroundMode = await loadBackgroundMode();
+    const { BackgroundMode } = await loadBackgroundMode();
     await ensureNotificationPermission();
     const { enabled } = await BackgroundMode.isEnabled();
     if (!enabled) {
@@ -83,7 +90,7 @@ export const enableAudioKeepAlive = async (): Promise<void> => {
 export const disableAudioKeepAlive = async (): Promise<void> => {
   if (!isNativeApp()) return;
   try {
-    const BackgroundMode = await loadBackgroundMode();
+    const { BackgroundMode } = await loadBackgroundMode();
     const { enabled } = await BackgroundMode.isEnabled();
     if (enabled) {
       await BackgroundMode.disable();
