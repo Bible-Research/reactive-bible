@@ -325,7 +325,7 @@ const PassageView = () => {
         }
 
         // Consume a pending reading-position restore (set by
-        // setActiveBookWithPosition on book switch). The verse is
+        // prepareBookSwitch on book switch). The verse is
         // scrolled into view without selecting it. Clear it only
         // when it matches this book+chapter — a pending position
         // for another book must survive an unrelated load that
