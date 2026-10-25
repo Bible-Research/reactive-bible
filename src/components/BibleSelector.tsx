@@ -23,8 +23,8 @@ const BibleSelector = ({
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const verseSelection = useBibleStore((state) => state.verseSelection);
   const isMobileLandscape = useMediaQuery(MOBILE_LANDSCAPE_QUERY);
-  const setActiveBookWithPosition = useBibleStore(
-    (state) => state.setActiveBookWithPosition
+  const prepareBookSwitch = useBibleStore(
+    (state) => state.prepareBookSwitch
   );
   // Memoized so the picker's scroll-into-view effect (which
   // depends on `verses`) doesn't refire on every render.
@@ -59,11 +59,26 @@ const BibleSelector = ({
           verses={pickerVerses}
           titlePrefix="nav-"
           scrollSignal={opened}
-          onSelectBook={async (bookId) => {
-            await setActiveBookWithPosition(bookId);
-            const chapter =
-              useBibleStore.getState().activeChapter;
-            void navigate(buildBiblePath(bookId, chapter));
+          onSelectBook={(bookId) => {
+            // Resolve the saved position without writing
+            // activeBookId — BibleRoute's URL->store sync must
+            // be the one to write it. A store-first write lets
+            // a commit see the stale URL with the new book and
+            // revert the switch (and strands the user on the old
+            // book when the reverted chapter doesn't exist in
+            // the target book). A locally-known position returns
+            // a bare number so this navigate lands in the SAME
+            // commit as the click — awaiting it would open a
+            // gap where a rapid follow-up pick acts on the
+            // stale book.
+            const target = prepareBookSwitch(bookId);
+            if (typeof target === 'number') {
+              void navigate(buildBiblePath(bookId, target));
+            } else {
+              void target.then((chapter) =>
+                navigate(buildBiblePath(bookId, chapter))
+              );
+            }
           }}
           onSelectChapter={(chapter) => {
             void navigate(buildBiblePath(activeBookId, chapter));

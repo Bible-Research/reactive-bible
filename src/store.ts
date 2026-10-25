@@ -131,9 +131,19 @@ export interface BibleState {
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
   setNotesPageSize: (pageSize: number) => void;
-  setActiveBookWithPosition: (
-    activeBookId: string
-  ) => Promise<void>;
+  /**
+   * Resolves the saved reading position for `bookId` and stages
+   * the book-switch side effects (pendingScrollVerse,
+   * audioActiveVerse) WITHOUT writing activeBookId/activeChapter.
+   * The caller navigates to `/bible/{bookId}.{chapter}` and
+   * BibleRoute's URL->store sync writes the book — writing it
+   * here first would let a commit see the stale URL and revert
+   * the switch. Returns the target chapter: a bare number when
+   * the position was already known locally (cached, anonymous,
+   * offline) so the caller can navigate in the same commit —
+   * a Promise only when an authenticated fetch is required.
+   */
+  prepareBookSwitch: (bookId: string) => number | Promise<number>;
   syncReadingPosition: (
     bookId: string,
     chapter: number,
@@ -254,22 +264,38 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setPendingScrollVerse: (pendingScrollVerse) =>
         set({ pendingScrollVerse }),
       setHeaderVisible: (headerVisible) => set({ headerVisible }),
-      setActiveBookWithPosition: async (activeBookId) => {
-        const cached =
-          useBibleStore.getState().readingPositions[activeBookId];
-        // undefined = never fetched; null = fetched, nothing saved
-        let position = cached as
-          | api.ReadingPositionValue
-          | null
-          | undefined;
+      prepareBookSwitch: (bookId) => {
+        // pendingScrollVerse carries the verse > 1 restore —
+        // PassageView consumes it once the chapter loads.
+        const stage = (
+          position: api.ReadingPositionValue | null | undefined
+        ): number => {
+          const chapter = position?.chapter ?? 1;
+          const verse = position?.verse ?? 1;
+          set({
+            audioActiveVerse: null,
+            pendingScrollVerse:
+              verse > 1 ? { bookId, chapter, verse } : null,
+          });
+          return chapter;
+        };
+
+        const cached = get().readingPositions[bookId];
+        // undefined = never fetched; null = fetched, nothing
+        // saved. Synchronous when the position is already known
+        // or no fetch would run — the caller's navigate then
+        // lands in the same commit, leaving no gap where a
+        // rapid follow-up pick could act on the stale book.
         if (
-          position === undefined &&
-          useAuthStore.getState().isAuthenticated &&
-          (typeof navigator === 'undefined' || navigator.onLine)
+          cached !== undefined ||
+          !useAuthStore.getState().isAuthenticated ||
+          (typeof navigator !== 'undefined' && !navigator.onLine)
         ) {
-          try {
-            const apiPosition =
-              await api.getReadingPosition(activeBookId);
+          return stage(cached);
+        }
+        return api
+          .getReadingPosition(bookId)
+          .then((apiPosition) => {
             const entry: api.ReadingPositionValue | null =
               apiPosition
                 ? {
@@ -277,33 +303,20 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
                     verse: apiPosition.verse,
                   }
                 : null;
-            position = entry;
             set((state) => ({
               readingPositions: {
                 ...state.readingPositions,
-                [activeBookId]: entry,
+                [bookId]: entry,
               },
             }));
-          } catch {
+            return stage(entry);
+          })
+          .catch(() => {
             // A failed lookup stays `undefined` — never cached
             // as "no position", so the next book click retries
             // instead of permanently landing on chapter 1.
-          }
-        }
-        const chapter = position?.chapter ?? 1;
-        const verse = position?.verse ?? 1;
-        // Clear verseSelection: restoring a position must not
-        // select a verse or pop up the VerseActionToolbar.
-        set({
-          activeBookId,
-          activeChapter: chapter,
-          verseSelection: null,
-          audioActiveVerse: null,
-          pendingScrollVerse:
-            verse > 1
-              ? { bookId: activeBookId, chapter, verse }
-              : null,
-        });
+            return stage(undefined);
+          });
       },
       syncReadingPosition: (bookId, chapter, verse = 1) => {
         set((state) => ({

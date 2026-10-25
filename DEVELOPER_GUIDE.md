@@ -531,8 +531,14 @@ auth lives in a separate persisted `authStore`.
 - `toggleVerseRef(scope, ref)` - Toggle one `VerseRef` in/out of
   a scope's selection
 - `selectVerseRange(scope, refs)` - Shift-click range selection
-- `setActiveBookWithPosition(bookId)` - Restores the saved
-  reading position and queues `pendingScrollVerse`
+- `prepareBookSwitch(bookId)` - Resolves the saved reading
+  position, queues `pendingScrollVerse`, and returns the target
+  chapter — does NOT write `activeBookId`/`activeChapter` (the
+  caller navigates and `BibleRoute`'s URL sync owns the book).
+  Returns a bare `number` when the position is known locally
+  (cached map / anonymous / offline) so the caller can navigate
+  in the same commit; a `Promise` only when an authenticated
+  fetch is required
 - `syncReadingPosition(bookId, chapter, verse)` - Local cache +
   API push when authenticated
 - `prefetchReadingPositions()` - Bulk fetch on app load
@@ -3005,9 +3011,16 @@ getBulkReadingPositions(
 **Store integration** (`src/store.ts`):
 - `readingPositions` — persisted per-book cache
   (`Record<bookId, { chapter, verse } | null>`)
-- `setActiveBookWithPosition(bookId)` — restores the saved
-  chapter (and queues scroll restoration via the transient,
-  non-persisted `pendingScrollVerse`) without selecting verses
+- `prepareBookSwitch(bookId)` — resolves the saved chapter and
+  queues scroll restoration via the transient, non-persisted
+  `pendingScrollVerse`; returns the target chapter without
+  writing `activeBookId`/`activeChapter` — the caller navigates
+  and `BibleRoute`'s URL->store sync writes the book, so a stale
+  URL can never revert the switch. The return is `number |
+  Promise<number>`: a bare number for locally-known positions
+  (cached/anonymous/offline) so the caller's `navigate()` lands
+  in the same commit — awaiting it would reopen the stale-book
+  gap where a rapid chapter pick acts on the old book
 - `syncReadingPosition(bookId, chapter, verse)` — updates the
   local cache and pushes to the API when authenticated; driven
   by chapter loads and debounced first-verse-in-view scroll
