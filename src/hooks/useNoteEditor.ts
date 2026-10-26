@@ -101,9 +101,9 @@ interface UseNoteEditorOptions {
 
 interface UseNoteEditorResult {
   /**
-   * Autosave tick / unmount-flush target. Skips tagless and
-   * empty drafts (the API would reject them every tick).
-   * Resolves true when a write happened.
+   * Autosave tick / unmount-flush target. Skips tagless drafts
+   * and writes that would leave the note empty — no text and
+   * no linked verses. Resolves true when a write happened.
    */
   save: (tagId: string, text: string) => Promise<boolean>;
   /**
@@ -140,9 +140,10 @@ interface UseNoteEditorResult {
 /**
  * Shared editor contract for the three note modals:
  *
- * - WHEN it saves: only with a tag selected and non-blank text
- *   — a `tag: ''`/empty write used to fire a silent 400 every
- *   autosave tick.
+ * - WHEN it saves: only with a tag selected and content —
+ *   note text or at least one linked verse (a verse-only note
+ *   is a valid bookmark). A `tag: ''` write used to fire a
+ *   silent 400 every autosave tick.
  * - WHAT it saves: tag + text + `verse_references` on every
  *   write — EditNoteModal's autosave used to omit the refs and
  *   drop picker changes on X/backdrop close.
@@ -206,10 +207,17 @@ export const useNoteEditor = ({
 
   const save = useCallback(
     (tagId: string, text: string): Promise<boolean> => {
-      // A tagless or empty save would only produce a rejected
-      // write — autosave ticks and the unmount flush both come
+      // A tagless save or a write leaving the note with
+      // neither text nor linked verses carries nothing —
+      // autosave ticks and the unmount flush both come
       // through here, so the contract lives in one place.
-      if (!tagId || !toPlainText(text).trim()) {
+      if (!tagId) {
+        return Promise.resolve(false);
+      }
+      if (
+        !toPlainText(text).trim() &&
+        refsRef.current.length === 0
+      ) {
         return Promise.resolve(false);
       }
       const draft = ensureDraft();
@@ -266,8 +274,10 @@ export const useNoteEditor = ({
 
   const submit = useCallback(
     async (tagId: string, text: string): Promise<boolean> => {
-      // The API rejects a tagless or empty note — surface that
-      // instead of a silently swallowed console.error.
+      // The API rejects a tagless note, and a note with
+      // neither text nor linked verses carries nothing —
+      // surface both instead of a silently swallowed
+      // console.error.
       if (!tagId) {
         showNotification({
           title: 'Cannot save note',
@@ -276,10 +286,14 @@ export const useNoteEditor = ({
         });
         return false;
       }
-      if (!toPlainText(text).trim()) {
+      if (
+        !toPlainText(text).trim() &&
+        refsRef.current.length === 0
+      ) {
         showNotification({
           title: 'Cannot save note',
-          message: 'Note text is required.',
+          message:
+            'Add note text or link a verse reference.',
           color: 'red',
         });
         return false;

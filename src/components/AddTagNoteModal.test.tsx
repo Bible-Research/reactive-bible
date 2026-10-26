@@ -508,6 +508,46 @@ describe('AddTagNoteModal Component', () => {
     });
   });
 
+  it('submits a verse-only note with no text', async () => {
+    (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
+    const onClose = vi.fn();
+    renderWithProviders(
+      <AddTagNoteModal opened={true} onClose={onClose} />,
+      {
+        storeOverrides: {
+          verseSelection: genesisSelection,
+          activeBookId: 'GEN',
+          activeChapter: 1,
+          lastSelectedTagId: '1',
+        },
+      }
+    );
+
+    // Wait for the form, then submit without typing — the
+    // linked verses are the note's content.
+    await screen.findByLabelText('Note');
+    fireEvent.submit(
+      screen
+        .getByRole('button', { name: 'Submit' })
+        .closest('form') as HTMLFormElement
+    );
+
+    await waitFor(() => {
+      expect(api.addTagNote).toHaveBeenCalledTimes(1);
+    });
+    const [tagId, text, refs] =
+      (api.addTagNote as Mock).mock.calls[0];
+    expect(tagId).toBe('1');
+    expect(toPlainText(text)).toBe('');
+    expect(refs).toEqual([
+      { book: 'Genesis', chapter: 1, verse: 1 },
+      { book: 'Genesis', chapter: 1, verse: 2 },
+    ]);
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('does not POST a duplicate when the modal closes ' +
     'mid-submit', async () => {
     // Repro: autosave on, text typed since the last tick,

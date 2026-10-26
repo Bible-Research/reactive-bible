@@ -27,6 +27,13 @@ interface NoteFormProps {
     tagId: string,
     text: string
   ) => void | Promise<unknown>;
+  /**
+   * Permits saves and submits with no note text — the caller
+   * sets it when the note still links verse references, so
+   * the form holds content even with an empty editor. Without
+   * it an empty note is rejected as before.
+   */
+  allowEmptyText?: boolean;
   submitText: string;
   onTagDropdownOpen: () => void;
   onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
@@ -71,6 +78,7 @@ const NoteForm = ({
   tags,
   note,
   onSubmit,
+  allowEmptyText = false,
   submitText,
   onTagDropdownOpen,
   onAutoSave,
@@ -86,6 +94,7 @@ const NoteForm = ({
   const onUnmountedSaveRef = useRef(onUnmountedSave);
   const onDraftChangeRef = useRef(onDraftChange);
   const autoSaveRef = useRef(autoSave);
+  const allowEmptyTextRef = useRef(allowEmptyText);
   // Shared save lock for autosave ticks and submit: overlapping
   // writes could POST two notes for one draft (or let stale text
   // win over a submit), so both paths must respect it.
@@ -98,6 +107,7 @@ const NoteForm = ({
     onUnmountedSaveRef.current = onUnmountedSave;
     onDraftChangeRef.current = onDraftChange;
     autoSaveRef.current = autoSave;
+    allowEmptyTextRef.current = allowEmptyText;
   });
 
   // Keep the outer draft store in sync — a reopened modal
@@ -139,7 +149,15 @@ const NoteForm = ({
       const save = onAutoSaveRef.current;
       if (!save || !autoSaveRef.current) return;
       const { tagId, text } = latest.current;
-      if (!tagId || !toPlainText(text).trim()) return;
+      // A verse-linked note may flush with empty text; a
+      // truly empty note (no text, nothing linked) is skipped.
+      if (!tagId) return;
+      if (
+        !allowEmptyTextRef.current &&
+        !toPlainText(text).trim()
+      ) {
+        return;
+      }
       // Chain behind an in-flight save — the draft's note id
       // only exists once its POST resolves.
       const chain = inFlightRef.current ?? Promise.resolve();
@@ -174,9 +192,16 @@ const NoteForm = ({
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
       const { tagId, text } = latest.current;
-      // Skip empty text AND empty tag — the latter used to
-      // POST `tag: ''` every 5s, a stream of silent 400s.
-      if (!tagId || !toPlainText(text).trim()) return;
+      // Skip contentless notes AND empty tag — the latter
+      // used to POST `tag: ''` every 5s, a stream of silent
+      // 400s. Verse-linked notes may save with empty text.
+      if (!tagId) return;
+      if (
+        !allowEmptyTextRef.current &&
+        !toPlainText(text).trim()
+      ) {
+        return;
+      }
       const last = lastSavedRef.current;
       if (last && last.tagId === tagId && last.text === text) {
         return;
@@ -214,7 +239,9 @@ const NoteForm = ({
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
-    // Guard empty submissions — the API would reject the note.
+    // Guard empty submissions — the API would reject a
+    // tagless note, and a note with neither text nor linked
+    // verses carries nothing.
     if (!selectedTagId) {
       showNotification({
         title: 'Cannot save note',
@@ -223,7 +250,7 @@ const NoteForm = ({
       });
       return;
     }
-    if (!toPlainText(noteText).trim()) {
+    if (!allowEmptyText && !toPlainText(noteText).trim()) {
       showNotification({
         title: 'Cannot save note',
         message: 'Note text is required.',
