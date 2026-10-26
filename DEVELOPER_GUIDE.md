@@ -3644,9 +3644,11 @@ surface as the transport layer:
   are safe no-ops uninitialised).
 - `src/utils/errorReporter.tsx` (`reportError`) forwards every
   surfaced fatal error as an exception tagged with its context
-  string; resource-load failures go as `warning`-level messages.
-  `src/components/ErrorBoundary.tsx` captures render errors with
-  `extra.componentStack`.
+  string; resource-load failures go as `warning`-level messages
+  with the query string stripped — signed-URL credentials never
+  reach Sentry. `src/components/ErrorBoundary.tsx` captures
+  render errors with `extra.componentStack` and the `context`
+  tag on the first capture (the tagged re-capture is deduped).
 - `src/utils/sentry.ts` exports `sentryBeforeSend`, which drops
   the handled taxonomy (`RateLimitError`,
   `BookNotInFilesetError`, `AbortError`, 'Session expired') so
@@ -3655,13 +3657,18 @@ surface as the transport layer:
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
   (replays only for errored sessions, `maskAllText` +
   `blockAllMedia` on — verse text/notes are user content).
-  `environment` is `VITE_APP_ENV` ?? Vite `MODE`;
+  `environment` comes from Vercel's `VERCEL_ENV`
+  ('production' | 'preview' | 'development'), baked into
+  `import.meta.env.VITE_APP_ENV` by `define` in
+  `vite.config.ts` — unset locally (''), so the runtime falls
+  back to Vite `MODE`. No Vercel-dashboard config needed.
   `tracePropagationTargets` is `API_BASE_URL`.
 - Sourcemaps: `vite.config.ts` emits `hidden` maps and activates
   `@sentry/vite-plugin` only when `SENTRY_AUTH_TOKEN` +
   `SENTRY_ORG` + `SENTRY_PROJECT` are all present (CI/Vercel env,
-  never `VITE_`-prefixed). Release name comes from
-  `VERCEL_GIT_COMMIT_SHA`, falling back to git auto-detection.
+  never `VITE_`-prefixed); without them no `.map` files ship.
+  Release name comes from `VERCEL_GIT_COMMIT_SHA`, falling back
+  to git auto-detection.
 - Configure per-environment DSNs in the Vercel dashboard
   (Production + Preview); see `.env.example`. Backend-side
   setup is documented in `docs/plans/sentry-monitoring-plan.md`

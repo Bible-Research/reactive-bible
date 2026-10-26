@@ -25,11 +25,29 @@ export function sentryBeforeSend(
   if (
     err instanceof RateLimitError ||
     err instanceof BookNotInFilesetError ||
-    (err instanceof Error && err.name === 'AbortError') ||
+    // Real aborts surface as DOMExceptions, which are not
+    // Error subclasses — check both.
+    ((err instanceof Error || err instanceof DOMException) &&
+      err.name === 'AbortError') ||
     (err instanceof Error &&
       err.message.startsWith('Session expired'))
   ) {
     return null;
+  }
+  // Sentry's GlobalHandlers integration captures unhandled
+  // rejections before this app's tagged captureException —
+  // which Dedupe then drops, taking the `context` tag with
+  // it. Re-apply the tag on the surviving event.
+  const mechanism =
+    event.exception?.values?.[0]?.mechanism?.type;
+  if (
+    mechanism === 'onunhandledrejection' &&
+    event.tags?.context === undefined
+  ) {
+    event.tags = {
+      ...event.tags,
+      context: 'Unhandled promise rejection',
+    };
   }
   return event;
 }

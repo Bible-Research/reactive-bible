@@ -6,33 +6,49 @@ import { sentryVitePlugin } from '@sentry/vite-plugin';
 // Sourcemap upload is enabled only when CI (Vercel) provides all
 // three Sentry env vars — they are secrets, never VITE_-prefixed.
 // Local and CI builds without them produce identical output.
-const sentryPlugins =
+const sentryUploadEnabled = Boolean(
   process.env.SENTRY_AUTH_TOKEN &&
-  process.env.SENTRY_ORG &&
-  process.env.SENTRY_PROJECT
-    ? [
-        sentryVitePlugin({
-          org: process.env.SENTRY_ORG,
-          project: process.env.SENTRY_PROJECT,
-          authToken: process.env.SENTRY_AUTH_TOKEN,
-          release: {
-            // Vercel exposes the deployed commit; without it the
-            // plugin falls back to git auto-detection.
-            name: process.env.VERCEL_GIT_COMMIT_SHA,
-          },
-          sourcemaps: {
-            filesToDeleteAfterUpload: ['./dist/**/*.map'],
-          },
-        }),
-      ]
-    : [];
+    process.env.SENTRY_ORG &&
+    process.env.SENTRY_PROJECT
+);
+
+const sentryPlugins = sentryUploadEnabled
+  ? [
+      sentryVitePlugin({
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        release: {
+          // Vercel exposes the deployed commit; without it the
+          // plugin falls back to git auto-detection.
+          name: process.env.VERCEL_GIT_COMMIT_SHA,
+        },
+        sourcemaps: {
+          filesToDeleteAfterUpload: ['./dist/**/*.map'],
+        },
+      }),
+    ]
+  : [];
 
 export default defineConfig({
   plugins: [react(), ...sentryPlugins],
+  define: {
+    // Vercel exposes VERCEL_ENV ('production' | 'preview' |
+    // 'development') to the build env; baking it into the
+    // bundle makes preview deploys report Sentry environment
+    // 'preview' with zero Vercel-dashboard config. It is unset
+    // locally, so this defines '' and the runtime falls back
+    // to Vite's MODE.
+    'import.meta.env.VITE_APP_ENV': JSON.stringify(
+      process.env.VERCEL_ENV ?? ''
+    ),
+  },
   build: {
     // 'hidden': maps are emitted for Sentry's upload but not
     // linked from the bundle, so browsers never fetch them.
-    sourcemap: 'hidden',
+    // Only worth emitting when upload actually runs — with no
+    // SENTRY_* vars the .map files would ship publicly.
+    sourcemap: sentryUploadEnabled ? 'hidden' : false,
     // rolldown-vite: `manualChunks`/`advancedChunks` are
     // deprecated; codeSplitting.groups is the supported API.
     rolldownOptions: {

@@ -42,8 +42,11 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     // Sent before reportError's own captureException so the
     // event that survives Sentry's dedupe carries the React
-    // component stack. No-op when Sentry is not initialized.
+    // component stack — and the `context` tag, which the
+    // deduped second capture would otherwise lose. No-op when
+    // Sentry is not initialized.
     Sentry.captureException(error, {
+      tags: { context: 'React render error' },
       extra: { componentStack: errorInfo.componentStack },
     });
     reportError(error, 'React render error');

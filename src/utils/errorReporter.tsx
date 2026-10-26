@@ -118,7 +118,7 @@ function scheduleFlush(): void {
 export function reportError(
   error: unknown,
   context?: string,
-  options: { resource?: boolean } = {}
+  options: { resource?: boolean; sentryMessage?: string } = {}
 ): void {
   const err = toError(error);
   try {
@@ -133,7 +133,7 @@ export function reportError(
     // than error events: they signal a missing asset, not a
     // crash, and are already deduped per-URL above.
     if (options.resource === true) {
-      Sentry.captureMessage(err.message, {
+      Sentry.captureMessage(options.sentryMessage ?? err.message, {
         level: 'warning',
         tags: context ? { context } : undefined,
       });
@@ -199,10 +199,18 @@ function handleGlobalError(event: Event): void {
     // otherwise flood notifications on every retry/mount.
     if (reportedResources.has(src)) return;
     reportedResources.add(src);
+    // Signed URLs (audio, images) embed credentials in their
+    // query string — strip '?'/'#' and everything after before
+    // the URL reaches Sentry. The user notification keeps the
+    // full src.
+    const sentrySrc = src.split(/[?#]/)[0];
     reportError(
       new Error(`Failed to load resource: ${src}`),
       'Resource load error',
-      { resource: true }
+      {
+        resource: true,
+        sentryMessage: `Failed to load resource: ${sentrySrc}`,
+      }
     );
   }
 }
@@ -211,9 +219,11 @@ function handleUnhandledRejection(
   event: PromiseRejectionEvent
 ): void {
   // Aborted fetches are routine cancellations (navigation
-  // races, superseded searches), not failures.
+  // races, superseded searches), not failures. Real aborts are
+  // DOMExceptions, which are not Error subclasses — check both.
   if (
-    event.reason instanceof Error &&
+    (event.reason instanceof Error ||
+      event.reason instanceof DOMException) &&
     event.reason.name === 'AbortError'
   ) {
     return;

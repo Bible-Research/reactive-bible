@@ -15,8 +15,13 @@ const sentryDsn = import.meta.env.VITE_SENTRY_DSN as
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
+    // vite.config.ts bakes Vercel's VERCEL_ENV into
+    // VITE_APP_ENV at build time ('' when unset, e.g. local
+    // builds) — `||`, not `??`, so the empty string falls back
+    // to Vite's MODE ('development' locally, 'production' for
+    // non-Vercel prod builds).
     environment:
-      (import.meta.env.VITE_APP_ENV as string | undefined) ??
+      (import.meta.env.VITE_APP_ENV as string | undefined) ||
       import.meta.env.MODE,
     integrations: [
       Sentry.browserTracingIntegration(),

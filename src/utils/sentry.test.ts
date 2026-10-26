@@ -61,6 +61,54 @@ describe('sentryBeforeSend', () => {
     expect(sentryBeforeSend(event, hintOf(err))).toBeNull();
   });
 
+  it('drops DOMException AbortError (real fetch aborts)', () => {
+    // fetch aborts reject with a DOMException, not an Error.
+    const err = new DOMException('aborted', 'AbortError');
+    expect(sentryBeforeSend(event, hintOf(err))).toBeNull();
+  });
+
+  it('tags GlobalHandlers-captured rejections with context', () => {
+    // GlobalHandlers captures first and wins dedupe, so the
+    // surviving event lacks the context tag the app's own
+    // captureException carried.
+    const rejectionEvent: ErrorEvent = {
+      ...event,
+      exception: {
+        values: [
+          { mechanism: { type: 'onunhandledrejection' } },
+        ],
+      },
+    };
+
+    const result = sentryBeforeSend(
+      rejectionEvent,
+      hintOf(new Error('async failed'))
+    );
+
+    expect(result?.tags?.context).toBe(
+      'Unhandled promise rejection'
+    );
+  });
+
+  it('keeps an existing context tag on rejection events', () => {
+    const taggedEvent: ErrorEvent = {
+      ...event,
+      tags: { context: 'Custom context' },
+      exception: {
+        values: [
+          { mechanism: { type: 'onunhandledrejection' } },
+        ],
+      },
+    };
+
+    const result = sentryBeforeSend(
+      taggedEvent,
+      hintOf(new Error('async failed'))
+    );
+
+    expect(result?.tags?.context).toBe('Custom context');
+  });
+
   it('drops Session expired errors (already handled)', () => {
     expect(
       sentryBeforeSend(
