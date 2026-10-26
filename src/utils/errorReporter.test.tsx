@@ -192,6 +192,19 @@ describe('errorReporter', () => {
       expect(mockShowNotification).not.toHaveBeenCalled();
     });
 
+    it('suppresses DOMException AbortError rejections', () => {
+      cleanup = initGlobalErrorHandlers();
+      // Real fetch aborts reject with a DOMException — not an
+      // Error subclass — and must be suppressed identically.
+      const reason = new DOMException('aborted', 'AbortError');
+      const event = new Event('unhandledrejection');
+      Object.defineProperty(event, 'reason', { value: reason });
+
+      window.dispatchEvent(event);
+
+      expect(mockShowNotification).not.toHaveBeenCalled();
+    });
+
     it('ignores audio/video element load failures', () => {
       cleanup = initGlobalErrorHandlers();
       for (const tag of ['audio', 'video']) {

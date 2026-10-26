@@ -126,7 +126,9 @@ reactive-bible/
 Optional: `VITE_API_BASE_URL` in a local `.env` overrides the
 default backend host — `src/config.ts` exports `API_BASE_URL`
 and falls back to the production App Engine host; always use
-it, never hardcode the URL. The app uses:
+it, never hardcode the URL. `VITE_SENTRY_DSN` (also optional)
+enables Sentry error monitoring — see "Error Reporting &
+Monitoring". The app uses:
 - **Local KJV data**: `src/assets/kjv.json`, lazy-loaded on demand
   via `src/utils/kjvDataLoader.ts` (emitted as a separate bundle
   chunk). `src/assets/bibleStructure.json` holds book/chapter/verse
@@ -147,6 +149,9 @@ The app is configured for deployment on **Vercel**:
 **Analytics & Monitoring**:
 - Vercel Analytics and Speed Insights are automatically enabled in production
 - No configuration needed - data appears in Vercel dashboard
+- Sentry error monitoring activates when `VITE_SENTRY_DSN` is
+  set per-environment; sourcemap upload needs the `SENTRY_*`
+  build env vars (see "Error Reporting & Monitoring")
 
 ---
 
@@ -3624,6 +3629,50 @@ sideloaded installs. The MainMenu has a "Check for updates" row
 
 `minShellBuild` is reserved for a future OTA web-bundle path — a
 bundle may only be applied when `installedBuild >= minShellBuild`.
+
+---
+
+## Error Reporting & Monitoring
+
+Sentry (`@sentry/react`, project `reactive-bible-web` in org
+`bible-research`) sits underneath the existing in-app error
+surface as the transport layer:
+
+- `src/main.tsx` calls `Sentry.init` **only when**
+  `VITE_SENTRY_DSN` is set — dev, tests, and preview builds
+  without it send nothing (`captureException`/`captureMessage`
+  are safe no-ops uninitialised).
+- `src/utils/errorReporter.tsx` (`reportError`) forwards every
+  surfaced fatal error as an exception tagged with its context
+  string; resource-load failures go as `warning`-level messages
+  with the query string stripped — signed-URL credentials never
+  reach Sentry. `src/components/ErrorBoundary.tsx` captures
+  render errors with `extra.componentStack` and the `context`
+  tag on the first capture (the tagged re-capture is deduped).
+- `src/utils/sentry.ts` exports `sentryBeforeSend`, which drops
+  the handled taxonomy (`RateLimitError`,
+  `BookNotInFilesetError`, `AbortError`, 'Session expired') so
+  expected conditions don't burn quota.
+- Sampling (free-tier sizing): `tracesSampleRate` 0.1,
+  `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
+  (replays only for errored sessions, `maskAllText` +
+  `blockAllMedia` on — verse text/notes are user content).
+  `environment` comes from Vercel's `VERCEL_ENV`
+  ('production' | 'preview' | 'development'), baked into
+  `import.meta.env.VITE_APP_ENV` by `define` in
+  `vite.config.ts` — unset locally (''), so the runtime falls
+  back to Vite `MODE`. No Vercel-dashboard config needed.
+  `tracePropagationTargets` is `API_BASE_URL`.
+- Sourcemaps: `vite.config.ts` emits `hidden` maps and activates
+  `@sentry/vite-plugin` only when `SENTRY_AUTH_TOKEN` +
+  `SENTRY_ORG` + `SENTRY_PROJECT` are all present (CI/Vercel env,
+  never `VITE_`-prefixed); without them no `.map` files ship.
+  Release name comes from `VERCEL_GIT_COMMIT_SHA`, falling back
+  to git auto-detection.
+- Configure per-environment DSNs in the Vercel dashboard
+  (Production + Preview); see `.env.example`. Backend-side
+  setup is documented in `docs/plans/sentry-monitoring-plan.md`
+  at the workspace root.
 
 ---
 
