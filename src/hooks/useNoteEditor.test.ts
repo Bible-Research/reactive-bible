@@ -85,11 +85,11 @@ describe('useNoteEditor', () => {
       expect(result.current.hasSaved()).toBe(true);
     });
 
-  it('skips saves without a tag or without text', async () => {
+  it('skips saves without a tag or any content', async () => {
     const { result } = renderEditor({
       mode: 'create',
       draftKey: 'k',
-      verseReferences: refs,
+      verseReferences: [],
     });
 
     let saved: boolean | undefined;
@@ -97,6 +97,7 @@ describe('useNoteEditor', () => {
       saved = await result.current.save('', 'hello');
     });
     expect(saved).toBe(false);
+    // No text AND no linked verses — nothing to persist.
     await act(async () => {
       saved = await result.current.save('t1', '   ');
     });
@@ -104,6 +105,39 @@ describe('useNoteEditor', () => {
     expect(api.addTagNote).not.toHaveBeenCalled();
     expect(api.editNote).not.toHaveBeenCalled();
     expect(result.current.hasSaved()).toBe(false);
+  });
+
+  it('saves a textless note that links verses', async () => {
+    const onSubmitted = vi.fn();
+    const { result } = renderEditor({
+      mode: 'create',
+      draftKey: 'k',
+      verseReferences: refs,
+      onSubmitted,
+    });
+
+    // A verse-only note is valid content — autosave persists
+    // it even with an empty editor.
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await result.current.save('t1', '');
+    });
+    expect(saved).toBe(true);
+    expect(api.addTagNote).toHaveBeenCalledWith('t1', '', refs);
+
+    let ok: boolean | undefined;
+    await act(async () => {
+      ok = await result.current.submit('t1', '   ');
+    });
+    expect(ok).toBe(true);
+    // The autosaved note is PATCHed, never re-POSTed.
+    expect(api.editNote).toHaveBeenCalledWith(
+      'n1',
+      't1',
+      '   ',
+      refs
+    );
+    expect(onSubmitted).toHaveBeenCalledWith('t1');
   });
 
   it('serializes concurrent saves — one POST, then PATCH',
@@ -222,7 +256,9 @@ describe('useNoteEditor', () => {
     const { result } = renderEditor({
       mode: 'create',
       draftKey: 'k',
-      verseReferences: refs,
+      // No linked verses — text is the only content, so an
+      // empty submit is rejected.
+      verseReferences: [],
       onSubmitted,
     });
 

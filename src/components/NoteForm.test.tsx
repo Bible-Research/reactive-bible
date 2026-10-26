@@ -230,6 +230,63 @@ describe('NoteForm Component', () => {
     expectDocText(text, 'Body text');
   });
 
+  it('submits an empty note when allowEmptyText is set',
+    async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    render(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '1', text: '' }}
+        onSubmit={onSubmit}
+        allowEmptyText
+        submitText="Submit"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    // Verse-linked notes may carry no text — the submit must
+    // reach onSubmit instead of the "required" notification.
+    fireEvent.submit(
+      screen
+        .getByRole('button', { name: 'Submit' })
+        .closest('form') as HTMLFormElement
+    );
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    expect(onSubmit.mock.calls[0][0]).toBe('1');
+    expect(onSubmit.mock.calls[0][1]).toBe('');
+  });
+
+  it('blocks a contentless submit without allowEmptyText',
+    async () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+    render(
+      <NoteForm
+        tags={mockTags}
+        note={{ tagId: '1', text: '' }}
+        onSubmit={onSubmit}
+        submitText="Submit"
+        onTagDropdownOpen={mockOnTagDropdownOpen}
+      />
+    );
+
+    fireEvent.submit(
+      screen
+        .getByRole('button', { name: 'Submit' })
+        .closest('form') as HTMLFormElement
+    );
+
+    // Let any pending submit promise settle — none should
+    // start, since a note with no text and no linked verses
+    // carries nothing.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('should call onTagDropdownOpen when dropdown opens', () => {
     render(
       <NoteForm
@@ -362,6 +419,35 @@ describe('NoteForm Component', () => {
           await vi.advanceTimersByTimeAsync(15000);
         });
         expect(onAutoSave).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('saves a verse-linked note with no text', async () => {
+      vi.useFakeTimers();
+      try {
+        const onAutoSave = vi.fn().mockResolvedValue(undefined);
+        render(
+          <NoteForm
+            tags={mockTags}
+            note={{ tagId: '1', text: '' }}
+            onSubmit={mockOnSubmit}
+            allowEmptyText
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAutoSave={onAutoSave}
+          />
+        );
+
+        fireEvent.click(screen.getByLabelText('Auto save'));
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(onAutoSave).toHaveBeenCalledTimes(1);
+        expect(onAutoSave.mock.calls[0][0]).toBe('1');
+        expect(onAutoSave.mock.calls[0][1]).toBe('');
       } finally {
         vi.useRealTimers();
       }

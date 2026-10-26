@@ -19,6 +19,10 @@ const HEADER_HEIGHT = 56;
 // header does not flicker while reading.
 const HIDE_SCROLL_DELTA = 150;
 const SHOW_SCROLL_DELTA = 150;
+// px from the bottom of the scroller that counts as "end of the
+// chapter" — the bars always come back there so the reader can
+// reach the next/previous buttons without scrolling up first.
+const BOTTOM_REVEAL_PX = 24;
 
 const MyHeader = ({
   menuOpened,
@@ -50,10 +54,14 @@ const MyHeader = ({
   }, [location.pathname, setVisible]);
 
   useEffect(() => {
-    const getScrollTop = (target: EventTarget | null): number =>
+    // Window-level scrolls report `document` as the target; fall
+    // back to documentElement for its metrics then.
+    const getScroller = (
+      target: EventTarget | null
+    ): HTMLElement =>
       target instanceof HTMLElement
-        ? target.scrollTop
-        : document.documentElement.scrollTop;
+        ? target
+        : document.documentElement;
 
     const handleScroll = (event: Event) => {
       // Only the main content scroll should toggle the header.
@@ -72,7 +80,16 @@ const MyHeader = ({
       }
 
       const state = scroll.current;
-      const top = getScrollTop(event.target);
+      const scroller = getScroller(event.target);
+      const top = scroller.scrollTop;
+      // Reached the end of the content — reveal the bars so the
+      // chapter navigation stays reachable. Guarded on actual
+      // overflow (scrollHeight > clientHeight) so non-scrollable
+      // targets and jsdom's zero heights never trigger it.
+      const atBottom =
+        scroller.scrollHeight > scroller.clientHeight &&
+        top + scroller.clientHeight >=
+          scroller.scrollHeight - BOTTOM_REVEAL_PX;
 
       // A different element started scrolling (e.g. after a route
       // change) — treat its position as the new baseline.
@@ -81,11 +98,19 @@ const MyHeader = ({
         state.top = top;
         state.down = 0;
         state.up = 0;
+        if (atBottom) setVisible(true);
         return;
       }
 
       const delta = top - state.top;
       state.top = top;
+
+      if (atBottom) {
+        state.down = 0;
+        state.up = 0;
+        setVisible(true);
+        return;
+      }
 
       if (delta > 0) {
         state.down += delta;

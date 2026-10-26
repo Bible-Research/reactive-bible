@@ -531,8 +531,14 @@ auth lives in a separate persisted `authStore`.
 - `toggleVerseRef(scope, ref)` - Toggle one `VerseRef` in/out of
   a scope's selection
 - `selectVerseRange(scope, refs)` - Shift-click range selection
-- `setActiveBookWithPosition(bookId)` - Restores the saved
-  reading position and queues `pendingScrollVerse`
+- `prepareBookSwitch(bookId)` - Resolves the saved reading
+  position, queues `pendingScrollVerse`, and returns the target
+  chapter — does NOT write `activeBookId`/`activeChapter` (the
+  caller navigates and `BibleRoute`'s URL sync owns the book).
+  Returns a bare `number` when the position is known locally
+  (cached map / anonymous / offline) so the caller can navigate
+  in the same commit; a `Promise` only when an authenticated
+  fetch is required
 - `syncReadingPosition(bookId, chapter, verse)` - Local cache +
   API push when authenticated
 - `prefetchReadingPositions()` - Bulk fetch on app load
@@ -1736,16 +1742,19 @@ Create and organize notes with tags for Bible verses.
 - Optional "Auto save" checkbox in note editors: saves every
   5s (first tick creates the note, later ticks PATCH it) and
   flashes a green checkmark at the top-right corner for 0.5s
-  after each successful save. Ticks skip empty text and
-  empty tag selections, share a write lock with Submit, and
-  failures surface as notifications. The save contract lives
-  in `src/hooks/useNoteEditor.ts` — shared by all three note
-  modals: it guards tagless/empty writes, serializes saves
-  through a draft queue (a pending autosave can never race a
-  submit into a duplicate POST), keeps the draft (note id +
-  live text) in module state keyed by user + selection so it
-  survives the modal's unmount and a reopen resumes the same
-  note, and flushes the unsaved tail on close. Edit mode also
+  after each successful save. Ticks skip tagless selections
+  and contentless drafts — a note needs text or at least one
+  linked verse, so a verse-linked note may save with empty
+  text. Ticks share a write lock with Submit, and failures
+  surface as notifications. The save contract lives in
+  `src/hooks/useNoteEditor.ts` — shared by all three note
+  modals: it guards tagless/contentless writes, serializes
+  saves through a draft queue (a pending autosave can never
+  race a submit into a duplicate POST), keeps the draft
+  (note id + live text) in module state keyed by user +
+  selection so it survives the modal's unmount and a reopen
+  resumes the same note, and flushes the unsaved tail on
+  close. Edit mode also
   sends the picker's CURRENT `verse_references` with every
   save and refetches the tag page the route is viewing at its
   current page/ordering after submit or a post-unmount save.
@@ -1766,7 +1775,8 @@ Create and organize notes with tags for Bible verses.
 **Workflow**:
 1. User selects one or more verses by clicking them
 2. User clicks "Add Note" button
-3. User selects a tag and enters note text
+3. User selects a tag; note text is optional when the note
+   links verses
 4. On submit, note is saved to API
 5. Selected verses are automatically cleared
 6. Modal closes
@@ -2177,8 +2187,10 @@ Top header bar with controls.
   watches inner scroll containers (scroll events do not bubble).
   The header slides up after ~150px of accumulated downward scroll
   and slides back after ~150px of accumulated upward scroll; it is
-  shown again on every route change (`headerVisible` in the
-  store).
+  shown again on every route change and whenever the scroller
+  reaches the bottom of its content (within 24px), so the chapter
+  navigation is always reachable at the end of a chapter
+  (`headerVisible` in the store).
 - The same `headerVisible` store flag also gates `BottomNav`
   (slides below the viewport on hide) and the AppShell's
   reserved footer padding, so both bars move together.
@@ -2339,9 +2351,10 @@ Form for creating/editing notes.
   resolved `false` marks the submit rejected and leaves the
   text eligible for the unmount flush
 - Optional autosave interval (`onAutoSave`): fires every 5s,
-  skips unchanged/tagless/empty drafts, and on unmount
-  flushes the last unsaved contents (`onUnmountedSave` runs
-  after a tail save resolves)
+  skips unchanged/tagless/contentless drafts (empty text is
+  fine when `allowEmptyText` is set — i.e. the note links
+  verses), and on unmount flushes the last unsaved contents
+  (`onUnmountedSave` runs after a tail save resolves)
 - `onDraftChange` reports live contents so the editor hook's
   draft store can restore an in-progress note after reopen
 
@@ -2413,7 +2426,8 @@ Modal for creating new notes from selected verses.
 1. User selects verses
 2. Clicks "Add Note" button
 3. Modal opens with NoteForm
-4. User enters note text and selects tag
+4. User selects a tag; note text is optional — the linked
+   verses alone can be the note's content
 5. Submits form
 6. Note created via API
 7. Selected verses cleared automatically
@@ -3005,9 +3019,16 @@ getBulkReadingPositions(
 **Store integration** (`src/store.ts`):
 - `readingPositions` — persisted per-book cache
   (`Record<bookId, { chapter, verse } | null>`)
-- `setActiveBookWithPosition(bookId)` — restores the saved
-  chapter (and queues scroll restoration via the transient,
-  non-persisted `pendingScrollVerse`) without selecting verses
+- `prepareBookSwitch(bookId)` — resolves the saved chapter and
+  queues scroll restoration via the transient, non-persisted
+  `pendingScrollVerse`; returns the target chapter without
+  writing `activeBookId`/`activeChapter` — the caller navigates
+  and `BibleRoute`'s URL->store sync writes the book, so a stale
+  URL can never revert the switch. The return is `number |
+  Promise<number>`: a bare number for locally-known positions
+  (cached/anonymous/offline) so the caller's `navigate()` lands
+  in the same commit — awaiting it would reopen the stale-book
+  gap where a rapid chapter pick acts on the old book
 - `syncReadingPosition(bookId, chapter, verse)` — updates the
   local cache and pushes to the API when authenticated; driven
   by chapter loads and debounced first-verse-in-view scroll

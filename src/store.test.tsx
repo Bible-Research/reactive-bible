@@ -759,7 +759,7 @@ describe('useBibleStore', () => {
     });
   });
 
-  describe('setActiveBookWithPosition', () => {
+  describe('prepareBookSwitch', () => {
     beforeEach(() => {
       useAuthStore.setState({ isAuthenticated: false });
     });
@@ -774,13 +774,19 @@ describe('useBibleStore', () => {
         last_accessed: '2026-01-01T00:00:00Z',
       });
 
-      await useBibleStore.getState().setActiveBookWithPosition('MRK');
+      const chapter =
+        await useBibleStore.getState().prepareBookSwitch('MRK');
 
       const state = useBibleStore.getState();
+      expect(chapter).toBe(5);
       expect(mockApi.getReadingPosition)
         .toHaveBeenCalledWith('MRK');
-      expect(state.activeBookId).toBe('MRK');
-      expect(state.activeChapter).toBe(5);
+      // The book/chapter themselves must NOT be written here —
+      // BibleRoute's URL->store sync owns them after navigate();
+      // writing them first lets a commit see the stale URL and
+      // revert the switch.
+      expect(state.activeBookId).toBe('JHN');
+      expect(state.activeChapter).toBe(1);
       // Restoring a position must not select a verse (that would
       // pop up the VerseActionToolbar unprompted).
       expect(state.verseSelection).toBeNull();
@@ -796,24 +802,28 @@ describe('useBibleStore', () => {
       });
     });
 
-    it('uses the cached position without an API call', async () => {
+    it('uses the cached position without an API call', () => {
       useAuthStore.setState({ isAuthenticated: true });
       useBibleStore.setState({
         readingPositions: { MRK: { chapter: 2, verse: 1 } },
       });
 
-      await useBibleStore.getState().setActiveBookWithPosition('MRK');
+      const target = useBibleStore.getState().prepareBookSwitch('MRK');
 
+      // Synchronous return — the caller can navigate in the
+      // same commit, leaving no stale-book window.
+      expect(target).toBe(2);
       expect(mockApi.getReadingPosition).not.toHaveBeenCalled();
-      expect(useBibleStore.getState().activeChapter).toBe(2);
       expect(useBibleStore.getState().pendingScrollVerse).toBeNull();
     });
 
-    it('does not fetch a position when unauthenticated', async () => {
-      await useBibleStore.getState().setActiveBookWithPosition('MRK');
+    it('does not fetch a position when unauthenticated', () => {
+      const target =
+        useBibleStore.getState().prepareBookSwitch('MRK');
 
+      expect(target).toBe(1);
       expect(mockApi.getReadingPosition).not.toHaveBeenCalled();
-      expect(useBibleStore.getState().activeBookId).toBe('MRK');
+      expect(useBibleStore.getState().activeBookId).toBe('JHN');
       expect(useBibleStore.getState().activeChapter).toBe(1);
     });
 

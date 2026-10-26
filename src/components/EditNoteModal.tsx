@@ -194,6 +194,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           <NoteForm
             tags={tags}
             onSubmit={editor.submit}
+            // Linked verses keep the note valid with no
+            // text; the prop tracks the picker's live refs.
+            allowEmptyText={refs.length > 0}
             submitText="Submit changes"
             onTagDropdownOpen={() => {
               void getTags().catch(() => {
