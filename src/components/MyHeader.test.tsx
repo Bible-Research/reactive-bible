@@ -5,12 +5,24 @@ import { useBibleStore } from '../store';
 import { renderWithProviders } from '../__tests__/helpers';
 
 // Creates a fake scroll container attached to the document so the
-// header's capture-phase window listener receives its scroll events.
-function createScroller() {
+// header's capture-phase window listener receives its scroll
+// events. jsdom reports zero for clientHeight/scrollHeight, so
+// they are stubbed when a test needs a scrollable element.
+function createScroller(
+  { clientHeight = 0, scrollHeight = 0 } = {}
+) {
   const el = document.createElement('div');
   let top = 0;
   Object.defineProperty(el, 'scrollTop', {
     get: () => top,
+    configurable: true,
+  });
+  Object.defineProperty(el, 'clientHeight', {
+    get: () => clientHeight,
+    configurable: true,
+  });
+  Object.defineProperty(el, 'scrollHeight', {
+    get: () => scrollHeight,
     configurable: true,
   });
   document.body.appendChild(el);
@@ -119,6 +131,53 @@ describe('MyHeader', () => {
 
     scroller.scrollTo(0);
     expect(useBibleStore.getState().headerVisible).toBe(true);
+  });
+
+  it('reappears when the scroller reaches the bottom (#188)', () => {
+    renderHeader();
+    const scroller = createScroller({
+      clientHeight: 500,
+      scrollHeight: 2000,
+    });
+    scrollers.push(scroller);
+
+    scroller.scrollTo(0);
+    scroller.scrollTo(300);
+    expect(isVisible()).toBe(false);
+
+    // 1500 + 500 = 2000 = scrollHeight — the very bottom.
+    scroller.scrollTo(1500);
+    expect(isVisible()).toBe(true);
+  });
+
+  it('stays hidden just above the bottom reveal zone (#188)', () => {
+    renderHeader();
+    const scroller = createScroller({
+      clientHeight: 500,
+      scrollHeight: 2000,
+    });
+    scrollers.push(scroller);
+
+    scroller.scrollTo(0);
+    scroller.scrollTo(300);
+    expect(isVisible()).toBe(false);
+
+    // 1475 + 500 = 1975 < 2000 - 24 — still above the end.
+    scroller.scrollTo(1475);
+    expect(isVisible()).toBe(false);
+
+    scroller.scrollTo(1500);
+    expect(isVisible()).toBe(true);
+  });
+
+  it('ignores bottom detection on non-scrollable targets', () => {
+    renderHeader();
+    const scroller = createScroller();
+    scrollers.push(scroller);
+
+    scroller.scrollTo(0);
+    scroller.scrollTo(200);
+    expect(isVisible()).toBe(false);
   });
 
   it('resets the accumulated delta when direction changes', () => {
