@@ -15,6 +15,7 @@ import {
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
 import {
+  ClientInputError,
   ProviderError,
   RateLimitError,
   errorMessageFromBody,
@@ -96,8 +97,12 @@ export const getAvailableTranslations = async (
         // Every non-OK from this endpoint is a provider
         // failure — a codeless body must still surface as
         // the typed ProviderError, not a plain Error.
+        // ClientInputError passes through too: re-wrapping
+        // it as ProviderError would mislabel our own bad
+        // request as an upstream outage.
         if (
           err instanceof RateLimitError ||
+          err instanceof ClientInputError ||
           err instanceof ProviderError
         ) {
           throw err;

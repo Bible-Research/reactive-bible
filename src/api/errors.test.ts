@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BookNotInFilesetError,
+  ClientInputError,
   ProviderError,
   RateLimitError,
   errorMessageFromBody,
@@ -42,6 +43,7 @@ const expectPlainError = (err: Error): void => {
   // rules it out.
   expect(err).not.toBeInstanceOf(ProviderError);
   expect(err).not.toBeInstanceOf(RateLimitError);
+  expect(err).not.toBeInstanceOf(ClientInputError);
 };
 
 describe('isRateLimitMessage', () => {
@@ -177,6 +179,84 @@ describe('throwFromErrorBody', () => {
       });
       expect(err).toBeInstanceOf(ProviderError);
       expect(err).not.toBeInstanceOf(BookNotInFilesetError);
+      expect(err).not.toBeInstanceOf(ClientInputError);
+      expect(err.message).toBe('boom');
+    }
+  );
+
+  it('throws ClientInputError for missing_parameter at 400',
+    async () => {
+      const err = await thrownFrom(
+        {
+          error_code: 'missing_parameter',
+          error: 'fileset_id is required',
+        },
+        400
+      );
+      expect(err).toBeInstanceOf(ClientInputError);
+      // Deliberately NOT a ProviderError — instanceof checks
+      // would render the upstream-failure UI for our own bad
+      // request.
+      expect(err).not.toBeInstanceOf(ProviderError);
+      expect(err.message).toBe('fileset_id is required');
+    }
+  );
+
+  it('throws ClientInputError for invalid_parameter at 400',
+    async () => {
+      const err = await thrownFrom(
+        {
+          error_code: 'invalid_parameter',
+          error: 'invalid language_iso',
+        },
+        400
+      );
+      expect(err).toBeInstanceOf(ClientInputError);
+      expect(err).not.toBeInstanceOf(ProviderError);
+      expect(err.message).toBe('invalid language_iso');
+    }
+  );
+
+  it('throws ClientInputError for any coded HTTP 400 body',
+    async () => {
+      const err = await thrownFrom(
+        { error_code: 'whatever', error: 'bad request' },
+        400
+      );
+      expect(err).toBeInstanceOf(ClientInputError);
+      expect(err).not.toBeInstanceOf(ProviderError);
+      expect(err.message).toBe('bad request');
+    }
+  );
+
+  // Precedence pins: the established buckets must win over
+  // the generic coded-400 client-input mapping.
+  it('keeps book_not_in_fileset precedence at HTTP 400',
+    async () => {
+      const err = await thrownFrom(
+        { error_code: 'book_not_in_fileset' }, 400
+      );
+      expect(err).toBeInstanceOf(BookNotInFilesetError);
+      expect(err).not.toBeInstanceOf(ClientInputError);
+    }
+  );
+
+  it('keeps rate_limited precedence at HTTP 400', async () => {
+    const err = await thrownFrom(
+      { error_code: 'rate_limited', error: 'slow down' }, 400
+    );
+    expect(err).toBeInstanceOf(RateLimitError);
+    expect(err).not.toBeInstanceOf(ClientInputError);
+    expect(err.message).toBe('slow down');
+  });
+
+  it('throws ProviderError for an unknown code at non-400',
+    async () => {
+      const err = await thrownFrom(
+        { error_code: 'upstream_gone', error: 'boom' }, 502
+      );
+      expect(err).toBeInstanceOf(ProviderError);
+      expect(err).not.toBeInstanceOf(ClientInputError);
       expect(err.message).toBe('boom');
     }
   );
