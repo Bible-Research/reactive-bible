@@ -1,10 +1,38 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react-swc';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
+
+// Sourcemap upload is enabled only when CI (Vercel) provides all
+// three Sentry env vars — they are secrets, never VITE_-prefixed.
+// Local and CI builds without them produce identical output.
+const sentryPlugins =
+  process.env.SENTRY_AUTH_TOKEN &&
+  process.env.SENTRY_ORG &&
+  process.env.SENTRY_PROJECT
+    ? [
+        sentryVitePlugin({
+          org: process.env.SENTRY_ORG,
+          project: process.env.SENTRY_PROJECT,
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+          release: {
+            // Vercel exposes the deployed commit; without it the
+            // plugin falls back to git auto-detection.
+            name: process.env.VERCEL_GIT_COMMIT_SHA,
+          },
+          sourcemaps: {
+            filesToDeleteAfterUpload: ['./dist/**/*.map'],
+          },
+        }),
+      ]
+    : [];
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), ...sentryPlugins],
   build: {
+    // 'hidden': maps are emitted for Sentry's upload but not
+    // linked from the bundle, so browsers never fetch them.
+    sourcemap: 'hidden',
     // rolldown-vite: `manualChunks`/`advancedChunks` are
     // deprecated; codeSplitting.groups is the supported API.
     rolldownOptions: {

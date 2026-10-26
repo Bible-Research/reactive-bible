@@ -8,6 +8,7 @@ import {
   Title,
 } from '@mantine/core';
 import { IconAlertTriangle } from '@tabler/icons-react';
+import * as Sentry from '@sentry/react';
 import { copyErrorDetails } from '../utils/errorReportDetails';
 import { reportError } from '../utils/errorReporter';
 
@@ -39,6 +40,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Sent before reportError's own captureException so the
+    // event that survives Sentry's dedupe carries the React
+    // component stack. No-op when Sentry is not initialized.
+    Sentry.captureException(error, {
+      extra: { componentStack: errorInfo.componentStack },
+    });
     reportError(error, 'React render error');
   }
 

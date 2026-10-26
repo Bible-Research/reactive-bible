@@ -1,4 +1,5 @@
 import { showNotification } from '@mantine/notifications';
+import * as Sentry from '@sentry/react';
 import {
   ErrorNotificationContent,
 } from '../components/ErrorNotificationContent';
@@ -125,6 +126,22 @@ export function reportError(
       context ? `[${context}]` : '[Unexpected error]',
       err
     );
+    // Forward to Sentry — capture* calls are safe no-ops when
+    // the SDK was never initialized (no VITE_SENTRY_DSN, e.g.
+    // tests and local dev). Resource-load failures are not
+    // exceptions, so they go as warning-level messages rather
+    // than error events: they signal a missing asset, not a
+    // crash, and are already deduped per-URL above.
+    if (options.resource === true) {
+      Sentry.captureMessage(err.message, {
+        level: 'warning',
+        tags: context ? { context } : undefined,
+      });
+    } else {
+      Sentry.captureException(err, {
+        tags: context ? { context } : undefined,
+      });
+    }
     const report: PendingReport = {
       error: err,
       context,
