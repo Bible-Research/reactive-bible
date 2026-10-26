@@ -36,11 +36,12 @@ export default defineConfig({
     // Vercel exposes VERCEL_ENV ('production' | 'preview' |
     // 'development') to the build env; baking it into the
     // bundle makes preview deploys report Sentry environment
-    // 'preview' with zero Vercel-dashboard config. It is unset
-    // locally, so this defines '' and the runtime falls back
-    // to Vite's MODE.
+    // 'preview' with zero Vercel-dashboard config. A manually
+    // set VITE_APP_ENV takes precedence (e.g. a 'staging' label
+    // on a non-Vercel deploy). Both unset locally, so this
+    // defines '' and the runtime falls back to Vite's MODE.
     'import.meta.env.VITE_APP_ENV': JSON.stringify(
-      process.env.VERCEL_ENV ?? ''
+      process.env.VITE_APP_ENV ?? process.env.VERCEL_ENV ?? ''
     ),
   },
   build: {
