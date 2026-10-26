@@ -208,6 +208,9 @@ const AddTagNoteModal = ({
       <NoteForm
         tags={tags}
         onSubmit={editor.submit}
+        // The selection links verses — the note stays valid
+        // with no text (a plain verse bookmark under a tag).
+        allowEmptyText={refs.length > 0}
         submitText="Submit"
         onTagDropdownOpen={() => {
           void getTags().catch(() => {
