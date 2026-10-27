@@ -16,12 +16,22 @@ android {
             ? project.property('versionName').toString() : '1.0'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+             // Files and dirs to omit from the packaged assets dir,
+             // modified to accommodate modern web apps. Default:
+             // https://android.googlesource.com/platform/frameworks/
+             // base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/
+             // tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
     buildTypes {
+        // Distinct package id: the debug-signed media-debug APK
+        // installs next to the release-signed app instead of
+        // failing with a signature conflict.
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

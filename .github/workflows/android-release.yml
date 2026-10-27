@@ -7,7 +7,9 @@ name: Android APK
 # URL stable: releases/latest/download/reactive-bible.apk), and on
 # every push to `main`, attached to the rolling `continuous`
 # prerelease together with `update.json` — the manifest installed
-# apps poll to detect a newer build.
+# apps poll to detect a newer build. Branch (non-main, non-tag)
+# runs also publish the debug APK as `reactive-bible-debug.apk`
+# on the rolling `media-debug` prerelease.
 on:
   workflow_dispatch:
   push:
@@ -35,7 +37,27 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # main / v* tags build the release channel; every other ref
+      # is a media-debug build (src/utils/mediaDebug.ts) tagged
+      # `android-debug` in Sentry. GITHUB_ENV carries the choice
+      # into `npm run build` below.
+      - name: Select build channel
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/main" ] || \
+            [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "VITE_APP_ENV=android" >> "$GITHUB_ENV"
+          else
+            echo "VITE_APP_ENV=android-debug" >> "$GITHUB_ENV"
+            echo "VITE_MEDIA_DEBUG=1" >> "$GITHUB_ENV"
+          fi
+
+      # A missing VITE_SENTRY_DSN secret expands to '' and keeps
+      # Sentry a no-op, exactly as before.
       - run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_APP_RELEASE: ${{ github.sha }}
       - run: npx cap sync android
 
       # Capacitor 8 targets Java 21 / compileSdk 36.
@@ -66,6 +88,40 @@ jobs:
           name: reactive-bible-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      # ---------- Rolling `media-debug` channel (branches) ----------
+
+      # Phone-downloadable copy of the debug APK (artifacts are
+      # zipped and need a GitHub login). Its own tag and
+      # prerelease: `continuous`, update.json and `latest` are
+      # never touched from here.
+      - name: Retag media-debug
+        if: >-
+          github.ref != 'refs/heads/main' &&
+          github.ref_type != 'tag'
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+            reactive-bible-debug.apk
+          git tag -f media-debug "${{ github.sha }}"
+          git push -f origin media-debug
+
+      - name: Publish media-debug release
+        if: >-
+          github.ref != 'refs/heads/main' &&
+          github.ref_type != 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: media-debug
+          name: Media debug build
+          prerelease: true
+          make_latest: false
+          body: >-
+            Side-installable debug APK
+            (com.bibleresearch.app.debug) with media-session
+            diagnostics sent to Sentry (environment
+            android-debug). Built from ${{ github.ref_name }}
+            at ${{ github.sha }}.
+          files: reactive-bible-debug.apk
 
       # ---------- Release (v* tags and main pushes) ----------
 
