@@ -15,10 +15,8 @@ import { showNotification } from "@mantine/notifications";
 import { useBibleStore } from "../store";
 import {
   deleteImage,
-  fetchNoteImages,
   uploadNoteImage,
 } from "../api";
-import { clearNotesCache } from "../utils/cacheManager";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import {
   refsInclude,
@@ -28,11 +26,15 @@ import {
 } from "../utils/verseRefs";
 import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import { useNoteEditor } from "../hooks/useNoteEditor";
+import {
+  mutateNoteImages,
+  useNoteImages,
+} from "../hooks/useNoteImages";
 import { imageFileSignature } from "../hooks/useStagedImages";
 import NoteForm from "./NoteForm";
 import PassagePicker from "./PassagePicker";
 import VerseTextGroups from "./VerseTextGroups";
-import { Note, NoteImage, VerseRef } from "../types";
+import { Note, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import { shallow } from "zustand/shallow";
 
@@ -70,15 +72,16 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // Last plain-clicked verse; a shift-click extends a range from it.
   const anchorRef = useRef<VerseRef | null>(null);
 
-  // Attached images — seeded from the note; uploads append
-  // and deletes filter. The modal only opens through the
-  // owner-gated edit affordance, so attach/delete need no
-  // extra permission check here.
-  const [images, setImages] = useState<NoteImage[]>([]);
-  const imageRefreshCount = useRef(0);
-  // True while a fetchNoteImages is in flight — N thumbs
-  // erroring in one commit must not fire N refetches.
-  const pendingImageRefresh = useRef(false);
+  // Attached images come from the shared per-note store —
+  // the card usually warmed it before the modal opened, so
+  // opening costs no extra request. Uploads append and
+  // deletes filter via mutateNoteImages. The modal only
+  // opens through the owner-gated edit affordance, so
+  // attach/delete need no extra permission check here.
+  const { images, refresh: refreshImages } = useNoteImages(
+    note?.id,
+    opened
+  );
   // Content signatures of files uploaded this session,
   // mapped to the image each produced — a re-select mints
   // a new File object, so identity checks can't stop a
@@ -97,9 +100,6 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     });
     setVersesOpen(false);
     if (!note) return;
-    setImages(note.images ?? []);
-    imageRefreshCount.current = 0;
-    pendingImageRefresh.current = false;
     uploadedSigs.current = new Map();
     const initial = (note.verses ?? [])
       .map((v) => ({
@@ -206,7 +206,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
         try {
           const img = await uploadNoteImage(noteId, file);
           uploadedSigs.current.set(signature, img.id);
-          setImages((prev) => [...prev, img]);
+          // The upload response is an ImageSerializer object
+          // identical to the list elements — append it
+          // locally instead of refetching.
+          mutateNoteImages(noteId, (imgs) => [...imgs, img]);
         } catch (err: unknown) {
           uploadedSigs.current.delete(signature);
           const msg =
@@ -220,21 +223,21 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           });
         }
       }
-      // The note's cached pages now carry a stale image list.
-      clearNotesCache();
     })();
   };
 
   const handleDeleteImage = async (imageId: string) => {
+    if (!note) return;
     try {
       await deleteImage(imageId);
-      setImages((prev) => prev.filter((i) => i.id !== imageId));
+      mutateNoteImages(note.id, (imgs) =>
+        imgs.filter((i) => i.id !== imageId)
+      );
       // Free the file's signature so re-selecting it
       // re-uploads instead of being deduped away.
       for (const [sig, id] of uploadedSigs.current) {
         if (id === imageId) uploadedSigs.current.delete(sig);
       }
-      clearNotesCache();
     } catch {
       showNotification({
         color: 'red',
@@ -245,29 +248,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   };
 
   // An attached thumb whose signed URL expired refetches the
-  // list — bounded so a persistently failing host can't loop,
-  // and single-flight so N thumbs erroring in one commit fire
-  // one refetch, not N.
+  // list through the shared store — bounded (3 per image set)
+  // and single-flight, so N thumbs erroring in one commit
+  // fire one refetch, not N.
   const handleImageError = () => {
-    if (
-      !note ||
-      imageRefreshCount.current >= 3 ||
-      pendingImageRefresh.current
-    ) {
-      return;
-    }
-    pendingImageRefresh.current = true;
-    imageRefreshCount.current += 1;
-    fetchNoteImages(note.id)
-      .then(setImages)
-      .catch(() => {
-        // Refund the attempt — a flaky network must not
-        // permanently burn the refresh budget.
-        imageRefreshCount.current -= 1;
-      })
-      .finally(() => {
-        pendingImageRefresh.current = false;
-      });
+    refreshImages();
   };
 
   const handleClose = () => {

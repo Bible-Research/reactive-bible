@@ -4,11 +4,12 @@ import {
   fireEvent,
   waitFor,
 } from '@testing-library/react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
 import { API_BASE_URL } from '../config';
 import { NoteImage } from '../types';
+import { resetNoteImages } from '../hooks/useNoteImages';
 import NoteCard from './NoteCard';
 import {
   renderWithProviders,
@@ -561,43 +562,153 @@ describe('NoteCard provider error display', () => {
 });
 
 describe('note images', () => {
-  it('renders attached images under the note text', () => {
-    const note = createMockNote({
+  // The shared per-note image store is module-scoped — reset
+  // it between tests or entries leak across cases.
+  beforeEach(() => {
+    resetNoteImages();
+  });
+
+  // happy-dom ships an IntersectionObserver that never fires
+  // — replace it with one reporting intersection immediately
+  // so the card's lazy gate opens.
+  const stubIntersection = () => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        private cb: IntersectionObserverCallback;
+        constructor(cb: IntersectionObserverCallback) {
+          this.cb = cb;
+        }
+        observe(target: Element) {
+          this.cb(
+            [
+              {
+                isIntersecting: true,
+                target,
+              } as IntersectionObserverEntry,
+            ],
+            this as unknown as IntersectionObserver
+          );
+        }
+        unobserve() {
+          /* no-op stub */
+        }
+        disconnect() {
+          /* no-op stub */
+        }
+        takeRecords() {
+          return [];
+        }
+      }
+    );
+  };
+
+  const note = () =>
+    createMockNote({
       id: 'n-img',
-      images: [
-        makeNoteImage('img-old', 'https://old.example.com/x'),
-      ],
       verses: [createMockVerse()],
     });
-    renderWithProviders(
-      <NoteCard note={note} onViewInBible={vi.fn()} />
-    );
 
-    const img = document.querySelector(
-      'img[alt="img-old.png"]'
-    ) as HTMLImageElement;
-    expect(img).toBeInTheDocument();
-    expect(img.src).toBe('https://old.example.com/x');
-    // Cards display only — deletes live in EditNoteModal.
-    expect(
-      screen.queryByRole('button', { name: /^Delete image/ })
-    ).not.toBeInTheDocument();
-  });
+  it('does not fetch images before the card nears the ' +
+    'viewport', async () => {
+      let fetches = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            return HttpResponse.json([]);
+          }
+        )
+      );
+      // No intersection stub: happy-dom's observer reports
+      // nothing, so the lazy gate stays closed.
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(fetches).toBe(0);
+      expect(
+        document.querySelector('img[alt="img-1.png"]')
+      ).not.toBeInTheDocument();
+    });
+
+  it('fetches and renders attached images once the card ' +
+    'intersects', async () => {
+      stubIntersection();
+      // MSW's default note-images list returns img-1.
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      const img = await screen.findByAltText('img-1.png');
+      expect(img).toBeInTheDocument();
+      // Cards display only — deletes live in EditNoteModal.
+      expect(
+        screen.queryByRole('button', { name: /^Delete image/ })
+      ).not.toBeInTheDocument();
+    });
+
+  it('renders no grid while the image fetch is in flight',
+    async () => {
+      stubIntersection();
+      // A never-resolving list keeps the card in its silent
+      // loading state — images are optional content, so no
+      // spinner renders either.
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => new Promise(() => undefined)
+        )
+      );
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(
+        document.querySelector('.mantine-SimpleGrid-root')
+      ).not.toBeInTheDocument();
+    });
+
+  it('renders nothing when the note has no images',
+    async () => {
+      stubIntersection();
+      let fetches = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            return HttpResponse.json([]);
+          }
+        )
+      );
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      await waitFor(() => expect(fetches).toBe(1));
+      expect(
+        document.querySelector('.mantine-SimpleGrid-root')
+      ).not.toBeInTheDocument();
+    });
 
   it('opens the lightbox when a thumbnail is clicked',
     async () => {
-      const note = createMockNote({
-        id: 'n-img',
-        images: [
-          makeNoteImage('img-old', 'https://old.example.com/x'),
-        ],
-        verses: [createMockVerse()],
-      });
+      stubIntersection();
       renderWithProviders(
-        <NoteCard note={note} onViewInBible={vi.fn()} />
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
       );
 
-      fireEvent.click(screen.getByAltText('img-old.png'));
+      fireEvent.click(
+        await screen.findByAltText('img-1.png')
+      );
 
       await waitFor(() => {
         expect(
@@ -608,20 +719,33 @@ describe('note images', () => {
 
   it('refreshes signed URLs when a thumbnail fails to load',
     async () => {
-      // MSW's default note-images list returns img-1 with a
-      // fresh signed_url — the failing img-old.png is replaced.
-      const note = createMockNote({
-        id: 'n-img',
-        images: [
-          makeNoteImage('img-old', 'https://old.example.com/x'),
-        ],
-        verses: [createMockVerse()],
-      });
+      stubIntersection();
+      // First load returns a dead signed_url; the refresh
+      // mints a fresh one.
+      let call = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            call += 1;
+            return HttpResponse.json([
+              makeNoteImage(
+                call === 1 ? 'img-old' : 'img-1',
+                call === 1
+                  ? 'https://dead.example.com/x'
+                  : 'https://example.com/img-1.png'
+              ),
+            ]);
+          }
+        )
+      );
       renderWithProviders(
-        <NoteCard note={note} onViewInBible={vi.fn()} />
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
       );
 
-      fireEvent.error(screen.getByAltText('img-old.png'));
+      fireEvent.error(
+        await screen.findByAltText('img-old.png')
+      );
 
       await waitFor(() => {
         expect(
@@ -631,9 +755,51 @@ describe('note images', () => {
           screen.getByAltText('img-1.png')
         ).toBeInTheDocument();
       });
+      expect(call).toBe(2);
+    });
+
+  it('collapses concurrent thumb errors into one refresh',
+    async () => {
+      stubIntersection();
+      let fetches = 0;
+      let resolveRefresh: (r: Response) => void =
+        () => undefined;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            if (fetches === 1) {
+              return HttpResponse.json([
+                makeNoteImage('img-1', 'https://d.example/1'),
+                makeNoteImage('img-2', 'https://d.example/2'),
+              ]);
+            }
+            return new Promise<Response>((resolve) => {
+              resolveRefresh = resolve;
+            });
+          }
+        )
+      );
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      const first = await screen.findByAltText('img-1.png');
+      const second = screen.getByAltText('img-2.png');
+      fireEvent.error(first);
+      fireEvent.error(second);
+
+      // Both errors join the single in-flight refresh.
+      await waitFor(() => expect(fetches).toBe(2));
+      expect(fetches).toBe(2);
+      await act(async () => {
+        resolveRefresh(HttpResponse.json([]));
+      });
     });
 
   it('bounds the signed-URL refresh loop', async () => {
+    stubIntersection();
     let fetches = 0;
     server.use(
       http.get(
@@ -646,21 +812,16 @@ describe('note images', () => {
         }
       )
     );
-    const note = createMockNote({
-      id: 'n-img',
-      images: [
-        makeNoteImage('img-1', 'https://example.com/x'),
-      ],
-      verses: [createMockVerse()],
-    });
     renderWithProviders(
-      <NoteCard note={note} onViewInBible={vi.fn()} />
+      <NoteCard note={note()} onViewInBible={vi.fn()} />
     );
+    await screen.findByAltText('img-1.png');
+    const initialFetches = fetches;
 
     // Each failed load refreshes the list, which returns the
-    // same broken URL — the budget caps retries at 3. The
+    // same broken URL — the budget caps refreshes at 3. The
     // flush between errors lets each refetch settle so the
-    // pending guard doesn't swallow the next one.
+    // single-flight guard doesn't swallow the next one.
     for (let i = 0; i < 5; i++) {
       const img = screen.queryByAltText('img-1.png');
       if (!img) break;
@@ -668,12 +829,12 @@ describe('note images', () => {
       await act(async () => {
         // The MSW round-trip + .then/.finally chain spans
         // macrotasks — a bare microtask flush can leave the
-        // pending flag set and swallow the next error.
+        // in-flight flag set and merge the next error.
         await new Promise((resolve) => {
           setTimeout(resolve, 0);
         });
       });
     }
-    expect(fetches).toBe(3);
+    expect(fetches - initialFetches).toBe(3);
   });
 });

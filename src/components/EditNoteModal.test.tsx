@@ -14,6 +14,7 @@ import {
 } from 'vitest';
 import EditNoteModal from './EditNoteModal';
 import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
+import { resetNoteImages } from '../hooks/useNoteImages';
 import {
   renderWithProviders,
   createMockNote,
@@ -89,13 +90,16 @@ describe('EditNoteModal Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Editor drafts are module-scoped — reset them between
-    // tests.
+    // Editor drafts and the shared note-image store are
+    // module-scoped — reset them between tests.
     resetNoteEditorDrafts();
+    resetNoteImages();
 
     (api.getTags as Mock).mockResolvedValue([
       createMockTag({ id: '1', name: 'Faith' }),
     ]);
+    // The modal lazy-fetches the note's image list on open.
+    (api.fetchNoteImages as Mock).mockResolvedValue([]);
   });
 
   it('should not render when closed', () => {
@@ -612,8 +616,13 @@ describe('EditNoteModal Component', () => {
         note_text: 'Original note text',
         tag: createMockTag({ id: '1', name: 'Faith' }),
         verses: [],
-        images: [makeImage('img-1')],
       });
+
+    // Note payloads carry no images — the modal fetches the
+    // list on open, so tests seed it through the API mock.
+    const seedImages = (...images: ReturnType<typeof makeImage>[]) => {
+      (api.fetchNoteImages as Mock).mockResolvedValue(images);
+    };
 
     const attachFiles = (files: File[]) => {
       const input = document.querySelector(
@@ -627,6 +636,7 @@ describe('EditNoteModal Component', () => {
     };
 
     it('renders attached images and deletes one', async () => {
+      seedImages(makeImage('img-1'));
       (api.deleteImage as Mock).mockResolvedValue(undefined);
       renderWithProviders(
         <EditNoteModal
@@ -636,9 +646,7 @@ describe('EditNoteModal Component', () => {
         />
       );
 
-      const thumb = await waitFor(() =>
-        document.querySelector('img[alt="img-1.png"]')
-      );
+      const thumb = await screen.findByAltText('img-1.png');
       expect(thumb).toBeInTheDocument();
 
       fireEvent.click(
@@ -790,9 +798,9 @@ describe('EditNoteModal Component', () => {
 
     it('refreshes the image list when a thumb fails ' +
       'to load', async () => {
-        (api.fetchNoteImages as Mock).mockResolvedValue([
-          makeImage('img-9'),
-        ]);
+        (api.fetchNoteImages as Mock)
+          .mockResolvedValueOnce([makeImage('img-1')])
+          .mockResolvedValue([makeImage('img-9')]);
         renderWithProviders(
           <EditNoteModal
             opened={true}
@@ -801,9 +809,7 @@ describe('EditNoteModal Component', () => {
           />
         );
 
-        const thumb = await waitFor(() =>
-          document.querySelector('img[alt="img-1.png"]')
-        );
+        const thumb = await screen.findByAltText('img-1.png');
         fireEvent.error(thumb as HTMLElement);
 
         await waitFor(() => {
@@ -825,18 +831,22 @@ describe('EditNoteModal Component', () => {
             ReturnType<typeof api.fetchNoteImages>
           >
         ) => void = () => undefined;
-        (api.fetchNoteImages as Mock).mockImplementation(
-          () =>
-            new Promise((resolve) => {
-              resolveFetch = resolve;
-            })
-        );
+        (api.fetchNoteImages as Mock)
+          .mockResolvedValueOnce([
+            makeImage('img-1'),
+            makeImage('img-2'),
+          ])
+          .mockImplementation(
+            () =>
+              new Promise((resolve) => {
+                resolveFetch = resolve;
+              })
+          );
         const twoImages = createMockNote({
           id: 'n1',
           note_text: 'Original note text',
           tag: createMockTag({ id: '1', name: 'Faith' }),
           verses: [],
-          images: [makeImage('img-1'), makeImage('img-2')],
         });
         renderWithProviders(
           <EditNoteModal
@@ -846,9 +856,7 @@ describe('EditNoteModal Component', () => {
           />
         );
 
-        const first = await waitFor(() =>
-          document.querySelector('img[alt="img-1.png"]')
-        );
+        const first = await screen.findByAltText('img-1.png');
         const second = document.querySelector(
           'img[alt="img-2.png"]'
         );
@@ -857,8 +865,9 @@ describe('EditNoteModal Component', () => {
         fireEvent.error(second as HTMLElement);
 
         // The second error sees the refresh already in
-        // flight — one fetch for the whole commit.
-        expect(api.fetchNoteImages).toHaveBeenCalledTimes(1);
+        // flight — one refresh for the whole commit, on top
+        // of the initial load.
+        expect(api.fetchNoteImages).toHaveBeenCalledTimes(2);
 
         await act(async () => {
           resolveFetch([
@@ -871,12 +880,12 @@ describe('EditNoteModal Component', () => {
     it('submits an image-only note with no text or ' +
       'verses', async () => {
         (api.editNote as Mock).mockResolvedValue({});
+        seedImages(makeImage('img-1'));
         const imageOnlyNote = createMockNote({
           id: 'n1',
           note_text: '',
           tag: createMockTag({ id: '1', name: 'Faith' }),
           verses: [],
-          images: [makeImage('img-1')],
         });
         renderWithProviders(
           <EditNoteModal

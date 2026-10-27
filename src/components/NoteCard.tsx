@@ -1,8 +1,9 @@
 import type { MouseEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Box, Group, Title } from "@mantine/core";
-import { Note, NoteImage, NoteOrderMenuData } from "../types";
-import { fetchNoteImages } from "../api";
+import { useIntersection } from "@mantine/hooks";
+import { Note, NoteOrderMenuData } from "../types";
+import { useNoteImages } from "../hooks/useNoteImages";
 import { useBibleStore } from "../store";
 import NoteOrderMenu from "./NoteOrderMenu";
 import CommentThread from "./CommentThread";
@@ -42,11 +43,6 @@ interface NoteCardProps {
   orderMenu?: NoteOrderMenuData;
 }
 
-// A note's images are refetched at most this many times per
-// image set — bounds the retry loop when the backend keeps
-// minting signed URLs that still fail to load.
-const MAX_IMAGE_REFRESHES = 3;
-
 const NoteCard = ({
   note,
   onViewInBible,
@@ -64,63 +60,39 @@ const NoteCard = ({
   const [threadOpen, setThreadOpen] = useState(false);
   const [lightboxImageId, setLightboxImageId] =
     useState<string | null>(null);
-  // A signed URL that failed to load (the 600 s TTL can
-  // lapse on a cached page) triggers a targeted refetch;
-  // `refreshed` keeps the replacement list, keyed to the
-  // note.images array it was fetched against so a
-  // parent-delivered update supersedes it automatically.
-  const [refreshed, setRefreshed] = useState<{
-    base: NoteImage[] | undefined;
-    images: NoteImage[];
-  } | null>(null);
-  const noteImages = note.images ?? [];
-  const images =
-    refreshed && refreshed.base === note.images
-      ? refreshed.images
-      : noteImages;
-  const imagesRef = useRef(images);
-  useEffect(() => {
-    imagesRef.current = images;
-  });
-  const pendingImageRefresh = useRef(false);
-  // Attempts are keyed to the current image-set signature:
-  // a refresh that mints new signed URLs resets the budget,
-  // and a failed fetch refunds its attempt so a flaky
-  // network can't permanently burn it.
-  const imageRefreshAttempts = useRef({ sig: '', count: 0 });
 
-  const handleImageError = useCallback(() => {
-    const sig = imagesRef.current
-      .map((i) => i.signed_url ?? '')
-      .join('|');
-    const entry = imageRefreshAttempts.current;
-    const count = entry.sig === sig ? entry.count : 0;
-    if (
-      count >= MAX_IMAGE_REFRESHES ||
-      pendingImageRefresh.current
-    ) {
-      return;
+  // Note payloads carry no image list — each card lazily
+  // GETs /notes/{id}/images/ once it nears the viewport.
+  // The 200 px margin prefetches ahead of the scroll so
+  // thumbs are in place before the card is visible. The
+  // gate latches: a card that scrolls back out keeps the
+  // images it already fetched.
+  const { ref: cardRef, entry: intersectionEntry } =
+    useIntersection<HTMLDivElement>({ rootMargin: '200px' });
+  // Where IntersectionObserver is missing entirely (old
+  // WebViews), fetch on mount instead of never fetching.
+  const [imagesEnabled, setImagesEnabled] = useState(
+    () => typeof IntersectionObserver === 'undefined'
+  );
+  useEffect(() => {
+    if (intersectionEntry?.isIntersecting) {
+      setImagesEnabled(true);
     }
-    pendingImageRefresh.current = true;
-    imageRefreshAttempts.current = { sig, count: count + 1 };
-    const base = note.images;
-    fetchNoteImages(note.id)
-      .then((fetched) => {
-        setRefreshed({ base, images: fetched });
-      })
-      .catch(() => {
-        const cur = imageRefreshAttempts.current;
-        if (cur.sig === sig) {
-          imageRefreshAttempts.current =
-            cur.count <= 1
-              ? { sig: '', count: 0 }
-              : { sig, count: cur.count - 1 };
-        }
-      })
-      .finally(() => {
-        pendingImageRefresh.current = false;
-      });
-  }, [note.id, note.images]);
+  }, [intersectionEntry]);
+  // The shared session store dedupes this fetch with the
+  // drag-overlay card and the edit modal for the same note.
+  const { images, refresh: refreshImages } = useNoteImages(
+    note.id,
+    imagesEnabled
+  );
+
+  // A signed URL that failed to load (the 600 s TTL can
+  // lapse inside a session) triggers a bounded refetch —
+  // the store caps retries per image set and collapses
+  // concurrent thumb errors into one request.
+  const handleImageError = useCallback(() => {
+    refreshImages();
+  }, [refreshImages]);
   // Clicked '@…' refs open the passage in a floating popover
   // anchored at the ref — never inline in the card.
   const {
@@ -160,6 +132,7 @@ const NoteCard = ({
 
   return (
     <Box
+      ref={cardRef}
       pb="md"
       sx={(theme) => ({
         borderBottom: `1px solid ${

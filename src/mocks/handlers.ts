@@ -23,8 +23,9 @@ const mockTag = {
 };
 
 // Matches the Note contract in src/types.ts / api.tsx:
-// tag_position + is_owner are required, headings and images
-// optional.
+// tag_position + is_owner are required, headings optional.
+// Images are NOT embedded — they are fetched per card from
+// GET /notes/:noteId/images/ (handler below).
 const mockNote = {
   id: 'note-1',
   note_text: 'This is a test note.',
@@ -34,7 +35,6 @@ const mockNote = {
   tag_position: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
-  images: [],
   verses: [
     {
       book: 'John',

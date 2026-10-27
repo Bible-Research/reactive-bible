@@ -27,12 +27,6 @@ export interface Note {
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;
-  /**
-   * Attached images — optional because cached pages and
-   * pre-deploy payloads lack the field. Always read
-   * `note.images ?? []`.
-   */
-  images?: NoteImage[];
   /** Set when the provider failed to resolve verse text. */
   error?: string;
   /** 'rate_limited' | 'provider_error' — see `error`. */

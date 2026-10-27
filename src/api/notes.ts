@@ -316,10 +316,13 @@ export const uploadNoteImage = async (
 };
 
 /**
- * Fresh signed URLs for a note's images — the ones embedded
- * in note payloads expire (600 s TTL), so a failed <img>
- * load refetches this list. `AllowAny` server-side: public
- * notes' images are readable anonymously.
+ * A note's attached images — the only way they reach the
+ * client; note payloads do not embed `images`. `NoteCard`
+ * lazy-fetches this per visible card through the shared
+ * `useNoteImages` store, and a failed <img> load refetches
+ * it (bounded) since the signed URLs expire (600 s TTL).
+ * `AllowAny` server-side: public notes' images are readable
+ * anonymously.
  */
 export const fetchNoteImages = (
   noteId: string

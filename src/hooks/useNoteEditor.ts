@@ -320,7 +320,6 @@ export const useNoteEditor = ({
                 // image or it lingers server-side with no
                 // UI trace.
                 void deleteImage(image.id)
-                  .then(() => clearNotesCache())
                   .catch(() => {
                     showNotification({
                       color: 'red',
@@ -354,9 +353,9 @@ export const useNoteEditor = ({
           }
         }
         // Cached notes pages are stale after every write — a
-        // later fetchNotes must hit the API. Also clears
-        // after image uploads so cached pages don't serve a
-        // stale image list.
+        // later fetchNotes must hit the API. (Images are not
+        // part of the notes payload — useNoteImages serves
+        // them — so image writes invalidate nothing here.)
         clearNotesCache();
         return true;
       });
@@ -480,7 +479,6 @@ export const useNoteEditor = ({
         if (files.includes(entry.file)) continue;
         draft.uploadedFiles.delete(signature);
         void deleteImage(entry.image.id)
-          .then(() => clearNotesCache())
           .catch(() => {
             showNotification({
               color: 'red',
