@@ -186,10 +186,11 @@ export default function TagManagementRoute() {
             ? `Make "${tag.name}" and all notes directly ` +
                 'under it public? Anyone with the link can ' +
                 'view them.'
-            : `Make "${tag.name}" private? ALL notes under ` +
-                'it will also become private — anyone ' +
-                'following a shared link loses access. ' +
-                'This cannot be undone per-note.'
+            : `Make "${tag.name}" private? All notes ` +
+                'directly under it will also become ' +
+                'private — anyone following a shared ' +
+                'link loses access. This cannot be ' +
+                'undone per-note.'
         )
       ) {
         return;

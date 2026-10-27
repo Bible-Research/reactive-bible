@@ -194,9 +194,9 @@ export function EditTagModal({
                 ? 'Existing notes under this tag become ' +
                   'public — anyone with the link can view ' +
                   'them.'
-                : 'Existing notes under this tag become ' +
-                  'private — anyone following a shared link ' +
-                  'loses access.'
+                : 'Existing notes directly under this tag ' +
+                  'become private — anyone following a ' +
+                  'shared link loses access.'
             }
           />
 
