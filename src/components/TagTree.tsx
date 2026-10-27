@@ -46,9 +46,9 @@ import {
 import { useAuthStore } from '../stores/authStore';
 
 /**
- * Id of the "Move to top level" droppable bar shown under the
- * tree while a reparent drag is active. Namespaced so it can
- * never collide with a real `TAG…` id.
+ * Id of the "Move to top level" droppable bar pinned above
+ * the tree while a reparent drag is active. Namespaced so it
+ * can never collide with a real `TAG…` id.
  */
 const ROOT_DROP_ID = 'tag-tree-root-drop';
 
@@ -380,8 +380,20 @@ const TagTreeNode = ({
   );
 };
 
-/** "Move to top level" bar shown under the tree mid-drag —
- *  dropping here reparents the dragged tag to root. */
+/**
+ * "Move to top level" bar mounted at the TOP of the tree
+ * mid-drag — dropping here reparents the dragged tag to
+ * root. It sits first inside the route's ScrollArea with
+ * `position: sticky; top: 0`, so on long trees it stays
+ * pinned to the viewport top for the whole drag instead of
+ * scrolling out of reach like the old bottom-of-list bar.
+ * Staying inside the scroll container also keeps it clear
+ * of the app header on mobile (a `position: fixed` bar
+ * would slide under it). The Paper background stays opaque
+ * so rows scroll behind it, and dnd-kit measures droppables
+ * mounted mid-drag dynamically, so lazy mounting on drag
+ * start remains safe.
+ */
 const RootDropZone = ({ disabled }: { disabled: boolean }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: ROOT_DROP_ID,
@@ -390,10 +402,14 @@ const RootDropZone = ({ disabled }: { disabled: boolean }) => {
   return (
     <Paper
       ref={setNodeRef}
+      data-testid="tag-root-drop-zone"
       p="xs"
-      mt="xs"
+      mb="xs"
       withBorder
       style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 1,
         borderStyle: 'dashed',
         opacity: disabled ? 0.5 : 1,
         backgroundColor: isOver
@@ -513,6 +529,13 @@ export function TagTree({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      {activeDragTag !== null && (
+        <RootDropZone
+          disabled={
+            !reparentEnabled || activeDragTag.parent_tag === null
+          }
+        />
+      )}
       <Stack spacing="xs">
         {tree.map((node) => (
           <TagTreeNode
@@ -535,13 +558,6 @@ export function TagTree({
           />
         ))}
       </Stack>
-      {activeDragTag !== null && (
-        <RootDropZone
-          disabled={
-            !reparentEnabled || activeDragTag.parent_tag === null
-          }
-        />
-      )}
       <DragOverlay>
         {activeDragTag ? (
           <Paper withBorder p="xs" shadow="sm">

@@ -6,7 +6,10 @@ import {
   screen,
   fireEvent,
 } from '@testing-library/react';
-import type { DragEndEvent } from '@dnd-kit/core';
+import type {
+  DragEndEvent,
+  DragStartEvent,
+} from '@dnd-kit/core';
 import { TagTree } from './TagTree';
 import { mockDomApis } from '../__tests__/helpers';
 import { Tag } from '../types';
@@ -17,7 +20,11 @@ import {
 
 // dnd-kit pointer gestures can't be simulated reliably under
 // happy-dom — wrap the real DndContext and invoke the captured
-// onDragEnd with synthetic events (TagSection.test precedent).
+// onDragStart/onDragEnd with synthetic events (TagSection.test
+// precedent).
+let capturedDragStart:
+  | ((event: DragStartEvent) => void)
+  | undefined;
 let capturedDragEnd:
   | ((event: DragEndEvent) => void)
   | undefined;
@@ -31,11 +38,19 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
     DndContext: (
       props: ComponentProps<typeof RealDndContext>
     ) => {
+      capturedDragStart = props.onDragStart;
       capturedDragEnd = props.onDragEnd;
       return <RealDndContext {...props} />;
     },
   };
 });
+
+const dragStart = (activeId: string) =>
+  act(() => {
+    capturedDragStart?.({
+      active: { id: activeId },
+    } as unknown as DragStartEvent);
+  });
 
 const dragEnd = (activeId: string, overId: string | null) =>
   act(() => {
@@ -296,6 +311,7 @@ describe('TagTree drag reparent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    capturedDragStart = undefined;
     capturedDragEnd = undefined;
     useAuthStore.setState({
       ...authInitialState,
@@ -335,6 +351,49 @@ describe('TagTree drag reparent', () => {
     dragEnd('tag-b', 'tag-tree-root-drop');
     expect(onReparent).toHaveBeenCalledWith('tag-b', null);
   });
+
+  it('pins the "Move to top level" bar at the top of the ' +
+    'tree during a drag, enabled for a child tag', () => {
+      renderReparent();
+
+      // Not rendered between drags.
+      expect(
+        screen.queryByTestId('tag-root-drop-zone')
+      ).not.toBeInTheDocument();
+
+      // Beta is a child of Alpha — dropping it on the bar
+      // reparents it to root, so the zone is enabled.
+      dragStart('tag-b');
+
+      const zone = screen.getByTestId('tag-root-drop-zone');
+      expect(zone).toBeInTheDocument();
+      expect(zone.style.position).toBe('sticky');
+      expect(zone.style.top).toBe('0px');
+      expect(zone.style.opacity).toBe('1');
+      // Rendered before the tree rows: sticking to the top
+      // only works if its in-flow position precedes them.
+      expect(
+        zone.compareDocumentPosition(
+          screen.getByText('Alpha')
+        ) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+
+      dragEnd('tag-b', null);
+      expect(
+        screen.queryByTestId('tag-root-drop-zone')
+      ).not.toBeInTheDocument();
+    });
+
+  it('dims the top-level drop bar when the dragged tag is ' +
+    'already a root tag', () => {
+      renderReparent();
+
+      dragStart('tag-a');
+
+      const zone = screen.getByTestId('tag-root-drop-zone');
+      expect(zone).toBeInTheDocument();
+      expect(zone.style.opacity).toBe('0.5');
+    });
 
   it('ignores drops with no target, onto itself, onto its ' +
     'current parent, or onto its own descendant', () => {
