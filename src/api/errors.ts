@@ -2,9 +2,10 @@
  * Typed API errors and the backend error-body parsers shared
  * by the provider-facing calls. Backend failures carry
  * `error`/`error_code`/`detail` fields; the helpers below map
- * them onto RateLimitError / ProviderError /
- * BookNotInFilesetError so callers can branch on the failure
- * kind instead of string-matching messages.
+ * them onto RateLimitError / ClientInputError /
+ * ProviderError / BookNotInFilesetError so callers can
+ * branch on the failure kind instead of string-matching
+ * messages.
  */
 
 export class ConflictError extends Error {
@@ -18,6 +19,23 @@ export class RateLimitError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'RateLimitError';
+  }
+}
+
+/**
+ * The API rejected the request itself — a `missing_parameter`
+ * or `invalid_parameter` error_code, or any other coded HTTP
+ * 400 body. Deliberately extends `Error`, NOT `ProviderError`:
+ * `instanceof ProviderError` checks (e.g. PassageView's
+ * provider-failure branch) would render the upstream-failure
+ * UI and disguise our own bad request as a provider outage.
+ * It is likewise left out of `sentryBeforeSend`'s drop list —
+ * a client-input failure is a bug worth reporting.
+ */
+export class ClientInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClientInputError';
   }
 }
 
@@ -104,9 +122,13 @@ export const errorMessageFromBody = (
  * (`!response.ok`) and throw the matching typed error:
  * BookNotInFilesetError for `book_not_in_fileset`,
  * RateLimitError for a `rate_limited` code or a
- * rate-limit-shaped message, ProviderError for any other coded
- * failure, and a plain Error otherwise. `fallbacks` supply the
- * message when the body carries none.
+ * rate-limit-shaped message, ClientInputError for
+ * `missing_parameter`/`invalid_parameter` or any other coded
+ * HTTP 400 body, ProviderError for any other coded failure,
+ * and a plain Error otherwise. The client-input check sits
+ * after rate-limiting so a hypothetical rate-limit-shaped 400
+ * keeps the established RateLimitError semantics.
+ * `fallbacks` supply the message when the body carries none.
  */
 export const throwFromErrorBody = async (
   response: Response,
@@ -125,6 +147,13 @@ export const throwFromErrorBody = async (
     isRateLimitMessage(message)
   ) {
     throw new RateLimitError(message);
+  }
+  if (
+    body.error_code === 'missing_parameter' ||
+    body.error_code === 'invalid_parameter' ||
+    (body.error_code && response.status === 400)
+  ) {
+    throw new ClientInputError(message);
   }
   if (body.error_code) {
     throw new ProviderError(message);
