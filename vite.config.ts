@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vitest/config';
+import { loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 
@@ -11,6 +12,30 @@ const sentryUploadEnabled = Boolean(
     process.env.SENTRY_ORG &&
     process.env.SENTRY_PROJECT
 );
+
+// TEMPORARY diagnostic: print which Sentry env vars this build
+// environment provides — presence only, never values. import.
+// meta.env.VITE_* is populated from process.env AND .env files,
+// so both sources are checked. Remove once the Vercel env
+// wiring is verified end-to-end.
+const fileEnv = {
+  ...loadEnv('production', process.cwd(), 'VITE_'),
+  ...loadEnv('development', process.cwd(), 'VITE_'),
+};
+console.log('[sentry-env-debug]', {
+  'process.env.VITE_SENTRY_DSN': Boolean(
+    process.env.VITE_SENTRY_DSN
+  ),
+  'env-file VITE_SENTRY_DSN': Boolean(fileEnv.VITE_SENTRY_DSN),
+  VERCEL_ENV: process.env.VERCEL_ENV ?? '(unset)',
+  VERCEL_GIT_COMMIT_SHA: Boolean(
+    process.env.VERCEL_GIT_COMMIT_SHA
+  ),
+  SENTRY_AUTH_TOKEN: Boolean(process.env.SENTRY_AUTH_TOKEN),
+  SENTRY_ORG: process.env.SENTRY_ORG ?? '(unset)',
+  SENTRY_PROJECT: process.env.SENTRY_PROJECT ?? '(unset)',
+  sentryUploadEnabled,
+});
 
 const sentryPlugins = sentryUploadEnabled
   ? [
