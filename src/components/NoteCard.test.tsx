@@ -652,6 +652,41 @@ describe('note images', () => {
       ).not.toBeInTheDocument();
     });
 
+  it('fetches on mount where IntersectionObserver is ' +
+    'missing entirely', async () => {
+      // Old Android WebViews lack IO; Mantine's
+      // useIntersection news it up unguarded inside its ref
+      // callback, so attaching it would throw during commit.
+      // The card must skip the ref, open the lazy gate at
+      // mount, and fetch without crashing.
+      vi.stubGlobal('IntersectionObserver', undefined);
+      let fetches = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            return HttpResponse.json([
+              makeNoteImage(
+                'img-1',
+                'https://example.com/img-1.png'
+              ),
+            ]);
+          }
+        )
+      );
+
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      expect(
+        await screen.findByAltText('img-1.png')
+      ).toBeInTheDocument();
+      expect(fetches).toBe(1);
+      vi.unstubAllGlobals();
+    });
+
   it('renders no grid while the image fetch is in flight',
     async () => {
       stubIntersection();

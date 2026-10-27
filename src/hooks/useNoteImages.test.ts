@@ -222,4 +222,49 @@ describe('useNoteImages', () => {
           .toEqual(['img-2']);
       });
     });
+
+  it('reconciles with a refetch when a mutation lands ' +
+    'mid-flight', async () => {
+      // An upload resolving inside the GET window appends
+      // img-2 while the in-flight list still knows only
+      // img-1 — dropping that stale list must not leave the
+      // mutated subset as the final word, so the store
+      // fires one reconciling refetch on settle.
+      let resolveFetch: (images: NoteImage[]) => void =
+        () => undefined;
+      (api.fetchNoteImages as Mock)
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFetch = resolve;
+            })
+        )
+        .mockResolvedValue([
+          makeImage('img-1'),
+          makeImage('img-2'),
+        ]);
+      const { result } = renderHook(() =>
+        useNoteImages('n1', true)
+      );
+
+      act(() => {
+        mutateNoteImages('n1', (imgs) => [
+          ...imgs,
+          makeImage('img-2'),
+        ]);
+      });
+      expect(result.current.images.map((i) => i.id))
+        .toEqual(['img-2']);
+
+      await act(async () => {
+        resolveFetch([makeImage('img-1')]);
+      });
+
+      await waitFor(() => {
+        expect(result.current.images.map((i) => i.id))
+          .toEqual(['img-1', 'img-2']);
+      });
+      // Initial fetch + exactly one reconciling refetch.
+      expect(api.fetchNoteImages).toHaveBeenCalledTimes(2);
+    });
 });

@@ -2713,11 +2713,15 @@ production App Engine host)
     // Images are NOT embedded in note payloads. Each mounted
     // NoteCard lazy-fetches GET /notes/{noteId}/images/ once
     // it nears the viewport (useIntersection, 200 px
-    // rootMargin, latched; no IntersectionObserver -> fetch
-    // on mount). Fetched lists live in the session-scoped
+    // rootMargin, latched; where IntersectionObserver is
+    // missing the observer ref is skipped entirely —
+    // Mantine v6 news it up unguarded — and images fetch on
+    // mount). Fetched lists live in the session-scoped
     // useNoteImages store (module Map keyed by note id,
     // single-flight dedup, mutateNoteImages write path for
-    // upload append / delete filter, signature-keyed
+    // upload append / delete filter — a mutation landing
+    // mid-flight drops the stale response and re-fires one
+    // reconciling fetch on settle — signature-keyed
     // MAX_IMAGE_REFRESHES=3 budget for signed-URL expiry)
     // — shared by the grid card, the DragOverlay's second
     // card, and EditNoteModal, so one fetch serves all.

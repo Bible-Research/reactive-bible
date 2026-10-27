@@ -69,10 +69,15 @@ const NoteCard = ({
   // images it already fetched.
   const { ref: cardRef, entry: intersectionEntry } =
     useIntersection<HTMLDivElement>({ rootMargin: '200px' });
-  // Where IntersectionObserver is missing entirely (old
-  // WebViews), fetch on mount instead of never fetching.
+  // Mantine v6's useIntersection news up IntersectionObserver
+  // inside its ref callback UNGUARDED — where the API is
+  // missing entirely (old WebViews), attaching cardRef would
+  // throw during commit, so the ref below is conditional and
+  // the gate opens at mount instead of never opening.
+  const hasIntersectionObserver =
+    typeof IntersectionObserver !== 'undefined';
   const [imagesEnabled, setImagesEnabled] = useState(
-    () => typeof IntersectionObserver === 'undefined'
+    () => !hasIntersectionObserver
   );
   useEffect(() => {
     if (intersectionEntry?.isIntersecting) {
@@ -132,7 +137,7 @@ const NoteCard = ({
 
   return (
     <Box
-      ref={cardRef}
+      ref={hasIntersectionObserver ? cardRef : undefined}
       pb="md"
       sx={(theme) => ({
         borderBottom: `1px solid ${

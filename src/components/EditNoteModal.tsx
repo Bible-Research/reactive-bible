@@ -78,7 +78,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // deletes filter via mutateNoteImages. The modal only
   // opens through the owner-gated edit affordance, so
   // attach/delete need no extra permission check here.
-  const { images, refresh: refreshImages } = useNoteImages(
+  const {
+    images,
+    loading: imagesLoading,
+    refresh: refreshImages,
+  } = useNoteImages(
     note?.id,
     opened
   );
@@ -186,8 +190,13 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     verseReferences,
     onSubmitted: () => onClose(),
     // An image-only note is a valid save target even with
-    // no text or linked verses.
-    attachedImageCount: images.length,
+    // no text or linked verses. While the lazy fetch is in
+    // flight the count is unknown — treat loading as "has
+    // images, can't verify" so an image-only note submitted
+    // inside the load window isn't rejected as empty.
+    attachedImageCount: imagesLoading
+      ? Math.max(images.length, 1)
+      : images.length,
   });
 
   // Edit mode uploads immediately on select — the note id is
@@ -301,6 +310,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             }}
             onAutoSave={editor.save}
             existingImages={images}
+            imagesLoading={imagesLoading}
             onDeleteImage={handleDeleteImage}
             onImageError={handleImageError}
             onAttachFiles={handleAttachFiles}

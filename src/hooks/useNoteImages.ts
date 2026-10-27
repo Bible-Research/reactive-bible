@@ -98,12 +98,20 @@ const requestImages = (
   const gen = entry.gen;
   entry.status = 'loading';
   emit(noteId, entry);
+  // A mutation landing mid-flight bumps gen, so the fetched
+  // list is dropped below — but it may carry images the
+  // mutation never saw, so `finally` fires one reconciling
+  // refetch instead of leaving the mutated subset as the
+  // final word.
+  let genMismatch = false;
   const promise = fetchNoteImages(noteId)
     .then((images) => {
       if (entry.gen === gen) {
         entry.images = images;
         entry.status = 'loaded';
         emit(noteId, entry);
+      } else {
+        genMismatch = true;
       }
       return images;
     })
@@ -126,6 +134,12 @@ const requestImages = (
     })
     .finally(() => {
       entry.promise = null;
+      // The reset helper swaps entries out from under
+      // in-flight fetches — never reconcile into an entry
+      // that is no longer registered.
+      if (genMismatch && entries.get(noteId) === entry) {
+        void requestImages(noteId, entry, null);
+      }
     });
   entry.promise = promise;
   return promise;
@@ -173,7 +187,9 @@ const ensureNoteImages = (noteId: string): void => {
  * ImageSerializer object identical to the list elements, so
  * appending it locally avoids a refetch; deletes filter by
  * id. A mutation invalidates in-flight fetch results (gen
- * bump) and re-arms the refresh budget.
+ * bump) and re-arms the refresh budget; the dropped fetch
+ * re-fires once on settle so a list the mutation never saw
+ * can't be silently lost.
  */
 export const mutateNoteImages = (
   noteId: string,

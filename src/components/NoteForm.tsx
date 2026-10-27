@@ -63,6 +63,13 @@ interface NoteFormProps {
   onDraftChange?: (tagId: string, text: string) => void;
   /** Images already attached to the note (edit mode). */
   existingImages?: NoteImage[];
+  /**
+   * True while the attached-image list is being fetched —
+   * the count is unverifiable, so empty-note guards treat
+   * the note as image-bearing and the attach cap stays shut
+   * instead of briefly accepting overflow.
+   */
+  imagesLoading?: boolean;
   /** Delete an attached image (owner-gated by the parent). */
   onDeleteImage?: (imageId: string) => void | Promise<void>;
   /**
@@ -122,6 +129,7 @@ const NoteForm = ({
   onUnmountedSave,
   onDraftChange,
   existingImages = [],
+  imagesLoading = false,
   onDeleteImage,
   onImageError,
   onAttachFiles,
@@ -151,6 +159,13 @@ const NoteForm = ({
     onChange: onFilesChange,
   });
   const totalAttached = existingImages.length + staged.length;
+  // Loading is "has images, can't verify": the empty-note
+  // guards must not reject an image-only note, and the
+  // attach affordance stays disabled on the unverified
+  // count so a pick inside the load window can't overflow
+  // the cap (the backend would reject it anyway).
+  const attachCapReached =
+    imagesLoading || totalAttached >= MAX_NOTE_IMAGES;
   const latest = useRef({ tagId: "", text: "", attachedCount: 0 });
   const onAutoSaveRef = useRef(onAutoSave);
   const onUnmountedSaveRef = useRef(onUnmountedSave);
@@ -169,8 +184,12 @@ const NoteForm = ({
       text: noteText,
       // Attached + staged — an image-only note in edit
       // mode (all images already uploaded, none staged)
-      // still counts as content.
-      attachedCount: totalAttached,
+      // still counts as content. While the fetch is in
+      // flight the count is unverifiable, so loading
+      // counts as at least one image.
+      attachedCount: imagesLoading
+        ? Math.max(totalAttached, 1)
+        : totalAttached,
     };
     onAutoSaveRef.current = onAutoSave;
     onUnmountedSaveRef.current = onUnmountedSave;
@@ -327,7 +346,8 @@ const NoteForm = ({
     if (
       !allowEmptyText &&
       !toPlainText(noteText).trim() &&
-      totalAttached === 0
+      totalAttached === 0 &&
+      !imagesLoading
     ) {
       showNotification({
         title: 'Cannot save note',
@@ -501,7 +521,7 @@ const NoteForm = ({
               onChange={handleFileSelect}
               accept={ALLOWED_IMAGE_TYPES.join(',')}
               multiple
-              disabled={totalAttached >= MAX_NOTE_IMAGES}
+              disabled={attachCapReached}
               // Mantine v6 never clears the input's value, so
               // deleting a thumb and re-picking the SAME file
               // dispatches no `change` event — attach looks
@@ -518,7 +538,7 @@ const NoteForm = ({
                   {...props}
                   variant="transparent"
                   leftIcon={<IconPhoto size={14} />}
-                  disabled={totalAttached >= MAX_NOTE_IMAGES}
+                  disabled={attachCapReached}
                   aria-label="Attach images"
                 >
                   {totalAttached > 0
