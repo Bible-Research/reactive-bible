@@ -6,6 +6,7 @@ import {
   Group,
   Select,
   ThemeIcon,
+  Tooltip,
 } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
@@ -16,16 +17,17 @@ import RichTextEditor from "./RichTextEditor";
 
 interface NoteFormProps {
   tags: Tag[];
-  note?: { tagId: string; text: string };
+  note?: { tagId: string; text: string; isPublic?: boolean };
   /**
    * May resolve `false` to signal a rejected submit (failed
    * validation or save) — the content then stays eligible for
    * the unmount flush. Any other resolved value counts as
-   * persisted.
+   * persisted. `isPublic` is the form's "Public note" checkbox.
    */
   onSubmit: (
     tagId: string,
-    text: string
+    text: string,
+    isPublic: boolean
   ) => void | Promise<unknown>;
   /**
    * Permits saves and submits with no note text — the caller
@@ -36,7 +38,11 @@ interface NoteFormProps {
   allowEmptyText?: boolean;
   submitText: string;
   onTagDropdownOpen: () => void;
-  onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
+  onAutoSave?: (
+    tagId: string,
+    text: string,
+    isPublic: boolean
+  ) => Promise<unknown>;
   /**
    * Called after a save triggered by the unmount flush
    * resolves — the parent's own close handler already ran, so
@@ -48,7 +54,11 @@ interface NoteFormProps {
    * restore the autosaved note after the form remounts (the
    * modal unmounts it on close).
    */
-  onDraftChange?: (tagId: string, text: string) => void;
+  onDraftChange?: (
+    tagId: string,
+    text: string,
+    isPublic: boolean
+  ) => void;
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
@@ -87,9 +97,23 @@ const NoteForm = ({
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
+  // "Public note" — seeded from `note.isPublic` (edit mode or a
+  // resumed draft); otherwise follows the selected tag's
+  // `public` flag until the user toggles it manually.
+  const [isPublic, setIsPublic] = useState<boolean>(
+    () =>
+      note?.isPublic ??
+      tags.find((t) => t.id === (note?.tagId ?? ""))?.public ??
+      false
+  );
+  // Once the user toggles the box their choice wins over the
+  // tag default. An explicit `note.isPublic` counts as already
+  // touched — a tag switch in edit mode must NOT silently flip
+  // an existing note's publicity. Reset when the draft re-seeds.
+  const publicTouchedRef = useRef(note?.isPublic !== undefined);
   const [autoSave, setAutoSave] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
-  const latest = useRef({ tagId: "", text: "" });
+  const latest = useRef({ tagId: "", text: "", isPublic: false });
   const onAutoSaveRef = useRef(onAutoSave);
   const onUnmountedSaveRef = useRef(onUnmountedSave);
   const onDraftChangeRef = useRef(onDraftChange);
@@ -102,7 +126,11 @@ const NoteForm = ({
   const flashTimeout = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    latest.current = { tagId: selectedTagId, text: noteText };
+    latest.current = {
+      tagId: selectedTagId,
+      text: noteText,
+      isPublic,
+    };
     onAutoSaveRef.current = onAutoSave;
     onUnmountedSaveRef.current = onUnmountedSave;
     onDraftChangeRef.current = onDraftChange;
@@ -113,8 +141,19 @@ const NoteForm = ({
   // Keep the outer draft store in sync — a reopened modal
   // restores `note` from it.
   useEffect(() => {
-    onDraftChangeRef.current?.(selectedTagId, noteText);
-  }, [selectedTagId, noteText]);
+    onDraftChangeRef.current?.(selectedTagId, noteText, isPublic);
+  }, [selectedTagId, noteText, isPublic]);
+
+  // Until the user touches the box it follows the selected
+  // tag's publicity — and a public tag arriving via a late
+  // getTags resolves updates it too.
+  useEffect(() => {
+    if (!publicTouchedRef.current) {
+      setIsPublic(
+        tags.find((t) => t.id === selectedTagId)?.public ?? false
+      );
+    }
+  }, [selectedTagId, tags]);
 
   // Sync on the primitive fields, not the `note` object itself:
   // every call site passes a fresh inline object each render, so
@@ -122,18 +161,30 @@ const NoteForm = ({
   // parent re-renders (linked-notes fetches, verse picker, etc.).
   const noteTagId = note?.tagId;
   const noteTextProp = note?.text;
+  const noteIsPublic = note?.isPublic;
   useEffect(() => {
     if (noteTagId !== undefined && noteTextProp !== undefined) {
       setSelectedTagId(noteTagId);
       setNoteText(noteTextProp);
+      // A re-seeded draft restores (or clears) the publicity
+      // seed — an explicit flag counts as user-set so a later
+      // tag switch keeps it.
+      if (noteIsPublic !== undefined) {
+        setIsPublic(noteIsPublic);
+        publicTouchedRef.current = true;
+      } else {
+        publicTouchedRef.current = false;
+      }
     }
-  }, [noteTagId, noteTextProp]);
+  }, [noteTagId, noteTextProp, noteIsPublic]);
 
   // The last content autosave persisted — ticks that would write
   // the same payload again are skipped.
-  const lastSavedRef = useRef<{ tagId: string; text: string } | null>(
-    null
-  );
+  const lastSavedRef = useRef<{
+    tagId: string;
+    text: string;
+    isPublic: boolean;
+  } | null>(null);
   // Set once a submit persisted the form: the hook deletes the
   // draft, so the unmount flush must not run — a late save
   // would recreate it with `savedNoteId: null` and POST a
@@ -148,7 +199,7 @@ const NoteForm = ({
     () => () => {
       const save = onAutoSaveRef.current;
       if (!save || !autoSaveRef.current) return;
-      const { tagId, text } = latest.current;
+      const { tagId, text, isPublic } = latest.current;
       // A verse-linked note may flush with empty text; a
       // truly empty note (no text, nothing linked) is skipped.
       if (!tagId) return;
@@ -174,11 +225,12 @@ const NoteForm = ({
           if (
             last &&
             last.tagId === tagId &&
-            last.text === text
+            last.text === text &&
+            last.isPublic === isPublic
           ) {
             return undefined;
           }
-          return save(tagId, text);
+          return save(tagId, text, isPublic);
         })
         .then(() => onUnmountedSaveRef.current?.())
         .catch((error) => console.error(error));
@@ -191,7 +243,7 @@ const NoteForm = ({
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
-      const { tagId, text } = latest.current;
+      const { tagId, text, isPublic } = latest.current;
       // Skip contentless notes AND empty tag — the latter
       // used to POST `tag: ''` every 5s, a stream of silent
       // 400s. Verse-linked notes may save with empty text.
@@ -203,17 +255,22 @@ const NoteForm = ({
         return;
       }
       const last = lastSavedRef.current;
-      if (last && last.tagId === tagId && last.text === text) {
+      if (
+        last &&
+        last.tagId === tagId &&
+        last.text === text &&
+        last.isPublic === isPublic
+      ) {
         return;
       }
-      trackInFlight(inFlightRef, save(tagId, text))
+      trackInFlight(inFlightRef, save(tagId, text, isPublic))
         .then((result) => {
           // A resolved-false save was declined — the content
           // stays dirty so the next tick or the unmount
           // flush retries, and the saved check must not
           // flash for a write that never happened.
           if (result === false) return;
-          lastSavedRef.current = { tagId, text };
+          lastSavedRef.current = { tagId, text, isPublic };
           setSavedFlash(true);
           flashTimeout.current = window.setTimeout(
             () => setSavedFlash(false),
@@ -266,7 +323,9 @@ const NoteForm = ({
     try {
       const result = await trackInFlight(
         inFlightRef,
-        Promise.resolve(onSubmit(selectedTagId, noteText))
+        Promise.resolve(
+          onSubmit(selectedTagId, noteText, isPublic)
+        )
       );
       // `false` signals a rejected submit — leave the content
       // eligible for the unmount flush. Anything else means the
@@ -279,6 +338,7 @@ const NoteForm = ({
         lastSavedRef.current = {
           tagId: selectedTagId,
           text: noteText,
+          isPublic,
         };
       }
     } catch (error) {
@@ -342,6 +402,19 @@ const NoteForm = ({
               }
             />
           )}
+          <Tooltip
+            label="Anyone with the link can view this note"
+            position="top"
+          >
+            <Checkbox
+              label="Public note"
+              checked={isPublic}
+              onChange={(event) => {
+                publicTouchedRef.current = true;
+                setIsPublic(event.currentTarget.checked);
+              }}
+            />
+          </Tooltip>
         </Group>
       </Box>
       {savedFlash && (

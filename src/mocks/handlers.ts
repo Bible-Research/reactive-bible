@@ -18,6 +18,8 @@ const mockTag = {
   id: '1',
   name: 'Test Tag',
   parent_tag: null,
+  public: false,
+  note_count: 1,
   created_at: '',
   updated_at: '',
 };
@@ -47,6 +49,7 @@ const mockNote = {
 interface NoteWriteBody {
   tag?: string;
   note_text?: string;
+  public?: boolean;
   verse_references?: {
     book: string;
     chapter: number;
@@ -245,10 +248,57 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  // Cascade publicity write — flips tag.public and every note
+  // directly under it; `notes_updated` echoes a fixed count.
+  http.post(
+    `${API_URL}/tags/:id/set-public/`,
+    async ({ params, request }) => {
+      const body = (await request.json()) as {
+        public?: boolean;
+      };
+      if (typeof body.public !== 'boolean') {
+        return HttpResponse.json(
+          {
+            error: 'validation_error',
+            message: "'public' must be a boolean.",
+          },
+          { status: 400 }
+        );
+      }
+      return HttpResponse.json({
+        tag: { ...mockTag, id: params.id, public: body.public },
+        notes_updated: mockTag.note_count,
+      });
+    }
+  ),
+  http.post(
+    `${API_URL}/tags/:id/set-public`,
+    async ({ params, request }) => {
+      const body = (await request.json()) as {
+        public?: boolean;
+      };
+      if (typeof body.public !== 'boolean') {
+        return HttpResponse.json(
+          {
+            error: 'validation_error',
+            message: "'public' must be a boolean.",
+          },
+          { status: 400 }
+        );
+      }
+      return HttpResponse.json({
+        tag: { ...mockTag, id: params.id, public: body.public },
+        notes_updated: mockTag.note_count,
+      });
+    }
+  ),
+
   // --- Notes ---
   // api.tsx requests `notes/?...` (trailing slash); the paginated
   // envelope {count, next, previous, results} mirrors DRF. Both
-  // variants are registered.
+  // variants are registered. `include_descendants` is accepted
+  // but unfiltered here — tests needing real subtree filtering
+  // override with server.use().
   http.get(`${API_URL}/notes`, () => {
     return HttpResponse.json({
       count: 1,
@@ -328,6 +378,7 @@ export const handlers = [
       ...mockNote,
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -344,6 +395,7 @@ export const handlers = [
       ...mockNote,
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -377,6 +429,7 @@ export const handlers = [
       ...mockNote,
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined
@@ -395,6 +448,7 @@ export const handlers = [
       ...mockNote,
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined

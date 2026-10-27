@@ -13,6 +13,7 @@ export const createMockTag = (overrides: Partial<Tag> = {}): Tag => ({
   id: '1',
   name: 'Faith',
   parent_tag: null,
+  public: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   ...overrides,

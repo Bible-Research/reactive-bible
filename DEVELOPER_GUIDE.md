@@ -620,6 +620,11 @@ export interface Tag {
   id: string;
   name: string;
   parent_tag: string | null;  // For hierarchical tags
+  public: boolean;            // notes under it are shareable;
+                              // also the default publicity for
+                              // new notes under the tag
+  note_count?: number;        // direct notes only; absent on
+                              // older backends
   created_at: string;
   updated_at: string;
 }
@@ -2980,9 +2985,23 @@ getNotes(
     page?: number;
     pageSize?: number;
     filesetId?: string;
+    // Merges descendant-tag notes into the page (the
+    // `?descendants=1` "Include sub-tags" view); reorder UI
+    // stays disabled while it is on.
+    includeDescendants?: boolean;
   }
 ): Promise<PaginatedNotesResponse>
 ```
+
+**`setTagPublic(tagId, makePublic)`** / **`reparentTag(tagId, parentTagId)`**
+
+Tag publicity writes go ONLY through `POST
+/tags/{id}/set-public/` — the cascade endpoint that flips the
+tag's `public` flag plus every note directly under it
+(descendant tags untouched). The UI never sends a raw
+`{public}` PATCH. Reparenting is `PATCH {parent_tag}` only —
+`reparentTag` surfaces the server's error `message` (e.g. a
+same-named sibling) for the toast.
 
 **`getTags()`**
 

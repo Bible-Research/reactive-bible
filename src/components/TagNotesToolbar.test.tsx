@@ -14,11 +14,11 @@ import { mockDomApis } from '../__tests__/helpers';
 // whole route.
 const tags: Tag[] = [
   {
-    id: 'tag-456', name: 'Prayer', parent_tag: null,
+    id: 'tag-456', name: 'Prayer', parent_tag: null, public: false,
     created_at: '', updated_at: '',
   },
   {
-    id: 'tag-123', name: 'Bible Study', parent_tag: null,
+    id: 'tag-123', name: 'Bible Study', parent_tag: null, public: false,
     created_at: '', updated_at: '',
   },
 ];
@@ -174,4 +174,46 @@ describe('TagNotesToolbar', () => {
 
       expect(onToggleFolded).toHaveBeenCalledTimes(1);
     });
+
+  it('shows the "Include sub-tags" switch only when the tag ' +
+    'has children', () => {
+      renderToolbar({ hasChildren: false });
+      expect(
+        screen.queryByLabelText('Include sub-tags')
+      ).not.toBeInTheDocument();
+    });
+
+  it('renders the switch checked and calls ' +
+    'onToggleDescendants', () => {
+      const onToggleDescendants = vi.fn();
+      renderToolbar({
+        hasChildren: true,
+        includeDescendants: true,
+        onToggleDescendants,
+      });
+
+      const toggle = screen.getByLabelText('Include sub-tags');
+      expect(toggle).toBeChecked();
+
+      fireEvent.click(toggle);
+      expect(onToggleDescendants).toHaveBeenCalledWith(false);
+    });
+
+  it('shows the public-tag badge when tagPublic is set', () => {
+    renderToolbar({ tagPublic: true });
+
+    // The badge is an IconWorld inside a Tooltip — the label
+    // only mounts on hover, so assert on the icon itself.
+    expect(
+      document.querySelector('.tabler-icon-world')
+    ).not.toBeNull();
+  });
+
+  it('hides the public-tag badge for private tags', () => {
+    renderToolbar({ tagPublic: false });
+
+    expect(
+      document.querySelector('.tabler-icon-world')
+    ).toBeNull();
+  });
 });

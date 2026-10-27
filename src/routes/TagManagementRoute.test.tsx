@@ -10,12 +10,14 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
 } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { showNotification } from '@mantine/notifications';
 import TagManagementRoute from './TagManagementRoute';
 import { Tag } from '../types';
 import { useBibleStore } from '../store';
@@ -73,27 +75,46 @@ vi.mock('../store', () => ({
 
 const mockGetTags = storeStub.state.getTags;
 
-// Lightweight TagTree that still exercises onDelete.
+// Lightweight TagTree that still exercises onDelete — and
+// captures the full prop set so tests can drive the new
+// publicity/reparent/counts contract.
+const capturedTreeProps = vi.hoisted(() => ({
+  current: undefined as
+    | {
+        noteCounts?: Record<string, number>;
+        subtreeCounts?: Record<string, number>;
+        onTogglePublic?: (tag: Tag) => void;
+        onReparent?: (id: string, parentId: string | null) => void;
+        reparentEnabled?: boolean;
+      }
+    | undefined,
+}));
+
 vi.mock('../components/TagTree', () => ({
-  TagTree: ({
-    tags,
-    onDelete,
-  }: {
+  TagTree: (props: {
     tags: Tag[];
     onDelete: (id: string, name: string) => void;
-  }) => (
-    <div data-testid="tag-tree">
-      {tags.map((t) => (
-        <button
-          key={t.id}
-          data-testid={`delete-${t.id}`}
-          onClick={() => onDelete(t.id, t.name)}
-        >
-          {t.name}
-        </button>
-      ))}
-    </div>
-  ),
+    noteCounts?: Record<string, number>;
+    subtreeCounts?: Record<string, number>;
+    onTogglePublic?: (tag: Tag) => void;
+    onReparent?: (id: string, parentId: string | null) => void;
+    reparentEnabled?: boolean;
+  }) => {
+    capturedTreeProps.current = props;
+    return (
+      <div data-testid="tag-tree">
+        {props.tags.map((t) => (
+          <button
+            key={t.id}
+            data-testid={`delete-${t.id}`}
+            onClick={() => props.onDelete(t.id, t.name)}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+    );
+  },
 }));
 
 vi.mock('../components/CreateTagModal', () => ({
@@ -113,13 +134,17 @@ const mockTags: Tag[] = [
     id: 'tag-1',
     name: 'Bible Study',
     parent_tag: null,
+    public: false,
+    note_count: 3,
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
   },
   {
     id: 'tag-2',
     name: 'Prayer',
-    parent_tag: null,
+    parent_tag: 'tag-1',
+    public: false,
+    note_count: 2,
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
   },
@@ -222,4 +247,117 @@ describe('TagManagementRoute refresh behavior', () => {
       });
     }
   );
+});
+
+describe('TagManagementRoute tag UX wiring', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    capturedTreeProps.current = undefined;
+    useBibleStore.setState({ tags: mockTags });
+    useAuthStore.setState({
+      token: 'test-token',
+      user: { username: 'testuser' },
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+    });
+    mockGetTags.mockReset().mockResolvedValue(undefined);
+    mockApi.setTagPublic.mockResolvedValue({
+      tag: { ...mockTags[0], public: true },
+      notes_updated: 3,
+    });
+    mockApi.reparentTag.mockResolvedValue(mockTags[0]);
+
+    renderRoute();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('tag-tree')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('passes direct and subtree note counts to the tree',
+    () => {
+      const props = capturedTreeProps.current;
+      expect(props?.noteCounts).toEqual({
+        'tag-1': 3,
+        'tag-2': 2,
+      });
+      // tag-1's subtree total folds in its child tag-2.
+      expect(props?.subtreeCounts).toEqual({
+        'tag-1': 5,
+        'tag-2': 2,
+      });
+      expect(props?.reparentEnabled).toBe(true);
+    });
+
+  it('confirms then POSTs set-public and refreshes tags',
+    async () => {
+      window.confirm = vi.fn(() => true);
+
+      await act(async () => {
+        await capturedTreeProps.current?.onTogglePublic?.(
+          mockTags[0]
+        );
+      });
+
+      expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+        'tag-1',
+        true
+      );
+      expect(mockApi.reparentTag).not.toHaveBeenCalled();
+      // The mount load plus the post-toggle silent refresh.
+      expect(mockGetTags).toHaveBeenCalledTimes(2);
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          color: 'green',
+          message: expect.stringContaining('3 note(s)'),
+        })
+      );
+    });
+
+  it('skips the set-public POST when the confirm is declined',
+    async () => {
+      window.confirm = vi.fn(() => false);
+
+      await act(async () => {
+        await capturedTreeProps.current?.onTogglePublic?.(
+          mockTags[0]
+        );
+      });
+
+      expect(mockApi.setTagPublic).not.toHaveBeenCalled();
+    });
+
+  it('calls reparentTag on a valid drop and toasts the ' +
+    'server message on failure', async () => {
+      await act(async () => {
+        await capturedTreeProps.current?.onReparent?.(
+          'tag-1',
+          null
+        );
+      });
+
+      expect(mockApi.reparentTag).toHaveBeenCalledWith(
+        'tag-1',
+        null
+      );
+
+      mockApi.reparentTag.mockRejectedValue(
+        new Error('A tag with this name already exists')
+      );
+      await act(async () => {
+        await capturedTreeProps.current?.onReparent?.(
+          'tag-2',
+          'tag-1'
+        );
+      });
+
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          color: 'red',
+          message: 'A tag with this name already exists',
+        })
+      );
+    });
 });

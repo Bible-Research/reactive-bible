@@ -24,7 +24,8 @@ import { ConflictError } from './errors';
 export const addTagNote = async (
   tagId: string,
   tagNoteText: string,
-  verseReferences: { book: string; chapter: number; verse: number }[]
+  verseReferences: { book: string; chapter: number; verse: number }[],
+  isPublic?: boolean
 ): Promise<Note> => {
   const created = await fetchJson<Note>(
     authenticatedFetch,
@@ -36,6 +37,9 @@ export const addTagNote = async (
         tag: tagId,
         note_text: tagNoteText,
         verse_references: verseReferences,
+        // `public` is sent only when the caller supplied it —
+        // omitting it lets the server inherit `tag.public`.
+        ...(isPublic !== undefined ? { public: isPublic } : {}),
       }),
     }
   );
@@ -49,7 +53,8 @@ export const editNote = async (
   noteId: string,
   tagId: string,
   noteText: string,
-  verseReferences?: { book: string; chapter: number; verse: number }[]
+  verseReferences?: { book: string; chapter: number; verse: number }[],
+  isPublic?: boolean
 ): Promise<Note> => {
   // verse_references replaces the note's verse links when
   // present; omitting it leaves them untouched.
@@ -65,6 +70,7 @@ export const editNote = async (
         ...(verseReferences !== undefined
           ? { verse_references: verseReferences }
           : {}),
+        ...(isPublic !== undefined ? { public: isPublic } : {}),
       }),
     }
   );
@@ -220,12 +226,22 @@ export const getNotes = async (
     page?: number;
     pageSize?: number;
     filesetId?: string;
+    /**
+     * Expands the `tag_id` filter to the tag's whole subtree —
+     * the merged "include sub-tags" view. Ignored by the
+     * server for `untagged` and reorder stays per-tag.
+     */
+    includeDescendants?: boolean;
   }
 ): Promise<PaginatedNotesResponse> => {
   const params = new URLSearchParams();
 
   if (tagId) {
     params.append('tag_id', tagId);
+  }
+
+  if (options?.includeDescendants) {
+    params.append('include_descendants', 'true');
   }
 
   if (options?.ordering) {

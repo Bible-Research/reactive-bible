@@ -372,6 +372,7 @@ describe('useBibleStore', () => {
         page: 1,
         pageSize: 25,
         filesetId: 'ENGESV_API',
+        includeDescendants: false,
       });
       expect(state.notes).toEqual(mockResponse.results);
       expect(state.notesCount).toBe(1);
@@ -396,6 +397,7 @@ describe('useBibleStore', () => {
           page: 1,
           pageSize: 25,
           filesetId: 'ENGESV_API',
+          includeDescendants: false,
         });
         expect(state.notes).toEqual(mockResponse.results);
         expect(state.notesCount).toBe(1);
@@ -410,7 +412,7 @@ describe('useBibleStore', () => {
     // version bump is needed.
     it('persists exactly the expected key set and values', () => {
       const tag: Tag = {
-        id: 'TAG1', name: 'Test Tag', parent_tag: null,
+        id: 'TAG1', name: 'Test Tag', parent_tag: null, public: false,
         created_at: '', updated_at: '',
       };
       const note: Note = {
@@ -485,7 +487,7 @@ describe('useBibleStore', () => {
 
   describe('fetchNotes with caching', () => {
     const tag: Tag = {
-      id: 'TAG1', name: 'Test Tag', parent_tag: null,
+      id: 'TAG1', name: 'Test Tag', parent_tag: null, public: false,
       created_at: '', updated_at: '',
     };
     const sampleNotes: Note[] = [{
@@ -506,6 +508,7 @@ describe('useBibleStore', () => {
       filesetId: 'ENGESV_API',
       pageSize: 25,
       authed: true,
+      includeDescendants: false,
     };
 
     it('should fetch notes from cache if available', async () => {
@@ -550,6 +553,7 @@ describe('useBibleStore', () => {
         page: 1,
         pageSize: 25,
         filesetId: 'ENGESV_API',
+        includeDescendants: false,
       });
       expect(mockCacheManager.cacheNotes).toHaveBeenCalledWith(
         'TAG1',
@@ -562,6 +566,7 @@ describe('useBibleStore', () => {
           filesetId: 'ENGESV_API',
           pageSize: 25,
           authed: true,
+          includeDescendants: false,
         }
       );
       expect(useBibleStore.getState().notes).toEqual(sampleNotes);
@@ -638,6 +643,7 @@ describe('useBibleStore', () => {
           page: 1,
           pageSize: 25,
           filesetId: undefined,
+          includeDescendants: false,
         });
       });
 
@@ -726,6 +732,7 @@ describe('useBibleStore', () => {
           page: 1,
           pageSize: 25,
           filesetId: 'ENGESV_API',
+          includeDescendants: false,
         });
       });
   });
@@ -739,7 +746,7 @@ describe('useBibleStore', () => {
           id: 'note1',
           note_text: 'A note',
           tag: {
-            id: 't1', name: 't1', parent_tag: null,
+            id: 't1', name: 't1', parent_tag: null, public: false,
             created_at: '', updated_at: '',
           },
           verses: [],
@@ -851,7 +858,7 @@ describe('useBibleStore', () => {
 
   describe('note move/reorder refresh handling', () => {
     const tag: Tag = {
-      id: 'TAG1', name: 'Test Tag', parent_tag: null,
+      id: 'TAG1', name: 'Test Tag', parent_tag: null, public: false,
       created_at: '', updated_at: '',
     };
     const makeNote = (id: string): Note => ({
@@ -915,6 +922,7 @@ describe('useBibleStore', () => {
         page: 2,
         pageSize: 25,
         filesetId: 'ENGESV_API',
+        includeDescendants: false,
       });
       // The authoritative refetch — not the instant-feedback
       // local patch — decides the final note list.
@@ -1015,6 +1023,7 @@ describe('useBibleStore', () => {
         page: 2,
         pageSize: 25,
         filesetId: 'ENGESV_API',
+        includeDescendants: false,
       });
     });
 
@@ -1045,6 +1054,7 @@ describe('useBibleStore', () => {
         page: 3,
         pageSize: 25,
         filesetId: 'ENGESV_API',
+        includeDescendants: false,
       });
       expect(useBibleStore.getState().notesPage).toBe(3);
       expect(useBibleStore.getState().notesOrdering)
@@ -1054,7 +1064,7 @@ describe('useBibleStore', () => {
 
   describe('logout purge', () => {
     const purgeTag: Tag = {
-      id: 'TAG1', name: 'T', parent_tag: null,
+      id: 'TAG1', name: 'T', parent_tag: null, public: false,
       created_at: '', updated_at: '',
     };
     const purgeNote: Note = {

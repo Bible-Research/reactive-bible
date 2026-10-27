@@ -47,6 +47,7 @@ const makeTag = (
   id,
   name,
   parent_tag: parentTag,
+  public: false,
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
 });
@@ -240,6 +241,73 @@ describe('EditTagModal', () => {
       screen.getByText(/has child tags/i)
     ).toBeInTheDocument();
   });
+
+  it('calls setTagPublic only when the publicity switch ' +
+    'flips', async () => {
+      const { onSuccess } = renderModal();
+
+      // Untouched switch → no cascade write.
+      submitForm();
+      await waitFor(() => {
+        expect(mockApi.updateTag).toHaveBeenCalled();
+      });
+      expect(mockApi.setTagPublic).not.toHaveBeenCalled();
+      expect(onSuccess).toHaveBeenCalled();
+    });
+
+  it('routes a publicity flip through setTagPublic — never ' +
+    'a raw PATCH flag', async () => {
+      renderModal();
+
+      // The Switch's label element also carries the
+      // description text — match by substring.
+      fireEvent.click(screen.getByLabelText(/Public tag/));
+      submitForm();
+
+      await waitFor(() => {
+        expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+          'tag-a',
+          true
+        );
+      });
+      // updateTag still handles the name/parent — it never
+      // receives a `public` argument.
+      expect(mockApi.updateTag).toHaveBeenCalledWith(
+        'tag-a',
+        'Alpha',
+        null
+      );
+    });
+
+  it('turning a public tag private cascades through ' +
+    'setTagPublic', async () => {
+      renderModal({
+        tag: {
+          ...makeTag('tag-a', 'Alpha'),
+          public: true,
+        },
+      });
+
+      // Seeded on — the copy follows the current state.
+      expect(screen.getByLabelText(/Public tag/)).toBeChecked();
+      expect(
+        screen.getByText(/become public/i)
+      ).toBeInTheDocument();
+
+      // Flipping off warns that the notes go private too.
+      fireEvent.click(screen.getByLabelText(/Public tag/));
+      expect(
+        screen.getByText(/become private/i)
+      ).toBeInTheDocument();
+      submitForm();
+
+      await waitFor(() => {
+        expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+          'tag-a',
+          false
+        );
+      });
+    });
 
   it('shows an error notification and stays open when ' +
     'the update fails', async () => {

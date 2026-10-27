@@ -49,7 +49,7 @@ describe('AddTagNoteModal Component', () => {
     resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
-      { id: '1', name: 'Faith', parent_tag: null,
+      { id: '1', name: 'Faith', parent_tag: null, public: false,
         created_at: '', updated_at: '' },
     ]);
     (api.getVersesInChapter as Mock).mockResolvedValue({
@@ -201,7 +201,7 @@ describe('AddTagNoteModal Component', () => {
     created_at: '',
     updated_at: '',
     tag: {
-      id: '1', name: 'Faith', parent_tag: null,
+      id: '1', name: 'Faith', parent_tag: null, public: false,
       created_at: '', updated_at: '',
     },
     verses: [

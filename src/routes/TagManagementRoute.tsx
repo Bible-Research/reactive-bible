@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -20,12 +21,39 @@ import {
 import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
-import { deleteTag as deleteTagApi } from '../api';
+import {
+  deleteTag as deleteTagApi,
+  reparentTag,
+  setTagPublic,
+} from '../api';
 import { TagTree } from '../components/TagTree';
 import { CreateTagModal } from '../components/CreateTagModal';
 import { EditTagModal } from '../components/EditTagModal';
 import { useBibleStore } from '../store';
+import { clearNotesCache } from '../utils/cacheManager';
+import { buildTagTree, TagNode } from '../utils/tagTree';
 import { shallow } from 'zustand/shallow';
+
+/**
+ * Sums each node's own `note_count` with all of its
+ * descendants' — the `+k` subtree badge in TagTree. Post-order
+ * over `buildTagTree` output; missing counts treat as 0.
+ */
+const computeSubtreeCounts = (
+  nodes: TagNode[]
+): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  const walk = (node: TagNode): number => {
+    let total = node.tag.note_count ?? 0;
+    for (const child of node.children) {
+      total += walk(child);
+    }
+    counts[node.tag.id] = total;
+    return total;
+  };
+  nodes.forEach(walk);
+  return counts;
+};
 
 export default function TagManagementRoute() {
   const navigate = useNavigate();
@@ -42,6 +70,9 @@ export default function TagManagementRoute() {
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  // Set while a reparent PATCH is in flight — further drops
+  // are ignored and the refreshing Loader shows.
+  const reparentingRef = useRef(false);
 
   // Handlers below are useCallback'd so memoized children
   // (TagTree, the tag modals) don't re-render on unrelated
@@ -139,6 +170,87 @@ export default function TagManagementRoute() {
     [navigate]
   );
 
+  const handleTogglePublic = useCallback(
+    async (tag: Tag) => {
+      const makingPublic = !tag.public;
+      if (
+        !window.confirm(
+          makingPublic
+            ? `Make "${tag.name}" and all notes directly ` +
+                'under it public? Anyone with the link can ' +
+                'view them.'
+            : `Make "${tag.name}" private? ALL notes under ` +
+                'it will also become private — anyone ' +
+                'following a shared link loses access. ' +
+                'This cannot be undone per-note.'
+        )
+      ) {
+        return;
+      }
+      try {
+        const result = await setTagPublic(tag.id, makingPublic);
+        showNotification({
+          title: 'Success',
+          message:
+            `Tag is now ${makingPublic ? 'public' : 'private'}` +
+            ` — ${result.notes_updated} note(s) updated`,
+          color: 'green',
+        });
+        // The tag's cached note pages reflect the old
+        // publicity — drop them before the silent refetch.
+        clearNotesCache(tag.id);
+        await loadTags(true, { silent: true });
+      } catch (error) {
+        console.error('Error updating tag publicity:', error);
+        showNotification({
+          title: 'Error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Failed to update tag publicity',
+          color: 'red',
+        });
+      }
+    },
+    [loadTags]
+  );
+
+  const handleReparent = useCallback(
+    async (tagId: string, parentId: string | null) => {
+      // One reparent write at a time — further drops are
+      // ignored while the PATCH is in flight.
+      if (reparentingRef.current) return;
+      reparentingRef.current = true;
+      setRefreshing(true);
+      try {
+        await reparentTag(tagId, parentId);
+        showNotification({
+          title: 'Success',
+          message: 'Tag moved',
+          color: 'green',
+        });
+        await loadTags(true, { silent: true });
+      } catch (error) {
+        console.error('Error reparenting tag:', error);
+        // The API helper surfaces the server's message (e.g.
+        // a same-named sibling already exists under the
+        // target parent).
+        showNotification({
+          title: 'Error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Failed to move tag',
+          color: 'red',
+        });
+      } finally {
+        reparentingRef.current = false;
+        setRefreshing(false);
+      }
+    },
+    [loadTags]
+  );
+
   const closeCreateModal = useCallback(() => {
     setCreateModalOpen(false);
   }, []);
@@ -156,6 +268,20 @@ export default function TagManagementRoute() {
   // hierarchy (and the path to it) is lost.
   const tagById = useMemo(
     () => new Map(tags.map((t) => [t.id, t])),
+    [tags]
+  );
+  // Derived counts — memoized on `tags` so rows never redo the
+  // subtree walk per render (perf: derived state, not
+  // per-render work).
+  const noteCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const tag of tags) {
+      counts[tag.id] = tag.note_count ?? 0;
+    }
+    return counts;
+  }, [tags]);
+  const subtreeCounts = useMemo(
+    () => computeSubtreeCounts(buildTagTree(tags)),
     [tags]
   );
   const filteredTags = useMemo(() => {
@@ -265,6 +391,11 @@ export default function TagManagementRoute() {
               onEdit={handleEditTag}
               onDelete={handleDeleteTag}
               onViewNotes={handleViewNotes}
+              noteCounts={noteCounts}
+              subtreeCounts={subtreeCounts}
+              onTogglePublic={handleTogglePublic}
+              onReparent={handleReparent}
+              reparentEnabled
               forceExpand={searching}
             />
           </ScrollArea>

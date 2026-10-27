@@ -2,6 +2,19 @@ export interface Tag {
   id: string;
   name: string;
   parent_tag: string | null;
+  /**
+   * When true, new notes under the tag default to public and
+   * the tag's notes are viewable by anyone with the link.
+   * Written only via `setTagPublic` (the cascade endpoint) —
+   * a plain PATCH flag write is never sent from the UI.
+   */
+  public: boolean;
+  /**
+   * Notes attached DIRECTLY to the tag — absent when the
+   * backend predates the annotation. Subtree totals are
+   * aggregated client-side.
+   */
+  note_count?: number;
   created_at: string;
   updated_at: string;
 }

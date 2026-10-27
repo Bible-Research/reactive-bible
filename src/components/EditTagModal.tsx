@@ -5,12 +5,13 @@ import {
   Modal,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
 } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
-import { updateTag } from '../api';
+import { setTagPublic, updateTag } from '../api';
 import {
   isTagDescendant,
   validateTagName,
@@ -33,6 +34,7 @@ export function EditTagModal({
 }: EditTagModalProps) {
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -40,6 +42,7 @@ export function EditTagModal({
     if (tag && opened) {
       setTagName(tag.name);
       setParentTagId(tag.parent_tag);
+      setIsPublic(tag.public);
       setNameError(null);
     }
   }, [tag, opened]);
@@ -76,6 +79,13 @@ export function EditTagModal({
     setLoading(true);
     try {
       await updateTag(tag.id, tagName.trim(), parentTagId);
+      // Publicity goes through the set-public cascade — never a
+      // raw PATCH flag — so the tag's notes flip atomically
+      // with it and the UI can't produce a "flag set, notes
+      // stale" state.
+      if (isPublic !== tag.public) {
+        await setTagPublic(tag.id, isPublic);
+      }
       showNotification({
         title: 'Success',
         message: 'Tag updated successfully',
@@ -148,6 +158,23 @@ export function EditTagModal({
               will affect the hierarchy.
             </Text>
           )}
+
+          <Switch
+            label="Public tag"
+            checked={isPublic}
+            onChange={(e) =>
+              setIsPublic(e.currentTarget.checked)
+            }
+            description={
+              isPublic
+                ? 'Existing notes under this tag become ' +
+                  'public — anyone with the link can view ' +
+                  'them.'
+                : 'Existing notes under this tag become ' +
+                  'private — anyone following a shared link ' +
+                  'loses access.'
+            }
+          />
 
           {tag && (
             <Stack spacing={4}>

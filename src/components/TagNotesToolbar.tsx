@@ -4,7 +4,9 @@ import {
   Group,
   Select,
   Stack,
+  Switch,
   Text,
+  ThemeIcon,
   Tooltip,
 } from '@mantine/core';
 import {
@@ -12,6 +14,7 @@ import {
   IconArrowsMinimize,
   IconRefresh,
   IconShare,
+  IconWorld,
 } from '@tabler/icons-react';
 import { UNTAGGED_TAG_ID } from '../api';
 import type { Tag } from '../types';
@@ -32,6 +35,15 @@ interface TagNotesToolbarProps {
   /** Server-side total across all pages. */
   totalCount: number;
   versesFolded: boolean;
+  /** True when the viewed tag has child tags — gates the
+   *  "Include sub-tags" switch. */
+  hasChildren?: boolean;
+  /** `?descendants=1` — merged subtree notes view is active. */
+  includeDescendants?: boolean;
+  /** Toggles `descendants` in the URL. */
+  onToggleDescendants?: (include: boolean) => void;
+  /** Resolved tag's publicity — owner-facing indicator badge. */
+  tagPublic?: boolean;
   onTagChange: (tagId: string | null) => void;
   onSortChange: (sortOrder: string) => void;
   onPageSizeChange: (pageSize: string | null) => void;
@@ -55,6 +67,10 @@ const TagNotesToolbar = ({
   shownCount,
   totalCount,
   versesFolded,
+  hasChildren = false,
+  includeDescendants = false,
+  onToggleDescendants,
+  tagPublic = false,
   onTagChange,
   onSortChange,
   onPageSizeChange,
@@ -96,29 +112,41 @@ const TagNotesToolbar = ({
 
   return (
     <Stack spacing="sm" mb="md">
-      {isAuthenticated && sortedTags.length > 0 ? (
-        <Select
-          label="Filter by tag"
-          placeholder="Select a tag"
-          value={tagId}
-          onChange={onTagChange}
-          // Grouped items render above a divider; the
-          // ungrouped "Untagged" entry lands in its own
-          // bottom section (Mantine v6 SelectItems).
-          data={[
-            ...sortedTags.map((t) => ({
-              value: t.id,
-              label: t.name,
-              group: 'Tags',
-            })),
-            { value: UNTAGGED_TAG_ID, label: 'Untagged' },
-          ]}
-          searchable
-          style={{ maxWidth: 400 }}
-        />
-      ) : (
-        <Text fw={500} size="lg">{tagName}</Text>
-      )}
+      <Group spacing="xs" noWrap>
+        {isAuthenticated && sortedTags.length > 0 ? (
+          <Select
+            label="Filter by tag"
+            placeholder="Select a tag"
+            value={tagId}
+            onChange={onTagChange}
+            // Grouped items render above a divider; the
+            // ungrouped "Untagged" entry lands in its own
+            // bottom section (Mantine v6 SelectItems).
+            data={[
+              ...sortedTags.map((t) => ({
+                value: t.id,
+                label: t.name,
+                group: 'Tags',
+              })),
+              { value: UNTAGGED_TAG_ID, label: 'Untagged' },
+            ]}
+            searchable
+            style={{ maxWidth: 400 }}
+          />
+        ) : (
+          <Text fw={500} size="lg">{tagName}</Text>
+        )}
+        {tagPublic && (
+          <Tooltip
+            label="Public tag — notes are viewable by link"
+            position="right"
+          >
+            <ThemeIcon size="sm" color="teal" variant="light">
+              <IconWorld size={12} />
+            </ThemeIcon>
+          </Tooltip>
+        )}
+      </Group>
       <Group spacing="xs" position="apart">
         <Group spacing="xs" noWrap>
           <Select
@@ -169,6 +197,16 @@ const TagNotesToolbar = ({
             ]}
             style={{ width: 60, flexShrink: 0 }}
           />
+          {hasChildren && onToggleDescendants && (
+            <Switch
+              size="sm"
+              label="Include sub-tags"
+              checked={includeDescendants}
+              onChange={(e) =>
+                onToggleDescendants(e.currentTarget.checked)
+              }
+            />
+          )}
         </Group>
         <Group spacing="xs" noWrap>
           <Text

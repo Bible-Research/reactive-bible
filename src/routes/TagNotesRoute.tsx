@@ -83,6 +83,10 @@ export default function TagNotesRoute() {
       ? urlSortOrder
       : 'custom_asc';
 
+  // `?descendants=1` — the merged "include sub-tags" view.
+  const includeDescendants =
+    searchParams.get('descendants') === '1';
+
   // Ownership: the caller's own tag list is the primary signal —
   // production notes do not send `is_owner` yet, so without the
   // tags check an owner would lose drag/order/edit/delete on
@@ -92,12 +96,19 @@ export default function TagNotesRoute() {
   // `is_owner === false` on ANY loaded note fails closed even
   // when the tag sits in the caller's list — the backend
   // move/reorder endpoints only touch the requester's rows.
-  const isTagOwner =
+  // Evaluated per tag so the merged subtree view keeps the
+  // check for shared foreign tags too.
+  const tagOwnerFor = (
+    sectionTagId: string | undefined,
+    sectionNotes: Note[]
+  ) =>
     isAuthenticated &&
-    notes.every((n) => n.is_owner !== false) &&
-    (storedTags.some((t) => t.id === tagId) ||
-      (notes.length > 0 &&
-        notes.every((n) => n.is_owner === true)));
+    sectionNotes.every((n) => n.is_owner !== false) &&
+    (storedTags.some((t) => t.id === sectionTagId) ||
+      (sectionNotes.length > 0 &&
+        sectionNotes.every((n) => n.is_owner === true)));
+
+  const isTagOwner = tagOwnerFor(tagId, notes);
 
   const {
     enabled: orderMenuEnabled,
@@ -111,6 +122,9 @@ export default function TagNotesRoute() {
     // when every listed note is owned — the hook disables it.
     isTagOwner,
     isUntagged,
+    // ... and equally meaningless on the merged subtree view —
+    // positions are per-tag.
+    includeDescendants,
   });
 
   const {
@@ -130,6 +144,7 @@ export default function TagNotesRoute() {
     sortOrder,
     isUntagged,
     isAuthenticated,
+    includeDescendants,
     setSearchParams,
     orderMenuEnabled,
     reloadOrderIndex,
@@ -138,6 +153,46 @@ export default function TagNotesRoute() {
   const sortedNotes = useMemo(
     () => sortNotes(notes, sortOrder),
     [notes, sortOrder]
+  );
+
+  // tag id → name lookups reuse a Map instead of a per-note
+  // array scan (perf rule: build an index for repeated
+  // lookups).
+  const tagNameById = useMemo(
+    () => new Map(storedTags.map((t) => [t.id, t.name])),
+    [storedTags]
+  );
+
+  // Merged mode: group the page's notes by their tag,
+  // preserving note order inside each group — one TagSection
+  // per tag. Single-tag mode skips this entirely.
+  const noteSections = useMemo(() => {
+    if (!includeDescendants) return [];
+    const byTag = new Map<string, { tagName: string; notes: Note[] }>();
+    for (const note of sortedNotes) {
+      const id = note.tag?.id ?? UNTAGGED_TAG_ID;
+      let group = byTag.get(id);
+      if (!group) {
+        group = {
+          tagName:
+            tagNameById.get(id) ??
+            note.tag?.name ??
+            'Untagged',
+          notes: [],
+        };
+        byTag.set(id, group);
+      }
+      group.notes.push(note);
+    }
+    return [...byTag.entries()].map(([sectionTagId, group]) => ({
+      tagId: sectionTagId,
+      ...group,
+    }));
+  }, [includeDescendants, sortedNotes, tagNameById]);
+
+  const tagHasChildren = useMemo(
+    () => storedTags.some((t) => t.parent_tag === tagId),
+    [storedTags, tagId]
   );
 
   const { playFromNote } = useNotePlaylist(
@@ -164,6 +219,18 @@ export default function TagNotesRoute() {
     if (value && value !== tagId) {
       void navigate(`/notes/tag/${value}`);
     }
+  };
+
+  const handleToggleDescendants = (include: boolean) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (include) {
+        next.set('descendants', '1');
+      } else {
+        next.delete('descendants');
+      }
+      return next;
+    });
   };
 
   const handleToggleFolded = () => {
@@ -253,6 +320,10 @@ export default function TagNotesRoute() {
             shownCount={notes.length}
             totalCount={notesCount}
             versesFolded={versesFolded}
+            hasChildren={tagHasChildren}
+            includeDescendants={includeDescendants}
+            onToggleDescendants={handleToggleDescendants}
+            tagPublic={tag.public}
             onTagChange={handleTagChange}
             onSortChange={handleSortChange}
             onPageSizeChange={handlePageSizeChange}
@@ -270,30 +341,65 @@ export default function TagNotesRoute() {
         ) : notes.length > 0 ? (
           <Stack spacing="md" pb="xl" px="md">
             {pagination}
-            <TagSection
-              tagName={tag.name}
-              notes={sortedNotes}
-              onViewInBible={handleViewInBible}
-              onEditNote={
-                isTagOwner ? handleEditNote : undefined
-              }
-              onDeleteNote={
-                isTagOwner
-                  ? handleDeleteNote
-                  : undefined
-              }
-              onPlayFromNote={playFromNote}
-              commentCounts={commentCounts}
-              onCountChange={handleCountChange}
-              isTagOwner={isTagOwner}
-              isDraggable={orderMenuEnabled}
-              tagId={tagId || ''}
-              onReorder={handleReorder}
-              sortOrder={sortOrder}
-              currentPage={notesPage}
-              pageSize={notesPageSize}
-              orderMenu={orderMenu}
-            />
+            {includeDescendants ? (
+              // Merged subtree view — one section per tag.
+              // Reorder and the order index are per-tag, so
+              // both stay off here.
+              noteSections.map((section) => {
+                const sectionOwner = tagOwnerFor(
+                  section.tagId,
+                  section.notes
+                );
+                return (
+                  <TagSection
+                    key={section.tagId}
+                    tagName={section.tagName}
+                    notes={section.notes}
+                    onViewInBible={handleViewInBible}
+                    onEditNote={
+                      sectionOwner ? handleEditNote : undefined
+                    }
+                    onDeleteNote={
+                      sectionOwner ? handleDeleteNote : undefined
+                    }
+                    onPlayFromNote={playFromNote}
+                    commentCounts={commentCounts}
+                    onCountChange={handleCountChange}
+                    isTagOwner={sectionOwner}
+                    isDraggable={false}
+                    tagId={section.tagId}
+                    sortOrder={sortOrder}
+                    currentPage={notesPage}
+                    pageSize={notesPageSize}
+                  />
+                );
+              })
+            ) : (
+              <TagSection
+                tagName={tag.name}
+                notes={sortedNotes}
+                onViewInBible={handleViewInBible}
+                onEditNote={
+                  isTagOwner ? handleEditNote : undefined
+                }
+                onDeleteNote={
+                  isTagOwner
+                    ? handleDeleteNote
+                    : undefined
+                }
+                onPlayFromNote={playFromNote}
+                commentCounts={commentCounts}
+                onCountChange={handleCountChange}
+                isTagOwner={isTagOwner}
+                isDraggable={orderMenuEnabled}
+                tagId={tagId || ''}
+                onReorder={handleReorder}
+                sortOrder={sortOrder}
+                currentPage={notesPage}
+                pageSize={notesPageSize}
+                orderMenu={orderMenu}
+              />
+            )}
 
             {pagination}
           </Stack>
@@ -302,7 +408,9 @@ export default function TagNotesRoute() {
             <Text>
               {isUntagged
                 ? 'No untagged notes.'
-                : 'No notes found for this tag.'}
+                : includeDescendants
+                  ? 'No notes in this tag or its sub-tags.'
+                  : 'No notes found for this tag.'}
             </Text>
           </Center>
         )}
