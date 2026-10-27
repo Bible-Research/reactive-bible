@@ -8,6 +8,7 @@ import {
   UpdateManifest,
   InstalledVersion,
 } from '../utils/appUpdate';
+import { isMediaDebugBuild } from '../utils/mediaDebug';
 
 /**
  * Sideload update UX for the Android APK build. `useAppUpdate` runs
@@ -80,6 +81,9 @@ const handleCheckResult = (
 
 export const useAppUpdate = (): void => {
   useEffect(() => {
+    // A media-debug APK must not prompt to "update" to the
+    // release build — it is a separate side-by-side install.
+    if (isMediaDebugBuild()) return;
     let cancelled = false;
     void checkForUpdates().then((result) => {
       if (!cancelled) handleCheckResult(result, false);

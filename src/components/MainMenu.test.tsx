@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { useNavigate, NavigateFunction } from 'react-router-dom';
 import MainMenu from './MainMenu';
 import { renderWithProviders } from '../__tests__/helpers';
+import * as mediaDebug from '../utils/mediaDebug';
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor
 // inside the "New Note" modal the same way NoteForm tests do.
@@ -176,6 +177,34 @@ describe('MainMenu Component', () => {
       screen.queryByText('Download Android App')
     ).not.toBeInTheDocument();
   });
+
+  it('hides the diagnostic report item unless media debug is on',
+    () => {
+      renderWithProviders(<MainMenu {...defaultProps} />);
+
+      expect(
+        screen.queryByText('Send diagnostic report')
+      ).not.toBeInTheDocument();
+    });
+
+  it('sends a manual diagnostic report when media debug is on',
+    async () => {
+      localStorage.setItem('mediaDebug', '1');
+      const send = vi
+        .spyOn(mediaDebug, 'sendMediaDebugReport')
+        .mockReturnValue(true);
+      try {
+        renderWithProviders(<MainMenu {...defaultProps} />);
+
+        await userEvent.click(
+          screen.getByText('Send diagnostic report')
+        );
+
+        expect(send).toHaveBeenCalledWith('manual');
+      } finally {
+        localStorage.removeItem('mediaDebug');
+      }
+    });
 
   it('hides authenticated-only items from anonymous visitors',
     () => {

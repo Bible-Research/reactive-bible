@@ -15,13 +15,19 @@ import {
   IconMoonStars,
   IconBrandAndroid,
   IconRefresh,
+  IconBug,
 } from "@tabler/icons-react";
 import { Suspense, lazy, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { showNotification } from "@mantine/notifications";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { isNativeApp } from "../utils/platform";
+import {
+  isMediaDebugEnabled,
+  sendMediaDebugReport,
+} from "../utils/mediaDebug";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { UserMenu } from "./UserMenu";
 
@@ -71,6 +77,19 @@ const MainMenu = ({
     typeof navigator !== 'undefined' &&
     /android/i.test(navigator.userAgent);
 
+  const handleSendDiagnostics = () => {
+    const sent = sendMediaDebugReport('manual');
+    showNotification({
+      title: sent
+        ? 'Diagnostic report sent'
+        : 'Diagnostic report not sent',
+      message: sent
+        ? 'Queued for upload to Sentry.'
+        : 'Sentry is not configured in this build.',
+      color: sent ? undefined : 'orange',
+    });
+  };
+
   return (
     <>
       <Drawer
@@ -105,7 +124,9 @@ const MainMenu = ({
             weight={500}
             size="lg"
             onClick={() => {
-              void navigate(buildBiblePath(activeBookId, activeChapter));
+              void navigate(
+                buildBiblePath(activeBookId, activeChapter)
+              );
               onClose();
             }}
             sx={{ cursor: "pointer" }}
@@ -180,6 +201,29 @@ const MainMenu = ({
               </Text>
               <Text size="xs" color="dimmed">
                 Look for a newer build on GitHub Releases.
+              </Text>
+            </div>
+          </Group>
+        )}
+
+        {isMediaDebugEnabled() && (
+          <Group spacing="xs" align="flex-start" noWrap>
+            <IconBug
+              size={22}
+              style={{ marginTop: 4, flexShrink: 0 }}
+            />
+            <div>
+              <Text
+                weight={500}
+                size="lg"
+                onClick={handleSendDiagnostics}
+                sx={{ cursor: "pointer" }}
+                title="Send diagnostic report"
+              >
+                Send diagnostic report
+              </Text>
+              <Text size="xs" color="dimmed">
+                Upload the media-session trace to Sentry.
               </Text>
             </div>
           </Group>

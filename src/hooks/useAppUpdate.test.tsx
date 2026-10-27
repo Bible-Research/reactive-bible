@@ -64,6 +64,16 @@ describe('useAppUpdate', () => {
     expect(showNotification).not.toHaveBeenCalled();
   });
 
+  it('skips the automatic check in media-debug builds', () => {
+    vi.stubEnv('VITE_MEDIA_DEBUG', '1');
+    try {
+      renderHook(() => useAppUpdate());
+      expect(checkForUpdates).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('stays silent on check errors (automatic check)', async () => {
     vi.mocked(checkForUpdates).mockResolvedValue({ kind: 'error' });
     renderHook(() => useAppUpdate());
