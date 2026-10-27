@@ -196,9 +196,13 @@ export default function TagManagementRoute() {
             ` — ${result.notes_updated} note(s) updated`,
           color: 'green',
         });
-        // The tag's cached note pages reflect the old
-        // publicity — drop them before the silent refetch.
-        clearNotesCache(tag.id);
+        // The tag's own cached note pages reflect the old
+        // publicity — and so does every ancestor's merged
+        // `sub:true` page, which keeps serving this tag's
+        // notes with the stale `public` flag. The notes cache
+        // never expires, so drop it whole (same as
+        // deleteNote).
+        clearNotesCache();
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error updating tag publicity:', error);
@@ -229,6 +233,11 @@ export default function TagManagementRoute() {
           message: 'Tag moved',
           color: 'green',
         });
+        // The moved tag's notes shift between merged views:
+        // every `sub:true` page cached under an old or new
+        // ancestor is stale now, and the notes cache never
+        // expires — drop it whole (same as deleteNote).
+        clearNotesCache();
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error reparenting tag:', error);
@@ -395,7 +404,12 @@ export default function TagManagementRoute() {
               subtreeCounts={subtreeCounts}
               onTogglePublic={handleTogglePublic}
               onReparent={handleReparent}
-              reparentEnabled
+              // Drag reparent is off while a search filter
+              // hides part of the hierarchy — the drop guards
+              // walk the FILTERED list, so a cycle through a
+              // hidden ancestor could slip past the
+              // client-side check and surface as a 400 toast.
+              reparentEnabled={!searching}
               forceExpand={searching}
             />
           </ScrollArea>

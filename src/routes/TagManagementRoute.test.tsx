@@ -22,6 +22,7 @@ import TagManagementRoute from './TagManagementRoute';
 import { Tag } from '../types';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
+import { clearNotesCache } from '../utils/cacheManager';
 import * as api from '../api';
 
 // Selective automock — keep real error classes so `instanceof`
@@ -124,6 +125,11 @@ vi.mock('../components/CreateTagModal', () => ({
 vi.mock('../components/EditTagModal', () => ({
   EditTagModal: () => null,
 }));
+
+// Automock so tests can assert the route's cache-clearing
+// contract — the route itself never inspects cached pages.
+vi.mock('../utils/cacheManager');
+const mockClearNotesCache = vi.mocked(clearNotesCache);
 
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
@@ -306,6 +312,10 @@ describe('TagManagementRoute tag UX wiring', () => {
         true
       );
       expect(mockApi.reparentTag).not.toHaveBeenCalled();
+      // Ancestor `sub:true` merged pages also carry this
+      // tag's notes with the old `public` flag — the cache
+      // clear must be broad, not just the tag's own pages.
+      expect(mockClearNotesCache).toHaveBeenCalledWith();
       // The mount load plus the post-toggle silent refresh.
       expect(mockGetTags).toHaveBeenCalledTimes(2);
       expect(showNotification).toHaveBeenCalledWith(
@@ -359,5 +369,47 @@ describe('TagManagementRoute tag UX wiring', () => {
           message: 'A tag with this name already exists',
         })
       );
+    });
+
+  it('clears the whole notes cache on reparent — merged ' +
+    'pages under old and new ancestors go stale', async () => {
+      await act(async () => {
+        await capturedTreeProps.current?.onReparent?.(
+          'tag-2',
+          null
+        );
+      });
+
+      expect(mockApi.reparentTag).toHaveBeenCalledWith(
+        'tag-2',
+        null
+      );
+      // A tag-only clear would leave every ancestor's
+      // `sub:true` merged page serving the moved tag's notes
+      // under the wrong subtree.
+      expect(mockClearNotesCache).toHaveBeenCalledWith();
+      expect(mockClearNotesCache).not.toHaveBeenCalledWith(
+        'tag-2'
+      );
+    });
+
+  it('disables drag reparent while a search filter is ' +
+    'active', async () => {
+      expect(capturedTreeProps.current?.reparentEnabled).toBe(
+        true
+      );
+
+      fireEvent.change(
+        screen.getByPlaceholderText('Search tags...'),
+        { target: { value: 'pray' } }
+      );
+
+      // The drop guards walk the FILTERED list — reparenting
+      // stays off until the full tree is back.
+      await waitFor(() => {
+        expect(
+          capturedTreeProps.current?.reparentEnabled
+        ).toBe(false);
+      });
     });
 });

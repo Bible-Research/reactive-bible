@@ -213,10 +213,16 @@ export const useTagNotesData = ({
             updated_at: '',
           };
         } else {
+          // A merged page (`?descendants=1`) can lead with a
+          // descendant tag's note — prefer a note attached to
+          // the viewed tag itself before falling back to the
+          // first row, so anonymous viewers don't see a
+          // child's name/public badge in the toolbar.
           resolvedTag =
             useBibleStore
               .getState()
               .tags.find((t) => t.id === tagId) ||
+            fetchedNotes.find((n) => n.tag?.id === tagId)?.tag ||
             fetchedNotes[0]?.tag ||
             null;
 

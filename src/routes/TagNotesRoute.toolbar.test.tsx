@@ -4,6 +4,7 @@ import {
   screen,
   waitFor,
   act,
+  within,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { mockDomApis } from '../__tests__/helpers';
@@ -141,5 +142,72 @@ describe('TagNotesRoute toolbar scroll-hide', () => {
       expect(toolbar.parentElement?.style.height).toBe(
         'calc(100vh - var(--mantine-header-height, 0px))'
       );
+    });
+});
+
+describe('TagNotesRoute merged-page tag resolution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseParams.mockReturnValue({ tagId: 'tag-123' });
+    mockFetchNotes.mockResolvedValue(undefined);
+    mockGetTags.mockResolvedValue(undefined);
+    mockApi.getTag.mockResolvedValue(tag);
+    mockApi.fetchCommentCounts.mockResolvedValue({});
+  });
+
+  it('shows the viewed tag in the toolbar even when a ' +
+    'descendant note leads the merged page', async () => {
+      const childTag: Tag = {
+        id: 'tag-child',
+        name: 'Child Tag',
+        parent_tag: 'tag-123',
+        public: true,
+        created_at: '',
+        updated_at: '',
+      };
+      const ownTag: Tag = { ...tag, public: true };
+
+      // Anonymous viewer on a shared `?descendants=1` page:
+      // no own tags are loaded, so resolution falls through
+      // to the fetched notes — the first row's tag is a
+      // descendant, not the viewed tag.
+      useBibleStore.setState({
+        ...initialState,
+        notes: [
+          { ...note, id: 'n-child', tag: childTag },
+          { ...note, id: 'n-own', tag: ownTag },
+        ],
+        notesCount: 2,
+        notesPage: 1,
+        notesPageSize: 25,
+        lastSelectedTagId: 'tag-123',
+        tags: [],
+        fetchNotes: mockFetchNotes,
+        getTags: mockGetTags,
+      });
+      useAuthStore.setState({
+        ...authInitialState,
+        isAuthenticated: false,
+      });
+      mockDomApis();
+      render(
+        <MemoryRouter
+          initialEntries={['/notes/tag/tag-123?descendants=1']}
+        >
+          <TagNotesRoute />
+        </MemoryRouter>
+      );
+
+      const toolbar = await screen.findByTestId(
+        'tag-notes-toolbar'
+      );
+      await waitFor(() => {
+        expect(
+          within(toolbar).getByText('Bible Study')
+        ).toBeInTheDocument();
+      });
+      expect(
+        within(toolbar).queryByText('Child Tag')
+      ).not.toBeInTheDocument();
     });
 });
