@@ -80,8 +80,6 @@ export default function SearchRoute() {
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [expandedBooks, setExpandedBooks] =
     useState<Set<string>>(new Set());
-  const [playlistItems, setPlaylistItems] =
-    useState<PlaylistItem[] | null>(null);
   const [filesetMissing, setFilesetMissing] = useState(false);
 
   const activeTextFilesetId = useBibleStore(
@@ -175,18 +173,21 @@ export default function SearchRoute() {
     setExpandedBooks(new Set());
   }, [groups]);
 
+  // Derived in-render (not via effect) so the play handler in the
+  // same commit that renders the buttons never sees a stale null.
+  const playlistItems = useMemo<PlaylistItem[] | null>(
+    () =>
+      verses.length === 0
+        ? null
+        : verses.map((v, i) =>
+            toPlaylistItem(v, i, verses.length),
+          ),
+    [verses],
+  );
+
   useEffect(() => {
-    if (verses.length === 0) {
-      setAudioPlaylistItems(null);
-      setPlaylistItems(null);
-      return;
-    }
-    const items = verses.map((v, i) =>
-      toPlaylistItem(v, i, verses.length),
-    );
-    setAudioPlaylistItems(items);
-    setPlaylistItems(items);
-  }, [verses, setAudioPlaylistItems]);
+    setAudioPlaylistItems(playlistItems);
+  }, [playlistItems, setAudioPlaylistItems]);
 
   const handlePlayVerse = useCallback(
     (v: SearchVerse) => {
