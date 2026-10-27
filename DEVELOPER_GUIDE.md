@@ -503,7 +503,13 @@ auth lives in a separate persisted `authStore`.
   persisted)
 - `showNotes: boolean` - Toggles between Bible view and Notes
   view inside `Passage`
-- `versesFolded: boolean` - Collapses long chapter ranges
+- `versesFolded: boolean` - Collapses long chapter ranges;
+  folded note cards show only their first verse, kept on a
+  single line that scrolls horizontally inside the card
+  (`overflow-x: auto` on the verse text, and a
+  `minmax(0, 1fr)` grid on the `data-verse-scope` container
+  so the unbreakable line cannot widen the page past the
+  device width)
 - `headerVisible: boolean` - Auto-hiding header state
 
 **Notes State** (orchestrated in

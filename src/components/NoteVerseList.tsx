@@ -83,7 +83,21 @@ const NoteVerseList = ({
   return (
     <Box
       mt={-10}
-      sx={{ position: 'relative', zIndex: 0 }}
+      sx={{
+        position: 'relative',
+        zIndex: 0,
+        // A folded verse is one unbroken nowrap line; even as
+        // a scroll container it still reports that full width
+        // as its min-content contribution, which propagates
+        // up to the ScrollArea's shrink-to-fit (display:
+        // table) wrapper and makes the whole page wider than
+        // the screen. The minmax(0, 1fr) track clamps this
+        // box's contribution so only the verse row scrolls.
+        ...(folded && {
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr)',
+        }),
+      }}
       data-verse-scope={scope}
     >
       {verseError ? (
