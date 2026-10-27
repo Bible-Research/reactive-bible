@@ -3580,7 +3580,8 @@ useEffect(() => {
 
 The Capacitor shell (`android/`, `webDir: 'dist'`) is distributed by
 sideloading APKs from GitHub Releases — there is no Play Store
-listing. `.github/workflows/android-release.yml` has three channels:
+listing. `.github/workflows/android-release.yml` has these
+channels:
 
 | Trigger              | Output                                        |
 |----------------------|-----------------------------------------------|
@@ -3589,6 +3590,8 @@ listing. `.github/workflows/android-release.yml` has three channels:
 | push `v*` tag        | signed APK → that tag's GitHub Release asset  |
 | push `main`          | signed APK + `update.json` → rolling          |
 |                      | `continuous` prerelease                       |
+| non-`main` branch    | media-debug APK → rolling `media-debug`       |
+|                      | prerelease (see "Media debug APK")            |
 
 - Signing uses `ANDROID_KEYSTORE_BASE64`, `KEY_ALIAS`,
   `KEYSTORE_PASSWORD`, `KEY_PASSWORD` secrets. The same keystore
@@ -3629,6 +3632,53 @@ sideloaded installs. The MainMenu has a "Check for updates" row
 
 `minShellBuild` is reserved for a future OTA web-bundle path — a
 bundle may only be applied when `installedBuild >= minShellBuild`.
+
+### Media debug APK
+
+Remote diagnostics for the lock-screen media-button bug
+(workspace `docs/plans/media-debug-sentry-apk-plan.md`).
+
+- **Build:** every non-`main`, non-tag run of
+  `android-release.yml` builds with `VITE_MEDIA_DEBUG=1`,
+  `VITE_APP_ENV=android-debug`, `VITE_APP_RELEASE=<sha>` and the
+  `VITE_SENTRY_DSN` secret (`main`/tags get
+  `VITE_APP_ENV=android`, no media debug). The debug APK is
+  published as `reactive-bible-debug.apk` on the rolling
+  `media-debug` prerelease (tag force-moved to the built sha,
+  `make_latest: false`); `continuous`, `update.json` and
+  `latest` are never touched. The artifact upload stays.
+- **Install:** the `debug` buildType adds
+  `applicationIdSuffix ".debug"` / `versionNameSuffix
+  "-debug"`, so `com.bibleresearch.app.debug` installs next to
+  the release app (same launcher label — `strings.xml` owns
+  `app_name`). CI generates a fresh debug keystore per run, so
+  uninstall the previous debug build before installing a newer
+  one.
+- **Tracer:** `src/utils/mediaDebug.ts`. `isMediaDebugEnabled()`
+  is the build flag or `localStorage.mediaDebug = '1'`.
+  `trace(category, message, data?)` adds a `media.<category>`
+  breadcrumb and appends to a 500-entry localStorage ring buffer
+  (`mediaDebugLog`); `data` may be a thunk. Trace points live in
+  `useMediaSession` (register/unregister, dispatch + source,
+  playbackState, metadata), `Audio.tsx` prev/next branches,
+  `useChapterAudio` (chapter-end adopt vs fallback,
+  `setAudio(null)` sites, reset dispose, gap play, seek) and the
+  keep-alive layer. Everything is sync and swallows its own
+  errors — safe inside media-session handlers.
+- **Reports:** `sendMediaDebugReport(reason)` captures a
+  `media-debug snapshot` message (tag `reason`) with the buffer
+  attached as `media-debug.json`, then flushes and clears it
+  (kept if Sentry has no client). Sent automatically with
+  `reason: unlock` when the app becomes active after ≥ 30 s
+  hidden (`visibilitychange` + Capacitor `appStateChange`), and
+  from the main-menu "Send diagnostic report" row
+  (`reason: manual`, shown only when media debug is on).
+- **Sentry init:** `release` from `VITE_APP_RELEASE` when set,
+  tag `platform` = `native` | `web`; media-debug builds add
+  `maxBreadcrumbs: 300` and the offline (IndexedDB) transport.
+  Media-debug builds skip the automatic update prompt.
+- **Query:** Sentry issues `message:"media-debug snapshot"`,
+  environment `android-debug`.
 
 ---
 

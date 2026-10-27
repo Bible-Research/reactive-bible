@@ -113,6 +113,27 @@ npm test -- --run  # vitest headless (98 files / 953 tests)
 - Commit after each completed plan step; update
   `DEVELOPER_GUIDE.md` after functionality changes.
 
+## Media debug APK (lock-screen diagnostics)
+
+- Get it: `gh workflow run android-release.yml --ref <branch>
+  --repo Bible-Research/reactive-bible` (any non-`main`,
+  non-tag ref). The run publishes `reactive-bible-debug.apk`
+  on the rolling `media-debug` prerelease
+  (`releases/download/media-debug/reactive-bible-debug.apk`);
+  it never touches `continuous`/`update.json`/`latest`.
+- Install: package `com.bibleresearch.app.debug` sits next to
+  the release app. Each CI run has a new debug keystore —
+  uninstall the old debug build before installing a newer one.
+- Needs repo secret `VITE_SENTRY_DSN`; without it the tracer
+  still fills localStorage but nothing reaches Sentry.
+- Query Sentry: `message:"media-debug snapshot"`, environment
+  `android-debug`; the trace is the `media-debug.json`
+  attachment plus `media.*` breadcrumbs. Details:
+  `DEVELOPER_GUIDE.md` → "Media debug APK".
+- Trace calls (`trace()` from `src/utils/mediaDebug.ts`) are
+  no-ops unless media debug is on; keep them sync and
+  non-throwing (they run inside media-session handlers).
+
 ## Known gaps (do NOT "fix" without asking)
 
 - Comment image endpoints ARE consumed by
