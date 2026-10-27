@@ -68,6 +68,16 @@ export default defineConfig({
     'import.meta.env.VITE_APP_ENV': JSON.stringify(
       process.env.VITE_APP_ENV ?? process.env.VERCEL_ENV ?? ''
     ),
+    // Vercel exposes VERCEL_GIT_COMMIT_SHA to the build env;
+    // baking it into the bundle lets main.tsx set Sentry's
+    // `release` even when the vite plugin's release upload is
+    // disabled (no SENTRY_AUTH_TOKEN), so every event maps to a
+    // commit. A manually set VITE_APP_RELEASE takes precedence.
+    'import.meta.env.VITE_APP_RELEASE': JSON.stringify(
+      process.env.VITE_APP_RELEASE ??
+        process.env.VERCEL_GIT_COMMIT_SHA ??
+        ''
+    ),
   },
   build: {
     // 'hidden': maps are emitted for Sentry's upload but not

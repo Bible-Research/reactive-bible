@@ -23,6 +23,14 @@ if (sentryDsn) {
     environment:
       (import.meta.env.VITE_APP_ENV as string | undefined) ||
       import.meta.env.MODE,
+    // vite.config.ts bakes VERCEL_GIT_COMMIT_SHA (or a manual
+    // VITE_APP_RELEASE) into the bundle so events carry a
+    // release even on builds where the sentry vite plugin's
+    // release upload is disabled. `||` turns the empty-string
+    // default into `undefined` rather than `release: ''`.
+    release:
+      (import.meta.env.VITE_APP_RELEASE as string | undefined) ||
+      undefined,
     integrations: [
       Sentry.browserTracingIntegration(),
       // Free tier ~= 50 replays/mo: record only sessions that hit

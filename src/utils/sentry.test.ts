@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ErrorEvent, EventHint } from '@sentry/react';
 import {
   BookNotInFilesetError,
+  ClientInputError,
   ProviderError,
   RateLimitError,
 } from '../api/errors';
@@ -126,5 +127,82 @@ describe('sentryBeforeSend', () => {
         hintOf(new Error('failed to persist session note'))
       )
     ).toBe(event);
+  });
+
+  it('drops ChunkLoadError (stale tab after a deploy)', () => {
+    const err = new Error('Failed to fetch dynamically ' +
+      'imported module');
+    err.name = 'ChunkLoadError';
+    expect(sentryBeforeSend(event, hintOf(err))).toBeNull();
+  });
+
+  it('drops "Loading chunk N failed" messages', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new Error('Loading chunk 12 failed.'))
+      )
+    ).toBeNull();
+  });
+
+  it('drops "Loading CSS chunk" messages', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new Error(
+          'Loading CSS chunk 421 failed. (missing: ' +
+            'https://example.com/assets/x.css)'
+        ))
+      )
+    ).toBeNull();
+  });
+
+  it('drops ResizeObserver loop noise', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new Error(
+          'ResizeObserver loop completed with ' +
+            'undelivered notifications.'
+        ))
+      )
+    ).toBeNull();
+  });
+
+  it('keeps ClientInputError (a bug by design)', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new ClientInputError('missing_parameter'))
+      )
+    ).toBe(event);
+  });
+
+  it.each([
+    'Failed to fetch',
+    'Load failed',
+    'NetworkError when attempting to fetch resource.',
+  ])('tags network failure "%s" without dropping it', (msg) => {
+    const networkEvent = { event_id: msg } as ErrorEvent;
+
+    const result = sentryBeforeSend(
+      networkEvent,
+      hintOf(new TypeError(msg))
+    );
+
+    expect(result).toBe(networkEvent);
+    expect(result?.tags?.errorKind).toBe('network');
+  });
+
+  it('does not tag non-network TypeErrors', () => {
+    const typeErrorEvent = { event_id: 'type' } as ErrorEvent;
+
+    const result = sentryBeforeSend(
+      typeErrorEvent,
+      hintOf(new TypeError('undefined is not an object'))
+    );
+
+    expect(result).toBe(typeErrorEvent);
+    expect(result?.tags?.errorKind).toBeUndefined();
   });
 });
