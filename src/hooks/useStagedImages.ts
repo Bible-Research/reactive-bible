@@ -74,7 +74,8 @@ interface UseStagedImagesResult {
   /**
    * Validates files without staging — returns the accepted
    * File[] for immediate-upload flows; rejected names land in
-   * `fileError` exactly like `addFiles`.
+   * `fileError` exactly like `addFiles`, and copies of
+   * already-staged files are skipped.
    */
   reportFiles: (files: File[]) => File[];
   removeStaged: (id: number) => void;
@@ -140,6 +141,19 @@ export const useStagedImages = ({
         );
         continue;
       }
+      // Skip copies of files already staged — a re-select
+      // mints a new File object, so identity checks miss it.
+      // Dedup runs before the cap check so a dupe re-select
+      // at the cap doesn't show a spurious cap error.
+      if (
+        stagedRef.current.some(
+          (s) =>
+            imageFileSignature(s.file) ===
+            imageFileSignature(file)
+        )
+      ) {
+        continue;
+      }
       if (
         existingCountRef.current +
           stagedRef.current.length +
@@ -158,22 +172,11 @@ export const useStagedImages = ({
   };
 
   const addFiles = (files: File[]) => {
-    // Skip copies of files already staged — a re-select
-    // mints a new File object, so identity checks miss it.
-    const accepted = reportFiles(files)
-      .filter(
-        (file) =>
-          !stagedRef.current.some(
-            (s) =>
-              imageFileSignature(s.file) ===
-              imageFileSignature(file)
-          )
-      )
-      .map((file) => {
-        const url = URL.createObjectURL(file);
-        urlsRef.current.push(url);
-        return { id: nextStagedId.current++, file, url };
-      });
+    const accepted = reportFiles(files).map((file) => {
+      const url = URL.createObjectURL(file);
+      urlsRef.current.push(url);
+      return { id: nextStagedId.current++, file, url };
+    });
     if (accepted.length > 0) {
       sync([...stagedRef.current, ...accepted]);
     }

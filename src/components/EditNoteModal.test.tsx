@@ -688,6 +688,106 @@ describe('EditNoteModal Component', () => {
         });
       });
 
+    it('re-uploads a file after its attached thumb is ' +
+      'deleted', async () => {
+        (api.uploadNoteImage as Mock)
+          .mockResolvedValueOnce(makeImage('img-2'))
+          .mockResolvedValueOnce(makeImage('img-3'));
+        (api.deleteImage as Mock).mockResolvedValue(undefined);
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={mockNote}
+          />
+        );
+
+        // lastModified pins the content signature — a
+        // re-selected file is a new File object with the
+        // same signature.
+        const makeFile = () =>
+          new File(['x'], 'photo.png', {
+            type: 'image/png',
+            lastModified: 1000,
+          });
+        attachFiles([makeFile()]);
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).toBeInTheDocument();
+        });
+
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Remove image img-2.png',
+          })
+        );
+        await waitFor(() => {
+          expect(api.deleteImage).toHaveBeenCalledWith(
+            'img-2'
+          );
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).not.toBeInTheDocument();
+        });
+
+        // The deleted image's signature must no longer
+        // block the re-select: the upload fires again.
+        attachFiles([makeFile()]);
+        await waitFor(() => {
+          expect(api.uploadNoteImage).toHaveBeenCalledTimes(
+            2
+          );
+        });
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-3.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+
+    it('uploads a rapidly re-selected file only once',
+      async () => {
+        let resolveUpload: (
+          value: Awaited<
+            ReturnType<typeof api.uploadNoteImage>
+          >
+        ) => void = () => undefined;
+        (api.uploadNoteImage as Mock).mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              resolveUpload = resolve;
+            })
+        );
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={mockNote}
+          />
+        );
+
+        const file = new File(['x'], 'photo.png', {
+          type: 'image/png',
+          lastModified: 1000,
+        });
+        // The second select lands while the first upload
+        // is still in flight — the claimed signature must
+        // dedup it.
+        attachFiles([file]);
+        attachFiles([file]);
+
+        await act(async () => {
+          resolveUpload(makeImage('img-2'));
+        });
+        expect(api.uploadNoteImage).toHaveBeenCalledTimes(1);
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+
     it('refreshes the image list when a thumb fails ' +
       'to load', async () => {
         (api.fetchNoteImages as Mock).mockResolvedValue([

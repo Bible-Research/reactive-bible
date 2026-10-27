@@ -918,6 +918,54 @@ describe('NoteForm Component', () => {
         ).not.toBeInTheDocument();
       });
 
+    it('does not count a duplicate of a staged file ' +
+      'against the image cap', async () => {
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onFilesChange={vi.fn()}
+          />
+        );
+
+        // lastModified pins the content signature so the
+        // re-selected f0 below reads as the same file.
+        const nine = Array.from({ length: 9 }, (_, i) =>
+          new File(['x'], `f${i}.png`, {
+            type: 'image/png',
+            lastModified: 1000 + i,
+          })
+        );
+        attachFiles(nine);
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="f8.png"]')
+          ).toBeInTheDocument();
+        });
+
+        // 9 staged + a dupe of f0 + one new file = 10
+        // staged. The dupe must be dropped before the cap
+        // check, not trip a spurious cap error.
+        attachFiles([
+          new File(['x'], 'f0.png', {
+            type: 'image/png',
+            lastModified: 1000,
+          }),
+          new File(['x'], 'new.png', { type: 'image/png' }),
+        ]);
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="new.png"]')
+          ).toBeInTheDocument();
+        });
+        expect(
+          screen.queryByText(/Maximum 10 images per note/i)
+        ).not.toBeInTheDocument();
+      });
+
     it('removes a staged thumbnail', async () => {
       render(
         <NoteForm

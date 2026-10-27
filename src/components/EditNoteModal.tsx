@@ -79,10 +79,12 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // True while a fetchNoteImages is in flight — N thumbs
   // erroring in one commit must not fire N refetches.
   const pendingImageRefresh = useRef(false);
-  // Content signatures of files uploaded this session —
-  // a re-select mints a new File object, so identity
-  // checks can't stop a duplicate upload.
-  const uploadedSigs = useRef<Set<string>>(new Set());
+  // Content signatures of files uploaded this session,
+  // mapped to the image each produced — a re-select mints
+  // a new File object, so identity checks can't stop a
+  // duplicate upload; deleting an image frees its
+  // signature so the file can be attached again.
+  const uploadedSigs = useRef<Map<string, string>>(new Map());
 
   // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
@@ -98,7 +100,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     setImages(note.images ?? []);
     imageRefreshCount.current = 0;
     pendingImageRefresh.current = false;
-    uploadedSigs.current = new Set();
+    uploadedSigs.current = new Map();
     const initial = (note.verses ?? [])
       .map((v) => ({
         bookId: toUsfmCode(v.book) ?? "",
@@ -197,11 +199,16 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
       for (const file of files) {
         const signature = imageFileSignature(file);
         if (uploadedSigs.current.has(signature)) continue;
+        // Claim the signature before the upload resolves —
+        // a rapid second selection of the same file must
+        // not slip past the dedup check above.
+        uploadedSigs.current.set(signature, '');
         try {
           const img = await uploadNoteImage(noteId, file);
-          uploadedSigs.current.add(signature);
+          uploadedSigs.current.set(signature, img.id);
           setImages((prev) => [...prev, img]);
         } catch (err: unknown) {
+          uploadedSigs.current.delete(signature);
           const msg =
             err instanceof Error
               ? err.message
@@ -222,6 +229,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     try {
       await deleteImage(imageId);
       setImages((prev) => prev.filter((i) => i.id !== imageId));
+      // Free the file's signature so re-selecting it
+      // re-uploads instead of being deduped away.
+      for (const [sig, id] of uploadedSigs.current) {
+        if (id === imageId) uploadedSigs.current.delete(sig);
+      }
       clearNotesCache();
     } catch {
       showNotification({

@@ -2703,7 +2703,11 @@ production App Engine host)
     // draft.stagedFiles re-stages uploaded files on reopen
     // so attached images stay visible and removable.
     // EditNoteModal uploads immediately on select (with a
-    // per-session signature set against re-selects) and
+    // per-session signature→imageId map against
+    // re-selects — the signature is claimed before the
+    // upload resolves and freed when the image is
+    // deleted, so deleting a thumb un-blocks a
+    // re-select of the same file) and
     // refetches the image list single-flight +
     // budgeted (3) when a signed_url fails to load.
     // NoteCard renders the note.images embed via
