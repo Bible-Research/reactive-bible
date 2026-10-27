@@ -1516,8 +1516,8 @@ Full-text search across the Bible via the backend
   backend reports `meta.truncated`
 - Backend failures (`error`/`error_code`/`message`, including
   provider errors wrapped in a 200 body) surface as typed
-  `RateLimitError`/`ProviderError` and render in red rather
-  than showing "No results"
+  `RateLimitError`/`ClientInputError`/`ProviderError` and
+  render in red rather than showing "No results"
 - Per-verse play button feeds a flattened playlist of all
   results into the audio player
 
@@ -2743,6 +2743,18 @@ handled at the call site. `reportError`
 errors and is only called by the global handlers and
 `ErrorBoundary` — routine catch blocks should never call it.
 
+**Typed errors** (`src/api/errors.ts`):
+`throwFromErrorBody` maps a failed response's
+`{error, error_code, detail}` body onto, in order:
+`BookNotInFilesetError` (`book_not_in_fileset`),
+`RateLimitError` (`rate_limited` or a rate-limit-shaped
+message), `ClientInputError` (`missing_parameter`,
+`invalid_parameter`, or any other coded HTTP 400 body — the
+request itself was bad), `ProviderError` (any other coded
+failure), or a plain `Error`. `ClientInputError` extends
+`Error`, not `ProviderError`, so `instanceof ProviderError`
+branches keep rendering provider failures only.
+
 #### Bible Data Functions
 
 **`getBooks()`**
@@ -3702,7 +3714,9 @@ surface as the transport layer:
 - `src/utils/sentry.ts` exports `sentryBeforeSend`, which drops
   the handled taxonomy (`RateLimitError`,
   `BookNotInFilesetError`, `AbortError`, 'Session expired') so
-  expected conditions don't burn quota.
+  expected conditions don't burn quota. `ClientInputError` is
+  deliberately NOT dropped — it means our own request was
+  malformed, a bug worth reporting.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
   (replays only for errored sessions, `maskAllText` +

@@ -59,7 +59,9 @@ Talks to the `bible_research` Django API.
   refs: VerseRef[] }` — a `VerseRef` is `{ bookId, chapter, verse }`.
 - Backend errors carry `error`/`error_code`/`message`;
   `src/api/errors.ts` maps them to `RateLimitError`/
-  `ProviderError`. Preserve this — do not
+  `ClientInputError`/`ProviderError`/`BookNotInFilesetError`
+  (coded HTTP 400 bodies -> `ClientInputError`, deliberately
+  not a `ProviderError`). Preserve this — do not
   silently swallow provider failures into empty verse lists.
 
 ## Behavior notes
