@@ -140,6 +140,13 @@ export default function TagManagementRoute() {
             message: 'Tag deleted successfully',
             color: 'green',
           });
+          // The deleted tag's own cached pages still answer
+          // `/notes/tag/<id>` before getTag can 404, and
+          // every ancestor's merged `sub:true` page keeps
+          // listing its notes under a ghost section. The
+          // notes cache never expires — drop it whole
+          // (same as deleteNote).
+          clearNotesCache();
           await loadTags(true, { silent: true }); // Force refresh
         } catch (error) {
           console.error('Error deleting tag:', error);

@@ -393,6 +393,30 @@ describe('TagManagementRoute tag UX wiring', () => {
       );
     });
 
+  it('clears the whole notes cache on delete — the ' +
+    'deleted tag\'s pages and ancestors\' merged pages ' +
+    'go stale', async () => {
+      window.confirm = vi.fn(() => true);
+      mockApi.deleteTag.mockResolvedValue(undefined);
+
+      fireEvent.click(screen.getByTestId('delete-tag-1'));
+
+      await waitFor(() => {
+        expect(mockApi.deleteTag).toHaveBeenCalledWith(
+          'tag-1'
+        );
+      });
+
+      // A tag-only clear would leave the deleted tag's own
+      // cached pages serving a ghost `/notes/tag/<id>` view
+      // and every ancestor's `sub:true` merged page listing
+      // its notes.
+      expect(mockClearNotesCache).toHaveBeenCalledWith();
+      expect(mockClearNotesCache).not.toHaveBeenCalledWith(
+        'tag-1'
+      );
+    });
+
   it('disables drag reparent while a search filter is ' +
     'active', async () => {
       expect(capturedTreeProps.current?.reparentEnabled).toBe(
