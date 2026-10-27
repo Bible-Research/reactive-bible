@@ -162,7 +162,9 @@ export const sendMediaDebugReport = (
       });
       Sentry.captureMessage('media-debug snapshot', {
         level: 'info',
-        tags: { reason },
+        // reportType marks the event as a diagnostics stream,
+        // not a bug — keeps it out of the level:error queue.
+        tags: { reason, reportType: 'media-debug' },
       });
     });
     clearLog();

@@ -160,7 +160,10 @@ describe('sendMediaDebugReport', () => {
     expect(sent.map((e) => e.msg)).toEqual(['register', 'manual']);
     expect(mocked.captureMessage).toHaveBeenCalledWith(
       'media-debug snapshot',
-      { level: 'info', tags: { reason: 'manual' } },
+      {
+        level: 'info',
+        tags: { reason: 'manual', reportType: 'media-debug' },
+      },
     );
     expect(mocked.flush).toHaveBeenCalled();
     expect(readMediaDebugLog()).toEqual([]);
@@ -193,7 +196,10 @@ describe('noteAppActive', () => {
     expect(mocked.captureMessage).toHaveBeenCalledTimes(1);
     expect(mocked.captureMessage).toHaveBeenCalledWith(
       'media-debug snapshot',
-      { level: 'info', tags: { reason: 'unlock' } },
+      {
+        level: 'info',
+        tags: { reason: 'unlock', reportType: 'media-debug' },
+      },
     );
   });
 
