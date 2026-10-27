@@ -7,6 +7,7 @@ import {
 import { showNotification } from '@mantine/notifications';
 import {
   addTagNote,
+  deleteImage,
   editNote,
   uploadNoteImage,
   UNTAGGED_TAG_ID,
@@ -15,7 +16,8 @@ import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 import { toPlainText } from '../utils/tiptapContent';
-import type { Note } from '../types';
+import { imageFileSignature } from './useStagedImages';
+import type { Note, NoteImage } from '../types';
 
 /** The `verse_references` item shape the notes API expects. */
 export interface NoteVerseReference {
@@ -46,11 +48,13 @@ export interface NoteEditorDraft {
    */
   pendingFiles: File[];
   /**
-   * Staged files already uploaded — an identity set so a
-   * re-reported staged list (the form still shows thumbs for
-   * attached files) never double-uploads.
+   * Staged files already uploaded, keyed by content
+   * signature (a re-selected file mints a new File object,
+   * so File identity misses it) and carrying the returned
+   * NoteImage so removing the thumb can detach the image
+   * server-side and a reopen can re-stage the File.
    */
-  uploadedFiles: Set<File>;
+  uploadedFiles: Map<string, { file: File; image: NoteImage }>;
   /**
    * Serializes saves across modal mounts: the add/edit modals
    * unmount on close, so a remounted form's own save lock
@@ -115,6 +119,13 @@ interface UseNoteEditorOptions {
    * close). Not run when the save failed.
    */
   onSubmitted?: (tagId: string) => void;
+  /**
+   * Images already attached to the note being edited — an
+   * image-only note is a valid save target even with no
+   * text, linked verses, or staged files. Read at save
+   * time, so callers may pass live state.
+   */
+  attachedImageCount?: number;
 }
 
 interface UseNoteEditorResult {
@@ -146,8 +157,15 @@ interface UseNoteEditorResult {
     savedNoteId: string | null;
     tagId: string;
     text: string;
-    /** Files still awaiting upload (re-staged on reopen). */
+    /** Files still awaiting upload. */
     pendingFiles: File[];
+    /**
+     * Every file the form should show a thumb for on
+     * reopen — still-pending uploads plus the File objects
+     * behind images a previous save already attached, so
+     * an attached image is never invisible in the form.
+     */
+    stagedFiles: File[];
   } | null;
   /** True once any save reached the server — cached lists are
    *  stale from then on. */
@@ -187,16 +205,19 @@ export const useNoteEditor = ({
   draftKey,
   verseReferences,
   onSubmitted,
+  attachedImageCount = 0,
 }: UseNoteEditorOptions): UseNoteEditorResult => {
   const token = useAuthStore((state) => state.token);
 
   const refsRef = useRef(verseReferences);
   const noteRef = useRef(note);
   const onSubmittedRef = useRef(onSubmitted);
+  const attachedCountRef = useRef(attachedImageCount);
   useEffect(() => {
     refsRef.current = verseReferences;
     noteRef.current = note;
     onSubmittedRef.current = onSubmitted;
+    attachedCountRef.current = attachedImageCount;
   });
 
   // True once any save reached the server — the cached notes
@@ -225,7 +246,10 @@ export const useNoteEditor = ({
         tagId: '',
         text: '',
         pendingFiles: [],
-        uploadedFiles: new Set<File>(),
+        uploadedFiles: new Map<
+          string,
+          { file: File; image: NoteImage }
+        >(),
         queue: Promise.resolve(),
       };
       drafts.set(scopedKey, draft);
@@ -241,7 +265,10 @@ export const useNoteEditor = ({
       // through here, so the contract lives in one place.
       // Staged image files count as content: the backend
       // accepts a blank note_text, so an image-only note is
-      // valid.
+      // valid. So do images a previous save already
+      // attached (a tag edit on an image-only note must not
+      // be skipped) and, in edit mode, the note's existing
+      // attachments.
       if (!tagId) {
         return Promise.resolve(false);
       }
@@ -250,7 +277,9 @@ export const useNoteEditor = ({
       if (
         !toPlainText(text).trim() &&
         refsRef.current.length === 0 &&
-        draft.pendingFiles.length === 0
+        draft.pendingFiles.length === 0 &&
+        draft.uploadedFiles.size === 0 &&
+        attachedCountRef.current === 0
       ) {
         return Promise.resolve(false);
       }
@@ -274,12 +303,40 @@ export const useNoteEditor = ({
         const noteId = draft.savedNoteId;
         if (noteId && draft.pendingFiles.length > 0) {
           for (const file of [...draft.pendingFiles]) {
+            const signature = imageFileSignature(file);
+            if (draft.uploadedFiles.has(signature)) {
+              // A re-selected copy of an attached file —
+              // drop it from pending without re-uploading.
+              draft.pendingFiles = draft.pendingFiles.filter(
+                (f) => f !== file
+              );
+              continue;
+            }
             try {
-              await uploadNoteImage(noteId, file);
-              // Identity dedup: the form still shows the
+              const image = await uploadNoteImage(noteId, file);
+              if (!draft.pendingFiles.includes(file)) {
+                // The thumb was removed while the upload
+                // was in flight — detach the just-created
+                // image or it lingers server-side with no
+                // UI trace.
+                void deleteImage(image.id)
+                  .then(() => clearNotesCache())
+                  .catch(() => {
+                    showNotification({
+                      color: 'red',
+                      title: 'Error',
+                      message: 'Failed to delete image.',
+                    });
+                  });
+                continue;
+              }
+              // Signature dedup: the form still shows the
               // thumb, and its next onFilesChange report
               // would otherwise re-stage the uploaded file.
-              draft.uploadedFiles.add(file);
+              draft.uploadedFiles.set(signature, {
+                file,
+                image,
+              });
               draft.pendingFiles = draft.pendingFiles.filter(
                 (f) => f !== file
               );
@@ -349,10 +406,13 @@ export const useNoteEditor = ({
         });
         return false;
       }
+      const submitDraft = ensureDraft();
       if (
         !toPlainText(text).trim() &&
         refsRef.current.length === 0 &&
-        (ensureDraft()?.pendingFiles.length ?? 0) === 0
+        (submitDraft?.pendingFiles.length ?? 0) === 0 &&
+        (submitDraft?.uploadedFiles.size ?? 0) === 0 &&
+        attachedCountRef.current === 0
       ) {
         showNotification({
           title: 'Cannot save note',
@@ -410,13 +470,31 @@ export const useNoteEditor = ({
 
   const trackFiles = useCallback(
     (files: File[]) => {
+      const draft = ensureDraft();
+      if (!draft) return;
+      // A thumb whose file already uploaded was removed:
+      // detach the server-side image too — otherwise it
+      // stays attached to the note with no UI trace (and
+      // NoteCard would still render it).
+      for (const [signature, entry] of draft.uploadedFiles) {
+        if (files.includes(entry.file)) continue;
+        draft.uploadedFiles.delete(signature);
+        void deleteImage(entry.image.id)
+          .then(() => clearNotesCache())
+          .catch(() => {
+            showNotification({
+              color: 'red',
+              title: 'Error',
+              message: 'Failed to delete image.',
+            });
+          });
+      }
       // Keep only files not yet uploaded — the form reports
       // its whole staged list, including thumbs for files a
       // previous save already attached.
-      const draft = ensureDraft();
-      if (!draft) return;
       draft.pendingFiles = files.filter(
-        (f) => !draft.uploadedFiles.has(f)
+        (f) =>
+          !draft.uploadedFiles.has(imageFileSignature(f))
       );
     },
     [ensureDraft]
@@ -435,6 +513,15 @@ export const useNoteEditor = ({
       tagId: existing.tagId,
       text: existing.text,
       pendingFiles: existing.pendingFiles,
+      // Re-stage the File behind every attached image too —
+      // an already-uploaded attachment must stay visible
+      // (and removable) in the reopened form.
+      stagedFiles: [
+        ...[...existing.uploadedFiles.values()].map(
+          (u) => u.file
+        ),
+        ...existing.pendingFiles,
+      ],
     };
   }, [scopedKey]);
 

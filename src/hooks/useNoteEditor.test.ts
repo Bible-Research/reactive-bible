@@ -27,6 +27,7 @@ vi.mock('../api', () => ({
   addTagNote: vi.fn(),
   editNote: vi.fn(),
   uploadNoteImage: vi.fn(),
+  deleteImage: vi.fn(),
   getNotes: vi.fn().mockResolvedValue({
     results: [],
     count: 0,
@@ -56,6 +57,7 @@ describe('useNoteEditor', () => {
     (api.uploadNoteImage as Mock).mockResolvedValue({
       id: 'img-1',
     });
+    (api.deleteImage as Mock).mockResolvedValue(undefined);
   });
 
   it('POSTs the first create save and PATCHes later ones',
@@ -211,6 +213,7 @@ describe('useNoteEditor', () => {
       tagId: 't1',
       text: 'draft text',
       pendingFiles: [],
+      stagedFiles: [],
     });
 
     await act(async () => {
@@ -352,6 +355,7 @@ describe('useNoteEditor', () => {
       tagId: 't1',
       text: 'final',
       pendingFiles: [],
+      stagedFiles: [],
     });
   });
 
@@ -508,6 +512,7 @@ describe('useNoteEditor', () => {
         tagId: 't1',
         text: 'typing',
         pendingFiles: [],
+        stagedFiles: [],
       });
     });
 
@@ -731,5 +736,227 @@ describe('useNoteEditor', () => {
     expect(second.result.current.draft?.pendingFiles).toEqual(
       [file]
     );
+    expect(second.result.current.draft?.stagedFiles).toEqual(
+      [file]
+    );
   });
+
+  it('re-stages the file behind an uploaded image on ' +
+    'reopen', async () => {
+      const file = new File(['x'], 'x.png', {
+        type: 'image/png',
+      });
+      const first = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+      act(() => {
+        first.result.current.trackFiles([file]);
+      });
+      await act(async () => {
+        await first.result.current.save('t1', 'hello');
+      });
+      first.unmount();
+
+      const second = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+      // Nothing is left to upload, but the attached image
+      // must stay visible in the form — the File behind it
+      // is re-staged so its thumb (and remove button)
+      // renders.
+      expect(
+        second.result.current.draft?.pendingFiles
+      ).toEqual([]);
+      expect(
+        second.result.current.draft?.stagedFiles
+      ).toEqual([file]);
+    });
+
+  it('deletes the server-side image when an uploaded ' +
+    'thumb is removed', async () => {
+      const file = new File(['x'], 'x.png', {
+        type: 'image/png',
+      });
+      (api.uploadNoteImage as Mock).mockResolvedValue({
+        id: 'img-7',
+      });
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      act(() => {
+        result.current.trackFiles([file]);
+      });
+      await act(async () => {
+        await result.current.save('t1', 'hello');
+      });
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(1);
+
+      // The form drops the thumb and reports the remaining
+      // staged list — the image must detach server-side
+      // too, not just leave pendingFiles.
+      act(() => {
+        result.current.trackFiles([]);
+      });
+      expect(api.deleteImage).toHaveBeenCalledWith('img-7');
+    });
+
+  it('detaches an image whose thumb was removed while ' +
+    'the upload was in flight', async () => {
+      const file = new File(['x'], 'x.png', {
+        type: 'image/png',
+      });
+      let resolveUpload: (value: { id: string }) => void =
+        () => undefined;
+      (api.uploadNoteImage as Mock).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveUpload = resolve;
+          })
+      );
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      act(() => {
+        result.current.trackFiles([file]);
+      });
+      let savePromise: Promise<boolean> | undefined;
+      await act(async () => {
+        savePromise = result.current.save('t1', 'hello');
+      });
+      await vi.waitFor(() => {
+        expect(api.uploadNoteImage).toHaveBeenCalled();
+      });
+
+      // Remove the thumb while the upload is pending.
+      act(() => {
+        result.current.trackFiles([]);
+      });
+      await act(async () => {
+        resolveUpload({ id: 'img-9' });
+        await savePromise;
+      });
+
+      // The just-attached image is detached again — it
+      // would otherwise linger with no UI trace.
+      expect(api.deleteImage).toHaveBeenCalledWith('img-9');
+    });
+
+  it('does not re-upload a re-selected copy of an ' +
+    'attached file', async () => {
+      const file = new File(['x'], 'x.png', {
+        type: 'image/png',
+        lastModified: 100,
+      });
+      // Re-selecting the same file mints a new File object —
+      // identity dedup misses it, so dedup runs on the
+      // content signature instead.
+      const reselected = new File(['x'], 'x.png', {
+        type: 'image/png',
+        lastModified: 100,
+      });
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      act(() => {
+        result.current.trackFiles([file]);
+      });
+      await act(async () => {
+        await result.current.save('t1', 'hello');
+      });
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        result.current.trackFiles([file, reselected]);
+      });
+      await act(async () => {
+        await result.current.save('t1', 'hello again');
+      });
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(1);
+    });
+
+  it('stays saveable once the only staged file has ' +
+    'uploaded', async () => {
+      const file = new File(['x'], 'x.png', {
+        type: 'image/png',
+      });
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        // No linked verses — the uploaded image is the
+        // note's only content after the first save.
+        verseReferences: [],
+      });
+
+      act(() => {
+        result.current.trackFiles([file]);
+      });
+      await act(async () => {
+        await result.current.save('t1', '');
+      });
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(1);
+
+      // A follow-up write on the image-only draft note is
+      // still content — the uploaded file left pendingFiles
+      // but stays attached.
+      let saved: boolean | undefined;
+      await act(async () => {
+        saved = await result.current.save('t1', '');
+      });
+      expect(saved).toBe(true);
+      expect(api.editNote).toHaveBeenCalledWith(
+        'n1',
+        't1',
+        '',
+        []
+      );
+    });
+
+  it('edit mode saves an image-only note via ' +
+    'attachedImageCount', async () => {
+      const note = createMockNote({
+        id: 'n9',
+        tag: createMockTag({ id: 't1' }),
+        verses: [],
+      });
+      const { result } = renderEditor({
+        mode: 'edit',
+        note,
+        verseReferences: [],
+        attachedImageCount: 1,
+      });
+
+      // No text and no linked verses — the attached image
+      // alone makes the note worth saving (e.g. a tag
+      // change on an image-only note).
+      let saved: boolean | undefined;
+      await act(async () => {
+        saved = await result.current.save('t1', '');
+      });
+      expect(saved).toBe(true);
+      expect(api.editNote).toHaveBeenCalledWith(
+        'n9',
+        't1',
+        '',
+        []
+      );
+
+      let ok: boolean | undefined;
+      await act(async () => {
+        ok = await result.current.submit('t1', '');
+      });
+      expect(ok).toBe(true);
+    });
 });

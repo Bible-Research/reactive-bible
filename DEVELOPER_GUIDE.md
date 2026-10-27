@@ -2695,12 +2695,21 @@ production App Engine host)
     // pre-upload endpoint — so create-mode modals stage
     // File[] locally (src/hooks/useStagedImages.ts), carry
     // them in the useNoteEditor draft (pendingFiles +
-    // uploadedFiles dedup), and upload sequentially after
-    // the first save produces savedNoteId. EditNoteModal
-    // uploads immediately on select. NoteCard renders the
-    // note.images embed via CommentImageGrid + Lightbox and
-    // refetches the list (bounded, MAX_IMAGE_REFRESHES=3)
-    // when a signed_url fails to load.
+    // uploadedFiles, a signature-keyed Map<File→NoteImage>
+    // so a re-selected file dedups by content, not File
+    // identity), and upload sequentially after the first
+    // save produces savedNoteId. Removing a thumb whose
+    // file already uploaded calls DELETE /images/{id};
+    // draft.stagedFiles re-stages uploaded files on reopen
+    // so attached images stay visible and removable.
+    // EditNoteModal uploads immediately on select (with a
+    // per-session signature set against re-selects) and
+    // refetches the image list single-flight +
+    // budgeted (3) when a signed_url fails to load.
+    // NoteCard renders the note.images embed via
+    // CommentImageGrid + Lightbox and refetches the list
+    // (bounded, MAX_IMAGE_REFRESHES=3) when a signed_url
+    // fails to load.
     ```
 
 #### Wordpocket Audio API

@@ -28,6 +28,7 @@ import {
 } from "../utils/verseRefs";
 import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import { useNoteEditor } from "../hooks/useNoteEditor";
+import { imageFileSignature } from "../hooks/useStagedImages";
 import NoteForm from "./NoteForm";
 import PassagePicker from "./PassagePicker";
 import VerseTextGroups from "./VerseTextGroups";
@@ -75,6 +76,13 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // extra permission check here.
   const [images, setImages] = useState<NoteImage[]>([]);
   const imageRefreshCount = useRef(0);
+  // True while a fetchNoteImages is in flight — N thumbs
+  // erroring in one commit must not fire N refetches.
+  const pendingImageRefresh = useRef(false);
+  // Content signatures of files uploaded this session —
+  // a re-select mints a new File object, so identity
+  // checks can't stop a duplicate upload.
+  const uploadedSigs = useRef<Set<string>>(new Set());
 
   // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
@@ -89,6 +97,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     if (!note) return;
     setImages(note.images ?? []);
     imageRefreshCount.current = 0;
+    pendingImageRefresh.current = false;
+    uploadedSigs.current = new Set();
     const initial = (note.verses ?? [])
       .map((v) => ({
         bookId: toUsfmCode(v.book) ?? "",
@@ -173,6 +183,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     note,
     verseReferences,
     onSubmitted: () => onClose(),
+    // An image-only note is a valid save target even with
+    // no text or linked verses.
+    attachedImageCount: images.length,
   });
 
   // Edit mode uploads immediately on select — the note id is
@@ -182,8 +195,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     const noteId = note.id;
     void (async () => {
       for (const file of files) {
+        const signature = imageFileSignature(file);
+        if (uploadedSigs.current.has(signature)) continue;
         try {
           const img = await uploadNoteImage(noteId, file);
+          uploadedSigs.current.add(signature);
           setImages((prev) => [...prev, img]);
         } catch (err: unknown) {
           const msg =
@@ -217,9 +233,18 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   };
 
   // An attached thumb whose signed URL expired refetches the
-  // list — bounded so a persistently failing host can't loop.
+  // list — bounded so a persistently failing host can't loop,
+  // and single-flight so N thumbs erroring in one commit fire
+  // one refetch, not N.
   const handleImageError = () => {
-    if (!note || imageRefreshCount.current >= 3) return;
+    if (
+      !note ||
+      imageRefreshCount.current >= 3 ||
+      pendingImageRefresh.current
+    ) {
+      return;
+    }
+    pendingImageRefresh.current = true;
     imageRefreshCount.current += 1;
     fetchNoteImages(note.id)
       .then(setImages)
@@ -227,6 +252,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
         // Refund the attempt — a flaky network must not
         // permanently burn the refresh budget.
         imageRefreshCount.current -= 1;
+      })
+      .finally(() => {
+        pendingImageRefresh.current = false;
       });
   };
 

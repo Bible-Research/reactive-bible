@@ -151,7 +151,7 @@ const NoteForm = ({
     onChange: onFilesChange,
   });
   const totalAttached = existingImages.length + staged.length;
-  const latest = useRef({ tagId: "", text: "", fileCount: 0 });
+  const latest = useRef({ tagId: "", text: "", attachedCount: 0 });
   const onAutoSaveRef = useRef(onAutoSave);
   const onUnmountedSaveRef = useRef(onUnmountedSave);
   const onDraftChangeRef = useRef(onDraftChange);
@@ -167,7 +167,10 @@ const NoteForm = ({
     latest.current = {
       tagId: selectedTagId,
       text: noteText,
-      fileCount: staged.length,
+      // Attached + staged — an image-only note in edit
+      // mode (all images already uploaded, none staged)
+      // still counts as content.
+      attachedCount: totalAttached,
     };
     onAutoSaveRef.current = onAutoSave;
     onUnmountedSaveRef.current = onUnmountedSave;
@@ -214,16 +217,16 @@ const NoteForm = ({
     () => () => {
       const save = onAutoSaveRef.current;
       if (!save || !autoSaveRef.current) return;
-      const { tagId, text, fileCount } = latest.current;
+      const { tagId, text, attachedCount } = latest.current;
       // A verse-linked note may flush with empty text, and a
-      // note with only staged images is content too; a truly
-      // empty note (no text, no images, nothing linked) is
-      // skipped.
+      // note with only images (staged or already attached)
+      // is content too; a truly empty note (no text, no
+      // images, nothing linked) is skipped.
       if (!tagId) return;
       if (
         !allowEmptyTextRef.current &&
         !toPlainText(text).trim() &&
-        fileCount === 0
+        attachedCount === 0
       ) {
         return;
       }
@@ -260,16 +263,16 @@ const NoteForm = ({
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
-      const { tagId, text, fileCount } = latest.current;
+      const { tagId, text, attachedCount } = latest.current;
       // Skip contentless notes AND empty tag — the latter
       // used to POST `tag: ''` every 5s, a stream of silent
-      // 400s. Verse-linked and image-only notes may save
-      // with empty text.
+      // 400s. Verse-linked and image-only notes (staged or
+      // already attached) may save with empty text.
       if (!tagId) return;
       if (
         !allowEmptyTextRef.current &&
         !toPlainText(text).trim() &&
-        fileCount === 0
+        attachedCount === 0
       ) {
         return;
       }
@@ -324,7 +327,7 @@ const NoteForm = ({
     if (
       !allowEmptyText &&
       !toPlainText(noteText).trim() &&
-      staged.length === 0
+      totalAttached === 0
     ) {
       showNotification({
         title: 'Cannot save note',

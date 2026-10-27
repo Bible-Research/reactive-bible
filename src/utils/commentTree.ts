@@ -1,14 +1,15 @@
 import { Comment, CommentImage } from '../types';
 
 /**
- * Display name for an attached comment image. The original file
+ * Display name for an attached image (comment or note — both
+ * share the backend ImageSerializer shape). The original file
  * name is the last path segment of storage_url
  * (…/originals/<image_id>/<file name>) — URL-decoded so
  * 'my%20pic.png' shows as 'my pic.png'.
  */
 export function commentImageName(image: CommentImage): string {
   const segment = (image.storage_url ?? '').split('/').pop();
-  if (!segment) return 'comment attachment';
+  if (!segment) return 'attachment';
   try {
     return decodeURIComponent(segment);
   } catch {

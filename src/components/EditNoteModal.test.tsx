@@ -717,5 +717,96 @@ describe('EditNoteModal Component', () => {
           ).toBeInTheDocument();
         });
       });
+
+    it('refreshes the image list once when several ' +
+      'thumbs error in one commit', async () => {
+        let resolveFetch: (
+          value: Awaited<
+            ReturnType<typeof api.fetchNoteImages>
+          >
+        ) => void = () => undefined;
+        (api.fetchNoteImages as Mock).mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              resolveFetch = resolve;
+            })
+        );
+        const twoImages = createMockNote({
+          id: 'n1',
+          note_text: 'Original note text',
+          tag: createMockTag({ id: '1', name: 'Faith' }),
+          verses: [],
+          images: [makeImage('img-1'), makeImage('img-2')],
+        });
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={twoImages}
+          />
+        );
+
+        const first = await waitFor(() =>
+          document.querySelector('img[alt="img-1.png"]')
+        );
+        const second = document.querySelector(
+          'img[alt="img-2.png"]'
+        );
+        expect(second).toBeInTheDocument();
+        fireEvent.error(first as HTMLElement);
+        fireEvent.error(second as HTMLElement);
+
+        // The second error sees the refresh already in
+        // flight — one fetch for the whole commit.
+        expect(api.fetchNoteImages).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          resolveFetch([
+            makeImage('img-1'),
+            makeImage('img-2'),
+          ]);
+        });
+      });
+
+    it('submits an image-only note with no text or ' +
+      'verses', async () => {
+        (api.editNote as Mock).mockResolvedValue({});
+        const imageOnlyNote = createMockNote({
+          id: 'n1',
+          note_text: '',
+          tag: createMockTag({ id: '1', name: 'Faith' }),
+          verses: [],
+          images: [makeImage('img-1')],
+        });
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={imageOnlyNote}
+          />
+        );
+
+        // The attached image is the note's only content —
+        // submit must reach the API, not the "add text or
+        // an image" validation.
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-1.png"]')
+          ).toBeInTheDocument();
+        });
+        const form = screen
+          .getByText('Submit changes')
+          .closest('form');
+        fireEvent.submit(form as HTMLFormElement);
+
+        await waitFor(() => {
+          expect(api.editNote).toHaveBeenCalledWith(
+            'n1',
+            '1',
+            '',
+            []
+          );
+        });
+      });
   });
 });

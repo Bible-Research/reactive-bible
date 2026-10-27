@@ -1058,5 +1058,70 @@ describe('NoteForm Component', () => {
       expect(onSubmit.mock.calls[0][0]).toBe('1');
       expect(onSubmit.mock.calls[0][1]).toBe('');
     });
+
+    it('submits an image-only note in edit mode, where ' +
+      'nothing is staged', async () => {
+        const onSubmit = vi.fn().mockResolvedValue(true);
+        render(
+          <NoteForm
+            tags={mockTags}
+            note={{ tagId: '1', text: '' }}
+            onSubmit={onSubmit}
+            submitText="Submit changes"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            existingImages={[makeImage('img-1')]}
+            onAttachFiles={vi.fn()}
+          />
+        );
+
+        // Edit mode never stages — the already-attached
+        // image alone must satisfy the content guard.
+        fireEvent.submit(
+          screen
+            .getByRole('button', { name: 'Submit changes' })
+            .closest('form') as HTMLFormElement
+        );
+
+        await waitFor(() => {
+          expect(onSubmit).toHaveBeenCalledTimes(1);
+        });
+        expect(onSubmit.mock.calls[0][0]).toBe('1');
+        expect(onSubmit.mock.calls[0][1]).toBe('');
+      });
+
+    it('autosaves an image-only note in edit mode',
+      async () => {
+        vi.useFakeTimers();
+        try {
+          const onAutoSave = vi
+            .fn()
+            .mockResolvedValue(undefined);
+          render(
+            <NoteForm
+              tags={mockTags}
+              note={{ tagId: '1', text: '' }}
+              onSubmit={mockOnSubmit}
+              submitText="Submit"
+              onTagDropdownOpen={mockOnTagDropdownOpen}
+              existingImages={[makeImage('img-1')]}
+              onAttachFiles={vi.fn()}
+              onAutoSave={onAutoSave}
+            />
+          );
+
+          fireEvent.click(screen.getByLabelText('Auto save'));
+
+          // The attached image is content — the tick must
+          // save, not skip the note as empty.
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(5000);
+          });
+          expect(onAutoSave).toHaveBeenCalledTimes(1);
+          expect(onAutoSave.mock.calls[0][0]).toBe('1');
+          expect(onAutoSave.mock.calls[0][1]).toBe('');
+        } finally {
+          vi.useRealTimers();
+        }
+      });
   });
 });

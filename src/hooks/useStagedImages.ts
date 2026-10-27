@@ -23,6 +23,14 @@ export const ALLOWED_IMAGE_TYPES = [
 /** Matches the backend's IMAGE_MAX_BYTES setting. */
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Content identity for dedup — File object identity fails
+ * when the user re-selects the same file from disk (a fresh
+ * File instance for identical content).
+ */
+export const imageFileSignature = (file: File): string =>
+  `${file.name}:${file.size}:${file.lastModified}`;
+
 /** Fixed square used by attach-form thumbnails. */
 export const IMAGE_THUMB_STYLE: CSSProperties = {
   height: 56,
@@ -150,11 +158,22 @@ export const useStagedImages = ({
   };
 
   const addFiles = (files: File[]) => {
-    const accepted = reportFiles(files).map((file) => {
-      const url = URL.createObjectURL(file);
-      urlsRef.current.push(url);
-      return { id: nextStagedId.current++, file, url };
-    });
+    // Skip copies of files already staged — a re-select
+    // mints a new File object, so identity checks miss it.
+    const accepted = reportFiles(files)
+      .filter(
+        (file) =>
+          !stagedRef.current.some(
+            (s) =>
+              imageFileSignature(s.file) ===
+              imageFileSignature(file)
+          )
+      )
+      .map((file) => {
+        const url = URL.createObjectURL(file);
+        urlsRef.current.push(url);
+        return { id: nextStagedId.current++, file, url };
+      });
     if (accepted.length > 0) {
       sync([...stagedRef.current, ...accepted]);
     }
