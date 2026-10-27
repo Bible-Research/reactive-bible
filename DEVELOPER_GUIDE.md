@@ -2710,10 +2710,19 @@ production App Engine host)
     // re-select of the same file) and
     // refetches the image list single-flight +
     // budgeted (3) when a signed_url fails to load.
-    // NoteCard renders the note.images embed via
-    // CommentImageGrid + Lightbox and refetches the list
-    // (bounded, MAX_IMAGE_REFRESHES=3) when a signed_url
-    // fails to load.
+    // Images are NOT embedded in note payloads. Each mounted
+    // NoteCard lazy-fetches GET /notes/{noteId}/images/ once
+    // it nears the viewport (useIntersection, 200 px
+    // rootMargin, latched; no IntersectionObserver -> fetch
+    // on mount). Fetched lists live in the session-scoped
+    // useNoteImages store (module Map keyed by note id,
+    // single-flight dedup, mutateNoteImages write path for
+    // upload append / delete filter, signature-keyed
+    // MAX_IMAGE_REFRESHES=3 budget for signed-URL expiry)
+    // — shared by the grid card, the DragOverlay's second
+    // card, and EditNoteModal, so one fetch serves all.
+    // A failed fetch leaves the entry 'error'; the next
+    // mount retries it once with a re-armed budget.
     ```
 
 #### Wordpocket Audio API
