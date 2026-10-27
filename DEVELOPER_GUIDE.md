@@ -3667,6 +3667,16 @@ surface as the transport layer:
   expected conditions don't burn quota. `ClientInputError` is
   deliberately NOT dropped — it means our own request was
   malformed, a bug worth reporting.
+- **User reports:** the main menu's "Report a problem" row
+  (always visible) opens `ReportProblemModal`, where the user
+  describes the issue. `sendUserReport`
+  (`src/utils/userReport.ts`) captures a `user report` message
+  tagged `reportType: user-report` — the note, reporter's
+  username (when logged in) and current passage
+  (book/chapter/filesets) sit in the `userReport` context —
+  plus a user-feedback event linked via `associatedEventId`,
+  which also lists each report in Sentry's User Feedback view.
+  Query: `message:"user report"` or `reportType:user-report`.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
   (replays only for errored sessions, `maskAllText` +

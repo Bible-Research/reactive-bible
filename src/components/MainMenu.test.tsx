@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { useNavigate, NavigateFunction } from 'react-router-dom';
 import MainMenu from './MainMenu';
 import { renderWithProviders } from '../__tests__/helpers';
+import * as userReport from '../utils/userReport';
 
 // ProseMirror needs DOM APIs happy-dom lacks — stub the editor
 // inside the "New Note" modal the same way NoteForm tests do.
@@ -176,6 +177,56 @@ describe('MainMenu Component', () => {
       screen.queryByText('Download Android App')
     ).not.toBeInTheDocument();
   });
+
+  it('always shows the Report a problem row', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />);
+
+    expect(
+      screen.getByText('Report a problem')
+    ).toBeInTheDocument();
+  });
+
+  it('keeps Send disabled until a note is typed', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MainMenu {...defaultProps} />);
+
+    await user.click(screen.getByText('Report a problem'));
+
+    expect(
+      await screen.findByRole('button', { name: 'Send report' })
+    ).toBeDisabled();
+  });
+
+  it('sends the typed note, user and passage as a report',
+    async () => {
+      const send = vi
+        .spyOn(userReport, 'sendUserReport')
+        .mockReturnValue(true);
+      const user = userEvent.setup();
+      renderWithProviders(<MainMenu {...defaultProps} />, {
+        authStoreState: authed,
+      });
+
+      await user.click(screen.getByText('Report a problem'));
+      await user.type(
+        await screen.findByLabelText('What went wrong?'),
+        'the button does nothing'
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'Send report' })
+      );
+
+      expect(send).toHaveBeenCalledWith({
+        message: 'the button does nothing',
+        username: 'testuser',
+        context: {
+          bookId: 'JHN',
+          chapter: 1,
+          textFilesetId: 'ENGESV_API',
+          audioFilesetId: 'ENGESV_API',
+        },
+      });
+    });
 
   it('hides authenticated-only items from anonymous visitors',
     () => {

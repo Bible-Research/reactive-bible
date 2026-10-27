@@ -15,6 +15,7 @@ import {
   IconMoonStars,
   IconBrandAndroid,
   IconRefresh,
+  IconBug,
 } from "@tabler/icons-react";
 import { Suspense, lazy, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +30,9 @@ import { UserMenu } from "./UserMenu";
 // TipTap, which must stay out of the app-shell chunk.
 const AddStandaloneNoteModal = lazy(
   () => import("./AddStandaloneNoteModal")
+);
+const ReportProblemModal = lazy(
+  () => import("./ReportProblemModal")
 );
 
 // The rolling `continuous` prerelease always serves the newest
@@ -53,6 +57,7 @@ const MainMenu = ({
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
+  const [reportOpened, setReportOpened] = useState(false);
 
   // Get Bible state for navigation
   const activeBookId = useBibleStore((state) => state.activeBookId);
@@ -213,6 +218,28 @@ const MainMenu = ({
           </>
         )}
 
+        <Group spacing="xs" align="flex-start" noWrap>
+          <IconBug
+            size={22}
+            style={{ marginTop: 4, flexShrink: 0 }}
+          />
+          <div>
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => setReportOpened(true)}
+              sx={{ cursor: "pointer" }}
+              title="Report a problem"
+            >
+              Report a problem
+            </Text>
+            <Text size="xs" color="dimmed">
+              Tell us what went wrong — it goes to the team
+              with your current passage.
+            </Text>
+          </div>
+        </Group>
+
         <Divider />
 
         <Group position="apart" spacing="xs">
@@ -240,6 +267,14 @@ const MainMenu = ({
           <AddStandaloneNoteModal
             opened={newNoteOpened}
             onClose={() => setNewNoteOpened(false)}
+          />
+        </Suspense>
+      )}
+      {reportOpened && (
+        <Suspense fallback={null}>
+          <ReportProblemModal
+            opened={reportOpened}
+            onClose={() => setReportOpened(false)}
           />
         </Suspense>
       )}
