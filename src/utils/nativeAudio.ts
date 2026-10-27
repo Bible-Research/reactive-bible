@@ -1,4 +1,5 @@
 import { isNativeApp } from './platform';
+import { trace } from './mediaDebug';
 
 /**
  * Native (Capacitor) helpers that keep the WebView's JS alive while
@@ -69,6 +70,7 @@ export const enableAudioKeepAlive = async (): Promise<void> => {
     const { BackgroundMode } = await loadBackgroundMode();
     await ensureNotificationPermission();
     const { enabled } = await BackgroundMode.isEnabled();
+    trace('keepAlive', 'enable', { wasEnabled: enabled });
     if (!enabled) {
       await BackgroundMode.enable({
         title: 'Bible Research',
@@ -83,6 +85,7 @@ export const enableAudioKeepAlive = async (): Promise<void> => {
     }
     await promptBatteryExemptionOnce();
   } catch (err) {
+    trace('keepAlive', 'enableFailed', { error: String(err) });
     console.warn('Failed to enable audio keep-alive:', err);
   }
 };
@@ -92,10 +95,12 @@ export const disableAudioKeepAlive = async (): Promise<void> => {
   try {
     const { BackgroundMode } = await loadBackgroundMode();
     const { enabled } = await BackgroundMode.isEnabled();
+    trace('keepAlive', 'disable', { wasEnabled: enabled });
     if (enabled) {
       await BackgroundMode.disable();
     }
   } catch (err) {
+    trace('keepAlive', 'disableFailed', { error: String(err) });
     console.warn('Failed to disable audio keep-alive:', err);
   }
 };

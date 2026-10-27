@@ -39,6 +39,7 @@ import {
   verseStartTimestamp,
   seekHowlWhenLoaded,
 } from "../utils/verseSeek";
+import { trace } from "../utils/mediaDebug";
 import { useVerseHighlighter } from "./useVerseHighlighter";
 import { Translation, VerseTimestamp } from "../types";
 
@@ -249,6 +250,10 @@ export const useChapterAudio = (
       // the replacement (the load effect's advanceTimerRef check
       // suppresses safePlay while a timer is pending).
       const current = audioRef.current;
+      trace('chapter', 'gapPlay', () => ({
+        key: audioChapterKeyRef.current,
+        state: current?.state() ?? null,
+      }));
       if (!current || current.state() === 'unloaded') return;
       current.play();
     }, INTER_CHAPTER_GAP_MS);
@@ -470,6 +475,12 @@ export const useChapterAudio = (
             chapterKey(filesetId, next.bookId, next.chapter) &&
           pre.howl.state() !== 'unloaded'
         ) {
+          trace('chapter', 'endAdopted', () => ({
+            ended: audioChapterKeyRef.current,
+            next: pre.key,
+            state: pre.howl.state(),
+            blob: pre.blobUrl !== null,
+          }));
           preloadedRef.current = null;
           disposeHowl(finished, activeBlobUrlRef.current);
           activeBlobUrlRef.current = pre.blobUrl;
@@ -494,6 +505,13 @@ export const useChapterAudio = (
       // effect's `isPlaying && audio !== null` branch would call
       // safePlay() on this ended instance and restart it from 0,
       // replaying the same chapter until the next one loads.
+      trace('chapter', 'endFallback', () => ({
+        ended: audioChapterKeyRef.current,
+        next: next ? `${next.bookId}:${next.chapter}` : null,
+        preKey: pre?.key ?? null,
+        preState: pre?.howl.state() ?? null,
+      }));
+      trace('chapter', 'setAudioNull', { site: 'chapterEnd' });
       disposeHowl(finished, activeBlobUrlRef.current);
       activeBlobUrlRef.current = null;
       audioRef.current = null;
@@ -690,6 +708,7 @@ export const useChapterAudio = (
       // still able to flip isPlaying back on) would stream in
       // parallel with the playlist, and two useVerseHighlighter
       // instances would fight over audioActiveVerse.
+      trace('chapter', 'setAudioNull', { site: 'playlistMode' });
       const current = audioRef.current;
       disposeHowl(current, activeBlobUrlRef.current);
       activeBlobUrlRef.current = null;
@@ -718,6 +737,11 @@ export const useChapterAudio = (
     // means the ended handler already adopted this chapter's
     // preloaded Howl and it must keep playing.
     if (current && audioChapterKeyRef.current !== key) {
+      trace('chapter', 'resetDispose', () => ({
+        from: audioChapterKeyRef.current,
+        to: key,
+      }));
+      trace('chapter', 'setAudioNull', { site: 'reset' });
       disposeHowl(current, activeBlobUrlRef.current);
       activeBlobUrlRef.current = null;
       audioRef.current = null;
@@ -804,7 +828,13 @@ export const useChapterAudio = (
 
   const safeSeek = useCallback((targetTime: number) => {
     const currentAudio = audioRef.current;
-    if (!currentAudio || currentAudio.state() !== 'loaded') return;
+    if (!currentAudio || currentAudio.state() !== 'loaded') {
+      trace('chapter', 'seekBail', () => ({
+        targetTime,
+        state: currentAudio?.state() ?? null,
+      }));
+      return;
+    }
     if (!Number.isFinite(targetTime)) return;
     try {
       const duration = currentAudio.duration();
@@ -812,6 +842,7 @@ export const useChapterAudio = (
         0,
         Math.min(duration || Infinity, targetTime),
       );
+      trace('chapter', 'seek', { targetTime, clampedTime });
       currentAudio.seek(clampedTime);
     } catch (err) {
       console.warn('Seek operation failed:', err);
@@ -1129,6 +1160,7 @@ export const useChapterAudio = (
     pendingGapRef.current = false;
     setAudioActiveVerse(null);
     discardPreloaded();
+    trace('chapter', 'setAudioNull', { site: 'close' });
     disposeHowl(audio, activeBlobUrlRef.current);
     activeBlobUrlRef.current = null;
     audioChapterKeyRef.current = null;

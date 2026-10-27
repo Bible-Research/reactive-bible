@@ -12,6 +12,7 @@ import { toBookName, buildBiblePath } from "../utils/bibleUtils";
 import { findTranslationByFilesetId } from "../utils/filesetGroups";
 import { getPlayPosition } from "../utils/audioUtils";
 import { verseDomId } from "../utils/verseRefs";
+import { trace } from "../utils/mediaDebug";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";
 import { useChapterAudio } from "../hooks/useChapterAudio";
@@ -201,6 +202,21 @@ const Audio = () => {
         seekTo: seekAbsolute,
       };
     }
+    // Media-debug trace of which prev/next branch ran (no-op
+    // unless media debug is on).
+    const traceControl = (
+      action: string,
+      pos: number | null,
+      branch: string,
+      target?: number,
+    ) =>
+      trace('controls', action, () => ({
+        branch,
+        pos,
+        target: target ?? null,
+        state: audioRef.current?.state() ?? null,
+        timestamps: timestamps.length,
+      }));
     return {
       play: () => {
         void safePlay();
@@ -213,9 +229,15 @@ const Audio = () => {
       },
       nextTrack: () => {
         const pos = getPlayPosition(audioRef.current);
-        if (pos === null) return;
+        const traceBranch = (branch: string, target?: number) =>
+          traceControl('nextTrack', pos, branch, target);
+        if (pos === null) {
+          traceBranch('noPosition');
+          return;
+        }
         if (timestamps.length === 0) {
           // No verse timestamps (e.g. KJV) — seek forward 10s.
+          traceBranch('seekForward10', pos + 10);
           safeSeek(pos + 10);
           return;
         }
@@ -226,17 +248,25 @@ const Audio = () => {
           (t) => t.timestamp > pos + 0.5,
         );
         if (nextVerse) {
+          traceBranch('seekVerse', nextVerse.timestamp);
           safeSeek(nextVerse.timestamp);
           return;
         }
         // Already in the last verse — next chapter.
+        traceBranch('advanceChapter');
         advanceChapter(1);
       },
       previousTrack: () => {
         const pos = getPlayPosition(audioRef.current);
-        if (pos === null) return;
+        const traceBranch = (branch: string, target?: number) =>
+          traceControl('previousTrack', pos, branch, target);
+        if (pos === null) {
+          traceBranch('noPosition');
+          return;
+        }
         if (timestamps.length === 0) {
           // No verse timestamps (e.g. KJV) — seek backward 10s.
+          traceBranch('seekBack10', pos - 10);
           safeSeek(pos - 10);
           return;
         }
@@ -250,15 +280,18 @@ const Audio = () => {
         // Media-player convention: restart the verse when we are
         // more than 2s into it.
         if (idx >= 0 && pos - timestamps[idx].timestamp > 2) {
+          traceBranch('restartVerse', timestamps[idx].timestamp);
           safeSeek(timestamps[idx].timestamp);
           return;
         }
         // Near a verse boundary — jump to the previous verse.
         if (idx > 0) {
+          traceBranch('seekVerse', timestamps[idx - 1].timestamp);
           safeSeek(timestamps[idx - 1].timestamp);
           return;
         }
         // At (or before) verse 1 — previous chapter.
+        traceBranch('advanceChapter');
         advanceChapter(-1);
       },
       seekBy: (offset) => {

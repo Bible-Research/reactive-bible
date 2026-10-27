@@ -4,6 +4,7 @@ import {
   enableAudioKeepAlive,
 } from '../utils/nativeAudio';
 import { isNativeApp } from '../utils/platform';
+import { trace } from '../utils/mediaDebug';
 
 // How long to keep the foreground service running while paused
 // before releasing it (the user may resume from the lock screen).
@@ -33,12 +34,14 @@ export const useAudioKeepAlive = (
     };
 
     if (!active) {
+      trace('keepAlive', 'inactive');
       clearPauseTimer();
       void disableAudioKeepAlive();
       return;
     }
 
     if (isPlaying) {
+      trace('keepAlive', 'playing');
       clearPauseTimer();
       void enableAudioKeepAlive();
       return;
@@ -46,8 +49,10 @@ export const useAudioKeepAlive = (
 
     // Paused but session still active: keep alive briefly so a
     // lock-screen resume is instant, then release the service.
+    trace('keepAlive', 'pausedTimerArmed');
     pauseTimerRef.current = setTimeout(() => {
       pauseTimerRef.current = null;
+      trace('keepAlive', 'pauseTimeout');
       void disableAudioKeepAlive();
     }, PAUSE_KEEPALIVE_MS);
 

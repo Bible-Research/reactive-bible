@@ -14,6 +14,7 @@ import {
   type MediaSessionMetadata,
   type MediaSessionPosition,
 } from '../utils/mediaSession';
+import { trace } from '../utils/mediaDebug';
 
 export type {
   MediaSessionControls,
@@ -149,23 +150,32 @@ export const useMediaSession = ({
     const dispatch = (
       action: MediaSessionAction,
       details: MediaSessionDetails,
-    ): void =>
+      source: 'web' | 'native',
+    ): void => {
+      trace('dispatch', action, () => ({
+        source,
+        seekOffset: details.seekOffset ?? null,
+        seekTime: details.seekTime ?? null,
+      }));
       dispatchMediaAction(
         action,
         details,
         controlsRef.current,
         updatePositionState,
       );
+    };
+    const web = isSupported() && !native;
+    trace('session', 'register', { web, native });
 
     // Web handlers are skipped in the Capacitor shell: the
     // native plugin owns action dispatch there, and registering
     // both can double-fire seekBy/nexttrack when the OS also
     // surfaces the WebView's media session.
-    if (isSupported() && !native) {
+    if (web) {
       const wrap = (
         action: MediaSessionAction,
       ): MediaSessionActionHandler => (details) =>
-        dispatch(action, details);
+        dispatch(action, details, 'web');
 
       safeSetHandler('play', wrap('play'));
       safeSetHandler('pause', wrap('pause'));
@@ -181,12 +191,13 @@ export const useMediaSession = ({
       ALL_ACTIONS.forEach((action) => {
         void NativeMediaSession.setActionHandler(
           { action: action as NativeAction },
-          (details) => dispatch(action, details),
+          (details) => dispatch(action, details, 'native'),
         ).catch(ignoreRejection);
       });
     }
 
     return () => {
+      trace('session', 'unregister', { web, native });
       if (isSupported() && !native) {
         ALL_ACTIONS.forEach((a) => safeSetHandler(a, null));
       }
@@ -204,6 +215,7 @@ export const useMediaSession = ({
   // Metadata sync (only when the displayed values actually change).
   useEffect(() => {
     if (!active || !metadata) {
+      trace('session', 'metadataClear', { active });
       if (isSupported()) {
         try {
           navigator.mediaSession.metadata = null;
@@ -223,6 +235,7 @@ export const useMediaSession = ({
       }
       return;
     }
+    trace('session', 'metadata', { title: metadata.title });
     if (isSupported()) {
       try {
         navigator.mediaSession.metadata = new MediaMetadata({
@@ -256,6 +269,7 @@ export const useMediaSession = ({
   // Playback state sync.
   useEffect(() => {
     const state = !active ? 'none' : isPlaying ? 'playing' : 'paused';
+    trace('session', 'playbackState', { state });
     if (isSupported()) {
       try {
         navigator.mediaSession.playbackState = state;
