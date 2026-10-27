@@ -502,6 +502,16 @@ const NoteForm = ({
               accept={ALLOWED_IMAGE_TYPES.join(',')}
               multiple
               disabled={totalAttached >= MAX_NOTE_IMAGES}
+              // Mantine v6 never clears the input's value, so
+              // deleting a thumb and re-picking the SAME file
+              // dispatches no `change` event — attach looks
+              // dead. Clearing on click resets it before the
+              // picker opens (safe with `multiple`).
+              inputProps={{
+                onClick: (event) => {
+                  event.currentTarget.value = '';
+                },
+              }}
             >
               {(props) => (
                 <Button

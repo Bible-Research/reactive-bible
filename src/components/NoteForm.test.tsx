@@ -996,6 +996,35 @@ describe('NoteForm Component', () => {
       ).not.toBeInTheDocument();
     });
 
+    it('clears the input value on click so re-picking ' +
+      'the same file still fires change', () => {
+        // Guards a Mantine v6 FileButton quirk: the input's
+        // `value` is never reset, so after deleting a thumb
+        // a re-pick of the same file dispatches no `change`.
+        // The DOM refuses non-empty value sets on file
+        // inputs, so stub it — the browser stores the
+        // picked path.
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onFilesChange={vi.fn()}
+          />
+        );
+        const input = document.querySelector(
+          'input[type="file"]'
+        ) as HTMLInputElement;
+        Object.defineProperty(input, 'value', {
+          value: 'photo.png',
+          writable: true,
+          configurable: true,
+        });
+        fireEvent.click(input);
+        expect(input.value).toBe('');
+      });
+
     it('hands files to onAttachFiles in immediate mode ' +
       'instead of staging', async () => {
         const onAttachFiles = vi.fn();
