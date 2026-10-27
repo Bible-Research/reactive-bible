@@ -5,6 +5,11 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import { API_BASE_URL } from './config'
 import { initGlobalErrorHandlers } from './utils/errorReporter'
+import {
+  initMediaDebug,
+  isMediaDebugEnabled,
+} from './utils/mediaDebug'
+import { isNativeApp } from './utils/platform'
 import { sentryBeforeSend } from './utils/sentry'
 
 // Sentry stays a complete no-op unless a DSN is provided:
@@ -12,9 +17,28 @@ import { sentryBeforeSend } from './utils/sentry'
 // VITE_SENTRY_DSN send nothing.
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN as
   string | undefined
+// Set by the Android workflow (commit sha). Vercel builds leave
+// it unset so the sourcemap plugin's injected release wins.
+const sentryRelease = import.meta.env.VITE_APP_RELEASE as
+  string | undefined
+const mediaDebug = isMediaDebugEnabled()
 if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
+    ...(sentryRelease ? { release: sentryRelease } : {}),
+    initialScope: {
+      tags: { platform: isNativeApp() ? 'native' : 'web' },
+    },
+    // Media-debug builds keep a long lock-screen trail and queue
+    // events in IndexedDB while the locked phone is offline.
+    ...(mediaDebug
+      ? {
+          maxBreadcrumbs: 300,
+          transport: Sentry.makeBrowserOfflineTransport(
+            Sentry.makeFetchTransport,
+          ),
+        }
+      : {}),
     // vite.config.ts bakes Vercel's VERCEL_ENV into
     // VITE_APP_ENV at build time ('' when unset, e.g. local
     // builds) — `||`, not `??`, so the empty string falls back
@@ -42,6 +66,7 @@ if (sentryDsn) {
 }
 
 initGlobalErrorHandlers()
+initMediaDebug()
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
