@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import { showNotification } from '@mantine/notifications';
+import * as Sentry from '@sentry/react';
 import {
   buildErrorDetails,
   copyErrorDetails,
@@ -14,7 +15,14 @@ vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
 }));
 
+vi.mock('@sentry/react', () => ({
+  captureMessage: vi.fn(),
+  captureException: vi.fn(),
+}));
+
 const mockShowNotification = vi.mocked(showNotification);
+const mockCaptureMessage = vi.mocked(Sentry.captureMessage);
+const mockCaptureException = vi.mocked(Sentry.captureException);
 
 interface NotificationContentProps {
   error: Error;
@@ -161,6 +169,39 @@ describe('errorReporter', () => {
       expect(call.color).toBe('yellow');
       expect(call.autoClose).not.toBe(false);
       expect(call.message).toContain('Failed to load resource');
+    });
+
+    it('tags resource-load Sentry messages with reportType', () => {
+      cleanup = initGlobalErrorHandlers();
+      const img = document.createElement('img');
+      img.src = 'https://example.com/missing.png?signed=1';
+      const event = new Event('error');
+      Object.defineProperty(event, 'target', { value: img });
+
+      window.dispatchEvent(event);
+
+      // Query-string credentials are stripped from the message;
+      // reportType marks the event as a non-exception warning.
+      expect(mockCaptureMessage).toHaveBeenCalledWith(
+        'Failed to load resource: ' +
+          'https://example.com/missing.png',
+        {
+          level: 'warning',
+          tags: {
+            context: 'Resource load error',
+            reportType: 'resource-load',
+          },
+        }
+      );
+    });
+
+    it('does not set reportType on exception events', () => {
+      reportError(new Error('boom'), 'Test context');
+
+      expect(mockCaptureException).toHaveBeenCalledWith(
+        expect.any(Error),
+        { tags: { context: 'Test context' } }
+      );
     });
 
     it('dedupes repeat failures for the same resource', () => {

@@ -129,13 +129,17 @@ export function reportError(
     // Forward to Sentry — capture* calls are safe no-ops when
     // the SDK was never initialized (no VITE_SENTRY_DSN, e.g.
     // tests and local dev). Resource-load failures are not
-    // exceptions, so they go as warning-level messages rather
-    // than error events: they signal a missing asset, not a
-    // crash, and are already deduped per-URL above.
+    // exceptions, so they go as warning-level messages tagged
+    // `reportType: resource-load` rather than error events:
+    // they signal a missing asset, not a crash, and are
+    // already deduped per-URL above.
     if (options.resource === true) {
       Sentry.captureMessage(options.sentryMessage ?? err.message, {
         level: 'warning',
-        tags: context ? { context } : undefined,
+        tags: {
+          ...(context ? { context } : {}),
+          reportType: 'resource-load',
+        },
       });
     } else {
       Sentry.captureException(err, {

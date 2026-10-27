@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ErrorEvent, EventHint } from '@sentry/react';
 import {
   BookNotInFilesetError,
+  ClientInputError,
   ProviderError,
   RateLimitError,
 } from '../api/errors';
@@ -126,5 +127,166 @@ describe('sentryBeforeSend', () => {
         hintOf(new Error('failed to persist session note'))
       )
     ).toBe(event);
+  });
+
+  it('drops ChunkLoadError by name (stale tab after a ' +
+    'deploy)', () => {
+    const err = new Error('chunk request failed');
+    err.name = 'ChunkLoadError';
+    expect(sentryBeforeSend(event, hintOf(err))).toBeNull();
+  });
+
+  it('drops Chrome dynamic-import TypeError (stale chunk)',
+    () => {
+      const err = new TypeError(
+        'Failed to fetch dynamically imported module: ' +
+          'https://example.com/assets/index-abc123.js'
+      );
+      expect(sentryBeforeSend(event, hintOf(err)))
+        .toBeNull();
+    });
+
+  it.each([
+    'error loading dynamically imported module: ' +
+      'https://example.com/assets/index-abc123.js',
+    'Importing a module script failed.',
+  ])('drops dynamic-import failure "%s"', (msg) => {
+    expect(
+      sentryBeforeSend(event, hintOf(new Error(msg)))
+    ).toBeNull();
+  });
+
+  it('drops "Loading chunk N failed" messages', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new Error('Loading chunk 12 failed.'))
+      )
+    ).toBeNull();
+  });
+
+  it('drops "Loading CSS chunk" messages', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new Error(
+          'Loading CSS chunk 421 failed. (missing: ' +
+            'https://example.com/assets/x.css)'
+        ))
+      )
+    ).toBeNull();
+  });
+
+  it('drops ResizeObserver loop noise', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new Error(
+          'ResizeObserver loop completed with ' +
+            'undelivered notifications.'
+        ))
+      )
+    ).toBeNull();
+  });
+
+  it('drops message-only ResizeObserver events ' +
+    '(window.onerror path)', () => {
+    // GlobalHandlers' onerror path delivers no Error instance
+    // — just the message text on the event.
+    const messageEvent: ErrorEvent = {
+      ...event,
+      event_id: 'msg-ro',
+      message: 'ResizeObserver loop completed with ' +
+        'undelivered notifications.',
+    };
+    expect(
+      sentryBeforeSend(messageEvent, hintOf(undefined))
+    ).toBeNull();
+  });
+
+  it('drops message-only dynamic-import events ' +
+    '(window.onerror path)', () => {
+    const messageEvent: ErrorEvent = {
+      ...event,
+      event_id: 'msg-chunk',
+      exception: {
+        values: [
+          {
+            value: 'Failed to fetch dynamically imported ' +
+              'module: https://example.com/assets/a.js',
+          },
+        ],
+      },
+    };
+    expect(
+      sentryBeforeSend(messageEvent, hintOf(null))
+    ).toBeNull();
+  });
+
+  it('drops message-only Session expired events', () => {
+    const messageEvent: ErrorEvent = {
+      ...event,
+      event_id: 'msg-session',
+      message: 'Session expired. Please log in again.',
+    };
+    expect(
+      sentryBeforeSend(messageEvent, hintOf(undefined))
+    ).toBeNull();
+  });
+
+  it('keeps ClientInputError (a bug by design)', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new ClientInputError('missing_parameter'))
+      )
+    ).toBe(event);
+  });
+
+  it.each([
+    'Failed to fetch',
+    'Load failed',
+    'NetworkError when attempting to fetch resource.',
+  ])('tags network failure "%s" without dropping it', (msg) => {
+    const networkEvent = { event_id: msg } as ErrorEvent;
+
+    const result = sentryBeforeSend(
+      networkEvent,
+      hintOf(new TypeError(msg))
+    );
+
+    expect(result).toBe(networkEvent);
+    expect(result?.tags?.errorKind).toBe('network');
+  });
+
+  it('keeps existing tags when tagging network failures',
+    () => {
+      // The errorKind tag spread must not clobber tags the
+      // event already carries (e.g. context).
+      const taggedEvent: ErrorEvent = {
+        ...event,
+        event_id: 'tagged',
+        tags: { context: 'Custom context' },
+      };
+
+      const result = sentryBeforeSend(
+        taggedEvent,
+        hintOf(new TypeError('Failed to fetch'))
+      );
+
+      expect(result?.tags?.context).toBe('Custom context');
+      expect(result?.tags?.errorKind).toBe('network');
+    });
+
+  it('does not tag non-network TypeErrors', () => {
+    const typeErrorEvent = { event_id: 'type' } as ErrorEvent;
+
+    const result = sentryBeforeSend(
+      typeErrorEvent,
+      hintOf(new TypeError('undefined is not an object'))
+    );
+
+    expect(result).toBe(typeErrorEvent);
+    expect(result?.tags?.errorKind).toBeUndefined();
   });
 });

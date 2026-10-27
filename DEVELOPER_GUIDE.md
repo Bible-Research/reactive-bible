@@ -3707,16 +3707,29 @@ surface as the transport layer:
 - `src/utils/errorReporter.tsx` (`reportError`) forwards every
   surfaced fatal error as an exception tagged with its context
   string; resource-load failures go as `warning`-level messages
-  with the query string stripped — signed-URL credentials never
-  reach Sentry. `src/components/ErrorBoundary.tsx` captures
-  render errors with `extra.componentStack` and the `context`
-  tag on the first capture (the tagged re-capture is deduped).
+  tagged `reportType: resource-load` with the query string
+  stripped — signed-URL credentials never reach Sentry.
+  `src/components/ErrorBoundary.tsx` captures render errors
+  with `extra.componentStack` and the `context` tag on the
+  first capture (the tagged re-capture is deduped).
 - `src/utils/sentry.ts` exports `sentryBeforeSend`, which drops
   the handled taxonomy (`RateLimitError`,
-  `BookNotInFilesetError`, `AbortError`, 'Session expired') so
-  expected conditions don't burn quota. `ClientInputError` is
-  deliberately NOT dropped — it means our own request was
-  malformed, a bug worth reporting.
+  `BookNotInFilesetError`, `AbortError`, 'Session expired',
+  `ChunkLoadError` / `Loading chunk N failed` / `Loading CSS
+  chunk`, `ResizeObserver loop`) so expected conditions don't
+  burn quota. `ClientInputError` is deliberately NOT dropped —
+  it means our own request was malformed, a bug worth
+  reporting. `TypeError` network failures ('Failed to fetch',
+  'Load failed', 'NetworkError…') are kept but tagged
+  `errorKind: network` so Sentry-side rules can route them.
+- **Event-stream contract:** `is:unresolved level:error
+  environment:production` is the bug queue — everything else is
+  deliberately routed by tag. Untagged exception events are
+  real bugs; `reportType` marks non-bug `captureMessage`
+  streams: `resource-load` (warning, missing assets),
+  `user-report` (info, "Report a problem"), `media-debug`
+  (info, APK diagnostics). `errorKind` refines which kind of
+  failure an exception was (`network` today).
 - **User reports:** the main menu's "Report a problem" row
   (always visible) opens `ReportProblemModal`, where the user
   describes the issue. `sendUserReport`
@@ -3745,8 +3758,8 @@ surface as the transport layer:
   to git auto-detection.
 - Configure per-environment DSNs in the Vercel dashboard
   (Production + Preview); see `.env.example`. Backend-side
-  setup is documented in `docs/plans/sentry-monitoring-plan.md`
-  at the workspace root.
+  init lives in `bible_research/bible_research/settings.py`;
+  its event-stream contract is in `bible_research/AGENTS.md`.
 
 ---
 
