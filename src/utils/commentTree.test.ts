@@ -101,7 +101,7 @@ describe('commentImageName', () => {
   it('falls back for a missing storage_url', () => {
     expect(
       commentImageName({} as CommentImage)
-    ).toBe('comment attachment');
+    ).toBe('attachment');
   });
 });
 
@@ -202,10 +202,10 @@ describe('commentImageName', () => {
 
   it('falls back when storage_url is empty', () => {
     expect(commentImageName(makeImage(''))).toBe(
-      'comment attachment'
+      'attachment'
     );
     expect(commentImageName(makeImage('no-file/'))).toBe(
-      'comment attachment'
+      'attachment'
     );
   });
 });

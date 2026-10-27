@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import {
   Group,
   Button,
@@ -8,59 +8,20 @@ import {
 } from '@mantine/core';
 import { IconPhoto } from '@tabler/icons-react';
 import RichTextEditor from './RichTextEditor';
-import { RemoveImageButton } from './CommentImageGrid';
+import {
+  RemoveImageButton,
+  UnavailableThumb,
+} from './CommentImageGrid';
+import {
+  useStagedImages,
+  ALLOWED_IMAGE_TYPES,
+  IMAGE_THUMB_STYLE,
+} from '../hooks/useStagedImages';
 import { toPlainText } from '../utils/tiptapContent';
 import { commentImageName } from '../utils/commentTree';
 import { CommentImage } from '../types';
 
-const ALLOWED_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-];
-const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGES = 5;
-
-const thumbStyle: React.CSSProperties = {
-  height: 56,
-  width: 56,
-  objectFit: 'cover',
-  borderRadius: 4,
-  display: 'block',
-};
-
-const UnavailableThumb = ({ label }: { label: string }) => (
-  <Box
-    role="img"
-    aria-label={label}
-    sx={(theme) => ({
-      height: 56,
-      width: 56,
-      borderRadius: 4,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor:
-        theme.colorScheme === 'dark'
-          ? theme.colors.dark[5]
-          : theme.colors.gray[2],
-      color:
-        theme.colorScheme === 'dark'
-          ? theme.colors.dark[2]
-          : theme.colors.gray[6],
-    })}
-  >
-    <IconPhoto size={14} />
-  </Box>
-);
-
-interface StagedFile {
-  id: number;
-  file: File;
-  url: string;
-  failed?: boolean;
-}
 
 interface CommentFormProps {
   initialValue?: string;
@@ -89,73 +50,22 @@ const CommentForm = ({
 }: CommentFormProps) => {
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
   const [localSubmitting, setLocalSubmitting] = useState(false);
-  const [staged, setStaged] = useState<StagedFile[]>([]);
-  const urlsRef = useRef<string[]>([]);
-  const nextStagedId = useRef(0);
-
-  useEffect(() => {
-    return () => {
-      urlsRef.current.forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, []);
+  const {
+    staged,
+    fileError,
+    addFiles,
+    removeStaged,
+    markStagedFailed,
+    clearStaged,
+  } = useStagedImages({
+    maxImages: MAX_IMAGES,
+    existingCount: existingImages.length,
+    parentNoun: 'comment',
+  });
 
   const isDisabled = submitting || localSubmitting;
   const totalAttached = existingImages.length + staged.length;
-
-  const handleFileSelect = (files: File[]) => {
-    const accepted: StagedFile[] = [];
-    const errors: string[] = [];
-    for (const file of files) {
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        errors.push(`Unsupported file type: ${file.name}`);
-        continue;
-      }
-      if (file.size > MAX_BYTES) {
-        errors.push(`File too large (max 10 MiB): ${file.name}`);
-        continue;
-      }
-      if (
-        existingImages.length + staged.length + accepted.length >=
-        MAX_IMAGES
-      ) {
-        errors.push(`Maximum ${MAX_IMAGES} images per comment.`);
-        break;
-      }
-      const url = URL.createObjectURL(file);
-      urlsRef.current.push(url);
-      accepted.push({ id: nextStagedId.current++, file, url });
-    }
-    setFileError(errors.length > 0 ? errors.join(' ') : null);
-    if (accepted.length > 0) {
-      setStaged((prev) => [...prev, ...accepted]);
-    }
-  };
-
-  // Revoking an object URL while its <img> is still mounted
-  // aborts the in-flight load and trips the global
-  // resource-error reporter, so revocation is deferred past
-  // the commit that removes the thumbnail.
-  const scheduleRevoke = (url: string) => {
-    urlsRef.current = urlsRef.current.filter((u) => u !== url);
-    setTimeout(() => URL.revokeObjectURL(url));
-  };
-
-  const removeStaged = (id: number) => {
-    const item = staged.find((s) => s.id === id);
-    if (!item) return;
-    setStaged((prev) => prev.filter((s) => s.id !== id));
-    scheduleRevoke(item.url);
-  };
-
-  const markStagedFailed = (id: number) => {
-    setStaged((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, failed: true } : s
-      )
-    );
-  };
 
   const handleSubmit = async () => {
     // Doc-JSON is never '' even when the editor is blank.
@@ -171,8 +81,7 @@ const CommentForm = ({
         staged.map((s) => s.file)
       );
       setValue('');
-      setStaged([]);
-      staged.forEach((s) => scheduleRevoke(s.url));
+      clearStaged();
     } catch {
       // caller already surfaced the error via notification;
       // keep form state so the user can retry
@@ -215,7 +124,7 @@ const CommentForm = ({
                     src={src}
                     alt={name}
                     onError={() => onImageError?.(src)}
-                    style={thumbStyle}
+                    style={IMAGE_THUMB_STYLE}
                   />
                 ) : (
                   <UnavailableThumb
@@ -248,7 +157,7 @@ const CommentForm = ({
                 <img
                   src={s.url}
                   alt={s.file.name}
-                  style={thumbStyle}
+                  style={IMAGE_THUMB_STYLE}
                   onError={() => markStagedFailed(s.id)}
                 />
               )}
@@ -288,10 +197,20 @@ const CommentForm = ({
           </Button>
         )}
         <FileButton
-          onChange={handleFileSelect}
-          accept={ALLOWED_TYPES.join(',')}
+          onChange={addFiles}
+          accept={ALLOWED_IMAGE_TYPES.join(',')}
           multiple
           disabled={isDisabled || totalAttached >= MAX_IMAGES}
+          // Mantine v6 never clears the input's value, so
+          // deleting a thumb and re-picking the SAME file
+          // dispatches no `change` event — attach looks dead.
+          // Clearing on click resets it before the picker
+          // opens (safe with `multiple`).
+          inputProps={{
+            onClick: (event) => {
+              event.currentTarget.value = '';
+            },
+          }}
         >
           {(props) => (
             <Button

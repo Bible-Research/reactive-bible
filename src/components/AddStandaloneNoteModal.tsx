@@ -65,13 +65,23 @@ const AddStandaloneNoteModal = ({
         }}
         onAutoSave={editor.save}
         onDraftChange={editor.trackDraft}
+        // Staged files ride in the draft — uploads run once a
+        // save produces savedNoteId, and a reopen re-stages.
+        onFilesChange={editor.trackFiles}
+        // Includes files behind already-uploaded images so
+        // their thumbs (and remove buttons) survive a reopen.
+        initialFiles={editor.draft?.stagedFiles}
         note={
           // Gate on draft content, not just savedNoteId: while
           // the unmount flush's POST is still in flight the id
           // is null but the typed text is already tracked —
           // keying on the id alone would reopen a blank form.
+          // Staged files count too: a files-only draft (no
+          // text, never saved) must restore its tag.
           editor.draft &&
-          (editor.draft.savedNoteId || editor.draft.text)
+          (editor.draft.savedNoteId ||
+            editor.draft.text ||
+            editor.draft.stagedFiles.length > 0)
             ? {
                 tagId:
                   editor.draft.tagId || lastSelectedTagId || "",

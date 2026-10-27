@@ -110,6 +110,13 @@ export interface CommentImage {
   created_at: string;
 }
 
+/**
+ * An image attached to a note. Notes and comments share one
+ * backend `ImageSerializer`, so the shape is identical to
+ * `CommentImage`.
+ */
+export type NoteImage = CommentImage;
+
 export interface Comment {
   id: string;
   author: CommentAuthor;

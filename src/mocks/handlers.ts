@@ -24,6 +24,8 @@ const mockTag = {
 
 // Matches the Note contract in src/types.ts / api.tsx:
 // tag_position + is_owner are required, headings optional.
+// Images are NOT embedded — they are fetched per card from
+// GET /notes/:noteId/images/ (handler below).
 const mockNote = {
   id: 'note-1',
   note_text: 'This is a test note.',
@@ -409,6 +411,42 @@ export const handlers = [
   }),
   http.delete(`${API_URL}/notes/:id/`, () => {
     return HttpResponse.text('Deleted');
+  }),
+
+  // --- Note Images ---
+  // Shares the ImageSerializer shape with comment images;
+  // `comment` is null for note attachments.
+  http.get(`${API_URL}/notes/:noteId/images/`, ({ params }) => {
+    return HttpResponse.json([
+      {
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: null,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  }),
+
+  http.post(`${API_URL}/notes/:noteId/images/`, ({ params }) => {
+    return HttpResponse.json(
+      {
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: null,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
   }),
 
   // --- Reading positions (book-NAME keyed, auth-gated) ---

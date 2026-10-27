@@ -2511,6 +2511,10 @@ Modal for selecting Bible translations.
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
   `CommentActions.tsx` + `CommentImageGrid.tsx` +
   `Lightbox.tsx` - threaded comments with image upload
+- `NoteForm.tsx` + `useNoteEditor` +
+  `hooks/useStagedImages.ts` - note editing with staged image
+  attachments (uploaded after the note's first save);
+  `NoteCard` renders them via `CommentImageGrid` + `Lightbox`
 - `NoteVerseList.tsx` / `NoteCardActions.tsx` /
   `SortableNoteCard.tsx` / `TagNotesToolbar.tsx` /
   `TagTree.tsx` / `Pagination.tsx` - note-list pieces
@@ -2679,6 +2683,52 @@ production App Engine host)
     Response: { [book name]: { chapter, verse } | null }
     ```
 
+13. **Note Images**
+    ```
+    POST   /notes/{noteId}/images/
+    // multipart form field "file"; ≤10 images, ≤10 MiB each
+    GET    /notes/{noteId}/images/
+    DELETE /images/{imageId}/          // shared with comments
+    Response: NoteImage — identical shape to CommentImage
+      (one backend ImageSerializer serves both)
+    // The note must exist before upload — there is no
+    // pre-upload endpoint — so create-mode modals stage
+    // File[] locally (src/hooks/useStagedImages.ts), carry
+    // them in the useNoteEditor draft (pendingFiles +
+    // uploadedFiles, a signature-keyed Map<File→NoteImage>
+    // so a re-selected file dedups by content, not File
+    // identity), and upload sequentially after the first
+    // save produces savedNoteId. Removing a thumb whose
+    // file already uploaded calls DELETE /images/{id};
+    // draft.stagedFiles re-stages uploaded files on reopen
+    // so attached images stay visible and removable.
+    // EditNoteModal uploads immediately on select (with a
+    // per-session signature→imageId map against
+    // re-selects — the signature is claimed before the
+    // upload resolves and freed when the image is
+    // deleted, so deleting a thumb un-blocks a
+    // re-select of the same file) and
+    // refetches the image list single-flight +
+    // budgeted (3) when a signed_url fails to load.
+    // Images are NOT embedded in note payloads. Each mounted
+    // NoteCard lazy-fetches GET /notes/{noteId}/images/ once
+    // it nears the viewport (useIntersection, 200 px
+    // rootMargin, latched; where IntersectionObserver is
+    // missing the observer ref is skipped entirely —
+    // Mantine v6 news it up unguarded — and images fetch on
+    // mount). Fetched lists live in the session-scoped
+    // useNoteImages store (module Map keyed by note id,
+    // single-flight dedup, mutateNoteImages write path for
+    // upload append / delete filter — a mutation landing
+    // mid-flight drops the stale response and re-fires one
+    // reconciling fetch on settle — signature-keyed
+    // MAX_IMAGE_REFRESHES=3 budget for signed-URL expiry)
+    // — shared by the grid card, the DragOverlay's second
+    // card, and EditNoteModal, so one fetch serves all.
+    // A failed fetch leaves the entry 'error'; the next
+    // mount retries it once with a re-armed budget.
+    ```
+
 #### Wordpocket Audio API
 **Base URL**: `https://wordpocket.org/bibles/app/audio/1`
 
@@ -2725,7 +2775,7 @@ re-exported through the `index.ts` barrel — always import via
   user-owned resources (notes, tags, comments, reading
   positions).
 - `authenticatedUpload(url, formData)` — multipart variant for
-  comment-image uploads.
+  image uploads (comment and note attachments).
 - `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
   shared fetch→JSON boilerplate for endpoints whose error
   handling is just "throw on `!ok`, log, rethrow". Endpoints
