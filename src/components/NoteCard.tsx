@@ -1,10 +1,13 @@
 import type { MouseEvent } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Group, Title } from "@mantine/core";
-import { Note, NoteOrderMenuData } from "../types";
+import { Note, NoteImage, NoteOrderMenuData } from "../types";
+import { fetchNoteImages } from "../api";
 import { useBibleStore } from "../store";
 import NoteOrderMenu from "./NoteOrderMenu";
 import CommentThread from "./CommentThread";
+import CommentImageGrid from "./CommentImageGrid";
+import Lightbox from "./Lightbox";
 import ScripturePassagePopover from "./ScripturePassagePopover";
 import useScriptureRefPreview from "../hooks/useScriptureRefPreview";
 import RichTextView from "./RichTextView";
@@ -39,6 +42,11 @@ interface NoteCardProps {
   orderMenu?: NoteOrderMenuData;
 }
 
+// A note's images are refetched at most this many times per
+// image set — bounds the retry loop when the backend keeps
+// minting signed URLs that still fail to load.
+const MAX_IMAGE_REFRESHES = 3;
+
 const NoteCard = ({
   note,
   onViewInBible,
@@ -54,6 +62,65 @@ const NoteCard = ({
 }: NoteCardProps) => {
   const scope = verseScope ?? note.id;
   const [threadOpen, setThreadOpen] = useState(false);
+  const [lightboxImageId, setLightboxImageId] =
+    useState<string | null>(null);
+  // A signed URL that failed to load (the 600 s TTL can
+  // lapse on a cached page) triggers a targeted refetch;
+  // `refreshed` keeps the replacement list, keyed to the
+  // note.images array it was fetched against so a
+  // parent-delivered update supersedes it automatically.
+  const [refreshed, setRefreshed] = useState<{
+    base: NoteImage[] | undefined;
+    images: NoteImage[];
+  } | null>(null);
+  const noteImages = note.images ?? [];
+  const images =
+    refreshed && refreshed.base === note.images
+      ? refreshed.images
+      : noteImages;
+  const imagesRef = useRef(images);
+  useEffect(() => {
+    imagesRef.current = images;
+  });
+  const pendingImageRefresh = useRef(false);
+  // Attempts are keyed to the current image-set signature:
+  // a refresh that mints new signed URLs resets the budget,
+  // and a failed fetch refunds its attempt so a flaky
+  // network can't permanently burn it.
+  const imageRefreshAttempts = useRef({ sig: '', count: 0 });
+
+  const handleImageError = useCallback(() => {
+    const sig = imagesRef.current
+      .map((i) => i.signed_url ?? '')
+      .join('|');
+    const entry = imageRefreshAttempts.current;
+    const count = entry.sig === sig ? entry.count : 0;
+    if (
+      count >= MAX_IMAGE_REFRESHES ||
+      pendingImageRefresh.current
+    ) {
+      return;
+    }
+    pendingImageRefresh.current = true;
+    imageRefreshAttempts.current = { sig, count: count + 1 };
+    const base = note.images;
+    fetchNoteImages(note.id)
+      .then((fetched) => {
+        setRefreshed({ base, images: fetched });
+      })
+      .catch(() => {
+        const cur = imageRefreshAttempts.current;
+        if (cur.sig === sig) {
+          imageRefreshAttempts.current =
+            cur.count <= 1
+              ? { sig: '', count: 0 }
+              : { sig, count: cur.count - 1 };
+        }
+      })
+      .finally(() => {
+        pendingImageRefresh.current = false;
+      });
+  }, [note.id, note.images]);
   // Clicked '@…' refs open the passage in a floating popover
   // anchored at the ref — never inline in the card.
   const {
@@ -73,6 +140,8 @@ const NoteCard = ({
   );
 
   const heading = noteHeading(note);
+  const lightboxImage =
+    images.find((img) => img.id === lightboxImageId) ?? null;
 
   const versesFolded = useBibleStore((state) => state.versesFolded);
 
@@ -200,6 +269,24 @@ const NoteCard = ({
           </Box>
         </Box>
       )}
+      {images.length > 0 && (
+        <Box px={10} mt={6}>
+          <CommentImageGrid
+            images={images}
+            parentId={note.id}
+            // Deletes happen through EditNoteModal — the card
+            // only displays.
+            canDelete={false}
+            onOpenImage={setLightboxImageId}
+            onImageError={handleImageError}
+          />
+        </Box>
+      )}
+      <Lightbox
+        image={lightboxImage}
+        onClose={() => setLightboxImageId(null)}
+        onImageError={handleImageError}
+      />
       {passagePreview && (
         <ScripturePassagePopover
           reference={passagePreview.ref}

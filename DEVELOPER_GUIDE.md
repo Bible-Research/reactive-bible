@@ -2511,6 +2511,10 @@ Modal for selecting Bible translations.
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
   `CommentActions.tsx` + `CommentImageGrid.tsx` +
   `Lightbox.tsx` - threaded comments with image upload
+- `NoteForm.tsx` + `useNoteEditor` +
+  `hooks/useStagedImages.ts` - note editing with staged image
+  attachments (uploaded after the note's first save);
+  `NoteCard` renders them via `CommentImageGrid` + `Lightbox`
 - `NoteVerseList.tsx` / `NoteCardActions.tsx` /
   `SortableNoteCard.tsx` / `TagNotesToolbar.tsx` /
   `TagTree.tsx` / `Pagination.tsx` - note-list pieces
@@ -2679,6 +2683,26 @@ production App Engine host)
     Response: { [book name]: { chapter, verse } | null }
     ```
 
+13. **Note Images**
+    ```
+    POST   /notes/{noteId}/images/
+    // multipart form field "file"; ≤10 images, ≤10 MiB each
+    GET    /notes/{noteId}/images/
+    DELETE /images/{imageId}/          // shared with comments
+    Response: NoteImage — identical shape to CommentImage
+      (one backend ImageSerializer serves both)
+    // The note must exist before upload — there is no
+    // pre-upload endpoint — so create-mode modals stage
+    // File[] locally (src/hooks/useStagedImages.ts), carry
+    // them in the useNoteEditor draft (pendingFiles +
+    // uploadedFiles dedup), and upload sequentially after
+    // the first save produces savedNoteId. EditNoteModal
+    // uploads immediately on select. NoteCard renders the
+    // note.images embed via CommentImageGrid + Lightbox and
+    // refetches the list (bounded, MAX_IMAGE_REFRESHES=3)
+    // when a signed_url fails to load.
+    ```
+
 #### Wordpocket Audio API
 **Base URL**: `https://wordpocket.org/bibles/app/audio/1`
 
@@ -2725,7 +2749,7 @@ re-exported through the `index.ts` barrel — always import via
   user-owned resources (notes, tags, comments, reading
   positions).
 - `authenticatedUpload(url, formData)` — multipart variant for
-  comment-image uploads.
+  image uploads (comment and note attachments).
 - `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
   shared fetch→JSON boilerplate for endpoints whose error
   handling is just "throw on `!ok`, log, rethrow". Endpoints

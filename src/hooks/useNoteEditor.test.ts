@@ -26,6 +26,7 @@ import {
 vi.mock('../api', () => ({
   addTagNote: vi.fn(),
   editNote: vi.fn(),
+  uploadNoteImage: vi.fn(),
   getNotes: vi.fn().mockResolvedValue({
     results: [],
     count: 0,
@@ -52,6 +53,9 @@ describe('useNoteEditor', () => {
     useAuthStore.setState({ ...authInitialState, token: 'tok' });
     (api.addTagNote as Mock).mockResolvedValue({ id: 'n1' });
     (api.editNote as Mock).mockResolvedValue({});
+    (api.uploadNoteImage as Mock).mockResolvedValue({
+      id: 'img-1',
+    });
   });
 
   it('POSTs the first create save and PATCHes later ones',
@@ -206,6 +210,7 @@ describe('useNoteEditor', () => {
       savedNoteId: 'n1',
       tagId: 't1',
       text: 'draft text',
+      pendingFiles: [],
     });
 
     await act(async () => {
@@ -346,6 +351,7 @@ describe('useNoteEditor', () => {
       savedNoteId: null,
       tagId: 't1',
       text: 'final',
+      pendingFiles: [],
     });
   });
 
@@ -501,6 +507,229 @@ describe('useNoteEditor', () => {
         savedNoteId: null,
         tagId: 't1',
         text: 'typing',
+        pendingFiles: [],
       });
     });
+
+  it('uploads staged files only after the POST returns ' +
+    'an id', async () => {
+      const fileA = new File(['a'], 'a.png', {
+        type: 'image/png',
+      });
+      const fileB = new File(['b'], 'b.png', {
+        type: 'image/png',
+      });
+      const calls: string[] = [];
+      (api.addTagNote as Mock).mockImplementation(async () => {
+        calls.push('addTagNote');
+        return { id: 'n1' };
+      });
+      (api.uploadNoteImage as Mock).mockImplementation(
+        async () => {
+          calls.push('uploadNoteImage');
+          return { id: 'img-1' };
+        }
+      );
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      act(() => {
+        result.current.trackFiles([fileA, fileB]);
+      });
+      await act(async () => {
+        await result.current.save('t1', 'hello');
+      });
+
+      // The note POST resolves before any upload — the
+      // endpoint needs note_pk in the URL.
+      expect(calls).toEqual([
+        'addTagNote',
+        'uploadNoteImage',
+        'uploadNoteImage',
+      ]);
+      expect(api.uploadNoteImage).toHaveBeenNthCalledWith(
+        1,
+        'n1',
+        fileA
+      );
+      expect(api.uploadNoteImage).toHaveBeenNthCalledWith(
+        2,
+        'n1',
+        fileB
+      );
+    });
+
+  it('does not re-upload files the form still reports ' +
+    'staged', async () => {
+      const fileA = new File(['a'], 'a.png', {
+        type: 'image/png',
+      });
+      const fileB = new File(['b'], 'b.png', {
+        type: 'image/png',
+      });
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      act(() => {
+        result.current.trackFiles([fileA]);
+      });
+      await act(async () => {
+        await result.current.save('t1', 'hello');
+      });
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(1);
+
+      // The form still shows fileA's thumb and reports both
+      // files — the already-uploaded one must be skipped.
+      act(() => {
+        result.current.trackFiles([fileA, fileB]);
+      });
+      await act(async () => {
+        await result.current.save('t1', 'hello again');
+      });
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(2);
+      expect(api.uploadNoteImage).toHaveBeenLastCalledWith(
+        'n1',
+        fileB
+      );
+    });
+
+  it('keeps a failed upload pending and notifies, while ' +
+    'later files still attempt', async () => {
+      const fileA = new File(['a'], 'a.png', {
+        type: 'image/png',
+      });
+      const fileB = new File(['b'], 'b.png', {
+        type: 'image/png',
+      });
+      (api.uploadNoteImage as Mock)
+        .mockRejectedValueOnce(new Error('too big'))
+        .mockResolvedValueOnce({ id: 'img-2' });
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      act(() => {
+        result.current.trackFiles([fileA, fileB]);
+      });
+      await act(async () => {
+        await result.current.save('t1', 'hello');
+      });
+
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(2);
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Upload failed',
+          message: 'too big',
+        })
+      );
+
+      // fileA stayed pending — a retry on the next save
+      // uploads only it (fileB already attached).
+      await act(async () => {
+        await result.current.save('t1', 'hello again');
+      });
+      expect(api.uploadNoteImage).toHaveBeenCalledTimes(3);
+      expect(api.uploadNoteImage).toHaveBeenLastCalledWith(
+        'n1',
+        fileA
+      );
+    });
+
+  it('submit uploads staged files against the created ' +
+    'note', async () => {
+      const file = new File(['x'], 'x.png', {
+        type: 'image/png',
+      });
+      const onSubmitted = vi.fn();
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+        onSubmitted,
+      });
+
+      act(() => {
+        result.current.trackFiles([file]);
+      });
+      let ok: boolean | undefined;
+      await act(async () => {
+        ok = await result.current.submit('t1', 'final');
+      });
+
+      expect(ok).toBe(true);
+      expect(api.uploadNoteImage).toHaveBeenCalledWith(
+        'n1',
+        file
+      );
+      expect(onSubmitted).toHaveBeenCalledWith('t1');
+      // The draft is finished — staged files go with it.
+      const next = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+      expect(next.result.current.draft).toBeNull();
+    });
+
+  it('staged files count as content for an image-only ' +
+    'note', async () => {
+      const file = new File(['x'], 'x.png', {
+        type: 'image/png',
+      });
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        // No linked verses and no text — the staged file is
+        // the note's only content (blank note_text is valid).
+        verseReferences: [],
+      });
+
+      act(() => {
+        result.current.trackFiles([file]);
+      });
+      let saved: boolean | undefined;
+      await act(async () => {
+        saved = await result.current.save('t1', '');
+      });
+
+      expect(saved).toBe(true);
+      expect(api.addTagNote).toHaveBeenCalledWith('t1', '', []);
+      expect(api.uploadNoteImage).toHaveBeenCalledWith(
+        'n1',
+        file
+      );
+    });
+
+  it('re-stages pending files on reopen', async () => {
+    const file = new File(['x'], 'x.png', {
+      type: 'image/png',
+    });
+    const first = renderEditor({
+      mode: 'create',
+      draftKey: 'k',
+      verseReferences: refs,
+    });
+    act(() => {
+      first.result.current.trackFiles([file]);
+    });
+    first.unmount();
+
+    const second = renderEditor({
+      mode: 'create',
+      draftKey: 'k',
+      verseReferences: refs,
+    });
+    // The un-uploaded file survives for the form to re-stage.
+    expect(second.result.current.draft?.pendingFiles).toEqual(
+      [file]
+    );
+  });
 });

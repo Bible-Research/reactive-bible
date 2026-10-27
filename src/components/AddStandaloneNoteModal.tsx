@@ -65,6 +65,10 @@ const AddStandaloneNoteModal = ({
         }}
         onAutoSave={editor.save}
         onDraftChange={editor.trackDraft}
+        // Staged files ride in the draft — uploads run once a
+        // save produces savedNoteId, and a reopen re-stages.
+        onFilesChange={editor.trackFiles}
+        initialFiles={editor.draft?.pendingFiles}
         note={
           // Gate on draft content, not just savedNoteId: while
           // the unmount flush's POST is still in flight the id

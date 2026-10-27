@@ -175,7 +175,7 @@ const CommentNode = ({
 
               <CommentImageGrid
                 images={images}
-                commentId={comment.id}
+                parentId={comment.id}
                 canDelete={isAuthor}
                 onDeleteImage={onDeleteImage}
                 onOpenImage={setLightboxImageId}

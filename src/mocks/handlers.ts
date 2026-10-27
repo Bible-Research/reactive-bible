@@ -23,7 +23,8 @@ const mockTag = {
 };
 
 // Matches the Note contract in src/types.ts / api.tsx:
-// tag_position + is_owner are required, headings optional.
+// tag_position + is_owner are required, headings and images
+// optional.
 const mockNote = {
   id: 'note-1',
   note_text: 'This is a test note.',
@@ -33,6 +34,7 @@ const mockNote = {
   tag_position: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
+  images: [],
   verses: [
     {
       book: 'John',
@@ -409,6 +411,42 @@ export const handlers = [
   }),
   http.delete(`${API_URL}/notes/:id/`, () => {
     return HttpResponse.text('Deleted');
+  }),
+
+  // --- Note Images ---
+  // Shares the ImageSerializer shape with comment images;
+  // `comment` is null for note attachments.
+  http.get(`${API_URL}/notes/:noteId/images/`, ({ params }) => {
+    return HttpResponse.json([
+      {
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: null,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  }),
+
+  http.post(`${API_URL}/notes/:noteId/images/`, ({ params }) => {
+    return HttpResponse.json(
+      {
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: null,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
   }),
 
   // --- Reading positions (book-NAME keyed, auth-gated) ---

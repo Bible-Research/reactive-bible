@@ -10,8 +10,15 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 
 import { useBibleStore } from "../store";
+import {
+  deleteImage,
+  fetchNoteImages,
+  uploadNoteImage,
+} from "../api";
+import { clearNotesCache } from "../utils/cacheManager";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import {
   refsInclude,
@@ -24,7 +31,7 @@ import { useNoteEditor } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
 import PassagePicker from "./PassagePicker";
 import VerseTextGroups from "./VerseTextGroups";
-import { Note, VerseRef } from "../types";
+import { Note, NoteImage, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import { shallow } from "zustand/shallow";
 
@@ -62,6 +69,13 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // Last plain-clicked verse; a shift-click extends a range from it.
   const anchorRef = useRef<VerseRef | null>(null);
 
+  // Attached images — seeded from the note; uploads append
+  // and deletes filter. The modal only opens through the
+  // owner-gated edit affordance, so attach/delete need no
+  // extra permission check here.
+  const [images, setImages] = useState<NoteImage[]>([]);
+  const imageRefreshCount = useRef(0);
+
   // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
     if (!opened) return;
@@ -73,6 +87,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     });
     setVersesOpen(false);
     if (!note) return;
+    setImages(note.images ?? []);
+    imageRefreshCount.current = 0;
     const initial = (note.verses ?? [])
       .map((v) => ({
         bookId: toUsfmCode(v.book) ?? "",
@@ -159,6 +175,61 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     onSubmitted: () => onClose(),
   });
 
+  // Edit mode uploads immediately on select — the note id is
+  // already known, unlike create mode's staged files.
+  const handleAttachFiles = (files: File[]) => {
+    if (!note) return;
+    const noteId = note.id;
+    void (async () => {
+      for (const file of files) {
+        try {
+          const img = await uploadNoteImage(noteId, file);
+          setImages((prev) => [...prev, img]);
+        } catch (err: unknown) {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Failed to upload image.';
+          showNotification({
+            color: 'red',
+            title: 'Upload failed',
+            message: msg,
+          });
+        }
+      }
+      // The note's cached pages now carry a stale image list.
+      clearNotesCache();
+    })();
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    try {
+      await deleteImage(imageId);
+      setImages((prev) => prev.filter((i) => i.id !== imageId));
+      clearNotesCache();
+    } catch {
+      showNotification({
+        color: 'red',
+        title: 'Error',
+        message: 'Failed to delete image.',
+      });
+    }
+  };
+
+  // An attached thumb whose signed URL expired refetches the
+  // list — bounded so a persistently failing host can't loop.
+  const handleImageError = () => {
+    if (!note || imageRefreshCount.current >= 3) return;
+    imageRefreshCount.current += 1;
+    fetchNoteImages(note.id)
+      .then(setImages)
+      .catch(() => {
+        // Refund the attempt — a flaky network must not
+        // permanently burn the refresh budget.
+        imageRefreshCount.current -= 1;
+      });
+  };
+
   const handleClose = () => {
     if (editor.hasSaved() && note) {
       // Even if autosave moved the note to another tag, the
@@ -204,6 +275,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               });
             }}
             onAutoSave={editor.save}
+            existingImages={images}
+            onDeleteImage={handleDeleteImage}
+            onImageError={handleImageError}
+            onAttachFiles={handleAttachFiles}
             onUnmountedSave={() => {
               // A tail save finishing after unmount sets
               // hasSaved too late for handleClose's check —

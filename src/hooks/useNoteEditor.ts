@@ -5,7 +5,12 @@ import {
   useRef,
 } from 'react';
 import { showNotification } from '@mantine/notifications';
-import { addTagNote, editNote, UNTAGGED_TAG_ID } from '../api';
+import {
+  addTagNote,
+  editNote,
+  uploadNoteImage,
+  UNTAGGED_TAG_ID,
+} from '../api';
 import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
@@ -33,6 +38,19 @@ export interface NoteEditorDraft {
   /** Latest form contents — saved or still being typed. */
   tagId: string;
   text: string;
+  /**
+   * Files staged in the form awaiting upload once the note
+   * exists. The note-images endpoint needs `note_pk` in the
+   * URL, so uploads run inside the save queue right after a
+   * POST/PATCH resolves.
+   */
+  pendingFiles: File[];
+  /**
+   * Staged files already uploaded — an identity set so a
+   * re-reported staged list (the form still shows thumbs for
+   * attached files) never double-uploads.
+   */
+  uploadedFiles: Set<File>;
   /**
    * Serializes saves across modal mounts: the add/edit modals
    * unmount on close, so a remounted form's own save lock
@@ -117,11 +135,19 @@ interface UseNoteEditorResult {
    *  restores the in-progress note, not just the last saved
    *  text. */
   trackDraft: (tagId: string, text: string) => void;
+  /**
+   * Syncs the form's staged files into the draft so the next
+   * save — autosave tick, submit, or unmount flush — uploads
+   * them once `savedNoteId` exists.
+   */
+  trackFiles: (files: File[]) => void;
   /** The resumed draft for seeding the form, if any. */
   draft: {
     savedNoteId: string | null;
     tagId: string;
     text: string;
+    /** Files still awaiting upload (re-staged on reopen). */
+    pendingFiles: File[];
   } | null;
   /** True once any save reached the server — cached lists are
    *  stale from then on. */
@@ -198,6 +224,8 @@ export const useNoteEditor = ({
           mode === 'edit' ? noteRef.current?.id ?? null : null,
         tagId: '',
         text: '',
+        pendingFiles: [],
+        uploadedFiles: new Set<File>(),
         queue: Promise.resolve(),
       };
       drafts.set(scopedKey, draft);
@@ -211,17 +239,21 @@ export const useNoteEditor = ({
       // neither text nor linked verses carries nothing —
       // autosave ticks and the unmount flush both come
       // through here, so the contract lives in one place.
+      // Staged image files count as content: the backend
+      // accepts a blank note_text, so an image-only note is
+      // valid.
       if (!tagId) {
-        return Promise.resolve(false);
-      }
-      if (
-        !toPlainText(text).trim() &&
-        refsRef.current.length === 0
-      ) {
         return Promise.resolve(false);
       }
       const draft = ensureDraft();
       if (!draft) return Promise.resolve(false);
+      if (
+        !toPlainText(text).trim() &&
+        refsRef.current.length === 0 &&
+        draft.pendingFiles.length === 0
+      ) {
+        return Promise.resolve(false);
+      }
       const run = draft.queue.then(async (): Promise<boolean> => {
         const refs = refsRef.current;
         if (draft.savedNoteId) {
@@ -235,8 +267,39 @@ export const useNoteEditor = ({
         draft.tagId = tagId;
         draft.text = text;
         savedRef.current = true;
+        // Staged attachments upload once the note exists —
+        // the endpoint needs note_pk in the URL. Sequential
+        // so one failure notifies and the rest still attempt
+        // (mirrors CommentThread.uploadImages).
+        const noteId = draft.savedNoteId;
+        if (noteId && draft.pendingFiles.length > 0) {
+          for (const file of [...draft.pendingFiles]) {
+            try {
+              await uploadNoteImage(noteId, file);
+              // Identity dedup: the form still shows the
+              // thumb, and its next onFilesChange report
+              // would otherwise re-stage the uploaded file.
+              draft.uploadedFiles.add(file);
+              draft.pendingFiles = draft.pendingFiles.filter(
+                (f) => f !== file
+              );
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : 'Failed to upload image.';
+              showNotification({
+                color: 'red',
+                title: 'Upload failed',
+                message: msg,
+              });
+            }
+          }
+        }
         // Cached notes pages are stale after every write — a
-        // later fetchNotes must hit the API.
+        // later fetchNotes must hit the API. Also clears
+        // after image uploads so cached pages don't serve a
+        // stale image list.
         clearNotesCache();
         return true;
       });
@@ -288,12 +351,14 @@ export const useNoteEditor = ({
       }
       if (
         !toPlainText(text).trim() &&
-        refsRef.current.length === 0
+        refsRef.current.length === 0 &&
+        (ensureDraft()?.pendingFiles.length ?? 0) === 0
       ) {
         showNotification({
           title: 'Cannot save note',
           message:
-            'Add note text or link a verse reference.',
+            'Add note text, attach an image, or link a ' +
+            'verse reference.',
           color: 'red',
         });
         return false;
@@ -328,7 +393,7 @@ export const useNoteEditor = ({
         return false;
       }
     },
-    [save, mode, refreshViewedNotes, scopedKey]
+    [save, mode, refreshViewedNotes, scopedKey, ensureDraft]
   );
 
   const trackDraft = useCallback(
@@ -339,6 +404,20 @@ export const useNoteEditor = ({
       if (!draft) return;
       draft.tagId = tagId;
       draft.text = text;
+    },
+    [ensureDraft]
+  );
+
+  const trackFiles = useCallback(
+    (files: File[]) => {
+      // Keep only files not yet uploaded — the form reports
+      // its whole staged list, including thumbs for files a
+      // previous save already attached.
+      const draft = ensureDraft();
+      if (!draft) return;
+      draft.pendingFiles = files.filter(
+        (f) => !draft.uploadedFiles.has(f)
+      );
     },
     [ensureDraft]
   );
@@ -355,6 +434,7 @@ export const useNoteEditor = ({
       savedNoteId: existing.savedNoteId,
       tagId: existing.tagId,
       text: existing.text,
+      pendingFiles: existing.pendingFiles,
     };
   }, [scopedKey]);
 
@@ -362,6 +442,7 @@ export const useNoteEditor = ({
     save,
     submit,
     trackDraft,
+    trackFiles,
     draft,
     hasSaved,
     refreshViewedNotes,

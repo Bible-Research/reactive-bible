@@ -1,9 +1,14 @@
 import {
+  act,
   screen,
   fireEvent,
   waitFor,
 } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '../mocks/server';
+import { API_BASE_URL } from '../config';
+import { NoteImage } from '../types';
 import NoteCard from './NoteCard';
 import {
   renderWithProviders,
@@ -18,6 +23,19 @@ import {
 vi.mock('./CommentThread', () => ({
   default: () => <div data-testid="comment-thread" />,
 }));
+
+const makeNoteImage = (
+  id: string,
+  signedUrl: string | null
+): NoteImage => ({
+  id,
+  storage_url: `gs://bucket/originals/${id}/${id}.png`,
+  signed_url: signedUrl,
+  content_type: 'image/png',
+  size_bytes: 1024,
+  uploaded_by: 1,
+  created_at: '2024-01-01T00:00:00Z',
+});
 
 describe('NoteCard Component', () => {
   const singleVerseNote = createMockNote({
@@ -539,5 +557,123 @@ describe('NoteCard provider error display', () => {
     expect(
       screen.getByTitle('passage-verse-1-500')
     ).toBeInTheDocument();
+  });
+});
+
+describe('note images', () => {
+  it('renders attached images under the note text', () => {
+    const note = createMockNote({
+      id: 'n-img',
+      images: [
+        makeNoteImage('img-old', 'https://old.example.com/x'),
+      ],
+      verses: [createMockVerse()],
+    });
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    const img = document.querySelector(
+      'img[alt="img-old.png"]'
+    ) as HTMLImageElement;
+    expect(img).toBeInTheDocument();
+    expect(img.src).toBe('https://old.example.com/x');
+    // Cards display only — deletes live in EditNoteModal.
+    expect(
+      screen.queryByRole('button', { name: /^Delete image/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens the lightbox when a thumbnail is clicked',
+    async () => {
+      const note = createMockNote({
+        id: 'n-img',
+        images: [
+          makeNoteImage('img-old', 'https://old.example.com/x'),
+        ],
+        verses: [createMockVerse()],
+      });
+      renderWithProviders(
+        <NoteCard note={note} onViewInBible={vi.fn()} />
+      );
+
+      fireEvent.click(screen.getByAltText('img-old.png'));
+
+      await waitFor(() => {
+        expect(
+          screen.getByAltText('full size')
+        ).toBeInTheDocument();
+      });
+    });
+
+  it('refreshes signed URLs when a thumbnail fails to load',
+    async () => {
+      // MSW's default note-images list returns img-1 with a
+      // fresh signed_url — the failing img-old.png is replaced.
+      const note = createMockNote({
+        id: 'n-img',
+        images: [
+          makeNoteImage('img-old', 'https://old.example.com/x'),
+        ],
+        verses: [createMockVerse()],
+      });
+      renderWithProviders(
+        <NoteCard note={note} onViewInBible={vi.fn()} />
+      );
+
+      fireEvent.error(screen.getByAltText('img-old.png'));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByAltText('img-old.png')
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByAltText('img-1.png')
+        ).toBeInTheDocument();
+      });
+    });
+
+  it('bounds the signed-URL refresh loop', async () => {
+    let fetches = 0;
+    server.use(
+      http.get(
+        `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+        () => {
+          fetches += 1;
+          return HttpResponse.json([
+            makeNoteImage('img-1', 'https://example.com/x'),
+          ]);
+        }
+      )
+    );
+    const note = createMockNote({
+      id: 'n-img',
+      images: [
+        makeNoteImage('img-1', 'https://example.com/x'),
+      ],
+      verses: [createMockVerse()],
+    });
+    renderWithProviders(
+      <NoteCard note={note} onViewInBible={vi.fn()} />
+    );
+
+    // Each failed load refreshes the list, which returns the
+    // same broken URL — the budget caps retries at 3. The
+    // flush between errors lets each refetch settle so the
+    // pending guard doesn't swallow the next one.
+    for (let i = 0; i < 5; i++) {
+      const img = screen.queryByAltText('img-1.png');
+      if (!img) break;
+      fireEvent.error(img);
+      await act(async () => {
+        // The MSW round-trip + .then/.finally chain spans
+        // macrotasks — a bare microtask flush can leave the
+        // pending flag set and swallow the next error.
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+      });
+    }
+    expect(fetches).toBe(3);
   });
 });

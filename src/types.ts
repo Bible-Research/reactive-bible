@@ -27,6 +27,12 @@ export interface Note {
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;
+  /**
+   * Attached images — optional because cached pages and
+   * pre-deploy payloads lack the field. Always read
+   * `note.images ?? []`.
+   */
+  images?: NoteImage[];
   /** Set when the provider failed to resolve verse text. */
   error?: string;
   /** 'rate_limited' | 'provider_error' — see `error`. */
@@ -109,6 +115,13 @@ export interface CommentImage {
   uploaded_by: number;
   created_at: string;
 }
+
+/**
+ * An image attached to a note. Notes and comments share one
+ * backend `ImageSerializer`, so the shape is identical to
+ * `CommentImage`.
+ */
+export type NoteImage = CommentImage;
 
 export interface Comment {
   id: string;

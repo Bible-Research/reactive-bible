@@ -3,15 +3,27 @@ import {
   Box,
   Button,
   Checkbox,
+  FileButton,
   Group,
   Select,
+  Text,
   ThemeIcon,
 } from "@mantine/core";
-import { IconCheck } from "@tabler/icons-react";
+import { IconCheck, IconPhoto } from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
-import { Tag } from "../types";
+import { NoteImage, Tag } from "../types";
+import { commentImageName } from "../utils/commentTree";
 import { toPlainText } from "../utils/tiptapContent";
+import {
+  useStagedImages,
+  ALLOWED_IMAGE_TYPES,
+  IMAGE_THUMB_STYLE,
+} from "../hooks/useStagedImages";
+import {
+  RemoveImageButton,
+  UnavailableThumb,
+} from "./CommentImageGrid";
 import RichTextEditor from "./RichTextEditor";
 
 interface NoteFormProps {
@@ -49,10 +61,35 @@ interface NoteFormProps {
    * modal unmounts it on close).
    */
   onDraftChange?: (tagId: string, text: string) => void;
+  /** Images already attached to the note (edit mode). */
+  existingImages?: NoteImage[];
+  /** Delete an attached image (owner-gated by the parent). */
+  onDeleteImage?: (imageId: string) => void | Promise<void>;
+  /**
+   * A rendered attached image failed to load — its signed
+   * URL expired; the parent refetches fresh ones.
+   */
+  onImageError?: (src: string) => void;
+  /**
+   * Edit mode: validated files upload immediately against
+   * the existing note instead of staging for the next save.
+   */
+  onAttachFiles?: (files: File[]) => void;
+  /**
+   * Create mode: reports the staged File[] after every
+   * change so the editor draft can carry pending uploads
+   * across remounts.
+   */
+  onFilesChange?: (files: File[]) => void;
+  /** Re-staged files from a restored editor draft. */
+  initialFiles?: File[];
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
 const SAVED_FLASH_MS = 500;
+// Mirrors the backend's IMAGE_MAX_PER_NOTE (comments cap
+// lower, at 5).
+const MAX_NOTE_IMAGES = 10;
 
 // Marks `save` as the in-flight write until it settles. The
 // tracked promise never rejects, so awaiting the lock stays safe
@@ -84,12 +121,37 @@ const NoteForm = ({
   onAutoSave,
   onUnmountedSave,
   onDraftChange,
+  existingImages = [],
+  onDeleteImage,
+  onImageError,
+  onAttachFiles,
+  onFilesChange,
+  initialFiles,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
   const [autoSave, setAutoSave] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
-  const latest = useRef({ tagId: "", text: "" });
+  // Staged image attachments — create mode reports them so
+  // the editor draft can upload them once the note exists;
+  // edit mode hands validated files to `onAttachFiles`
+  // instead.
+  const {
+    staged,
+    fileError,
+    addFiles,
+    reportFiles,
+    removeStaged,
+    markStagedFailed,
+  } = useStagedImages({
+    maxImages: MAX_NOTE_IMAGES,
+    existingCount: existingImages.length,
+    parentNoun: 'note',
+    initialFiles,
+    onChange: onFilesChange,
+  });
+  const totalAttached = existingImages.length + staged.length;
+  const latest = useRef({ tagId: "", text: "", fileCount: 0 });
   const onAutoSaveRef = useRef(onAutoSave);
   const onUnmountedSaveRef = useRef(onUnmountedSave);
   const onDraftChangeRef = useRef(onDraftChange);
@@ -102,7 +164,11 @@ const NoteForm = ({
   const flashTimeout = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    latest.current = { tagId: selectedTagId, text: noteText };
+    latest.current = {
+      tagId: selectedTagId,
+      text: noteText,
+      fileCount: staged.length,
+    };
     onAutoSaveRef.current = onAutoSave;
     onUnmountedSaveRef.current = onUnmountedSave;
     onDraftChangeRef.current = onDraftChange;
@@ -148,13 +214,16 @@ const NoteForm = ({
     () => () => {
       const save = onAutoSaveRef.current;
       if (!save || !autoSaveRef.current) return;
-      const { tagId, text } = latest.current;
-      // A verse-linked note may flush with empty text; a
-      // truly empty note (no text, nothing linked) is skipped.
+      const { tagId, text, fileCount } = latest.current;
+      // A verse-linked note may flush with empty text, and a
+      // note with only staged images is content too; a truly
+      // empty note (no text, no images, nothing linked) is
+      // skipped.
       if (!tagId) return;
       if (
         !allowEmptyTextRef.current &&
-        !toPlainText(text).trim()
+        !toPlainText(text).trim() &&
+        fileCount === 0
       ) {
         return;
       }
@@ -191,14 +260,16 @@ const NoteForm = ({
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
-      const { tagId, text } = latest.current;
+      const { tagId, text, fileCount } = latest.current;
       // Skip contentless notes AND empty tag — the latter
       // used to POST `tag: ''` every 5s, a stream of silent
-      // 400s. Verse-linked notes may save with empty text.
+      // 400s. Verse-linked and image-only notes may save
+      // with empty text.
       if (!tagId) return;
       if (
         !allowEmptyTextRef.current &&
-        !toPlainText(text).trim()
+        !toPlainText(text).trim() &&
+        fileCount === 0
       ) {
         return;
       }
@@ -250,10 +321,14 @@ const NoteForm = ({
       });
       return;
     }
-    if (!allowEmptyText && !toPlainText(noteText).trim()) {
+    if (
+      !allowEmptyText &&
+      !toPlainText(noteText).trim() &&
+      staged.length === 0
+    ) {
       showNotification({
         title: 'Cannot save note',
-        message: 'Note text is required.',
+        message: 'Add note text or attach an image.',
         color: 'red',
       });
       return;
@@ -280,10 +355,26 @@ const NoteForm = ({
           tagId: selectedTagId,
           text: noteText,
         };
+        // Staged thumbs are NOT cleared here: a successful
+        // submit closes the modal (the hook's unmount cleanup
+        // revokes the object URLs), and clearing would also
+        // report an empty File[] to a draft slot the editor
+        // just deleted — recreating a ghost draft.
       }
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleFileSelect = (files: File[]) => {
+    if (onAttachFiles) {
+      // Edit mode: the note already exists, so validated
+      // files upload immediately instead of staging.
+      const accepted = reportFiles(files);
+      if (accepted.length > 0) onAttachFiles(accepted);
+      return;
+    }
+    addFiles(files);
   };
 
   return (
@@ -311,6 +402,75 @@ const NoteForm = ({
         value={noteText}
         onChange={setNoteText}
       />
+      {(existingImages.length > 0 || staged.length > 0) && (
+        <Group spacing={6} mt={6} align="flex-start">
+          {existingImages.map((img) => {
+            const src = img.signed_url;
+            const name = commentImageName(img);
+            return (
+              <Box
+                key={img.id}
+                style={{
+                  position: 'relative',
+                  display: 'inline-block',
+                }}
+              >
+                {src ? (
+                  <img
+                    src={src}
+                    alt={name}
+                    onError={() => onImageError?.(src)}
+                    style={IMAGE_THUMB_STYLE}
+                  />
+                ) : (
+                  <UnavailableThumb
+                    label={`${name} (unavailable)`}
+                  />
+                )}
+                {onDeleteImage && (
+                  <RemoveImageButton
+                    label={`Remove image ${name}`}
+                    offset={2}
+                    onClick={() => onDeleteImage(img.id)}
+                  />
+                )}
+              </Box>
+            );
+          })}
+          {staged.map((s) => (
+            <Box
+              key={s.id}
+              style={{
+                position: 'relative',
+                display: 'inline-block',
+              }}
+            >
+              {s.failed ? (
+                <UnavailableThumb
+                  label={`${s.file.name} (unavailable)`}
+                />
+              ) : (
+                <img
+                  src={s.url}
+                  alt={s.file.name}
+                  style={IMAGE_THUMB_STYLE}
+                  onError={() => markStagedFailed(s.id)}
+                />
+              )}
+              <RemoveImageButton
+                label={`Remove staged image ${s.file.name}`}
+                offset={2}
+                onClick={() => removeStaged(s.id)}
+              />
+            </Box>
+          ))}
+        </Group>
+      )}
+      {fileError && (
+        <Text size="xs" color="red" mt={4}>
+          {fileError}
+        </Text>
+      )}
       <Box
         data-testid="note-submit-bar"
         sx={(theme) => ({
@@ -333,6 +493,28 @@ const NoteForm = ({
           <Button variant="transparent" type="submit" fullWidth>
             {submitText}
           </Button>
+          {(onAttachFiles || onFilesChange) && (
+            <FileButton
+              onChange={handleFileSelect}
+              accept={ALLOWED_IMAGE_TYPES.join(',')}
+              multiple
+              disabled={totalAttached >= MAX_NOTE_IMAGES}
+            >
+              {(props) => (
+                <Button
+                  {...props}
+                  variant="transparent"
+                  leftIcon={<IconPhoto size={14} />}
+                  disabled={totalAttached >= MAX_NOTE_IMAGES}
+                  aria-label="Attach images"
+                >
+                  {totalAttached > 0
+                    ? `${totalAttached}/${MAX_NOTE_IMAGES}`
+                    : 'Images'}
+                </Button>
+              )}
+            </FileButton>
+          )}
           {onAutoSave && (
             <Checkbox
               label="Auto save"

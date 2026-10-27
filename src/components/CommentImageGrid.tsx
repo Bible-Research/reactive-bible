@@ -10,8 +10,8 @@ import { CommentImage } from '../types';
 import { commentImageName } from '../utils/commentTree';
 
 /**
- * Floating red "remove" button shared by the comment image
- * grid and the comment form thumbnails.
+ * Floating red "remove" button shared by the image grid and
+ * the attach-form thumbnails.
  */
 export const RemoveImageButton = ({
   label,
@@ -38,22 +38,60 @@ export const RemoveImageButton = ({
   </ActionIcon>
 );
 
+/**
+ * Photo-icon placeholder shown in attach forms when a
+ * thumbnail has no usable image (failed preview or a null
+ * signed_url).
+ */
+export const UnavailableThumb = ({
+  label,
+}: {
+  label: string;
+}) => (
+  <Box
+    role="img"
+    aria-label={label}
+    sx={(theme) => ({
+      height: 56,
+      width: 56,
+      borderRadius: 4,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        theme.colorScheme === 'dark'
+          ? theme.colors.dark[5]
+          : theme.colors.gray[2],
+      color:
+        theme.colorScheme === 'dark'
+          ? theme.colors.dark[2]
+          : theme.colors.gray[6],
+    })}
+  >
+    <IconPhoto size={14} />
+  </Box>
+);
+
 interface CommentImageGridProps {
   images: CommentImage[];
-  commentId: string;
-  /** Author-only delete affordance. */
+  /**
+   * The owning comment or note id — passed back through the
+   * delete/error callbacks so the parent can scope them.
+   */
+  parentId: string;
+  /** Author/owner-only delete affordance. */
   canDelete: boolean;
   onDeleteImage?: (
-    commentId: string,
+    parentId: string,
     imageId: string
   ) => Promise<void> | void;
   onOpenImage: (imageId: string) => void;
-  onImageError?: (commentId: string) => void;
+  onImageError?: (parentId: string) => void;
 }
 
 const CommentImageGrid = ({
   images,
-  commentId,
+  parentId,
   canDelete,
   onDeleteImage,
   onOpenImage,
@@ -91,7 +129,7 @@ const CommentImageGrid = ({
                   src={src}
                   loading="lazy"
                   alt={name}
-                  onError={() => onImageError?.(commentId)}
+                  onError={() => onImageError?.(parentId)}
                   style={{
                     width: '100%',
                     maxHeight: 200,
@@ -130,7 +168,7 @@ const CommentImageGrid = ({
                 label={`Delete image ${img.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void onDeleteImage(commentId, img.id);
+                  void onDeleteImage(parentId, img.id);
                 }}
               />
             )}

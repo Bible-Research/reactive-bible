@@ -36,6 +36,9 @@ vi.mock('../api', () => ({
     next: null,
   }),
   editNote: vi.fn(),
+  uploadNoteImage: vi.fn(),
+  deleteImage: vi.fn(),
+  fetchNoteImages: vi.fn(),
   getVersesInChapter: vi.fn().mockResolvedValue({
     verses: [],
     headings: [],
@@ -591,4 +594,128 @@ describe('EditNoteModal Component', () => {
         page: 2,
       });
     });
+
+  describe('note images', () => {
+    const makeImage = (id: string) => ({
+      id,
+      storage_url: `gs://bucket/originals/${id}/${id}.png`,
+      signed_url: `https://example.com/${id}.png`,
+      content_type: 'image/png',
+      size_bytes: 1024,
+      uploaded_by: 1,
+      created_at: '2024-01-01T00:00:00Z',
+    });
+
+    const noteWithImage = () =>
+      createMockNote({
+        id: 'n1',
+        note_text: 'Original note text',
+        tag: createMockTag({ id: '1', name: 'Faith' }),
+        verses: [],
+        images: [makeImage('img-1')],
+      });
+
+    const attachFiles = (files: File[]) => {
+      const input = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      Object.defineProperty(input, 'files', {
+        value: files,
+        configurable: true,
+      });
+      fireEvent.change(input);
+    };
+
+    it('renders attached images and deletes one', async () => {
+      (api.deleteImage as Mock).mockResolvedValue(undefined);
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={vi.fn()}
+          note={noteWithImage()}
+        />
+      );
+
+      const thumb = await waitFor(() =>
+        document.querySelector('img[alt="img-1.png"]')
+      );
+      expect(thumb).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Remove image img-1.png',
+        })
+      );
+
+      await waitFor(() => {
+        expect(api.deleteImage).toHaveBeenCalledWith('img-1');
+      });
+      expect(
+        document.querySelector('img[alt="img-1.png"]')
+      ).not.toBeInTheDocument();
+    });
+
+    it('uploads immediately when a file is attached',
+      async () => {
+        (api.uploadNoteImage as Mock).mockResolvedValue(
+          makeImage('img-2')
+        );
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={mockNote}
+          />
+        );
+
+        const file = new File(
+          ['x'], 'photo.png', { type: 'image/png' }
+        );
+        attachFiles([file]);
+
+        // Edit mode knows the note id — no staging.
+        await waitFor(() => {
+          expect(api.uploadNoteImage).toHaveBeenCalledWith(
+            'n1',
+            file
+          );
+        });
+        // The uploaded image's thumb is appended.
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+
+    it('refreshes the image list when a thumb fails ' +
+      'to load', async () => {
+        (api.fetchNoteImages as Mock).mockResolvedValue([
+          makeImage('img-9'),
+        ]);
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={noteWithImage()}
+          />
+        );
+
+        const thumb = await waitFor(() =>
+          document.querySelector('img[alt="img-1.png"]')
+        );
+        fireEvent.error(thumb as HTMLElement);
+
+        await waitFor(() => {
+          expect(api.fetchNoteImages).toHaveBeenCalledWith(
+            'n1'
+          );
+        });
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-9.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+  });
 });
