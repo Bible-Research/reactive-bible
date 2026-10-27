@@ -28,6 +28,9 @@ let capturedDragStart:
 let capturedDragEnd:
   | ((event: DragEndEvent) => void)
   | undefined;
+// Records calls RootDropZone makes through useDndContext —
+// used to prove the sticky bar re-measures on scroll.
+const measureSpy = vi.fn();
 
 vi.mock('@dnd-kit/core', async (importOriginal) => {
   const actual =
@@ -41,6 +44,16 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
       capturedDragStart = props.onDragStart;
       capturedDragEnd = props.onDragEnd;
       return <RealDndContext {...props} />;
+    },
+    useDndContext: function useDndContextSpy() {
+      const context = actual.useDndContext();
+      return {
+        ...context,
+        measureDroppableContainers: (ids: string[]) => {
+          measureSpy(ids);
+          context.measureDroppableContainers(ids);
+        },
+      };
     },
   };
 });
@@ -393,6 +406,41 @@ describe('TagTree drag reparent', () => {
       const zone = screen.getByTestId('tag-root-drop-zone');
       expect(zone).toBeInTheDocument();
       expect(zone.style.opacity).toBe('0.5');
+    });
+
+  it('re-measures the pinned bar when a scrollable ' +
+    'ancestor scrolls mid-drag, so its dnd-kit hit box ' +
+    'tracks the stuck position instead of drifting', () => {
+      mockDomApis();
+      render(
+        <div
+          data-testid="tag-scroll-wrap"
+          style={{ overflowY: 'auto', height: 120 }}
+        >
+          <TagTree
+            tags={tags}
+            onEdit={vi.fn()}
+            onDelete={vi.fn()}
+            onViewNotes={vi.fn()}
+            onReparent={vi.fn()}
+            reparentEnabled
+          />
+        </div>
+      );
+      const scroller = screen.getByTestId('tag-scroll-wrap');
+
+      dragStart('tag-b');
+      measureSpy.mockClear();
+      fireEvent.scroll(scroller);
+      expect(measureSpy).toHaveBeenCalledWith([
+        'tag-tree-root-drop',
+      ]);
+
+      // The listener is removed with the bar after the drag.
+      dragEnd('tag-b', null);
+      measureSpy.mockClear();
+      fireEvent.scroll(scroller);
+      expect(measureSpy).not.toHaveBeenCalled();
     });
 
   it('ignores drops with no target, onto itself, onto its ' +

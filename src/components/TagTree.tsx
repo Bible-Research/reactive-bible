@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -29,9 +29,11 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
+  getScrollableAncestors,
   MouseSensor,
   pointerWithin,
   TouchSensor,
+  useDndContext,
   useDraggable,
   useDroppable,
   useSensor,
@@ -395,10 +397,36 @@ const TagTreeNode = ({
  * start remains safe.
  */
 const RootDropZone = ({ disabled }: { disabled: boolean }) => {
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef, isOver, node } = useDroppable({
     id: ROOT_DROP_ID,
     disabled,
   });
+  const { measureDroppableContainers } = useDndContext();
+
+  // dnd-kit caches each droppable's rect at measure time and
+  // then lazily shifts it by the scrollable ancestor's scroll
+  // delta — correct for in-flow rows, but once this bar pins,
+  // its real position stops following the scroll while the
+  // cached hit box keeps drifting out of the viewport, so a
+  // drop on the visible bar would land on the row behind it.
+  // Re-measuring the bar on every scroll event re-baselines
+  // its rect at the pinned position.
+  useEffect(() => {
+    const element = node.current;
+    if (!element) return;
+    const remeasure = () =>
+      measureDroppableContainers([ROOT_DROP_ID]);
+    const scrollers = getScrollableAncestors(element);
+    scrollers.forEach((scroller) =>
+      scroller.addEventListener('scroll', remeasure, {
+        passive: true,
+      })
+    );
+    return () =>
+      scrollers.forEach((scroller) =>
+        scroller.removeEventListener('scroll', remeasure)
+      );
+  }, [node, measureDroppableContainers]);
   return (
     <Paper
       ref={setNodeRef}
