@@ -5,6 +5,7 @@
  */
 import type {
   Note,
+  NoteImage,
   NoteOrderIndexEntry,
   NotePositionUpdate,
   MovePlacement,
@@ -14,6 +15,7 @@ import type {
 } from '../types';
 import {
   authenticatedFetch,
+  authenticatedUpload,
   fetchJson,
   publicFetch,
 } from '../utils/apiClient';
@@ -300,4 +302,49 @@ export const getNote = (noteId: string): Promise<Note> =>
     publicFetch,
     `${API_BASE_URL}/api/v1/notes/${noteId}/`,
     'Failed to fetch note'
+  );
+
+/**
+ * Upload one image to a note. The note must already exist —
+ * there is no pre-upload endpoint — so create-mode modals
+ * stage files locally and upload only after the first save
+ * produced `savedNoteId`.
+ */
+export const uploadNoteImage = async (
+  noteId: string,
+  file: File,
+): Promise<NoteImage> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const response = await authenticatedUpload(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/images/`,
+    fd,
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message =
+      data.detail ||
+      (Array.isArray(data.file) ? data.file[0] : data.file) ||
+      'Failed to upload image.';
+    throw new Error(message);
+  }
+  return response.json();
+};
+
+/**
+ * A note's attached images — the only way they reach the
+ * client; note payloads do not embed `images`. `NoteCard`
+ * lazy-fetches this per visible card through the shared
+ * `useNoteImages` store, and a failed <img> load refetches
+ * it (bounded) since the signed URLs expire (600 s TTL).
+ * `AllowAny` server-side: public notes' images are readable
+ * anonymously.
+ */
+export const fetchNoteImages = (
+  noteId: string
+): Promise<NoteImage[]> =>
+  fetchJson<NoteImage[]>(
+    publicFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/images/`,
+    'Failed to fetch images.'
   );

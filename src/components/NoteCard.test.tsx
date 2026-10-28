@@ -1,9 +1,15 @@
 import {
+  act,
   screen,
   fireEvent,
   waitFor,
 } from '@testing-library/react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import { server } from '../mocks/server';
+import { API_BASE_URL } from '../config';
+import { NoteImage } from '../types';
+import { resetNoteImages } from '../hooks/useNoteImages';
 import NoteCard from './NoteCard';
 import {
   renderWithProviders,
@@ -18,6 +24,19 @@ import {
 vi.mock('./CommentThread', () => ({
   default: () => <div data-testid="comment-thread" />,
 }));
+
+const makeNoteImage = (
+  id: string,
+  signedUrl: string | null
+): NoteImage => ({
+  id,
+  storage_url: `gs://bucket/originals/${id}/${id}.png`,
+  signed_url: signedUrl,
+  content_type: 'image/png',
+  size_bytes: 1024,
+  uploaded_by: 1,
+  created_at: '2024-01-01T00:00:00Z',
+});
 
 describe('NoteCard Component', () => {
   const singleVerseNote = createMockNote({
@@ -539,5 +558,318 @@ describe('NoteCard provider error display', () => {
     expect(
       screen.getByTitle('passage-verse-1-500')
     ).toBeInTheDocument();
+  });
+});
+
+describe('note images', () => {
+  // The shared per-note image store is module-scoped — reset
+  // it between tests or entries leak across cases.
+  beforeEach(() => {
+    resetNoteImages();
+  });
+
+  // happy-dom ships an IntersectionObserver that never fires
+  // — replace it with one reporting intersection immediately
+  // so the card's lazy gate opens.
+  const stubIntersection = () => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        private cb: IntersectionObserverCallback;
+        constructor(cb: IntersectionObserverCallback) {
+          this.cb = cb;
+        }
+        observe(target: Element) {
+          this.cb(
+            [
+              {
+                isIntersecting: true,
+                target,
+              } as IntersectionObserverEntry,
+            ],
+            this as unknown as IntersectionObserver
+          );
+        }
+        unobserve() {
+          /* no-op stub */
+        }
+        disconnect() {
+          /* no-op stub */
+        }
+        takeRecords() {
+          return [];
+        }
+      }
+    );
+  };
+
+  const note = () =>
+    createMockNote({
+      id: 'n-img',
+      verses: [createMockVerse()],
+    });
+
+  it('does not fetch images before the card nears the ' +
+    'viewport', async () => {
+      let fetches = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            return HttpResponse.json([]);
+          }
+        )
+      );
+      // No intersection stub: happy-dom's observer reports
+      // nothing, so the lazy gate stays closed.
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(fetches).toBe(0);
+      expect(
+        document.querySelector('img[alt="img-1.png"]')
+      ).not.toBeInTheDocument();
+    });
+
+  it('fetches and renders attached images once the card ' +
+    'intersects', async () => {
+      stubIntersection();
+      // MSW's default note-images list returns img-1.
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      const img = await screen.findByAltText('img-1.png');
+      expect(img).toBeInTheDocument();
+      // Cards display only — deletes live in EditNoteModal.
+      expect(
+        screen.queryByRole('button', { name: /^Delete image/ })
+      ).not.toBeInTheDocument();
+    });
+
+  it('fetches on mount where IntersectionObserver is ' +
+    'missing entirely', async () => {
+      // Old Android WebViews lack IO; Mantine's
+      // useIntersection news it up unguarded inside its ref
+      // callback, so attaching it would throw during commit.
+      // The card must skip the ref, open the lazy gate at
+      // mount, and fetch without crashing.
+      vi.stubGlobal('IntersectionObserver', undefined);
+      let fetches = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            return HttpResponse.json([
+              makeNoteImage(
+                'img-1',
+                'https://example.com/img-1.png'
+              ),
+            ]);
+          }
+        )
+      );
+
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      expect(
+        await screen.findByAltText('img-1.png')
+      ).toBeInTheDocument();
+      expect(fetches).toBe(1);
+      vi.unstubAllGlobals();
+    });
+
+  it('renders no grid while the image fetch is in flight',
+    async () => {
+      stubIntersection();
+      // A never-resolving list keeps the card in its silent
+      // loading state — images are optional content, so no
+      // spinner renders either.
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => new Promise(() => undefined)
+        )
+      );
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(
+        document.querySelector('.mantine-SimpleGrid-root')
+      ).not.toBeInTheDocument();
+    });
+
+  it('renders nothing when the note has no images',
+    async () => {
+      stubIntersection();
+      let fetches = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            return HttpResponse.json([]);
+          }
+        )
+      );
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      await waitFor(() => expect(fetches).toBe(1));
+      expect(
+        document.querySelector('.mantine-SimpleGrid-root')
+      ).not.toBeInTheDocument();
+    });
+
+  it('opens the lightbox when a thumbnail is clicked',
+    async () => {
+      stubIntersection();
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      fireEvent.click(
+        await screen.findByAltText('img-1.png')
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByAltText('full size')
+        ).toBeInTheDocument();
+      });
+    });
+
+  it('refreshes signed URLs when a thumbnail fails to load',
+    async () => {
+      stubIntersection();
+      // First load returns a dead signed_url; the refresh
+      // mints a fresh one.
+      let call = 0;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            call += 1;
+            return HttpResponse.json([
+              makeNoteImage(
+                call === 1 ? 'img-old' : 'img-1',
+                call === 1
+                  ? 'https://dead.example.com/x'
+                  : 'https://example.com/img-1.png'
+              ),
+            ]);
+          }
+        )
+      );
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      fireEvent.error(
+        await screen.findByAltText('img-old.png')
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.queryByAltText('img-old.png')
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByAltText('img-1.png')
+        ).toBeInTheDocument();
+      });
+      expect(call).toBe(2);
+    });
+
+  it('collapses concurrent thumb errors into one refresh',
+    async () => {
+      stubIntersection();
+      let fetches = 0;
+      let resolveRefresh: (r: Response) => void =
+        () => undefined;
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+          () => {
+            fetches += 1;
+            if (fetches === 1) {
+              return HttpResponse.json([
+                makeNoteImage('img-1', 'https://d.example/1'),
+                makeNoteImage('img-2', 'https://d.example/2'),
+              ]);
+            }
+            return new Promise<Response>((resolve) => {
+              resolveRefresh = resolve;
+            });
+          }
+        )
+      );
+      renderWithProviders(
+        <NoteCard note={note()} onViewInBible={vi.fn()} />
+      );
+
+      const first = await screen.findByAltText('img-1.png');
+      const second = screen.getByAltText('img-2.png');
+      fireEvent.error(first);
+      fireEvent.error(second);
+
+      // Both errors join the single in-flight refresh.
+      await waitFor(() => expect(fetches).toBe(2));
+      expect(fetches).toBe(2);
+      await act(async () => {
+        resolveRefresh(HttpResponse.json([]));
+      });
+    });
+
+  it('bounds the signed-URL refresh loop', async () => {
+    stubIntersection();
+    let fetches = 0;
+    server.use(
+      http.get(
+        `${API_BASE_URL}/api/v1/notes/:noteId/images/`,
+        () => {
+          fetches += 1;
+          return HttpResponse.json([
+            makeNoteImage('img-1', 'https://example.com/x'),
+          ]);
+        }
+      )
+    );
+    renderWithProviders(
+      <NoteCard note={note()} onViewInBible={vi.fn()} />
+    );
+    await screen.findByAltText('img-1.png');
+    const initialFetches = fetches;
+
+    // Each failed load refreshes the list, which returns the
+    // same broken URL — the budget caps refreshes at 3. The
+    // flush between errors lets each refetch settle so the
+    // single-flight guard doesn't swallow the next one.
+    for (let i = 0; i < 5; i++) {
+      const img = screen.queryByAltText('img-1.png');
+      if (!img) break;
+      fireEvent.error(img);
+      await act(async () => {
+        // The MSW round-trip + .then/.finally chain spans
+        // macrotasks — a bare microtask flush can leave the
+        // in-flight flag set and merge the next error.
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+      });
+    }
+    expect(fetches - initialFetches).toBe(3);
   });
 });

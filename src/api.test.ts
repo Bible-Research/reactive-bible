@@ -503,6 +503,100 @@ describe('API Functions', () => {
     });
   });
 
+  describe('note images', () => {
+    it('uploadNoteImage posts multipart and resolves the ' +
+      'image body', async () => {
+      const file = new File(
+        ['x'], 'photo.png', { type: 'image/png' }
+      );
+      const img = await api.uploadNoteImage('note-1', file);
+
+      expect(img.id).toBe('img-1');
+      expect(img.signed_url).toBe(
+        'https://example.com/img-1.png'
+      );
+      expect(img.content_type).toBe('image/png');
+    });
+
+    it('uploadNoteImage posts to the note-scoped endpoint',
+      async () => {
+        let capturedUrl: string | undefined;
+        server.use(
+          http.post(
+            `${COMMENT_BASE}/notes/:noteId/images/`,
+            ({ params, request }) => {
+              capturedUrl = request.url;
+              return HttpResponse.json(
+                { id: 'img-9', note: params.noteId },
+                { status: 201 }
+              );
+            }
+          )
+        );
+
+        await api.uploadNoteImage(
+          'note-42',
+          new File(['x'], 'a.png', { type: 'image/png' })
+        );
+
+        expect(capturedUrl).toContain(
+          '/api/v1/notes/note-42/images/'
+        );
+      });
+
+    it('uploadNoteImage surfaces the server error body',
+      async () => {
+        server.use(
+          http.post(
+            `${COMMENT_BASE}/notes/:noteId/images/`,
+            () =>
+              HttpResponse.json(
+                { file: ['Maximum 10 images per note.'] },
+                { status: 400 }
+              )
+          )
+        );
+
+        await expect(
+          api.uploadNoteImage(
+            'note-1',
+            new File(['x'], 'a.png', { type: 'image/png' })
+          )
+        ).rejects.toThrow('Maximum 10 images per note.');
+      });
+
+    it('uploadNoteImage falls back to detail on other ' +
+      'failures', async () => {
+        server.use(
+          http.post(
+            `${COMMENT_BASE}/notes/:noteId/images/`,
+            () =>
+              HttpResponse.json(
+                { detail: 'Unsupported type' },
+                { status: 415 }
+              )
+          )
+        );
+
+        await expect(
+          api.uploadNoteImage(
+            'note-1',
+            new File(['x'], 'a.txt', { type: 'text/plain' })
+          )
+        ).rejects.toThrow('Unsupported type');
+      });
+
+    it('fetchNoteImages returns the image list', async () => {
+      const images = await api.fetchNoteImages('note-1');
+
+      expect(images).toHaveLength(1);
+      expect(images[0].id).toBe('img-1');
+      expect(images[0].signed_url).toBe(
+        'https://example.com/img-1.png'
+      );
+    });
+  });
+
   describe('getAvailableTranslations', () => {
     const cached: Translation[] = [
       {
