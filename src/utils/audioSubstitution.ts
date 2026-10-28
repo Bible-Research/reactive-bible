@@ -9,9 +9,34 @@
 // (useAudioPlaylist) so neither mode swaps versions silently.
 
 import { showNotification } from '@mantine/notifications';
-import { toBookName } from './bibleUtils';
-import { findTranslationByFilesetId } from './filesetGroups';
+import {
+  preferTimestampedAudioFileset,
+  toBookName,
+} from './bibleUtils';
+import {
+  findTranslationByFilesetId,
+  groupFilesets,
+} from './filesetGroups';
 import type { Translation } from '../store';
+
+/**
+ * True when `playingId` is the timestamp-backed recording the
+ * candidate walk deliberately swaps in for one of `owner`'s
+ * audio members (`TIMESTAMP_BACKED_AUDIO` — e.g. an ENGESH
+ * selection's OT member ENGESHO1DA has no DBT verse
+ * timestamps, so the ENGESV-owned ENGESVO1DA plays instead by
+ * design). DBT files the two recordings under different
+ * translations, but the swap is same-version substitution —
+ * neither the codec-memory suppression nor the substitution
+ * notice may treat it as foreign playback.
+ */
+const isTimestampedSiblingSwap = (
+  owner: Translation,
+  playingId: string,
+): boolean =>
+  groupFilesets(owner)
+    .audio.flatMap((o) => o.members)
+    .some((id) => preferTimestampedAudioFileset(id) === playingId);
 
 /**
  * True when `playingId` belongs to a different translation
@@ -35,7 +60,8 @@ export const isCrossTranslationPlayback = (
   return (
     selectedOwner !== null &&
     playingOwner !== null &&
-    selectedOwner.abbr !== playingOwner.abbr
+    selectedOwner.abbr !== playingOwner.abbr &&
+    !isTimestampedSiblingSwap(selectedOwner, playingId)
   );
 };
 
@@ -71,7 +97,8 @@ export const notifyAudioSubstitution = (
   if (
     !selectedOwner ||
     !playingOwner ||
-    selectedOwner.abbr === playingOwner.abbr
+    selectedOwner.abbr === playingOwner.abbr ||
+    isTimestampedSiblingSwap(selectedOwner, playingId)
   ) {
     return;
   }

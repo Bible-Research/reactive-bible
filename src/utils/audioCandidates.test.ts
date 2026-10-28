@@ -213,6 +213,41 @@ describe('orderedAudioCandidates', () => {
     },
   );
 
+  it('does not promote an owner codec member above the ' +
+    'timestamped-sibling primary', () => {
+      // The ENGESH selection's OT play landed on ENGESVO1DA
+      // (the designed timestamped swap) and remembered its
+      // codec — the leader already carries 'opus16', so no
+      // owner member may be unshifted above it: promoting
+      // ENGESHN1DA-opus16 (NT-only) would miss every OT book
+      // and poison preloadNextChapter with the
+      // wrong-testament id.
+      const base = orderedAudioCandidates(
+        'ENGESHN1DA',
+        'GEN',
+        [ENGESH, ENGESV],
+      );
+      expect(
+        orderedAudioCandidates(
+          'ENGESHN1DA',
+          'GEN',
+          [ENGESH, ENGESV],
+          'opus16',
+        ),
+      ).toEqual(base);
+      // But a remembered codec the leader lacks still
+      // promotes the first covering owner member.
+      expect(
+        orderedAudioCandidates(
+          'ENGESHN1DA',
+          'GEN',
+          [ENGESH, ENGESV],
+          'mp3',
+        )[0],
+      ).toBe('ENGESHO1DA');
+    },
+  );
+
   it('leaves the order unchanged when the remembered codec is ' +
     'absent or already first', () => {
       const base = orderedAudioCandidates(

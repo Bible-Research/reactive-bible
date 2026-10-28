@@ -41,6 +41,22 @@ const GLU8 = tr('GLU8', [
 
 const translations = [LAVLVR, GLU8];
 
+// ENGESH "Hear the Word" audio: its OT member ENGESHO1DA has
+// no DBT verse timestamps, so TIMESTAMP_BACKED_AUDIO swaps in
+// ENGESVO1DA — an ENGESV-owned member — by design.
+const ENGESH = tr('ENGESH', [
+  fs('ENGESHO1DA', 'audio', 'OT'),
+  fs('ENGESHO1DA-opus16', 'audio', 'OT'),
+  fs('ENGESHN1DA', 'audio', 'NT'),
+  fs('ENGESHN1DA-opus16', 'audio', 'NT'),
+]);
+const ENGESV = tr('ENGESV', [
+  fs('ENGESVO1DA', 'audio', 'OT'),
+  fs('ENGESVO1DA-opus16', 'audio', 'OT'),
+  fs('ENGESVN1DA', 'audio', 'NT'),
+  fs('ENGESVN1DA-opus16', 'audio', 'NT'),
+], { name: 'English Standard Version' });
+
 describe('isCrossTranslationPlayback', () => {
   it('detects a foreign-owner playback', () => {
     expect(
@@ -69,6 +85,26 @@ describe('isCrossTranslationPlayback', () => {
         translations,
       ),
     ).toBe(false);
+  });
+
+  it('treats the timestamped-sibling swap as same-version', () => {
+    // An ENGESH selection's OT playback lands on the
+    // ENGESV-owned ENGESVO1DA BY DESIGN (only that recording
+    // has verse timestamps) — it is not a version
+    // substitution, so the playing codec must still be
+    // remembered for the selection.
+    for (const playingId of [
+      'ENGESVO1DA',
+      'ENGESVO1DA-opus16',
+    ]) {
+      expect(
+        isCrossTranslationPlayback(
+          'ENGESH:audio:1',
+          playingId,
+          [ENGESH, ENGESV],
+        ),
+      ).toBe(false);
+    }
   });
 });
 
@@ -155,4 +191,26 @@ describe('notifyAudioSubstitution', () => {
       expect(showNotification).not.toHaveBeenCalled();
     },
   );
+
+  it('stays silent for the timestamped-sibling swap', () => {
+    // ENGESH -> ENGESVO1DA is the designed timestamped
+    // recording swap, not a version substitution — the
+    // "playing another version" notice must not fire.
+    const notified = new Set<string>();
+    notifyAudioSubstitution(
+      'ENGESH:audio:1',
+      'ENGESVO1DA',
+      'GEN',
+      [ENGESH, ENGESV],
+      notified,
+    );
+    notifyAudioSubstitution(
+      'ENGESH:audio:1',
+      'ENGESVO1DA-opus16',
+      'EXO',
+      [ENGESH, ENGESV],
+      notified,
+    );
+    expect(showNotification).not.toHaveBeenCalled();
+  });
 });

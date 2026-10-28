@@ -61,7 +61,17 @@ export const orderedAudioCandidates = (
     ...resolved.alternates,
     resolved.filesetId,
   ].filter((id, i, arr) => arr.indexOf(id) === i);
-  if (rememberedCodec) {
+  if (
+    rememberedCodec &&
+    // No reorder when the leader already carries the codec:
+    // promoting a later owner member above a timestamped-sibling
+    // primary (a foreign-owned id swapped in by design, e.g.
+    // ENGESVO1DA for an ENGESH selection) could lift a
+    // wrong-testament member into guaranteed
+    // book_not_in_fileset misses — including for the preload
+    // walk, which trusts candidates[0].
+    splitCodec(candidates[0]).codec !== rememberedCodec
+  ) {
     // Promotion is owner-scoped: the foreign tail can carry the
     // remembered codec too, and unshifting it above the
     // selection's own primary would silently swap the user's

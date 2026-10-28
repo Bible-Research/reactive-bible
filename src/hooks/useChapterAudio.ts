@@ -153,6 +153,9 @@ export const useChapterAudio = (
   // announced: the cross-translation substitution notice fires
   // once per pair and book, not on every chapter advance or
   // play toggle (a different substituted book re-announces).
+  // Session-scoped on purpose — unlike the playlist, which
+  // clears per start(), chapter mode should not re-warn for a
+  // (pair, book) already announced this session.
   const substitutionNotifiedRef = useRef(new Set<string>());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
