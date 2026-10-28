@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  ActionIcon,
   Box,
   Button,
   Center,
@@ -18,8 +19,10 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
+import { openConfirmModal } from '@mantine/modals';
 import { Tag } from '../types';
 import {
   deleteTag as deleteTagApi,
@@ -64,6 +67,10 @@ export default function TagManagementRoute() {
     }),
     shallow
   );
+  // Below `sm` the page chrome compresses: smaller title,
+  // icon-only New Tag button, full-width search with the
+  // tag count riding on the same row.
+  const compact = useMediaQuery('(max-width: 768px)');
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -117,49 +124,60 @@ export default function TagManagementRoute() {
     void loadTags(true); // Force refresh on mount
   }, [loadTags]);
 
+  const deleteTag = useCallback(
+    async (tagId: string) => {
+      try {
+        await deleteTagApi(tagId);
+        showNotification({
+          title: 'Success',
+          message: 'Tag deleted successfully',
+          color: 'green',
+        });
+        // The deleted tag's own cached pages still answer
+        // `/notes/tag/<id>` before getTag can 404, and
+        // every ancestor's merged `sub:true` page keeps
+        // listing its notes under a ghost section. The
+        // notes cache never expires — drop it whole
+        // (same as deleteNote).
+        clearNotesCache();
+        await loadTags(true, { silent: true }); // Force refresh
+      } catch (error) {
+        console.error('Error deleting tag:', error);
+        showNotification({
+          title: 'Error',
+          message:
+            'Failed to delete tag. It may have associated notes.',
+          color: 'red',
+        });
+      }
+    },
+    [loadTags]
+  );
+
   const handleDeleteTag = useCallback(
-    async (tagId: string, tagName: string) => {
+    (tagId: string, tagName: string) => {
       const childCount = tags.filter(
         (t) => t.parent_tag === tagId
       ).length;
-      if (
-        window.confirm(
-          `Are you sure you want to delete "${tagName}"? ` +
-            'Notes assigned to it will lose this tag' +
-            (childCount > 0
-              ? `, and its ${childCount} child tag(s) may ` +
-                'be affected'
-              : '') +
-            '. This action cannot be undone.'
-        )
-      ) {
-        try {
-          await deleteTagApi(tagId);
-          showNotification({
-            title: 'Success',
-            message: 'Tag deleted successfully',
-            color: 'green',
-          });
-          // The deleted tag's own cached pages still answer
-          // `/notes/tag/<id>` before getTag can 404, and
-          // every ancestor's merged `sub:true` page keeps
-          // listing its notes under a ghost section. The
-          // notes cache never expires — drop it whole
-          // (same as deleteNote).
-          clearNotesCache();
-          await loadTags(true, { silent: true }); // Force refresh
-        } catch (error) {
-          console.error('Error deleting tag:', error);
-          showNotification({
-            title: 'Error',
-            message:
-              'Failed to delete tag. It may have associated notes.',
-            color: 'red',
-          });
-        }
-      }
+      openConfirmModal({
+        title: 'Delete tag',
+        children: (
+          <Text size="sm">
+            {`Are you sure you want to delete "${tagName}"? ` +
+              'Notes assigned to it will lose this tag' +
+              (childCount > 0
+                ? `, and its ${childCount} child tag(s) may ` +
+                  'be affected'
+                : '') +
+              '. This action cannot be undone.'}
+          </Text>
+        ),
+        labels: { confirm: 'Delete', cancel: 'Cancel' },
+        confirmProps: { color: 'red' },
+        onConfirm: () => void deleteTag(tagId),
+      });
     },
-    [loadTags, tags]
+    [deleteTag, tags]
   );
 
   const handleEditTag = useCallback((tag: Tag) => {
@@ -177,24 +195,8 @@ export default function TagManagementRoute() {
     [navigate]
   );
 
-  const handleTogglePublic = useCallback(
-    async (tag: Tag) => {
-      const makingPublic = !tag.public;
-      if (
-        !window.confirm(
-          makingPublic
-            ? `Make "${tag.name}" and all notes directly ` +
-                'under it public? Anyone with the link can ' +
-                'view them.'
-            : `Make "${tag.name}" private? All notes ` +
-                'directly under it will also become ' +
-                'private — anyone following a shared ' +
-                'link loses access. This cannot be ' +
-                'undone per-note.'
-        )
-      ) {
-        return;
-      }
+  const toggleTagPublic = useCallback(
+    async (tag: Tag, makingPublic: boolean) => {
       try {
         const result = await setTagPublic(tag.id, makingPublic);
         showNotification({
@@ -225,6 +227,40 @@ export default function TagManagementRoute() {
       }
     },
     [loadTags]
+  );
+
+  const handleTogglePublic = useCallback(
+    (tag: Tag) => {
+      const makingPublic = !tag.public;
+      openConfirmModal({
+        title: makingPublic
+          ? 'Make tag public'
+          : 'Make tag private',
+        children: (
+          <Text size="sm">
+            {makingPublic
+              ? `Make "${tag.name}" and all notes directly ` +
+                'under it public? Anyone with the link can ' +
+                'view them.'
+              : `Make "${tag.name}" private? All notes ` +
+                'directly under it will also become ' +
+                'private — anyone following a shared ' +
+                'link loses access. This cannot be ' +
+                'undone per-note.'}
+          </Text>
+        ),
+        labels: {
+          confirm: makingPublic ? 'Make public' : 'Make private',
+          cancel: 'Cancel',
+        },
+        // Making private revokes every shared link under the
+        // tag — it gets the same red treatment as Delete.
+        confirmProps: { color: makingPublic ? 'teal' : 'red' },
+        onConfirm: () =>
+          void toggleTagPublic(tag, makingPublic),
+      });
+    },
+    [toggleTagPublic]
   );
 
   const handleReparent = useCallback(
@@ -347,7 +383,7 @@ export default function TagManagementRoute() {
 
   return (
     <Box
-      p="md"
+      p={compact ? 'sm' : 'md'}
       style={{
         height: '100%',
         display: 'flex',
@@ -355,24 +391,55 @@ export default function TagManagementRoute() {
         minHeight: 0,
       }}
     >
-      <Group position="apart" mb="lg">
-        <Title order={2}>Tag Management</Title>
-        <Button
-          leftIcon={<IconPlus size={16} />}
-          onClick={handleCreateTag}
-        >
-          New Tag
-        </Button>
+      <Group position="apart" mb={compact ? 'sm' : 'lg'} noWrap>
+        <Title order={compact ? 3 : 2}>Tag Management</Title>
+        {compact ? (
+          <ActionIcon
+            variant="filled"
+            size="lg"
+            onClick={handleCreateTag}
+            title="New tag"
+          >
+            <IconPlus size={20} />
+          </ActionIcon>
+        ) : (
+          <Button
+            leftIcon={<IconPlus size={16} />}
+            onClick={handleCreateTag}
+          >
+            New Tag
+          </Button>
+        )}
       </Group>
 
-      <TextInput
-        placeholder="Search tags..."
-        icon={<IconSearch size={16} />}
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.currentTarget.value)}
-        mb="md"
-        style={{ maxWidth: 400 }}
-      />
+      <Group spacing="xs" mb="md" noWrap>
+        <TextInput
+          placeholder="Search tags..."
+          icon={<IconSearch size={16} />}
+          value={searchQuery}
+          onChange={(e) =>
+            setSearchQuery(e.currentTarget.value)
+          }
+          style={{
+            flex: 1,
+            minWidth: 0,
+            maxWidth: compact ? undefined : 400,
+          }}
+        />
+        {filteredTags.length > 0 && (
+          <>
+            <Text
+              color="dimmed"
+              size="sm"
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              {filteredTags.length}{' '}
+              {filteredTags.length === 1 ? 'tag' : 'tags'}
+            </Text>
+            {refreshing && <Loader size="xs" />}
+          </>
+        )}
+      </Group>
 
       {filteredTags.length === 0 ? (
         <Center style={{ flex: 1, minHeight: 0 }}>
@@ -394,34 +461,25 @@ export default function TagManagementRoute() {
           </Stack>
         </Center>
       ) : (
-        <>
-          <Group spacing="xs" mb="md">
-            <Text color="dimmed" size="sm">
-              {filteredTags.length}{' '}
-              {filteredTags.length === 1 ? 'tag' : 'tags'}
-            </Text>
-            {refreshing && <Loader size="xs" />}
-          </Group>
-          <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto">
-            <TagTree
-              tags={filteredTags}
-              onEdit={handleEditTag}
-              onDelete={handleDeleteTag}
-              onViewNotes={handleViewNotes}
-              noteCounts={noteCounts}
-              subtreeCounts={subtreeCounts}
-              onTogglePublic={handleTogglePublic}
-              onReparent={handleReparent}
-              // Drag reparent is off while a search filter
-              // hides part of the hierarchy — the drop guards
-              // walk the FILTERED list, so a cycle through a
-              // hidden ancestor could slip past the
-              // client-side check and surface as a 400 toast.
-              reparentEnabled={!searching}
-              forceExpand={searching}
-            />
-          </ScrollArea>
-        </>
+        <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto">
+          <TagTree
+            tags={filteredTags}
+            onEdit={handleEditTag}
+            onDelete={handleDeleteTag}
+            onViewNotes={handleViewNotes}
+            noteCounts={noteCounts}
+            subtreeCounts={subtreeCounts}
+            onTogglePublic={handleTogglePublic}
+            onReparent={handleReparent}
+            // Drag reparent is off while a search filter
+            // hides part of the hierarchy — the drop guards
+            // walk the FILTERED list, so a cycle through a
+            // hidden ancestor could slip past the
+            // client-side check and surface as a 400 toast.
+            reparentEnabled={!searching}
+            forceExpand={searching}
+          />
+        </ScrollArea>
       )}
 
       <CreateTagModal
