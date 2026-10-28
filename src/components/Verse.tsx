@@ -331,9 +331,14 @@ const Verse = ({
         weight={400}
         title={`passage-verse-${chapter}-${verse}`}
         sx={folded ? {
-          overflow: 'hidden',
+          // Folded verses stay on one line and scroll
+          // horizontally inside the verse row instead of
+          // wrapping or truncating. The scrollable overflow
+          // also zeroes this item's automatic minimum size,
+          // so it shrinks to the card width rather than
+          // stretching the flex line to the full text.
           whiteSpace: 'nowrap',
-          textOverflow: 'ellipsis',
+          overflowX: 'auto',
           minWidth: 0,
           flex: 1,
         } : undefined}

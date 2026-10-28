@@ -127,6 +127,45 @@ describe('NoteVerseList', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('keeps folded verse text on one line inside a ' +
+    'horizontally scrollable row', () => {
+    // Mobile regression: the unbreakable nowrap line must be
+    // scrollable within the verse row, and the scope
+    // container must not report that width to the
+    // shrink-to-fit ScrollArea wrapper (which otherwise
+    // widens the whole page past the device width).
+    const note = createMockNote({
+      verses: [
+        createMockVerse({
+          book: 'John', chapter: 1, verse: 1,
+          text: 'A very long verse that will not fit on ' +
+            'one line of a narrow screen and would ' +
+            'normally have to wrap',
+        }),
+      ],
+    });
+
+    const { container } = renderWithProviders(
+      <NoteVerseList note={note} scope="n1" folded />
+    );
+
+    const verseText = screen.getByTitle('passage-verse-1-1');
+    const textStyle = getComputedStyle(verseText);
+    expect(textStyle.whiteSpace).toBe('nowrap');
+    expect(textStyle.overflowX).toBe('auto');
+
+    const scopeBox = container.querySelector(
+      '[data-verse-scope="n1"]'
+    );
+    const scopeStyle = getComputedStyle(
+      scopeBox as HTMLElement
+    );
+    expect(scopeStyle.display).toBe('grid');
+    expect(scopeStyle.gridTemplateColumns).toContain(
+      'minmax(0'
+    );
+  });
+
   it('shows the copyright notice past 500 verses', () => {
     const verses = Array.from({ length: 501 }, (_, i) =>
       createMockVerse({
