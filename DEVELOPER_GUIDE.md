@@ -198,7 +198,8 @@ The application uses React Router for client-side navigation, enabling
 shareable URLs, browser history support, and deep linking. Canonical
 Bible URLs use USFM refs — `/bible/JHN.3.16-18` selects John 3:16–18;
 `/bible/JHN.3` opens the chapter. Non-bible routes are lazy-loaded via
-`React.lazy` in `index.tsx`; `BibleRoute` and `LegacyBibleRedirect`
+`lazyWithReload` (`src/utils/lazyWithReload.ts`, a `React.lazy`
+wrapper) in `index.tsx`; `BibleRoute` and `LegacyBibleRedirect`
 stay eager because they serve the landing path.
 
 ### Routes
@@ -1977,6 +1978,27 @@ pasting into a GitHub issue.
 - **React render errors**: `ErrorBoundary` wraps the routed
   content in `App.tsx` and reports through the same path; its
   fallback UI also offers "Copy error details".
+- **Stale chunks after a deploy**: a long-lived tab holds the
+  previous `index.html`, so its `import()` calls request hashed
+  assets the new deploy already deleted — the browser rejects
+  with a chunk-load error (Chrome 'Failed to fetch dynamically
+  imported module', Firefox 'error loading dynamically
+  imported module', Safari 'Importing a module script failed',
+  plus `ChunkLoadError` / 'Loading chunk N failed' / 'Loading
+  CSS chunk' / Vite 8's 'Unable to preload CSS'; matched by
+  `src/utils/chunkLoadError.ts`). Every `React.lazy` site uses
+  `lazyWithReload` (`src/utils/lazyWithReload.ts`) and the
+  `kjv.json` loader applies the same helper: on a chunk-load
+  rejection the page reloads at most once per URL per
+  10-minute window (sessionStorage timestamp guard +
+  in-memory flag) to fetch the fresh `index.html`, holding the
+  Suspense fallback instead of crashing. While
+  `navigator.onLine` reports the tab offline the reload is
+  skipped — a reload would land on the browser's
+  connection-error page — and the error propagates to the
+  route's boundary. Once the guard has fired — or for any
+  non-chunk failure — the original error is rethrown so
+  `ErrorBoundary`/`reportError` handle it.
 
 **Implementation**:
 ```typescript
@@ -3603,9 +3625,9 @@ prefetchAdjacentChapters(book, chapter, filesetId);
   `vendor-mantine`'s test excludes `@mantine/tiptap` so it
   stays in the lazy editor graph.
 - **KJV JSON**: ~4.5MB gzipped (lazy-loaded chunk)
-- **Route chunks**: non-bible routes lazy via `React.lazy` in
-  `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect` stay
-  eager (landing path)
+- **Route chunks**: non-bible routes lazy via `lazyWithReload`
+  in `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect`
+  stay eager (landing path)
 - **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
   `EditNoteModal` lazy + gated on their open flag, keeping
   TipTap out of the entry graph entirely
@@ -3741,7 +3763,9 @@ surface as the transport layer:
   the handled taxonomy (`RateLimitError`,
   `BookNotInFilesetError`, `AbortError`, 'Session expired',
   `ChunkLoadError` / `Loading chunk N failed` / `Loading CSS
-  chunk`, `ResizeObserver loop`) so expected conditions don't
+  chunk` — stale-chunk failures the app already self-heals via
+  `lazyWithReload`'s guarded reload —, `ResizeObserver loop`)
+  so expected conditions don't
   burn quota. `ClientInputError` is deliberately NOT dropped —
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Center, Loader } from '@mantine/core';
 // Eager: the bible reader is the landing route, so splitting it
@@ -6,20 +6,27 @@ import { Center, Loader } from '@mantine/core';
 import BibleRoute from './BibleRoute';
 import LegacyBibleRedirect from './LegacyBibleRedirect';
 import { ProtectedRoute } from '../components/ProtectedRoute';
+// lazyWithReload self-heals stale hashed chunks after a deploy
+// (one guarded page reload) instead of crashing the boundary.
+import { lazyWithReload } from '../utils/lazyWithReload';
 
-const NotesRoute = lazy(() => import('./NotesRoute'));
-const TagNotesRoute = lazy(() => import('./TagNotesRoute'));
-const NoteDetailRoute = lazy(() => import('./NoteDetailRoute'));
-const TagManagementRoute = lazy(
+const NotesRoute = lazyWithReload(() => import('./NotesRoute'));
+const TagNotesRoute = lazyWithReload(
+  () => import('./TagNotesRoute')
+);
+const NoteDetailRoute = lazyWithReload(
+  () => import('./NoteDetailRoute')
+);
+const TagManagementRoute = lazyWithReload(
   () => import('./TagManagementRoute')
 );
-const SearchRoute = lazy(() => import('./SearchRoute'));
-const LoginPage = lazy(() =>
+const SearchRoute = lazyWithReload(() => import('./SearchRoute'));
+const LoginPage = lazyWithReload(() =>
   import('../components/LoginPage').then((m) => ({
     default: m.LoginPage,
   }))
 );
-const RegisterPage = lazy(() =>
+const RegisterPage = lazyWithReload(() =>
   import('../components/RegisterPage').then((m) => ({
     default: m.RegisterPage,
   }))

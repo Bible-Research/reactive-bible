@@ -17,21 +17,22 @@ import {
   IconRefresh,
   IconBug,
 } from "@tabler/icons-react";
-import { Suspense, lazy, useState } from "react";
+import { Suspense, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
+import { lazyWithReload } from "../utils/lazyWithReload";
 import { UserMenu } from "./UserMenu";
 
 // Lazy + gated below on newNoteOpened — the modal pulls in
 // TipTap, which must stay out of the app-shell chunk.
-const AddStandaloneNoteModal = lazy(
+const AddStandaloneNoteModal = lazyWithReload(
   () => import("./AddStandaloneNoteModal")
 );
-const ReportProblemModal = lazy(
+const ReportProblemModal = lazyWithReload(
   () => import("./ReportProblemModal")
 );
 
