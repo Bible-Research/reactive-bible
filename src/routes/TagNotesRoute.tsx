@@ -1,6 +1,5 @@
 import {
   Suspense,
-  lazy,
   useMemo,
   useState,
 } from 'react';
@@ -32,10 +31,11 @@ import { verseDomId } from '../utils/verseRefs';
 import { useNoteOrderMenu } from '../hooks/useNoteOrderMenu';
 import { useTagNotesData } from '../hooks/useTagNotesData';
 import { useNotePlaylist } from '../hooks/useNotePlaylist';
+import { lazyWithReload } from '../utils/lazyWithReload';
 
 // Lazy + gated below on isEditModalOpen — the modal pulls in
 // TipTap, which should not ship with the route chunk.
-const EditNoteModal = lazy(
+const EditNoteModal = lazyWithReload(
   () => import('../components/EditNoteModal')
 );
 
