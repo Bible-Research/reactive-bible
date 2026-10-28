@@ -19,6 +19,7 @@ import {
 // `vi.resetModules()` simulates the reload wiping module state
 // while sessionStorage (the cross-load guard) survives.
 let reloadMock: ReturnType<typeof vi.fn>;
+let originalUrl: string;
 
 const stubReload = () => {
   reloadMock = vi.fn();
@@ -64,12 +65,16 @@ class CaptureBoundary extends Component<
 }
 
 beforeEach(() => {
+  originalUrl = window.location.href;
   vi.resetModules();
   window.sessionStorage.clear();
   stubReload();
 });
 
 afterEach(() => {
+  // A test that navigated must not leak its URL into the next
+  // test's reload-guard key if it throws mid-way.
+  window.history.pushState({}, '', originalUrl);
   // Drop the own-property stub so the prototype's real reload
   // is visible again for the next test.
   delete (window.location as Partial<Location>).reload;
@@ -88,6 +93,8 @@ describe('isChunkLoadError', () => {
       'Loading chunk 12 failed.',
       'Loading CSS chunk 421 failed. (missing: ' +
         'https://example.com/assets/x.css)',
+      'Unable to preload CSS for ' +
+        'https://example.com/assets/a.css',
     ];
     for (const message of cases) {
       expect(isChunkLoadError(new Error(message))).toBe(true);
@@ -141,6 +148,35 @@ describe('reloadForStaleChunk', () => {
     expect(reloadMock).toHaveBeenCalledTimes(1);
   });
 
+  it('reloads again once the per-URL guard window expires',
+    async () => {
+      const { reloadForStaleChunk } =
+        await import('./chunkLoadError');
+      // Seed the guard with a timestamp older than the
+      // 10-minute window — a second deploy later in the same
+      // tab session must still self-heal.
+      window.sessionStorage.setItem(
+        'stale-chunk-reload:' +
+          window.location.pathname +
+          window.location.search,
+        String(Date.now() - 11 * 60 * 1000)
+      );
+      expect(reloadForStaleChunk()).toBe(true);
+      expect(reloadMock).toHaveBeenCalledTimes(1);
+    });
+
+  it('refuses to reload while the tab is offline', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get')
+      .mockReturnValue(false);
+    const { reloadForStaleChunk } =
+      await import('./chunkLoadError');
+    // Offline, a chunk-load error is connectivity loss — let
+    // it reach the error boundary instead of reloading into
+    // the browser's connection-error page.
+    expect(reloadForStaleChunk()).toBe(false);
+    expect(reloadMock).not.toHaveBeenCalled();
+  });
+
   it('reloads again in a new session once the guard clears',
     async () => {
       let mod = await import('./chunkLoadError');
@@ -161,7 +197,7 @@ describe('reloadForStaleChunk', () => {
       mod = await import('./chunkLoadError');
       expect(mod.reloadForStaleChunk()).toBe(true);
       expect(reloadMock).toHaveBeenCalledTimes(2);
-      window.history.pushState({}, '', '/');
+      // The original URL is restored by afterEach.
     });
 
   it('still reloads when sessionStorage is unavailable',
@@ -264,5 +300,22 @@ describe('lazyWithReload', () => {
       expect(await screen.findByTestId('boundary-error'))
         .toHaveTextContent(err.message);
       expect(reloadMock).toHaveBeenCalledTimes(1);
+    });
+
+  it('surfaces the chunk error to the boundary when offline',
+    async () => {
+      vi.spyOn(window.navigator, 'onLine', 'get')
+        .mockReturnValue(false);
+      const { lazyWithReload } =
+        await import('./lazyWithReload');
+      const err = chromeChunkError();
+      const Lazy = lazyWithReload(() =>
+        Promise.reject<DummyModule>(err)
+      );
+      renderLazy(Lazy);
+
+      expect(await screen.findByTestId('boundary-error'))
+        .toHaveTextContent(err.message);
+      expect(reloadMock).not.toHaveBeenCalled();
     });
 });

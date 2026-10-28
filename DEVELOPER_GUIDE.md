@@ -1985,15 +1985,20 @@ pasting into a GitHub issue.
   imported module', Firefox 'error loading dynamically
   imported module', Safari 'Importing a module script failed',
   plus `ChunkLoadError` / 'Loading chunk N failed' / 'Loading
-  CSS chunk'; matched by `src/utils/chunkLoadError.ts`). Every
-  `React.lazy` site uses `lazyWithReload`
-  (`src/utils/lazyWithReload.ts`) and the `kjv.json` loader
-  applies the same helper: on a chunk-load rejection the page
-  reloads once per URL per tab session (sessionStorage guard +
+  CSS chunk' / Vite 8's 'Unable to preload CSS'; matched by
+  `src/utils/chunkLoadError.ts`). Every `React.lazy` site uses
+  `lazyWithReload` (`src/utils/lazyWithReload.ts`) and the
+  `kjv.json` loader applies the same helper: on a chunk-load
+  rejection the page reloads at most once per URL per
+  10-minute window (sessionStorage timestamp guard +
   in-memory flag) to fetch the fresh `index.html`, holding the
-  Suspense fallback instead of crashing. Once the guard has
-  fired — or for any non-chunk failure — the original error is
-  rethrown so `ErrorBoundary`/`reportError` handle it.
+  Suspense fallback instead of crashing. While
+  `navigator.onLine` reports the tab offline the reload is
+  skipped — a reload would land on the browser's
+  connection-error page — and the error propagates to the
+  route's boundary. Once the guard has fired — or for any
+  non-chunk failure — the original error is rethrown so
+  `ErrorBoundary`/`reportError` handle it.
 
 **Implementation**:
 ```typescript
