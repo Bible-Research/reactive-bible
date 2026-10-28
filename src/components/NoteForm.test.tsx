@@ -14,7 +14,8 @@ import {
   beforeEach,
 } from 'vitest';
 import NoteForm from './NoteForm';
-import { Tag } from '../types';
+import { NoteImage, Tag } from '../types';
+import { mockDomApis } from '../__tests__/helpers';
 import {
   isTiptapDocString,
   toPlainText,
@@ -37,9 +38,9 @@ const expectDocText = (arg: unknown, text: string) => {
 
 describe('NoteForm Component', () => {
   const mockTags: Tag[] = [
-    { id: '1', name: 'Faith', parent_tag: null, 
+    { id: '1', name: 'Faith', parent_tag: null, public: false, 
       created_at: '', updated_at: '' },
-    { id: '2', name: 'Hope', parent_tag: null, 
+    { id: '2', name: 'Hope', parent_tag: null, public: false, 
       created_at: '', updated_at: '' },
   ];
 
@@ -285,6 +286,147 @@ describe('NoteForm Component', () => {
       await Promise.resolve();
     });
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  describe('"Public note" checkbox', () => {
+    const publicityTags: Tag[] = [
+      { id: '1', name: 'Faith', parent_tag: null,
+        public: false, created_at: '', updated_at: '' },
+      { id: '2', name: 'Hope', parent_tag: null,
+        public: true, created_at: '', updated_at: '' },
+    ];
+
+    const pickTag = async (name: string) => {
+      fireEvent.mouseDown(screen.getByLabelText('Tag'));
+      fireEvent.mouseDown(
+        await screen.findByRole('option', { name })
+      );
+    };
+
+    it('defaults from the selected tag\'s publicity', () => {
+      render(
+        <NoteForm
+          tags={publicityTags}
+          note={{ tagId: '2', text: '' }}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      expect(screen.getByLabelText('Public note'))
+        .toBeChecked();
+    });
+
+    it('defaults to unchecked under a private tag', () => {
+      render(
+        <NoteForm
+          tags={publicityTags}
+          note={{ tagId: '1', text: '' }}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      expect(screen.getByLabelText('Public note'))
+        .not.toBeChecked();
+    });
+
+    it('re-derives on tag switch until the user toggles it',
+      async () => {
+        render(
+          <NoteForm
+            tags={publicityTags}
+            note={{ tagId: '1', text: '' }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+          />
+        );
+
+        const box = screen.getByLabelText('Public note');
+        expect(box).not.toBeChecked();
+
+        // Switching to a public tag re-derives the default.
+        await pickTag('Hope');
+        expect(box).toBeChecked();
+
+        // Switching back re-derives again — still untouched.
+        await pickTag('Faith');
+        expect(box).not.toBeChecked();
+      });
+
+    it('keeps the user\'s choice across tag switches once ' +
+      'toggled', async () => {
+        render(
+          <NoteForm
+            tags={publicityTags}
+            note={{ tagId: '1', text: '' }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+          />
+        );
+
+        const box = screen.getByLabelText('Public note');
+        fireEvent.click(box); // user opts into public
+        expect(box).toBeChecked();
+
+        // A later tag switch must not override the user.
+        await pickTag('Hope');
+        expect(box).toBeChecked();
+        await pickTag('Faith');
+        expect(box).toBeChecked();
+      });
+
+    it('seeds note.isPublic in edit mode and ignores tag ' +
+      'switches', async () => {
+        // Editing a public note under a private tag keeps
+        // it public — a tag switch must not silently flip
+        // publicity on an existing note.
+        render(
+          <NoteForm
+            tags={publicityTags}
+            note={{ tagId: '1', text: 'x', isPublic: true }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+          />
+        );
+
+        const box = screen.getByLabelText('Public note');
+        expect(box).toBeChecked();
+
+        await pickTag('Faith');
+        expect(box).toBeChecked();
+      });
+
+    it('passes isPublic to onSubmit', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(true);
+      render(
+        <NoteForm
+          tags={publicityTags}
+          note={{ tagId: '2', text: 'Body' }}
+          onSubmit={onSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      fireEvent.submit(
+        screen
+          .getByRole('button', { name: 'Submit' })
+          .closest('form') as HTMLFormElement
+      );
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+      const [tagId, , isPublic] = onSubmit.mock.calls[0];
+      expect(tagId).toBe('2');
+      expect(isPublic).toBe(true);
+    });
   });
 
   it('should call onTagDropdownOpen when dropdown opens', () => {
@@ -738,5 +880,466 @@ describe('NoteForm Component', () => {
         vi.useRealTimers();
       }
     });
+  });
+
+  describe('image attachments', () => {
+    const makeImage = (id: string): NoteImage => ({
+      id,
+      storage_url: `gs://bucket/originals/${id}/${id}.png`,
+      signed_url: `https://example.com/${id}.png`,
+      content_type: 'image/png',
+      size_bytes: 1024,
+      uploaded_by: 1,
+      created_at: '2024-01-01T00:00:00Z',
+    });
+
+    const attachFiles = (files: File[]) => {
+      const input = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      Object.defineProperty(input, 'files', {
+        value: files,
+        configurable: true,
+      });
+      fireEvent.change(input);
+    };
+
+    beforeEach(() => {
+      // URL.createObjectURL is not implemented by happy-dom.
+      mockDomApis();
+    });
+
+    it('hides the attach button when no image callbacks ' +
+      'are wired', () => {
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+          />
+        );
+
+        expect(
+          document.querySelector('input[type="file"]')
+        ).toBeNull();
+      });
+
+    it('stages a valid file and reports it via ' +
+      'onFilesChange', async () => {
+        const onFilesChange = vi.fn();
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onFilesChange={onFilesChange}
+          />
+        );
+
+        const file = new File(
+          ['x'], 'photo.png', { type: 'image/png' }
+        );
+        attachFiles([file]);
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="photo.png"]')
+          ).toBeInTheDocument();
+        });
+        expect(onFilesChange).toHaveBeenLastCalledWith([file]);
+      });
+
+    it('rejects a file with an unsupported MIME type',
+      async () => {
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onFilesChange={vi.fn()}
+          />
+        );
+
+        attachFiles([
+          new File(
+            ['x'], 'doc.pdf', { type: 'application/pdf' }
+          ),
+        ]);
+
+        await waitFor(() => {
+          expect(
+            screen.getByText(/Unsupported file type/i)
+          ).toBeInTheDocument();
+        });
+      });
+
+    it('rejects a file that exceeds 10 MiB', async () => {
+      render(
+        <NoteForm
+          tags={mockTags}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+          onFilesChange={vi.fn()}
+        />
+      );
+
+      attachFiles([
+        new File(
+          [new ArrayBuffer(11 * 1024 * 1024)],
+          'big.png',
+          { type: 'image/png' }
+        ),
+      ]);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/File too large/i)
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('enforces the 10-image cap counting existing ' +
+      'images', () => {
+        const existing = Array.from({ length: 10 }, (_, i) =>
+          makeImage(`img-${i}`)
+        );
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            existingImages={existing}
+            onAttachFiles={vi.fn()}
+          />
+        );
+
+        expect(
+          screen.getByRole('button', { name: 'Attach images' })
+        ).toBeDisabled();
+      });
+
+    it('rejects files past the cap once it is reached',
+      async () => {
+        const existing = Array.from({ length: 9 }, (_, i) =>
+          makeImage(`img-${i}`)
+        );
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            existingImages={existing}
+            onFilesChange={vi.fn()}
+          />
+        );
+
+        // 9 attached + 2 selected = 11 > 10 — the second
+        // file is refused with the cap message.
+        attachFiles([
+          new File(['x'], 'a.png', { type: 'image/png' }),
+          new File(['x'], 'b.png', { type: 'image/png' }),
+        ]);
+
+        await waitFor(() => {
+          expect(
+            screen.getByText(/Maximum 10 images per note/i)
+          ).toBeInTheDocument();
+        });
+        expect(
+          document.querySelector('img[alt="a.png"]')
+        ).toBeInTheDocument();
+        expect(
+          document.querySelector('img[alt="b.png"]')
+        ).not.toBeInTheDocument();
+      });
+
+    it('does not count a duplicate of a staged file ' +
+      'against the image cap', async () => {
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onFilesChange={vi.fn()}
+          />
+        );
+
+        // lastModified pins the content signature so the
+        // re-selected f0 below reads as the same file.
+        const nine = Array.from({ length: 9 }, (_, i) =>
+          new File(['x'], `f${i}.png`, {
+            type: 'image/png',
+            lastModified: 1000 + i,
+          })
+        );
+        attachFiles(nine);
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="f8.png"]')
+          ).toBeInTheDocument();
+        });
+
+        // 9 staged + a dupe of f0 + one new file = 10
+        // staged. The dupe must be dropped before the cap
+        // check, not trip a spurious cap error.
+        attachFiles([
+          new File(['x'], 'f0.png', {
+            type: 'image/png',
+            lastModified: 1000,
+          }),
+          new File(['x'], 'new.png', { type: 'image/png' }),
+        ]);
+
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="new.png"]')
+          ).toBeInTheDocument();
+        });
+        expect(
+          screen.queryByText(/Maximum 10 images per note/i)
+        ).not.toBeInTheDocument();
+      });
+
+    it('removes a staged thumbnail', async () => {
+      render(
+        <NoteForm
+          tags={mockTags}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+          onFilesChange={vi.fn()}
+        />
+      );
+
+      attachFiles([
+        new File(['x'], 'photo.png', { type: 'image/png' }),
+      ]);
+      await waitFor(() => {
+        expect(
+          document.querySelector('img[alt="photo.png"]')
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Remove staged image photo.png',
+        })
+      );
+      expect(
+        document.querySelector('img[alt="photo.png"]')
+      ).not.toBeInTheDocument();
+    });
+
+    it('clears the input value on click so re-picking ' +
+      'the same file still fires change', () => {
+        // Guards a Mantine v6 FileButton quirk: the input's
+        // `value` is never reset, so after deleting a thumb
+        // a re-pick of the same file dispatches no `change`.
+        // The DOM refuses non-empty value sets on file
+        // inputs, so stub it — the browser stores the
+        // picked path.
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onFilesChange={vi.fn()}
+          />
+        );
+        const input = document.querySelector(
+          'input[type="file"]'
+        ) as HTMLInputElement;
+        Object.defineProperty(input, 'value', {
+          value: 'photo.png',
+          writable: true,
+          configurable: true,
+        });
+        fireEvent.click(input);
+        expect(input.value).toBe('');
+      });
+
+    it('hands files to onAttachFiles in immediate mode ' +
+      'instead of staging', async () => {
+        const onAttachFiles = vi.fn();
+        render(
+          <NoteForm
+            tags={mockTags}
+            note={{ tagId: '1', text: 'x' }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onAttachFiles={onAttachFiles}
+          />
+        );
+
+        const file = new File(
+          ['x'], 'photo.png', { type: 'image/png' }
+        );
+        attachFiles([file]);
+
+        await waitFor(() => {
+          expect(onAttachFiles).toHaveBeenCalledWith([file]);
+        });
+        // Immediate mode never stages a local thumbnail.
+        expect(
+          document.querySelector('img[alt="photo.png"]')
+        ).not.toBeInTheDocument();
+      });
+
+    it('re-stages files from a restored draft via ' +
+      'initialFiles', () => {
+        const file = new File(
+          ['x'], 'restored.png', { type: 'image/png' }
+        );
+        render(
+          <NoteForm
+            tags={mockTags}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            onFilesChange={vi.fn()}
+            initialFiles={[file]}
+          />
+        );
+
+        expect(
+          document.querySelector('img[alt="restored.png"]')
+        ).toBeInTheDocument();
+      });
+
+    it('renders existing image thumbs with a remove ' +
+      'button', () => {
+        const onDeleteImage = vi.fn();
+        render(
+          <NoteForm
+            tags={mockTags}
+            note={{ tagId: '1', text: 'x' }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            existingImages={[makeImage('img-1')]}
+            onDeleteImage={onDeleteImage}
+            onAttachFiles={vi.fn()}
+          />
+        );
+
+        expect(
+          document.querySelector('img[alt="img-1.png"]')
+        ).toBeInTheDocument();
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Remove image img-1.png',
+          })
+        );
+        expect(onDeleteImage).toHaveBeenCalledWith('img-1');
+      });
+
+    it('submits an image-only note with no text', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(true);
+      render(
+        <NoteForm
+          tags={mockTags}
+          note={{ tagId: '1', text: '' }}
+          onSubmit={onSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+          onFilesChange={vi.fn()}
+        />
+      );
+
+      attachFiles([
+        new File(['x'], 'photo.png', { type: 'image/png' }),
+      ]);
+      await waitFor(() => {
+        expect(
+          document.querySelector('img[alt="photo.png"]')
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.submit(
+        screen
+          .getByRole('button', { name: 'Submit' })
+          .closest('form') as HTMLFormElement
+      );
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+      expect(onSubmit.mock.calls[0][0]).toBe('1');
+      expect(onSubmit.mock.calls[0][1]).toBe('');
+    });
+
+    it('submits an image-only note in edit mode, where ' +
+      'nothing is staged', async () => {
+        const onSubmit = vi.fn().mockResolvedValue(true);
+        render(
+          <NoteForm
+            tags={mockTags}
+            note={{ tagId: '1', text: '' }}
+            onSubmit={onSubmit}
+            submitText="Submit changes"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+            existingImages={[makeImage('img-1')]}
+            onAttachFiles={vi.fn()}
+          />
+        );
+
+        // Edit mode never stages — the already-attached
+        // image alone must satisfy the content guard.
+        fireEvent.submit(
+          screen
+            .getByRole('button', { name: 'Submit changes' })
+            .closest('form') as HTMLFormElement
+        );
+
+        await waitFor(() => {
+          expect(onSubmit).toHaveBeenCalledTimes(1);
+        });
+        expect(onSubmit.mock.calls[0][0]).toBe('1');
+        expect(onSubmit.mock.calls[0][1]).toBe('');
+      });
+
+    it('autosaves an image-only note in edit mode',
+      async () => {
+        vi.useFakeTimers();
+        try {
+          const onAutoSave = vi
+            .fn()
+            .mockResolvedValue(undefined);
+          render(
+            <NoteForm
+              tags={mockTags}
+              note={{ tagId: '1', text: '' }}
+              onSubmit={mockOnSubmit}
+              submitText="Submit"
+              onTagDropdownOpen={mockOnTagDropdownOpen}
+              existingImages={[makeImage('img-1')]}
+              onAttachFiles={vi.fn()}
+              onAutoSave={onAutoSave}
+            />
+          );
+
+          fireEvent.click(screen.getByLabelText('Auto save'));
+
+          // The attached image is content — the tick must
+          // save, not skip the note as empty.
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(5000);
+          });
+          expect(onAutoSave).toHaveBeenCalledTimes(1);
+          expect(onAutoSave.mock.calls[0][0]).toBe('1');
+          expect(onAutoSave.mock.calls[0][1]).toBe('');
+        } finally {
+          vi.useRealTimers();
+        }
+      });
   });
 });

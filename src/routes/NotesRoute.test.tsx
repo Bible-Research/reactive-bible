@@ -38,6 +38,7 @@ const tagA: Tag = {
   id: 'tag-a',
   name: 'Alpha',
   parent_tag: null,
+  public: false,
   created_at: '',
   updated_at: '',
 };
@@ -45,6 +46,7 @@ const tagB: Tag = {
   id: 'tag-b',
   name: 'Beta',
   parent_tag: null,
+  public: false,
   created_at: '',
   updated_at: '',
 };

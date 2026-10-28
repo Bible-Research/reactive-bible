@@ -32,6 +32,7 @@ const tag: Tag = {
   id: 'tag-123',
   name: 'Bible Study',
   parent_tag: null,
+  public: false,
   created_at: '',
   updated_at: '',
 };
@@ -40,6 +41,7 @@ const otherTag: Tag = {
   id: 'tag-456',
   name: 'Prayer',
   parent_tag: null,
+  public: false,
   created_at: '',
   updated_at: '',
 };

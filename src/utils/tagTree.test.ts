@@ -14,6 +14,7 @@ const tag = (
   id,
   name,
   parent_tag,
+  public: false,
   created_at: '',
   updated_at: '',
 });

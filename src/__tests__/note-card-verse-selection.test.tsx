@@ -41,6 +41,7 @@ const mockTag = {
   id: 'tag-1',
   name: 'Study',
   parent_tag: null,
+  public: false,
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
 };

@@ -113,7 +113,12 @@ export const createNotesSlice: StateCreator<
 
   return {
     fetchNotes: async (tagId?: string, options = {}) => {
-      const { ordering, page = 1, append = false } = options;
+      const {
+        ordering,
+        page = 1,
+        append = false,
+        includeDescendants = false,
+      } = options;
       const requestId = ++fetchNotesRequestSeq;
       try {
         const {
@@ -145,6 +150,9 @@ export const createNotesSlice: StateCreator<
           filesetId,
           pageSize: notesPageSize,
           authed: Boolean(useAuthStore.getState().token),
+          // Merged subtree pages must never collide with the
+          // tag's direct-only pages under the same key.
+          includeDescendants,
         };
 
         // Check cache for any page/ordering combination —
@@ -188,6 +196,7 @@ export const createNotesSlice: StateCreator<
           page,
           pageSize: notesPageSize,
           filesetId,
+          includeDescendants,
         });
 
         // Cache all page results — but only for authed
@@ -202,6 +211,7 @@ export const createNotesSlice: StateCreator<
             filesetId,
             pageSize: notesPageSize,
             authed: notesScope.authed,
+            includeDescendants,
           });
         }
 
@@ -238,6 +248,7 @@ export const createNotesSlice: StateCreator<
             ordering,
             page: 1,
             append,
+            includeDescendants,
           });
           return;
         }

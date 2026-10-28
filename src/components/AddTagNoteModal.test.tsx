@@ -49,7 +49,7 @@ describe('AddTagNoteModal Component', () => {
     resetNoteEditorDrafts();
 
     (api.getTags as Mock).mockResolvedValue([
-      { id: '1', name: 'Faith', parent_tag: null,
+      { id: '1', name: 'Faith', parent_tag: null, public: false,
         created_at: '', updated_at: '' },
     ]);
     (api.getVersesInChapter as Mock).mockResolvedValue({
@@ -201,7 +201,7 @@ describe('AddTagNoteModal Component', () => {
     created_at: '',
     updated_at: '',
     tag: {
-      id: '1', name: 'Faith', parent_tag: null,
+      id: '1', name: 'Faith', parent_tag: null, public: false,
       created_at: '', updated_at: '',
     },
     verses: [
@@ -689,5 +689,79 @@ describe('AddTagNoteModal Component', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+  it('restores the tag for a files-only draft on reopen',
+    async () => {
+      const faith = {
+        id: '1', name: 'Faith', parent_tag: null,
+        public: false, created_at: '', updated_at: '',
+      };
+      const hope = {
+        id: '2', name: 'Hope', parent_tag: null,
+        public: false, created_at: '', updated_at: '',
+      };
+      (api.getTags as Mock).mockResolvedValue([faith, hope]);
+      const overrides = {
+        verseSelection: genesisSelection,
+        activeBookId: 'GEN',
+        activeChapter: 1,
+        tags: [faith, hope],
+        lastSelectedTagId: '2',
+      };
+      // store.getTags clears `tags` for anonymous sessions —
+      // the tag Select only populates when authenticated.
+      const auth = {
+        isAuthenticated: true,
+        token: 'test-token',
+        user: { username: 'testuser' },
+      };
+
+      const { unmount } = renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        { storeOverrides: overrides, authStoreState: auth }
+      );
+
+      // Stage a file and pick a tag — no text, no save.
+      const file = new File(
+        ['x'], 'photo.png', { type: 'image/png' }
+      );
+      const input = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      Object.defineProperty(input, 'files', {
+        value: [file],
+        configurable: true,
+      });
+      fireEvent.change(input);
+      await waitFor(() => {
+        expect(
+          document.querySelector('img[alt="photo.png"]')
+        ).toBeInTheDocument();
+      });
+      fireEvent.mouseDown(screen.getByLabelText('Tag'));
+      fireEvent.mouseDown(
+        await screen.findByRole('option', { name: 'Faith' })
+      );
+
+      unmount();
+
+      renderWithProviders(
+        <AddTagNoteModal opened={true} onClose={vi.fn()} />,
+        { storeOverrides: overrides, authStoreState: auth }
+      );
+
+      // The files-only draft restores both the staged
+      // thumb and the picked tag — it used to fall back
+      // to lastSelectedTagId ('Hope').
+      await waitFor(() => {
+        expect(
+          (screen.getByLabelText('Tag') as HTMLInputElement)
+            .value
+        ).toBe('Faith');
+      });
+      expect(
+        document.querySelector('img[alt="photo.png"]')
+      ).toBeInTheDocument();
     });
 });

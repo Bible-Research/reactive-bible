@@ -18,12 +18,16 @@ const mockTag = {
   id: '1',
   name: 'Test Tag',
   parent_tag: null,
+  public: false,
+  note_count: 1,
   created_at: '',
   updated_at: '',
 };
 
 // Matches the Note contract in src/types.ts / api.tsx:
 // tag_position + is_owner are required, headings optional.
+// Images are NOT embedded — they are fetched per card from
+// GET /notes/:noteId/images/ (handler below).
 const mockNote = {
   id: 'note-1',
   note_text: 'This is a test note.',
@@ -47,6 +51,7 @@ const mockNote = {
 interface NoteWriteBody {
   tag?: string;
   note_text?: string;
+  public?: boolean;
   verse_references?: {
     book: string;
     chapter: number;
@@ -245,10 +250,57 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  // Cascade publicity write — flips tag.public and every note
+  // directly under it; `notes_updated` echoes a fixed count.
+  http.post(
+    `${API_URL}/tags/:id/set-public/`,
+    async ({ params, request }) => {
+      const body = (await request.json()) as {
+        public?: boolean;
+      };
+      if (typeof body.public !== 'boolean') {
+        return HttpResponse.json(
+          {
+            error: 'validation_error',
+            message: "'public' must be a boolean.",
+          },
+          { status: 400 }
+        );
+      }
+      return HttpResponse.json({
+        tag: { ...mockTag, id: params.id, public: body.public },
+        notes_updated: mockTag.note_count,
+      });
+    }
+  ),
+  http.post(
+    `${API_URL}/tags/:id/set-public`,
+    async ({ params, request }) => {
+      const body = (await request.json()) as {
+        public?: boolean;
+      };
+      if (typeof body.public !== 'boolean') {
+        return HttpResponse.json(
+          {
+            error: 'validation_error',
+            message: "'public' must be a boolean.",
+          },
+          { status: 400 }
+        );
+      }
+      return HttpResponse.json({
+        tag: { ...mockTag, id: params.id, public: body.public },
+        notes_updated: mockTag.note_count,
+      });
+    }
+  ),
+
   // --- Notes ---
   // api.tsx requests `notes/?...` (trailing slash); the paginated
   // envelope {count, next, previous, results} mirrors DRF. Both
-  // variants are registered.
+  // variants are registered. `include_descendants` is accepted
+  // but unfiltered here — tests needing real subtree filtering
+  // override with server.use().
   http.get(`${API_URL}/notes`, () => {
     return HttpResponse.json({
       count: 1,
@@ -328,6 +380,7 @@ export const handlers = [
       ...mockNote,
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -344,6 +397,7 @@ export const handlers = [
       ...mockNote,
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -377,6 +431,7 @@ export const handlers = [
       ...mockNote,
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined
@@ -395,6 +450,7 @@ export const handlers = [
       ...mockNote,
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
+      public: body.public ?? mockNote.public,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined
@@ -409,6 +465,42 @@ export const handlers = [
   }),
   http.delete(`${API_URL}/notes/:id/`, () => {
     return HttpResponse.text('Deleted');
+  }),
+
+  // --- Note Images ---
+  // Shares the ImageSerializer shape with comment images;
+  // `comment` is null for note attachments.
+  http.get(`${API_URL}/notes/:noteId/images/`, ({ params }) => {
+    return HttpResponse.json([
+      {
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: null,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  }),
+
+  http.post(`${API_URL}/notes/:noteId/images/`, ({ params }) => {
+    return HttpResponse.json(
+      {
+        id: 'img-1',
+        storage_url: 'gs://bucket/originals/img-1/img-1.png',
+        signed_url: 'https://example.com/img-1.png',
+        content_type: 'image/png',
+        size_bytes: 1024,
+        uploaded_by: 1,
+        comment: null,
+        note: params.noteId,
+        created_at: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
   }),
 
   // --- Reading positions (book-NAME keyed, auth-gated) ---

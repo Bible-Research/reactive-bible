@@ -3,29 +3,43 @@ import {
   Box,
   Button,
   Checkbox,
+  FileButton,
   Group,
   Select,
+  Text,
   ThemeIcon,
+  Tooltip,
 } from "@mantine/core";
-import { IconCheck } from "@tabler/icons-react";
+import { IconCheck, IconPhoto } from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
-import { Tag } from "../types";
+import { NoteImage, Tag } from "../types";
+import { commentImageName } from "../utils/commentTree";
 import { toPlainText } from "../utils/tiptapContent";
+import {
+  useStagedImages,
+  ALLOWED_IMAGE_TYPES,
+  IMAGE_THUMB_STYLE,
+} from "../hooks/useStagedImages";
+import {
+  RemoveImageButton,
+  UnavailableThumb,
+} from "./CommentImageGrid";
 import RichTextEditor from "./RichTextEditor";
 
 interface NoteFormProps {
   tags: Tag[];
-  note?: { tagId: string; text: string };
+  note?: { tagId: string; text: string; isPublic?: boolean };
   /**
    * May resolve `false` to signal a rejected submit (failed
    * validation or save) — the content then stays eligible for
    * the unmount flush. Any other resolved value counts as
-   * persisted.
+   * persisted. `isPublic` is the form's "Public note" checkbox.
    */
   onSubmit: (
     tagId: string,
-    text: string
+    text: string,
+    isPublic: boolean
   ) => void | Promise<unknown>;
   /**
    * Permits saves and submits with no note text — the caller
@@ -36,7 +50,11 @@ interface NoteFormProps {
   allowEmptyText?: boolean;
   submitText: string;
   onTagDropdownOpen: () => void;
-  onAutoSave?: (tagId: string, text: string) => Promise<unknown>;
+  onAutoSave?: (
+    tagId: string,
+    text: string,
+    isPublic: boolean
+  ) => Promise<unknown>;
   /**
    * Called after a save triggered by the unmount flush
    * resolves — the parent's own close handler already ran, so
@@ -48,11 +66,47 @@ interface NoteFormProps {
    * restore the autosaved note after the form remounts (the
    * modal unmounts it on close).
    */
-  onDraftChange?: (tagId: string, text: string) => void;
+  onDraftChange?: (
+    tagId: string,
+    text: string,
+    isPublic: boolean
+  ) => void;
+  /** Images already attached to the note (edit mode). */
+  existingImages?: NoteImage[];
+  /**
+   * True while the attached-image list is being fetched —
+   * the count is unverifiable, so empty-note guards treat
+   * the note as image-bearing and the attach cap stays shut
+   * instead of briefly accepting overflow.
+   */
+  imagesLoading?: boolean;
+  /** Delete an attached image (owner-gated by the parent). */
+  onDeleteImage?: (imageId: string) => void | Promise<void>;
+  /**
+   * A rendered attached image failed to load — its signed
+   * URL expired; the parent refetches fresh ones.
+   */
+  onImageError?: (src: string) => void;
+  /**
+   * Edit mode: validated files upload immediately against
+   * the existing note instead of staging for the next save.
+   */
+  onAttachFiles?: (files: File[]) => void;
+  /**
+   * Create mode: reports the staged File[] after every
+   * change so the editor draft can carry pending uploads
+   * across remounts.
+   */
+  onFilesChange?: (files: File[]) => void;
+  /** Re-staged files from a restored editor draft. */
+  initialFiles?: File[];
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
 const SAVED_FLASH_MS = 500;
+// Mirrors the backend's IMAGE_MAX_PER_NOTE (comments cap
+// lower, at 5).
+const MAX_NOTE_IMAGES = 10;
 
 // Marks `save` as the in-flight write until it settles. The
 // tracked promise never rejects, so awaiting the lock stays safe
@@ -84,12 +138,64 @@ const NoteForm = ({
   onAutoSave,
   onUnmountedSave,
   onDraftChange,
+  existingImages = [],
+  imagesLoading = false,
+  onDeleteImage,
+  onImageError,
+  onAttachFiles,
+  onFilesChange,
+  initialFiles,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
+  // "Public note" — seeded from `note.isPublic` (edit mode or a
+  // resumed draft); otherwise follows the selected tag's
+  // `public` flag until the user toggles it manually.
+  const [isPublic, setIsPublic] = useState<boolean>(
+    () =>
+      note?.isPublic ??
+      tags.find((t) => t.id === (note?.tagId ?? ""))?.public ??
+      false
+  );
+  // Once the user toggles the box their choice wins over the
+  // tag default. An explicit `note.isPublic` counts as already
+  // touched — a tag switch in edit mode must NOT silently flip
+  // an existing note's publicity. Reset when the draft re-seeds.
+  const publicTouchedRef = useRef(note?.isPublic !== undefined);
   const [autoSave, setAutoSave] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
-  const latest = useRef({ tagId: "", text: "" });
+  const latest = useRef({
+    tagId: "",
+    text: "",
+    isPublic: false,
+    attachedCount: 0,
+  });
+  // Staged image attachments — create mode reports them so
+  // the editor draft can upload them once the note exists;
+  // edit mode hands validated files to `onAttachFiles`
+  // instead.
+  const {
+    staged,
+    fileError,
+    addFiles,
+    reportFiles,
+    removeStaged,
+    markStagedFailed,
+  } = useStagedImages({
+    maxImages: MAX_NOTE_IMAGES,
+    existingCount: existingImages.length,
+    parentNoun: 'note',
+    initialFiles,
+    onChange: onFilesChange,
+  });
+  const totalAttached = existingImages.length + staged.length;
+  // Loading is "has images, can't verify": the empty-note
+  // guards must not reject an image-only note, and the
+  // attach affordance stays disabled on the unverified
+  // count so a pick inside the load window can't overflow
+  // the cap (the backend would reject it anyway).
+  const attachCapReached =
+    imagesLoading || totalAttached >= MAX_NOTE_IMAGES;
   const onAutoSaveRef = useRef(onAutoSave);
   const onUnmountedSaveRef = useRef(onUnmountedSave);
   const onDraftChangeRef = useRef(onDraftChange);
@@ -102,7 +208,19 @@ const NoteForm = ({
   const flashTimeout = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    latest.current = { tagId: selectedTagId, text: noteText };
+    latest.current = {
+      tagId: selectedTagId,
+      text: noteText,
+      isPublic,
+      // Attached + staged — an image-only note in edit
+      // mode (all images already uploaded, none staged)
+      // still counts as content. While the fetch is in
+      // flight the count is unverifiable, so loading
+      // counts as at least one image.
+      attachedCount: imagesLoading
+        ? Math.max(totalAttached, 1)
+        : totalAttached,
+    };
     onAutoSaveRef.current = onAutoSave;
     onUnmountedSaveRef.current = onUnmountedSave;
     onDraftChangeRef.current = onDraftChange;
@@ -113,8 +231,19 @@ const NoteForm = ({
   // Keep the outer draft store in sync — a reopened modal
   // restores `note` from it.
   useEffect(() => {
-    onDraftChangeRef.current?.(selectedTagId, noteText);
-  }, [selectedTagId, noteText]);
+    onDraftChangeRef.current?.(selectedTagId, noteText, isPublic);
+  }, [selectedTagId, noteText, isPublic]);
+
+  // Until the user touches the box it follows the selected
+  // tag's publicity — and a public tag arriving via a late
+  // getTags resolves updates it too.
+  useEffect(() => {
+    if (!publicTouchedRef.current) {
+      setIsPublic(
+        tags.find((t) => t.id === selectedTagId)?.public ?? false
+      );
+    }
+  }, [selectedTagId, tags]);
 
   // Sync on the primitive fields, not the `note` object itself:
   // every call site passes a fresh inline object each render, so
@@ -122,18 +251,30 @@ const NoteForm = ({
   // parent re-renders (linked-notes fetches, verse picker, etc.).
   const noteTagId = note?.tagId;
   const noteTextProp = note?.text;
+  const noteIsPublic = note?.isPublic;
   useEffect(() => {
     if (noteTagId !== undefined && noteTextProp !== undefined) {
       setSelectedTagId(noteTagId);
       setNoteText(noteTextProp);
+      // A re-seeded draft restores (or clears) the publicity
+      // seed — an explicit flag counts as user-set so a later
+      // tag switch keeps it.
+      if (noteIsPublic !== undefined) {
+        setIsPublic(noteIsPublic);
+        publicTouchedRef.current = true;
+      } else {
+        publicTouchedRef.current = false;
+      }
     }
-  }, [noteTagId, noteTextProp]);
+  }, [noteTagId, noteTextProp, noteIsPublic]);
 
   // The last content autosave persisted — ticks that would write
   // the same payload again are skipped.
-  const lastSavedRef = useRef<{ tagId: string; text: string } | null>(
-    null
-  );
+  const lastSavedRef = useRef<{
+    tagId: string;
+    text: string;
+    isPublic: boolean;
+  } | null>(null);
   // Set once a submit persisted the form: the hook deletes the
   // draft, so the unmount flush must not run — a late save
   // would recreate it with `savedNoteId: null` and POST a
@@ -148,13 +289,17 @@ const NoteForm = ({
     () => () => {
       const save = onAutoSaveRef.current;
       if (!save || !autoSaveRef.current) return;
-      const { tagId, text } = latest.current;
-      // A verse-linked note may flush with empty text; a
-      // truly empty note (no text, nothing linked) is skipped.
+      const { tagId, text, isPublic, attachedCount } =
+        latest.current;
+      // A verse-linked note may flush with empty text, and a
+      // note with only images (staged or already attached)
+      // is content too; a truly empty note (no text, no
+      // images, nothing linked) is skipped.
       if (!tagId) return;
       if (
         !allowEmptyTextRef.current &&
-        !toPlainText(text).trim()
+        !toPlainText(text).trim() &&
+        attachedCount === 0
       ) {
         return;
       }
@@ -174,11 +319,12 @@ const NoteForm = ({
           if (
             last &&
             last.tagId === tagId &&
-            last.text === text
+            last.text === text &&
+            last.isPublic === isPublic
           ) {
             return undefined;
           }
-          return save(tagId, text);
+          return save(tagId, text, isPublic);
         })
         .then(() => onUnmountedSaveRef.current?.())
         .catch((error) => console.error(error));
@@ -191,29 +337,37 @@ const NoteForm = ({
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
-      const { tagId, text } = latest.current;
+      const { tagId, text, isPublic, attachedCount } =
+        latest.current;
       // Skip contentless notes AND empty tag — the latter
       // used to POST `tag: ''` every 5s, a stream of silent
-      // 400s. Verse-linked notes may save with empty text.
+      // 400s. Verse-linked and image-only notes (staged or
+      // already attached) may save with empty text.
       if (!tagId) return;
       if (
         !allowEmptyTextRef.current &&
-        !toPlainText(text).trim()
+        !toPlainText(text).trim() &&
+        attachedCount === 0
       ) {
         return;
       }
       const last = lastSavedRef.current;
-      if (last && last.tagId === tagId && last.text === text) {
+      if (
+        last &&
+        last.tagId === tagId &&
+        last.text === text &&
+        last.isPublic === isPublic
+      ) {
         return;
       }
-      trackInFlight(inFlightRef, save(tagId, text))
+      trackInFlight(inFlightRef, save(tagId, text, isPublic))
         .then((result) => {
           // A resolved-false save was declined — the content
           // stays dirty so the next tick or the unmount
           // flush retries, and the saved check must not
           // flash for a write that never happened.
           if (result === false) return;
-          lastSavedRef.current = { tagId, text };
+          lastSavedRef.current = { tagId, text, isPublic };
           setSavedFlash(true);
           flashTimeout.current = window.setTimeout(
             () => setSavedFlash(false),
@@ -250,10 +404,15 @@ const NoteForm = ({
       });
       return;
     }
-    if (!allowEmptyText && !toPlainText(noteText).trim()) {
+    if (
+      !allowEmptyText &&
+      !toPlainText(noteText).trim() &&
+      totalAttached === 0 &&
+      !imagesLoading
+    ) {
       showNotification({
         title: 'Cannot save note',
-        message: 'Note text is required.',
+        message: 'Add note text or attach an image.',
         color: 'red',
       });
       return;
@@ -266,7 +425,9 @@ const NoteForm = ({
     try {
       const result = await trackInFlight(
         inFlightRef,
-        Promise.resolve(onSubmit(selectedTagId, noteText))
+        Promise.resolve(
+          onSubmit(selectedTagId, noteText, isPublic)
+        )
       );
       // `false` signals a rejected submit — leave the content
       // eligible for the unmount flush. Anything else means the
@@ -279,11 +440,28 @@ const NoteForm = ({
         lastSavedRef.current = {
           tagId: selectedTagId,
           text: noteText,
+          isPublic,
         };
+        // Staged thumbs are NOT cleared here: a successful
+        // submit closes the modal (the hook's unmount cleanup
+        // revokes the object URLs), and clearing would also
+        // report an empty File[] to a draft slot the editor
+        // just deleted — recreating a ghost draft.
       }
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleFileSelect = (files: File[]) => {
+    if (onAttachFiles) {
+      // Edit mode: the note already exists, so validated
+      // files upload immediately instead of staging.
+      const accepted = reportFiles(files);
+      if (accepted.length > 0) onAttachFiles(accepted);
+      return;
+    }
+    addFiles(files);
   };
 
   return (
@@ -311,6 +489,75 @@ const NoteForm = ({
         value={noteText}
         onChange={setNoteText}
       />
+      {(existingImages.length > 0 || staged.length > 0) && (
+        <Group spacing={6} mt={6} align="flex-start">
+          {existingImages.map((img) => {
+            const src = img.signed_url;
+            const name = commentImageName(img);
+            return (
+              <Box
+                key={img.id}
+                style={{
+                  position: 'relative',
+                  display: 'inline-block',
+                }}
+              >
+                {src ? (
+                  <img
+                    src={src}
+                    alt={name}
+                    onError={() => onImageError?.(src)}
+                    style={IMAGE_THUMB_STYLE}
+                  />
+                ) : (
+                  <UnavailableThumb
+                    label={`${name} (unavailable)`}
+                  />
+                )}
+                {onDeleteImage && (
+                  <RemoveImageButton
+                    label={`Remove image ${name}`}
+                    offset={2}
+                    onClick={() => onDeleteImage(img.id)}
+                  />
+                )}
+              </Box>
+            );
+          })}
+          {staged.map((s) => (
+            <Box
+              key={s.id}
+              style={{
+                position: 'relative',
+                display: 'inline-block',
+              }}
+            >
+              {s.failed ? (
+                <UnavailableThumb
+                  label={`${s.file.name} (unavailable)`}
+                />
+              ) : (
+                <img
+                  src={s.url}
+                  alt={s.file.name}
+                  style={IMAGE_THUMB_STYLE}
+                  onError={() => markStagedFailed(s.id)}
+                />
+              )}
+              <RemoveImageButton
+                label={`Remove staged image ${s.file.name}`}
+                offset={2}
+                onClick={() => removeStaged(s.id)}
+              />
+            </Box>
+          ))}
+        </Group>
+      )}
+      {fileError && (
+        <Text size="xs" color="red" mt={4}>
+          {fileError}
+        </Text>
+      )}
       <Box
         data-testid="note-submit-bar"
         sx={(theme) => ({
@@ -333,6 +580,38 @@ const NoteForm = ({
           <Button variant="transparent" type="submit" fullWidth>
             {submitText}
           </Button>
+          {(onAttachFiles || onFilesChange) && (
+            <FileButton
+              onChange={handleFileSelect}
+              accept={ALLOWED_IMAGE_TYPES.join(',')}
+              multiple
+              disabled={attachCapReached}
+              // Mantine v6 never clears the input's value, so
+              // deleting a thumb and re-picking the SAME file
+              // dispatches no `change` event — attach looks
+              // dead. Clearing on click resets it before the
+              // picker opens (safe with `multiple`).
+              inputProps={{
+                onClick: (event) => {
+                  event.currentTarget.value = '';
+                },
+              }}
+            >
+              {(props) => (
+                <Button
+                  {...props}
+                  variant="transparent"
+                  leftIcon={<IconPhoto size={14} />}
+                  disabled={attachCapReached}
+                  aria-label="Attach images"
+                >
+                  {totalAttached > 0
+                    ? `${totalAttached}/${MAX_NOTE_IMAGES}`
+                    : 'Images'}
+                </Button>
+              )}
+            </FileButton>
+          )}
           {onAutoSave && (
             <Checkbox
               label="Auto save"
@@ -342,6 +621,19 @@ const NoteForm = ({
               }
             />
           )}
+          <Tooltip
+            label="Anyone with the link can view this note"
+            position="top"
+          >
+            <Checkbox
+              label="Public note"
+              checked={isPublic}
+              onChange={(event) => {
+                publicTouchedRef.current = true;
+                setIsPublic(event.currentTarget.checked);
+              }}
+            />
+          </Tooltip>
         </Group>
       </Box>
       {savedFlash && (

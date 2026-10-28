@@ -111,6 +111,7 @@ export interface BibleState {
       ordering?: string;
       page?: number;
       append?: boolean;
+      includeDescendants?: boolean;
     }
   ) => Promise<void>;
   getTags: (forceRefresh?: boolean) => Promise<void>;

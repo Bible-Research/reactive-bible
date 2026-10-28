@@ -32,6 +32,7 @@ export type {
   CommentAuthor,
   CommentCounts,
   CommentImage,
+  NoteImage,
   SearchVerse,
   SearchPagination,
   SearchResponse,

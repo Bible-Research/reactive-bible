@@ -626,6 +626,11 @@ export interface Tag {
   id: string;
   name: string;
   parent_tag: string | null;  // For hierarchical tags
+  public: boolean;            // notes under it are shareable;
+                              // also the default publicity for
+                              // new notes under the tag
+  note_count?: number;        // direct notes only; absent on
+                              // older backends
   created_at: string;
   updated_at: string;
 }
@@ -2517,6 +2522,10 @@ Modal for selecting Bible translations.
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
   `CommentActions.tsx` + `CommentImageGrid.tsx` +
   `Lightbox.tsx` - threaded comments with image upload
+- `NoteForm.tsx` + `useNoteEditor` +
+  `hooks/useStagedImages.ts` - note editing with staged image
+  attachments (uploaded after the note's first save);
+  `NoteCard` renders them via `CommentImageGrid` + `Lightbox`
 - `NoteVerseList.tsx` / `NoteCardActions.tsx` /
   `SortableNoteCard.tsx` / `TagNotesToolbar.tsx` /
   `TagTree.tsx` / `Pagination.tsx` - note-list pieces
@@ -2685,6 +2694,52 @@ production App Engine host)
     Response: { [book name]: { chapter, verse } | null }
     ```
 
+13. **Note Images**
+    ```
+    POST   /notes/{noteId}/images/
+    // multipart form field "file"; ≤10 images, ≤10 MiB each
+    GET    /notes/{noteId}/images/
+    DELETE /images/{imageId}/          // shared with comments
+    Response: NoteImage — identical shape to CommentImage
+      (one backend ImageSerializer serves both)
+    // The note must exist before upload — there is no
+    // pre-upload endpoint — so create-mode modals stage
+    // File[] locally (src/hooks/useStagedImages.ts), carry
+    // them in the useNoteEditor draft (pendingFiles +
+    // uploadedFiles, a signature-keyed Map<File→NoteImage>
+    // so a re-selected file dedups by content, not File
+    // identity), and upload sequentially after the first
+    // save produces savedNoteId. Removing a thumb whose
+    // file already uploaded calls DELETE /images/{id};
+    // draft.stagedFiles re-stages uploaded files on reopen
+    // so attached images stay visible and removable.
+    // EditNoteModal uploads immediately on select (with a
+    // per-session signature→imageId map against
+    // re-selects — the signature is claimed before the
+    // upload resolves and freed when the image is
+    // deleted, so deleting a thumb un-blocks a
+    // re-select of the same file) and
+    // refetches the image list single-flight +
+    // budgeted (3) when a signed_url fails to load.
+    // Images are NOT embedded in note payloads. Each mounted
+    // NoteCard lazy-fetches GET /notes/{noteId}/images/ once
+    // it nears the viewport (useIntersection, 200 px
+    // rootMargin, latched; where IntersectionObserver is
+    // missing the observer ref is skipped entirely —
+    // Mantine v6 news it up unguarded — and images fetch on
+    // mount). Fetched lists live in the session-scoped
+    // useNoteImages store (module Map keyed by note id,
+    // single-flight dedup, mutateNoteImages write path for
+    // upload append / delete filter — a mutation landing
+    // mid-flight drops the stale response and re-fires one
+    // reconciling fetch on settle — signature-keyed
+    // MAX_IMAGE_REFRESHES=3 budget for signed-URL expiry)
+    // — shared by the grid card, the DragOverlay's second
+    // card, and EditNoteModal, so one fetch serves all.
+    // A failed fetch leaves the entry 'error'; the next
+    // mount retries it once with a re-armed budget.
+    ```
+
 #### Wordpocket Audio API
 **Base URL**: `https://wordpocket.org/bibles/app/audio/1`
 
@@ -2731,7 +2786,7 @@ re-exported through the `index.ts` barrel — always import via
   user-owned resources (notes, tags, comments, reading
   positions).
 - `authenticatedUpload(url, formData)` — multipart variant for
-  comment-image uploads.
+  image uploads (comment and note attachments).
 - `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
   shared fetch→JSON boilerplate for endpoints whose error
   handling is just "throw on `!ok`, log, rethrow". Endpoints
@@ -2986,9 +3041,23 @@ getNotes(
     page?: number;
     pageSize?: number;
     filesetId?: string;
+    // Merges descendant-tag notes into the page (the
+    // `?descendants=1` "Include sub-tags" view); reorder UI
+    // stays disabled while it is on.
+    includeDescendants?: boolean;
   }
 ): Promise<PaginatedNotesResponse>
 ```
+
+**`setTagPublic(tagId, makePublic)`** / **`reparentTag(tagId, parentTagId)`**
+
+Tag publicity writes go ONLY through `POST
+/tags/{id}/set-public/` — the cascade endpoint that flips the
+tag's `public` flag plus every note directly under it
+(descendant tags untouched). The UI never sends a raw
+`{public}` PATCH. Reparenting is `PATCH {parent_tag}` only —
+`reparentTag` surfaces the server's error `message` (e.g. a
+same-named sibling) for the toast.
 
 **`getTags()`**
 
@@ -3663,16 +3732,29 @@ surface as the transport layer:
 - `src/utils/errorReporter.tsx` (`reportError`) forwards every
   surfaced fatal error as an exception tagged with its context
   string; resource-load failures go as `warning`-level messages
-  with the query string stripped — signed-URL credentials never
-  reach Sentry. `src/components/ErrorBoundary.tsx` captures
-  render errors with `extra.componentStack` and the `context`
-  tag on the first capture (the tagged re-capture is deduped).
+  tagged `reportType: resource-load` with the query string
+  stripped — signed-URL credentials never reach Sentry.
+  `src/components/ErrorBoundary.tsx` captures render errors
+  with `extra.componentStack` and the `context` tag on the
+  first capture (the tagged re-capture is deduped).
 - `src/utils/sentry.ts` exports `sentryBeforeSend`, which drops
   the handled taxonomy (`RateLimitError`,
-  `BookNotInFilesetError`, `AbortError`, 'Session expired') so
-  expected conditions don't burn quota. `ClientInputError` is
-  deliberately NOT dropped — it means our own request was
-  malformed, a bug worth reporting.
+  `BookNotInFilesetError`, `AbortError`, 'Session expired',
+  `ChunkLoadError` / `Loading chunk N failed` / `Loading CSS
+  chunk`, `ResizeObserver loop`) so expected conditions don't
+  burn quota. `ClientInputError` is deliberately NOT dropped —
+  it means our own request was malformed, a bug worth
+  reporting. `TypeError` network failures ('Failed to fetch',
+  'Load failed', 'NetworkError…') are kept but tagged
+  `errorKind: network` so Sentry-side rules can route them.
+- **Event-stream contract:** `is:unresolved level:error
+  environment:production` is the bug queue — everything else is
+  deliberately routed by tag. Untagged exception events are
+  real bugs; `reportType` marks non-bug `captureMessage`
+  streams: `resource-load` (warning, missing assets),
+  `user-report` (info, "Report a problem"), `media-debug`
+  (info, APK diagnostics). `errorKind` refines which kind of
+  failure an exception was (`network` today).
 - **User reports:** the main menu's "Report a problem" row
   (always visible) opens `ReportProblemModal`, where the user
   describes the issue. `sendUserReport`
@@ -3701,8 +3783,8 @@ surface as the transport layer:
   to git auto-detection.
 - Configure per-environment DSNs in the Vercel dashboard
   (Production + Preview); see `.env.example`. Backend-side
-  setup is documented in `docs/plans/sentry-monitoring-plan.md`
-  at the workspace root.
+  init lives in `bible_research/bible_research/settings.py`;
+  its event-stream contract is in `bible_research/AGENTS.md`.
 
 ---
 

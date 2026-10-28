@@ -5,12 +5,13 @@ import {
   Modal,
   Select,
   Stack,
+  Switch,
   Text,
   TextInput,
 } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
-import { updateTag } from '../api';
+import { setTagPublic, updateTag } from '../api';
 import {
   isTagDescendant,
   validateTagName,
@@ -33,6 +34,7 @@ export function EditTagModal({
 }: EditTagModalProps) {
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -40,6 +42,10 @@ export function EditTagModal({
     if (tag && opened) {
       setTagName(tag.name);
       setParentTagId(tag.parent_tag);
+      // Pre-upgrade persisted payloads can hydrate a Tag
+      // without `public` — `undefined` would make the Switch
+      // uncontrolled until the first click.
+      setIsPublic(tag.public ?? false);
       setNameError(null);
     }
   }, [tag, opened]);
@@ -74,8 +80,27 @@ export function EditTagModal({
     }
 
     setLoading(true);
+    // Set when the rename/reparent PATCH has already landed —
+    // if the publicity cascade then fails, the applied half
+    // still needs a list refresh.
+    let updateApplied = false;
     try {
-      await updateTag(tag.id, tagName.trim(), parentTagId);
+      // A publicity-only edit skips the PATCH entirely —
+      // sending an unchanged name/parent is a no-op write.
+      const detailsChanged =
+        tagName.trim() !== tag.name ||
+        parentTagId !== tag.parent_tag;
+      if (detailsChanged) {
+        await updateTag(tag.id, tagName.trim(), parentTagId);
+        updateApplied = true;
+      }
+      // Publicity goes through the set-public cascade — never a
+      // raw PATCH flag — so the tag's notes flip atomically
+      // with it and the UI can't produce a "flag set, notes
+      // stale" state.
+      if (isPublic !== (tag.public ?? false)) {
+        await setTagPublic(tag.id, isPublic);
+      }
       showNotification({
         title: 'Success',
         message: 'Tag updated successfully',
@@ -87,9 +112,18 @@ export function EditTagModal({
       console.error('Error updating tag:', error);
       showNotification({
         title: 'Error',
-        message: 'Failed to update tag. Please try again.',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to update tag. Please try again.',
         color: 'red',
       });
+      // Partial success: the PATCH landed but the cascade
+      // failed — refresh so the list shows what the server
+      // actually stored.
+      if (updateApplied) {
+        onSuccess();
+      }
     }
     setLoading(false);
   };
@@ -148,6 +182,23 @@ export function EditTagModal({
               will affect the hierarchy.
             </Text>
           )}
+
+          <Switch
+            label="Public tag"
+            checked={isPublic}
+            onChange={(e) =>
+              setIsPublic(e.currentTarget.checked)
+            }
+            description={
+              isPublic
+                ? 'Existing notes under this tag become ' +
+                  'public — anyone with the link can view ' +
+                  'them.'
+                : 'Existing notes directly under this tag ' +
+                  'become private — anyone following a ' +
+                  'shared link loses access.'
+            }
+          />
 
           {tag && (
             <Stack spacing={4}>

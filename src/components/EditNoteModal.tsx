@@ -10,8 +10,13 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { showNotification } from "@mantine/notifications";
 
 import { useBibleStore } from "../store";
+import {
+  deleteImage,
+  uploadNoteImage,
+} from "../api";
 import { toBookName, toUsfmCode } from "../utils/bibleUtils";
 import {
   refsInclude,
@@ -21,6 +26,11 @@ import {
 } from "../utils/verseRefs";
 import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
 import { useNoteEditor } from "../hooks/useNoteEditor";
+import {
+  mutateNoteImages,
+  useNoteImages,
+} from "../hooks/useNoteImages";
+import { imageFileSignature } from "../hooks/useStagedImages";
 import NoteForm from "./NoteForm";
 import PassagePicker from "./PassagePicker";
 import VerseTextGroups from "./VerseTextGroups";
@@ -62,6 +72,27 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   // Last plain-clicked verse; a shift-click extends a range from it.
   const anchorRef = useRef<VerseRef | null>(null);
 
+  // Attached images come from the shared per-note store —
+  // the card usually warmed it before the modal opened, so
+  // opening costs no extra request. Uploads append and
+  // deletes filter via mutateNoteImages. The modal only
+  // opens through the owner-gated edit affordance, so
+  // attach/delete need no extra permission check here.
+  const {
+    images,
+    loading: imagesLoading,
+    refresh: refreshImages,
+  } = useNoteImages(
+    note?.id,
+    opened
+  );
+  // Content signatures of files uploaded this session,
+  // mapped to the image each produced — a re-select mints
+  // a new File object, so identity checks can't stop a
+  // duplicate upload; deleting an image frees its
+  // signature so the file can be attached again.
+  const uploadedSigs = useRef<Map<string, string>>(new Map());
+
   // Seed the picker from the note whenever the modal opens.
   useEffect(() => {
     if (!opened) return;
@@ -73,6 +104,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     });
     setVersesOpen(false);
     if (!note) return;
+    uploadedSigs.current = new Map();
     const initial = (note.verses ?? [])
       .map((v) => ({
         bookId: toUsfmCode(v.book) ?? "",
@@ -157,7 +189,80 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     note,
     verseReferences,
     onSubmitted: () => onClose(),
+    // An image-only note is a valid save target even with
+    // no text or linked verses. While the lazy fetch is in
+    // flight the count is unknown — treat loading as "has
+    // images, can't verify" so an image-only note submitted
+    // inside the load window isn't rejected as empty.
+    attachedImageCount: imagesLoading
+      ? Math.max(images.length, 1)
+      : images.length,
   });
+
+  // Edit mode uploads immediately on select — the note id is
+  // already known, unlike create mode's staged files.
+  const handleAttachFiles = (files: File[]) => {
+    if (!note) return;
+    const noteId = note.id;
+    void (async () => {
+      for (const file of files) {
+        const signature = imageFileSignature(file);
+        if (uploadedSigs.current.has(signature)) continue;
+        // Claim the signature before the upload resolves —
+        // a rapid second selection of the same file must
+        // not slip past the dedup check above.
+        uploadedSigs.current.set(signature, '');
+        try {
+          const img = await uploadNoteImage(noteId, file);
+          uploadedSigs.current.set(signature, img.id);
+          // The upload response is an ImageSerializer object
+          // identical to the list elements — append it
+          // locally instead of refetching.
+          mutateNoteImages(noteId, (imgs) => [...imgs, img]);
+        } catch (err: unknown) {
+          uploadedSigs.current.delete(signature);
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Failed to upload image.';
+          showNotification({
+            color: 'red',
+            title: 'Upload failed',
+            message: msg,
+          });
+        }
+      }
+    })();
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!note) return;
+    try {
+      await deleteImage(imageId);
+      mutateNoteImages(note.id, (imgs) =>
+        imgs.filter((i) => i.id !== imageId)
+      );
+      // Free the file's signature so re-selecting it
+      // re-uploads instead of being deduped away.
+      for (const [sig, id] of uploadedSigs.current) {
+        if (id === imageId) uploadedSigs.current.delete(sig);
+      }
+    } catch {
+      showNotification({
+        color: 'red',
+        title: 'Error',
+        message: 'Failed to delete image.',
+      });
+    }
+  };
+
+  // An attached thumb whose signed URL expired refetches the
+  // list through the shared store — bounded (3 per image set)
+  // and single-flight, so N thumbs erroring in one commit
+  // fire one refetch, not N.
+  const handleImageError = () => {
+    refreshImages();
+  };
 
   const handleClose = () => {
     if (editor.hasSaved() && note) {
@@ -204,6 +309,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               });
             }}
             onAutoSave={editor.save}
+            existingImages={images}
+            imagesLoading={imagesLoading}
+            onDeleteImage={handleDeleteImage}
+            onImageError={handleImageError}
+            onAttachFiles={handleAttachFiles}
             onUnmountedSave={() => {
               // A tail save finishing after unmount sets
               // hasSaved too late for handleClose's check —
@@ -216,6 +326,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             note={{
               tagId: note.tag?.id ?? "",
               text: note.note_text,
+              // The existing note's flag seeds the checkbox
+              // and counts as already-touched — switching tag
+              // must not silently flip publicity.
+              isPublic: note.public,
             }}
           />
           <Divider mt="xl" mb="sm" />

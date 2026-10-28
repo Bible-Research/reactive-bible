@@ -44,6 +44,12 @@ interface UseNoteOrderMenuOptions {
    *  `is_owner === false`. */
   isTagOwner: boolean;
   isUntagged: boolean;
+  /**
+   * The merged subtree view (`?descendants=1`) — reorder and
+   * the order index are per-tag, so both stay off while it
+   * is active.
+   */
+  includeDescendants?: boolean;
 }
 
 interface UseNoteOrderMenuResult {
@@ -74,6 +80,7 @@ export const useNoteOrderMenu = ({
   sortOrder,
   isTagOwner,
   isUntagged,
+  includeDescendants = false,
 }: UseNoteOrderMenuOptions): UseNoteOrderMenuResult => {
   const moveNoteAfter = useBibleStore(
     (state) => state.moveNoteAfter
@@ -103,7 +110,11 @@ export const useNoteOrderMenu = ({
   const enabled =
     (sortOrder === 'custom_asc' || sortOrder === 'custom_desc') &&
     isTagOwner &&
-    !isUntagged;
+    !isUntagged &&
+    // tag_position is meaningless across a merged set — the
+    // server falls back to recency ordering and the reorder /
+    // order-index endpoints stay strictly per-tag.
+    !includeDescendants;
 
   const reloadOrderIndex = useCallback(async () => {
     if (!tagId) return;

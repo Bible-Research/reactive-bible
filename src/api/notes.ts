@@ -5,6 +5,7 @@
  */
 import type {
   Note,
+  NoteImage,
   NoteOrderIndexEntry,
   NotePositionUpdate,
   MovePlacement,
@@ -14,6 +15,7 @@ import type {
 } from '../types';
 import {
   authenticatedFetch,
+  authenticatedUpload,
   fetchJson,
   publicFetch,
 } from '../utils/apiClient';
@@ -24,7 +26,8 @@ import { ConflictError } from './errors';
 export const addTagNote = async (
   tagId: string,
   tagNoteText: string,
-  verseReferences: { book: string; chapter: number; verse: number }[]
+  verseReferences: { book: string; chapter: number; verse: number }[],
+  isPublic?: boolean
 ): Promise<Note> => {
   const created = await fetchJson<Note>(
     authenticatedFetch,
@@ -36,6 +39,9 @@ export const addTagNote = async (
         tag: tagId,
         note_text: tagNoteText,
         verse_references: verseReferences,
+        // `public` is sent only when the caller supplied it —
+        // omitting it lets the server inherit `tag.public`.
+        ...(isPublic !== undefined ? { public: isPublic } : {}),
       }),
     }
   );
@@ -49,7 +55,8 @@ export const editNote = async (
   noteId: string,
   tagId: string,
   noteText: string,
-  verseReferences?: { book: string; chapter: number; verse: number }[]
+  verseReferences?: { book: string; chapter: number; verse: number }[],
+  isPublic?: boolean
 ): Promise<Note> => {
   // verse_references replaces the note's verse links when
   // present; omitting it leaves them untouched.
@@ -65,6 +72,7 @@ export const editNote = async (
         ...(verseReferences !== undefined
           ? { verse_references: verseReferences }
           : {}),
+        ...(isPublic !== undefined ? { public: isPublic } : {}),
       }),
     }
   );
@@ -220,12 +228,22 @@ export const getNotes = async (
     page?: number;
     pageSize?: number;
     filesetId?: string;
+    /**
+     * Expands the `tag_id` filter to the tag's whole subtree —
+     * the merged "include sub-tags" view. Ignored by the
+     * server for `untagged` and reorder stays per-tag.
+     */
+    includeDescendants?: boolean;
   }
 ): Promise<PaginatedNotesResponse> => {
   const params = new URLSearchParams();
 
   if (tagId) {
     params.append('tag_id', tagId);
+  }
+
+  if (options?.includeDescendants) {
+    params.append('include_descendants', 'true');
   }
 
   if (options?.ordering) {
@@ -284,4 +302,49 @@ export const getNote = (noteId: string): Promise<Note> =>
     publicFetch,
     `${API_BASE_URL}/api/v1/notes/${noteId}/`,
     'Failed to fetch note'
+  );
+
+/**
+ * Upload one image to a note. The note must already exist —
+ * there is no pre-upload endpoint — so create-mode modals
+ * stage files locally and upload only after the first save
+ * produced `savedNoteId`.
+ */
+export const uploadNoteImage = async (
+  noteId: string,
+  file: File,
+): Promise<NoteImage> => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const response = await authenticatedUpload(
+    `${API_BASE_URL}/api/v1/notes/${noteId}/images/`,
+    fd,
+  );
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message =
+      data.detail ||
+      (Array.isArray(data.file) ? data.file[0] : data.file) ||
+      'Failed to upload image.';
+    throw new Error(message);
+  }
+  return response.json();
+};
+
+/**
+ * A note's attached images — the only way they reach the
+ * client; note payloads do not embed `images`. `NoteCard`
+ * lazy-fetches this per visible card through the shared
+ * `useNoteImages` store, and a failed <img> load refetches
+ * it (bounded) since the signed URLs expire (600 s TTL).
+ * `AllowAny` server-side: public notes' images are readable
+ * anonymously.
+ */
+export const fetchNoteImages = (
+  noteId: string
+): Promise<NoteImage[]> =>
+  fetchJson<NoteImage[]>(
+    publicFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/images/`,
+    'Failed to fetch images.'
   );

@@ -114,6 +114,7 @@ describe('Tag Refresh Behavior', () => {
       id: 'tag-1',
       name: 'Bible Study',
       parent_tag: null,
+      public: false,
       created_at: '2026-01-01',
       updated_at: '2026-01-01',
     },
@@ -121,6 +122,7 @@ describe('Tag Refresh Behavior', () => {
       id: 'tag-2',
       name: 'Prayer',
       parent_tag: null,
+      public: false,
       created_at: '2026-01-01',
       updated_at: '2026-01-01',
     },
@@ -414,6 +416,7 @@ describe('Tag Refresh Behavior', () => {
         id: 'tag-3',
         name: 'New Tag',
         parent_tag: null,
+        public: false,
         created_at: '2026-01-02',
         updated_at: '2026-01-02',
       };

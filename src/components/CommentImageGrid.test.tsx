@@ -26,7 +26,7 @@ const renderGrid = (
   renderWithProviders(
     <CommentImageGrid
       images={[makeImage('img-1')]}
-      commentId="c1"
+      parentId="c1"
       canDelete={false}
       onOpenImage={vi.fn()}
       {...props}

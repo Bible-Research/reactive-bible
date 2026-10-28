@@ -24,6 +24,13 @@ interface UseTagNotesDataOptions {
   sortOrder: SortOrder;
   isUntagged: boolean;
   isAuthenticated: boolean;
+  /**
+   * `?descendants=1` — merge the viewed tag's subtree notes
+   * into the page. Folds into the load-effect query key so
+   * toggling the toolbar switch refetches, and rides on every
+   * fetchNotes call so pagination/refresh keep merged mode.
+   */
+  includeDescendants: boolean;
   setSearchParams: SetURLSearchParams;
   /** Order-menu gate + resync — owned by `useNoteOrderMenu`;
    *  delete/refresh re-pull the index only while it is on. */
@@ -61,6 +68,7 @@ export const useTagNotesData = ({
   sortOrder,
   isUntagged,
   isAuthenticated,
+  includeDescendants,
   setSearchParams,
   orderMenuEnabled,
   reloadOrderIndex,
@@ -164,7 +172,8 @@ export const useTagNotesData = ({
         // for the same tag+sort (StrictMode remount, auth
         // hydration) refetch the page the user is on instead
         // of bouncing back to page 1.
-        const queryKey = `${tagId}:${sortOrder}`;
+        const queryKey =
+          `${tagId}:${sortOrder}:${includeDescendants}`;
         let page: number;
         if (lastLoadRef.current?.key === queryKey) {
           // notesPage reflects this tag only once its notes are
@@ -186,6 +195,7 @@ export const useTagNotesData = ({
         await fetchNotes(tagId, {
           ordering: apiOrdering,
           page,
+          includeDescendants,
         });
         if (cancelled) return;
 
@@ -198,14 +208,21 @@ export const useTagNotesData = ({
             id: UNTAGGED_TAG_ID,
             name: 'Untagged',
             parent_tag: null,
+            public: false,
             created_at: '',
             updated_at: '',
           };
         } else {
+          // A merged page (`?descendants=1`) can lead with a
+          // descendant tag's note — prefer a note attached to
+          // the viewed tag itself before falling back to the
+          // first row, so anonymous viewers don't see a
+          // child's name/public badge in the toolbar.
           resolvedTag =
             useBibleStore
               .getState()
               .tags.find((t) => t.id === tagId) ||
+            fetchedNotes.find((n) => n.tag?.id === tagId)?.tag ||
             fetchedNotes[0]?.tag ||
             null;
 
@@ -259,6 +276,7 @@ export const useTagNotesData = ({
     isAuthenticated,
     sortOrder,
     isUntagged,
+    includeDescendants,
   ]);
 
   // A sort change only rewrites the URL — the load effect
@@ -268,7 +286,13 @@ export const useTagNotesData = ({
   const handleSortChange = useCallback(
     (newSortOrder: string) => {
       if (!tagId) return;
-      setSearchParams({ sort: newSortOrder });
+      // Preserve the other params — a bare `{sort}` object
+      // would silently drop `descendants=1`.
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('sort', newSortOrder);
+        return next;
+      });
     },
     [tagId, setSearchParams]
   );
@@ -288,6 +312,7 @@ export const useTagNotesData = ({
           ordering: apiOrdering,
           page: newPage,
           append: false,
+          includeDescendants,
         });
       } finally {
         setPageLoading(false);
@@ -296,7 +321,7 @@ export const useTagNotesData = ({
       // Scroll to top of notes section
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [tagId, sortOrder, fetchNotes]
+    [tagId, sortOrder, fetchNotes, includeDescendants]
   );
 
   const handlePageSizeChange = useCallback(
@@ -320,6 +345,7 @@ export const useTagNotesData = ({
           ordering: apiOrdering,
           page: 1,
           append: false,
+          includeDescendants,
         });
       } finally {
         setPageLoading(false);
@@ -328,7 +354,13 @@ export const useTagNotesData = ({
       // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
-    [tagId, sortOrder, setNotesPageSize, fetchNotes]
+    [
+      tagId,
+      sortOrder,
+      setNotesPageSize,
+      fetchNotes,
+      includeDescendants,
+    ]
   );
 
   const handleRefresh = useCallback(async () => {
@@ -348,6 +380,7 @@ export const useTagNotesData = ({
       await fetchNotes(tagId, {
         ordering: apiOrdering,
         page: notesPage,
+        includeDescendants,
       });
 
       // getTags is an authenticated call — skip it on shared
@@ -386,6 +419,7 @@ export const useTagNotesData = ({
     fetchNotes,
     getTags,
     isAuthenticated,
+    includeDescendants,
     orderMenuEnabled,
     reloadOrderIndex,
   ]);
@@ -437,6 +471,7 @@ export const useTagNotesData = ({
           await fetchNotes(tagId, {
             ordering: apiOrdering,
             page: Math.min(current.notesPage, lastPage),
+            includeDescendants,
           });
           // Resync badges/menu labels — the deleted note's
           // rank shifts every entry below it.
@@ -457,6 +492,7 @@ export const useTagNotesData = ({
       sortOrder,
       deleteNote,
       fetchNotes,
+      includeDescendants,
       orderMenuEnabled,
       reloadOrderIndex,
     ]

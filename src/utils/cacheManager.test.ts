@@ -165,6 +165,7 @@ const makeTag = (id: string, name = `Tag ${id}`): Tag => ({
   id,
   name,
   parent_tag: null,
+  public: false,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
 });
@@ -285,7 +286,7 @@ describe('Notes Cache Manager', () => {
 
     const cache = JSON.parse(cacheStr);
     const key =
-      'TAG1:anon:fs:default:ps:default:page1:default';
+      'TAG1:anon:fs:default:ps:default:sub:false:page1:default';
     expect(cache[key].timestamp).toBeGreaterThanOrEqual(
       beforeCache
     );
@@ -332,6 +333,38 @@ describe('Notes Cache Manager', () => {
       getCachedNotes('TAG1', 1, null, scope(false, 'FS_A', 50))
         ?.notes[0].id
     ).toBe('other-ps');
+  });
+
+  it('keys merged subtree pages separately from direct-only ' +
+    'pages', () => {
+    const tag = makeTag('TAG1');
+    const base = { count: 1, hasMore: false, page: 1 };
+
+    cacheNotes('TAG1', [makeNote('direct', tag, 'direct')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: true,
+      includeDescendants: false,
+    });
+    cacheNotes('TAG1', [makeNote('merged', tag, 'merged')], {
+      ...base, filesetId: 'FS_A', pageSize: 25, authed: true,
+      includeDescendants: true,
+    });
+
+    const scope = (includeDescendants: boolean) => ({
+      filesetId: 'FS_A', pageSize: 25, authed: true,
+      includeDescendants,
+    });
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(false))?.notes[0].id
+    ).toBe('direct');
+    expect(
+      getCachedNotes('TAG1', 1, null, scope(true))?.notes[0].id
+    ).toBe('merged');
+    // An unscoped lookup defaults to the direct-only key.
+    expect(
+      getCachedNotes('TAG1', 1, null, {
+        filesetId: 'FS_A', pageSize: 25, authed: true,
+      })?.notes[0].id
+    ).toBe('direct');
   });
 
   it('clearNotesCache(tagId) clears every scoped page of the ' +

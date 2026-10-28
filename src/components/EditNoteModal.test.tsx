@@ -14,6 +14,7 @@ import {
 } from 'vitest';
 import EditNoteModal from './EditNoteModal';
 import { resetNoteEditorDrafts } from '../hooks/useNoteEditor';
+import { resetNoteImages } from '../hooks/useNoteImages';
 import {
   renderWithProviders,
   createMockNote,
@@ -36,6 +37,9 @@ vi.mock('../api', () => ({
     next: null,
   }),
   editNote: vi.fn(),
+  uploadNoteImage: vi.fn(),
+  deleteImage: vi.fn(),
+  fetchNoteImages: vi.fn(),
   getVersesInChapter: vi.fn().mockResolvedValue({
     verses: [],
     headings: [],
@@ -86,13 +90,16 @@ describe('EditNoteModal Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Editor drafts are module-scoped — reset them between
-    // tests.
+    // Editor drafts and the shared note-image store are
+    // module-scoped — reset them between tests.
     resetNoteEditorDrafts();
+    resetNoteImages();
 
     (api.getTags as Mock).mockResolvedValue([
       createMockTag({ id: '1', name: 'Faith' }),
     ]);
+    // The modal lazy-fetches the note's image list on open.
+    (api.fetchNoteImages as Mock).mockResolvedValue([]);
   });
 
   it('should not render when closed', () => {
@@ -591,4 +598,325 @@ describe('EditNoteModal Component', () => {
         page: 2,
       });
     });
+
+  describe('note images', () => {
+    const makeImage = (id: string) => ({
+      id,
+      storage_url: `gs://bucket/originals/${id}/${id}.png`,
+      signed_url: `https://example.com/${id}.png`,
+      content_type: 'image/png',
+      size_bytes: 1024,
+      uploaded_by: 1,
+      created_at: '2024-01-01T00:00:00Z',
+    });
+
+    const noteWithImage = () =>
+      createMockNote({
+        id: 'n1',
+        note_text: 'Original note text',
+        tag: createMockTag({ id: '1', name: 'Faith' }),
+        verses: [],
+      });
+
+    // Note payloads carry no images — the modal fetches the
+    // list on open, so tests seed it through the API mock.
+    const seedImages = (...images: ReturnType<typeof makeImage>[]) => {
+      (api.fetchNoteImages as Mock).mockResolvedValue(images);
+    };
+
+    const attachFiles = (files: File[]) => {
+      const input = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
+      Object.defineProperty(input, 'files', {
+        value: files,
+        configurable: true,
+      });
+      fireEvent.change(input);
+    };
+
+    it('renders attached images and deletes one', async () => {
+      seedImages(makeImage('img-1'));
+      (api.deleteImage as Mock).mockResolvedValue(undefined);
+      renderWithProviders(
+        <EditNoteModal
+          opened={true}
+          onClose={vi.fn()}
+          note={noteWithImage()}
+        />
+      );
+
+      const thumb = await screen.findByAltText('img-1.png');
+      expect(thumb).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Remove image img-1.png',
+        })
+      );
+
+      await waitFor(() => {
+        expect(api.deleteImage).toHaveBeenCalledWith('img-1');
+      });
+      expect(
+        document.querySelector('img[alt="img-1.png"]')
+      ).not.toBeInTheDocument();
+    });
+
+    it('uploads immediately when a file is attached',
+      async () => {
+        (api.uploadNoteImage as Mock).mockResolvedValue(
+          makeImage('img-2')
+        );
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={mockNote}
+          />
+        );
+
+        const file = new File(
+          ['x'], 'photo.png', { type: 'image/png' }
+        );
+        attachFiles([file]);
+
+        // Edit mode knows the note id — no staging.
+        await waitFor(() => {
+          expect(api.uploadNoteImage).toHaveBeenCalledWith(
+            'n1',
+            file
+          );
+        });
+        // The uploaded image's thumb is appended.
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+
+    it('re-uploads a file after its attached thumb is ' +
+      'deleted', async () => {
+        (api.uploadNoteImage as Mock)
+          .mockResolvedValueOnce(makeImage('img-2'))
+          .mockResolvedValueOnce(makeImage('img-3'));
+        (api.deleteImage as Mock).mockResolvedValue(undefined);
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={mockNote}
+          />
+        );
+
+        // lastModified pins the content signature — a
+        // re-selected file is a new File object with the
+        // same signature.
+        const makeFile = () =>
+          new File(['x'], 'photo.png', {
+            type: 'image/png',
+            lastModified: 1000,
+          });
+        attachFiles([makeFile()]);
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).toBeInTheDocument();
+        });
+
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Remove image img-2.png',
+          })
+        );
+        await waitFor(() => {
+          expect(api.deleteImage).toHaveBeenCalledWith(
+            'img-2'
+          );
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).not.toBeInTheDocument();
+        });
+
+        // The deleted image's signature must no longer
+        // block the re-select: the upload fires again.
+        attachFiles([makeFile()]);
+        await waitFor(() => {
+          expect(api.uploadNoteImage).toHaveBeenCalledTimes(
+            2
+          );
+        });
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-3.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+
+    it('uploads a rapidly re-selected file only once',
+      async () => {
+        let resolveUpload: (
+          value: Awaited<
+            ReturnType<typeof api.uploadNoteImage>
+          >
+        ) => void = () => undefined;
+        (api.uploadNoteImage as Mock).mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              resolveUpload = resolve;
+            })
+        );
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={mockNote}
+          />
+        );
+
+        const file = new File(['x'], 'photo.png', {
+          type: 'image/png',
+          lastModified: 1000,
+        });
+        // The second select lands while the first upload
+        // is still in flight — the claimed signature must
+        // dedup it.
+        attachFiles([file]);
+        attachFiles([file]);
+
+        await act(async () => {
+          resolveUpload(makeImage('img-2'));
+        });
+        expect(api.uploadNoteImage).toHaveBeenCalledTimes(1);
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-2.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+
+    it('refreshes the image list when a thumb fails ' +
+      'to load', async () => {
+        (api.fetchNoteImages as Mock)
+          .mockResolvedValueOnce([makeImage('img-1')])
+          .mockResolvedValue([makeImage('img-9')]);
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={noteWithImage()}
+          />
+        );
+
+        const thumb = await screen.findByAltText('img-1.png');
+        fireEvent.error(thumb as HTMLElement);
+
+        await waitFor(() => {
+          expect(api.fetchNoteImages).toHaveBeenCalledWith(
+            'n1'
+          );
+        });
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-9.png"]')
+          ).toBeInTheDocument();
+        });
+      });
+
+    it('refreshes the image list once when several ' +
+      'thumbs error in one commit', async () => {
+        let resolveFetch: (
+          value: Awaited<
+            ReturnType<typeof api.fetchNoteImages>
+          >
+        ) => void = () => undefined;
+        (api.fetchNoteImages as Mock)
+          .mockResolvedValueOnce([
+            makeImage('img-1'),
+            makeImage('img-2'),
+          ])
+          .mockImplementation(
+            () =>
+              new Promise((resolve) => {
+                resolveFetch = resolve;
+              })
+          );
+        const twoImages = createMockNote({
+          id: 'n1',
+          note_text: 'Original note text',
+          tag: createMockTag({ id: '1', name: 'Faith' }),
+          verses: [],
+        });
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={twoImages}
+          />
+        );
+
+        const first = await screen.findByAltText('img-1.png');
+        const second = document.querySelector(
+          'img[alt="img-2.png"]'
+        );
+        expect(second).toBeInTheDocument();
+        fireEvent.error(first as HTMLElement);
+        fireEvent.error(second as HTMLElement);
+
+        // The second error sees the refresh already in
+        // flight — one refresh for the whole commit, on top
+        // of the initial load.
+        expect(api.fetchNoteImages).toHaveBeenCalledTimes(2);
+
+        await act(async () => {
+          resolveFetch([
+            makeImage('img-1'),
+            makeImage('img-2'),
+          ]);
+        });
+      });
+
+    it('submits an image-only note with no text or ' +
+      'verses', async () => {
+        (api.editNote as Mock).mockResolvedValue({});
+        seedImages(makeImage('img-1'));
+        const imageOnlyNote = createMockNote({
+          id: 'n1',
+          note_text: '',
+          tag: createMockTag({ id: '1', name: 'Faith' }),
+          verses: [],
+        });
+        renderWithProviders(
+          <EditNoteModal
+            opened={true}
+            onClose={vi.fn()}
+            note={imageOnlyNote}
+          />
+        );
+
+        // The attached image is the note's only content —
+        // submit must reach the API, not the "add text or
+        // an image" validation.
+        await waitFor(() => {
+          expect(
+            document.querySelector('img[alt="img-1.png"]')
+          ).toBeInTheDocument();
+        });
+        const form = screen
+          .getByText('Submit changes')
+          .closest('form');
+        fireEvent.submit(form as HTMLFormElement);
+
+        await waitFor(() => {
+          expect(api.editNote).toHaveBeenCalledWith(
+            'n1',
+            '1',
+            '',
+            [],
+            false
+          );
+        });
+      });
+  });
 });
