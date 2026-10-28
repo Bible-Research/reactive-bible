@@ -767,4 +767,60 @@ describe('resolveAudioFileset cross-translation alternates', () => {
       ]);
     },
   );
+
+  it('ignores a text owner in a different language', () => {
+    // The persisted text selection can drift to another
+    // language (e.g. a new text version picked while the audio
+    // stayed Latvian) — its audio must never lead the
+    // cross-translation tiers ahead of same-language options.
+    const ENGLISH_TEXT = tr('ENGENG', [
+      fs('ENGENG', 'text_plain', 'C'),
+      fs('ENGENGC1DA', 'audio', 'C'),
+      fs('ENGENGC1DA-opus16', 'audio', 'C'),
+    ]);
+    const resolved = resolveAudioFileset(
+      'LAVLVR:audio:1',
+      'JER',
+      [LAVLVR_LV, GLU8_LV, ENGLISH_TEXT],
+      'ENGENG:text:1',
+    );
+    expect(resolved?.alternates).toEqual([
+      'LATLVRP1DA',
+      'LATLVRN1DA-opus16',
+      'LATLVRN1DA',
+      'LVSGLU8C1DA',
+      'LVSGLU8C2DA',
+    ]);
+  });
+
+  it('never borrows between translations missing ' +
+    'language_iso', () => {
+      // Two translations with empty language_iso would compare
+      // equal on `'' === ''` — an empty code cannot prove
+      // same-language, so neither may lend the other audio.
+      const silent = (
+        abbr: string,
+        filesets: Fileset[],
+      ): Translation =>
+        tr(abbr, filesets, {
+          language: 'Unknown',
+          language_iso: '',
+        });
+      const AAA = silent('AAA', [
+        fs('AAATXT', 'text_plain', 'C'),
+        fs('AAA1N1DA', 'audio', 'NT'),
+      ]);
+      const BBB = silent('BBB', [
+        fs('BBB1N1DA', 'audio', 'NT'),
+      ]);
+      const resolved = resolveAudioFileset(
+        'AAA:audio:1',
+        'JHN',
+        [AAA, BBB],
+        'AAA:text:1',
+      );
+      expect(resolved?.filesetId).toBe('AAA1N1DA');
+      expect(resolved?.alternates).toEqual([]);
+    },
+  );
 });

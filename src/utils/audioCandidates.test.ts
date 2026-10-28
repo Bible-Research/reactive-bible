@@ -177,6 +177,42 @@ describe('orderedAudioCandidates', () => {
     },
   );
 
+  it('never promotes a cross-translation candidate for the ' +
+    'remembered codec', () => {
+      // Chapter N coverage-miss landed on a foreign fallback
+      // whose codec got remembered; for a chapter the selected
+      // product covers, its own primary must lead again — a
+      // foreign id matching the codec must not be unshifted
+      // above it (sticky silent version swap). The owner here
+      // has only an opus16 member, so 'mp3' can ONLY match the
+      // foreign tail.
+      const lav = (
+        abbr: string,
+        filesets: Fileset[],
+      ): Translation => ({
+        abbr,
+        name: abbr,
+        language: 'Latvian',
+        language_iso: 'lvs',
+        filesets,
+      });
+      const OPUS_ONLY = lav('OPONLY', [
+        fs('OPONLYN1DA-opus16', 'audio', 'NT'),
+      ]);
+      const FOREIGN_MP3 = lav('FRMP3', [
+        fs('FRMP3N1DA', 'audio', 'NT'),
+      ]);
+      expect(
+        orderedAudioCandidates(
+          'OPONLY:audio:1',
+          'JHN',
+          [OPUS_ONLY, FOREIGN_MP3],
+          'mp3',
+        ),
+      ).toEqual(['OPONLYN1DA-opus16', 'FRMP3N1DA']);
+    },
+  );
+
   it('leaves the order unchanged when the remembered codec is ' +
     'absent or already first', () => {
       const base = orderedAudioCandidates(

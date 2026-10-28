@@ -608,10 +608,15 @@ export const findTranslationByFilesetId = (
  * finally, across translations: the options of the translation
  * the user is actually reading (`textFilesetId`'s owner — its
  * recording matches the verses on screen), then every other
- * translation in the owner's language. The cross-translation
- * tiers let a coverage gap in the selected product (e.g. a
- * partial OT recording missing Jeremiah) land on playable audio
- * instead of dead-ending inside the owning translation.
+ * translation sharing the owner's `language_iso`. Both
+ * cross-translation tiers are language-gated: a text owner in
+ * a different language is skipped, and a missing
+ * `language_iso` can never prove same-language — foreign
+ * audio is a worse outcome than the coverage-miss
+ * notification that fires when nothing fits. These tiers let
+ * a coverage gap in the selected product (e.g. a partial OT
+ * recording missing Jeremiah) land on playable audio instead
+ * of dead-ending inside the owning translation.
  */
 export const resolveAudioFileset = (
   storedId: string | null,
@@ -718,16 +723,30 @@ export const resolveAudioFileset = (
 
   // The version on screen first — its audio matches the text
   // the user is reading, so it is the most faithful fallback.
+  // Language-gated like the tier below: a persisted text
+  // selection in another language must not leak foreign audio
+  // ahead of the same-language options.
   const textOwner = textFilesetId
     ? findTranslationByFilesetId(textFilesetId, translations)
     : null;
-  if (textOwner) pushTranslationOptions(textOwner);
+  if (
+    textOwner &&
+    textOwner.language_iso &&
+    textOwner.language_iso === translation.language_iso
+  ) {
+    pushTranslationOptions(textOwner);
+  }
 
   // Then every other translation in the owner's language —
   // foreign-language audio is a worse outcome than the
   // coverage-miss notification that fires when nothing fits.
+  // An empty language_iso cannot prove same-language, so it
+  // neither borrows nor lends audio.
   for (const t of translations) {
-    if (t.language_iso === translation.language_iso) {
+    if (
+      t.language_iso &&
+      t.language_iso === translation.language_iso
+    ) {
       pushTranslationOptions(t);
     }
   }

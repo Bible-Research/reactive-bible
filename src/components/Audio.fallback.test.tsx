@@ -9,6 +9,7 @@ import {
 } from 'vitest';
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
+import { useBibleStore } from '../store';
 import { getBibleAudioUrl, BookNotInFilesetError } from '../api';
 import { showNotification } from '@mantine/notifications';
 import {
@@ -196,6 +197,69 @@ describe('Audio cross-translation fallback', () => {
       expect(
         screen.getByTitle('Close player'),
       ).toBeInTheDocument();
+    },
+  );
+
+  it('does not let the foreign fallback become sticky on the ' +
+    'next chapter', async () => {
+      // Coverage-miss on Jeremiah → GLU8 fallback plays; John is
+      // covered by the selected LAVLVR product, so its own
+      // primary must lead the next chapter's walk — the foreign
+      // play must not record a codec that promotes a
+      // cross-translation (or wrong-codec) candidate above it.
+      vi.mocked(getBibleAudioUrl).mockImplementation(
+        (book, _chapter, filesetId) => {
+          const covered =
+            (book === 'JER' && filesetId === 'LVSGLU8C1DA') ||
+            (book === 'JHN' && filesetId.startsWith('LATLVRN1DA'));
+          return covered
+            ? Promise.resolve(
+                `http://audio.test/${filesetId}.mp3`,
+              )
+            : Promise.reject(notInFileset(filesetId));
+        },
+      );
+      renderAudio();
+
+      fireEvent.click(screen.getByTitle('Play audio'));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1),
+      );
+      act(() => {
+        FakeHowl.instances[0].emit('load');
+      });
+      // The 'play' handler ran once the substitution notice
+      // fired — the codec record happens there.
+      await waitFor(() =>
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Audio not in selected version',
+          }),
+        ),
+      );
+
+      // Navigate to a chapter the selected product covers.
+      act(() => {
+        useBibleStore.setState({
+          activeBookId: 'JHN',
+          activeChapter: 3,
+        });
+      });
+
+      await waitFor(() =>
+        expect(getBibleAudioUrl).toHaveBeenCalledWith(
+          'JHN',
+          3,
+          expect.any(String),
+        ),
+      );
+      const jhnFilesets = vi
+        .mocked(getBibleAudioUrl)
+        .mock.calls.filter(([book]) => book === 'JHN')
+        .map(([, , filesetId]) => filesetId);
+      // Own product's opus16 primary leads — not the promoted
+      // mp3 sibling a foreign 'mp3' play would have recorded.
+      expect(jhnFilesets[0]).toBe('LATLVRN1DA-opus16');
     },
   );
 
