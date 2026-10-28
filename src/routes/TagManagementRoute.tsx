@@ -67,10 +67,16 @@ export default function TagManagementRoute() {
     }),
     shallow
   );
-  // Below `sm` the page chrome compresses: smaller title,
-  // icon-only New Tag button, full-width search with the
-  // tag count riding on the same row.
-  const compact = useMediaQuery('(max-width: 768px)');
+  // At `sm` and narrower (768px is Mantine's `sm` — the
+  // query includes it) the page chrome compresses: smaller
+  // title, icon-only New Tag button, full-width search
+  // with the tag count riding on the same row. `undefined`
+  // initialValue lets matchMedia resolve during the first
+  // render — a boolean would flash the desktop layout for
+  // one frame.
+  const compact = useMediaQuery('(max-width: 768px)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

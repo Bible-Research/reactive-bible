@@ -350,6 +350,53 @@ describe('TagManagementRoute tag UX wiring', () => {
       expect(mockApi.setTagPublic).not.toHaveBeenCalled();
     });
 
+  it('frames the publicity modal as "Make public" with a ' +
+    'teal confirm for a private tag', async () => {
+      await act(async () => {
+        await capturedTreeProps.current?.onTogglePublic?.(
+          mockTags[0]
+        );
+      });
+
+      expect(mockConfirmModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Make tag public',
+          labels: {
+            confirm: 'Make public',
+            cancel: 'Cancel',
+          },
+          confirmProps: { color: 'teal' },
+        })
+      );
+    });
+
+  it('frames the publicity modal as "Make private" with ' +
+    'the same red treatment as Delete for a public tag',
+    async () => {
+      const publicTag: Tag = { ...mockTags[0], public: true };
+
+      await act(async () => {
+        await capturedTreeProps.current?.onTogglePublic?.(
+          publicTag
+        );
+      });
+
+      expect(mockConfirmModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Make tag private',
+          labels: {
+            confirm: 'Make private',
+            cancel: 'Cancel',
+          },
+          confirmProps: { color: 'red' },
+        })
+      );
+      expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+        'tag-1',
+        false
+      );
+    });
+
   it('calls reparentTag on a valid drop and toasts the ' +
     'server message on failure', async () => {
       await act(async () => {

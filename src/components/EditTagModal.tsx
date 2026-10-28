@@ -36,10 +36,16 @@ export function EditTagModal({
   tag,
   existingTags,
 }: EditTagModalProps) {
-  // Full-screen below `sm`, where the Created/Updated dates
-  // also collapse behind a "Details" toggle to keep the
-  // form above the fold.
-  const compact = useMediaQuery('(max-width: 768px)');
+  // Full-screen at `sm` and narrower (768px is Mantine's
+  // `sm` — the query includes it), where the
+  // Created/Updated dates also collapse behind a "Details"
+  // toggle to keep the form above the fold. `undefined`
+  // initialValue lets matchMedia resolve during the first
+  // render — a boolean would flash the windowed layout for
+  // one frame.
+  const compact = useMediaQuery('(max-width: 768px)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);

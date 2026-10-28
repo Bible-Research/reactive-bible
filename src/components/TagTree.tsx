@@ -188,7 +188,7 @@ const TagTreeNode = ({
           cursor: 'pointer',
           opacity: activeDragTag && dropDisabled ? 0.5 : 1,
           outline: isOver
-            ? '2px solid var(--mantine-color-blue-5)'
+            ? `2px solid ${theme.colors.blue[5]}`
             : undefined,
           // Depth rail: under compact layout each nested row
           // gets a 2px guide border at its 8px offset, so
@@ -552,6 +552,7 @@ const TagTreeNode = ({
  * start remains safe.
  */
 const RootDropZone = ({ disabled }: { disabled: boolean }) => {
+  const theme = useMantineTheme();
   const { setNodeRef, isOver, node } = useDroppable({
     id: ROOT_DROP_ID,
     disabled,
@@ -595,9 +596,7 @@ const RootDropZone = ({ disabled }: { disabled: boolean }) => {
         zIndex: 1,
         borderStyle: 'dashed',
         opacity: disabled ? 0.5 : 1,
-        backgroundColor: isOver
-          ? 'var(--mantine-color-blue-0)'
-          : undefined,
+        backgroundColor: isOver ? theme.colors.blue[0] : undefined,
       }}
     >
       <Text size="sm" color="dimmed" align="center">
@@ -631,16 +630,29 @@ export function TagTree({
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
-  // Compact rows kick in below the `sm` breakpoint or on
+  // Compact rows kick in at `sm` and narrower (768px is
+  // Mantine's `sm` — the query includes it) or on
   // coarse-pointer (touch-primary) devices — both collapse
   // the per-row icon cluster into a single ⋮ menu so each
   // tap target stays well separated from Delete.
-  const narrowViewport = useMediaQuery('(max-width: 768px)');
-  const coarsePointer = useMediaQuery('(pointer: coarse)');
+  // `undefined` initialValue is deliberate: a boolean would
+  // short-circuit getInitialValue and the first frame would
+  // render the desktop layout on phones — undefined lets
+  // matchMedia resolve during the initial render.
+  const narrowViewport = useMediaQuery(
+    '(max-width: 768px)',
+    undefined,
+    { getInitialValueInEffect: false }
+  );
+  const coarsePointer = useMediaQuery('(pointer: coarse)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const compact = narrowViewport || coarsePointer;
   // Tooltips only make sense where hover exists — on touch
   // they fire on tap and linger over the neighboring icon.
-  const tooltipsEnabled = useMediaQuery('(pointer: fine)');
+  const tooltipsEnabled = useMediaQuery('(pointer: fine)', undefined, {
+    getInitialValueInEffect: false,
+  });
 
   const activeDragTag = activeDragId
     ? tags.find((t) => t.id === activeDragId) ?? null

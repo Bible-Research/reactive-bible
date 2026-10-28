@@ -27,9 +27,15 @@ export function CreateTagModal({
   onSuccess,
   existingTags,
 }: CreateTagModalProps) {
-  // Full-screen below `sm` — the parent Select's dropdown
-  // gets the whole viewport to work with on a phone.
-  const fullScreen = useMediaQuery('(max-width: 768px)');
+  // Full-screen at `sm` and narrower (768px is Mantine's
+  // `sm` — the query includes it) — the parent Select's
+  // dropdown gets the whole viewport to work with on a
+  // phone. `undefined` initialValue lets matchMedia resolve
+  // during the first render — a boolean would flash the
+  // windowed layout for one frame.
+  const fullScreen = useMediaQuery('(max-width: 768px)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
