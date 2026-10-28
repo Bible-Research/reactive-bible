@@ -1478,12 +1478,29 @@ pairs and testament-split members into `FilesetOption`s
   a stored id (product or member) to the concrete `text_plain`
   fileset covering the book's testament — `_ET` splits are
   handled transparently; unknown ids pass through.
-- `resolveAudioFileset(storedId, bookId, translations)` returns
-  `{ filesetId, codec, alternates }`: opus16 is preferred, and
-  `alternates` is ordered mp3 sibling → other-testament member →
-  same-kind options → any audio option. Playback walks this list
-  on `BookNotInFilesetError` or Howler load/play errors before
-  notifying.
+- `resolveAudioFileset(storedId, bookId, translations,
+  textFilesetId?)` returns `{ filesetId, codec, alternates }`:
+  opus16 is preferred, and `alternates` is ordered mp3 sibling →
+  other-testament member → same-kind options → any audio option
+  → cross-translation options (the read version's translation
+  first — `textFilesetId`'s owner — then every other
+  translation in the owner's language). Both cross-translation
+  tiers are gated on a non-empty `language_iso` matching the
+  audio selection's owner — a foreign-language text selection
+  (or a missing code) never lends audio. Playback walks this
+  list on `BookNotInFilesetError` or Howler load/play errors
+  before notifying. When the winning candidate belongs to a
+  different translation than the selected product, a
+  substitution notification ("{version} audio for {book} is
+  unavailable — playing {fallback} instead") fires once per
+  (owner pair, book): chapter mode keeps the dedup set for the
+  session, the playlist clears it on every `start()`.
+  Foreign-language audio is never substituted — the
+  coverage-miss notification fires instead. Codec memory
+  (`orderedAudioCandidates`' `rememberedCodec` promotion and
+  `useChapterAudio`'s `workingCodecRef` recording) is scoped to
+  the selection's own translation so a fallback win cannot
+  become sticky.
 - `preferTimestampedAudio(filesetId, translations)` swaps a
   resolved audio fileset for the timestamp-backed sibling
   recording in `TIMESTAMP_BACKED_AUDIO` (`bibleUtils.ts`) —

@@ -280,8 +280,14 @@ const PassageView = () => {
         activeAudioFilesetId,
         activeBookId,
         translations,
+        activeTextFilesetId,
       )?.filesetId ?? null,
-    [activeAudioFilesetId, activeBookId, translations]
+    [
+      activeAudioFilesetId,
+      activeTextFilesetId,
+      activeBookId,
+      translations,
+    ]
   );
 
   useEffect(() => {
@@ -447,13 +453,18 @@ const PassageView = () => {
     if (next) {
       const {
         activeAudioFilesetId: storedAudioId,
+        activeTextFilesetId: storedTextId,
         translations: tls,
       } = useBibleStore.getState();
       void prefetchAudioUrl(
         next.bookId,
         next.chapter,
-        resolveAudioFileset(storedAudioId, next.bookId, tls)
-          ?.filesetId ?? null,
+        resolveAudioFileset(
+          storedAudioId,
+          next.bookId,
+          tls,
+          storedTextId,
+        )?.filesetId ?? null,
       );
     }
   }, [activeBookId, activeChapter, resolvedAudioFilesetId]);

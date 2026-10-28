@@ -32,6 +32,10 @@ import {
   type CodecKey,
 } from "../utils/filesetGroups";
 import { orderedAudioCandidates } from "../utils/audioCandidates";
+import {
+  isCrossTranslationPlayback,
+  notifyAudioSubstitution,
+} from "../utils/audioSubstitution";
 import { disposeHowl } from "../utils/audioUtils";
 import { createChapterHowl } from "../utils/chapterHowl";
 import {
@@ -145,6 +149,14 @@ export const useChapterAudio = (
   // device) must not be re-picked for the next chapter's
   // preload or fallback walk.
   const workingCodecRef = useRef(new Map<string, CodecKey>());
+  // `selectionOwner -> playingOwner : book` keys already
+  // announced: the cross-translation substitution notice fires
+  // once per pair and book, not on every chapter advance or
+  // play toggle (a different substituted book re-announces).
+  // Session-scoped on purpose — unlike the playlist, which
+  // clears per start(), chapter mode should not re-warn for a
+  // (pair, book) already announced this session.
+  const substitutionNotifiedRef = useRef(new Set<string>());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLooping, setIsLooping] = useState(false);
@@ -182,11 +194,13 @@ export const useChapterAudio = (
       const remembered = filesetId
         ? workingCodecRef.current.get(filesetId)
         : undefined;
+      const state = useBibleStore.getState();
       const candidates = orderedAudioCandidates(
         filesetId,
         bookId,
-        useBibleStore.getState().translations,
+        state.translations,
         remembered,
+        state.activeTextFilesetId,
       );
       if (candidates.length === 0) return null;
       return { filesetId: candidates[0], candidates };
@@ -385,14 +399,42 @@ export const useChapterAudio = (
     setLoading(false);
     // Remember the codec that actually played for this audio
     // selection so a codec that keeps failing to decode is not
-    // re-picked for the next chapter's preload.
-    const selection =
-      useBibleStore.getState().activeAudioFilesetId;
-    const playingId = audioChapterKeyRef.current?.split(':')[0];
+    // re-picked for the next chapter's preload — but only
+    // while the selection's OWN translation is playing. A
+    // cross-translation fallback's codec must not be recorded:
+    // the next chapter's promotion would then put a foreign
+    // candidate above the selection's own primary (a sticky,
+    // silent version swap).
+    const state = useBibleStore.getState();
+    const selection = state.activeAudioFilesetId;
+    const playingKey = audioChapterKeyRef.current;
+    const playingId = playingKey?.split(':')[0];
     if (selection && playingId && playingId !== 'none') {
-      workingCodecRef.current.set(
+      if (
+        !isCrossTranslationPlayback(
+          selection,
+          playingId,
+          state.translations,
+        )
+      ) {
+        workingCodecRef.current.set(
+          selection,
+          splitCodec(playingId).codec,
+        );
+      }
+      // The coverage walk substituted another version's
+      // recording — announce it once per (pair, book);
+      // within-translation codec/option alternates stay
+      // silent.
+      const bookId =
+        (playingKey ? parseChapterKey(playingKey) : null)
+          ?.bookId ?? state.activeBookId;
+      notifyAudioSubstitution(
         selection,
-        splitCodec(playingId).codec,
+        playingId,
+        bookId,
+        state.translations,
+        substitutionNotifiedRef.current,
       );
     }
     preloadNextChapter();
