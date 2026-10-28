@@ -131,6 +131,52 @@ describe('orderedAudioCandidates', () => {
     ]);
   });
 
+  it('reaches another same-language translation\u2019s audio ' +
+    'for a coverage-missed book', () => {
+      // Reported flow: Latvian GLU8 text on screen, LAVLVR
+      // audio selected — its OT member is a partial recording
+      // missing Jeremiah, so candidates must continue into the
+      // read version's generated audio.
+      const lav = (
+        abbr: string,
+        filesets: Fileset[],
+      ): Translation => ({
+        abbr,
+        name: abbr,
+        language: 'Latvian',
+        language_iso: 'lvs',
+        filesets,
+      });
+      const LAVLVR = lav('LAVLVR', [
+        fs('LATLVRP1DA', 'audio', 'OTP'),
+        fs('LATLVRP1DA-opus16', 'audio', 'OTP'),
+        fs('LATLVRN1DA', 'audio', 'NT'),
+        fs('LATLVRN1DA-opus16', 'audio', 'NT'),
+      ]);
+      const GLU8 = lav('GLU8', [
+        fs('LVSGLU8', 'text_plain', 'C'),
+        fs('LVSGLU8C1DA', 'audio', 'C'),
+        fs('LVSGLU8C2DA', 'audio', 'C'),
+      ]);
+      expect(
+        orderedAudioCandidates(
+          'LAVLVR:audio:1',
+          'JER',
+          [LAVLVR, GLU8],
+          undefined,
+          'GLU8:text:1',
+        ),
+      ).toEqual([
+        'LATLVRP1DA-opus16',
+        'LATLVRP1DA',
+        'LATLVRN1DA-opus16',
+        'LATLVRN1DA',
+        'LVSGLU8C1DA',
+        'LVSGLU8C2DA',
+      ]);
+    },
+  );
+
   it('leaves the order unchanged when the remembered codec is ' +
     'absent or already first', () => {
       const base = orderedAudioCandidates(

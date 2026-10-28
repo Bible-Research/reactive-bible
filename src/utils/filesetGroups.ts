@@ -604,12 +604,20 @@ export const findTranslationByFilesetId = (
  * `alternates` is ordered by desirability: the mp3 codec sibling
  * first (codec fallback is the cheapest retry), then the
  * other-testament member of the same product, then other options
- * of the same kind, then any remaining audio option.
+ * of the same kind, then any remaining audio option — and
+ * finally, across translations: the options of the translation
+ * the user is actually reading (`textFilesetId`'s owner — its
+ * recording matches the verses on screen), then every other
+ * translation in the owner's language. The cross-translation
+ * tiers let a coverage gap in the selected product (e.g. a
+ * partial OT recording missing Jeremiah) land on playable audio
+ * instead of dead-ending inside the owning translation.
  */
 export const resolveAudioFileset = (
   storedId: string | null,
   bookId: string,
   translations: Translation[],
+  textFilesetId: string | null = null,
 ): ResolvedAudio | null => {
   if (!storedId) return null;
 
@@ -670,6 +678,16 @@ export const resolveAudioFileset = (
     }
   }
 
+  // One pick per option: the book's testament first, then the
+  // other testament, then whatever coverage the option has.
+  const optionPick = (o: FilesetOption): string | undefined =>
+    (
+      pickCodec(testament ? o.byTestament[testament] : undefined) ??
+      pickCodec(testament ? o.byTestament[other] : undefined) ??
+      pickCodec(o.byTestament.NT) ??
+      pickCodec(o.byTestament.OT)
+    )?.id;
+
   // Other audio options in the translation: same kind first,
   // then any kind that can still produce audio.
   const options = groupFilesets(translation).audio;
@@ -679,12 +697,39 @@ export const resolveAudioFileset = (
   ];
   for (const o of rest) {
     if (o.id === option.id) continue;
-    const pick =
-      pickCodec(testament ? o.byTestament[testament] : undefined) ??
-      pickCodec(testament ? o.byTestament[other] : undefined) ??
-      pickCodec(o.byTestament.NT) ??
-      pickCodec(o.byTestament.OT);
-    push(pick?.id);
+    push(optionPick(o));
+  }
+
+  // Cross-translation tiers. Each contributing translation is
+  // visited once and yields its options same-kind-first like
+  // above. `seen` is keyed on abbr so the owning translation's
+  // own options cannot be re-queued by a later tier.
+  const seen = new Set([translation.abbr]);
+  const pushTranslationOptions = (t: Translation): void => {
+    if (seen.has(t.abbr)) return;
+    seen.add(t.abbr);
+    const others = groupFilesets(t).audio;
+    const ordered = [
+      ...others.filter((o) => o.kind === option.kind),
+      ...others.filter((o) => o.kind !== option.kind),
+    ];
+    for (const o of ordered) push(optionPick(o));
+  };
+
+  // The version on screen first — its audio matches the text
+  // the user is reading, so it is the most faithful fallback.
+  const textOwner = textFilesetId
+    ? findTranslationByFilesetId(textFilesetId, translations)
+    : null;
+  if (textOwner) pushTranslationOptions(textOwner);
+
+  // Then every other translation in the owner's language —
+  // foreign-language audio is a worse outcome than the
+  // coverage-miss notification that fires when nothing fits.
+  for (const t of translations) {
+    if (t.language_iso === translation.language_iso) {
+      pushTranslationOptions(t);
+    }
   }
 
   return {

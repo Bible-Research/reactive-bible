@@ -663,3 +663,108 @@ describe('product id prefix fallback (index drift)', () => {
       '{abbr}:{kind}:{n} ids — see FIXME above'
   );
 });
+
+describe('resolveAudioFileset cross-translation alternates', () => {
+  // The reported Latvian flow: GLU8 text on screen with the
+  // LAVLVR audio product selected — LAVLVR's OT member is a
+  // partial recording that does not cover Jeremiah, so the
+  // alternates walk must reach another translation's audio
+  // instead of dead-ending inside LAVLVR.
+  const lav = (
+    abbr: string,
+    filesets: Fileset[],
+  ): Translation => tr(abbr, filesets, {
+    language: 'Latvian',
+    language_iso: 'lvs',
+  });
+  const LAVLVR_LV = lav('LAVLVR', LAVLVR.filesets);
+  const LAVNLI_LV = lav('LAVNLI', LAVNLI.filesets);
+  const GLU8_LV = lav('GLU8', [
+    fs('LVSGLU8', 'text_plain', 'C'),
+    fs('LVSGLU8C1DA', 'audio', 'C'),
+    fs('LVSGLU8C2DA', 'audio', 'C'),
+  ]);
+  const ENGLISH = tr('ENGENG', [
+    fs('ENGENGC1DA', 'audio', 'C'),
+    fs('ENGENGC1DA-opus16', 'audio', 'C'),
+  ]);
+
+  it('walks the read version\u2019s audio after ' +
+    'same-translation alternates', () => {
+      const resolved = resolveAudioFileset(
+        'LAVLVR:audio:1',
+        'JER',
+        [LAVLVR_LV, GLU8_LV],
+        'GLU8:text:1',
+      );
+      expect(resolved?.filesetId).toBe('LATLVRP1DA-opus16');
+      expect(resolved?.alternates).toEqual([
+        'LATLVRP1DA',
+        'LATLVRN1DA-opus16',
+        'LATLVRN1DA',
+        'LVSGLU8C1DA',
+        'LVSGLU8C2DA',
+      ]);
+    },
+  );
+
+  it('prefers the text owner over other same-language ' +
+    'translations', () => {
+      const resolved = resolveAudioFileset(
+        'LAVLVR:audio:1',
+        'JER',
+        [LAVLVR_LV, LAVNLI_LV, GLU8_LV],
+        'GLU8:text:1',
+      );
+      expect(resolved?.alternates.slice(3)).toEqual([
+        'LVSGLU8C1DA',
+        'LVSGLU8C2DA',
+        'LATBSLP1DA-opus16',
+        'LATBSLP2DA-opus16',
+      ]);
+    },
+  );
+
+  it('walks same-language translations without a text hint',
+    () => {
+      const resolved = resolveAudioFileset(
+        'LAVLVR:audio:1',
+        'JER',
+        [LAVLVR_LV, GLU8_LV],
+      );
+      expect(resolved?.alternates).toContain('LVSGLU8C1DA');
+    },
+  );
+
+  it('never borrows audio from another language', () => {
+    const resolved = resolveAudioFileset(
+      'LAVLVR:audio:1',
+      'JER',
+      [LAVLVR_LV, GLU8_LV, ENGLISH],
+      'GLU8:text:1',
+    );
+    expect(resolved?.alternates).not.toContain('ENGENGC1DA');
+    expect(resolved?.alternates).not.toContain(
+      'ENGENGC1DA-opus16',
+    );
+  });
+
+  it('keeps same-translation alternates ahead of ' +
+    'cross-translation ones', () => {
+      const resolved = resolveAudioFileset(
+        'LAVNLI:audio:1',
+        'JHN',
+        [LAVNLI_LV, GLU8_LV],
+        'GLU8:text:1',
+      );
+      expect(resolved?.alternates).toEqual([
+        'LATBSLN1DA',
+        'LATBSLP1DA-opus16',
+        'LATBSLP1DA',
+        'LATBSLN2DA-opus16',
+        'LVSGLU8C1DA',
+        'LVSGLU8C2DA',
+      ]);
+    },
+  );
+});

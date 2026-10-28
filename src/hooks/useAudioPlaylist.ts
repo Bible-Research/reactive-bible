@@ -134,6 +134,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         activeAudioFilesetId,
         item.bookId,
         translations,
+        undefined,
+        activeTextFilesetId,
       );
       const translationName =
         findTranslationByFilesetId(
@@ -155,6 +157,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             activeAudioFilesetId,
             next.bookId,
             translations,
+            undefined,
+            activeTextFilesetId,
           )[0] ?? activeAudioFilesetId;
         if (nextFilesetId !== 'ENGKJV') {
           getBibleAudioUrl(

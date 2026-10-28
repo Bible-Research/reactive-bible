@@ -1477,12 +1477,20 @@ pairs and testament-split members into `FilesetOption`s
   a stored id (product or member) to the concrete `text_plain`
   fileset covering the book's testament — `_ET` splits are
   handled transparently; unknown ids pass through.
-- `resolveAudioFileset(storedId, bookId, translations)` returns
-  `{ filesetId, codec, alternates }`: opus16 is preferred, and
-  `alternates` is ordered mp3 sibling → other-testament member →
-  same-kind options → any audio option. Playback walks this list
-  on `BookNotInFilesetError` or Howler load/play errors before
-  notifying.
+- `resolveAudioFileset(storedId, bookId, translations,
+  textFilesetId?)` returns `{ filesetId, codec, alternates }`:
+  opus16 is preferred, and `alternates` is ordered mp3 sibling →
+  other-testament member → same-kind options → any audio option
+  → cross-translation options (the read version's translation
+  first — `textFilesetId`'s owner — then every other
+  translation in the owner's language). Playback walks this
+  list on `BookNotInFilesetError` or Howler load/play errors
+  before notifying. When the winning candidate belongs to a
+  different translation than the selected product, chapter
+  playback shows a one-time-per-pair substitution notification
+  ("has no audio for X — playing Y instead"); foreign-language
+  audio is never substituted — the coverage-miss notification
+  fires instead.
 - `preferTimestampedAudio(filesetId, translations)` swaps a
   resolved audio fileset for the timestamp-backed sibling
   recording in `TIMESTAMP_BACKED_AUDIO` (`bibleUtils.ts`) —

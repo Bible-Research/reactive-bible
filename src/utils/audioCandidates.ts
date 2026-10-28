@@ -26,6 +26,9 @@ import type { Translation } from '../store';
  * codec that last played for this selection to the front, so a
  * codec that failed to decode (e.g. opus16 on an old device) is
  * not re-picked for the next chapter's load or preload.
+ * `textFilesetId` is the read version's selection — its owning
+ * translation's audio leads the cross-translation alternates
+ * (see `resolveAudioFileset`).
  *
  * Returns [] when the selection resolves to nothing.
  */
@@ -34,8 +37,14 @@ export const orderedAudioCandidates = (
   bookId: string,
   translations: Translation[],
   rememberedCodec?: CodecKey,
+  textFilesetId?: string | null,
 ): string[] => {
-  const resolved = resolveAudioFileset(storedId, bookId, translations);
+  const resolved = resolveAudioFileset(
+    storedId,
+    bookId,
+    translations,
+    textFilesetId,
+  );
   if (!resolved) return [];
   const primary = preferTimestampedAudio(
     resolved.filesetId,
