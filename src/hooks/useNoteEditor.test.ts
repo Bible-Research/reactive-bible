@@ -74,7 +74,8 @@ describe('useNoteEditor', () => {
       expect(api.addTagNote).toHaveBeenCalledWith(
         't1',
         'hello',
-        refs
+        refs,
+        undefined // `public` omitted — server inherits tag.public
       );
 
       await act(async () => {
@@ -84,7 +85,8 @@ describe('useNoteEditor', () => {
         'n1',
         't1',
         'hello again',
-        refs
+        refs,
+        undefined
       );
       // Never a second POST for the same draft.
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
@@ -129,7 +131,12 @@ describe('useNoteEditor', () => {
       saved = await result.current.save('t1', '');
     });
     expect(saved).toBe(true);
-    expect(api.addTagNote).toHaveBeenCalledWith('t1', '', refs);
+    expect(api.addTagNote).toHaveBeenCalledWith(
+      't1',
+      '',
+      refs,
+      undefined
+    );
 
     let ok: boolean | undefined;
     await act(async () => {
@@ -141,7 +148,8 @@ describe('useNoteEditor', () => {
       'n1',
       't1',
       '   ',
-      refs
+      refs,
+      undefined
     );
     expect(onSubmitted).toHaveBeenCalledWith('t1');
   });
@@ -187,7 +195,8 @@ describe('useNoteEditor', () => {
         'n1',
         't1',
         'b',
-        refs
+        refs,
+        undefined
       );
     });
 
@@ -224,7 +233,8 @@ describe('useNoteEditor', () => {
       'n1',
       't1',
       'more',
-      refs
+      refs,
+      undefined
     );
   });
 
@@ -304,7 +314,8 @@ describe('useNoteEditor', () => {
       expect(api.addTagNote).toHaveBeenCalledWith(
         't1',
         'final',
-        refs
+        refs,
+        undefined
       );
       expect(onSubmitted).toHaveBeenCalledWith('t1');
 
@@ -380,7 +391,8 @@ describe('useNoteEditor', () => {
         'n9',
         't1',
         'edited',
-        refs
+        refs,
+        undefined
       );
       expect(api.addTagNote).not.toHaveBeenCalled();
       expect(result.current.hasSaved()).toBe(true);
@@ -511,6 +523,85 @@ describe('useNoteEditor', () => {
         savedNoteId: null,
         tagId: 't1',
         text: 'typing',
+        isPublic: undefined,
+        pendingFiles: [],
+        stagedFiles: [],
+      });
+    });
+
+  it('forwards isPublic to addTagNote and editNote',
+    async () => {
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      await act(async () => {
+        await result.current.save('t1', 'hello', true);
+      });
+      expect(api.addTagNote).toHaveBeenCalledWith(
+        't1',
+        'hello',
+        refs,
+        true
+      );
+
+      await act(async () => {
+        await result.current.save('t1', 'v2', false);
+      });
+      expect(api.editNote).toHaveBeenCalledWith(
+        'n1',
+        't1',
+        'v2',
+        refs,
+        false
+      );
+    });
+
+  it('omits `public` when the caller never supplies it',
+    async () => {
+      const { result } = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+
+      await act(async () => {
+        await result.current.save('t1', 'hello');
+      });
+      // The trailing arg stays undefined so the API layer
+      // omits the key and the server inherits tag.public.
+      expect(api.addTagNote).toHaveBeenCalledWith(
+        't1',
+        'hello',
+        refs,
+        undefined
+      );
+    });
+
+  it('stores isPublic in the draft and restores it on ' +
+    'remount', async () => {
+      const first = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+      await act(async () => {
+        await first.result.current.save('t1', 'draft', true);
+      });
+      first.unmount();
+
+      const second = renderEditor({
+        mode: 'create',
+        draftKey: 'k',
+        verseReferences: refs,
+      });
+      expect(second.result.current.draft).toEqual({
+        savedNoteId: 'n1',
+        tagId: 't1',
+        text: 'draft',
+        isPublic: true,
         pendingFiles: [],
         stagedFiles: [],
       });
@@ -706,7 +797,9 @@ describe('useNoteEditor', () => {
       });
 
       expect(saved).toBe(true);
-      expect(api.addTagNote).toHaveBeenCalledWith('t1', '', []);
+      expect(api.addTagNote).toHaveBeenCalledWith(
+        't1', '', [], undefined
+      );
       expect(api.uploadNoteImage).toHaveBeenCalledWith(
         'n1',
         file
@@ -920,7 +1013,8 @@ describe('useNoteEditor', () => {
         'n1',
         't1',
         '',
-        []
+        [],
+        undefined
       );
     });
 
@@ -950,7 +1044,8 @@ describe('useNoteEditor', () => {
         'n9',
         't1',
         '',
-        []
+        [],
+        undefined
       );
 
       let ok: boolean | undefined;

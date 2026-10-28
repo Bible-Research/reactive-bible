@@ -47,6 +47,7 @@ const makeTag = (
   id,
   name,
   parent_tag: parentTag,
+  public: false,
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
 });
@@ -159,19 +160,22 @@ describe('EditTagModal', () => {
       expect(mockApi.updateTag).not.toHaveBeenCalled();
     });
 
-  it('allows keeping the tag\'s own name unchanged',
-    async () => {
-      renderModal();
+  it('accepts the tag\'s own name unchanged — and skips ' +
+    'the no-op PATCH', async () => {
+      const { onClose, onSuccess } = renderModal();
 
       submitForm();
 
+      // Keeping the same name must not trip the duplicate
+      // check — the submit still succeeds and closes.
       await waitFor(() => {
-        expect(mockApi.updateTag).toHaveBeenCalledWith(
-          'tag-a',
-          'Alpha',
-          null
-        );
+        expect(onSuccess).toHaveBeenCalled();
       });
+      expect(onClose).toHaveBeenCalled();
+      // Name and parent are unchanged, so updateTag must not
+      // fire a no-op PATCH.
+      expect(mockApi.updateTag).not.toHaveBeenCalled();
+      expect(mockApi.setTagPublic).not.toHaveBeenCalled();
     });
 
   it('blocks a circular parent relationship against the ' +
@@ -216,12 +220,17 @@ describe('EditTagModal', () => {
       existingTags: tags,
     });
 
+    // Rename so the PATCH path runs — the unchanged
+    // non-descendant parent rides along.
+    fireEvent.change(screen.getByLabelText(/Tag Name/), {
+      target: { value: 'Renamed' },
+    });
     submitForm();
 
     await waitFor(() => {
       expect(mockApi.updateTag).toHaveBeenCalledWith(
         'tag-a',
-        'Alpha',
+        'Renamed',
         'tag-c'
       );
     });
@@ -241,6 +250,69 @@ describe('EditTagModal', () => {
     ).toBeInTheDocument();
   });
 
+  it('calls setTagPublic only when the publicity switch ' +
+    'flips', async () => {
+      const { onSuccess } = renderModal();
+
+      // Untouched switch → no cascade write.
+      submitForm();
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+      expect(mockApi.setTagPublic).not.toHaveBeenCalled();
+    });
+
+  it('routes a publicity flip through setTagPublic — never ' +
+    'a raw PATCH flag', async () => {
+      renderModal();
+
+      // The Switch's label element also carries the
+      // description text — match by substring.
+      fireEvent.click(screen.getByLabelText(/Public tag/));
+      submitForm();
+
+      await waitFor(() => {
+        expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+          'tag-a',
+          true
+        );
+      });
+      // A publicity-only flip must not fire a no-op
+      // name/parent PATCH — setTagPublic alone carries the
+      // change (and never receives a `public` PATCH).
+      expect(mockApi.updateTag).not.toHaveBeenCalled();
+    });
+
+  it('turning a public tag private cascades through ' +
+    'setTagPublic', async () => {
+      renderModal({
+        tag: {
+          ...makeTag('tag-a', 'Alpha'),
+          public: true,
+        },
+      });
+
+      // Seeded on — the copy follows the current state.
+      expect(screen.getByLabelText(/Public tag/)).toBeChecked();
+      expect(
+        screen.getByText(/become public/i)
+      ).toBeInTheDocument();
+
+      // Flipping off warns that the notes go private too.
+      fireEvent.click(screen.getByLabelText(/Public tag/));
+      expect(
+        screen.getByText(/become private/i)
+      ).toBeInTheDocument();
+      submitForm();
+
+      await waitFor(() => {
+        expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+          'tag-a',
+          false
+        );
+      });
+    });
+
   it('shows an error notification and stays open when ' +
     'the update fails', async () => {
       vi.spyOn(console, 'error').mockImplementation(
@@ -249,16 +321,75 @@ describe('EditTagModal', () => {
       mockApi.updateTag.mockRejectedValue(new Error('boom'));
       const { onClose } = renderModal();
 
+      // updateTag only fires when the details changed.
+      fireEvent.change(screen.getByLabelText(/Tag Name/), {
+        target: { value: 'Renamed' },
+      });
       submitForm();
 
       await waitFor(() => {
         expect(showNotification).toHaveBeenCalledWith(
           expect.objectContaining({
             title: 'Error',
+            // The thrown error's message reaches the user.
+            message: 'boom',
             color: 'red',
           })
         );
       });
       expect(onClose).not.toHaveBeenCalled();
+    });
+
+  it('refreshes the list when the publicity cascade fails ' +
+    'after a successful rename', async () => {
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      mockApi.setTagPublic.mockRejectedValue(
+        new Error('Failed to update tag publicity')
+      );
+      const { onClose, onSuccess } = renderModal();
+
+      // Rename (PATCH succeeds) + publicity flip (fails).
+      fireEvent.change(screen.getByLabelText(/Tag Name/), {
+        target: { value: 'Renamed' },
+      });
+      fireEvent.click(screen.getByLabelText(/Public tag/));
+      submitForm();
+
+      await waitFor(() => {
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Error',
+            message: 'Failed to update tag publicity',
+          })
+        );
+      });
+      // Partial success: the rename landed, so the tag list
+      // must still refresh — but the modal stays open.
+      expect(onSuccess).toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+  it('seeds a missing `public` flag as off — no ' +
+    'uncontrolled switch', async () => {
+      // Pre-upgrade persisted payloads can hydrate a Tag
+      // without `public` — the Switch must stay controlled.
+      const stale = { ...makeTag('tag-a', 'Alpha') };
+      delete (stale as Partial<Tag>).public;
+      const { onSuccess } = renderModal({ tag: stale });
+
+      expect(
+        screen.getByLabelText(/Public tag/)
+      ).not.toBeChecked();
+
+      // Submitting untouched fires neither write — `false`
+      // is not a flip from "missing".
+      submitForm();
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+      expect(mockApi.setTagPublic).not.toHaveBeenCalled();
+      expect(mockApi.updateTag).not.toHaveBeenCalled();
     });
 });

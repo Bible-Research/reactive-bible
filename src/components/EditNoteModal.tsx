@@ -326,6 +326,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             note={{
               tagId: note.tag?.id ?? "",
               text: note.note_text,
+              // The existing note's flag seeds the checkbox
+              // and counts as already-touched — switching tag
+              // must not silently flip publicity.
+              isPublic: note.public,
             }}
           />
           <Divider mt="xl" mb="sm" />

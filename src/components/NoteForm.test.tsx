@@ -38,9 +38,9 @@ const expectDocText = (arg: unknown, text: string) => {
 
 describe('NoteForm Component', () => {
   const mockTags: Tag[] = [
-    { id: '1', name: 'Faith', parent_tag: null, 
+    { id: '1', name: 'Faith', parent_tag: null, public: false, 
       created_at: '', updated_at: '' },
-    { id: '2', name: 'Hope', parent_tag: null, 
+    { id: '2', name: 'Hope', parent_tag: null, public: false, 
       created_at: '', updated_at: '' },
   ];
 
@@ -286,6 +286,147 @@ describe('NoteForm Component', () => {
       await Promise.resolve();
     });
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  describe('"Public note" checkbox', () => {
+    const publicityTags: Tag[] = [
+      { id: '1', name: 'Faith', parent_tag: null,
+        public: false, created_at: '', updated_at: '' },
+      { id: '2', name: 'Hope', parent_tag: null,
+        public: true, created_at: '', updated_at: '' },
+    ];
+
+    const pickTag = async (name: string) => {
+      fireEvent.mouseDown(screen.getByLabelText('Tag'));
+      fireEvent.mouseDown(
+        await screen.findByRole('option', { name })
+      );
+    };
+
+    it('defaults from the selected tag\'s publicity', () => {
+      render(
+        <NoteForm
+          tags={publicityTags}
+          note={{ tagId: '2', text: '' }}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      expect(screen.getByLabelText('Public note'))
+        .toBeChecked();
+    });
+
+    it('defaults to unchecked under a private tag', () => {
+      render(
+        <NoteForm
+          tags={publicityTags}
+          note={{ tagId: '1', text: '' }}
+          onSubmit={mockOnSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      expect(screen.getByLabelText('Public note'))
+        .not.toBeChecked();
+    });
+
+    it('re-derives on tag switch until the user toggles it',
+      async () => {
+        render(
+          <NoteForm
+            tags={publicityTags}
+            note={{ tagId: '1', text: '' }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+          />
+        );
+
+        const box = screen.getByLabelText('Public note');
+        expect(box).not.toBeChecked();
+
+        // Switching to a public tag re-derives the default.
+        await pickTag('Hope');
+        expect(box).toBeChecked();
+
+        // Switching back re-derives again — still untouched.
+        await pickTag('Faith');
+        expect(box).not.toBeChecked();
+      });
+
+    it('keeps the user\'s choice across tag switches once ' +
+      'toggled', async () => {
+        render(
+          <NoteForm
+            tags={publicityTags}
+            note={{ tagId: '1', text: '' }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+          />
+        );
+
+        const box = screen.getByLabelText('Public note');
+        fireEvent.click(box); // user opts into public
+        expect(box).toBeChecked();
+
+        // A later tag switch must not override the user.
+        await pickTag('Hope');
+        expect(box).toBeChecked();
+        await pickTag('Faith');
+        expect(box).toBeChecked();
+      });
+
+    it('seeds note.isPublic in edit mode and ignores tag ' +
+      'switches', async () => {
+        // Editing a public note under a private tag keeps
+        // it public — a tag switch must not silently flip
+        // publicity on an existing note.
+        render(
+          <NoteForm
+            tags={publicityTags}
+            note={{ tagId: '1', text: 'x', isPublic: true }}
+            onSubmit={mockOnSubmit}
+            submitText="Submit"
+            onTagDropdownOpen={mockOnTagDropdownOpen}
+          />
+        );
+
+        const box = screen.getByLabelText('Public note');
+        expect(box).toBeChecked();
+
+        await pickTag('Faith');
+        expect(box).toBeChecked();
+      });
+
+    it('passes isPublic to onSubmit', async () => {
+      const onSubmit = vi.fn().mockResolvedValue(true);
+      render(
+        <NoteForm
+          tags={publicityTags}
+          note={{ tagId: '2', text: 'Body' }}
+          onSubmit={onSubmit}
+          submitText="Submit"
+          onTagDropdownOpen={mockOnTagDropdownOpen}
+        />
+      );
+
+      fireEvent.submit(
+        screen
+          .getByRole('button', { name: 'Submit' })
+          .closest('form') as HTMLFormElement
+      );
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+      const [tagId, , isPublic] = onSubmit.mock.calls[0];
+      expect(tagId).toBe('2');
+      expect(isPublic).toBe(true);
+    });
   });
 
   it('should call onTagDropdownOpen when dropdown opens', () => {

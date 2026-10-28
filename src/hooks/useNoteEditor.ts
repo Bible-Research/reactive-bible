@@ -40,6 +40,9 @@ export interface NoteEditorDraft {
   /** Latest form contents — saved or still being typed. */
   tagId: string;
   text: string;
+  /** The form's "Public note" checkbox — restored on resume so
+   *  a reopened modal shows the publicity the draft carried. */
+  isPublic?: boolean;
   /**
    * Files staged in the form awaiting upload once the note
    * exists. The note-images endpoint needs `note_pk` in the
@@ -133,19 +136,34 @@ interface UseNoteEditorResult {
    * Autosave tick / unmount-flush target. Skips tagless drafts
    * and writes that would leave the note empty — no text and
    * no linked verses. Resolves true when a write happened.
+   * `isPublic` is forwarded to the notes API; leaving it
+   * undefined omits `public` so the server inherits
+   * `tag.public`.
    */
-  save: (tagId: string, text: string) => Promise<boolean>;
+  save: (
+    tagId: string,
+    text: string,
+    isPublic?: boolean
+  ) => Promise<boolean>;
   /**
    * Form submit target: validates, shares the save path (a
    * pending autosave is awaited; an autosaved note is PATCHed,
    * never re-POSTed), notifies on failure, runs onSubmitted on
    * success. Resolves true when the submit succeeded.
    */
-  submit: (tagId: string, text: string) => Promise<boolean>;
+  submit: (
+    tagId: string,
+    text: string,
+    isPublic?: boolean
+  ) => Promise<boolean>;
   /** Reports live form contents into the draft so a reopen
    *  restores the in-progress note, not just the last saved
    *  text. */
-  trackDraft: (tagId: string, text: string) => void;
+  trackDraft: (
+    tagId: string,
+    text: string,
+    isPublic?: boolean
+  ) => void;
   /**
    * Syncs the form's staged files into the draft so the next
    * save — autosave tick, submit, or unmount flush — uploads
@@ -157,6 +175,7 @@ interface UseNoteEditorResult {
     savedNoteId: string | null;
     tagId: string;
     text: string;
+    isPublic?: boolean;
     /** Files still awaiting upload. */
     pendingFiles: File[];
     /**
@@ -258,7 +277,11 @@ export const useNoteEditor = ({
   }, [scopedKey, mode]);
 
   const save = useCallback(
-    (tagId: string, text: string): Promise<boolean> => {
+    (
+      tagId: string,
+      text: string,
+      isPublic?: boolean
+    ): Promise<boolean> => {
       // A tagless save or a write leaving the note with
       // neither text nor linked verses carries nothing —
       // autosave ticks and the unmount flush both come
@@ -286,15 +309,27 @@ export const useNoteEditor = ({
       const run = draft.queue.then(async (): Promise<boolean> => {
         const refs = refsRef.current;
         if (draft.savedNoteId) {
-          await editNote(draft.savedNoteId, tagId, text, refs);
+          await editNote(
+            draft.savedNoteId,
+            tagId,
+            text,
+            refs,
+            isPublic
+          );
         } else {
-          const created = await addTagNote(tagId, text, refs);
+          const created = await addTagNote(
+            tagId,
+            text,
+            refs,
+            isPublic
+          );
           draft.savedNoteId = created?.id ?? null;
         }
         // Record what the server holds so a reopened modal can
         // restore the draft.
         draft.tagId = tagId;
         draft.text = text;
+        draft.isPublic = isPublic;
         savedRef.current = true;
         // Staged attachments upload once the note exists —
         // the endpoint needs note_pk in the URL. Sequential
@@ -392,7 +427,11 @@ export const useNoteEditor = ({
   }, []);
 
   const submit = useCallback(
-    async (tagId: string, text: string): Promise<boolean> => {
+    async (
+      tagId: string,
+      text: string,
+      isPublic?: boolean
+    ): Promise<boolean> => {
       // The API rejects a tagless note, and a note with
       // neither text nor linked verses carries nothing —
       // surface both instead of a silently swallowed
@@ -423,7 +462,7 @@ export const useNoteEditor = ({
         return false;
       }
       try {
-        const saved = await save(tagId, text);
+        const saved = await save(tagId, text, isPublic);
         // save() declined the write (no draft slot to persist
         // into) — nothing reached the server, so do not
         // refresh, drop the draft, or report a submit.
@@ -456,13 +495,14 @@ export const useNoteEditor = ({
   );
 
   const trackDraft = useCallback(
-    (tagId: string, text: string) => {
+    (tagId: string, text: string, isPublic?: boolean) => {
       // Track live contents too, not just saved ones — a
       // reopen restores the in-progress draft.
       const draft = ensureDraft();
       if (!draft) return;
       draft.tagId = tagId;
       draft.text = text;
+      draft.isPublic = isPublic;
     },
     [ensureDraft]
   );
@@ -510,6 +550,7 @@ export const useNoteEditor = ({
       savedNoteId: existing.savedNoteId,
       tagId: existing.tagId,
       text: existing.text,
+      isPublic: existing.isPublic,
       pendingFiles: existing.pendingFiles,
       // Re-stage the File behind every attached image too —
       // an already-uploaded attachment must stay visible

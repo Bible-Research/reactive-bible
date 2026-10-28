@@ -86,6 +86,7 @@ const AddStandaloneNoteModal = ({
                 tagId:
                   editor.draft.tagId || lastSelectedTagId || "",
                 text: editor.draft.text,
+                isPublic: editor.draft.isPublic,
               }
             : lastSelectedTagId
               ? { tagId: lastSelectedTagId, text: "" }

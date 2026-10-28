@@ -45,6 +45,7 @@ const makeTag = (
   id,
   name,
   parent_tag: parentTag,
+  public: false,
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
 });

@@ -329,6 +329,12 @@ export interface NotesCacheScope {
    * notes and `is_owner` only appear for the authed request).
    */
   authed?: boolean;
+  /**
+   * True when the request merged descendant-tag notes
+   * (`include_descendants=true`) — a merged page must never
+   * collide with the same tag's direct-only page.
+   */
+  includeDescendants?: boolean;
 }
 
 export const getNotesCache = (): NotesCache => {
@@ -359,7 +365,8 @@ const getNotesCacheKey = (
   const scopePart =
     `${scope.authed ? 'auth' : 'anon'}:` +
     `fs:${scope.filesetId || 'default'}:` +
-    `ps:${scope.pageSize ?? 'default'}`;
+    `ps:${scope.pageSize ?? 'default'}:` +
+    `sub:${scope.includeDescendants === true}`;
   return `${tagId}:${scopePart}:page${page}:${orderingPart}`;
 };
 
@@ -390,6 +397,7 @@ export const cacheNotes = (
     filesetId?: string;
     pageSize?: number;
     authed?: boolean;
+    includeDescendants?: boolean;
   }
 ) => {
   const cache = getNotesCache();
@@ -399,6 +407,7 @@ export const cacheNotes = (
     filesetId: metadata?.filesetId,
     pageSize: metadata?.pageSize,
     authed: metadata?.authed,
+    includeDescendants: metadata?.includeDescendants,
   });
 
   cache[cacheKey] = {

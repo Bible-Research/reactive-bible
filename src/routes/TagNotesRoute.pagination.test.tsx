@@ -62,6 +62,7 @@ const tag: Tag = {
   id: 'tag-123',
   name: 'Bible Study',
   parent_tag: null,
+  public: false,
   created_at: '',
   updated_at: '',
 };
@@ -70,6 +71,7 @@ const secondTag: Tag = {
   id: 'tag-456',
   name: 'Prayer',
   parent_tag: null,
+  public: false,
   created_at: '',
   updated_at: '',
 };
@@ -184,7 +186,7 @@ describe('TagNotesRoute pagination', () => {
       await waitFor(() => {
         expect(mockFetchNotes).toHaveBeenCalledWith(
           'tag-123',
-          { ordering: '-custom', page: 3 }
+          { ordering: '-custom', page: 3, includeDescendants: false }
         );
       });
     });
@@ -492,7 +494,7 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       expect(mockFetchNotes).toHaveBeenNthCalledWith(
         1,
         'tag-123',
-        { ordering: '-created', page: 1 }
+        { ordering: '-created', page: 1, includeDescendants: false }
       );
     });
 
@@ -534,7 +536,7 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       expect(mockFetchNotes).toHaveBeenCalledTimes(1);
       expect(mockFetchNotes).toHaveBeenLastCalledWith(
         'tag-123',
-        { ordering: '-created', page: 1 }
+        { ordering: '-created', page: 1, includeDescendants: false }
       );
     });
 
@@ -553,7 +555,10 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       await waitFor(() => {
         expect(mockFetchNotes).toHaveBeenCalledWith(
           'tag-123',
-          { ordering: undefined, page: 1, append: false }
+          {
+            ordering: undefined, page: 1, append: false,
+            includeDescendants: false,
+          }
         );
       });
       expect(useBibleStore.getState().notesPageSize).toBe(50);
@@ -599,7 +604,7 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       await waitFor(() => {
         expect(mockFetchNotes).toHaveBeenLastCalledWith(
           'tag-123',
-          { ordering: undefined, page: 2 }
+          { ordering: undefined, page: 2, includeDescendants: false }
         );
       });
       // Cache invalidation now lives in the store's deleteNote
@@ -646,7 +651,7 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       await waitFor(() => {
         expect(mockFetchNotes).toHaveBeenLastCalledWith(
           'tag-123',
-          { ordering: undefined, page: 1 }
+          { ordering: undefined, page: 1, includeDescendants: false }
         );
       });
     });

@@ -49,7 +49,7 @@ describe('authStore - Logout', () => {
     it('should clear persisted user data and the notes ' +
       'cache on logout', () => {
         const tag: Tag = {
-          id: 'tag-1', name: 'Private Tag', parent_tag: null,
+          id: 'tag-1', name: 'Private Tag', parent_tag: null, public: false,
           created_at: '', updated_at: '',
         };
         const note: Note = {

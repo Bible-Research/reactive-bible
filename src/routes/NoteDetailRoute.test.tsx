@@ -37,6 +37,7 @@ const makeNote = () => ({
     id: 'TAG1',
     name: 'Study',
     parent_tag: null,
+    public: false,
     created_at: '',
     updated_at: '',
   },

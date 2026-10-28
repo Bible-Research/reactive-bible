@@ -913,7 +913,8 @@ describe('EditNoteModal Component', () => {
             'n1',
             '1',
             '',
-            []
+            [],
+            false
           );
         });
       });
