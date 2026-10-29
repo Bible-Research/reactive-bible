@@ -93,7 +93,17 @@ jobs:
             echo "continuous apkUrl: $OLD_URL"
           fi
           OLD_URL=${OLD_URL:-$BASE/releases/download/v1.0.0/reactive-bible.apk}
-          curl -fsSL "$OLD_URL" -o old.apk
+          # A missing milestone asset must not break the gate
+          # (e.g. while a tag is being re-cut): fall back to the
+          # APK the continuous manifest currently serves.
+          if ! curl -fsSL "$OLD_URL" -o old.apk; then
+            echo "::notice::$OLD_URL unavailable; using continuous"
+            curl -fsSL \
+              "$BASE/releases/download/continuous/update.json" \
+              -o old-update.json
+            OLD_URL=$(jq -r .apkUrl old-update.json)
+            curl -fsSL "$OLD_URL" -o old.apk
+          fi
 
       # Informational: the emulator jobs are the authority, and a
       # broken APK must still reach them to capture the platform's
