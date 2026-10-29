@@ -262,12 +262,21 @@ jobs:
           cat update.json
 
       # Move the rolling tag so the release page shows the commit it
-      # was built from.
+      # was built from. Via the refs API, not `git push`: pushing
+      # the tag from the publish job was rejected ("refusing to
+      # allow a GitHub App to create or update workflow … without
+      # `workflows` permission") when the commit changed workflows.
+      # Cosmetic only — assets attach to the release either way —
+      # so a failure must not block publishing.
       - name: Retag continuous
         if: steps.guard.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git tag -f continuous "${{ github.sha }}"
-          git push -f origin continuous
+          gh api -X PATCH \
+            "repos/$GITHUB_REPOSITORY/git/refs/tags/continuous" \
+            -f sha="${{ github.sha }}" -F force=true --jq .object.sha
 
       # Fixed tag keeps the asset URL stable for the in-app updater:
       # releases/download/continuous/update.json. `prerelease` +

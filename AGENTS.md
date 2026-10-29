@@ -205,4 +205,11 @@ npm test -- --run  # vitest headless (98 files / 953 tests)
   the emulator test passes means the phone opened a bad file
   (partial download, a stale `reactive-bible (1).apk`, a 404
   page saved during a publish) — not a broken APK. v97 was
-  verified installing/updating on API 24-36 (2026-10-29).
+  verified installing/updating on API 24-36 (2026-10-29); a
+  truncated APK reproduces the exact dialog
+  (`INSTALL_PARSE_FAILED_NOT_APK`).
+- The `continuous` tag is moved with the refs API
+  (`gh api -X PATCH …/git/refs/tags/continuous`), not
+  `git push -f`: GITHUB_TOKEN pushes were rejected for lacking
+  the `workflows` permission once the commit touched workflows
+  (run 40890986153). The retag step is non-fatal.
