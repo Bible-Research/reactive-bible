@@ -1,0 +1,176 @@
+diff --git a/node_modules/@anuradev/capacitor-background-mode/android/src/main/AndroidManifest.xml b/node_modules/@anuradev/capacitor-background-mode/android/src/main/AndroidManifest.xml
+index 3788fec..461360a 100644
+--- a/node_modules/@anuradev/capacitor-background-mode/android/src/main/AndroidManifest.xml
++++ b/node_modules/@anuradev/capacitor-background-mode/android/src/main/AndroidManifest.xml
+@@ -2,8 +2,7 @@
+ 
+     <uses-permission android:name="android.permission.WAKE_LOCK" />
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
++    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+     <application>
+ 
+@@ -11,11 +10,7 @@
+             android:name=".BackgroundModeService"
+             android:enabled="true"
+             android:exported="false"
+-            android:foregroundServiceType="specialUse|microphone">
+-            <property
+-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+-                android:value="Needed to keep app alive to be able to receive messages and calls from third party SIP servers for which push notifications aren't available" />
+-        </service>
++            android:foregroundServiceType="mediaPlayback" />
+ 
+         <receiver
+             android:name=".BackgroundModeCloseReceiver"
+diff --git a/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java b/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java
+index 26daa28..bb840da 100644
+--- a/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java
++++ b/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java
+@@ -1,7 +1,6 @@
+ package ar.com.anura.plugins.backgroundmode;
+ 
+ import static android.content.Context.POWER_SERVICE;
+-import static android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;
+ import static android.view.WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON;
+ import static android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD;
+ import static android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
+@@ -13,7 +12,6 @@ import android.content.Context;
+ import android.content.Intent;
+ import android.content.pm.PackageManager;
+ import android.media.AudioManager;
+-import android.net.Uri;
+ import android.os.Build;
+ import android.os.Handler;
+ import android.os.Looper;
+@@ -36,7 +34,6 @@ public class BackgroundMode {
+     private final View mWebView;
+     private BackgroundModeSettings mSettings;
+     private boolean mServiceStarted = false;
+-    private PowerManager.WakeLock wakeLock;
+ 
+     @Nullable
+     private BackgroundModeEventListener backgroundModeEventListener;
+@@ -82,7 +79,7 @@ public class BackgroundMode {
+             backgroundModeEventListener.onBackgroundModeEvent(EVENT_APP_IN_BACKGROUND);
+         }
+ 
+-        if (!isEnabled() || !isIgnoringBatteryOptimizations()) {
++        if (!isEnabled()) {
+             return;
+         }
+ 
+@@ -135,7 +132,6 @@ public class BackgroundMode {
+     }
+ 
+     public void onDestroy() {
+-        releaseWakeLock();
+         backgroundModeEventListener = null;
+     }
+ 
+@@ -206,13 +202,7 @@ public class BackgroundMode {
+             return;
+         }
+ 
+-        disableBatteryOptimizationCallback = callback;
+-        String pkgName = mActivity.getPackageName();
+-        Intent intent = new Intent();
+-        intent.setAction(ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+-        intent.setData(Uri.parse("package:" + pkgName));
+-
+-        activityResultLauncher.launch(intent);
++        callback.execute(false);
+     }
+ 
+     public void enableWebViewOptimizations() {
+@@ -279,59 +269,12 @@ public class BackgroundMode {
+         });
+     }
+ 
+-    public void wakeUp() {
+-        try {
+-            acquireWakeLock();
+-        } catch (Exception e) {
+-            releaseWakeLock();
+-        }
+-    }
++    public void wakeUp() {}
+ 
+-    @SuppressWarnings("deprecation")
+-    private void acquireWakeLock() {
+-        PowerManager pm = (PowerManager) mActivity.getSystemService(POWER_SERVICE);
+-        releaseWakeLock();
+-
+-        if (!isScreenOff()) {
+-            return;
+-        }
+-
+-        int level = PowerManager.SCREEN_DIM_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP;
+-        wakeLock = pm.newWakeLock(level, TAG + ":wakelock");
+-        wakeLock.setReferenceCounted(false);
+-        wakeLock.acquire(1000);
+-    }
+-
+-    private void releaseWakeLock() {
+-        if (wakeLock != null && wakeLock.isHeld()) {
+-            wakeLock.release();
+-            wakeLock = null;
+-        }
+-    }
+-
+-    public void unlock() {
+-        wakeUp();
+-
+-        addScreenAndKeyguardFlags();
+-        openApp();
+-    }
+-
+-    private void addScreenAndKeyguardFlags() {
+-        mActivity.runOnUiThread(() -> {
+-            mActivity.setShowWhenLocked(true);
+-            mActivity.setTurnScreenOn(true);
+-            mActivity.getWindow().addFlags(FLAGS);
+-        });
+-    }
++    public void unlock() {}
+ 
+     public void setBackgroundModeEventListener(@Nullable BackgroundModeEventListener backgroundModeEventListener) {
+         this.backgroundModeEventListener = backgroundModeEventListener;
+     }
+ 
+-    private void openApp() {
+-        Intent intent = mContext.getPackageManager().getLaunchIntentForPackage(mContext.getPackageName());
+-        if (intent != null) {
+-            mActivity.startActivity(intent);
+-        }
+-    }
+ }
+diff --git a/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundModeService.java b/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundModeService.java
+index 4a13443..c720cab 100644
+--- a/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundModeService.java
++++ b/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundModeService.java
+@@ -1,7 +1,6 @@
+ package ar.com.anura.plugins.backgroundmode;
+ 
+-import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+-import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE;
++import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+ import static android.os.PowerManager.PARTIAL_WAKE_LOCK;
+ 
+ import android.annotation.SuppressLint;
+@@ -104,12 +103,7 @@ public class BackgroundModeService extends Service {
+     @SuppressLint("WakelockTimeout")
+     private void keepAwake(final BackgroundModeSettings settings) {
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+-            int foregroundServiceType = FOREGROUND_SERVICE_TYPE_SPECIAL_USE;
+-            if (settings.isAllowMicrophoneInBackground()) {
+-                foregroundServiceType |= FOREGROUND_SERVICE_TYPE_MICROPHONE;
+-            }
+-
+-            startForeground(NOTIFICATION_ID, createNotification(settings), foregroundServiceType);
++            startForeground(NOTIFICATION_ID, createNotification(settings), FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+         } else {
+             startForeground(NOTIFICATION_ID, createNotification(settings));
+         }

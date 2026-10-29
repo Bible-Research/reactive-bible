@@ -108,6 +108,27 @@ jobs:
             aligned.apk
           rm release-key.p12
 
+      # Play Protect flagged sideloaded updates as harmful while the
+      # background-mode plugin shipped a specialUse|microphone
+      # service, a SIP-call FGS justification and the battery-
+      # exemption permission. patches/ strips them — fail the build
+      # if any return (e.g. a plugin bump the patch no longer fits).
+      - name: Check APK for Play Protect red flags
+        run: |
+          set -e
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          APK=reactive-bible.apk
+          [ -f "$APK" ] || \
+            APK=android/app/build/outputs/apk/debug/app-debug.apk
+          "$BT/aapt2" dump xmltree --file AndroidManifest.xml \
+            "$APK" > manifest.txt
+          FLAGS='SPECIAL_USE|IGNORE_BATTERY_OPTIMIZATIONS'
+          FLAGS="$FLAGS|RECORD_AUDIO|FOREGROUND_SERVICE_MICROPHONE"
+          if grep -E "$FLAGS" manifest.txt; then
+            echo "::error::Play Protect red flag in APK manifest"
+            exit 1
+          fi
+
       - name: Attach APK to GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2

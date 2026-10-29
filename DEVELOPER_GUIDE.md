@@ -3727,6 +3727,33 @@ listing. `.github/workflows/android-release.yml` has three channels:
   `prerelease: true` + `make_latest: false` keep
   `releases/latest` pointing at real milestones.
 
+### Play Protect hygiene (patched background-mode plugin)
+
+Sideloaded updates were blocked by Google Play Protect as
+"harmful". The cause was the merged manifest of
+`@anuradev/capacitor-background-mode` (screen-off audio
+keep-alive, `src/utils/nativeAudio.ts`): a
+`specialUse|microphone` foreground service justified as
+"receive … calls from third party SIP servers", the
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` prompt, and
+wake/keyguard-dismiss code. `patches/@anuradev+capacitor-
+background-mode+8.1.0.patch` (applied by the `postinstall`
+`patch-package` script) turns the service into a plain
+`mediaPlayback` one, drops those permissions and stubs
+`wakeUp`/`unlock`/`requestDisableBatteryOptimizations`. It also
+stops the WebView-visibility re-dispatch from being gated on
+battery exemption.
+
+- The plugin is pinned to exactly `8.1.0` so the patch applies.
+  Before bumping it, regenerate the patch with
+  `npx patch-package @anuradev/capacitor-background-mode`.
+- The workflow step "Check APK for Play Protect red flags"
+  fails the build if `SPECIAL_USE`, battery-exemption, or
+  microphone permissions come back into the manifest.
+- Do not add permissions to the shell without weighing their
+  Play Protect risk. The app has no Play listing or install
+  base, so every new APK gets a cold scan.
+
 ### In-app update check
 
 `src/utils/appUpdate.ts` + `src/hooks/useAppUpdate.tsx`: on app

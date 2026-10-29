@@ -86,16 +86,21 @@ describe('enableAudioKeepAlive', () => {
       ).toHaveBeenCalled();
     });
 
-  it('prompts for the battery exemption only once', async () => {
-    mocked.checkBatteryOptimizations.mockResolvedValue({
-      enabled: true,
+  // Play Protect flagged the APK partly for this prompt — the
+  // patched plugin no longer declares the permission it needs.
+  it('never prompts for a battery-optimization exemption',
+    async () => {
+      mocked.checkBatteryOptimizations.mockResolvedValue({
+        enabled: true,
+      });
+      await enableAudioKeepAlive();
+      expect(
+        mocked.checkBatteryOptimizations,
+      ).not.toHaveBeenCalled();
+      expect(
+        mocked.requestDisableBatteryOptimizations,
+      ).not.toHaveBeenCalled();
     });
-    await enableAudioKeepAlive();
-    await enableAudioKeepAlive();
-    expect(
-      mocked.requestDisableBatteryOptimizations,
-    ).toHaveBeenCalledTimes(1);
-  });
 
   it('warns instead of throwing when the plugin rejects',
     async () => {
