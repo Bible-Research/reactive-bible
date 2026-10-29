@@ -40,7 +40,25 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Sentry for the APK: the DSN is public (it ships in the web
+      # bundle) and lives in the VITE_SENTRY_DSN Actions secret;
+      # unset it expands to '' and Sentry stays a no-op. Events
+      # are tagged environment `android` (release builds) or
+      # `android-debug`, release `android-<versionCode>`.
+      - name: Select Sentry environment
+        run: |
+          if [ "${{ github.ref }}" = refs/heads/main ] || \
+            [ "${{ github.ref_type }}" = tag ]; then
+            echo "VITE_APP_ENV=android" >> "$GITHUB_ENV"
+          else
+            echo "VITE_APP_ENV=android-debug" >> "$GITHUB_ENV"
+          fi
+
       - run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_APP_RELEASE: android-${{ github.run_number }}
       - run: npx cap sync android
 
       # Capacitor 8 targets Java 21 / compileSdk 36.
@@ -224,6 +242,7 @@ jobs:
         run: |
           set -e
           APK_SHA=$(sha256sum "$VERSIONED_APK" | cut -d' ' -f1)
+          APK_SIZE=$(stat -c %s "$VERSIONED_APK")
           BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
           APK_URL="$BASE/continuous/$VERSIONED_APK"
           jq -n \
@@ -231,11 +250,13 @@ jobs:
             --arg versionName "$APP_VERSION_NAME" \
             --arg apkUrl "$APK_URL" \
             --arg apkSha256 "$APK_SHA" \
+            --argjson apkSize "$APK_SIZE" \
             --argjson minShellBuild "${{ github.run_number }}" \
             --arg commitSha "${{ github.sha }}" \
             --arg releasedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{versionCode: $versionCode, versionName: $versionName,
               apkUrl: $apkUrl, apkSha256: $apkSha256,
+              apkSize: $apkSize,
               minShellBuild: $minShellBuild, commitSha: $commitSha,
               releasedAt: $releasedAt}' > update.json
           cat update.json
