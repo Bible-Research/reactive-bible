@@ -170,10 +170,18 @@ chrome_probe() {
     record chrome-download FAIL "$f differs from served APK"
   fi
   # Open it the way the phone does: Chrome's "Open" action.
+  local opened=''
   for i in $(seq 1 5); do
-    tap_text 'open' && break
+    tap_text 'open' && opened=1 && break
     sleep 2
   done
+  if [ -z "$opened" ]; then
+    # Snackbar gone: tap Chrome's download-complete notification.
+    adb shell cmd statusbar expand-notifications > /dev/null 2>&1
+    sleep 2
+    tap_text 'reactive-bible.*\.apk' || \
+      tap_text '.*download complete.*' || true
+  fi
   sleep 6
   adb exec-out screencap -p > "$OUT/ui-chrome.png" || true
   texts=$(screen_texts)

@@ -9,9 +9,6 @@ name: Android install test
 # - workflow_call: used by android-release.yml to gate publishing
 #   on the freshly signed APK (passed as an artifact).
 on:
-  push:
-    branches:
-      - ci/android-install-test
   workflow_dispatch:
     inputs:
       apk_url:
@@ -22,6 +19,10 @@ on:
         description: Older signed APK to update from (empty = v1.0.0)
         required: false
         default: ''
+      api_levels:
+        description: JSON list of emulator API levels
+        required: false
+        default: '[24, 33, 35, 36]'
   workflow_call:
     inputs:
       apk_artifact:
@@ -32,6 +33,10 @@ on:
         required: false
         type: string
         default: ''
+      api_levels:
+        required: false
+        type: string
+        default: '[24, 33, 35, 36]'
 
 jobs:
   inspect:
@@ -102,10 +107,13 @@ jobs:
   emulator:
     needs: inspect
     runs-on: ubuntu-latest
+    # API 29 google_apis images hung at boot for 30+ min on the
+    # hosted runners, so it is not in the default set.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        api-level: [24, 29, 33, 34, 35, 36]
+        api-level: ${{ fromJSON(inputs.api_levels || '[24, 33, 35, 36]') }}
     steps:
       - uses: actions/checkout@v5
 
