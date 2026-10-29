@@ -26,18 +26,22 @@ index 3788fec..461360a 100644
          <receiver
              android:name=".BackgroundModeCloseReceiver"
 diff --git a/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java b/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java
-index 26daa28..bb840da 100644
+index 26daa28..90c81e5 100644
 --- a/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java
 +++ b/node_modules/@anuradev/capacitor-background-mode/android/src/main/java/ar/com/anura/plugins/backgroundmode/BackgroundMode.java
-@@ -1,7 +1,6 @@
+@@ -1,11 +1,6 @@
  package ar.com.anura.plugins.backgroundmode;
  
  import static android.content.Context.POWER_SERVICE;
 -import static android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS;
- import static android.view.WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON;
- import static android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD;
- import static android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
-@@ -13,7 +12,6 @@ import android.content.Context;
+-import static android.view.WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON;
+-import static android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD;
+-import static android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED;
+-import static android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON;
+ 
+ import android.Manifest;
+ import android.annotation.SuppressLint;
+@@ -13,7 +8,6 @@ import android.content.Context;
  import android.content.Intent;
  import android.content.pm.PackageManager;
  import android.media.AudioManager;
@@ -45,7 +49,13 @@ index 26daa28..bb840da 100644
  import android.os.Build;
  import android.os.Handler;
  import android.os.Looper;
-@@ -36,7 +34,6 @@ public class BackgroundMode {
+@@ -30,13 +24,11 @@ import androidx.core.content.ContextCompat;
+ public class BackgroundMode {
+ 
+     private final String TAG = "BackgroundMode";
+-    private final int FLAGS = FLAG_ALLOW_LOCK_WHILE_SCREEN_ON | FLAG_SHOW_WHEN_LOCKED | FLAG_TURN_SCREEN_ON | FLAG_DISMISS_KEYGUARD;
+     private final Context mContext;
+     private final AppCompatActivity mActivity;
      private final View mWebView;
      private BackgroundModeSettings mSettings;
      private boolean mServiceStarted = false;
@@ -53,7 +63,7 @@ index 26daa28..bb840da 100644
  
      @Nullable
      private BackgroundModeEventListener backgroundModeEventListener;
-@@ -82,7 +79,7 @@ public class BackgroundMode {
+@@ -82,7 +74,7 @@ public class BackgroundMode {
              backgroundModeEventListener.onBackgroundModeEvent(EVENT_APP_IN_BACKGROUND);
          }
  
@@ -62,7 +72,7 @@ index 26daa28..bb840da 100644
              return;
          }
  
-@@ -135,7 +132,6 @@ public class BackgroundMode {
+@@ -135,7 +127,6 @@ public class BackgroundMode {
      }
  
      public void onDestroy() {
@@ -70,7 +80,7 @@ index 26daa28..bb840da 100644
          backgroundModeEventListener = null;
      }
  
-@@ -206,13 +202,7 @@ public class BackgroundMode {
+@@ -206,13 +197,7 @@ public class BackgroundMode {
              return;
          }
  
@@ -85,10 +95,58 @@ index 26daa28..bb840da 100644
      }
  
      public void enableWebViewOptimizations() {
-@@ -279,59 +269,12 @@ public class BackgroundMode {
-         });
+@@ -226,37 +211,9 @@ public class BackgroundMode {
+         mWebView.dispatchWindowVisibilityChanged(View.VISIBLE);
      }
  
+-    public void moveToBackground() {
+-        if (mInBackground) {
+-            return;
+-        }
+-
+-        try {
+-            Intent intent = new Intent(Intent.ACTION_MAIN);
+-            intent.addCategory(Intent.CATEGORY_HOME);
+-            mActivity.startActivity(intent);
+-        } catch (Exception e) {
+-            Log.d(TAG, "moveToBackground error" + e.getMessage());
+-        }
+-    }
+-
+-    public void moveToForeground() {
+-        if (!mInBackground) {
+-            return;
+-        }
++    public void moveToBackground() {}
+ 
+-        try {
+-            Intent launchIntent = mActivity.getPackageManager().getLaunchIntentForPackage(mActivity.getPackageName());
+-            if (launchIntent == null) {
+-                return;
+-            }
+-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+-            clearScreenAndKeyguardFlags();
+-            mActivity.startActivity(launchIntent);
+-        } catch (Exception e) {
+-            Log.d(TAG, "moveToForeground error" + e.getMessage());
+-        }
+-    }
++    public void moveToForeground() {}
+ 
+     public boolean isScreenOff() {
+         PowerManager pm = (PowerManager) mActivity.getSystemService(POWER_SERVICE);
+@@ -271,67 +228,12 @@ public class BackgroundMode {
+         return BackgroundModeService.isRunning();
+     }
+ 
+-    private void clearScreenAndKeyguardFlags() {
+-        mActivity.runOnUiThread(() -> {
+-            mActivity.setShowWhenLocked(false);
+-            mActivity.setTurnScreenOn(false);
+-            mActivity.getWindow().clearFlags(FLAGS);
+-        });
+-    }
+-
 -    public void wakeUp() {
 -        try {
 -            acquireWakeLock();
@@ -96,8 +154,7 @@ index 26daa28..bb840da 100644
 -            releaseWakeLock();
 -        }
 -    }
-+    public void wakeUp() {}
- 
+-
 -    @SuppressWarnings("deprecation")
 -    private void acquireWakeLock() {
 -        PowerManager pm = (PowerManager) mActivity.getSystemService(POWER_SERVICE);
@@ -119,7 +176,8 @@ index 26daa28..bb840da 100644
 -            wakeLock = null;
 -        }
 -    }
--
++    public void wakeUp() {}
+ 
 -    public void unlock() {
 -        wakeUp();
 -

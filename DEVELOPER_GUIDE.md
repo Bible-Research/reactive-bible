@@ -3739,10 +3739,15 @@ keep-alive, `src/utils/nativeAudio.ts`): a
 wake/keyguard-dismiss code. `patches/@anuradev+capacitor-
 background-mode+8.1.0.patch` (applied by the `postinstall`
 `patch-package` script) turns the service into a plain
-`mediaPlayback` one, drops those permissions and stubs
-`wakeUp`/`unlock`/`requestDisableBatteryOptimizations`. It also
-stops the WebView-visibility re-dispatch from being gated on
-battery exemption.
+`mediaPlayback` one and drops those permissions. It stubs
+`wakeUp`, `unlock`, `moveToBackground`, `moveToForeground` and
+`requestDisableBatteryOptimizations`, and removes all keyguard /
+show-when-locked code. It also stops the WebView-visibility
+re-dispatch from being gated on battery exemption.
+
+Users who see audio stop with the screen off can set Settings →
+Apps → Bible Research → Battery → **Unrestricted**. That restores
+the battery exemption without the app requesting it.
 
 - The plugin is pinned to exactly `8.1.0` so the patch applies.
   Before bumping it, regenerate the patch with
