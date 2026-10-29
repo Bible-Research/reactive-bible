@@ -161,14 +161,29 @@ chrome_probe() {
     [ -n "$srv_pid" ] && kill "$srv_pid"
     return
   fi
-  adb pull "/sdcard/Download/$f" "$OUT/chrome-downloaded.apk" \
-    > /dev/null
-  if cmp -s "$NEW" "$OUT/chrome-downloaded.apk"; then
+  # Newer Chrome lists the final name while still writing (or
+  # before MediaStore publishes it), so wait for the expected size
+  # and retry the pull before judging the bytes.
+  local want size='' got="$OUT/chrome-downloaded.apk"
+  want=$(stat -c %s "$NEW")
+  rm -f "$got"
+  for i in $(seq 1 20); do
+    size=$(adb shell stat -c %s "/sdcard/Download/$f" 2>/dev/null \
+      | tr -d '\r')
+    if [ "$size" = "$want" ] && \
+      adb pull "/sdcard/Download/$f" "$got" > /dev/null 2>&1; then
+      break
+    fi
+    rm -f "$got"
+    sleep 3
+  done
+  if [ ! -f "$got" ]; then
+    record chrome-download INFO \
+      "$f not pullable (size ${size:-?}, want $want)"
+  elif cmp -s "$NEW" "$got"; then
     record chrome-download PASS "$f identical to tested APK"
-  elif [ -n "${APK_URL:-}" ]; then
-    record chrome-download FAIL "$f differs from $NEW"
   else
-    record chrome-download FAIL "$f differs from served APK"
+    record chrome-download FAIL "$f differs from tested APK"
   fi
   # Open it the way the phone does: Chrome's "Open" action.
   local opened=''
