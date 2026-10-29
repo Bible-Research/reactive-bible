@@ -200,6 +200,19 @@ describe('fetchUpdateManifest', () => {
       expect(await fetchUpdateManifest()).not.toBeNull();
     });
 
+  it('accepts a versioned continuous-release apkUrl', async () => {
+    // update.json points at a per-build asset so a manifest
+    // never advertises an APK that is mid-upload.
+    mockFetchOk(
+      manifest({
+        apkUrl:
+          'https://github.com/o/r/releases/download/' +
+          'continuous/reactive-bible-95.apk',
+      }),
+    );
+    expect(await fetchUpdateManifest()).not.toBeNull();
+  });
+
   it('currently accepts a non-integer versionCode', async () => {
     // FIXME: isUpdateManifest checks `typeof versionCode ===
     // 'number'` only — fractional codes pass even though

@@ -171,3 +171,11 @@ npm test -- --run  # vitest headless (98 files / 953 tests)
   there are no local Gradle builds; build via the
   `Android APK` workflow (`gh workflow run "Android APK"
   --ref <branch>` gives a debug APK artifact).
+- `update.json`'s `apkUrl` points at a per-build
+  `reactive-bible-<run_number>.apk` asset, never the reused
+  `reactive-bible.apk`: overwriting a fixed-name asset deletes
+  it first, so phones polling mid-publish downloaded a 404 page
+  / truncated file and Android said "problem parsing the
+  package". The workflow uploads APKs first and `update.json`
+  in a later step, then prunes all but the newest 5 versioned
+  APKs. Keep that ordering.
