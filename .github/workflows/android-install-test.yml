@@ -1,0 +1,141 @@
+name: Android install test
+
+# Boots real Android emulators and installs an APK the way phones
+# do: fresh install, in-place update over an older signed build,
+# and the PackageInstaller UI ("tap the downloaded APK") path.
+#
+# - workflow_dispatch: test any published APK (default: whatever
+#   continuous/update.json currently points at).
+# - workflow_call: used by android-release.yml to gate publishing
+#   on the freshly signed APK (passed as an artifact).
+on:
+  push:
+    branches:
+      - ci/android-install-test
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: APK URL (empty = continuous/update.json apkUrl)
+        required: false
+        default: ''
+      old_apk_url:
+        description: Older signed APK to update from (empty = v1.0.0)
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      apk_artifact:
+        description: Artifact holding reactive-bible.apk
+        required: true
+        type: string
+      old_apk_url:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch APK from URL
+        if: inputs.apk_artifact == ''
+        env:
+          APK_URL: ${{ inputs.apk_url }}
+        run: |
+          set -e
+          BASE=https://github.com/${{ github.repository }}
+          MANIFEST="$BASE/releases/download/continuous/update.json"
+          if [ -z "$APK_URL" ]; then
+            curl -fsSL "$MANIFEST" -o update.json
+            cat update.json
+            APK_URL=$(jq -r .apkUrl update.json)
+          fi
+          echo "Downloading $APK_URL"
+          curl -fsSL -D headers.txt "$APK_URL" -o reactive-bible.apk
+          grep -iE '^(content-type|content-length)' headers.txt || true
+          if [ -f update.json ]; then
+            WANT=$(jq -r .apkSha256 update.json)
+            GOT=$(sha256sum reactive-bible.apk | cut -d' ' -f1)
+            echo "sha256 manifest=$WANT downloaded=$GOT"
+            test "$WANT" = "$GOT"
+          fi
+
+      - name: Fetch APK artifact
+        if: inputs.apk_artifact != ''
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ inputs.apk_artifact }}
+
+      - name: Fetch old APK
+        env:
+          OLD_URL: ${{ inputs.old_apk_url }}
+        run: |
+          BASE=https://github.com/${{ github.repository }}
+          OLD_URL=${OLD_URL:-$BASE/releases/download/v1.0.0/reactive-bible.apk}
+          curl -fsSL "$OLD_URL" -o old.apk
+
+      - name: Static checks (apksigner + aapt2)
+        run: |
+          set -e
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          for A in reactive-bible.apk old.apk; do
+            echo "=== $A ($(stat -c %s "$A") bytes)"
+            sha256sum "$A"
+            "$BT/apksigner" verify --verbose --print-certs "$A" | \
+              grep -vE '^WARNING: META-INF'
+            "$BT/aapt2" dump badging "$A" | \
+              grep -E '^(package|sdkVersion|targetSdkVersion)'
+          done
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: install-test-apks
+          path: |
+            reactive-bible.apk
+            old.apk
+          retention-days: 7
+
+  emulator:
+    needs: inspect
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [24, 29, 33, 34, 35, 36]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: install-test-apks
+
+      # Hardware acceleration for the emulator (runner README).
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666",' \
+            'OPTIONS+="static_node=kvm"' | \
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio
+            -no-boot-anim -no-snapshot
+          script: >-
+            OUT_DIR=install-test-out bash
+            scripts/android-install-test.sh
+            reactive-bible.apk old.apk
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: install-test-api${{ matrix.api-level }}
+          path: install-test-out
+          retention-days: 14
