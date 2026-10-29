@@ -83,7 +83,11 @@ jobs:
           OLD_URL=${OLD_URL:-$BASE/releases/download/v1.0.0/reactive-bible.apk}
           curl -fsSL "$OLD_URL" -o old.apk
 
+      # Informational: the emulator jobs are the authority, and a
+      # broken APK must still reach them to capture the platform's
+      # own error (logcat, installer dialog).
       - name: Static checks (apksigner + aapt2)
+        continue-on-error: true
         run: |
           set -e
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
