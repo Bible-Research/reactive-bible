@@ -36,8 +36,11 @@ on:
 jobs:
   inspect:
     runs-on: ubuntu-latest
+    outputs:
+      apk_url: ${{ steps.url.outputs.apk_url }}
     steps:
       - name: Fetch APK from URL
+        id: url
         if: inputs.apk_artifact == ''
         env:
           APK_URL: ${{ inputs.apk_url }}
@@ -51,6 +54,7 @@ jobs:
             APK_URL=$(jq -r .apkUrl update.json)
           fi
           echo "Downloading $APK_URL"
+          echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
           curl -fsSL -D headers.txt "$APK_URL" -o reactive-bible.apk
           grep -iE '^(content-type|content-length)' headers.txt || true
           if [ -f update.json ]; then
@@ -128,7 +132,10 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -noaudio
             -no-boot-anim -no-snapshot
+          # APK_URL empty (artifact mode): Chrome downloads the APK
+          # from a local server instead of GitHub.
           script: >-
+            APK_URL='${{ needs.inspect.outputs.apk_url }}'
             OUT_DIR=install-test-out bash
             scripts/android-install-test.sh
             reactive-bible.apk old.apk
