@@ -3860,11 +3860,13 @@ tagged commit. Because the updater only polls the `continuous`
 manifest, this is how a milestone release reaches installed
 apps — `versionCode` is still the run number, so it reads as a
 normal upgrade. For the in-place update leg the tag run passes
-the APK `continuous` currently advertises as `old_apk_url`
-(otherwise, on a `v1.0.0` re-tag, the default `v1.0.0` URL would
-"update" the milestone onto itself). `publish-tag` shares the
-`continuous-publish` concurrency group and the same
-already-published guard. If `install-test` fails, nothing is
+`old_apk_url: continuous`, which the install-test resolves to
+the APK `continuous` currently advertises (otherwise, on a
+`v1.0.0` re-tag, the default `v1.0.0` URL would "update" the
+milestone onto itself — and the URL cannot be passed literally:
+job outputs are secret-scanned and a release URL gets dropped).
+`publish-tag` shares the `continuous-publish` concurrency group
+and the same already-published guard. If `install-test` fails, nothing is
 attached to the tag's release and installed apps are untouched.
 
 Reproduce a phone install problem against any published APK:

@@ -32,6 +32,8 @@ on:
       old_apk_url:
         required: false
         type: string
+        # '' = v1.0.0 release APK; 'continuous' = whatever
+        # continuous/update.json currently advertises.
         default: ''
       api_levels:
         required: false
@@ -75,11 +77,21 @@ jobs:
         with:
           name: ${{ inputs.apk_artifact }}
 
+      # 'continuous' resolves here, not in the caller: a real URL
+      # passed through a reusable-workflow input would be scanned
+      # and can be silently dropped ("may contain secret").
       - name: Fetch old APK
         env:
           OLD_URL: ${{ inputs.old_apk_url }}
         run: |
           BASE=https://github.com/${{ github.repository }}
+          if [ "$OLD_URL" = continuous ]; then
+            curl -fsSL \
+              "$BASE/releases/download/continuous/update.json" \
+              -o old-update.json
+            OLD_URL=$(jq -r .apkUrl old-update.json)
+            echo "continuous apkUrl: $OLD_URL"
+          fi
           OLD_URL=${OLD_URL:-$BASE/releases/download/v1.0.0/reactive-bible.apk}
           curl -fsSL "$OLD_URL" -o old.apk
 
