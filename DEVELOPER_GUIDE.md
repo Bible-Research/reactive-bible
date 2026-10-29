@@ -3809,6 +3809,56 @@ and older manifests). `apkUrl` always names the versioned asset.
   `reactive-bible.apk` or `update.json`). It is
   `continue-on-error` — the build is already published by then.
 
+#### Emulator install test (publish gate)
+
+`.github/workflows/android-install-test.yml` +
+`scripts/android-install-test.sh` install an APK on real
+emulators (`reactivecircus/android-emulator-runner@v2`,
+`google_apis` x86_64, default API levels 24 / 33 / 35 / 36).
+Per API level it checks:
+
+- `fresh` — `adb install` on a clean device;
+- `update` / `pm-update` — install the v1.0.0 release, then
+  update in place (`adb install -r`, `pm install -r`) — the
+  same-cert update a phone performs;
+- `launch` — the updated app starts;
+- `ui-install-file` / `ui-install-content` — the system
+  PackageInstaller UI opened on a file in `/sdcard/Download`;
+  FAIL only if it shows "There was a problem parsing the
+  package" (INFO where the shell may not launch installs);
+- `chrome-download` / `ui-chrome` — Chrome downloads the APK
+  (the GitHub URL in dispatch mode, a local server via
+  `adb reverse` in gate mode), the bytes are compared, then the
+  file is opened from Chrome and the installer's Update /
+  Install button is tapped; PASS means the versionCode really
+  changed. FAIL only on a byte mismatch, a parse-error dialog or
+  a wrong versionCode; INFO when the UI automation could not
+  reach a step (old Chrome on API 24, snackbar timing).
+
+On `main` pushes `android-release.yml` runs `build` → uploads
+the signed APK as artifact `release-apk` → `install-test`
+(this workflow via `workflow_call`) → `publish`. `publish` (the
+versioned copy, `update.json`, retag, uploads, prune) only runs
+when every emulator job passed, so a non-installable APK never
+reaches `continuous`. It is serialized (`continuous-publish`
+concurrency group) and skips if `continuous` already advertises
+an equal or newer `versionCode`.
+
+Reproduce a phone install problem against any published APK:
+
+```bash
+gh workflow run "Android install test" \
+  -R Bible-Research/reactive-bible \
+  -f apk_url=<url, empty = current update.json apkUrl> \
+  -f api_levels='[24, 33, 34, 35, 36]'
+gh run download <run-id> -R Bible-Research/reactive-bible
+# install-test-api<N>/results.txt, logcat*.txt,
+# installer-filtered.txt, ui-*.png / chrome-download.png
+```
+
+API 29 `google_apis` images hung at boot for 30+ minutes on
+hosted runners — leave it out of the gate.
+
 `minShellBuild` is reserved for a future OTA web-bundle path — a
 bundle may only be applied when `installedBuild >= minShellBuild`.
 

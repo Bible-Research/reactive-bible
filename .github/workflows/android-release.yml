@@ -9,6 +9,10 @@ name: Android APK
 # prerelease as a per-build `reactive-bible-<run_number>.apk` (plus
 # the stable `reactive-bible.apk`), followed by `update.json` — the
 # manifest installed apps poll to detect a newer build.
+# Main builds are published only after android-install-test.yml
+# installed the signed APK on emulators (fresh, in-place update
+# and the Chrome download → installer path): a non-installable
+# APK never reaches `continuous`.
 on:
   workflow_dispatch:
   push:
@@ -151,6 +155,56 @@ jobs:
             sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
           test "$VC" = "${{ github.run_number }}"
 
+      - uses: actions/upload-artifact@v5
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: release-apk
+          path: reactive-bible.apk
+          retention-days: 14
+
+  # Gate: boot emulators and install the exact signed bytes.
+  install-test:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/android-install-test.yml
+    with:
+      apk_artifact: release-apk
+
+  publish:
+    needs: [build, install-test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Serialize publishes; the stale-run guard below handles a
+    # slower older run finishing after a newer one.
+    concurrency:
+      group: continuous-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-apk
+
+      - name: Skip if a newer build is already published
+        id: guard
+        run: |
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
+          CUR=$(curl -fsSL "$BASE/continuous/update.json" | \
+            jq -r .versionCode || echo 0)
+          echo "published=$CUR this=${{ github.run_number }}"
+          if [ "${CUR:-0}" -ge "${{ github.run_number }}" ] 2>/dev/null
+          then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::continuous already has build $CUR"
+          fi
+          echo "APP_VERSION_NAME=0.0.${{ github.run_number }}" \
+            >> "$GITHUB_ENV"
+
       # update.json points at a per-build asset name instead of the
       # reused `reactive-bible.apk`: re-uploading a fixed name deletes
       # it first, so a manifest read mid-publish could send phones a
@@ -158,7 +212,7 @@ jobs:
       # Unique names also stop `reactive-bible (1).apk` duplicates
       # piling up in the phone's Downloads.
       - name: Create versioned APK copy
-        if: github.ref == 'refs/heads/main'
+        if: steps.guard.outputs.skip != 'true'
         run: |
           set -e
           VAPK="reactive-bible-${{ github.run_number }}.apk"
@@ -166,7 +220,7 @@ jobs:
           echo "VERSIONED_APK=$VAPK" >> "$GITHUB_ENV"
 
       - name: Generate update.json
-        if: github.ref == 'refs/heads/main'
+        if: steps.guard.outputs.skip != 'true'
         run: |
           set -e
           APK_SHA=$(sha256sum "$VERSIONED_APK" | cut -d' ' -f1)
@@ -189,7 +243,7 @@ jobs:
       # Move the rolling tag so the release page shows the commit it
       # was built from.
       - name: Retag continuous
-        if: github.ref == 'refs/heads/main'
+        if: steps.guard.outputs.skip != 'true'
         run: |
           git tag -f continuous "${{ github.sha }}"
           git push -f origin continuous
@@ -202,7 +256,7 @@ jobs:
       # them. The stable `reactive-bible.apk` stays for old links
       # and manifests.
       - name: Publish continuous APKs
-        if: github.ref == 'refs/heads/main'
+        if: steps.guard.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: continuous
@@ -215,7 +269,7 @@ jobs:
             reactive-bible.apk
 
       - name: Publish continuous update.json
-        if: github.ref == 'refs/heads/main'
+        if: steps.guard.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: continuous
@@ -231,7 +285,7 @@ jobs:
       # only matches reactive-bible-<digits>.apk). Non-fatal: the
       # build is already published when this runs.
       - name: Prune old versioned APKs
-        if: github.ref == 'refs/heads/main'
+        if: steps.guard.outputs.skip != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

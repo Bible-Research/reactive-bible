@@ -179,3 +179,17 @@ npm test -- --run  # vitest headless (98 files / 953 tests)
   package". The workflow uploads APKs first and `update.json`
   in a later step, then prunes all but the newest 5 versioned
   APKs. Keep that ordering.
+- **Dynamic install evidence comes from CI emulators** (no local
+  Android SDK). `gh workflow run "Android install test" -R
+  Bible-Research/reactive-bible [-f apk_url=<url>]` installs the
+  APK fresh, as an update over v1.0.0, via the PackageInstaller
+  UI and via a real Chrome download, on API 24/33/35/36; read
+  `install-test-api<N>/results.txt` + logcat artifacts. Main
+  builds only publish to `continuous` after this passes
+  (`install-test` job in `android-release.yml`). Details in
+  `DEVELOPER_GUIDE.md` "Emulator install test".
+- "There was a problem parsing the package" on a phone while
+  the emulator test passes means the phone opened a bad file
+  (partial download, a stale `reactive-bible (1).apk`, a 404
+  page saved during a publish) — not a broken APK. v97 was
+  verified installing/updating on API 24-36 (2026-10-29).
