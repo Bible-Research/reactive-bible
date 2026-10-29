@@ -8,11 +8,13 @@ name: Android APK
 # every push to `main`, attached to the rolling `continuous`
 # prerelease as a per-build `reactive-bible-<run_number>.apk` (plus
 # the stable `reactive-bible.apk`), followed by `update.json` — the
-# manifest installed apps poll to detect a newer build.
-# Main builds are published only after android-install-test.yml
-# installed the signed APK on emulators (fresh, in-place update
-# and the Chrome download → installer path): a non-installable
-# APK never reaches `continuous`.
+# manifest installed apps poll to detect a newer build. Tag builds
+# also rewrite continuous/update.json (pointing at the tag's own
+# release asset) so installed apps are offered the milestone.
+# Main and tag builds are published only after
+# android-install-test.yml installed the signed APK on emulators
+# (fresh, in-place update and the Chrome download → installer
+# path): a non-installable APK never reaches `continuous`.
 on:
   workflow_dispatch:
   push:
@@ -28,6 +30,8 @@ jobs:
     # GITHUB_TOKEN needs write to create the release + upload the APK.
     permissions:
       contents: write
+    outputs:
+      old_apk_url: ${{ steps.old-apk.outputs.url }}
     env:
       NODE_OPTIONS: --max-old-space-size=8192
 
@@ -76,15 +80,20 @@ jobs:
           yes | "$SDKM" --licenses > /dev/null
           "$SDKM" "platforms;android-36" "build-tools;36.0.0"
 
-      # Skipped on main pushes — the signed release APK below is the
-      # artifact that matters there.
+      # Only the `android` branch and manual dispatches need the
+      # debug APK — on main and tag runs the signed release APK
+      # below is the artifact that matters.
       - name: Build debug APK
-        if: github.ref != 'refs/heads/main'
+        if: >-
+          github.ref != 'refs/heads/main' &&
+          !startsWith(github.ref, 'refs/tags/')
         working-directory: android
         run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
 
       - uses: actions/upload-artifact@v5
-        if: github.ref != 'refs/heads/main'
+        if: >-
+          github.ref != 'refs/heads/main' &&
+          !startsWith(github.ref, 'refs/tags/')
         with:
           name: reactive-bible-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
@@ -152,19 +161,13 @@ jobs:
             exit 1
           fi
 
-      - name: Attach APK to GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: reactive-bible.apk
-
-      # ---------- Rolling `continuous` channel (main only) ----------
-
       # Sanity check: the APK's real versionCode must equal the
       # run_number baked into update.json, or installed apps would
       # compare against a stale number.
       - name: Verify APK versionCode
-        if: github.ref == 'refs/heads/main'
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          github.ref == 'refs/heads/main'
         run: |
           set -e
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
@@ -174,21 +177,39 @@ jobs:
           test "$VC" = "${{ github.run_number }}"
 
       - uses: actions/upload-artifact@v5
-        if: github.ref == 'refs/heads/main'
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          github.ref == 'refs/heads/main'
         with:
           name: release-apk
           path: reactive-bible.apk
           retention-days: 14
 
+      # Tag builds gate on the emulator install test too, and its
+      # in-place update leg needs a genuinely OLDER APK — the
+      # default (v1.0.0) would be this same build on a v1.0.0 tag.
+      # The continuous manifest always points at a recent one.
+      - name: Resolve previous APK for update test
+        id: old-apk
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases"
+          URL=$(curl -fsSL "$BASE/download/continuous/update.json" \
+            | jq -r .apkUrl) || URL=""
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
   # Gate: boot emulators and install the exact signed bytes.
   install-test:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: read
     uses: ./.github/workflows/android-install-test.yml
     with:
       apk_artifact: release-apk
+      old_apk_url: ${{ needs.build.outputs.old_apk_url }}
 
   publish:
     needs: [build, install-test]
@@ -338,3 +359,92 @@ jobs:
             gh release delete-asset continuous "$NAME" --yes || \
               echo "::warning::Could not delete $NAME"
           done < prune.txt
+
+  # ---------- Milestone channel (v* tags) ----------
+
+  # Installed apps only ever poll continuous/update.json, so a
+  # tagged release would never reach them. After the emulators
+  # prove the APK installs, attach it to the tag's own release and
+  # then point the continuous manifest at that asset — the same
+  # "APK first, manifest second" ordering as the main channel.
+  publish-tag:
+    needs: [build, install-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Shares the continuous-publish group so a tag manifest can
+    # never interleave with a main-channel publish.
+    concurrency:
+      group: continuous-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-apk
+
+      - name: Skip if a newer build is already published
+        id: guard
+        run: |
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
+          CUR=$(curl -fsSL "$BASE/continuous/update.json" | \
+            jq -r .versionCode || echo 0)
+          echo "published=$CUR this=${{ github.run_number }}"
+          if [ "${CUR:-0}" -ge "${{ github.run_number }}" ] 2>/dev/null
+          then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::continuous already has build $CUR"
+          fi
+
+      - name: Attach APK to GitHub release
+        if: steps.guard.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: reactive-bible.apk
+
+      - name: Generate update.json for the tag
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -e
+          APK_SHA=$(sha256sum reactive-bible.apk | cut -d' ' -f1)
+          APK_SIZE=$(stat -c %s reactive-bible.apk)
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
+          APK_URL="$BASE/${GITHUB_REF_NAME}/reactive-bible.apk"
+          jq -n \
+            --argjson versionCode "${{ github.run_number }}" \
+            --arg versionName "${GITHUB_REF_NAME#v}" \
+            --arg apkUrl "$APK_URL" \
+            --arg apkSha256 "$APK_SHA" \
+            --argjson apkSize "$APK_SIZE" \
+            --argjson minShellBuild "${{ github.run_number }}" \
+            --arg commitSha "${{ github.sha }}" \
+            --arg releasedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{versionCode: $versionCode, versionName: $versionName,
+              apkUrl: $apkUrl, apkSha256: $apkSha256,
+              apkSize: $apkSize,
+              minShellBuild: $minShellBuild, commitSha: $commitSha,
+              releasedAt: $releasedAt}' > update.json
+          cat update.json
+
+      - name: Publish update.json to continuous
+        if: steps.guard.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build (main)
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: update.json
+
+      # Move the rolling tag to the released commit so the
+      # continuous page reflects what the manifest now serves.
+      - name: Retag continuous
+        if: steps.guard.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X PATCH \
+            "repos/$GITHUB_REPOSITORY/git/refs/tags/continuous" \
+            -f sha="${{ github.sha }}" -F force=true --jq .object.sha
