@@ -178,6 +178,12 @@ describe('TagManagementRoute refresh behavior', () => {
     });
     mockGetTags.mockReset().mockResolvedValue(undefined);
     mockApi.deleteTag.mockResolvedValue(undefined);
+    mockApi.getNotes.mockResolvedValue({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    });
   });
 
   it('shows the full-screen loader only on first load', async () => {
@@ -273,6 +279,12 @@ describe('TagManagementRoute tag UX wiring', () => {
       notes_updated: 3,
     });
     mockApi.reparentTag.mockResolvedValue(mockTags[0]);
+    mockApi.getNotes.mockResolvedValue({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    });
 
     renderRoute();
     await waitFor(() => {
@@ -436,4 +448,62 @@ describe('TagManagementRoute tag UX wiring', () => {
         ).toBe(false);
       });
     });
+});
+
+describe('TagManagementRoute notes count', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useBibleStore.setState({ tags: mockTags });
+    useAuthStore.setState({
+      token: 'test-token',
+      user: { username: 'testuser' },
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+    });
+    mockGetTags.mockReset().mockResolvedValue(undefined);
+    mockApi.getNotes.mockResolvedValue({
+      count: 7,
+      next: null,
+      previous: null,
+      results: [],
+    });
+  });
+
+  it('shows the total notes count next to the tag count',
+    async () => {
+      renderRoute();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('2 tags · 7 notes')
+        ).toBeInTheDocument();
+      });
+      // One minimal page is enough — `count` is the total.
+      expect(mockApi.getNotes).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ pageSize: 1 })
+      );
+    }
+  );
+
+  it('omits the notes count when the fetch fails — no ' +
+    'error toast, tags line still renders', async () => {
+      mockApi.getNotes.mockRejectedValue(new Error('boom'));
+
+      renderRoute();
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('tag-tree')
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText('2 tags')
+      ).toBeInTheDocument();
+      expect(showNotification).not.toHaveBeenCalledWith(
+        expect.objectContaining({ color: 'red' })
+      );
+    }
+  );
 });
