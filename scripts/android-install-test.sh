@@ -48,7 +48,8 @@ check_install() { # name cmd...
     record "$name" PASS "Success"
   else
     record "$name" FAIL \
-      "$(echo "$out" | grep -oE '(INSTALL|Failure)[^ ]*.*' | head -1)"
+      "$(echo "$out" | grep -E 'INSTALL_|Failure|Error|rror:' | \
+        head -1 || true) $(echo "$out" | tail -1)"
   fi
 }
 
