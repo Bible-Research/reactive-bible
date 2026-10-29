@@ -3780,6 +3780,7 @@ sideloaded installs. The MainMenu has a "Check for updates" row
   "versionName": "0.0.123",
   "apkUrl": "<.../download/continuous/reactive-bible-123.apk>",
   "apkSha256": "<sha256 of reactive-bible-123.apk>",
+  "apkSize": 5361263,
   "minShellBuild": 123,
   "commitSha": "<commit the build was cut from>",
   "releasedAt": "<ISO-8601 UTC>"
@@ -3859,6 +3860,36 @@ gh run download <run-id> -R Bible-Research/reactive-bible
 API 29 `google_apis` images hung at boot for 30+ minutes on
 hosted runners — leave it out of the gate.
 
+#### Updater telemetry (Sentry, APK builds)
+
+APK builds now ship Sentry: the workflow passes the
+`VITE_SENTRY_DSN` Actions secret (the same public DSN the web
+bundle carries) to `npm run build`, with `VITE_APP_ENV=android`
+for `main` / `v*` release APKs (`android-debug` otherwise) and
+`VITE_APP_RELEASE=android-<versionCode>`. Filter the APK with
+`environment:android`.
+
+`src/utils/updateTelemetry.ts` adds `app-update` breadcrumbs to
+every check (manifest fetched / HTTP error / rejected / fetch
+failed, installed vs offered versionCode) and two info events
+tagged `reportType: app-update`:
+
+- `updateStep: download-opened` — "Update" was tapped; extras
+  carry `apkUrl`, `apkSha256`, `apkSize`.
+- `updateStep: installed` — on start the installed versionCode
+  (`App.getInfo().build`, stored under
+  `app_update_last_build`) grew since the previous start, i.e.
+  an update really landed (`fromBuild` / `toBuild` tags).
+
+Every event also gets a `versionCode` tag. A `download-opened`
+without a later `installed` from the same device means the
+browser / installer leg failed. Telemetry only starts once a
+build containing it is installed.
+
+The update modal shows the expected file name and size
+(`apkSize` in `update.json`, bytes) plus a hint for "There was
+a problem parsing the package" (incomplete or older file opened).
+
 `minShellBuild` is reserved for a future OTA web-bundle path — a
 bundle may only be applied when `installedBuild >= minShellBuild`.
 
@@ -3900,8 +3931,10 @@ surface as the transport layer:
   real bugs; `reportType` marks non-bug `captureMessage`
   streams: `resource-load` (warning, missing assets),
   `user-report` (info, "Report a problem"), `media-debug`
-  (info, APK diagnostics). `errorKind` refines which kind of
-  failure an exception was (`network` today).
+  (info, APK diagnostics), `app-update` (info, sideload
+  updater: `updateStep` `download-opened` / `installed`).
+  `errorKind` refines which kind of failure an exception was
+  (`network` today).
 - **User reports:** the main menu's "Report a problem" row
   (always visible) opens `ReportProblemModal`, where the user
   describes the issue. `sendUserReport`

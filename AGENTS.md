@@ -90,10 +90,23 @@ is the agent-fixable bug queue** — anything else is deliberate:
   fix-sentry-issue skill.
 - `reportType: media-debug` — info snapshot from the
   media-debug APK flow. Diagnostics only, read-only.
+- `reportType: app-update` — info events from the APK's
+  sideload updater (`src/utils/updateTelemetry.ts`):
+  `updateStep: download-opened` (user tapped Update) and
+  `updateStep: installed` (app started on a higher
+  versionCode). Read-only diagnostics.
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
   reportable but routable.
+
+APK builds report too: `android-release.yml` passes the
+`VITE_SENTRY_DSN` Actions secret to `npm run build` with
+`VITE_APP_ENV=android` (main / `v*` release APKs) or
+`android-debug` (other refs) and release
+`android-<versionCode>`; events also carry a `versionCode`
+tag. The web bug queue filter (`environment:production`)
+therefore excludes the APK — use `environment:android` for it.
 
 `sentryBeforeSend` (`src/utils/sentry.ts`) drops expected
 noise before it reaches Sentry: `RateLimitError`,

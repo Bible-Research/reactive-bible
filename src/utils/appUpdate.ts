@@ -1,6 +1,7 @@
 import { App } from '@capacitor/app';
 import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './platform';
+import { updateBreadcrumb } from './updateTelemetry';
 
 /**
  * Sideload update check for the Android APK build.
@@ -27,6 +28,8 @@ export interface UpdateManifest {
   versionName: string;
   apkUrl: string;
   apkSha256?: string;
+  /** APK size in bytes, so the UI can show what to expect. */
+  apkSize?: number;
   minShellBuild?: number;
   commitSha?: string;
   releasedAt?: string;
@@ -99,13 +102,25 @@ export const fetchUpdateManifest =
         responseType: 'json',
         webFetchExtra: { cache: 'no-store' },
       });
-      if (res.status < 200 || res.status >= 300) return null;
+      if (res.status < 200 || res.status >= 300) {
+        updateBreadcrumb('manifest http error', {
+          status: res.status,
+        });
+        return null;
+      }
       const data: unknown =
         typeof res.data === 'string'
           ? JSON.parse(res.data)
           : res.data;
-      return isUpdateManifest(data) ? data : null;
-    } catch {
+      if (!isUpdateManifest(data)) {
+        updateBreadcrumb('manifest rejected');
+        return null;
+      }
+      return data;
+    } catch (err) {
+      updateBreadcrumb('manifest fetch failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
       return null;
     }
   };
@@ -147,6 +162,11 @@ export const checkForUpdates = async (
   // a full interval.
   if (!installed || !manifest) return { kind: 'error' };
   markUpdateChecked();
+  updateBreadcrumb('manifest fetched', {
+    installedBuild: installed.build,
+    offeredBuild: manifest.versionCode,
+    apkUrl: manifest.apkUrl,
+  });
   return isUpdateAvailable(manifest, installed)
     ? { kind: 'update', manifest, installed }
     : { kind: 'current' };
