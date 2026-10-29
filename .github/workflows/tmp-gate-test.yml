@@ -10,6 +10,9 @@ jobs:
       - run: |
           curl -fsSL -o reactive-bible.apk \
             https://github.com/${{ github.repository }}/releases/download/continuous/reactive-bible.apk
+          # Negative control: a truncated download.
+          head -c 3000000 reactive-bible.apk > t.apk
+          mv t.apk reactive-bible.apk
       - uses: actions/upload-artifact@v5
         with:
           name: release-apk
@@ -19,4 +22,4 @@ jobs:
     uses: ./.github/workflows/android-install-test.yml
     with:
       apk_artifact: release-apk
-      api_levels: '[33, 35]'
+      api_levels: '[35]'
