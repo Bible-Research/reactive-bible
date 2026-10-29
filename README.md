@@ -2,12 +2,14 @@
 
 Front-End for the Bible Research app.
 
-A React JS project bootstrapped with Vite, featuring user authentication, notes management, and Bible study tools.
+A React JS project bootstrapped with Vite, featuring user
+authentication, notes management, and Bible study tools.
 
 ## Features
 
 - 📖 **Bible Reading** - Read multiple Bible translations
-- 📝 **Notes & Tags** - Create and organize study notes (requires authentication)
+- 📝 **Notes & Tags** - Create and organize study notes
+  (requires authentication)
 - 🔐 **User Authentication** - Secure login with token-based auth
 - 🎨 **Dark/Light Mode** - Customizable theme
 - 🔍 **Search** - Find verses and notes quickly
@@ -56,11 +58,31 @@ This app uses token-based authentication with the Bible Research API.
 - Viewing public notes
 - Searching verses
 
+## Android app
+
+A Capacitor-wrapped Android build is distributed via GitHub
+Releases (sideloaded — there is no Play Store listing):
+
+- **Latest stable:** download `reactive-bible.apk` from the
+  [latest release][latest-rel] (the newest `v*` milestone).
+- **Continuous builds:** the rolling `continuous` prerelease on
+  the [releases page][releases] tracks every `main` commit.
+
+[latest-rel]: https://github.com/Bible-Research/reactive-bible/releases/latest
+[releases]: https://github.com/Bible-Research/reactive-bible/releases
+
+To install, download the APK on the phone and allow "install
+unknown apps" for the browser or file manager when Android asks.
+Installed builds check for updates automatically (about once per
+hour) and prompt to download the newer APK — Android always
+requires consent for sideloaded installs. Release-channel
+internals are documented in
+[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md#android-app--release-channels).
+
 ## Documentation
 
-- **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** - Technical details and architecture
-- **[AUTHENTICATION_IMPLEMENTATION_SUMMARY.md](AUTHENTICATION_IMPLEMENTATION_SUMMARY.md)** - Auth implementation details
-- **[USER_AUTHENTICATION_PLAN.md](USER_AUTHENTICATION_PLAN.md)** - Original auth implementation plan
+- **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** - Technical
+  details and architecture
 
 ## Tech Stack
 
