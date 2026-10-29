@@ -10,10 +10,11 @@
     "preview": "vite preview",
     "test": "NODE_OPTIONS='--max-old-space-size=8192' vitest run",
     "test:ui": "vitest --ui",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "postinstall": "patch-package"
   },
   "dependencies": {
-    "@anuradev/capacitor-background-mode": "^8.1.0",
+    "@anuradev/capacitor-background-mode": "8.1.0",
     "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.2",
@@ -69,6 +70,7 @@
     "happy-dom": "^21.0.4",
     "jsdom": "^27.4.0",
     "msw": "^2.12.7",
+    "patch-package": "8.0.1",
     "typescript": "^5.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.1"

@@ -152,3 +152,22 @@ npm test -- --run  # vitest headless (98 files / 953 tests)
   are consumed too (book-name keyed, auth-gated; see
   `readingPositions` in `src/store.ts`).
 - KJV audio is fetched from wordpocket.org directly, not the API.
+
+## Android / Play Protect
+
+- `@anuradev/capacitor-background-mode` is patched via
+  `patch-package` (`patches/`, `postinstall`) and pinned to
+  exactly `8.1.0`. Its stock manifest (`specialUse|microphone`
+  FGS, SIP-call justification, battery-exemption permission)
+  got sideloaded APK updates blocked as "harmful" by Play
+  Protect. Never re-add a battery-optimization prompt. When
+  bumping the plugin, regenerate the patch. CI fails on red-flag
+  permissions — see `DEVELOPER_GUIDE.md` "Play Protect hygiene".
+- Inspect a built APK's manifest without the Android SDK: use
+  `unzip -p x.apk AndroidManifest.xml` and decode the binary
+  XML. Check signing certs with
+  `unzip -p x.apk META-INF/*.RSA | openssl pkcs7 -inform DER
+  -print_certs`. Local `java`/`keytool` are macOS stubs, so
+  there are no local Gradle builds; build via the
+  `Android APK` workflow (`gh workflow run "Android APK"
+  --ref <branch>` gives a debug APK artifact).
