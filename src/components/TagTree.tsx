@@ -5,15 +5,19 @@ import {
   Box,
   Collapse,
   Group,
+  Menu,
   Paper,
   Stack,
   Text,
   ThemeIcon,
   Tooltip,
+  useMantineTheme,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   IconChevronDown,
   IconChevronRight,
+  IconDotsVertical,
   IconEdit,
   IconEye,
   IconFolder,
@@ -94,6 +98,14 @@ interface TagTreeNodeProps {
   expandedNodes: Set<string>;
   isAuthenticated: boolean;
   reparentEnabled: boolean;
+  /** Narrow viewport or coarse pointer — collapses the row
+   *  action cluster into one menu and swaps the 24px
+   *  margin indent for an 8px/level rail. */
+  compact: boolean;
+  /** Hover-capable pointer — the only case where Tooltips
+   *  are safe (on touch they fire on tap and linger over
+   *  adjacent icons). */
+  tooltipsEnabled: boolean;
   /** The tag currently mid-drag, or null between drags. */
   activeDragTag: Tag | null;
   onToggleNode: (nodeId: string) => void;
@@ -119,6 +131,8 @@ const TagTreeNode = ({
   expandedNodes,
   isAuthenticated,
   reparentEnabled,
+  compact,
+  tooltipsEnabled,
   activeDragTag,
   onToggleNode,
   onEdit,
@@ -126,13 +140,17 @@ const TagTreeNode = ({
   onViewNotes,
   onTogglePublic,
 }: TagTreeNodeProps) => {
+  const theme = useMantineTheme();
   const hasChildren = node.children.length > 0;
   const isExpanded =
     forceExpand || expandedNodes.has(node.tag.id);
   const noteCount = noteCounts[node.tag.id] || 0;
   const subtreeTotal = subtreeCounts[node.tag.id] ?? noteCount;
   const descendantCount = subtreeTotal - noteCount;
-  const indent = level * 24;
+  // Compact rows trade margin indent for a thin rail so deep
+  // levels keep near-full row width; desktop keeps the
+  // generous 24px steps.
+  const indent = level * (compact ? 8 : 24);
 
   // Drop targets that would no-op or create a cycle are
   // disabled outright — `isOver` never lights them up, and
@@ -167,23 +185,40 @@ const TagTreeNode = ({
         withBorder
         style={{
           marginLeft: indent,
-          cursor: hasChildren ? 'pointer' : 'default',
+          cursor: 'pointer',
           opacity: activeDragTag && dropDisabled ? 0.5 : 1,
           outline: isOver
-            ? '2px solid var(--mantine-color-blue-5)'
+            ? `2px solid ${theme.colors.blue[5]}`
             : undefined,
+          // Depth rail: under compact layout each nested row
+          // gets a 2px guide border at its 8px offset, so
+          // parents still ladder visually without giving up
+          // 24px per level.
+          borderLeft:
+            compact && level > 0
+              ? `2px solid ${
+                  theme.colorScheme === 'dark'
+                    ? theme.colors.dark[4]
+                    : theme.colors.gray[3]
+                }`
+              : undefined,
         }}
-        onClick={() => hasChildren && onToggleNode(node.tag.id)}
+        onClick={() =>
+          hasChildren
+            ? onToggleNode(node.tag.id)
+            : onViewNotes(node.tag.id)
+        }
       >
-        <Group position="apart" spacing="xs">
-          <Group spacing="xs" style={{ flex: 1 }}>
+        <Group position="apart" spacing="xs" noWrap>
+          <Group spacing="xs" style={{ flex: 1, minWidth: 0 }} noWrap>
             {reparentEnabled && isAuthenticated && (
               <Tooltip
                 label="Drag to move under another tag"
                 position="top"
+                disabled={!tooltipsEnabled}
               >
                 <ActionIcon
-                  size="sm"
+                  size="lg"
                   variant="subtle"
                   color="gray"
                   title="Drag to reparent tag"
@@ -193,47 +228,55 @@ const TagTreeNode = ({
                   onClick={(e) => e.stopPropagation()}
                   style={{ cursor: 'grab', touchAction: 'none' }}
                 >
-                  <IconGripVertical size={16} />
+                  <IconGripVertical size={18} />
                 </ActionIcon>
               </Tooltip>
             )}
 
             {hasChildren ? (
               <ActionIcon
-                size="sm"
+                size="lg"
                 variant="subtle"
+                title={isExpanded ? 'Collapse' : 'Expand'}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleNode(node.tag.id);
                 }}
               >
                 {isExpanded ? (
-                  <IconChevronDown size={16} />
+                  <IconChevronDown size={18} />
                 ) : (
-                  <IconChevronRight size={16} />
+                  <IconChevronRight size={18} />
                 )}
               </ActionIcon>
             ) : (
-              <Box style={{ width: 28 }} />
+              <Box style={{ width: 34, flexShrink: 0 }} />
             )}
 
             {hasChildren ? (
               isExpanded ? (
                 <IconFolderOpen
                   size={18}
-                  color="var(--mantine-color-blue-6)"
+                  color={theme.colors.blue[6]}
                 />
               ) : (
-                <IconFolder size={18} color="var(--mantine-color-blue-6)" />
+                <IconFolder
+                  size={18}
+                  color={theme.colors.blue[6]}
+                />
               )
             ) : (
-              <IconTag size={18} color="var(--mantine-color-gray-6)" />
+              <IconTag size={18} color={theme.colors.gray[6]} />
             )}
 
             <Text
               size="sm"
               weight={hasChildren ? 500 : 400}
-              style={{ flex: 1 }}
+              lineClamp={1}
+              // flex+minWidth lets lineClamp actually
+              // ellipsis long names instead of growing the
+              // row to two lines.
+              style={{ flex: 1, minWidth: 0 }}
             >
               {node.tag.name}
             </Text>
@@ -242,6 +285,7 @@ const TagTreeNode = ({
               <Tooltip
                 label="Public tag — notes are viewable by link"
                 position="top"
+                disabled={!tooltipsEnabled}
               >
                 <ThemeIcon size="sm" color="teal" variant="light">
                   <IconWorld size={12} />
@@ -259,6 +303,7 @@ const TagTreeNode = ({
               <Tooltip
                 label="includes notes in sub-tags"
                 position="top"
+                disabled={!tooltipsEnabled}
               >
                 <Badge size="sm" variant="light" color="gray">
                   +{descendantCount}
@@ -267,42 +312,88 @@ const TagTreeNode = ({
             )}
           </Group>
 
-          <Group spacing={4}>
-            {isAuthenticated && onTogglePublic && (
-              <Tooltip
-                label={
-                  node.tag.public
-                    ? 'Make tag private'
-                    : 'Make tag public'
-                }
-                position="top"
+          {compact ? (
+            isAuthenticated ? (
+              <Menu
+                withinPortal
+                position="bottom-end"
+                shadow="md"
               >
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color={node.tag.public ? 'teal' : 'gray'}
-                  title={
-                    node.tag.public
-                      ? 'Make tag private'
-                      : 'Make tag public'
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTogglePublic(node.tag);
-                  }}
-                >
-                  {node.tag.public ? (
-                    <IconWorld size={16} />
-                  ) : (
-                    <IconWorldOff size={16} />
+                <Menu.Target>
+                  <ActionIcon
+                    size="lg"
+                    variant="subtle"
+                    color="gray"
+                    title="Tag actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <IconDotsVertical size={18} />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item
+                    icon={<IconEye size={16} />}
+                    title="View notes"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewNotes(node.tag.id);
+                    }}
+                  >
+                    View notes
+                  </Menu.Item>
+                  {onTogglePublic && (
+                    <Menu.Item
+                      icon={
+                        node.tag.public ? (
+                          <IconWorld size={16} />
+                        ) : (
+                          <IconWorldOff size={16} />
+                        )
+                      }
+                      title={
+                        node.tag.public
+                          ? 'Make tag private'
+                          : 'Make tag public'
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTogglePublic(node.tag);
+                      }}
+                    >
+                      {node.tag.public
+                        ? 'Make tag private'
+                        : 'Make tag public'}
+                    </Menu.Item>
                   )}
-                </ActionIcon>
-              </Tooltip>
-            )}
-
-            <Tooltip label="View notes" position="top">
+                  <Menu.Item
+                    icon={<IconEdit size={16} />}
+                    title="Edit tag"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(node.tag);
+                    }}
+                  >
+                    Edit tag
+                  </Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    color="red"
+                    icon={<IconTrash size={16} />}
+                    title="Delete tag"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(node.tag.id, node.tag.name);
+                    }}
+                  >
+                    Delete tag
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            ) : (
+              // Anonymous viewers get a single read-only
+              // action — a menu with one item would be noise.
               <ActionIcon
-                size="sm"
+                size="lg"
                 variant="subtle"
                 color="blue"
                 title="View notes"
@@ -311,44 +402,106 @@ const TagTreeNode = ({
                   onViewNotes(node.tag.id);
                 }}
               >
-                <IconEye size={16} />
+                <IconEye size={18} />
               </ActionIcon>
-            </Tooltip>
-
-            {isAuthenticated && (
-              <>
-                <Tooltip label="Edit tag" position="top">
+            )
+          ) : (
+            <Group spacing="xs" noWrap>
+              {isAuthenticated && onTogglePublic && (
+                <Tooltip
+                  label={
+                    node.tag.public
+                      ? 'Make tag private'
+                      : 'Make tag public'
+                  }
+                  position="top"
+                  disabled={!tooltipsEnabled}
+                >
                   <ActionIcon
-                    size="sm"
+                    size="lg"
                     variant="subtle"
-                    color="gray"
-                    title="Edit tag"
+                    color={node.tag.public ? 'teal' : 'gray'}
+                    title={
+                      node.tag.public
+                        ? 'Make tag private'
+                        : 'Make tag public'
+                    }
                     onClick={(e) => {
                       e.stopPropagation();
-                      onEdit(node.tag);
+                      onTogglePublic(node.tag);
                     }}
                   >
-                    <IconEdit size={16} />
+                    {node.tag.public ? (
+                      <IconWorld size={18} />
+                    ) : (
+                      <IconWorldOff size={18} />
+                    )}
                   </ActionIcon>
                 </Tooltip>
+              )}
 
-                <Tooltip label="Delete tag" position="top">
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="red"
-                    title="Delete tag"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(node.tag.id, node.tag.name);
-                    }}
+              <Tooltip
+                label="View notes"
+                position="top"
+                disabled={!tooltipsEnabled}
+              >
+                <ActionIcon
+                  size="lg"
+                  variant="subtle"
+                  color="blue"
+                  title="View notes"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewNotes(node.tag.id);
+                  }}
+                >
+                  <IconEye size={18} />
+                </ActionIcon>
+              </Tooltip>
+
+              {isAuthenticated && (
+                <>
+                  <Tooltip
+                    label="Edit tag"
+                    position="top"
+                    disabled={!tooltipsEnabled}
                   >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Tooltip>
-              </>
-            )}
-          </Group>
+                    <ActionIcon
+                      size="lg"
+                      variant="subtle"
+                      color="gray"
+                      title="Edit tag"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(node.tag);
+                      }}
+                    >
+                      <IconEdit size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+
+                  <Tooltip
+                    label="Delete tag"
+                    position="top"
+                    disabled={!tooltipsEnabled}
+                  >
+                    <ActionIcon
+                      size="lg"
+                      variant="subtle"
+                      color="red"
+                      title="Delete tag"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(node.tag.id, node.tag.name);
+                      }}
+                    >
+                      <IconTrash size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                </>
+              )}
+            </Group>
+          )}
         </Group>
       </Paper>
 
@@ -367,6 +520,8 @@ const TagTreeNode = ({
                 expandedNodes={expandedNodes}
                 isAuthenticated={isAuthenticated}
                 reparentEnabled={reparentEnabled}
+                compact={compact}
+                tooltipsEnabled={tooltipsEnabled}
                 activeDragTag={activeDragTag}
                 onToggleNode={onToggleNode}
                 onEdit={onEdit}
@@ -397,6 +552,7 @@ const TagTreeNode = ({
  * start remains safe.
  */
 const RootDropZone = ({ disabled }: { disabled: boolean }) => {
+  const theme = useMantineTheme();
   const { setNodeRef, isOver, node } = useDroppable({
     id: ROOT_DROP_ID,
     disabled,
@@ -440,9 +596,7 @@ const RootDropZone = ({ disabled }: { disabled: boolean }) => {
         zIndex: 1,
         borderStyle: 'dashed',
         opacity: disabled ? 0.5 : 1,
-        backgroundColor: isOver
-          ? 'var(--mantine-color-blue-0)'
-          : undefined,
+        backgroundColor: isOver ? theme.colors.blue[0] : undefined,
       }}
     >
       <Text size="sm" color="dimmed" align="center">
@@ -476,6 +630,29 @@ export function TagTree({
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
+  // Compact rows kick in at `sm` and narrower (768px is
+  // Mantine's `sm` — the query includes it) or on
+  // coarse-pointer (touch-primary) devices — both collapse
+  // the per-row icon cluster into a single ⋮ menu so each
+  // tap target stays well separated from Delete.
+  // `undefined` initialValue is deliberate: a boolean would
+  // short-circuit getInitialValue and the first frame would
+  // render the desktop layout on phones — undefined lets
+  // matchMedia resolve during the initial render.
+  const narrowViewport = useMediaQuery(
+    '(max-width: 768px)',
+    undefined,
+    { getInitialValueInEffect: false }
+  );
+  const coarsePointer = useMediaQuery('(pointer: coarse)', undefined, {
+    getInitialValueInEffect: false,
+  });
+  const compact = narrowViewport || coarsePointer;
+  // Tooltips only make sense where hover exists — on touch
+  // they fire on tap and linger over the neighboring icon.
+  const tooltipsEnabled = useMediaQuery('(pointer: fine)', undefined, {
+    getInitialValueInEffect: false,
+  });
 
   const activeDragTag = activeDragId
     ? tags.find((t) => t.id === activeDragId) ?? null
@@ -577,6 +754,8 @@ export function TagTree({
             expandedNodes={expandedNodes}
             isAuthenticated={isAuthenticated}
             reparentEnabled={reparentEnabled}
+            compact={compact}
+            tooltipsEnabled={tooltipsEnabled}
             activeDragTag={activeDragTag}
             onToggleNode={toggleNode}
             onEdit={onEdit}

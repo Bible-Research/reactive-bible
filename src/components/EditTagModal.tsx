@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
+  Box,
   Button,
+  Collapse,
   Group,
   Modal,
   Select,
@@ -8,7 +10,9 @@ import {
   Switch,
   Text,
   TextInput,
+  UnstyledButton,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { setTagPublic, updateTag } from '../api';
@@ -32,11 +36,22 @@ export function EditTagModal({
   tag,
   existingTags,
 }: EditTagModalProps) {
+  // Full-screen at `sm` and narrower (768px is Mantine's
+  // `sm` — the query includes it), where the
+  // Created/Updated dates also collapse behind a "Details"
+  // toggle to keep the form above the fold. `undefined`
+  // initialValue lets matchMedia resolve during the first
+  // render — a boolean would flash the windowed layout for
+  // one frame.
+  const compact = useMediaQuery('(max-width: 768px)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (tag && opened) {
@@ -47,6 +62,7 @@ export function EditTagModal({
       // uncontrolled until the first click.
       setIsPublic(tag.public ?? false);
       setNameError(null);
+      setDetailsOpen(false);
     }
   }, [tag, opened]);
 
@@ -144,8 +160,25 @@ export function EditTagModal({
     void handleSubmit();
   };
 
+  const datesBlock = tag && (
+    <Stack spacing={4}>
+      <Text size="xs" color="dimmed">
+        Created: {new Date(tag.created_at).toLocaleDateString()}
+      </Text>
+      <Text size="xs" color="dimmed">
+        Updated: {new Date(tag.updated_at).toLocaleDateString()}
+      </Text>
+    </Stack>
+  );
+
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit Tag" size="md">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Edit Tag"
+      size="md"
+      fullScreen={compact}
+    >
       <form onSubmit={handleFormSubmit}>
         <Stack spacing="md">
           <TextInput
@@ -173,6 +206,12 @@ export function EditTagModal({
             data={parentTagOptions}
             searchable
             clearable
+            // Bottom-anchored so the list can never flip up
+            // over the Tag Name field on short viewports;
+            // portal keeps it clear of the ScrollArea.
+            withinPortal
+            dropdownPosition="bottom"
+            maxDropdownHeight={280}
             description="Leave empty to make this a root-level tag"
           />
 
@@ -200,16 +239,27 @@ export function EditTagModal({
             }
           />
 
-          {tag && (
-            <Stack spacing={4}>
-              <Text size="xs" color="dimmed">
-                Created: {new Date(tag.created_at).toLocaleDateString()}
-              </Text>
-              <Text size="xs" color="dimmed">
-                Updated: {new Date(tag.updated_at).toLocaleDateString()}
-              </Text>
-            </Stack>
-          )}
+          {tag &&
+            (compact ? (
+              <Box>
+                <UnstyledButton
+                  onClick={() =>
+                    setDetailsOpen((open) => !open)
+                  }
+                >
+                  <Text size="xs" color="dimmed" underline>
+                    {detailsOpen
+                      ? 'Hide details'
+                      : 'Show details'}
+                  </Text>
+                </UnstyledButton>
+                <Collapse in={detailsOpen}>
+                  <Box mt={4}>{datesBlock}</Box>
+                </Collapse>
+              </Box>
+            ) : (
+              datesBlock
+            ))}
 
           <Group position="right" mt="md">
             <Button variant="subtle" onClick={onClose} disabled={loading}>
