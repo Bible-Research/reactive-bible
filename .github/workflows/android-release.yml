@@ -6,8 +6,9 @@ name: Android APK
 # release as `reactive-bible.apk` (fixed name keeps the download
 # URL stable: releases/latest/download/reactive-bible.apk), and on
 # every push to `main`, attached to the rolling `continuous`
-# prerelease together with `update.json` — the manifest installed
-# apps poll to detect a newer build.
+# prerelease as a per-build `reactive-bible-<run_number>.apk` (plus
+# the stable `reactive-bible.apk`), followed by `update.json` — the
+# manifest installed apps poll to detect a newer build.
 on:
   workflow_dispatch:
   push:
@@ -150,13 +151,27 @@ jobs:
             sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
           test "$VC" = "${{ github.run_number }}"
 
+      # update.json points at a per-build asset name instead of the
+      # reused `reactive-bible.apk`: re-uploading a fixed name deletes
+      # it first, so a manifest read mid-publish could send phones a
+      # 404 page / truncated file ("problem parsing the package").
+      # Unique names also stop `reactive-bible (1).apk` duplicates
+      # piling up in the phone's Downloads.
+      - name: Create versioned APK copy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -e
+          VAPK="reactive-bible-${{ github.run_number }}.apk"
+          cp reactive-bible.apk "$VAPK"
+          echo "VERSIONED_APK=$VAPK" >> "$GITHUB_ENV"
+
       - name: Generate update.json
         if: github.ref == 'refs/heads/main'
         run: |
           set -e
-          APK_SHA=$(sha256sum reactive-bible.apk | cut -d' ' -f1)
+          APK_SHA=$(sha256sum "$VERSIONED_APK" | cut -d' ' -f1)
           BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
-          APK_URL="$BASE/continuous/reactive-bible.apk"
+          APK_URL="$BASE/continuous/$VERSIONED_APK"
           jq -n \
             --argjson versionCode "${{ github.run_number }}" \
             --arg versionName "$APP_VERSION_NAME" \
@@ -182,8 +197,11 @@ jobs:
       # Fixed tag keeps the asset URL stable for the in-app updater:
       # releases/download/continuous/update.json. `prerelease` +
       # `make_latest: false` keep `releases/latest` pointing at real
-      # v* milestones.
-      - name: Publish continuous release
+      # v* milestones. Two ordered uploads: the APKs first, and only
+      # once they are fully uploaded the manifest that points at
+      # them. The stable `reactive-bible.apk` stays for old links
+      # and manifests.
+      - name: Publish continuous APKs
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
@@ -191,6 +209,48 @@ jobs:
           name: Continuous build (main)
           prerelease: true
           make_latest: false
+          fail_on_unmatched_files: true
           files: |
+            ${{ env.VERSIONED_APK }}
             reactive-bible.apk
-            update.json
+
+      - name: Publish continuous update.json
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build (main)
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: update.json
+
+      # Keep only the newest few per-build APKs so the release does
+      # not grow forever. Never touches the current build, the
+      # stable reactive-bible.apk or update.json (the name filter
+      # only matches reactive-bible-<digits>.apk). Non-fatal: the
+      # build is already published when this runs.
+      - name: Prune old versioned APKs
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          KEEP: 5
+        run: |
+          set -eo pipefail
+          gh release view continuous \
+            --json assets --jq '.assets[].name' > assets.txt
+          { grep -E '^reactive-bible-[0-9]+\.apk$' assets.txt \
+            || true; } \
+            | sed -E 's/^reactive-bible-([0-9]+)\.apk$/\1/' \
+            | sort -rn | tail -n +"$((KEEP + 1))" > prune.txt
+          while read -r N; do
+            NAME="reactive-bible-$N.apk"
+            if [ "$NAME" = "$VERSIONED_APK" ]; then
+              continue
+            fi
+            echo "Deleting $NAME"
+            gh release delete-asset continuous "$NAME" --yes || \
+              echo "::warning::Could not delete $NAME"
+          done < prune.txt

@@ -3713,8 +3713,9 @@ listing. `.github/workflows/android-release.yml` has three channels:
 | push `android`       | debug APK → workflow artifact (30 days)       |
 | `workflow_dispatch`  | debug APK → workflow artifact                 |
 | push `v*` tag        | signed APK → that tag's GitHub Release asset  |
-| push `main`          | signed APK + `update.json` → rolling          |
-|                      | `continuous` prerelease                       |
+| push `main`          | signed APK (versioned + stable name), then    |
+|                      | `update.json` → rolling `continuous`          |
+|                      | prerelease                                    |
 
 - Signing uses `ANDROID_KEYSTORE_BASE64`, `KEY_ALIAS`,
   `KEYSTORE_PASSWORD`, `KEY_PASSWORD` secrets. The same keystore
@@ -3777,13 +3778,36 @@ sideloaded installs. The MainMenu has a "Check for updates" row
 {
   "versionCode": 123,
   "versionName": "0.0.123",
-  "apkUrl": "<.../releases/download/continuous/reactive-bible.apk>",
-  "apkSha256": "<sha256 of the signed APK>",
+  "apkUrl": "<.../download/continuous/reactive-bible-123.apk>",
+  "apkSha256": "<sha256 of reactive-bible-123.apk>",
   "minShellBuild": 123,
   "commitSha": "<commit the build was cut from>",
   "releasedAt": "<ISO-8601 UTC>"
 }
 ```
+
+#### Versioned APK assets and upload ordering
+
+Each `main` build attaches the same signed bytes twice to the
+`continuous` prerelease: `reactive-bible-<run_number>.apk`
+(versioned) and `reactive-bible.apk` (stable, kept for old links
+and older manifests). `apkUrl` always names the versioned asset.
+
+- Why: re-uploading a fixed-name asset deletes it first. When the
+  manifest and APK went up in one step, `update.json` landed
+  before the APK, so a phone polling in that window saw the new
+  `versionCode`, downloaded a 404 page / truncated file, and
+  Android reported "problem parsing the package". The reused
+  name also left `reactive-bible (1).apk` duplicates in
+  Downloads.
+- Ordering: "Publish continuous APKs" uploads both APKs, and
+  only then "Publish continuous update.json" uploads the
+  manifest. A manifest never advertises an APK that is not fully
+  uploaded.
+- Pruning: "Prune old versioned APKs" deletes all but the newest
+  5 `reactive-bible-<n>.apk` assets (never the current build,
+  `reactive-bible.apk` or `update.json`). It is
+  `continue-on-error` — the build is already published by then.
 
 `minShellBuild` is reserved for a future OTA web-bundle path — a
 bundle may only be applied when `installedBuild >= minShellBuild`.
