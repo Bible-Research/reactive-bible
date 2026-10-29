@@ -3712,7 +3712,10 @@ listing. `.github/workflows/android-release.yml` has three channels:
 |----------------------|-----------------------------------------------|
 | push `android`       | debug APK → workflow artifact (30 days)       |
 | `workflow_dispatch`  | debug APK → workflow artifact                 |
-| push `v*` tag        | signed APK → that tag's GitHub Release asset  |
+| push `v*` tag        | signed APK → that tag's GitHub Release asset; |
+|                      | then `update.json` → `continuous` points at   |
+|                      | the tag's asset so installed apps update to   |
+|                      | the milestone                                 |
 | push `main`          | signed APK (versioned + stable name), then    |
 |                      | `update.json` → rolling `continuous`          |
 |                      | prerelease                                    |
@@ -3723,8 +3726,12 @@ listing. `.github/workflows/android-release.yml` has three channels:
 - `versionCode` is always `github.run_number` (monotonic across all
   builds) so Android accepts every newer build as an in-place
   update. `versionName` is the tag name for `v*` builds and
-  `0.0.<run_number>` on `main`.
-- The `continuous` tag is force-moved to each `main` commit;
+  `0.0.<run_number>` on `main`. After a milestone ships, the next
+  `main` build therefore advertises a lower `versionName`
+  (`0.0.N`) with a higher `versionCode` — the update still
+  installs; only the label regresses.
+- The `continuous` tag is force-moved to each `main` commit (and
+  to each `v*` tag commit when a milestone is published);
   `prerelease: true` + `make_latest: false` keep
   `releases/latest` pointing at real milestones.
 
@@ -3844,6 +3851,21 @@ when every emulator job passed, so a non-installable APK never
 reaches `continuous`. It is serialized (`continuous-publish`
 concurrency group) and skips if `continuous` already advertises
 an equal or newer `versionCode`.
+
+`v*` tag pushes run the same `build` → `install-test` gate, then
+a `publish-tag` job: attach `reactive-bible.apk` to the tag's
+release, generate `update.json` whose `apkUrl` names that tag
+asset, upload it to `continuous`, and retag `continuous` to the
+tagged commit. Because the updater only polls the `continuous`
+manifest, this is how a milestone release reaches installed
+apps — `versionCode` is still the run number, so it reads as a
+normal upgrade. For the in-place update leg the tag run passes
+the APK `continuous` currently advertises as `old_apk_url`
+(otherwise, on a `v1.0.0` re-tag, the default `v1.0.0` URL would
+"update" the milestone onto itself). `publish-tag` shares the
+`continuous-publish` concurrency group and the same
+already-published guard. If `install-test` fails, nothing is
+attached to the tag's release and installed apps are untouched.
 
 Reproduce a phone install problem against any published APK:
 
