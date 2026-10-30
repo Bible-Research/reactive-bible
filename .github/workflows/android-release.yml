@@ -403,20 +403,37 @@ jobs:
             echo "::notice::continuous already has build $CUR"
           fi
 
-      - name: Attach APK to GitHub release
+      # Downloads keep the URL's file name: the stable
+      # reactive-bible.apk collides with older downloads of the
+      # same name in the phone's Downloads (dedup / reopening a
+      # stale truncated file). update.json therefore points at a
+      # versioned name — same rule as the continuous channel.
+      # The stable name is still attached for humans and the
+      # releases/latest download link.
+      - name: Create versioned APK copy
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -e
+          VAPK="reactive-bible-$(cat version.txt).apk"
+          cp reactive-bible.apk "$VAPK"
+          echo "VERSIONED_APK=$VAPK" >> "$GITHUB_ENV"
+
+      - name: Attach APKs to GitHub release
         if: steps.guard.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: reactive-bible.apk
+          files: |
+            ${{ env.VERSIONED_APK }}
+            reactive-bible.apk
 
       - name: Generate update.json for the tag
         if: steps.guard.outputs.skip != 'true'
         run: |
           set -e
-          APK_SHA=$(sha256sum reactive-bible.apk | cut -d' ' -f1)
-          APK_SIZE=$(stat -c %s reactive-bible.apk)
+          APK_SHA=$(sha256sum "$VERSIONED_APK" | cut -d' ' -f1)
+          APK_SIZE=$(stat -c %s "$VERSIONED_APK")
           BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
-          APK_URL="$BASE/${GITHUB_REF_NAME}/reactive-bible.apk"
+          APK_URL="$BASE/${GITHUB_REF_NAME}/$VERSIONED_APK"
           jq -n \
             --argjson versionCode "${{ github.run_number }}" \
             --arg versionName "$(cat version.txt)" \

@@ -3856,8 +3856,12 @@ concurrency group) and skips if `continuous` already advertises
 an equal or newer `versionCode`.
 
 `v*` tag pushes run the same `build` → `install-test` gate, then
-a `publish-tag` job: attach `reactive-bible.apk` to the tag's
-release, generate `update.json` whose `apkUrl` names that tag
+a `publish-tag` job: attach both `reactive-bible.apk` (stable,
+for humans and `releases/latest` links) and
+`reactive-bible-<versionName>.apk` (versioned, what
+`update.json` points at — versioned names never collide with
+older files in the phone's Downloads) to the tag's release,
+generate `update.json` whose `apkUrl` names that versioned tag
 asset, upload it to `continuous`, and retag `continuous` to the
 tagged commit. Because the updater only polls the `continuous`
 manifest, this is how a milestone release reaches installed
