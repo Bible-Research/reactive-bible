@@ -104,13 +104,29 @@ jobs:
           startsWith(github.ref, 'refs/tags/v') ||
           github.ref == 'refs/heads/main'
         working-directory: android
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
             VNAME="${GITHUB_REF_NAME#v}"
           else
-            VNAME="0.0.${{ github.run_number }}"
+            # Continuous builds name themselves after the newest
+            # milestone: "<latest v* tag>+<run>" e.g. 1.0.0+106 —
+            # clearly newer than the milestone, unlike 0.0.N.
+            LATEST=$(gh api \
+              "repos/$GITHUB_REPOSITORY/releases/latest" \
+              --jq '.tag_name | sub("^v"; "")' 2>/dev/null) \
+              || LATEST=""
+            if [ -n "$LATEST" ]; then
+              VNAME="$LATEST+${{ github.run_number }}"
+            else
+              VNAME="0.0.${{ github.run_number }}"
+            fi
           fi
-          echo "APP_VERSION_NAME=$VNAME" >> "$GITHUB_ENV"
+          # Ship the name inside the artifact so the publish jobs
+          # write exactly what the APK was built with into
+          # update.json (job outputs would be secret-scanned).
+          echo "$VNAME" > "$GITHUB_WORKSPACE/version.txt"
           ./gradlew assembleRelease \
             -PversionCode=${{ github.run_number }} \
             -PversionName="$VNAME"
@@ -180,7 +196,9 @@ jobs:
           github.ref == 'refs/heads/main'
         with:
           name: release-apk
-          path: reactive-bible.apk
+          path: |
+            reactive-bible.apk
+            version.txt
           retention-days: 14
 
   # Gate: boot emulators and install the exact signed bytes.
@@ -232,8 +250,6 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "::notice::continuous already has build $CUR"
           fi
-          echo "APP_VERSION_NAME=0.0.${{ github.run_number }}" \
-            >> "$GITHUB_ENV"
 
       # update.json points at a per-build asset name instead of the
       # reused `reactive-bible.apk`: re-uploading a fixed name deletes
@@ -259,7 +275,7 @@ jobs:
           APK_URL="$BASE/continuous/$VERSIONED_APK"
           jq -n \
             --argjson versionCode "${{ github.run_number }}" \
-            --arg versionName "$APP_VERSION_NAME" \
+            --arg versionName "$(cat version.txt)" \
             --arg apkUrl "$APK_URL" \
             --arg apkSha256 "$APK_SHA" \
             --argjson apkSize "$APK_SIZE" \
@@ -403,7 +419,7 @@ jobs:
           APK_URL="$BASE/${GITHUB_REF_NAME}/reactive-bible.apk"
           jq -n \
             --argjson versionCode "${{ github.run_number }}" \
-            --arg versionName "${GITHUB_REF_NAME#v}" \
+            --arg versionName "$(cat version.txt)" \
             --arg apkUrl "$APK_URL" \
             --arg apkSha256 "$APK_SHA" \
             --argjson apkSize "$APK_SIZE" \

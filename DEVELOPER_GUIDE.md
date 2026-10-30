@@ -3726,10 +3726,13 @@ listing. `.github/workflows/android-release.yml` has three channels:
 - `versionCode` is always `github.run_number` (monotonic across all
   builds) so Android accepts every newer build as an in-place
   update. `versionName` is the tag name for `v*` builds and
-  `0.0.<run_number>` on `main`. After a milestone ships, the next
-  `main` build therefore advertises a lower `versionName`
-  (`0.0.N`) with a higher `versionCode` — the update still
-  installs; only the label regresses.
+  `<latest v* tag>+<run_number>` on `main` (e.g. `1.0.0+106`,
+  falling back to `0.0.<run_number>` when no release exists), so
+  continuous builds read as post-milestone instead of a version
+  regression. The resolved name travels inside the `release-apk`
+  artifact as `version.txt` — job outputs are secret-scanned —
+  and both publish jobs copy it into `update.json`, so the
+  manifest always names exactly what the APK was built with.
 - The `continuous` tag is force-moved to each `main` commit (and
   to each `v*` tag commit when a milestone is published);
   `prerelease: true` + `make_latest: false` keep
@@ -3784,7 +3787,7 @@ sideloaded installs. The MainMenu has a "Check for updates" row
 ```json
 {
   "versionCode": 123,
-  "versionName": "0.0.123",
+  "versionName": "1.0.0+123",
   "apkUrl": "<.../download/continuous/reactive-bible-123.apk>",
   "apkSha256": "<sha256 of reactive-bible-123.apk>",
   "apkSize": 5361263,
