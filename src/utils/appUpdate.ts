@@ -141,6 +141,64 @@ export const markUpdateChecked = (now = Date.now()): void => {
   localStorage.setItem(LAST_CHECK_KEY, String(now));
 };
 
+const CONTINUOUS_RELEASE_API =
+  'https://api.github.com/repos/Bible-Research/reactive-bible/' +
+  'releases/tags/continuous';
+
+/**
+ * Newest versioned APK asset on the `continuous` prerelease —
+ * what the web/PWA "Download Android App" link resolves to.
+ *
+ * github.com release *download* endpoints send no CORS headers,
+ * so a browser cannot read `update.json` — but api.github.com
+ * does allow cross-origin reads, so the freshest
+ * `reactive-bible-<run>.apk` is picked from the release asset
+ * list instead. Versioned names are never re-uploaded, so the
+ * resolved URL cannot serve a truncated file mid-publish (the
+ * stable `reactive-bible.apk` name can — it is deleted and
+ * re-uploaded on every publish). Plain `fetch` works here —
+ * api.github.com sends `Access-Control-Allow-Origin: *` on web
+ * and native alike.
+ */
+export const fetchNewestApkUrl = async (): Promise<
+  string | null
+> => {
+  try {
+    const res = await fetch(CONTINUOUS_RELEASE_API, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    const assets =
+      typeof data === 'object' && data !== null
+        ? (data as { assets?: unknown }).assets
+        : undefined;
+    if (!Array.isArray(assets)) return null;
+    let bestBuild = -1;
+    let bestUrl: string | null = null;
+    for (const asset of assets) {
+      if (typeof asset !== 'object' || asset === null) continue;
+      const { name, browser_download_url: url } = asset as {
+        name?: unknown;
+        browser_download_url?: unknown;
+      };
+      const match = /^reactive-bible-(\d+)\.apk$/.exec(
+        typeof name === 'string' ? name : '',
+      );
+      if (!match || typeof url !== 'string') continue;
+      if (!isTrustedApkUrl(url)) continue;
+      const build = Number(match[1]);
+      if (build > bestBuild) {
+        bestBuild = build;
+        bestUrl = url;
+      }
+    }
+    return bestUrl;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Fetch the manifest and compare it against the installed build.
  * Non-native platforms and throttled calls resolve to 'skipped';

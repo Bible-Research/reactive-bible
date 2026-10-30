@@ -17,13 +17,14 @@ import {
   IconRefresh,
   IconBug,
 } from "@tabler/icons-react";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
+import { fetchNewestApkUrl } from "../utils/appUpdate";
 import { lazyWithReload } from "../utils/lazyWithReload";
 import { UserMenu } from "./UserMenu";
 
@@ -36,11 +37,13 @@ const ReportProblemModal = lazyWithReload(
   () => import("./ReportProblemModal")
 );
 
-// The rolling `continuous` prerelease always serves the newest
-// main build; `releases/latest` would serve the stale v* tag.
-const ANDROID_APK_URL =
+// Fallback while the newest versioned asset URL is resolved
+// from the GitHub API (see fetchNewestApkUrl): `releases/latest`
+// serves the newest v* milestone — a fixed asset name that is
+// only re-uploaded on a re-tag, not on every main publish.
+const ANDROID_APK_URL_FALLBACK =
   'https://github.com/Bible-Research/reactive-bible/releases/' +
-  'download/continuous/reactive-bible.apk';
+  'latest/download/reactive-bible.apk';
 
 interface MainMenuProps {
   opened: boolean;
@@ -59,6 +62,15 @@ const MainMenu = ({
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
   const [reportOpened, setReportOpened] = useState(false);
+  // The stable-name continuous asset is deleted + re-uploaded on
+  // every publish — resolve the freshest versioned APK instead
+  // so the link can never hand out a truncated file.
+  const [apkUrl, setApkUrl] = useState(ANDROID_APK_URL_FALLBACK);
+  useEffect(() => {
+    void fetchNewestApkUrl().then((url) => {
+      if (url) setApkUrl(url);
+    });
+  }, []);
 
   // Get Bible state for navigation
   const activeBookId = useBibleStore((state) => state.activeBookId);
@@ -204,7 +216,7 @@ const MainMenu = ({
                   weight={500}
                   size="lg"
                   component="a"
-                  href={ANDROID_APK_URL}
+                  href={apkUrl}
                   sx={{ cursor: "pointer", color: "inherit" }}
                   title="Download Android app"
                 >

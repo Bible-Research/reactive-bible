@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   checkForUpdates,
+  fetchNewestApkUrl,
   fetchUpdateManifest,
   getInstalledVersion,
   isUpdateAvailable,
@@ -301,5 +302,97 @@ describe('checkForUpdates', () => {
     mockFetchOk(manifest({ versionCode: 41 }));
     const result = await checkForUpdates({ force: true });
     expect(result.kind).toBe('update');
+  });
+});
+
+describe('fetchNewestApkUrl', () => {
+  const asset = (name: string) => ({
+    name,
+    browser_download_url:
+      'https://github.com/o/r/releases/download/continuous/' +
+      name,
+  });
+
+  const stubApi = (body: unknown, ok = true, status = 200) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok,
+        status,
+        json: () => Promise.resolve(body),
+      }),
+    );
+  };
+
+  it('returns the highest-numbered versioned APK', async () => {
+    stubApi({
+      assets: [
+        asset('reactive-bible-97.apk'),
+        asset('reactive-bible-105.apk'),
+        asset('reactive-bible-100.apk'),
+        asset('reactive-bible.apk'),
+        asset('update.json'),
+      ],
+    });
+    expect(await fetchNewestApkUrl()).toBe(
+      'https://github.com/o/r/releases/download/continuous/' +
+        'reactive-bible-105.apk',
+    );
+  });
+
+  it('ignores the stable-name asset even when it is newest',
+    async () => {
+      // reactive-bible.apk never matches the versioned-name
+      // filter — it is the asset that gets re-uploaded and can
+      // serve truncated bytes mid-publish.
+      stubApi({
+        assets: [
+          asset('reactive-bible.apk'),
+          asset('reactive-bible-3.apk'),
+        ],
+      });
+      expect(await fetchNewestApkUrl()).toBe(
+        'https://github.com/o/r/releases/download/continuous/' +
+          'reactive-bible-3.apk',
+      );
+    },
+  );
+
+  it('rejects non-GitHub download URLs', async () => {
+    stubApi({
+      assets: [
+        {
+          name: 'reactive-bible-9.apk',
+          browser_download_url:
+            'https://evil.example.com/reactive-bible-9.apk',
+        },
+        asset('reactive-bible-2.apk'),
+      ],
+    });
+    expect(await fetchNewestApkUrl()).toBe(
+      'https://github.com/o/r/releases/download/continuous/' +
+        'reactive-bible-2.apk',
+    );
+  });
+
+  it('returns null on HTTP error, bad shape or no matches',
+    async () => {
+      stubApi({ message: 'rate limited' }, false, 403);
+      expect(await fetchNewestApkUrl()).toBeNull();
+
+      stubApi({ assets: 'nope' });
+      expect(await fetchNewestApkUrl()).toBeNull();
+
+      stubApi({ assets: [asset('reactive-bible.apk')] });
+      expect(await fetchNewestApkUrl()).toBeNull();
+    },
+  );
+
+  it('returns null when fetch rejects', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('offline')),
+    );
+    expect(await fetchNewestApkUrl()).toBeNull();
   });
 });
