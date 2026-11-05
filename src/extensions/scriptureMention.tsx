@@ -35,12 +35,18 @@ const PREVIEW_CLICK_MS = 300;
 
 export interface ScriptureMentionOptions {
   /**
-   * Single click/tap on a complete '@USFM.C.V[-E]' token.
+   * Single click/tap on a complete '@USFM.C[.V[-E]]' token.
    * Intended to reveal the passage — it does NOT link the note
    * to that passage. `anchor` is a Range over the token text;
-   * the popover positions itself under it.
+   * the popover positions itself under it. `edit` carries the
+   * token's doc positions so the consumer can rewrite the
+   * token when the popover's verse selection narrows the ref.
    */
-  onRefPreview: (token: string, anchor: Range) => void;
+  onRefPreview: (
+    token: string,
+    anchor: Range,
+    edit?: { from: number; to: number }
+  ) => void;
   /**
    * Second click on a token — the picker reopens to edit the
    * reference, so an open passage preview should close (the
@@ -107,7 +113,12 @@ const ScriptureMentionPopup = ({
       sx={{ width: 320 }}
     >
       <Text size="xs" color={parsed.error ? 'red' : 'dimmed'} mb={4}>
-        {parsed.error ?? (preview || 'Type @ to cite a passage')}
+        {parsed.error ??
+          (preview +
+            (parsed.complete && parsed.verseStart === null
+              ? ' — Enter for whole chapter'
+              : '') ||
+            'Type @ to cite a passage')}
       </Text>
       <PassagePicker
         bookId={code ?? null}
@@ -519,7 +530,8 @@ export const ScriptureMention = Extension.create<
                 try {
                   onRefPreview(
                     atom.token,
-                    tokenRange(view, atom.from, atom.to)
+                    tokenRange(view, atom.from, atom.to),
+                    { from: atom.from, to: atom.to }
                   );
                 } catch {
                   // The node vanished between event and read.
@@ -546,7 +558,8 @@ export const ScriptureMention = Extension.create<
                 try {
                   onRefPreview(
                     token,
-                    tokenRange(view, hit.from, hit.to)
+                    tokenRange(view, hit.from, hit.to),
+                    { from: hit.from, to: hit.to }
                   );
                 } catch {
                   // The token moved or vanished between the

@@ -115,7 +115,22 @@ const useScriptureRefPreview = () => {
     [setBoth]
   );
 
-  return { preview, error, open, close };
+  /**
+   * Replaces the open preview's verse selection — the popover's
+   * expanded chapter view narrows the ref through this. null
+   * selects the whole chapter. Consumers that can persist the
+   * change (the editor) rewrite the token themselves instead.
+   */
+  const setPreviewVerses = useCallback(
+    (verses: number[] | null) => {
+      const current = previewRef.current;
+      if (!current?.ref) return;
+      setBoth({ ...current, ref: { ...current.ref, verses } });
+    },
+    [setBoth]
+  );
+
+  return { preview, error, open, close, setPreviewVerses };
 };
 
 export default useScriptureRefPreview;

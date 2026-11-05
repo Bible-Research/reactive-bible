@@ -9,7 +9,7 @@ import { isValidScriptureToken } from './scriptureMention';
 export const SCRIPTURE_TOKEN_REGEX =
   /(?<!\w)(@[a-zA-Z0-9_+.:-]+)/g;
 export const VALID_REF_PREFIX =
-  /^(@[a-zA-Z0-9+]+\.\d+[.:]\d+(?:-\d+)?)(.*)$/;
+  /^(@[a-zA-Z0-9+]+\.\d+(?:[.:]\d+(?:-\d+)?)?)(.*)$/;
 
 // Only '@book.digit…' shapes count as ref attempts — plain
 // @-handles and emails ('bob@example.com') stay neutral text

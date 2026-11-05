@@ -370,4 +370,144 @@ describe('ScripturePassagePopover', () => {
       '/bible/JHN.3.16-18'
     );
   });
+
+  it('opens a chapter-level ref at the Bible chapter', async () => {
+    const onClose = vi.fn();
+    renderPopover({
+      onClose,
+      reference: {
+        book: 'Psalms',
+        chapter: 18,
+        verses: null,
+      },
+    });
+    await screen.findByTestId('scripture-passage-popover');
+
+    fireEvent.click(screen.getByLabelText('view-in-bible'));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/bible/PSA.18');
+  });
+
+  it('expands to the full chapter on "Read full chapter"',
+    async () => {
+      renderPopover({ onSelectVerses: vi.fn() });
+      await screen.findByTestId('scripture-passage-popover');
+
+      // Collapsed view: no per-verse toggle buttons.
+      expect(
+        screen.queryByTitle('passage-verse-3-16')
+      ).toBeNull();
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Read full chapter',
+        })
+      );
+
+      // The chapter's verses render as selectable rows (the
+      // MSW fixture returns a single verse for any chapter).
+      expect(
+        await screen.findByTitle('passage-verse-3-16')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Show less' })
+      ).toBeInTheDocument();
+    });
+
+  it('hides the expand toggle for chapter-level refs',
+    async () => {
+      renderPopover({
+        reference: {
+          book: 'Psalms',
+          chapter: 18,
+          verses: null,
+        },
+        onSelectVerses: vi.fn(),
+      });
+      await screen.findByTestId('scripture-passage-popover');
+
+      // The whole chapter is already shown — verses render
+      // selectable right away, no 'Read full chapter' needed.
+      expect(
+        await screen.findByTitle('passage-verse-18-16')
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', {
+          name: 'Read full chapter',
+        })
+      ).toBeNull();
+      expect(
+        screen.getByText('Psalms 18')
+      ).toBeInTheDocument();
+    });
+
+  it('unselecting the sole selected verse widens to the ' +
+    'chapter', async () => {
+      const onSelectVerses = vi.fn();
+      renderPopover({ onSelectVerses });
+      await screen.findByTestId('scripture-passage-popover');
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Read full chapter',
+        })
+      );
+      fireEvent.click(
+        await screen.findByTitle('passage-verse-3-16')
+      );
+
+      expect(onSelectVerses).toHaveBeenCalledWith(null);
+    });
+
+  it('clicking an unselected verse extends the range to it',
+    async () => {
+      const onSelectVerses = vi.fn();
+      renderPopover({
+        reference: {
+          book: 'John',
+          chapter: 3,
+          verses: [15],
+        },
+        onSelectVerses,
+      });
+      await screen.findByTestId('scripture-passage-popover');
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Read full chapter',
+        })
+      );
+      fireEvent.click(
+        await screen.findByTitle('passage-verse-3-16')
+      );
+
+      expect(onSelectVerses).toHaveBeenCalledWith([15, 16]);
+    });
+
+  it('clicking a selected verse narrows the ref to it',
+    async () => {
+      const onSelectVerses = vi.fn();
+      renderPopover({
+        reference: {
+          book: 'John',
+          chapter: 3,
+          verses: [15, 16],
+        },
+        onSelectVerses,
+      });
+      await screen.findByTestId('scripture-passage-popover');
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Read full chapter',
+        })
+      );
+      // The MSW fixture only returns verse 16; clicking it
+      // narrows the [15, 16] selection to just verse 16.
+      fireEvent.click(
+        await screen.findByTitle('passage-verse-3-16')
+      );
+
+      expect(onSelectVerses).toHaveBeenCalledWith([16]);
+    });
 });

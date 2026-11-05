@@ -38,6 +38,50 @@ describe('useScriptureRefPreview', () => {
     });
   });
 
+  it('opens a chapter-level ref with null verses', () => {
+    const { result } = renderHook(() =>
+      useScriptureRefPreview()
+    );
+
+    act(() => result.current.open('@PSA.18', anchorAt(50)));
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.preview?.ref).toEqual({
+      book: 'Psalms',
+      chapter: 18,
+      verses: null,
+    });
+  });
+
+  it('narrows and widens the open preview via ' +
+    'setPreviewVerses', () => {
+    const { result } = renderHook(() =>
+      useScriptureRefPreview()
+    );
+
+    act(() => result.current.open('@PSA.18', anchorAt(50)));
+    act(() => result.current.setPreviewVerses([4, 5]));
+    expect(result.current.preview?.ref?.verses).toEqual([4, 5]);
+
+    act(() => result.current.setPreviewVerses(null));
+    expect(result.current.preview?.ref?.verses).toBeNull();
+    // The clicked token is untouched — re-parsing still
+    // describes the stored ref.
+    expect(result.current.preview?.token).toBe('@PSA.18');
+  });
+
+  it('setPreviewVerses is a no-op without an open ref', () => {
+    const { result } = renderHook(() =>
+      useScriptureRefPreview()
+    );
+
+    act(() => result.current.open('@ZZZ.1.1', anchorAt(50)));
+    act(() => result.current.setPreviewVerses([1]));
+
+    expect(result.current.preview?.ref).toBeNull();
+    expect(result.current.error).toBe('Unknown book: ZZZ');
+  });
+
   it('toggles closed when the same ref is opened again', () => {
     const { result } = renderHook(() =>
       useScriptureRefPreview()

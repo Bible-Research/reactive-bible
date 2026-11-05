@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -18,6 +19,8 @@ import ScriptureMention, {
 } from '../extensions/scriptureMention';
 import ScripturePassagePopover from './ScripturePassagePopover';
 import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
+import { buildRefToken } from '../utils/scriptureRef';
+import { toUsfmCode } from '../utils/bibleUtils';
 import {
   transformPastedSlice,
   transformPastedText,
@@ -82,7 +85,39 @@ const RichTextEditor = forwardRef<
     error: refError,
     open: openRefPreview,
     close: closeRefPreview,
+    setPreviewVerses,
   } = useScriptureRefPreview();
+
+  // Doc positions of the token the preview is anchored to —
+  // needed to rewrite it when the popover's expanded chapter
+  // view narrows the ref to specific verses.
+  const refEditRange = useRef<{
+    from: number;
+    to: number;
+    token: string;
+  } | null>(null);
+
+  const handleRefPreview = useCallback(
+    (
+      token: string,
+      anchor: Range,
+      edit?: { from: number; to: number }
+    ) => {
+      refEditRange.current = edit ? { ...edit, token } : null;
+      openRefPreview(token, anchor);
+    },
+    [openRefPreview]
+  );
+
+  const handleRefEditStart = useCallback(() => {
+    refEditRange.current = null;
+    closeRefPreview();
+  }, [closeRefPreview]);
+
+  const handleRefPreviewClose = useCallback(() => {
+    refEditRange.current = null;
+    closeRefPreview();
+  }, [closeRefPreview]);
 
   const note = variant === 'note';
 
@@ -98,10 +133,10 @@ const RichTextEditor = forwardRef<
       }),
       Placeholder.configure({ placeholder: placeholder ?? '' }),
       ScriptureMention.configure({
-        onRefPreview: openRefPreview,
+        onRefPreview: handleRefPreview,
         // The double-click picker reopen must drop the open
         // preview or the two floating panels overlap.
-        onRefEditStart: closeRefPreview,
+        onRefEditStart: handleRefEditStart,
       }),
       // Preserve stored scriptureRef/mention nodes — without
       // schema entries the editor would strip them on load.
@@ -141,6 +176,79 @@ const RichTextEditor = forwardRef<
   });
 
   useImperativeHandle(ref, () => ({ editor }), [editor]);
+
+  // Verse clicks in the popover's expanded chapter view narrow
+  // the stored '@…' token (a whole-chapter pick widens it to
+  // '@USFM.C'), then re-anchor the preview on the new token.
+  // The rewrite is skipped when the token no longer sits where
+  // the click recorded it — the preview still narrows.
+  const handleSelectVerses = useCallback(
+    (verses: number[] | null) => {
+      const preview = refPreview;
+      const ed = editor;
+      const range = refEditRange.current;
+      const code = preview?.ref
+        ? toUsfmCode(preview.ref.book)
+        : null;
+      if (!preview?.ref || !ed || !range || !code) {
+        setPreviewVerses(verses);
+        return;
+      }
+      const token = buildRefToken(
+        code,
+        preview.ref.chapter,
+        verses
+      );
+      let tokenIntact = false;
+      try {
+        if (
+          ed.state.doc.textBetween(range.from, range.to) ===
+          range.token
+        ) {
+          tokenIntact = true;
+        } else {
+          // Stored scriptureRef/mention atoms carry no text —
+          // their node range is what the click recorded.
+          const nodeAfter =
+            ed.state.doc.resolve(range.from).nodeAfter;
+          tokenIntact =
+            !!nodeAfter &&
+            (nodeAfter.type.name === 'scriptureRef' ||
+              nodeAfter.type.name === 'mention') &&
+            range.to === range.from + nodeAfter.nodeSize;
+        }
+      } catch {
+        tokenIntact = false;
+      }
+      if (!tokenIntact) {
+        setPreviewVerses(verses);
+        return;
+      }
+      ed.chain()
+        .insertContentAt(
+          { from: range.from, to: range.to },
+          token
+        )
+        .run();
+      const to = range.from + token.length;
+      try {
+        const r = document.createRange();
+        const start = ed.view.domAtPos(range.from);
+        const end = ed.view.domAtPos(to);
+        r.setStart(start.node, start.offset);
+        r.setEnd(end.node, end.offset);
+        handleRefPreview(token, r, { from: range.from, to });
+      } catch {
+        setPreviewVerses(verses);
+      }
+    },
+    [
+      editor,
+      refPreview,
+      setPreviewVerses,
+      handleRefPreview,
+    ]
+  );
 
   // External value changes (form reset, loading another note)
   // replace the doc; the editor's own emissions skip this.
@@ -232,7 +340,8 @@ const RichTextEditor = forwardRef<
           reference={refPreview.ref}
           error={refError}
           anchor={refPreview.anchor}
-          onClose={closeRefPreview}
+          onSelectVerses={handleSelectVerses}
+          onClose={handleRefPreviewClose}
         />
       )}
     </Input.Wrapper>
