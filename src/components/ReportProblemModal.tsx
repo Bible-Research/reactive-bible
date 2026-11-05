@@ -8,6 +8,7 @@ import {
   Textarea,
 } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
+import { useMediaQuery } from "@mantine/hooks";
 import { shallow } from "zustand/shallow";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
@@ -26,6 +27,11 @@ const ReportProblemModal = ({
 }: ReportProblemModalProps) => {
   const [note, setNote] = useState("");
   const username = useAuthStore((state) => state.user?.username);
+  // On phones the centered dialog leaves the textarea a few
+  // rows tall; go full-screen and let the input fill the
+  // space instead (same breakpoint as VerseActionToolbar and
+  // TranslationSelector).
+  const isMobile = useMediaQuery("(max-width: 768px)");
   // The current passage ships with the report so "this button
   // doesn't work" reports can be reproduced.
   const context = useBibleStore(
@@ -65,8 +71,28 @@ const ReportProblemModal = ({
       opened={opened}
       onClose={handleClose}
       title="Report a problem"
+      fullScreen={isMobile}
+      styles={
+        isMobile
+          ? {
+              content: {
+                display: "flex",
+                flexDirection: "column",
+              },
+              body: {
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              },
+            }
+          : {}
+      }
     >
-      <Stack spacing="md">
+      <Stack
+        spacing="md"
+        sx={isMobile ? { flex: 1, minHeight: 0 } : undefined}
+      >
         <Text size="sm" color="dimmed">
           Tell us what went wrong — the report is sent with your
           current passage for context.
@@ -82,6 +108,33 @@ const ReportProblemModal = ({
           value={note}
           onChange={(e) => setNote(e.currentTarget.value)}
           data-autofocus
+          sx={
+            isMobile
+              ? {
+                  flex: 1,
+                  minHeight: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }
+              : undefined
+          }
+          styles={
+            isMobile
+              ? {
+                  wrapper: {
+                    flex: 1,
+                    minHeight: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                  },
+                  input: {
+                    flex: 1,
+                    minHeight: 0,
+                    resize: "none",
+                  },
+                }
+              : {}
+          }
         />
         <Group position="right" spacing="xs">
           <Button variant="subtle" onClick={handleClose}>
