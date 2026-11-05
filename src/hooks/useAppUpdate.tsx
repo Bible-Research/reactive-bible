@@ -32,6 +32,14 @@ export const describeApk = (manifest: UpdateManifest): string => {
   return [name, size].filter(Boolean).join(' · ');
 };
 
+// update.json versionName is semver "x.y.z+build" for continuous
+// builds (e.g. "1.0.1+113"). Render it as "1.0.1 (build 113)" —
+// the raw "+113" metadata reads like noise in the popup.
+export const displayVersion = (versionName: string): string => {
+  const [base, build] = versionName.split('+');
+  return build ? `${base} (build ${build})` : base;
+};
+
 /**
  * Sideload update UX for the Android APK build. `useAppUpdate` runs
  * one throttled check per app start; `checkForUpdatesManually`
@@ -46,12 +54,13 @@ const openUpdateModal = (
   installed: InstalledVersion,
 ): void => {
   openConfirmModal({
-    title: `Update available · v${manifest.versionName}`,
+    title:
+      `Update available · v${displayVersion(manifest.versionName)}`,
     children: (
       <Stack spacing="xs">
         <Text size="sm">
-          A newer build is available (installed: v{installed.version}
-          ).
+          A newer build is available (installed: v
+          {displayVersion(installed.version)}).
         </Text>
         <Text size="sm" color="dimmed">
           Downloading opens your browser; Android will ask you to
