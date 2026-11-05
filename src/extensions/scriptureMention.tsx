@@ -62,6 +62,17 @@ interface PopupActions {
   insertToken: (token: string) => void;
 }
 
+export interface ScriptureMentionStorage {
+  /**
+   * Suppresses the '@' suggestion anchored at `from` while the
+   * query still begins with `query` — the same mechanism the
+   * picker's own insertions use, exposed so programmatic token
+   * rewrites (verse-pick narrowing in the passage preview)
+   * don't reopen the picker when the caret lands on the token.
+   */
+  suppressQuery: ((from: number, query: string) => void) | null;
+}
+
 interface PopupProps extends PopupActions {
   query: string;
 }
@@ -147,9 +158,14 @@ const ScriptureMentionPopup = ({
  * linkify pipeline already renders.
  */
 export const ScriptureMention = Extension.create<
-  ScriptureMentionOptions
+  ScriptureMentionOptions,
+  ScriptureMentionStorage
 >({
   name: 'scriptureMention',
+
+  addStorage() {
+    return { suppressQuery: null };
+  },
 
   addOptions() {
     return {
@@ -182,6 +198,11 @@ export const ScriptureMention = Extension.create<
       suppressFrom = from;
       suppressQuery = query;
     };
+
+    // Exposed via editor.storage.scriptureMention so the
+    // passage preview's token rewrite can suppress the '@'
+    // suggestion the same way insertToken does.
+    this.storage.suppressQuery = suppress;
 
     const clearSuppression = () => {
       suppressFrom = null;

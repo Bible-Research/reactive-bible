@@ -375,6 +375,37 @@ describe('ScriptureMention suggestion', () => {
       expect(previewOpen()).toBe(true);
     });
 
+  it('keeps the picker closed when a verse pick rewrites a ' +
+    'paragraph-end token', async () => {
+      // The rewrite drops the caret right after the token; at
+      // a paragraph end that text reads as a fresh '@…' query
+      // and would stack the picker over the preview without
+      // the insert suppression applied to the rewrite.
+      await renderEditor();
+      editor?.commands.setContent('<p>See @PSA.18</p>');
+
+      mouseDownAtPos(8);
+      await waitFor(() => expect(previewOpen()).toBe(true), {
+        timeout: 1500,
+      });
+      const verse = await waitFor(() => {
+        const el = document.querySelector(
+          '[title="passage-verse-18-16"]'
+        );
+        expect(el).toBeTruthy();
+        return el as Element;
+      });
+      fireEvent.click(verse);
+
+      await waitFor(() =>
+        expect(editor?.getText()).toBe('See @PSA.18.16')
+      );
+      // Give the suggestion plugin a tick to (not) activate.
+      await new Promise((r) => setTimeout(r, 100));
+      expect(popupOpen()).toBe(false);
+      expect(previewOpen()).toBe(true);
+    });
+
   it('closes the preview when the same ref is clicked again',
     async () => {
       await renderEditor();

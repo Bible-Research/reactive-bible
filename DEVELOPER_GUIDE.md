@@ -2437,10 +2437,16 @@ it, and unselecting the sole selected verse widens back to
 the chapter — keeping every selection storable as
 `@USFM.C[.V[-E]]` (`buildRefToken`). In the editor the new
 selection rewrites the clicked token in place (guarded: the
-doc text at the recorded positions must still match) and the
-preview re-anchors on it; in read views (note cards,
-comments) the selection narrows the open preview only, via
-`useScriptureRefPreview.setPreviewVerses`. The same popover
+doc text at the recorded positions must still match),
+suppresses the '@' suggestion via
+`editor.storage.scriptureMention.suppressQuery` (the caret
+lands after the token and would otherwise reopen the picker
+when the token ends its paragraph), and the preview
+re-anchors on it; in read views (note cards, comments) the
+selection narrows the open preview only, via
+`useScriptureRefPreview.setPreviewVerses` — and re-clicking
+the same token still toggles the panel closed, since the
+toggle keys on the token text rather than the parsed ref. The same popover
 serves note cards and comments (`RichTextView`/`linkifyScripture`
 anchors), driven by `useScriptureRefPreview` (parse + same-ref
 toggle); only one preview is open app-wide — opening one

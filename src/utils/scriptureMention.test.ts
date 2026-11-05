@@ -321,6 +321,15 @@ describe('isValidScriptureToken', () => {
     expect(isValidScriptureToken('@ZZZ.1')).toBe(false);
   });
 
+  it('rejects letter/digit suffixes and extra segments', () => {
+    // Malformed refs stay one invalid token rather than being
+    // clipped into a valid prefix + leftover text.
+    expect(isValidScriptureToken('@JHN.3x')).toBe(false);
+    expect(isValidScriptureToken('@JHN.3.16x')).toBe(false);
+    expect(isValidScriptureToken('@JHN.3.16.4')).toBe(false);
+    expect(isValidScriptureToken('@JHN.3_x')).toBe(false);
+  });
+
   it('rejects partial refs', () => {
     expect(isValidScriptureToken('@JHN')).toBe(false);
     expect(isValidScriptureToken('@JHN.')).toBe(false);

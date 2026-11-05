@@ -178,8 +178,13 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
   return result;
 };
 
-// Longest leading 'book.chap.verse[-end]' segment of a '@…' body.
-const FULL_REF_PREFIX = /^[a-zA-Z0-9+]+\.\d+[.:]\d+(?:-\d+)?/;
+// Longest leading 'book.chap.verse[-end]' segment of a '@…'
+// body. The lookahead keeps letter/digit suffixes and a
+// '.'-started extra segment ('JHN.3.16x', 'JHN.3.16.4') from
+// being clipped into a valid prefix — they stay one invalid
+// token, matching VALID_REF_PREFIX in scriptureLinkify.
+const FULL_REF_PREFIX =
+  /^[a-zA-Z0-9+]+\.\d+[.:]\d+(?:-\d+)?(?![a-zA-Z_\d]|\.[a-zA-Z0-9])/;
 
 /**
  * True when the query begins with a complete ref closed by '.'
@@ -187,7 +192,10 @@ const FULL_REF_PREFIX = /^[a-zA-Z0-9+]+\.\d+[.:]\d+(?:-\d+)?/;
  * suggestion should stay dismissed while they keep typing
  * after it ('JHN.3.16 is true' must not reopen the picker).
  * A chapter-level ref ('JHN.3') only terminates on whitespace —
- * a '.' after the chapter means a verse may follow.
+ * a '.' after the chapter means a verse may follow. Intended
+ * side effect: space-separated longhand refs can no longer
+ * reach a verse — '@john 3 ' seals as a chapter ref, so a verse
+ * must be typed with '.' or ':' ('john 3.16', 'john 3:16').
  */
 export const isTerminatedMentionQuery = (
   query: string

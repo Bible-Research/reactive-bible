@@ -70,6 +70,23 @@ describe('useScriptureRefPreview', () => {
     expect(result.current.preview?.token).toBe('@PSA.18');
   });
 
+  it('still toggles closed on the same token after ' +
+    'narrowing', () => {
+    const { result } = renderHook(() =>
+      useScriptureRefPreview()
+    );
+
+    act(() => result.current.open('@PSA.18', anchorAt(50)));
+    act(() => result.current.setPreviewVerses([4]));
+    // The open preview now shows verse 4 while the stored
+    // token still parses to the chapter — re-clicking it
+    // must close, not reopen with the stored ref.
+    act(() => result.current.open('@PSA.18', anchorAt(50)));
+
+    expect(result.current.preview).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
   it('setPreviewVerses is a no-op without an open ref', () => {
     const { result } = renderHook(() =>
       useScriptureRefPreview()

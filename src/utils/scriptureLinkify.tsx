@@ -8,8 +8,14 @@ import { isValidScriptureToken } from './scriptureMention';
 // the address renders as a bogus red invalid-ref span.
 export const SCRIPTURE_TOKEN_REGEX =
   /(?<!\w)(@[a-zA-Z0-9_+.:-]+)/g;
-export const VALID_REF_PREFIX =
-  /^(@[a-zA-Z0-9+]+\.\d+(?:[.:]\d+(?:-\d+)?)?)(.*)$/;
+// The lookahead keeps letter/digit suffixes and '.'-started
+// extra segments ('@JHN.3x', '@JHN.3.16x', '@JHN.3.16.4') from
+// being clipped into a valid link + leftover text — a malformed
+// ref stays one token and renders red instead.
+export const VALID_REF_PREFIX = new RegExp(
+  String.raw`^(@[a-zA-Z0-9+]+\.\d+(?:[.:]\d+(?:-\d+)?)?)` +
+    String.raw`(?![a-zA-Z_\d]|\.[a-zA-Z0-9])(.*)$`
+);
 
 // Only '@book.digit…' shapes count as ref attempts — plain
 // @-handles and emails ('bob@example.com') stay neutral text

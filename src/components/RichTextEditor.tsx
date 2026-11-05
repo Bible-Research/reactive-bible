@@ -17,6 +17,7 @@ import ScriptureMention, {
   ScriptureMentionNode,
   ScriptureRefNode,
 } from '../extensions/scriptureMention';
+import type { ScriptureMentionStorage } from '../extensions/scriptureMention';
 import ScripturePassagePopover from './ScripturePassagePopover';
 import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
 import { buildRefToken } from '../utils/scriptureRef';
@@ -224,6 +225,16 @@ const RichTextEditor = forwardRef<
         setPreviewVerses(verses);
         return;
       }
+      // insertContentAt leaves the caret right after the new
+      // token; at a paragraph end that reads as a live '@…'
+      // query and would reopen the picker stacked over the
+      // preview. Same suppression the picker applies to its
+      // own insertions.
+      (
+        ed.storage.scriptureMention as
+          | ScriptureMentionStorage
+          | undefined
+      )?.suppressQuery?.(range.from, token.slice(1));
       ed.chain()
         .insertContentAt(
           { from: range.from, to: range.to },
