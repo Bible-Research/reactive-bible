@@ -2242,10 +2242,14 @@ Top header bar with controls.
   watches inner scroll containers (scroll events do not bubble).
   The header slides up after ~150px of accumulated downward scroll
   and slides back after ~150px of accumulated upward scroll; it is
-  shown again on every route change and whenever the scroller
+  shown again on real route changes and whenever the scroller
   reaches the bottom of its content (within 24px), so the chapter
   navigation is always reachable at the end of a chapter
-  (`headerVisible` in the store).
+  (`headerVisible` in the store). Verse-selection URL updates
+  inside the same chapter (`/bible/LUK.13` ->
+  `/bible/LUK.13.3,12,15`) are NOT treated as route changes —
+  tapping a verse must only raise the `VerseActionToolbar`, not
+  un-hide the bars.
 - The same `headerVisible` store flag also gates `BottomNav`
   (slides below the viewport on hide) and the AppShell's
   reserved footer padding, so both bars move together.
