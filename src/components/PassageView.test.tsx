@@ -1,4 +1,9 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '../mocks/server';
@@ -232,6 +237,106 @@ describe('PassageView pendingScrollVerse', () => {
       expect(
         useBibleStore.getState().pendingScrollVerse,
       ).toBeNull();
+    },
+  );
+});
+
+describe('PassageView section headings', () => {
+  // Sentry 158512450: ESV Psalm 18 returns TWO headings both
+  // anchored at before_verse 1 — the section heading and the
+  // superscription. A single .find() renders only the first.
+  const psalm18Body = {
+    verses: [
+      { verse: 1, text: 'I love you, O LORD, my strength.' },
+      { verse: 2, text: 'The LORD is my rock and my fortress.' },
+    ],
+    headings: [
+      {
+        before_verse: 1,
+        text: 'The Lord Is My Rock and My Fortress',
+      },
+      {
+        before_verse: 1,
+        text: 'To the choirmaster. A Psalm of David.',
+      },
+    ],
+  };
+  const psalm18View = {
+    activeBookId: 'PSA',
+    activeChapter: 18,
+    activeTextFilesetId: 'ENGESV_API',
+    translations: [],
+  };
+
+  it('renders every heading anchored before the same verse',
+    async () => {
+      useBibleHandler(psalm18Body);
+
+      renderWithProviders(<PassageView />, {
+        storeOverrides: psalm18View,
+      });
+
+      await waitFor(() =>
+        expect(
+          screen.getByText(
+            'The Lord Is My Rock and My Fortress'
+          ),
+        ).toBeInTheDocument(),
+      );
+      expect(
+        screen.getByText(
+          'To the choirmaster. A Psalm of David.'
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it('lists duplicate-anchor headings in the section ' +
+    'outline without duplicate keys', async () => {
+      useBibleHandler(psalm18Body);
+      // Two headings share before_verse 1 — the outline must
+      // not build identical React keys off
+      // `${chapter}-${before_verse}`.
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        .mockImplementation(() => {
+          // Swallow React warnings; asserted via mock.calls.
+        });
+      try {
+        renderWithProviders(<PassageView />, {
+          storeOverrides: psalm18View,
+        });
+        fireEvent.click(
+          await screen.findByText(
+            'The Lord Is My Rock and My Fortress'
+          ),
+        );
+
+        await waitFor(() =>
+          expect(
+            screen.getByText(/Section Outline/),
+          ).toBeInTheDocument(),
+        );
+        expect(
+          screen.getAllByText(
+            'To the choirmaster. A Psalm of David.'
+          ).length,
+        ).toBeGreaterThanOrEqual(1);
+        // React warns about duplicate keys via console.error
+        // with a printf-style format string — scan every call
+        // argument rather than matching a fixed signature.
+        const keyWarnings = consoleSpy.mock.calls.filter(
+          (args) =>
+            args.some(
+              (a) =>
+                typeof a === 'string' &&
+                a.includes('same key'),
+            ),
+        );
+        expect(keyWarnings).toHaveLength(0);
+      } finally {
+        consoleSpy.mockRestore();
+      }
     },
   );
 });

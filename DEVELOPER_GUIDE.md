@@ -2903,6 +2903,10 @@ getVersesInChapter(
 - If `filesetId === 'ENGKJV'`: Lazy-loads the `kjv.json` chunk
   (via `kjvDataLoader.loadKjvData()`) and filters locally
 - Otherwise: Fetches from Bible Research API with caching
+- Several headings can share one `before_verse` anchor — the
+  ESV Psalm 18 superscription sits at `before_verse: 1`
+  alongside the section heading. Renderers must show every
+  match in payload order, not just the first.
 
 **`getVersesInKjvChapter(bookId, thechapter)`**
 
