@@ -10,7 +10,8 @@ import { findVersesInBetween } from './findVersesInBetween';
 export interface ScriptureRef {
   book: string;
   chapter: number;
-  verses: number[];
+  /** null = the whole chapter ('@PSA.18' style refs). */
+  verses: number[] | null;
 }
 
 export type ParsedScriptureRef =
@@ -20,28 +21,37 @@ export type ParsedScriptureRef =
 export const isSameScriptureRef = (
   a: ScriptureRef | null,
   b: ScriptureRef | null
-): boolean =>
-  !!a &&
-  !!b &&
-  a.book === b.book &&
-  a.chapter === b.chapter &&
-  a.verses.length === b.verses.length &&
-  a.verses.every((v, i) => v === b.verses[i]);
+): boolean => {
+  if (!a || !b) return false;
+  if (a.book !== b.book || a.chapter !== b.chapter) return false;
+  const av = a.verses;
+  const bv = b.verses;
+  if (av === null || bv === null) return av === bv;
+  return (
+    av.length === bv.length &&
+    av.every((v, i) => v === bv[i])
+  );
+};
 
 // Accepts Book.Chap:Verse or Book.Chap.Verse, optional -EndVerse
 const REF_REGEX = /^([a-zA-Z0-9+]+)\.(\d+)[.:](\d+)(?:-(\d+))?$/;
+// Chapter-level ref: Book.Chap — the whole chapter is implied.
+const CHAPTER_REF_REGEX = /^([a-zA-Z0-9+]+)\.(\d+)$/;
 
 export const parseScriptureRef = (
   hashtag: string
 ): ParsedScriptureRef => {
   const ref = hashtag.startsWith('@') ? hashtag.slice(1) : hashtag;
   const match = ref.match(REF_REGEX);
+  const chapterMatch = match ? null : ref.match(CHAPTER_REF_REGEX);
+  const found = match ?? chapterMatch;
 
-  if (!match) {
+  if (!found) {
     return { ok: false, error: 'Invalid scripture format' };
   }
 
-  const [, rawBook, chapterStr, startStr, endStr] = match;
+  const rawBook = found[1];
+  const chapterStr = found[2];
   const bookQuery = rawBook.replaceAll('+', ' ');
   // Resolve USFM book ids (e.g. "JHN") or names (e.g. "John")
   const bookEntry = getBooks().find(
@@ -58,8 +68,6 @@ export const parseScriptureRef = (
   // same source parseMentionQuery uses, so a stored '@' token
   // and a typed mention agree on what is in range.
   const chapter = Number(chapterStr);
-  const start = Number(startStr);
-  const end = endStr !== undefined ? Number(endStr) : null;
   const where = `${bookEntry.book_name} ${chapter}`;
 
   if (!getChapters(bookEntry.book_id).includes(chapter)) {
@@ -68,6 +76,19 @@ export const parseScriptureRef = (
       error: `No chapter ${chapter} in ${bookEntry.book_name}`,
     };
   }
+
+  // Chapter-level refs carry no verse list — the whole chapter.
+  if (!match) {
+    return {
+      ok: true,
+      ref: { book: bookEntry.book_name, chapter, verses: null },
+    };
+  }
+
+  const startStr = match[3];
+  const endStr = match[4];
+  const start = Number(startStr);
+  const end = endStr !== undefined ? Number(endStr) : null;
   const chapterVerses = getVerses(bookEntry.book_id, chapter);
   if (!chapterVerses.includes(start)) {
     return { ok: false, error: `No verse ${start} in ${where}` };
@@ -92,4 +113,26 @@ export const parseScriptureRef = (
         : [start],
     },
   };
+};
+
+/**
+ * Canonical storage token for a resolved ref: '@USFM.C.V[-E]',
+ * or '@USFM.C' when `verses` is null/empty (whole chapter).
+ * Callers keep `verses` contiguous — the token grammar cannot
+ * express gaps.
+ */
+export const buildRefToken = (
+  code: string,
+  chapter: number,
+  verses: number[] | null
+): string => {
+  if (!verses || verses.length === 0) {
+    return `@${code}.${chapter}`;
+  }
+  const sorted = [...verses].sort((a, b) => a - b);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  return first === last
+    ? `@${code}.${chapter}.${first}`
+    : `@${code}.${chapter}.${first}-${last}`;
 };

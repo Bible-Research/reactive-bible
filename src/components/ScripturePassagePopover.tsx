@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ActionIcon,
   Box,
+  Button,
   Group,
   Paper,
   Text,
@@ -30,6 +31,13 @@ interface ScripturePassagePopoverProps {
   error?: string | null;
   /** Clicked token/element the panel floats under. */
   anchor: ScriptureRefAnchor;
+  /**
+   * Verse clicks in the expanded chapter view report the new
+   * selection here — null means the whole chapter again. The
+   * caller owns narrowing (the editor rewrites the '@…' token;
+   * read views narrow the open preview only).
+   */
+  onSelectVerses?: (verses: number[] | null) => void;
   onClose: () => void;
 }
 
@@ -62,12 +70,17 @@ const cancelFrame = (id: number): void => {
 
 const refLabel = (ref: ScriptureRef | null): string => {
   if (!ref) return 'Passage';
+  if (ref.verses === null) return `${ref.book} ${ref.chapter}`;
   const start = ref.verses[0];
   const end = ref.verses[ref.verses.length - 1];
   const range =
     start === end ? `${start}` : `${start}-${end}`;
   return `${ref.book} ${ref.chapter}:${range}`;
 };
+
+// Inclusive verse list for a contiguous selection.
+const verseRange = (lo: number, hi: number): number[] =>
+  Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
 
 /**
  * Floating "Bible view" panel for a clicked '@…' scripture
@@ -80,6 +93,7 @@ const ScripturePassagePopover = ({
   reference,
   error = null,
   anchor,
+  onSelectVerses,
   onClose,
 }: ScripturePassagePopoverProps) => {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -104,6 +118,44 @@ const ScripturePassagePopover = ({
   } | null>(null);
   const navigate = useNavigate();
 
+  // The expanded "Read full chapter" view. Chapter-level refs
+  // start expanded — a whole chapter is what they already
+  // show. Adjusting state during render (React's documented
+  // pattern) resets the view when a different passage opens.
+  const passageKey = reference
+    ? `${reference.book}.${reference.chapter}`
+    : null;
+  const [expandedFor, setExpandedFor] =
+    useState(passageKey);
+  const [expanded, setExpanded] = useState(
+    () => reference?.verses == null
+  );
+  if (expandedFor !== passageKey) {
+    setExpandedFor(passageKey);
+    setExpanded(reference?.verses == null);
+  }
+
+  // Verse clicks in the expanded view keep the selection
+  // contiguous so it always fits the '@USFM.C.V[-E]' token
+  // grammar: an unselected verse grows the range to include
+  // it, a selected one narrows to just it, and unselecting
+  // the sole selected verse widens back to the chapter.
+  const toggleVerse = (verse: number) => {
+    const sel = reference?.verses ?? null;
+    let next: number[] | null;
+    if (sel === null) {
+      next = [verse];
+    } else if (sel.includes(verse)) {
+      next = sel.length === 1 ? null : [verse];
+    } else {
+      next = verseRange(
+        Math.min(sel[0], verse),
+        Math.max(sel[sel.length - 1], verse)
+      );
+    }
+    onSelectVerses?.(next);
+  };
+
   // Jumps to the passage in the Bible reader — the preview is
   // only ever ESV, so "read the full passage" means opening
   // the real route where the user's own translation applies.
@@ -114,7 +166,7 @@ const ScripturePassagePopover = ({
       buildBiblePath(
         reference.book,
         reference.chapter,
-        reference.verses
+        reference.verses ?? undefined
       )
     );
   };
@@ -348,10 +400,36 @@ const ScripturePassagePopover = ({
           </Text>
         ) : (
           reference && (
-            <ScripturePassage reference={reference} />
+            <ScripturePassage
+              reference={reference}
+              fullChapter={expanded}
+              onToggleVerse={
+                expanded && onSelectVerses
+                  ? toggleVerse
+                  : undefined
+              }
+            />
           )
         )}
       </Box>
+      {reference && !error && (
+        <Group position="center" spacing={4} mt={4}>
+          {reference.verses !== null && (
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={() => setExpanded((e) => !e)}
+            >
+              {expanded ? 'Show less' : 'Read full chapter'}
+            </Button>
+          )}
+          {expanded && onSelectVerses && (
+            <Text size="xs" color="dimmed">
+              Tap a verse to select it
+            </Text>
+          )}
+        </Group>
+      )}
     </Paper>,
     document.body
   );

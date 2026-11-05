@@ -20,6 +20,19 @@ describe('RichTextView', () => {
     expect(onRef).toHaveBeenCalledWith('@JHN.3.16', link);
   });
 
+  it('linkifies chapter-level refs', () => {
+    const onRef = vi.fn();
+    renderWithProviders(
+      <RichTextView
+        content="Read @PSA.18 tonight"
+        onScriptureRef={onRef}
+      />
+    );
+    const link = screen.getByText('@PSA.18');
+    fireEvent.click(link);
+    expect(onRef).toHaveBeenCalledWith('@PSA.18', link);
+  });
+
   it('renders doc-JSON paragraphs and marks', () => {
     renderWithProviders(
       <RichTextView

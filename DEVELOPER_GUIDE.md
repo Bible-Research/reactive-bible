@@ -2418,11 +2418,35 @@ Form for creating/editing notes.
   draft store can restore an in-progress note after reopen
 
 Typing `@` in the editor opens a passage picker that inserts a
-`@USFM.C.V[-E]` reference token. Clicking a complete token once
-opens the passage in a floating popover anchored under the ref —
-a portal-mounted `ScripturePassagePopover` containing
-`ScripturePassage` (the note is NOT linked to it); a second
-click reopens the picker to edit the reference. The same popover
+`@USFM.C.V[-E]` reference token; a book+chapter with no verse
+is also a complete ref — `@PSA.18` is a valid whole-chapter
+token (space/newline after `book.chapter` seals it without an
+error; a '.' still means a verse may follow). Clicking a
+complete token once opens the passage in a floating popover
+anchored under the ref — a portal-mounted
+`ScripturePassagePopover` containing `ScripturePassage` (the
+note is NOT linked to it); a second click reopens the picker
+to edit the reference. `ScriptureRef.verses` is `number[] |
+null` — null marks a chapter-level ref, which the popover
+renders expanded by default. A "Read full chapter" button at
+the bottom of a verse-ref preview expands the panel to the
+whole chapter (scrollable, referenced verses highlighted);
+tapping a verse toggles the selection — an unselected verse
+extends the contiguous range, a selected one narrows to just
+it, and unselecting the sole selected verse widens back to
+the chapter — keeping every selection storable as
+`@USFM.C[.V[-E]]` (`buildRefToken`). In the editor the new
+selection rewrites the clicked token in place (guarded: the
+doc text at the recorded positions must still match),
+suppresses the '@' suggestion via
+`editor.storage.scriptureMention.suppressQuery` (the caret
+lands after the token and would otherwise reopen the picker
+when the token ends its paragraph), and the preview
+re-anchors on it; in read views (note cards, comments) the
+selection narrows the open preview only, via
+`useScriptureRefPreview.setPreviewVerses` — and re-clicking
+the same token still toggles the panel closed, since the
+toggle keys on the token text rather than the parsed ref. The same popover
 serves note cards and comments (`RichTextView`/`linkifyScripture`
 anchors), driven by `useScriptureRefPreview` (parse + same-ref
 toggle); only one preview is open app-wide — opening one
@@ -2559,7 +2583,9 @@ Modal for selecting Bible translations.
 - `UserMenu.tsx` - account dropdown (logout, profile)
 - `PassagePicker.tsx` - book/chapter/verse picker embedded in
   note modals (click toggles, shift-click ranges)
-- `ScripturePassage.tsx` - renders `@USFM.C.V` mention previews
+- `ScripturePassage.tsx` - renders `@USFM.C[.V]` mention
+  previews; its expanded mode lists the whole chapter with
+  selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
   read-only rendering (lazy chunk)
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
