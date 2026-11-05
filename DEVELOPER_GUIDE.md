@@ -2417,6 +2417,18 @@ Form for creating/editing notes.
 - `onDraftChange` reports live contents so the editor hook's
   draft store can restore an in-progress note after reopen
 
+On mobile (`max-width: 768px`) the three host modals
+(`AddStandaloneNoteModal`, `AddTagNoteModal`, `EditNoteModal`)
+pass `fillHeight`: their `styles` make the fullscreen modal's
+`content`/`body` a bounded flex column, the form fills it via
+`min-height: 100%`, and `RichTextEditor`'s `fillHeight` prop
+turns the TipTap content chain (`root` →
+`typographyStylesProvider` → `content` → `.ProseMirror`) into a
+`flex: 1` column that scrolls internally — a document-editor
+surface occupying the whole viewport between the tag picker
+and the sticky submit bar. Sections after the form (verse
+texts, linked notes, the verse picker) scroll below the fold.
+
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token; a book+chapter with no verse
 is also a complete ref — `@PSA.18` is a valid whole-chapter

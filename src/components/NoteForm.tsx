@@ -100,6 +100,12 @@ interface NoteFormProps {
   onFilesChange?: (files: File[]) => void;
   /** Re-staged files from a restored editor draft. */
   initialFiles?: File[];
+  /**
+   * Fill the modal body with the editing surface (mobile
+   * fullscreen mode): the form becomes a flex column and the
+   * editor's writing area stretches to occupy it.
+   */
+  fillHeight?: boolean;
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
@@ -145,6 +151,7 @@ const NoteForm = ({
   onAttachFiles,
   onFilesChange,
   initialFiles,
+  fillHeight = false,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
@@ -465,7 +472,18 @@ const NoteForm = ({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form
+      onSubmit={handleSubmit}
+      style={
+        fillHeight
+          ? {
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: '100%',
+            }
+          : undefined
+      }
+    >
       <Select
         variant="transparent"
         label="Tag"
@@ -488,6 +506,7 @@ const NoteForm = ({
         label="Note"
         value={noteText}
         onChange={setNoteText}
+        fillHeight={fillHeight}
       />
       {(existingImages.length > 0 || staged.length > 0) && (
         <Group spacing={6} mt={6} align="flex-start">

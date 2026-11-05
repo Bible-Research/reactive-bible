@@ -10,6 +10,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import { useMediaQuery } from "@mantine/hooks";
 import { showNotification } from "@mantine/notifications";
 
 import { useBibleStore } from "../store";
@@ -45,6 +46,7 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const {
     tags,
     getTags,
@@ -293,11 +295,21 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
       onClose={handleClose}
       title="Edit note"
       fullScreen
+      styles={{
+        // Mobile: let the form's editing surface fill the
+        // viewport — the body gets a bounded height so the
+        // form's min-height:100% resolves against it.
+        content: isMobile
+          ? { display: "flex", flexDirection: "column" }
+          : {},
+        body: isMobile ? { flex: 1 } : {},
+      }}
     >
       {note && (
         <>
           <NoteForm
             tags={tags}
+            fillHeight={isMobile}
             onSubmit={editor.submit}
             // Linked verses keep the note valid with no
             // text; the prop tracks the picker's live refs.
