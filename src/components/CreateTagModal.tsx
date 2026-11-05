@@ -8,6 +8,7 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { createTag } from '../api';
@@ -26,6 +27,15 @@ export function CreateTagModal({
   onSuccess,
   existingTags,
 }: CreateTagModalProps) {
+  // Full-screen at `sm` and narrower (768px is Mantine's
+  // `sm` — the query includes it) — the parent Select's
+  // dropdown gets the whole viewport to work with on a
+  // phone. `undefined` initialValue lets matchMedia resolve
+  // during the first render — a boolean would flash the
+  // windowed layout for one frame.
+  const fullScreen = useMediaQuery('(max-width: 768px)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,6 +101,7 @@ export function CreateTagModal({
       onClose={onClose}
       title="Create New Tag"
       size="md"
+      fullScreen={fullScreen}
     >
       <form onSubmit={handleFormSubmit}>
         <Stack spacing="md">
@@ -119,6 +130,12 @@ export function CreateTagModal({
             data={parentTagOptions}
             searchable
             clearable
+            // Bottom-anchored so the list can never flip up
+            // over the Tag Name field on short viewports;
+            // portal keeps it clear of the ScrollArea.
+            withinPortal
+            dropdownPosition="bottom"
+            maxDropdownHeight={280}
             description="Leave empty to create a root-level tag"
           />
 

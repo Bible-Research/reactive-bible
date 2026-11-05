@@ -444,6 +444,39 @@ npm test -- src/routes/BibleRoute.test.tsx
   slides away on a downward scroll and the notes list
   flex-grows into the freed space
 
+**TagManagementRoute** (`src/routes/TagManagementRoute.tsx`):
+- Hierarchical `TagTree` + `CreateTagModal`/`EditTagModal`;
+  deletes and publicity flips confirm through
+  `openConfirmModal` (`@mantine/modals`, provider in
+  `App.tsx`) — never `window.confirm`, which renders as an
+  unstyled system dialog on Android. Reparent drops PATCH
+  immediately with no confirm step
+- Narrow viewports (`max-width: 768px` — `sm`-and-below
+  inclusive) compress the page chrome to an `order=3`
+  title + icon-only New Tag button and give the search
+  full width with the "N tags" count inline. Each tree
+  row collapses its icon cluster into a single
+  `IconDotsVertical` `Menu` (View notes / publicity /
+  Edit, divider, red Delete) under the same width query
+  OR `(pointer: coarse)` — only TagTree reacts to the
+  coarse pointer, the route chrome and modals are
+  width-only — so tap targets stop overlapping. Desktop
+  keeps the inline icon row — all at `size="lg"` (34px)
+  for touch
+- Rows indent 8px/level with a 2px rail border on mobile
+  (24px margin on desktop); names `lineClamp` to one line;
+  parent rows tap to expand, leaf rows tap straight into
+  their notes; `Tooltip`s are disabled unless
+  `(pointer: fine)` — on touch they linger over icons
+- The modals go `fullScreen` on the same `sm`-and-below
+  width query; the parent `Select` is `withinPortal` +
+  `dropdownPosition="bottom"` so the list can't flip up
+  over the Tag Name field; Edit modal hides
+  Created/Updated behind a "Show details" toggle
+- Post-mutation refreshes are silent (`loadTags(true,
+  {silent:true})`) — the list never drops to a full-screen
+  loader after create/edit/delete/reparent
+
 **Navigation Pattern**:
 ```typescript
 // User clicks "View Notes" in menu
