@@ -12,6 +12,7 @@ import {
   IconChevronDown,
   IconChevronRight,
 } from "@tabler/icons-react";
+import { useMediaQuery } from "@mantine/hooks";
 import { getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useMemo, useState } from "react";
@@ -49,6 +50,7 @@ const AddTagNoteModal = ({
   opened,
   onClose,
 }: AddTagNoteModalProps) => {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const {
     tags,
     getTags,
@@ -196,7 +198,21 @@ const AddTagNoteModal = ({
   );
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Add note" fullScreen>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Add note"
+      fullScreen
+      styles={{
+        // Mobile: let the form's editing surface fill the
+        // viewport — the body gets a bounded height so the
+        // form's min-height:100% resolves against it.
+        content: isMobile
+          ? { display: "flex", flexDirection: "column" }
+          : {},
+        body: isMobile ? { flex: 1 } : {},
+      }}
+    >
       {linkedNotes && (
         <Text size="sm" color="dimmed" mb="sm">
           {linkedNotes.length}{" "}
@@ -207,6 +223,14 @@ const AddTagNoteModal = ({
       )}
       <NoteForm
         tags={tags}
+        fillHeight={isMobile}
+        trayLabel={isMobile ? "Linked verses" : undefined}
+        trayCount={isMobile ? refs.length : undefined}
+        trayContent={
+          isMobile ? (
+            <VerseTextGroups groups={textGroups} />
+          ) : undefined
+        }
         onSubmit={editor.submit}
         // The selection links verses — the note stays valid
         // with no text (a plain verse bookmark under a tag).
@@ -247,7 +271,7 @@ const AddTagNoteModal = ({
               : undefined
         }
       />
-      <VerseTextGroups groups={textGroups} />
+      {!isMobile && <VerseTextGroups groups={textGroups} />}
       {linkedNotes && linkedNotes.length > 0 && (
         <Box mt="xl">
           <Divider

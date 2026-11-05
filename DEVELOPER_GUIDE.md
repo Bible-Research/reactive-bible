@@ -2450,6 +2450,37 @@ Form for creating/editing notes.
 - `onDraftChange` reports live contents so the editor hook's
   draft store can restore an in-progress note after reopen
 
+On mobile (`max-width: 768px`) the three host modals
+(`AddStandaloneNoteModal`, `AddTagNoteModal`, `EditNoteModal`)
+pass `fillHeight`: their `styles` make the fullscreen modal's
+`content`/`body` a bounded flex column, the form fills it via
+`min-height: 100%`, and `RichTextEditor`'s `fillHeight` prop
+turns the TipTap content chain (`root` →
+`typographyStylesProvider` → `content` → `.ProseMirror`) into a
+`flex: 1` column that scrolls internally — a document-editor
+surface occupying the whole viewport between the tag picker
+and the sticky submit bar. Sections after the form (verse
+texts, linked notes, the verse picker) scroll below the fold.
+Mobile chrome in that mode follows the Google Docs pattern:
+the formatting toolbar stays pinned (`position: sticky` on
+`.mantine-RichTextEditor-toolbar`, applied on desktop too so
+it survives the modal's own scroll), the tag row collapses on
+scroll-down and returns on scroll-up (a capture-phase
+`scroll` listener in `NoteForm` — scroll events don't bubble,
+so capture is required to see the ProseMirror's internal
+scroller; elements marked `data-note-form-static` and an open
+tag dropdown are ignored), and the action bar becomes a
+single icon row (submit ✓, attach-image with count badge,
+autosave toggle, public/lock toggle) — the desktop bar with
+text buttons and checkboxes is unchanged. Modals may also
+pass `trayLabel`/`trayCount`/`trayContent` to render a
+collapsible tray above the action bar — the linked verses:
+`AddTagNoteModal` passes `VerseTextGroups`, `EditNoteModal`
+passes the `PassagePicker` + verse texts (its desktop
+collapsible section is `!isMobile`-gated, and the shared JSX
+lives in `versesSection`). The tray panel scrolls internally
+(`max-height: 45vh`).
+
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token; a book+chapter with no verse
 is also a complete ref — `@PSA.18` is a valid whole-chapter

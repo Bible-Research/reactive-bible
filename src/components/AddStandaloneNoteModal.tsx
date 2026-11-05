@@ -1,4 +1,5 @@
 import { Modal } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { useBibleStore } from "../store";
 import { useEffect } from "react";
 import { useNoteEditor } from "../hooks/useNoteEditor";
@@ -19,6 +20,7 @@ const AddStandaloneNoteModal = ({
   opened,
   onClose,
 }: AddStandaloneNoteModalProps) => {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const {
     tags,
     getTags,
@@ -53,9 +55,24 @@ const AddStandaloneNoteModal = ({
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title="New note" fullScreen>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="New note"
+      fullScreen
+      styles={{
+        // Mobile: let the form's editing surface fill the
+        // viewport — the body gets a bounded height so the
+        // form's min-height:100% resolves against it.
+        content: isMobile
+          ? { display: "flex", flexDirection: "column" }
+          : {},
+        body: isMobile ? { flex: 1 } : {},
+      }}
+    >
       <NoteForm
         tags={tags}
+        fillHeight={isMobile}
         onSubmit={editor.submit}
         submitText="Submit"
         onTagDropdownOpen={() => {
