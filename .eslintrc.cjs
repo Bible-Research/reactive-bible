@@ -1,4 +1,8 @@
 module.exports = {
+  // Stop config cascading at this file — git worktrees nested
+  // inside the main checkout otherwise inherit the parent's
+  // .eslintrc.cjs and eslint fails on duplicate plugin loads.
+  root: true,
   env: { browser: true, es2020: true },
   extends: [
     'eslint:recommended',
