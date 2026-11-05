@@ -1,8 +1,13 @@
-import { screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import MyHeader from './MyHeader';
 import { useBibleStore } from '../store';
-import { renderWithProviders } from '../__tests__/helpers';
+import {
+  mockDomApis,
+  renderWithProviders,
+  resetStore,
+} from '../__tests__/helpers';
 
 // Creates a fake scroll container attached to the document so the
 // header's capture-phase window listener receives its scroll
@@ -191,5 +196,85 @@ describe('MyHeader', () => {
     scroller.scrollTo(150); // down = 20 — below the threshold
 
     expect(isVisible()).toBe(true);
+  });
+
+  describe('route changes', () => {
+    // Buttons that drive real router navigations — verse taps
+    // replace the URL with /bible/BOOK.CHAPTER.verses, which
+    // must not re-show bars a scroll just hid.
+    const Nav = () => {
+      const navigate = useNavigate();
+      return (
+        <>
+          <button
+            title="nav-verses"
+            onClick={() => navigate('/bible/LUK.13.3,12,15')}
+          />
+          <button
+            title="nav-deselect"
+            onClick={() => navigate('/bible/LUK.13')}
+          />
+          <button
+            title="nav-chapter"
+            onClick={() => navigate('/bible/LUK.14')}
+          />
+        </>
+      );
+    };
+
+    // renderWithProviders wraps in its own MemoryRouter and
+    // nested routers are forbidden — render directly with the
+    // initial entry the test needs instead.
+    const renderHeaderAt = (path: string) => {
+      resetStore();
+      mockDomApis();
+      return render(
+        <MemoryRouter initialEntries={[path]}>
+          <MyHeader menuOpened={false} setMenuOpened={vi.fn()} />
+          <Nav />
+        </MemoryRouter>
+      );
+    };
+
+    it('stays hidden when verse selection updates the URL ' +
+      'inside the same chapter', () => {
+      renderHeaderAt('/bible/LUK.13');
+      const scroller = createScroller();
+      scrollers.push(scroller);
+
+      scroller.scrollTo(0);
+      scroller.scrollTo(200);
+      expect(isVisible()).toBe(false);
+
+      fireEvent.click(screen.getByTitle('nav-verses'));
+      expect(isVisible()).toBe(false);
+    });
+
+    it('stays hidden when clearing the selection removes the ' +
+      'verse segment from the URL', () => {
+      renderHeaderAt('/bible/LUK.13.3,12,15');
+      const scroller = createScroller();
+      scrollers.push(scroller);
+
+      scroller.scrollTo(0);
+      scroller.scrollTo(200);
+      expect(isVisible()).toBe(false);
+
+      fireEvent.click(screen.getByTitle('nav-deselect'));
+      expect(isVisible()).toBe(false);
+    });
+
+    it('reappears on a real navigation to another chapter', () => {
+      renderHeaderAt('/bible/LUK.13.3');
+      const scroller = createScroller();
+      scrollers.push(scroller);
+
+      scroller.scrollTo(0);
+      scroller.scrollTo(200);
+      expect(isVisible()).toBe(false);
+
+      fireEvent.click(screen.getByTitle('nav-chapter'));
+      expect(isVisible()).toBe(true);
+    });
   });
 });

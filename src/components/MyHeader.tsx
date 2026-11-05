@@ -10,6 +10,7 @@ import { IconSearch } from "@tabler/icons-react";
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { parseBibleRef } from "../utils/bibleUtils";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
 
@@ -23,6 +24,18 @@ const SHOW_SCROLL_DELTA = 150;
 // chapter" — the bars always come back there so the reader can
 // reach the next/previous buttons without scrolling up first.
 const BOTTOM_REVEAL_PX = 24;
+
+// Chapter identity of a /bible/<ref> path ("LUK.13"), or null
+// for any other route / unparseable ref. Verse selection mirrors
+// into the address bar (/bible/LUK.13 -> /bible/LUK.13.3,12,15),
+// which must NOT count as a route change — selecting a verse is
+// not a navigation, so the hidden bars stay hidden instead of
+// popping back on every tap.
+const bibleChapterKey = (pathname: string): string | null => {
+  if (!pathname.startsWith("/bible/")) return null;
+  const parsed = parseBibleRef(pathname.slice("/bible/".length));
+  return parsed ? `${parsed.bookId}.${parsed.chapter}` : null;
+};
 
 const MyHeader = ({
   menuOpened,
@@ -48,9 +61,20 @@ const MyHeader = ({
     up: 0,
   });
 
-  // Show the header again whenever the route changes.
+  // Show the header again whenever the route changes — except
+  // when only the verse segment changed inside the same chapter
+  // (a verse tap mirrors the selection into the URL). Compare
+  // chapter keys so /bible/LUK.13 -> /bible/LUK.13.5 keeps the
+  // current visibility while real navigations still reveal.
+  const prevChapterKey = useRef<string | null>(null);
   useEffect(() => {
-    setVisible(true);
+    const key = bibleChapterKey(location.pathname);
+    const sameChapter =
+      key !== null && key === prevChapterKey.current;
+    prevChapterKey.current = key;
+    if (!sameChapter) {
+      setVisible(true);
+    }
   }, [location.pathname, setVisible]);
 
   useEffect(() => {
