@@ -137,6 +137,42 @@ const esvDbTimestamped: Translation = {
   ],
 };
 
+// Latvian pair for the cross-translation substitution test:
+// LAVLVR's OT recording is partial (misses Jeremiah); the
+// GLU8 generated audio covers it — the reported production
+// shape.
+const lavLvr: Translation = {
+  abbr: 'LAVLVR',
+  name: '1953 British and Foreign Bible Society',
+  language: 'Latvian',
+  language_iso: 'lvs',
+  filesets: [
+    { id: 'LATLVRP1DA', type: 'audio', size: 'OTP',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'LATLVRP1DA-opus16', type: 'audio', size: 'OTP',
+      codec: 'opus', bitrate: '16' },
+    { id: 'LATLVRN1DA', type: 'audio', size: 'NT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'LATLVRN1DA-opus16', type: 'audio', size: 'NT',
+      codec: 'opus', bitrate: '16' },
+  ],
+};
+
+const glu8: Translation = {
+  abbr: 'GLU8',
+  name: 'Latvian Glück 8th edition',
+  language: 'Latvian',
+  language_iso: 'lvs',
+  filesets: [
+    { id: 'LVSGLU8', type: 'text_plain', size: 'C',
+      codec: null, bitrate: null },
+    { id: 'LVSGLU8C1DA', type: 'audio', size: 'C',
+      codec: null, bitrate: null },
+    { id: 'LVSGLU8C2DA', type: 'audio', size: 'C',
+      codec: null, bitrate: null },
+  ],
+};
+
 const mockStoreState = {
   activeAudioFilesetId: 'ENGESHN1DA-opus16',
   activeTextFilesetId: 'ENGESH',
@@ -743,6 +779,66 @@ describe('useAudioPlaylist', () => {
           ([arg]) =>
             (arg as { title?: string }).title ===
             'No verse timestamps',
+        );
+      expect(notices).toHaveLength(1);
+    },
+  );
+
+  it('notifies once per (pair, book) when playback ' +
+    'substitutes another version', async () => {
+      const { BookNotInFilesetError } = await import('../api');
+      const { showNotification } =
+        await import('@mantine/notifications');
+      mockStoreState.translations = [lavLvr, glu8];
+      mockStoreState.activeAudioFilesetId = 'LAVLVR:audio:1';
+      mockStoreState.activeTextFilesetId = 'GLU8:text:1';
+      // Jeremiah is a coverage miss inside LAVLVR's partial OT
+      // recording — the walk lands on GLU8's generated audio.
+      vi.mocked(api.getBibleAudioUrl).mockImplementation(
+        (_book, _chapter, filesetId) =>
+          filesetId === 'LVSGLU8C1DA'
+            ? Promise.resolve('http://audio.test/glu8.mp3')
+            : Promise.reject(
+                new BookNotInFilesetError('not covered'),
+              ),
+      );
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ bookId: 'JER', chapter: 1,
+            label: 'Jeremiah 1' }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(1)
+      );
+      const howl = latestHowl();
+      expect(howl.src).toEqual(['http://audio.test/glu8.mp3']);
+      act(() => { howl.emit('load'); });
+      await waitFor(() =>
+        expect(result.current.isPlaying).toBe(true)
+      );
+
+      // The version swap is announced — never silent like a
+      // codec/option alternate inside the same translation.
+      await waitFor(() =>
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Audio not in selected version',
+            message: expect.stringContaining(
+              'Latvian Glück 8th edition',
+            ),
+          }),
+        )
+      );
+
+      // A replay of the same book/pair must not re-announce.
+      act(() => { howl.emit('play'); });
+      const notices = vi.mocked(showNotification).mock.calls
+        .filter(
+          ([arg]) =>
+            (arg as { title?: string }).title ===
+            'Audio not in selected version',
         );
       expect(notices).toHaveLength(1);
     },

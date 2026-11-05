@@ -63,6 +63,7 @@ const CommentNode = ({
     error: scriptureError,
     open: openScripture,
     close: closeScripture,
+    setPreviewVerses,
   } = useScriptureRefPreview();
   const [lightboxImageId, setLightboxImageId] =
     useState<string | null>(null);
@@ -189,6 +190,7 @@ const CommentNode = ({
               reference={scripturePreview.ref}
               error={scriptureError}
               anchor={scripturePreview.anchor}
+              onSelectVerses={setPreviewVerses}
               onClose={closeScripture}
             />
           )}

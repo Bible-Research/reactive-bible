@@ -4,10 +4,33 @@ import { openConfirmModal } from '@mantine/modals';
 import { showNotification } from '@mantine/notifications';
 import {
   checkForUpdates,
+  getInstalledVersion,
   UpdateCheckResult,
   UpdateManifest,
   InstalledVersion,
 } from '../utils/appUpdate';
+import {
+  reportInstalledBuild,
+  reportUpdateOpened,
+} from '../utils/updateTelemetry';
+
+// "reactive-bible-97.apk · 5.1 MB" — what the user should see in
+// Downloads, so an older / partial file is easy to tell apart.
+export const describeApk = (manifest: UpdateManifest): string => {
+  let name = '';
+  try {
+    name = decodeURIComponent(
+      new URL(manifest.apkUrl).pathname.split('/').pop() ?? '',
+    );
+  } catch {
+    name = '';
+  }
+  const size =
+    typeof manifest.apkSize === 'number' && manifest.apkSize > 0
+      ? `${(manifest.apkSize / (1024 * 1024)).toFixed(1)} MB`
+      : '';
+  return [name, size].filter(Boolean).join(' · ');
+};
 
 /**
  * Sideload update UX for the Android APK build. `useAppUpdate` runs
@@ -34,6 +57,16 @@ const openUpdateModal = (
           Downloading opens your browser; Android will ask you to
           confirm the install once the APK finishes downloading.
         </Text>
+        {describeApk(manifest) && (
+          <Text size="sm">File: {describeApk(manifest)}</Text>
+        )}
+        <Text size="xs" color="dimmed">
+          If Android says &quot;There was a problem parsing the
+          package&quot;, the download is incomplete or an older
+          file was opened: wait for the download to finish, then
+          open exactly this file from the browser&apos;s download
+          notification or Downloads.
+        </Text>
       </Stack>
     ),
     labels: { confirm: 'Update', cancel: 'Later' },
@@ -44,7 +77,10 @@ const openUpdateModal = (
     // already restricted to https GitHub hosts, so a hostile
     // scheme cannot reach this call. Verify on-device that the
     // APK opens externally rather than inside the WebView.
-    onConfirm: () => window.open(manifest.apkUrl, '_system'),
+    onConfirm: () => {
+      reportUpdateOpened(manifest, installed);
+      window.open(manifest.apkUrl, '_system');
+    },
   });
 };
 
@@ -81,6 +117,11 @@ const handleCheckResult = (
 export const useAppUpdate = (): void => {
   useEffect(() => {
     let cancelled = false;
+    // Unthrottled (cheap native call): tags Sentry events with the
+    // installed versionCode and reports a completed update.
+    void getInstalledVersion().then((installed) => {
+      if (installed) reportInstalledBuild(installed);
+    });
     void checkForUpdates().then((result) => {
       if (!cancelled) handleCheckResult(result, false);
     });

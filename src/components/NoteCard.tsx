@@ -105,6 +105,7 @@ const NoteCard = ({
     error: passageError,
     open: openPassage,
     close: closePassage,
+    setPreviewVerses,
   } = useScriptureRefPreview();
 
   // useCallback keeps memo(RichTextView)'s onScriptureRef
@@ -270,6 +271,7 @@ const NoteCard = ({
           reference={passagePreview.ref}
           error={passageError}
           anchor={passagePreview.anchor}
+          onSelectVerses={setPreviewVerses}
           onClose={closePassage}
         />
       )}

@@ -4,8 +4,14 @@ import { isNativeApp } from './platform';
  * Native (Capacitor) helpers that keep the WebView's JS alive while
  * audio plays with the screen off. On Android a WebView is frozen a
  * few minutes after screen-off unless the app runs a foreground
- * service — this module wraps @anuradev/capacitor-background-mode
- * and the one-time battery-optimization exemption prompt.
+ * service — this module wraps @anuradev/capacitor-background-mode.
+ *
+ * The plugin is patched (patches/@anuradev+capacitor-background-
+ * mode+*.patch) to run a `mediaPlayback` service with no battery-
+ * exemption or keyguard code: its stock `specialUse|microphone`
+ * service, SIP-call justification and battery prompt got sideloaded
+ * updates flagged as harmful by Play Protect. Do not reintroduce a
+ * battery-optimization prompt.
  */
 /**
  * Dynamic-import the plugin lazily (this module is statically
@@ -23,8 +29,6 @@ import { isNativeApp } from './platform';
 const loadBackgroundMode = () =>
   import('@anuradev/capacitor-background-mode');
 
-const BATTERY_PROMPT_KEY = 'android_battery_prompt_shown';
-
 const ensureNotificationPermission = async (): Promise<void> => {
   try {
     const { BackgroundMode } = await loadBackgroundMode();
@@ -35,25 +39,6 @@ const ensureNotificationPermission = async (): Promise<void> => {
     }
   } catch (err) {
     console.warn('Notification permission check failed:', err);
-  }
-};
-
-// Android shows a system dialog for ACTION_REQUEST_IGNORE_BATTERY_
-// OPTIMIZATIONS — ask only once per install.
-const promptBatteryExemptionOnce = async (): Promise<void> => {
-  try {
-    if (localStorage.getItem(BATTERY_PROMPT_KEY)) return;
-    const { BackgroundMode } = await loadBackgroundMode();
-    const { enabled } =
-      await BackgroundMode.checkBatteryOptimizations();
-    // Mark the prompt shown only after the check succeeded —
-    // a failed plugin call must not burn the one-time prompt.
-    localStorage.setItem(BATTERY_PROMPT_KEY, '1');
-    if (enabled) {
-      await BackgroundMode.requestDisableBatteryOptimizations();
-    }
-  } catch (err) {
-    console.warn('Battery optimization check failed:', err);
   }
 };
 
@@ -81,7 +66,6 @@ export const enableAudioKeepAlive = async (): Promise<void> => {
     } else {
       await BackgroundMode.disableWebViewOptimizations();
     }
-    await promptBatteryExemptionOnce();
   } catch (err) {
     console.warn('Failed to enable audio keep-alive:', err);
   }

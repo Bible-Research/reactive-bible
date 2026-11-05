@@ -90,10 +90,23 @@ is the agent-fixable bug queue** — anything else is deliberate:
   fix-sentry-issue skill.
 - `reportType: media-debug` — info snapshot from the
   media-debug APK flow. Diagnostics only, read-only.
+- `reportType: app-update` — info events from the APK's
+  sideload updater (`src/utils/updateTelemetry.ts`):
+  `updateStep: download-opened` (user tapped Update) and
+  `updateStep: installed` (app started on a higher
+  versionCode). Read-only diagnostics.
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
   reportable but routable.
+
+APK builds report too: `android-release.yml` passes the
+`VITE_SENTRY_DSN` Actions secret to `npm run build` with
+`VITE_APP_ENV=android` (main / `v*` release APKs) or
+`android-debug` (other refs) and release
+`android-<versionCode>`; events also carry a `versionCode`
+tag. The web bug queue filter (`environment:production`)
+therefore excludes the APK — use `environment:android` for it.
 
 `sentryBeforeSend` (`src/utils/sentry.ts`) drops expected
 noise before it reaches Sentry: `RateLimitError`,
@@ -152,3 +165,51 @@ npm test -- --run  # vitest headless (98 files / 953 tests)
   are consumed too (book-name keyed, auth-gated; see
   `readingPositions` in `src/store.ts`).
 - KJV audio is fetched from wordpocket.org directly, not the API.
+
+## Android / Play Protect
+
+- `@anuradev/capacitor-background-mode` is patched via
+  `patch-package` (`patches/`, `postinstall`) and pinned to
+  exactly `8.1.0`. Its stock manifest (`specialUse|microphone`
+  FGS, SIP-call justification, battery-exemption permission)
+  got sideloaded APK updates blocked as "harmful" by Play
+  Protect. Never re-add a battery-optimization prompt. When
+  bumping the plugin, regenerate the patch. CI fails on red-flag
+  permissions — see `DEVELOPER_GUIDE.md` "Play Protect hygiene".
+- Inspect a built APK's manifest without the Android SDK: use
+  `unzip -p x.apk AndroidManifest.xml` and decode the binary
+  XML. Check signing certs with
+  `unzip -p x.apk META-INF/*.RSA | openssl pkcs7 -inform DER
+  -print_certs`. Local `java`/`keytool` are macOS stubs, so
+  there are no local Gradle builds; build via the
+  `Android APK` workflow (`gh workflow run "Android APK"
+  --ref <branch>` gives a debug APK artifact).
+- `update.json`'s `apkUrl` points at a per-build
+  `reactive-bible-<run_number>.apk` asset, never the reused
+  `reactive-bible.apk`: overwriting a fixed-name asset deletes
+  it first, so phones polling mid-publish downloaded a 404 page
+  / truncated file and Android said "problem parsing the
+  package". The workflow uploads APKs first and `update.json`
+  in a later step, then prunes all but the newest 5 versioned
+  APKs. Keep that ordering.
+- **Dynamic install evidence comes from CI emulators** (no local
+  Android SDK). `gh workflow run "Android install test" -R
+  Bible-Research/reactive-bible [-f apk_url=<url>]` installs the
+  APK fresh, as an update over v1.0.0, via the PackageInstaller
+  UI and via a real Chrome download, on API 24/33/35/36; read
+  `install-test-api<N>/results.txt` + logcat artifacts. Main
+  builds only publish to `continuous` after this passes
+  (`install-test` job in `android-release.yml`). Details in
+  `DEVELOPER_GUIDE.md` "Emulator install test".
+- "There was a problem parsing the package" on a phone while
+  the emulator test passes means the phone opened a bad file
+  (partial download, a stale `reactive-bible (1).apk`, a 404
+  page saved during a publish) — not a broken APK. v97 was
+  verified installing/updating on API 24-36 (2026-10-29); a
+  truncated APK reproduces the exact dialog
+  (`INSTALL_PARSE_FAILED_NOT_APK`).
+- The `continuous` tag is moved with the refs API
+  (`gh api -X PATCH …/git/refs/tags/continuous`), not
+  `git push -f`: GITHUB_TOKEN pushes were rejected for lacking
+  the `workflows` permission once the commit touched workflows
+  (run 40890986153). The retag step is non-fatal.

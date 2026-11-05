@@ -80,6 +80,42 @@ describe('NoteVerseList', () => {
     ).toHaveLength(1);
   });
 
+  it('renders every heading anchored before the same verse',
+    () => {
+      // Sentry 158512450: ESV Psalm 18 carries both the
+      // section heading and the superscription at
+      // before_verse 1 — a .find() would drop the second.
+      const note = createMockNote({
+        verses: [
+          createMockVerse({
+            book: 'Psalms', chapter: 18, verse: 1, text: 'v1',
+          }),
+        ],
+        headings: [
+          {
+            before_verse: 1,
+            text: 'The Lord Is My Rock and My Fortress',
+          },
+          {
+            before_verse: 1,
+            text: 'To the choirmaster. A Psalm of David.',
+          },
+        ],
+      });
+
+      renderWithProviders(
+        <NoteVerseList note={note} scope="n1" folded={false} />
+      );
+
+      expect(
+        screen.getByText('The Lord Is My Rock and My Fortress')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('To the choirmaster. A Psalm of David.')
+      ).toBeInTheDocument();
+    },
+  );
+
   it('renders the provider error instead of verses', () => {
     const note = createMockNote({
       error: 'Bible provider rate limit exceeded (HTTP 429)',

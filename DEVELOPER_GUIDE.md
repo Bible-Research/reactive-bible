@@ -198,7 +198,8 @@ The application uses React Router for client-side navigation, enabling
 shareable URLs, browser history support, and deep linking. Canonical
 Bible URLs use USFM refs — `/bible/JHN.3.16-18` selects John 3:16–18;
 `/bible/JHN.3` opens the chapter. Non-bible routes are lazy-loaded via
-`React.lazy` in `index.tsx`; `BibleRoute` and `LegacyBibleRedirect`
+`lazyWithReload` (`src/utils/lazyWithReload.ts`, a `React.lazy`
+wrapper) in `index.tsx`; `BibleRoute` and `LegacyBibleRedirect`
 stay eager because they serve the landing path.
 
 ### Routes
@@ -1510,12 +1511,29 @@ pairs and testament-split members into `FilesetOption`s
   a stored id (product or member) to the concrete `text_plain`
   fileset covering the book's testament — `_ET` splits are
   handled transparently; unknown ids pass through.
-- `resolveAudioFileset(storedId, bookId, translations)` returns
-  `{ filesetId, codec, alternates }`: opus16 is preferred, and
-  `alternates` is ordered mp3 sibling → other-testament member →
-  same-kind options → any audio option. Playback walks this list
-  on `BookNotInFilesetError` or Howler load/play errors before
-  notifying.
+- `resolveAudioFileset(storedId, bookId, translations,
+  textFilesetId?)` returns `{ filesetId, codec, alternates }`:
+  opus16 is preferred, and `alternates` is ordered mp3 sibling →
+  other-testament member → same-kind options → any audio option
+  → cross-translation options (the read version's translation
+  first — `textFilesetId`'s owner — then every other
+  translation in the owner's language). Both cross-translation
+  tiers are gated on a non-empty `language_iso` matching the
+  audio selection's owner — a foreign-language text selection
+  (or a missing code) never lends audio. Playback walks this
+  list on `BookNotInFilesetError` or Howler load/play errors
+  before notifying. When the winning candidate belongs to a
+  different translation than the selected product, a
+  substitution notification ("{version} audio for {book} is
+  unavailable — playing {fallback} instead") fires once per
+  (owner pair, book): chapter mode keeps the dedup set for the
+  session, the playlist clears it on every `start()`.
+  Foreign-language audio is never substituted — the
+  coverage-miss notification fires instead. Codec memory
+  (`orderedAudioCandidates`' `rememberedCodec` promotion and
+  `useChapterAudio`'s `workingCodecRef` recording) is scoped to
+  the selection's own translation so a fallback win cannot
+  become sticky.
 - `preferTimestampedAudio(filesetId, translations)` swaps a
   resolved audio fileset for the timestamp-backed sibling
   recording in `TIMESTAMP_BACKED_AUDIO` (`bibleUtils.ts`) —
@@ -2010,6 +2028,27 @@ pasting into a GitHub issue.
 - **React render errors**: `ErrorBoundary` wraps the routed
   content in `App.tsx` and reports through the same path; its
   fallback UI also offers "Copy error details".
+- **Stale chunks after a deploy**: a long-lived tab holds the
+  previous `index.html`, so its `import()` calls request hashed
+  assets the new deploy already deleted — the browser rejects
+  with a chunk-load error (Chrome 'Failed to fetch dynamically
+  imported module', Firefox 'error loading dynamically
+  imported module', Safari 'Importing a module script failed',
+  plus `ChunkLoadError` / 'Loading chunk N failed' / 'Loading
+  CSS chunk' / Vite 8's 'Unable to preload CSS'; matched by
+  `src/utils/chunkLoadError.ts`). Every `React.lazy` site uses
+  `lazyWithReload` (`src/utils/lazyWithReload.ts`) and the
+  `kjv.json` loader applies the same helper: on a chunk-load
+  rejection the page reloads at most once per URL per
+  10-minute window (sessionStorage timestamp guard +
+  in-memory flag) to fetch the fresh `index.html`, holding the
+  Suspense fallback instead of crashing. While
+  `navigator.onLine` reports the tab offline the reload is
+  skipped — a reload would land on the browser's
+  connection-error page — and the error propagates to the
+  route's boundary. Once the guard has fired — or for any
+  non-chunk failure — the original error is rethrown so
+  `ErrorBoundary`/`reportError` handle it.
 
 **Implementation**:
 ```typescript
@@ -2236,10 +2275,14 @@ Top header bar with controls.
   watches inner scroll containers (scroll events do not bubble).
   The header slides up after ~150px of accumulated downward scroll
   and slides back after ~150px of accumulated upward scroll; it is
-  shown again on every route change and whenever the scroller
+  shown again on real route changes and whenever the scroller
   reaches the bottom of its content (within 24px), so the chapter
   navigation is always reachable at the end of a chapter
-  (`headerVisible` in the store).
+  (`headerVisible` in the store). Verse-selection URL updates
+  inside the same chapter (`/bible/LUK.13` ->
+  `/bible/LUK.13.3,12,15`) are NOT treated as route changes —
+  tapping a verse must only raise the `VerseActionToolbar`, not
+  un-hide the bars.
 - The same `headerVisible` store flag also gates `BottomNav`
   (slides below the viewport on hide) and the AppShell's
   reserved footer padding, so both bars move together.
@@ -2408,11 +2451,35 @@ Form for creating/editing notes.
   draft store can restore an in-progress note after reopen
 
 Typing `@` in the editor opens a passage picker that inserts a
-`@USFM.C.V[-E]` reference token. Clicking a complete token once
-opens the passage in a floating popover anchored under the ref —
-a portal-mounted `ScripturePassagePopover` containing
-`ScripturePassage` (the note is NOT linked to it); a second
-click reopens the picker to edit the reference. The same popover
+`@USFM.C.V[-E]` reference token; a book+chapter with no verse
+is also a complete ref — `@PSA.18` is a valid whole-chapter
+token (space/newline after `book.chapter` seals it without an
+error; a '.' still means a verse may follow). Clicking a
+complete token once opens the passage in a floating popover
+anchored under the ref — a portal-mounted
+`ScripturePassagePopover` containing `ScripturePassage` (the
+note is NOT linked to it); a second click reopens the picker
+to edit the reference. `ScriptureRef.verses` is `number[] |
+null` — null marks a chapter-level ref, which the popover
+renders expanded by default. A "Read full chapter" button at
+the bottom of a verse-ref preview expands the panel to the
+whole chapter (scrollable, referenced verses highlighted);
+tapping a verse toggles the selection — an unselected verse
+extends the contiguous range, a selected one narrows to just
+it, and unselecting the sole selected verse widens back to
+the chapter — keeping every selection storable as
+`@USFM.C[.V[-E]]` (`buildRefToken`). In the editor the new
+selection rewrites the clicked token in place (guarded: the
+doc text at the recorded positions must still match),
+suppresses the '@' suggestion via
+`editor.storage.scriptureMention.suppressQuery` (the caret
+lands after the token and would otherwise reopen the picker
+when the token ends its paragraph), and the preview
+re-anchors on it; in read views (note cards, comments) the
+selection narrows the open preview only, via
+`useScriptureRefPreview.setPreviewVerses` — and re-clicking
+the same token still toggles the panel closed, since the
+toggle keys on the token text rather than the parsed ref. The same popover
 serves note cards and comments (`RichTextView`/`linkifyScripture`
 anchors), driven by `useScriptureRefPreview` (parse + same-ref
 toggle); only one preview is open app-wide — opening one
@@ -2549,7 +2616,9 @@ Modal for selecting Bible translations.
 - `UserMenu.tsx` - account dropdown (logout, profile)
 - `PassagePicker.tsx` - book/chapter/verse picker embedded in
   note modals (click toggles, shift-click ranges)
-- `ScripturePassage.tsx` - renders `@USFM.C.V` mention previews
+- `ScripturePassage.tsx` - renders `@USFM.C[.V]` mention
+  previews; its expanded mode lists the whole chapter with
+  selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
   read-only rendering (lazy chunk)
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
@@ -2893,6 +2962,10 @@ getVersesInChapter(
 - If `filesetId === 'ENGKJV'`: Lazy-loads the `kjv.json` chunk
   (via `kjvDataLoader.loadKjvData()`) and filters locally
 - Otherwise: Fetches from Bible Research API with caching
+- Several headings can share one `before_verse` anchor — the
+  ESV Psalm 18 superscription sits at `before_verse: 1`
+  alongside the section heading. Renderers must show every
+  match in payload order, not just the first.
 
 **`getVersesInKjvChapter(bookId, thechapter)`**
 
@@ -3636,9 +3709,9 @@ prefetchAdjacentChapters(book, chapter, filesetId);
   `vendor-mantine`'s test excludes `@mantine/tiptap` so it
   stays in the lazy editor graph.
 - **KJV JSON**: ~4.5MB gzipped (lazy-loaded chunk)
-- **Route chunks**: non-bible routes lazy via `React.lazy` in
-  `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect` stay
-  eager (landing path)
+- **Route chunks**: non-bible routes lazy via `lazyWithReload`
+  in `src/routes/index.tsx`; `BibleRoute`/`LegacyBibleRedirect`
+  stay eager (landing path)
 - **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
   `EditNoteModal` lazy + gated on their open flag, keeping
   TipTap out of the entry graph entirely
@@ -3706,9 +3779,13 @@ listing. `.github/workflows/android-release.yml` has three channels:
 |----------------------|-----------------------------------------------|
 | push `android`       | debug APK → workflow artifact (30 days)       |
 | `workflow_dispatch`  | debug APK → workflow artifact                 |
-| push `v*` tag        | signed APK → that tag's GitHub Release asset  |
-| push `main`          | signed APK + `update.json` → rolling          |
-|                      | `continuous` prerelease                       |
+| push `v*` tag        | signed APK → that tag's GitHub Release asset; |
+|                      | then `update.json` → `continuous` points at   |
+|                      | the tag's asset so installed apps update to   |
+|                      | the milestone                                 |
+| push `main`          | signed APK (versioned + stable name), then    |
+|                      | `update.json` → rolling `continuous`          |
+|                      | prerelease                                    |
 
 - Signing uses `ANDROID_KEYSTORE_BASE64`, `KEY_ALIAS`,
   `KEYSTORE_PASSWORD`, `KEY_PASSWORD` secrets. The same keystore
@@ -3716,10 +3793,49 @@ listing. `.github/workflows/android-release.yml` has three channels:
 - `versionCode` is always `github.run_number` (monotonic across all
   builds) so Android accepts every newer build as an in-place
   update. `versionName` is the tag name for `v*` builds and
-  `0.0.<run_number>` on `main`.
-- The `continuous` tag is force-moved to each `main` commit;
+  `<latest v* tag>+<run_number>` on `main` (e.g. `1.0.0+106`,
+  falling back to `0.0.<run_number>` when no release exists), so
+  continuous builds read as post-milestone instead of a version
+  regression. The resolved name travels inside the `release-apk`
+  artifact as `version.txt` — job outputs are secret-scanned —
+  and both publish jobs copy it into `update.json`, so the
+  manifest always names exactly what the APK was built with.
+- The `continuous` tag is force-moved to each `main` commit (and
+  to each `v*` tag commit when a milestone is published);
   `prerelease: true` + `make_latest: false` keep
   `releases/latest` pointing at real milestones.
+
+### Play Protect hygiene (patched background-mode plugin)
+
+Sideloaded updates were blocked by Google Play Protect as
+"harmful". The cause was the merged manifest of
+`@anuradev/capacitor-background-mode` (screen-off audio
+keep-alive, `src/utils/nativeAudio.ts`): a
+`specialUse|microphone` foreground service justified as
+"receive … calls from third party SIP servers", the
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` prompt, and
+wake/keyguard-dismiss code. `patches/@anuradev+capacitor-
+background-mode+8.1.0.patch` (applied by the `postinstall`
+`patch-package` script) turns the service into a plain
+`mediaPlayback` one and drops those permissions. It stubs
+`wakeUp`, `unlock`, `moveToBackground`, `moveToForeground` and
+`requestDisableBatteryOptimizations`, and removes all keyguard /
+show-when-locked code. It also stops the WebView-visibility
+re-dispatch from being gated on battery exemption.
+
+Users who see audio stop with the screen off can set Settings →
+Apps → Bible Research → Battery → **Unrestricted**. That restores
+the battery exemption without the app requesting it.
+
+- The plugin is pinned to exactly `8.1.0` so the patch applies.
+  Before bumping it, regenerate the patch with
+  `npx patch-package @anuradev/capacitor-background-mode`.
+- The workflow step "Check APK for Play Protect red flags"
+  fails the build if `SPECIAL_USE`, battery-exemption, or
+  microphone permissions come back into the manifest.
+- Do not add permissions to the shell without weighing their
+  Play Protect risk. The app has no Play listing or install
+  base, so every new APK gets a cold scan.
 
 ### In-app update check
 
@@ -3738,14 +3854,139 @@ sideloaded installs. The MainMenu has a "Check for updates" row
 ```json
 {
   "versionCode": 123,
-  "versionName": "0.0.123",
-  "apkUrl": "<.../releases/download/continuous/reactive-bible.apk>",
-  "apkSha256": "<sha256 of the signed APK>",
+  "versionName": "1.0.0+123",
+  "apkUrl": "<.../download/continuous/reactive-bible-123.apk>",
+  "apkSha256": "<sha256 of reactive-bible-123.apk>",
+  "apkSize": 5361263,
   "minShellBuild": 123,
   "commitSha": "<commit the build was cut from>",
   "releasedAt": "<ISO-8601 UTC>"
 }
 ```
+
+#### Versioned APK assets and upload ordering
+
+Each `main` build attaches the same signed bytes twice to the
+`continuous` prerelease: `reactive-bible-<run_number>.apk`
+(versioned) and `reactive-bible.apk` (stable, kept for old links
+and older manifests). `apkUrl` always names the versioned asset.
+
+- Why: re-uploading a fixed-name asset deletes it first. When the
+  manifest and APK went up in one step, `update.json` landed
+  before the APK, so a phone polling in that window saw the new
+  `versionCode`, downloaded a 404 page / truncated file, and
+  Android reported "problem parsing the package". The reused
+  name also left `reactive-bible (1).apk` duplicates in
+  Downloads.
+- Ordering: "Publish continuous APKs" uploads both APKs, and
+  only then "Publish continuous update.json" uploads the
+  manifest. A manifest never advertises an APK that is not fully
+  uploaded.
+- Pruning: "Prune old versioned APKs" deletes all but the newest
+  5 `reactive-bible-<n>.apk` assets (never the current build,
+  `reactive-bible.apk` or `update.json`). It is
+  `continue-on-error` — the build is already published by then.
+
+#### Emulator install test (publish gate)
+
+`.github/workflows/android-install-test.yml` +
+`scripts/android-install-test.sh` install an APK on real
+emulators (`reactivecircus/android-emulator-runner@v2`,
+`google_apis` x86_64, default API levels 24 / 33 / 35 / 36).
+Per API level it checks:
+
+- `fresh` — `adb install` on a clean device;
+- `update` / `pm-update` — install the v1.0.0 release, then
+  update in place (`adb install -r`, `pm install -r`) — the
+  same-cert update a phone performs;
+- `launch` — the updated app starts;
+- `ui-install-file` / `ui-install-content` — the system
+  PackageInstaller UI opened on a file in `/sdcard/Download`;
+  FAIL only if it shows "There was a problem parsing the
+  package" (INFO where the shell may not launch installs);
+- `chrome-download` / `ui-chrome` — Chrome downloads the APK
+  (the GitHub URL in dispatch mode, a local server via
+  `adb reverse` in gate mode), the bytes are compared, then the
+  file is opened from Chrome and the installer's Update /
+  Install button is tapped; PASS means the versionCode really
+  changed. FAIL only on a byte mismatch, a parse-error dialog or
+  a wrong versionCode; INFO when the UI automation could not
+  reach a step (old Chrome on API 24, snackbar timing).
+
+On `main` pushes `android-release.yml` runs `build` → uploads
+the signed APK as artifact `release-apk` → `install-test`
+(this workflow via `workflow_call`) → `publish`. `publish` (the
+versioned copy, `update.json`, retag, uploads, prune) only runs
+when every emulator job passed, so a non-installable APK never
+reaches `continuous`. It is serialized (`continuous-publish`
+concurrency group) and skips if `continuous` already advertises
+an equal or newer `versionCode`.
+
+`v*` tag pushes run the same `build` → `install-test` gate, then
+a `publish-tag` job: attach both `reactive-bible.apk` (stable,
+for humans and `releases/latest` links) and
+`reactive-bible-<versionName>.apk` (versioned, what
+`update.json` points at — versioned names never collide with
+older files in the phone's Downloads) to the tag's release,
+generate `update.json` whose `apkUrl` names that versioned tag
+asset, upload it to `continuous`, and retag `continuous` to the
+tagged commit. Because the updater only polls the `continuous`
+manifest, this is how a milestone release reaches installed
+apps — `versionCode` is still the run number, so it reads as a
+normal upgrade. For the in-place update leg the tag run passes
+`old_apk_url: continuous`, which the install-test resolves to
+the APK `continuous` currently advertises (otherwise, on a
+`v1.0.0` re-tag, the default `v1.0.0` URL would "update" the
+milestone onto itself — and the URL cannot be passed literally:
+job outputs are secret-scanned and a release URL gets dropped).
+`publish-tag` shares the `continuous-publish` concurrency group
+and the same already-published guard. If `install-test` fails, nothing is
+attached to the tag's release and installed apps are untouched.
+
+Reproduce a phone install problem against any published APK:
+
+```bash
+gh workflow run "Android install test" \
+  -R Bible-Research/reactive-bible \
+  -f apk_url=<url, empty = current update.json apkUrl> \
+  -f api_levels='[24, 33, 34, 35, 36]'
+gh run download <run-id> -R Bible-Research/reactive-bible
+# install-test-api<N>/results.txt, logcat*.txt,
+# installer-filtered.txt, ui-*.png / chrome-download.png
+```
+
+API 29 `google_apis` images hung at boot for 30+ minutes on
+hosted runners — leave it out of the gate.
+
+#### Updater telemetry (Sentry, APK builds)
+
+APK builds now ship Sentry: the workflow passes the
+`VITE_SENTRY_DSN` Actions secret (the same public DSN the web
+bundle carries) to `npm run build`, with `VITE_APP_ENV=android`
+for `main` / `v*` release APKs (`android-debug` otherwise) and
+`VITE_APP_RELEASE=android-<versionCode>`. Filter the APK with
+`environment:android`.
+
+`src/utils/updateTelemetry.ts` adds `app-update` breadcrumbs to
+every check (manifest fetched / HTTP error / rejected / fetch
+failed, installed vs offered versionCode) and two info events
+tagged `reportType: app-update`:
+
+- `updateStep: download-opened` — "Update" was tapped; extras
+  carry `apkUrl`, `apkSha256`, `apkSize`.
+- `updateStep: installed` — on start the installed versionCode
+  (`App.getInfo().build`, stored under
+  `app_update_last_build`) grew since the previous start, i.e.
+  an update really landed (`fromBuild` / `toBuild` tags).
+
+Every event also gets a `versionCode` tag. A `download-opened`
+without a later `installed` from the same device means the
+browser / installer leg failed. Telemetry only starts once a
+build containing it is installed.
+
+The update modal shows the expected file name and size
+(`apkSize` in `update.json`, bytes) plus a hint for "There was
+a problem parsing the package" (incomplete or older file opened).
 
 `minShellBuild` is reserved for a future OTA web-bundle path — a
 bundle may only be applied when `installedBuild >= minShellBuild`.
@@ -3774,7 +4015,9 @@ surface as the transport layer:
   the handled taxonomy (`RateLimitError`,
   `BookNotInFilesetError`, `AbortError`, 'Session expired',
   `ChunkLoadError` / `Loading chunk N failed` / `Loading CSS
-  chunk`, `ResizeObserver loop`) so expected conditions don't
+  chunk` — stale-chunk failures the app already self-heals via
+  `lazyWithReload`'s guarded reload —, `ResizeObserver loop`)
+  so expected conditions don't
   burn quota. `ClientInputError` is deliberately NOT dropped —
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',
@@ -3786,8 +4029,10 @@ surface as the transport layer:
   real bugs; `reportType` marks non-bug `captureMessage`
   streams: `resource-load` (warning, missing assets),
   `user-report` (info, "Report a problem"), `media-debug`
-  (info, APK diagnostics). `errorKind` refines which kind of
-  failure an exception was (`network` today).
+  (info, APK diagnostics), `app-update` (info, sideload
+  updater: `updateStep` `download-opened` / `installed`).
+  `errorKind` refines which kind of failure an exception was
+  (`network` today).
 - **User reports:** the main menu's "Report a problem" row
   (always visible) opens `ReportProblemModal`, where the user
   describes the issue. `sendUserReport`

@@ -4,8 +4,10 @@ import { openConfirmModal } from '@mantine/modals';
 import { showNotification } from '@mantine/notifications';
 import {
   checkForUpdatesManually,
+  describeApk,
   useAppUpdate,
 } from './useAppUpdate';
+import { reportUpdateOpened } from '../utils/updateTelemetry';
 import {
   checkForUpdates,
   UpdateCheckResult,
@@ -17,6 +19,12 @@ vi.mock('@mantine/modals', () => ({
 
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
+}));
+
+vi.mock('../utils/updateTelemetry', () => ({
+  reportInstalledBuild: vi.fn(),
+  reportUpdateOpened: vi.fn(),
+  updateBreadcrumb: vi.fn(),
 }));
 
 vi.mock('../utils/appUpdate', async (importOriginal) => ({
@@ -88,7 +96,32 @@ describe('useAppUpdate', () => {
         'https://github.com/x/y/releases/download/a.apk',
         '_system',
       );
+      expect(reportUpdateOpened).toHaveBeenCalledWith(
+        expect.objectContaining({ versionCode: 41 }),
+        { build: 40, version: '0.0.40' },
+      );
     });
+});
+
+describe('describeApk', () => {
+  const base = 'https://github.com/o/r/releases/download/continuous/';
+
+  it('shows the file name and size', () => {
+    expect(describeApk({
+      versionCode: 97,
+      versionName: '0.0.97',
+      apkUrl: `${base}reactive-bible-97.apk`,
+      apkSize: 5361263,
+    })).toBe('reactive-bible-97.apk · 5.1 MB');
+  });
+
+  it('omits a missing size', () => {
+    expect(describeApk({
+      versionCode: 97,
+      versionName: '0.0.97',
+      apkUrl: `${base}reactive-bible-97.apk`,
+    })).toBe('reactive-bible-97.apk');
+  });
 });
 
 describe('checkForUpdatesManually', () => {

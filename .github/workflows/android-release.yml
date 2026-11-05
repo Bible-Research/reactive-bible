@@ -6,8 +6,15 @@ name: Android APK
 # release as `reactive-bible.apk` (fixed name keeps the download
 # URL stable: releases/latest/download/reactive-bible.apk), and on
 # every push to `main`, attached to the rolling `continuous`
-# prerelease together with `update.json` — the manifest installed
-# apps poll to detect a newer build.
+# prerelease as a per-build `reactive-bible-<run_number>.apk` (plus
+# the stable `reactive-bible.apk`), followed by `update.json` — the
+# manifest installed apps poll to detect a newer build. Tag builds
+# also rewrite continuous/update.json (pointing at the tag's own
+# release asset) so installed apps are offered the milestone.
+# Main and tag builds are published only after
+# android-install-test.yml installed the signed APK on emulators
+# (fresh, in-place update and the Chrome download → installer
+# path): a non-installable APK never reaches `continuous`.
 on:
   workflow_dispatch:
   push:
@@ -35,7 +42,25 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Sentry for the APK: the DSN is public (it ships in the web
+      # bundle) and lives in the VITE_SENTRY_DSN Actions secret;
+      # unset it expands to '' and Sentry stays a no-op. Events
+      # are tagged environment `android` (release builds) or
+      # `android-debug`, release `android-<versionCode>`.
+      - name: Select Sentry environment
+        run: |
+          if [ "${{ github.ref }}" = refs/heads/main ] || \
+            [ "${{ github.ref_type }}" = tag ]; then
+            echo "VITE_APP_ENV=android" >> "$GITHUB_ENV"
+          else
+            echo "VITE_APP_ENV=android-debug" >> "$GITHUB_ENV"
+          fi
+
       - run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_APP_RELEASE: android-${{ github.run_number }}
       - run: npx cap sync android
 
       # Capacitor 8 targets Java 21 / compileSdk 36.
@@ -53,15 +78,20 @@ jobs:
           yes | "$SDKM" --licenses > /dev/null
           "$SDKM" "platforms;android-36" "build-tools;36.0.0"
 
-      # Skipped on main pushes — the signed release APK below is the
-      # artifact that matters there.
+      # Only the `android` branch and manual dispatches need the
+      # debug APK — on main and tag runs the signed release APK
+      # below is the artifact that matters.
       - name: Build debug APK
-        if: github.ref != 'refs/heads/main'
+        if: >-
+          github.ref != 'refs/heads/main' &&
+          !startsWith(github.ref, 'refs/tags/')
         working-directory: android
         run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }}
 
       - uses: actions/upload-artifact@v5
-        if: github.ref != 'refs/heads/main'
+        if: >-
+          github.ref != 'refs/heads/main' &&
+          !startsWith(github.ref, 'refs/tags/')
         with:
           name: reactive-bible-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
@@ -74,13 +104,29 @@ jobs:
           startsWith(github.ref, 'refs/tags/v') ||
           github.ref == 'refs/heads/main'
         working-directory: android
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.ref_type }}" = "tag" ]; then
             VNAME="${GITHUB_REF_NAME#v}"
           else
-            VNAME="0.0.${{ github.run_number }}"
+            # Continuous builds name themselves after the newest
+            # milestone: "<latest v* tag>+<run>" e.g. 1.0.0+106 —
+            # clearly newer than the milestone, unlike 0.0.N.
+            LATEST=$(gh api \
+              "repos/$GITHUB_REPOSITORY/releases/latest" \
+              --jq '.tag_name | sub("^v"; "")' 2>/dev/null) \
+              || LATEST=""
+            if [ -n "$LATEST" ]; then
+              VNAME="$LATEST+${{ github.run_number }}"
+            else
+              VNAME="0.0.${{ github.run_number }}"
+            fi
           fi
-          echo "APP_VERSION_NAME=$VNAME" >> "$GITHUB_ENV"
+          # Ship the name inside the artifact so the publish jobs
+          # write exactly what the APK was built with into
+          # update.json (job outputs would be secret-scanned).
+          echo "$VNAME" > "$GITHUB_WORKSPACE/version.txt"
           ./gradlew assembleRelease \
             -PversionCode=${{ github.run_number }} \
             -PversionName="$VNAME"
@@ -108,19 +154,34 @@ jobs:
             aligned.apk
           rm release-key.p12
 
-      - name: Attach APK to GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: reactive-bible.apk
-
-      # ---------- Rolling `continuous` channel (main only) ----------
+      # Play Protect flagged sideloaded updates as harmful while the
+      # background-mode plugin shipped a specialUse|microphone
+      # service, a SIP-call FGS justification and the battery-
+      # exemption permission. patches/ strips them — fail the build
+      # if any return (e.g. a plugin bump the patch no longer fits).
+      - name: Check APK for Play Protect red flags
+        run: |
+          set -e
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          APK=reactive-bible.apk
+          [ -f "$APK" ] || \
+            APK=android/app/build/outputs/apk/debug/app-debug.apk
+          "$BT/aapt2" dump xmltree --file AndroidManifest.xml \
+            "$APK" > manifest.txt
+          FLAGS='SPECIAL_USE|IGNORE_BATTERY_OPTIMIZATIONS'
+          FLAGS="$FLAGS|RECORD_AUDIO|FOREGROUND_SERVICE_MICROPHONE"
+          if grep -E "$FLAGS" manifest.txt; then
+            echo "::error::Play Protect red flag in APK manifest"
+            exit 1
+          fi
 
       # Sanity check: the APK's real versionCode must equal the
       # run_number baked into update.json, or installed apps would
       # compare against a stale number.
       - name: Verify APK versionCode
-        if: github.ref == 'refs/heads/main'
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          github.ref == 'refs/heads/main'
         run: |
           set -e
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
@@ -129,47 +190,285 @@ jobs:
             sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
           test "$VC" = "${{ github.run_number }}"
 
-      - name: Generate update.json
-        if: github.ref == 'refs/heads/main'
+      - uses: actions/upload-artifact@v5
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') ||
+          github.ref == 'refs/heads/main'
+        with:
+          name: release-apk
+          path: |
+            reactive-bible.apk
+            version.txt
+          retention-days: 14
+
+  # Gate: boot emulators and install the exact signed bytes.
+  install-test:
+    needs: build
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/android-install-test.yml
+    with:
+      apk_artifact: release-apk
+      # Tag builds need a genuinely OLDER APK for the in-place
+      # update leg — on a v1.0.0 tag the default v1.0.0 URL is
+      # this same build (or already deleted). 'continuous' makes
+      # the test resolve the APK the manifest currently serves.
+      old_apk_url: >-
+        ${{ startsWith(github.ref, 'refs/tags/v') &&
+            'continuous' || '' }}
+
+  publish:
+    needs: [build, install-test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Serialize publishes; the stale-run guard below handles a
+    # slower older run finishing after a newer one.
+    concurrency:
+      group: continuous-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-apk
+
+      - name: Skip if a newer build is already published
+        id: guard
+        run: |
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
+          CUR=$(curl -fsSL "$BASE/continuous/update.json" | \
+            jq -r .versionCode || echo 0)
+          echo "published=$CUR this=${{ github.run_number }}"
+          if [ "${CUR:-0}" -ge "${{ github.run_number }}" ] 2>/dev/null
+          then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::continuous already has build $CUR"
+          fi
+
+      # update.json points at a per-build asset name instead of the
+      # reused `reactive-bible.apk`: re-uploading a fixed name deletes
+      # it first, so a manifest read mid-publish could send phones a
+      # 404 page / truncated file ("problem parsing the package").
+      # Unique names also stop `reactive-bible (1).apk` duplicates
+      # piling up in the phone's Downloads.
+      - name: Create versioned APK copy
+        if: steps.guard.outputs.skip != 'true'
         run: |
           set -e
-          APK_SHA=$(sha256sum reactive-bible.apk | cut -d' ' -f1)
+          VAPK="reactive-bible-${{ github.run_number }}.apk"
+          cp reactive-bible.apk "$VAPK"
+          echo "VERSIONED_APK=$VAPK" >> "$GITHUB_ENV"
+
+      - name: Generate update.json
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -e
+          APK_SHA=$(sha256sum "$VERSIONED_APK" | cut -d' ' -f1)
+          APK_SIZE=$(stat -c %s "$VERSIONED_APK")
           BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
-          APK_URL="$BASE/continuous/reactive-bible.apk"
+          APK_URL="$BASE/continuous/$VERSIONED_APK"
           jq -n \
             --argjson versionCode "${{ github.run_number }}" \
-            --arg versionName "$APP_VERSION_NAME" \
+            --arg versionName "$(cat version.txt)" \
             --arg apkUrl "$APK_URL" \
             --arg apkSha256 "$APK_SHA" \
+            --argjson apkSize "$APK_SIZE" \
             --argjson minShellBuild "${{ github.run_number }}" \
             --arg commitSha "${{ github.sha }}" \
             --arg releasedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{versionCode: $versionCode, versionName: $versionName,
               apkUrl: $apkUrl, apkSha256: $apkSha256,
+              apkSize: $apkSize,
               minShellBuild: $minShellBuild, commitSha: $commitSha,
               releasedAt: $releasedAt}' > update.json
           cat update.json
 
       # Move the rolling tag so the release page shows the commit it
-      # was built from.
+      # was built from. Via the refs API, not `git push`: pushing
+      # the tag from the publish job was rejected ("refusing to
+      # allow a GitHub App to create or update workflow … without
+      # `workflows` permission") when the commit changed workflows.
+      # Cosmetic only — assets attach to the release either way —
+      # so a failure must not block publishing.
       - name: Retag continuous
-        if: github.ref == 'refs/heads/main'
+        if: steps.guard.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git tag -f continuous "${{ github.sha }}"
-          git push -f origin continuous
+          gh api -X PATCH \
+            "repos/$GITHUB_REPOSITORY/git/refs/tags/continuous" \
+            -f sha="${{ github.sha }}" -F force=true --jq .object.sha
 
       # Fixed tag keeps the asset URL stable for the in-app updater:
       # releases/download/continuous/update.json. `prerelease` +
       # `make_latest: false` keep `releases/latest` pointing at real
-      # v* milestones.
-      - name: Publish continuous release
-        if: github.ref == 'refs/heads/main'
+      # v* milestones. Two ordered uploads: the APKs first, and only
+      # once they are fully uploaded the manifest that points at
+      # them. The stable `reactive-bible.apk` stays for old links
+      # and manifests.
+      - name: Publish continuous APKs
+        if: steps.guard.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: continuous
           name: Continuous build (main)
           prerelease: true
           make_latest: false
+          fail_on_unmatched_files: true
           files: |
+            ${{ env.VERSIONED_APK }}
             reactive-bible.apk
-            update.json
+
+      - name: Publish continuous update.json
+        if: steps.guard.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build (main)
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: update.json
+
+      # Keep only the newest few per-build APKs so the release does
+      # not grow forever. Never touches the current build, the
+      # stable reactive-bible.apk or update.json (the name filter
+      # only matches reactive-bible-<digits>.apk). Non-fatal: the
+      # build is already published when this runs.
+      - name: Prune old versioned APKs
+        if: steps.guard.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          KEEP: 5
+        run: |
+          set -eo pipefail
+          gh release view continuous \
+            --json assets --jq '.assets[].name' > assets.txt
+          { grep -E '^reactive-bible-[0-9]+\.apk$' assets.txt \
+            || true; } \
+            | sed -E 's/^reactive-bible-([0-9]+)\.apk$/\1/' \
+            | sort -rn | tail -n +"$((KEEP + 1))" > prune.txt
+          while read -r N; do
+            NAME="reactive-bible-$N.apk"
+            if [ "$NAME" = "$VERSIONED_APK" ]; then
+              continue
+            fi
+            echo "Deleting $NAME"
+            gh release delete-asset continuous "$NAME" --yes || \
+              echo "::warning::Could not delete $NAME"
+          done < prune.txt
+
+  # ---------- Milestone channel (v* tags) ----------
+
+  # Installed apps only ever poll continuous/update.json, so a
+  # tagged release would never reach them. After the emulators
+  # prove the APK installs, attach it to the tag's own release and
+  # then point the continuous manifest at that asset — the same
+  # "APK first, manifest second" ordering as the main channel.
+  publish-tag:
+    needs: [build, install-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Shares the continuous-publish group so a tag manifest can
+    # never interleave with a main-channel publish.
+    concurrency:
+      group: continuous-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-apk
+
+      - name: Skip if a newer build is already published
+        id: guard
+        run: |
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
+          CUR=$(curl -fsSL "$BASE/continuous/update.json" | \
+            jq -r .versionCode || echo 0)
+          echo "published=$CUR this=${{ github.run_number }}"
+          if [ "${CUR:-0}" -ge "${{ github.run_number }}" ] 2>/dev/null
+          then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::continuous already has build $CUR"
+          fi
+
+      # Downloads keep the URL's file name: the stable
+      # reactive-bible.apk collides with older downloads of the
+      # same name in the phone's Downloads (dedup / reopening a
+      # stale truncated file). update.json therefore points at a
+      # versioned name — same rule as the continuous channel.
+      # The stable name is still attached for humans and the
+      # releases/latest download link.
+      - name: Create versioned APK copy
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -e
+          VAPK="reactive-bible-$(cat version.txt).apk"
+          cp reactive-bible.apk "$VAPK"
+          echo "VERSIONED_APK=$VAPK" >> "$GITHUB_ENV"
+
+      - name: Attach APKs to GitHub release
+        if: steps.guard.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.VERSIONED_APK }}
+            reactive-bible.apk
+
+      - name: Generate update.json for the tag
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          set -e
+          APK_SHA=$(sha256sum "$VERSIONED_APK" | cut -d' ' -f1)
+          APK_SIZE=$(stat -c %s "$VERSIONED_APK")
+          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download"
+          APK_URL="$BASE/${GITHUB_REF_NAME}/$VERSIONED_APK"
+          jq -n \
+            --argjson versionCode "${{ github.run_number }}" \
+            --arg versionName "$(cat version.txt)" \
+            --arg apkUrl "$APK_URL" \
+            --arg apkSha256 "$APK_SHA" \
+            --argjson apkSize "$APK_SIZE" \
+            --argjson minShellBuild "${{ github.run_number }}" \
+            --arg commitSha "${{ github.sha }}" \
+            --arg releasedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{versionCode: $versionCode, versionName: $versionName,
+              apkUrl: $apkUrl, apkSha256: $apkSha256,
+              apkSize: $apkSize,
+              minShellBuild: $minShellBuild, commitSha: $commitSha,
+              releasedAt: $releasedAt}' > update.json
+          cat update.json
+
+      - name: Publish update.json to continuous
+        if: steps.guard.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: continuous
+          name: Continuous build (main)
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: update.json
+
+      # Move the rolling tag to the released commit so the
+      # continuous page reflects what the manifest now serves.
+      - name: Retag continuous
+        if: steps.guard.outputs.skip != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X PATCH \
+            "repos/$GITHUB_REPOSITORY/git/refs/tags/continuous" \
+            -f sha="${{ github.sha }}" -F force=true --jq .object.sha

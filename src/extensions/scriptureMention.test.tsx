@@ -148,6 +148,30 @@ describe('ScriptureMention suggestion', () => {
     expect(editor?.getText()).toContain('and more text');
   });
 
+  it('inserts a chapter-level token on Enter', async () => {
+    await renderEditor();
+    editor?.commands.insertContent('@JHN.3');
+    await waitFor(() => expect(popupOpen()).toBe(true));
+
+    expect(pressKey('Enter')).toBe(true);
+    expect(editor?.getText()).toBe('@JHN.3 ');
+    await waitFor(() => expect(popupOpen()).toBe(false));
+  });
+
+  it('dismisses the popup when a space ends a ' +
+    'chapter-level ref', async () => {
+      await renderEditor();
+      editor?.commands.insertContent('@JHN.3');
+      await waitFor(() => expect(popupOpen()).toBe(true));
+      editor?.commands.insertContent(' ');
+      await waitFor(() => expect(popupOpen()).toBe(false));
+      expect(editor?.getText()).toBe('@JHN.3 ');
+      // A finished chapter ref is valid — no error styling.
+      expect(
+        document.querySelector('.scripture-ref-invalid')
+      ).toBeNull();
+    });
+
   it('dismisses the popup when a period ends a complete ref', async () => {
     await renderEditor();
     editor?.commands.insertContent('@JHN.3.16');
@@ -318,6 +342,69 @@ describe('ScriptureMention suggestion', () => {
     // The token text is untouched by a preview click.
     expect(editor?.getText()).toContain('@JHN.3.16');
   });
+
+  it('previews a chapter-level ref and narrows the stored ' +
+    'token on a verse pick', async () => {
+      await renderEditor();
+      editor?.commands.setContent(
+        '<p>See @PSA.18.</p><p>tail</p>'
+      );
+      expect(popupOpen()).toBe(false);
+
+      // '@' sits at doc pos 5 — pos 8 is inside '@PSA.18'.
+      mouseDownAtPos(8);
+
+      await waitFor(() => expect(previewOpen()).toBe(true), {
+        timeout: 1500,
+      });
+      // A chapter ref opens expanded — verses are selectable.
+      const verse = await waitFor(() => {
+        const el = document.querySelector(
+          '[title="passage-verse-18-16"]'
+        );
+        expect(el).toBeTruthy();
+        return el as Element;
+      });
+      fireEvent.click(verse);
+
+      // The token in the doc narrowed to the picked verse and
+      // the preview stays open on the updated ref.
+      await waitFor(() =>
+        expect(editor?.getText()).toContain('@PSA.18.16')
+      );
+      expect(previewOpen()).toBe(true);
+    });
+
+  it('keeps the picker closed when a verse pick rewrites a ' +
+    'paragraph-end token', async () => {
+      // The rewrite drops the caret right after the token; at
+      // a paragraph end that text reads as a fresh '@…' query
+      // and would stack the picker over the preview without
+      // the insert suppression applied to the rewrite.
+      await renderEditor();
+      editor?.commands.setContent('<p>See @PSA.18</p>');
+
+      mouseDownAtPos(8);
+      await waitFor(() => expect(previewOpen()).toBe(true), {
+        timeout: 1500,
+      });
+      const verse = await waitFor(() => {
+        const el = document.querySelector(
+          '[title="passage-verse-18-16"]'
+        );
+        expect(el).toBeTruthy();
+        return el as Element;
+      });
+      fireEvent.click(verse);
+
+      await waitFor(() =>
+        expect(editor?.getText()).toBe('See @PSA.18.16')
+      );
+      // Give the suggestion plugin a tick to (not) activate.
+      await new Promise((r) => setTimeout(r, 100));
+      expect(popupOpen()).toBe(false);
+      expect(previewOpen()).toBe(true);
+    });
 
   it('closes the preview when the same ref is clicked again',
     async () => {

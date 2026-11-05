@@ -17,7 +17,6 @@ import {
 } from "@tabler/icons-react";
 import {
   Suspense,
-  lazy,
   useCallback,
   useMemo,
   useState,
@@ -47,10 +46,13 @@ import {
   collectSelectedVerseText,
   faviconUrl,
 } from "../utils/externalLinks";
+import { lazyWithReload } from "../utils/lazyWithReload";
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
-const AddTagNoteModal = lazy(() => import("./AddTagNoteModal"));
+const AddTagNoteModal = lazyWithReload(
+  () => import("./AddTagNoteModal")
+);
 
 /** A single-chapter selection group — the primary ref used by
  *  the external-link and share builders. */

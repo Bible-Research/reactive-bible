@@ -4,10 +4,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  isSameScriptureRef,
-  parseScriptureRef,
-} from '../utils/scriptureRef';
+import { parseScriptureRef } from '../utils/scriptureRef';
 import type { ScriptureRef } from '../utils/scriptureRef';
 
 /**
@@ -39,7 +36,7 @@ let nextInstanceId = 0;
  * Shared parse + toggle logic for the '@…' scripture-ref
  * preview, used by the editor and both read views. `open`
  * parses the token: failures surface inside the panel via
- * `error`; successes toggle closed when the same ref is
+ * `error`; successes toggle closed when the same token is
  * clicked again, else switch the panel to the new anchor.
  */
 const useScriptureRefPreview = () => {
@@ -95,12 +92,15 @@ const useScriptureRefPreview = () => {
           : { ref: null, anchor, token };
         setError(next ? result.error : null);
       } else {
-        next = isSameScriptureRef(
-          current?.ref ?? null,
-          result.ref
-        )
-          ? null
-          : { ref: result.ref, anchor, token };
+        // Toggle on the clicked TOKEN, not the parsed ref — a
+        // preview narrowed by verse selection holds a different
+        // ref than the stored token parses to, and re-clicking
+        // that token must still close the panel. Two distinct
+        // tokens sharing a ref switch anchors instead.
+        next =
+          current?.token === token
+            ? null
+            : { ref: result.ref, anchor, token };
         setError(null);
       }
       setBoth(next);
@@ -115,7 +115,22 @@ const useScriptureRefPreview = () => {
     [setBoth]
   );
 
-  return { preview, error, open, close };
+  /**
+   * Replaces the open preview's verse selection — the popover's
+   * expanded chapter view narrows the ref through this. null
+   * selects the whole chapter. Consumers that can persist the
+   * change (the editor) rewrite the token themselves instead.
+   */
+  const setPreviewVerses = useCallback(
+    (verses: number[] | null) => {
+      const current = previewRef.current;
+      if (!current?.ref) return;
+      setBoth({ ...current, ref: { ...current.ref, verses } });
+    },
+    [setBoth]
+  );
+
+  return { preview, error, open, close, setPreviewVerses };
 };
 
 export default useScriptureRefPreview;

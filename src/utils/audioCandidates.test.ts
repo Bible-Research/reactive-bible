@@ -131,6 +131,123 @@ describe('orderedAudioCandidates', () => {
     ]);
   });
 
+  it('reaches another same-language translation\u2019s audio ' +
+    'for a coverage-missed book', () => {
+      // Reported flow: Latvian GLU8 text on screen, LAVLVR
+      // audio selected — its OT member is a partial recording
+      // missing Jeremiah, so candidates must continue into the
+      // read version's generated audio.
+      const lav = (
+        abbr: string,
+        filesets: Fileset[],
+      ): Translation => ({
+        abbr,
+        name: abbr,
+        language: 'Latvian',
+        language_iso: 'lvs',
+        filesets,
+      });
+      const LAVLVR = lav('LAVLVR', [
+        fs('LATLVRP1DA', 'audio', 'OTP'),
+        fs('LATLVRP1DA-opus16', 'audio', 'OTP'),
+        fs('LATLVRN1DA', 'audio', 'NT'),
+        fs('LATLVRN1DA-opus16', 'audio', 'NT'),
+      ]);
+      const GLU8 = lav('GLU8', [
+        fs('LVSGLU8', 'text_plain', 'C'),
+        fs('LVSGLU8C1DA', 'audio', 'C'),
+        fs('LVSGLU8C2DA', 'audio', 'C'),
+      ]);
+      expect(
+        orderedAudioCandidates(
+          'LAVLVR:audio:1',
+          'JER',
+          [LAVLVR, GLU8],
+          undefined,
+          'GLU8:text:1',
+        ),
+      ).toEqual([
+        'LATLVRP1DA-opus16',
+        'LATLVRP1DA',
+        'LATLVRN1DA-opus16',
+        'LATLVRN1DA',
+        'LVSGLU8C1DA',
+        'LVSGLU8C2DA',
+      ]);
+    },
+  );
+
+  it('never promotes a cross-translation candidate for the ' +
+    'remembered codec', () => {
+      // Chapter N coverage-miss landed on a foreign fallback
+      // whose codec got remembered; for a chapter the selected
+      // product covers, its own primary must lead again — a
+      // foreign id matching the codec must not be unshifted
+      // above it (sticky silent version swap). The owner here
+      // has only an opus16 member, so 'mp3' can ONLY match the
+      // foreign tail.
+      const lav = (
+        abbr: string,
+        filesets: Fileset[],
+      ): Translation => ({
+        abbr,
+        name: abbr,
+        language: 'Latvian',
+        language_iso: 'lvs',
+        filesets,
+      });
+      const OPUS_ONLY = lav('OPONLY', [
+        fs('OPONLYN1DA-opus16', 'audio', 'NT'),
+      ]);
+      const FOREIGN_MP3 = lav('FRMP3', [
+        fs('FRMP3N1DA', 'audio', 'NT'),
+      ]);
+      expect(
+        orderedAudioCandidates(
+          'OPONLY:audio:1',
+          'JHN',
+          [OPUS_ONLY, FOREIGN_MP3],
+          'mp3',
+        ),
+      ).toEqual(['OPONLYN1DA-opus16', 'FRMP3N1DA']);
+    },
+  );
+
+  it('does not promote an owner codec member above the ' +
+    'timestamped-sibling primary', () => {
+      // The ENGESH selection's OT play landed on ENGESVO1DA
+      // (the designed timestamped swap) and remembered its
+      // codec — the leader already carries 'opus16', so no
+      // owner member may be unshifted above it: promoting
+      // ENGESHN1DA-opus16 (NT-only) would miss every OT book
+      // and poison preloadNextChapter with the
+      // wrong-testament id.
+      const base = orderedAudioCandidates(
+        'ENGESHN1DA',
+        'GEN',
+        [ENGESH, ENGESV],
+      );
+      expect(
+        orderedAudioCandidates(
+          'ENGESHN1DA',
+          'GEN',
+          [ENGESH, ENGESV],
+          'opus16',
+        ),
+      ).toEqual(base);
+      // But a remembered codec the leader lacks still
+      // promotes the first covering owner member.
+      expect(
+        orderedAudioCandidates(
+          'ENGESHN1DA',
+          'GEN',
+          [ENGESH, ENGESV],
+          'mp3',
+        )[0],
+      ).toBe('ENGESHO1DA');
+    },
+  );
+
   it('leaves the order unchanged when the remembered codec is ' +
     'absent or already first', () => {
       const base = orderedAudioCandidates(

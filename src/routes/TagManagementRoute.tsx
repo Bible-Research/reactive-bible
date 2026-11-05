@@ -26,6 +26,7 @@ import { openConfirmModal } from '@mantine/modals';
 import { Tag } from '../types';
 import {
   deleteTag as deleteTagApi,
+  getNotes,
   reparentTag,
   setTagPublic,
 } from '../api';
@@ -83,6 +84,12 @@ export default function TagManagementRoute() {
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  // Total note count shown next to the tag count — `null`
+  // until fetched (and stays null if the fetch fails, in
+  // which case the summary just omits it).
+  const [noteTotal, setNoteTotal] = useState<number | null>(
+    null
+  );
   // Set while a reparent PATCH is in flight — further drops
   // are ignored and the refreshing Loader shows.
   const reparentingRef = useRef(false);
@@ -129,6 +136,28 @@ export default function TagManagementRoute() {
   useEffect(() => {
     void loadTags(true); // Force refresh on mount
   }, [loadTags]);
+
+  // `count` on a one-item page is the user's total note
+  // count — the cheap way to render "N tags · M notes"
+  // without fetching any note bodies. A failure only omits
+  // the count; the page and the tags summary stay intact.
+  useEffect(() => {
+    let cancelled = false;
+    const loadNoteTotal = async () => {
+      try {
+        const page = await getNotes(undefined, { pageSize: 1 });
+        if (!cancelled) {
+          setNoteTotal(page.count);
+        }
+      } catch (error) {
+        console.error('Error loading notes count:', error);
+      }
+    };
+    void loadNoteTotal();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const deleteTag = useCallback(
     async (tagId: string) => {
@@ -441,6 +470,9 @@ export default function TagManagementRoute() {
             >
               {filteredTags.length}{' '}
               {filteredTags.length === 1 ? 'tag' : 'tags'}
+              {noteTotal !== null &&
+                ` · ${noteTotal} ` +
+                  `${noteTotal === 1 ? 'note' : 'notes'}`}
             </Text>
             {refreshing && <Loader size="xs" />}
           </>

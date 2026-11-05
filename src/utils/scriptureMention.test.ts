@@ -58,12 +58,21 @@ describe('parseMentionQuery', () => {
     expect(p.error).toBeNull();
   });
 
-  it('resolves book + chapter and awaits verse', () => {
+  it('resolves book + chapter as a whole-chapter ref', () => {
     const p = parseMentionQuery('JHN.3');
     expect(p.bookName).toBe('John');
     expect(p.chapter).toBe(3);
     expect(p.verseStart).toBeNull();
-    expect(p.complete).toBe(false);
+    expect(p.complete).toBe(true);
+    expect(p.error).toBeNull();
+  });
+
+  it('resolves a chapter-level ref on any book', () => {
+    const p = parseMentionQuery('PSA.18');
+    expect(p.bookName).toBe('Psalms');
+    expect(p.chapter).toBe(18);
+    expect(p.verseStart).toBeNull();
+    expect(p.complete).toBe(true);
     expect(p.error).toBeNull();
   });
 
@@ -107,7 +116,7 @@ describe('parseMentionQuery', () => {
     expect(p.bookName).toBe('1 Corinthians');
     expect(p.chapter).toBe(3);
     expect(p.verseStart).toBeNull();
-    expect(p.complete).toBe(false);
+    expect(p.complete).toBe(true);
     expect(p.error).toBeNull();
   });
 
@@ -163,7 +172,8 @@ describe('parseMentionQuery', () => {
     const p = parseMentionQuery('JHN.3.16-');
     expect(p.verseStart).toBe(16);
     expect(p.verseEnd).toBeNull();
-    expect(p.complete).toBe(false);
+    // Still resolvable — Enter settles on '@JHN.3.16'.
+    expect(p.complete).toBe(true);
     expect(p.error).toBeNull();
   });
 
@@ -206,8 +216,13 @@ describe('buildScriptureToken', () => {
     expect(buildScriptureToken(p)).toBe('@JHN.3.16');
   });
 
+  it('builds a chapter-level token without verses', () => {
+    const p = parseMentionQuery('PSA.18');
+    expect(buildScriptureToken(p)).toBe('@PSA.18');
+  });
+
   it('returns null for incomplete refs', () => {
-    expect(buildScriptureToken(parseMentionQuery('JHN.3')))
+    expect(buildScriptureToken(parseMentionQuery('JHN.')))
       .toBeNull();
     expect(buildScriptureToken(parseMentionQuery('J')))
       .toBeNull();
@@ -264,8 +279,23 @@ describe('isTerminatedMentionQuery', () => {
     expect(isTerminatedMentionQuery('JHN')).toBe(false);
   });
 
-  it('rejects incomplete refs followed by prose', () => {
+  it('accepts a chapter-level ref closed by whitespace', () => {
+    // '@PSA.18 ' ends a whole-chapter ref — no verse needed.
+    expect(isTerminatedMentionQuery('PSA.18 ')).toBe(true);
+    expect(isTerminatedMentionQuery('JHN.3 ')).toBe(true);
     expect(isTerminatedMentionQuery('JHN.3 and more'))
+      .toBe(true);
+  });
+
+  it('keeps a chapter-level ref open after a period', () => {
+    // '.' after the chapter means a verse may follow — only
+    // whitespace seals a chapter-level ref.
+    expect(isTerminatedMentionQuery('JHN.3.')).toBe(false);
+    expect(isTerminatedMentionQuery('PSA.18.')).toBe(false);
+  });
+
+  it('rejects unresolvable refs followed by prose', () => {
+    expect(isTerminatedMentionQuery('JHN. and more'))
       .toBe(false);
     expect(isTerminatedMentionQuery('ZZZ.1.1 ')).toBe(false);
   });
@@ -278,15 +308,31 @@ describe('isValidScriptureToken', () => {
     expect(isValidScriptureToken('JHN.3:16')).toBe(true);
   });
 
+  it('accepts chapter-level refs', () => {
+    expect(isValidScriptureToken('@JHN.3')).toBe(true);
+    expect(isValidScriptureToken('@PSA.18')).toBe(true);
+  });
+
   it('rejects out-of-range and unknown refs', () => {
     expect(isValidScriptureToken('@JHN.99.1')).toBe(false);
     expect(isValidScriptureToken('@JHN.3.999')).toBe(false);
+    expect(isValidScriptureToken('@JHN.99')).toBe(false);
     expect(isValidScriptureToken('@ZZZ.1.1')).toBe(false);
+    expect(isValidScriptureToken('@ZZZ.1')).toBe(false);
+  });
+
+  it('rejects letter/digit suffixes and extra segments', () => {
+    // Malformed refs stay one invalid token rather than being
+    // clipped into a valid prefix + leftover text.
+    expect(isValidScriptureToken('@JHN.3x')).toBe(false);
+    expect(isValidScriptureToken('@JHN.3.16x')).toBe(false);
+    expect(isValidScriptureToken('@JHN.3.16.4')).toBe(false);
+    expect(isValidScriptureToken('@JHN.3_x')).toBe(false);
   });
 
   it('rejects partial refs', () => {
     expect(isValidScriptureToken('@JHN')).toBe(false);
-    expect(isValidScriptureToken('@JHN.3')).toBe(false);
+    expect(isValidScriptureToken('@JHN.')).toBe(false);
   });
 
   it('ignores trailing punctuation after a full ref', () => {

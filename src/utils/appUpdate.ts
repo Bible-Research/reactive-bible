@@ -1,6 +1,7 @@
 import { App } from '@capacitor/app';
 import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './platform';
+import { updateBreadcrumb } from './updateTelemetry';
 
 /**
  * Sideload update check for the Android APK build.
@@ -27,6 +28,8 @@ export interface UpdateManifest {
   versionName: string;
   apkUrl: string;
   apkSha256?: string;
+  /** APK size in bytes, so the UI can show what to expect. */
+  apkSize?: number;
   minShellBuild?: number;
   commitSha?: string;
   releasedAt?: string;
@@ -99,13 +102,25 @@ export const fetchUpdateManifest =
         responseType: 'json',
         webFetchExtra: { cache: 'no-store' },
       });
-      if (res.status < 200 || res.status >= 300) return null;
+      if (res.status < 200 || res.status >= 300) {
+        updateBreadcrumb('manifest http error', {
+          status: res.status,
+        });
+        return null;
+      }
       const data: unknown =
         typeof res.data === 'string'
           ? JSON.parse(res.data)
           : res.data;
-      return isUpdateManifest(data) ? data : null;
-    } catch {
+      if (!isUpdateManifest(data)) {
+        updateBreadcrumb('manifest rejected');
+        return null;
+      }
+      return data;
+    } catch (err) {
+      updateBreadcrumb('manifest fetch failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
       return null;
     }
   };
@@ -124,6 +139,64 @@ export const shouldCheckForUpdates = (now = Date.now()): boolean => {
 
 export const markUpdateChecked = (now = Date.now()): void => {
   localStorage.setItem(LAST_CHECK_KEY, String(now));
+};
+
+const CONTINUOUS_RELEASE_API =
+  'https://api.github.com/repos/Bible-Research/reactive-bible/' +
+  'releases/tags/continuous';
+
+/**
+ * Newest versioned APK asset on the `continuous` prerelease —
+ * what the web/PWA "Download Android App" link resolves to.
+ *
+ * github.com release *download* endpoints send no CORS headers,
+ * so a browser cannot read `update.json` — but api.github.com
+ * does allow cross-origin reads, so the freshest
+ * `reactive-bible-<run>.apk` is picked from the release asset
+ * list instead. Versioned names are never re-uploaded, so the
+ * resolved URL cannot serve a truncated file mid-publish (the
+ * stable `reactive-bible.apk` name can — it is deleted and
+ * re-uploaded on every publish). Plain `fetch` works here —
+ * api.github.com sends `Access-Control-Allow-Origin: *` on web
+ * and native alike.
+ */
+export const fetchNewestApkUrl = async (): Promise<
+  string | null
+> => {
+  try {
+    const res = await fetch(CONTINUOUS_RELEASE_API, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    const assets =
+      typeof data === 'object' && data !== null
+        ? (data as { assets?: unknown }).assets
+        : undefined;
+    if (!Array.isArray(assets)) return null;
+    let bestBuild = -1;
+    let bestUrl: string | null = null;
+    for (const asset of assets) {
+      if (typeof asset !== 'object' || asset === null) continue;
+      const { name, browser_download_url: url } = asset as {
+        name?: unknown;
+        browser_download_url?: unknown;
+      };
+      const match = /^reactive-bible-(\d+)\.apk$/.exec(
+        typeof name === 'string' ? name : '',
+      );
+      if (!match || typeof url !== 'string') continue;
+      if (!isTrustedApkUrl(url)) continue;
+      const build = Number(match[1]);
+      if (build > bestBuild) {
+        bestBuild = build;
+        bestUrl = url;
+      }
+    }
+    return bestUrl;
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -147,6 +220,11 @@ export const checkForUpdates = async (
   // a full interval.
   if (!installed || !manifest) return { kind: 'error' };
   markUpdateChecked();
+  updateBreadcrumb('manifest fetched', {
+    installedBuild: installed.build,
+    offeredBuild: manifest.versionCode,
+    apkUrl: manifest.apkUrl,
+  });
   return isUpdateAvailable(manifest, installed)
     ? { kind: 'update', manifest, installed }
     : { kind: 'current' };

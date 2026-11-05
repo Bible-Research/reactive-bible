@@ -19,6 +19,7 @@ import {
   resolveTextFileset,
 } from '../utils/filesetGroups';
 import { orderedAudioCandidates } from '../utils/audioCandidates';
+import { notifyAudioSubstitution } from '../utils/audioSubstitution';
 import { useVerseHighlighter } from './useVerseHighlighter';
 import { disposeHowl } from '../utils/audioUtils';
 import { attachVerseBounds } from '../utils/verseBounds';
@@ -56,6 +57,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   // Guards the "no verse timestamps" notification so a playlist
   // of timestampless recordings warns once, not per item.
   const timestampsNoticeShownRef = useRef(false);
+  // Cross-translation substitutions already announced this
+  // playlist — mirrors the chapter engine's once-per-(pair,
+  // book) notice so a version swap is never silent.
+  const substitutionNotifiedRef = useRef(new Set<string>());
 
   const activeAudioFilesetId = useBibleStore(
     (s) => s.activeAudioFilesetId
@@ -134,6 +139,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         activeAudioFilesetId,
         item.bookId,
         translations,
+        undefined,
+        activeTextFilesetId,
       );
       const translationName =
         findTranslationByFilesetId(
@@ -155,6 +162,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             activeAudioFilesetId,
             next.bookId,
             translations,
+            undefined,
+            activeTextFilesetId,
           )[0] ?? activeAudioFilesetId;
         if (nextFilesetId !== 'ENGKJV') {
           getBibleAudioUrl(
@@ -320,6 +329,17 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   if (stale()) return;
                   setIsPlaying(true);
                   setShowPlayer(true);
+                  // A winning candidate owned by another
+                  // translation is a version swap — announce
+                  // it once per (pair, book) like chapter
+                  // mode instead of silently substituting.
+                  notifyAudioSubstitution(
+                    activeAudioFilesetId,
+                    candidateId,
+                    item.bookId,
+                    translations,
+                    substitutionNotifiedRef.current,
+                  );
                 },
                 onpause: () => {
                   if (stale()) return;
@@ -476,6 +496,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
     (newItems: PlaylistItem[], startIndex = 0) => {
       stoppedRef.current = false;
       timestampsNoticeShownRef.current = false;
+      substitutionNotifiedRef.current.clear();
       setItems(newItems);
       void playIndex(newItems, startIndex);
     },

@@ -4,6 +4,8 @@
 // should walk for a (selection, book) pair.
 
 import {
+  findTranslationByFilesetId,
+  groupFilesets,
   preferTimestampedAudio,
   resolveAudioFileset,
   splitCodec,
@@ -25,7 +27,14 @@ import type { Translation } from '../store';
  * as a load/decode fallback. `rememberedCodec` promotes the
  * codec that last played for this selection to the front, so a
  * codec that failed to decode (e.g. opus16 on an old device) is
- * not re-picked for the next chapter's load or preload.
+ * not re-picked for the next chapter's load or preload. Only
+ * candidates owned by the selection's own translation are
+ * promotable — unshifting a cross-translation alternate would
+ * make a foreign version sticky above the selection's own
+ * primary for the rest of the session.
+ * `textFilesetId` is the read version's selection — its owning
+ * translation's audio leads the cross-translation alternates
+ * (see `resolveAudioFileset`).
  *
  * Returns [] when the selection resolves to nothing.
  */
@@ -34,8 +43,14 @@ export const orderedAudioCandidates = (
   bookId: string,
   translations: Translation[],
   rememberedCodec?: CodecKey,
+  textFilesetId?: string | null,
 ): string[] => {
-  const resolved = resolveAudioFileset(storedId, bookId, translations);
+  const resolved = resolveAudioFileset(
+    storedId,
+    bookId,
+    translations,
+    textFilesetId,
+  );
   if (!resolved) return [];
   const primary = preferTimestampedAudio(
     resolved.filesetId,
@@ -46,9 +61,34 @@ export const orderedAudioCandidates = (
     ...resolved.alternates,
     resolved.filesetId,
   ].filter((id, i, arr) => arr.indexOf(id) === i);
-  if (rememberedCodec) {
+  if (
+    rememberedCodec &&
+    // No reorder when the leader already carries the codec:
+    // promoting a later owner member above a timestamped-sibling
+    // primary (a foreign-owned id swapped in by design, e.g.
+    // ENGESVO1DA for an ENGESH selection) could lift a
+    // wrong-testament member into guaranteed
+    // book_not_in_fileset misses — including for the preload
+    // walk, which trusts candidates[0].
+    splitCodec(candidates[0]).codec !== rememberedCodec
+  ) {
+    // Promotion is owner-scoped: the foreign tail can carry the
+    // remembered codec too, and unshifting it above the
+    // selection's own primary would silently swap the user's
+    // version for the session.
+    const owner = findTranslationByFilesetId(
+      storedId,
+      translations,
+    );
+    const ownerIds = new Set(
+      (owner ? groupFilesets(owner).audio : []).flatMap(
+        (o) => o.members,
+      ),
+    );
     const i = candidates.findIndex(
-      (id) => splitCodec(id).codec === rememberedCodec,
+      (id) =>
+        ownerIds.has(id) &&
+        splitCodec(id).codec === rememberedCodec,
     );
     if (i > 0) candidates.unshift(candidates.splice(i, 1)[0]);
   }
