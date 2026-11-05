@@ -289,6 +289,46 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     note?.verses
   );
 
+  // Picker + linked-verse texts — rendered inside the
+  // collapsible form tray on mobile, in the collapsible
+  // section below the form on desktop.
+  const versesSection = (
+    <>
+      <Box h={280} mt="sm">
+        <PassagePicker
+          bookId={pickerBookId}
+          chapter={pickerChapter}
+          verses={pickerVerses}
+          titlePrefix="edit-note-"
+          onSelectBook={(bookId) => {
+            setPickerBookId(bookId);
+            setPickerChapter(null);
+          }}
+          onSelectChapter={setPickerChapter}
+          onSelectVerse={handleSelectVerse}
+        />
+      </Box>
+      {verseError ? (
+        <Text color="red" size="sm" mt="sm">
+          {verseError}
+          {note?.error_code === "rate_limited"
+            ? " Try reloading in a few moments."
+            : ""}
+        </Text>
+      ) : (
+        <>
+          <VerseTextGroups groups={textGroups} />
+          {versesTruncated && (
+            <Text color="red" size="sm" mt="sm">
+              Cannot display more than 500 verses of the
+              Bible due to copyright restrictions.
+            </Text>
+          )}
+        </>
+      )}
+    </>
+  );
+
   return (
     <Modal
       opened={opened}
@@ -310,6 +350,11 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           <NoteForm
             tags={tags}
             fillHeight={isMobile}
+            trayLabel={
+              isMobile ? "Verse references" : undefined
+            }
+            trayCount={isMobile ? refs.length : undefined}
+            trayContent={isMobile ? versesSection : undefined}
             onSubmit={editor.submit}
             // Linked verses keep the note valid with no
             // text; the prop tracks the picker's live refs.
@@ -344,63 +389,38 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               isPublic: note.public,
             }}
           />
-          <Divider mt="xl" mb="sm" />
-          <UnstyledButton
-            w="100%"
-            title="toggle-verse-references"
-            aria-expanded={versesOpen}
-            onClick={() => setVersesOpen((open) => !open)}
-          >
-            <Group spacing="xs">
-              {versesOpen ? (
-                <IconChevronDown size={16} />
-              ) : (
-                <IconChevronRight size={16} />
-              )}
-              <Text size="sm" weight={600}>
-                Verse references
-              </Text>
-              {refs.length > 0 && (
-                <Badge size="sm" variant="light" color="blue">
-                  {refs.length}
-                </Badge>
-              )}
-            </Group>
-          </UnstyledButton>
-          <Collapse in={versesOpen}>
-            <Box h={280} mt="sm">
-              <PassagePicker
-                bookId={pickerBookId}
-                chapter={pickerChapter}
-                verses={pickerVerses}
-                titlePrefix="edit-note-"
-                onSelectBook={(bookId) => {
-                  setPickerBookId(bookId);
-                  setPickerChapter(null);
-                }}
-                onSelectChapter={setPickerChapter}
-                onSelectVerse={handleSelectVerse}
-              />
-            </Box>
-            {verseError ? (
-              <Text color="red" size="sm" mt="sm">
-                {verseError}
-                {note.error_code === "rate_limited"
-                  ? " Try reloading in a few moments."
-                  : ""}
-              </Text>
-            ) : (
-              <>
-                <VerseTextGroups groups={textGroups} />
-                {versesTruncated && (
-                  <Text color="red" size="sm" mt="sm">
-                    Cannot display more than 500 verses of the
-                    Bible due to copyright restrictions.
+          {!isMobile && (
+            <>
+              <Divider mt="xl" mb="sm" />
+              <UnstyledButton
+                w="100%"
+                title="toggle-verse-references"
+                aria-expanded={versesOpen}
+                onClick={() => setVersesOpen((open) => !open)}
+              >
+                <Group spacing="xs">
+                  {versesOpen ? (
+                    <IconChevronDown size={16} />
+                  ) : (
+                    <IconChevronRight size={16} />
+                  )}
+                  <Text size="sm" weight={600}>
+                    Verse references
                   </Text>
-                )}
-              </>
-            )}
-          </Collapse>
+                  {refs.length > 0 && (
+                    <Badge
+                      size="sm"
+                      variant="light"
+                      color="blue"
+                    >
+                      {refs.length}
+                    </Badge>
+                  )}
+                </Group>
+              </UnstyledButton>
+              <Collapse in={versesOpen}>{versesSection}</Collapse>
+            </>
+          )}
         </>
       )}
     </Modal>

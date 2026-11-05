@@ -323,6 +323,21 @@ const RichTextEditor = forwardRef<
       <MantineRichTextEditor
         editor={editor}
         sx={(theme) => ({
+          // Note editors: the formatting toolbar stays pinned
+          // while the document scrolls (the modal's content
+          // scrolls on desktop; the ProseMirror scrolls
+          // internally in fill-height mode).
+          ...(note && {
+            '& .mantine-RichTextEditor-toolbar': {
+              position: 'sticky',
+              top: 0,
+              zIndex: 5,
+              backgroundColor:
+                theme.colorScheme === 'dark'
+                  ? theme.colors.dark[7]
+                  : theme.white,
+            },
+          }),
           // Fill-height chain: every wrapper between the root
           // and .ProseMirror must be a bounded flex column so
           // the editor's flex:1 stretches and scrolls inside.

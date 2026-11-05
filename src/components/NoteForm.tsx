@@ -1,16 +1,28 @@
 import {
+  ActionIcon,
   Affix,
+  Badge,
   Box,
   Button,
   Checkbox,
+  Collapse,
   FileButton,
   Group,
   Select,
   Text,
   ThemeIcon,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
-import { IconCheck, IconPhoto } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconChevronRight,
+  IconLock,
+  IconPhoto,
+  IconRefresh,
+  IconWorld,
+} from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { NoteImage, Tag } from "../types";
@@ -106,6 +118,14 @@ interface NoteFormProps {
    * editor's writing area stretches to occupy it.
    */
   fillHeight?: boolean;
+  /**
+   * Collapsible tray above the action bar (fillHeight mode):
+   * the note's linked verses — a tap on the header expands a
+   * scrollable panel, a second tap collapses it.
+   */
+  trayLabel?: string;
+  trayCount?: number;
+  trayContent?: React.ReactNode;
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
@@ -152,6 +172,9 @@ const NoteForm = ({
   onFilesChange,
   initialFiles,
   fillHeight = false,
+  trayLabel,
+  trayCount,
+  trayContent,
 }: NoteFormProps) => {
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
@@ -171,6 +194,13 @@ const NoteForm = ({
   const publicTouchedRef = useRef(note?.isPublic !== undefined);
   const [autoSave, setAutoSave] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  // Mobile chrome state: the tag row collapses while the user
+  // scrolls the document down and returns on scroll-up (or at
+  // the top); the linked-verses tray opens on tap.
+  const [tagRowHidden, setTagRowHidden] = useState(false);
+  const [trayOpen, setTrayOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const selectOpenRef = useRef(false);
   const latest = useRef({
     tagId: "",
     text: "",
@@ -396,6 +426,36 @@ const NoteForm = ({
     []
   );
 
+  // Scroll-direction show/hide for the tag row (fill mode):
+  // scrolling the document down collapses it for more writing
+  // room, scrolling up (or reaching the top) brings it back —
+  // the Google Docs mobile pattern. Scroll events don't
+  // bubble, so a capture-phase listener catches the editor's
+  // internal ProseMirror scroller and the modal's own.
+  useEffect(() => {
+    if (!fillHeight) return undefined;
+    const lastTops = new WeakMap<Element, number>();
+    const onScroll = (event: Event) => {
+      const form = formRef.current;
+      const el = event.target;
+      if (!(el instanceof HTMLElement) || !form) return;
+      // Ignore scrolls outside this form (other modals) and
+      // inside static trays/areas that must not move chrome.
+      if (!form.contains(el) && !el.contains(form)) return;
+      if (el.closest("[data-note-form-static]")) return;
+      // A scrolling tag dropdown must not hide its own anchor.
+      if (selectOpenRef.current) return;
+      const top = el.scrollTop;
+      const last = lastTops.get(el) ?? top;
+      lastTops.set(el, top);
+      if (Math.abs(top - last) < 4) return; // jitter
+      setTagRowHidden(top > 8 && top > last);
+    };
+    document.addEventListener("scroll", onScroll, true);
+    return () =>
+      document.removeEventListener("scroll", onScroll, true);
+  }, [fillHeight]);
+
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>
   ) => {
@@ -473,6 +533,7 @@ const NoteForm = ({
 
   return (
     <form
+      ref={formRef}
       onSubmit={handleSubmit}
       style={
         fillHeight
@@ -484,23 +545,43 @@ const NoteForm = ({
           : undefined
       }
     >
-      <Select
-        variant="transparent"
-        label="Tag"
-        // Select by id — mapping by name silently picked the
-        // first of two same-named tags.
-        value={selectedTagId || null}
-        onChange={(item: string | null) => {
-          setSelectedTagId(item ?? "");
-        }}
-        onDropdownOpen={onTagDropdownOpen}
-        data={tags.map((tag) => ({
-          value: tag.id,
-          label: tag.name,
-        }))}
-        searchable
-        maxDropdownHeight={window.innerHeight * 0.7}
-      />
+      <Box
+        sx={
+          fillHeight
+            ? {
+                overflow: 'hidden',
+                maxHeight: tagRowHidden ? 0 : 90,
+                opacity: tagRowHidden ? 0 : 1,
+                transition:
+                  'max-height 180ms ease, opacity 180ms ease',
+              }
+            : undefined
+        }
+      >
+        <Select
+          variant="transparent"
+          label="Tag"
+          // Select by id — mapping by name silently picked the
+          // first of two same-named tags.
+          value={selectedTagId || null}
+          onChange={(item: string | null) => {
+            setSelectedTagId(item ?? "");
+          }}
+          onDropdownOpen={() => {
+            selectOpenRef.current = true;
+            onTagDropdownOpen();
+          }}
+          onDropdownClose={() => {
+            selectOpenRef.current = false;
+          }}
+          data={tags.map((tag) => ({
+            value: tag.id,
+            label: tag.name,
+          }))}
+          searchable
+          maxDropdownHeight={window.innerHeight * 0.7}
+        />
+      </Box>
       <RichTextEditor
         variant="note"
         label="Note"
@@ -577,6 +658,53 @@ const NoteForm = ({
           {fileError}
         </Text>
       )}
+      {trayContent !== undefined && (
+        <Box
+          data-note-form-static
+          sx={(theme) => ({
+            borderTop: `1px solid ${
+              theme.colorScheme === "dark"
+                ? theme.colors.dark[4]
+                : theme.colors.gray[3]
+            }`,
+          })}
+        >
+          <UnstyledButton
+            w="100%"
+            px="xs"
+            py={6}
+            title="toggle-note-tray"
+            aria-expanded={trayOpen}
+            onClick={() => setTrayOpen((open) => !open)}
+          >
+            <Group spacing={6} noWrap>
+              {trayOpen ? (
+                <IconChevronDown size={14} />
+              ) : (
+                <IconChevronRight size={14} />
+              )}
+              <Text size="xs" weight={600}>
+                {trayLabel}
+              </Text>
+              {trayCount !== undefined && trayCount > 0 && (
+                <Badge size="sm" variant="light" color="blue">
+                  {trayCount}
+                </Badge>
+              )}
+            </Group>
+          </UnstyledButton>
+          <Collapse in={trayOpen}>
+            <Box
+              mah="45vh"
+              px="xs"
+              pb="xs"
+              sx={{ overflowY: "auto" }}
+            >
+              {trayContent}
+            </Box>
+          </Collapse>
+        </Box>
+      )}
       <Box
         data-testid="note-submit-bar"
         sx={(theme) => ({
@@ -595,65 +723,166 @@ const NoteForm = ({
           }`,
         })}
       >
-        <Group spacing="xs">
-          <Button variant="transparent" type="submit" fullWidth>
-            {submitText}
-          </Button>
-          {(onAttachFiles || onFilesChange) && (
-            <FileButton
-              onChange={handleFileSelect}
-              accept={ALLOWED_IMAGE_TYPES.join(',')}
-              multiple
-              disabled={attachCapReached}
-              // Mantine v6 never clears the input's value, so
-              // deleting a thumb and re-picking the SAME file
-              // dispatches no `change` event — attach looks
-              // dead. Clearing on click resets it before the
-              // picker opens (safe with `multiple`).
-              inputProps={{
-                onClick: (event) => {
-                  event.currentTarget.value = '';
-                },
-              }}
+        {fillHeight ? (
+          // Mobile: one compact icon row — submit, attach,
+          // autosave toggle, publicity toggle.
+          <Group spacing="md" noWrap position="apart">
+            <ActionIcon
+              type="submit"
+              variant="filled"
+              color="blue"
+              size="lg"
+              title={submitText}
+              aria-label={submitText}
             >
-              {(props) => (
-                <Button
-                  {...props}
-                  variant="transparent"
-                  leftIcon={<IconPhoto size={14} />}
-                  disabled={attachCapReached}
-                  aria-label="Attach images"
-                >
-                  {totalAttached > 0
-                    ? `${totalAttached}/${MAX_NOTE_IMAGES}`
-                    : 'Images'}
-                </Button>
-              )}
-            </FileButton>
-          )}
-          {onAutoSave && (
-            <Checkbox
-              label="Auto save"
-              checked={autoSave}
-              onChange={(event) =>
-                setAutoSave(event.currentTarget.checked)
-              }
-            />
-          )}
-          <Tooltip
-            label="Anyone with the link can view this note"
-            position="top"
-          >
-            <Checkbox
-              label="Public note"
-              checked={isPublic}
-              onChange={(event) => {
-                publicTouchedRef.current = true;
-                setIsPublic(event.currentTarget.checked);
-              }}
-            />
-          </Tooltip>
-        </Group>
+              <IconCheck size={18} />
+            </ActionIcon>
+            {(onAttachFiles || onFilesChange) && (
+              <FileButton
+                onChange={handleFileSelect}
+                accept={ALLOWED_IMAGE_TYPES.join(',')}
+                multiple
+                disabled={attachCapReached}
+                // Mantine v6 never clears the input's value, so
+                // deleting a thumb and re-picking the SAME file
+                // dispatches no `change` event — attach looks
+                // dead. Clearing on click resets it before the
+                // picker opens (safe with `multiple`).
+                inputProps={{
+                  onClick: (event) => {
+                    event.currentTarget.value = '';
+                  },
+                }}
+              >
+                {(props) => (
+                  <Box sx={{ position: "relative" }}>
+                    <ActionIcon
+                      {...props}
+                      variant="subtle"
+                      size="lg"
+                      disabled={attachCapReached}
+                      aria-label="Attach images"
+                      title="Attach images"
+                    >
+                      <IconPhoto size={18} />
+                    </ActionIcon>
+                    {totalAttached > 0 && (
+                      <Badge
+                        size="xs"
+                        variant="filled"
+                        color="blue"
+                        sx={{
+                          position: "absolute",
+                          top: -4,
+                          right: -4,
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {totalAttached}
+                      </Badge>
+                    )}
+                  </Box>
+                )}
+              </FileButton>
+            )}
+            {onAutoSave && (
+              <ActionIcon
+                variant={autoSave ? "filled" : "subtle"}
+                color={autoSave ? "blue" : "gray"}
+                size="lg"
+                onClick={() => setAutoSave((v) => !v)}
+                aria-label="Auto save"
+                aria-pressed={autoSave}
+                title="Auto save"
+              >
+                <IconRefresh size={18} />
+              </ActionIcon>
+            )}
+            <Tooltip
+              label="Anyone with the link can view this note"
+              position="top"
+            >
+              <ActionIcon
+                variant={isPublic ? "filled" : "subtle"}
+                color={isPublic ? "blue" : "gray"}
+                size="lg"
+                onClick={() => {
+                  publicTouchedRef.current = true;
+                  setIsPublic((v) => !v);
+                }}
+                aria-label="Public note"
+                aria-pressed={isPublic}
+                title="Public note"
+              >
+                {isPublic ? (
+                  <IconWorld size={18} />
+                ) : (
+                  <IconLock size={18} />
+                )}
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        ) : (
+          <Group spacing="xs">
+            <Button variant="transparent" type="submit" fullWidth>
+              {submitText}
+            </Button>
+            {(onAttachFiles || onFilesChange) && (
+              <FileButton
+                onChange={handleFileSelect}
+                accept={ALLOWED_IMAGE_TYPES.join(',')}
+                multiple
+                disabled={attachCapReached}
+                // Mantine v6 never clears the input's value, so
+                // deleting a thumb and re-picking the SAME file
+                // dispatches no `change` event — attach looks
+                // dead. Clearing on click resets it before the
+                // picker opens (safe with `multiple`).
+                inputProps={{
+                  onClick: (event) => {
+                    event.currentTarget.value = '';
+                  },
+                }}
+              >
+                {(props) => (
+                  <Button
+                    {...props}
+                    variant="transparent"
+                    leftIcon={<IconPhoto size={14} />}
+                    disabled={attachCapReached}
+                    aria-label="Attach images"
+                  >
+                    {totalAttached > 0
+                      ? `${totalAttached}/${MAX_NOTE_IMAGES}`
+                      : 'Images'}
+                  </Button>
+                )}
+              </FileButton>
+            )}
+            {onAutoSave && (
+              <Checkbox
+                label="Auto save"
+                checked={autoSave}
+                onChange={(event) =>
+                  setAutoSave(event.currentTarget.checked)
+                }
+              />
+            )}
+            <Tooltip
+              label="Anyone with the link can view this note"
+              position="top"
+            >
+              <Checkbox
+                label="Public note"
+                checked={isPublic}
+                onChange={(event) => {
+                  publicTouchedRef.current = true;
+                  setIsPublic(event.currentTarget.checked);
+                }}
+              />
+            </Tooltip>
+          </Group>
+        )}
       </Box>
       {savedFlash && (
         <Affix position={{ top: 20, right: 20 }}>

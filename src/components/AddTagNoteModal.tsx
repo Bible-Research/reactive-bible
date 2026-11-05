@@ -224,6 +224,13 @@ const AddTagNoteModal = ({
       <NoteForm
         tags={tags}
         fillHeight={isMobile}
+        trayLabel={isMobile ? "Linked verses" : undefined}
+        trayCount={isMobile ? refs.length : undefined}
+        trayContent={
+          isMobile ? (
+            <VerseTextGroups groups={textGroups} />
+          ) : undefined
+        }
         onSubmit={editor.submit}
         // The selection links verses — the note stays valid
         // with no text (a plain verse bookmark under a tag).
@@ -264,7 +271,7 @@ const AddTagNoteModal = ({
               : undefined
         }
       />
-      <VerseTextGroups groups={textGroups} />
+      {!isMobile && <VerseTextGroups groups={textGroups} />}
       {linkedNotes && linkedNotes.length > 0 && (
         <Box mt="xl">
           <Divider
