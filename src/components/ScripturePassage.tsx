@@ -75,14 +75,21 @@ const ScripturePassage = ({
     // carries the 'Book C:V[-E]' title.
     <Box data-testid="passage-container">
       {passages.map((passage) => {
-        const heading = headings.find(
+        // Several headings may share one anchor — e.g. the
+        // ESV Psalm 18 superscription sits at before_verse 1
+        // alongside the section heading. Render them all in
+        // payload order.
+        const passageHeadings = headings.filter(
           (h) => h.before_verse === passage.verse
         );
         return (
           <Box key={passage.verse}>
-            {heading && (
-              <SectionHeadingComponent text={heading.text} />
-            )}
+            {passageHeadings.map((h, index) => (
+              <SectionHeadingComponent
+                key={index}
+                text={h.text}
+              />
+            ))}
             <Text>
               {passage.verse}
               {'. '}

@@ -593,9 +593,11 @@ const PassageView = () => {
               >
                 Chapter {chapter}
               </Text>
-              {chHeadings.map((h) => (
+              {chHeadings.map((h, index) => (
                 <SectionHeadingComponent
-                  key={`${chapter}-${h.before_verse}`}
+                  // Several headings can share before_verse,
+                  // so the index keeps the key unique.
+                  key={`${chapter}-${h.before_verse}-${index}`}
                   text={h.text}
                   onClick={() =>
                     handleTocHeadingClick(chapter, h.before_verse)
@@ -622,20 +624,32 @@ const PassageView = () => {
     >
       <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">
         {verses.map((verse) => {
-          const heading = headings.find(
+          // Several headings may share one anchor — e.g. the
+          // ESV Psalm 18 superscription sits at before_verse 1
+          // alongside the section heading. Render them all in
+          // payload order.
+          const verseHeadings = headings.filter(
             (h) => h.before_verse === verse.verse
           );
           return (
             <React.Fragment key={verse.verse}>
-              {heading && (
+              {verseHeadings.map((h, index) => (
                 <SectionHeadingComponent
-                  text={heading.text}
-                  id={`section-heading-${heading.before_verse}`}
+                  key={index}
+                  text={h.text}
+                  // TOC clicks scroll to `section-heading-N`;
+                  // only the first same-anchor heading may
+                  // carry the id or it would be duplicated.
+                  id={
+                    index === 0
+                      ? `section-heading-${h.before_verse}`
+                      : undefined
+                  }
                   onClick={() =>
                     void enterHeadingsOnlyMode(headings)
                   }
                 />
-              )}
+              ))}
               <Verse
                 scope="bible"
                 book={activeBookId}

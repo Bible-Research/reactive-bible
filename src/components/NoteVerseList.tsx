@@ -38,25 +38,26 @@ const NoteVerseList = ({
   // so a verse number repeated in a later chapter must not
   // pick up the earlier chapter's heading.
   const headingChapter = note.verses?.[0]?.chapter;
-  const headingBefore = (
-    v: NoteVerse
-  ): SectionHeading | undefined =>
+  // Several headings may share one anchor — e.g. the ESV
+  // Psalm 18 superscription sits at before_verse 1 alongside
+  // the section heading. Render them all in payload order.
+  const headingsBefore = (v: NoteVerse): SectionHeading[] =>
     v.chapter === headingChapter
-      ? noteHeadings.find(
+      ? noteHeadings.filter(
           (h) => h.before_verse === v.verse
         )
-      : undefined;
+      : [];
 
   const renderVerse = (
     v: NoteVerse,
     foldedVerse = false
   ) => {
-    const heading = headingBefore(v);
+    const verseHeadings = headingsBefore(v);
     return (
       <Box key={`${v.book}-${v.chapter}-${v.verse}`}>
-        {heading && (
-          <SectionHeadingComponent text={heading.text} />
-        )}
+        {verseHeadings.map((h, index) => (
+          <SectionHeadingComponent key={index} text={h.text} />
+        ))}
         {foldedVerse ? (
           <Verse
             scope={scope}
