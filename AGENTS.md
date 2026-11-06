@@ -5,6 +5,8 @@ over docs that disagree — `DEVELOPER_GUIDE.md` still lists
 components that no longer exist (e.g. MyNavbar, PassageView,
 Verse, SearchModal, TranslationSelector, AddTagNoteModal/
 EditNoteModal notes flow was reworked).
+Cross-repo contracts are spec'd in the workspace-level `openspec/`
+(see workspace AGENTS.md).
 
 ## What this is
 
