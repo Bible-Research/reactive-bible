@@ -44,6 +44,17 @@ const resolveChapter = (bookId: string, chapter: number) =>
     headings: [],
   });
 
+// Uncached chapter fetches only fire after PassageView's
+// settle delay, so the resolver for a chapter is registered
+// a beat after navigation. Wait for the request to exist
+// before resolving it — resolving early is a silent no-op.
+const waitForRequest = (bookId: string, chapter: number) =>
+  waitFor(() => {
+    expect(
+      deferred.resolvers.has(`${bookId}.${chapter}`)
+    ).toBe(true);
+  });
+
 describe('Stale chapter responses are discarded (#110)', () => {
   beforeEach(() => {
     deferred.resolvers.clear();
@@ -68,6 +79,7 @@ describe('Stale chapter responses are discarded (#110)', () => {
       );
 
       // Initial chapter resolves normally.
+      await waitForRequest('JHN', 1);
       await act(async () => {
         resolveChapter('JHN', 1);
       });
@@ -77,13 +89,14 @@ describe('Stale chapter responses are discarded (#110)', () => {
         ).toBeInTheDocument();
       });
 
-      // Jump forward to ch4, then back to ch3 before either
-      // request resolves.
+      // Jump forward to ch4 and let its request fire, then
+      // back to ch3 before either request resolves.
       act(() => {
         useBibleStore
           .getState()
           .setActiveBookAndChapter('JHN', 4);
       });
+      await waitForRequest('JHN', 4);
       act(() => {
         useBibleStore
           .getState()
@@ -91,6 +104,7 @@ describe('Stale chapter responses are discarded (#110)', () => {
       });
 
       // The ch3 response arrives first.
+      await waitForRequest('JHN', 3);
       await act(async () => {
         resolveChapter('JHN', 3);
       });
