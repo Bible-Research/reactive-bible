@@ -29,8 +29,9 @@ const SWIPE_WHEEL_REACCEL = 3;
 const SWIPE_WHEEL_QUIET_MS = 300;
 
 /**
- * Chapter-turn swipe on the passage viewport — a left swipe
- * goes to the previous chapter, a right swipe to the next.
+ * Chapter-turn swipe on the passage viewport — a leftward
+ * (right-to-left) swipe goes to the next chapter, a rightward
+ * swipe to the previous, matching a book page turn.
  * Pointer Events cover touch (Android), pen, and desktop
  * mouse drags; wheel events cover trackpad/Magic-Mouse
  * swipes, which never produce pointer contact. A mouse drag
@@ -132,7 +133,7 @@ export const useChapterSwipe = (
       ) {
         return;
       }
-      goToChapter(dx < 0 ? 'previous' : 'next');
+      goToChapter(dx < 0 ? 'next' : 'previous');
     };
 
     const onWheel = (event: WheelEvent) => {

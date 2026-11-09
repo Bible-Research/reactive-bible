@@ -140,7 +140,7 @@ const PassageView = () => {
   const [isRateLimitError, setIsRateLimitError] = useState(false);
   const [isProviderError, setIsProviderError] = useState(false);
 
-  // Swipe left/right on the passage turns to the previous/next
+  // Swipe left/right on the passage turns to the next/previous
   // chapter — always armed, including while a chapter loads.
   useChapterSwipe(swipeRef, true);
 
