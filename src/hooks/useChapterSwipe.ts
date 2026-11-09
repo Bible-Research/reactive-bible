@@ -38,7 +38,11 @@ const SWIPE_WHEEL_QUIET_MS = 300;
  * that ends with text selected was meant as a text
  * selection, not a swipe. The book/chapter is read from the
  * store at swipe time so a gesture can't act on a chapter
- * that was already navigated away from.
+ * that was already navigated away from. The viewport gets
+ * `touch-action: pan-y` so touch drags reach pointerup on
+ * every render branch — without it the browser claims
+ * horizontal drags on non-Verse surfaces (loader, error,
+ * outline) as scrolls and the swipe dies at pointercancel.
  */
 export const useChapterSwipe = (
   viewportRef: RefObject<HTMLElement>,
@@ -71,6 +75,15 @@ export const useChapterSwipe = (
     if (!enabled) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
+
+    // Touch browsers claim a horizontal drag for scrolling —
+    // firing pointercancel — unless the element opts out with
+    // `touch-action: pan-y`. Loaded verses set it per-Verse,
+    // but the loader/error/outline branches don't, so
+    // mid-load swipes were silently dropped on touch devices.
+    // pan-y keeps vertical scrolling native.
+    const prevTouchAction = viewport.style.touchAction;
+    viewport.style.touchAction = 'pan-y';
 
     let start: {
       pointerId: number;
@@ -200,6 +213,7 @@ export const useChapterSwipe = (
       passive: false,
     });
     return () => {
+      viewport.style.touchAction = prevTouchAction;
       // gesture.timer is left running on purpose: it only
       // mutates the ref, and clearing it here could strand
       // `armed` at false if the stream went quiet just before

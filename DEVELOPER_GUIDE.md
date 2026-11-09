@@ -1399,7 +1399,10 @@ The app provides three-level navigation:
   the passage — left for the next chapter, right for the
   previous — via Pointer Events (touch, pen, mouse drag) and wheel
   events (trackpad/Magic-Mouse swipes). Mouse drags that
-  select text are ignored.
+  select text are ignored. The wrapper sets
+  `touch-action: pan-y` so touch swipes still land on the
+  loader/error/outline branches, which the browser would
+  otherwise claim as scrolls (pointercancel).
 - Active state highlighting
 - Smooth scroll-to-view for selected verses
 - Responsive design (collapsible on mobile)
