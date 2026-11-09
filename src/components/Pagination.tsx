@@ -1,8 +1,17 @@
-import { Group, Button, Text, ActionIcon } from '@mantine/core';
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Group,
+  Menu,
+  Text,
+  UnstyledButton,
+} from '@mantine/core';
 import {
   IconChevronLeft,
   IconChevronRight,
 } from '@tabler/icons-react';
+import { useRef } from 'react';
 import { pageNumberList } from '../utils/pagination';
 
 interface PaginationProps {
@@ -16,9 +25,15 @@ export default function Pagination({
   totalPages,
   onPageChange,
 }: PaginationProps) {
+  const currentPageItemRef = useRef<HTMLButtonElement>(null);
+
   if (totalPages <= 1) return null;
 
   const pageNumbers = pageNumberList(currentPage, totalPages);
+  const allPages = Array.from(
+    { length: totalPages },
+    (_, i) => i + 1
+  );
 
   return (
     <nav aria-label="Pagination">
@@ -36,14 +51,62 @@ export default function Pagination({
       {pageNumbers.map((page, index) => {
         if (page === 'ellipsis') {
           return (
-            <Text
+            <Menu
               key={`ellipsis-${index}`}
-              color="dimmed"
-              px="xs"
-              aria-hidden="true"
+              withinPortal
+              position="bottom"
+              shadow="md"
+              width={120}
             >
-              ...
-            </Text>
+              <Menu.Target>
+                <UnstyledButton
+                  px="xs"
+                  aria-label="Show all pages"
+                  title="Show all pages"
+                >
+                  <Text color="dimmed">...</Text>
+                </UnstyledButton>
+              </Menu.Target>
+              <Menu.Dropdown
+                onFocus={(event) => {
+                  // Mantine's focus trap hands open-focus to
+                  // the dropdown wrapper — pass it on to the
+                  // current page so it's selected (and
+                  // scrolled into view) immediately.
+                  if (
+                    (event.target as HTMLElement)
+                      .hasAttribute('data-menu-dropdown')
+                  ) {
+                    currentPageItemRef.current?.focus();
+                  }
+                }}
+              >
+                <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
+                  {allPages.map((pageNumber) => (
+                    <Menu.Item
+                      key={pageNumber}
+                      ref={
+                        pageNumber === currentPage
+                          ? currentPageItemRef
+                          : undefined
+                      }
+                      aria-current={
+                        pageNumber === currentPage
+                          ? 'page'
+                          : undefined
+                      }
+                      onClick={() => {
+                        if (pageNumber !== currentPage) {
+                          onPageChange(pageNumber);
+                        }
+                      }}
+                    >
+                      Page {pageNumber}
+                    </Menu.Item>
+                  ))}
+                </Box>
+              </Menu.Dropdown>
+            </Menu>
           );
         }
 
