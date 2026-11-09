@@ -2446,7 +2446,17 @@ collapsible tray above the action bar — the linked verses:
 passes the `PassagePicker` + verse texts (its desktop
 collapsible section is `!isMobile`-gated, and the shared JSX
 lives in `versesSection`). The tray panel scrolls internally
-(`max-height: 45vh`).
+(`max-height: 45vh`). The fullscreen modal content is sized
+with `height: 100dvh` — not the Mantine default `100vh`: on
+Android the `vh` unit ignores the browser/system chrome, so
+the modal's bottom edge (the sticky action bar and the
+ProseMirror's scroll boundary) could sit under the
+navigation buttons and hide the caret. `100dvh` tracks the
+dynamically visible height, and
+`padding-bottom: env(safe-area-inset-bottom)` lifts the
+scrollport above a system bar in edge-to-edge WebViews —
+`index.html` therefore carries `viewport-fit=cover`, without
+which `env(safe-area-inset-*)` is always 0.
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token; a book+chapter with no verse

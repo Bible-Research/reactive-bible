@@ -63,9 +63,21 @@ const AddStandaloneNoteModal = ({
       styles={{
         // Mobile: let the form's editing surface fill the
         // viewport — the body gets a bounded height so the
-        // form's min-height:100% resolves against it.
+        // form's min-height:100% resolves against it. The
+        // height must be 100dvh, not the default 100vh: on
+        // Android the vh unit ignores browser/system chrome,
+        // so the modal bottom (and the action bar with it)
+        // ends up under the navigation buttons. The
+        // safe-area-inset padding lifts the scrollport above
+        // a system bar in edge-to-edge WebViews.
         content: isMobile
-          ? { display: "flex", flexDirection: "column" }
+          ? {
+              display: "flex",
+              flexDirection: "column",
+              height: "100dvh",
+              paddingBottom:
+                "env(safe-area-inset-bottom, 0px)",
+            }
           : {},
         body: isMobile ? { flex: 1 } : {},
       }}
