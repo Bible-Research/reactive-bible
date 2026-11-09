@@ -49,6 +49,17 @@ interface RenderCtx {
   remaining: number;
 }
 
+// Mirrors the indent extension's renderHTML: a `data-indent`
+// attribute on paragraphs/headings becomes a left margin.
+const MAX_RENDER_INDENT = 8;
+const indentStyle = (node: TiptapNode) => {
+  const n = Math.min(
+    Math.max(Number(node.attrs?.indent) || 0, 0),
+    MAX_RENDER_INDENT
+  );
+  return n > 0 ? { marginLeft: `${n * 2}em` } : undefined;
+};
+
 const applyMarks = (
   node: TiptapNode,
   children: ReactNode,
@@ -167,7 +178,13 @@ const renderNode = (
       return <br key={key} />;
     case 'paragraph':
       return (
-        <Text key={key} component="p" size={ctx.size} my={4}>
+        <Text
+          key={key}
+          component="p"
+          size={ctx.size}
+          my={4}
+          style={indentStyle(node)}
+        >
           {kids(key)}
         </Text>
       );
@@ -181,7 +198,12 @@ const renderNode = (
         | 5
         | 6;
       return (
-        <Title key={key} order={order} my={4}>
+        <Title
+          key={key}
+          order={order}
+          my={4}
+          style={indentStyle(node)}
+        >
           {kids(key)}
         </Title>
       );
