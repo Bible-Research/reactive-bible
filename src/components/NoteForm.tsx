@@ -540,7 +540,15 @@ const NoteForm = ({
           ? {
               display: 'flex',
               flexDirection: 'column',
-              minHeight: '100%',
+              // flex:1 inside the flex-column modal body —
+              // bounded by it, never pushing the modal's own
+              // content into scroll (a scrolled modal content
+              // slides the sticky toolbar under the sticky
+              // header). On tiny screens the form scrolls
+              // internally instead.
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
             }
           : undefined
       }

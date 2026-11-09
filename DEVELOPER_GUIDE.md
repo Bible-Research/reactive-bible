@@ -2444,11 +2444,23 @@ labels each one; the desktop bar with text buttons and
 checkboxes is unchanged. Modals may also
 pass `trayLabel`/`trayCount`/`trayContent` to render a
 collapsible tray above the action bar — the linked verses:
-`AddTagNoteModal` passes `VerseTextGroups`, `EditNoteModal`
-passes the `PassagePicker` + verse texts (its desktop
-collapsible section is `!isMobile`-gated, and the shared JSX
-lives in `versesSection`). The tray panel scrolls internally
-(`max-height: 45vh`).
+`AddTagNoteModal` passes `VerseTextGroups` (plus the
+`linkedNotesList` section), `EditNoteModal` passes the
+`PassagePicker` + verse texts (its desktop collapsible
+section is `!isMobile`-gated, and the shared JSX lives in
+`versesSection`). The tray panel scrolls internally
+(`max-height: 45vh`). The mobile modal's `body` is a bounded
+flex column and the form `flex: 1` with its own
+`overflowY: auto`, so `.content` NEVER scrolls — critical
+because Mantine's sticky modal header (`z-index: 1000`)
+would otherwise cover the sticky formatting toolbar's first
+row; the toolbar itself is `nowrap` + `overflowX: auto` (a
+single scrollable line). The header carries no heading — the
+`title` slot holds a collapse `ActionIcon` right-aligned via
+`styles.title`; collapsing sets `body: display:none`,
+`content: height:auto`, `overlay: display:none` and releases
+`lockScroll`/`trapFocus`, leaving a thin bar (expand chevron
++ X) over the still-interactive Bible.
 
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token; a book+chapter with no verse
