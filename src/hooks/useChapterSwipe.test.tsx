@@ -182,6 +182,26 @@ describe('useChapterSwipe', () => {
     expect(currentPath()).toBe('/');
   });
 
+  it('sets touch-action pan-y so touch swipes survive ' +
+    'browser scroll claiming', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    expect(el.style.touchAction).toBe('pan-y');
+  });
+
+  it('restores the previous touch-action on unmount', () => {
+    const { unmount } = renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    unmount();
+    expect(el.style.touchAction).toBe('');
+  });
+
+  it('leaves touch-action alone while disabled', () => {
+    renderWithProviders(<SwipeHarness enabled={false} />);
+    const el = screen.getByTestId('swipe-viewport');
+    expect(el.style.touchAction).toBe('');
+  });
+
   it('navigates to the previous chapter on a leftward ' +
     'wheel scroll', () => {
     renderWithProviders(<SwipeHarness />);
