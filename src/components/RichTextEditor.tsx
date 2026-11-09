@@ -13,10 +13,15 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
+import {
+  IconIndentDecrease,
+  IconIndentIncrease,
+} from '@tabler/icons-react';
 import ScriptureMention, {
   ScriptureMentionNode,
   ScriptureRefNode,
 } from '../extensions/scriptureMention';
+import Indent from '../extensions/indent';
 import type { ScriptureMentionStorage } from '../extensions/scriptureMention';
 import ScripturePassagePopover from './ScripturePassagePopover';
 import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
@@ -152,6 +157,7 @@ const RichTextEditor = forwardRef<
       // schema entries the editor would strip them on load.
       ScriptureRefNode,
       ScriptureMentionNode,
+      Indent,
     ],
     content: valueToContent(value),
     autofocus: autoFocus ? 'end' : false,
@@ -400,6 +406,28 @@ const RichTextEditor = forwardRef<
             <MantineRichTextEditor.BulletList />
             <MantineRichTextEditor.OrderedList />
           </MantineRichTextEditor.ControlsGroup>
+          {note && (
+            <MantineRichTextEditor.ControlsGroup>
+              <MantineRichTextEditor.Control
+                onClick={() =>
+                  editor?.chain().focus().outdent().run()
+                }
+                aria-label="Decrease indent"
+                title="Decrease indent"
+              >
+                <IconIndentDecrease size={16} stroke={1.5} />
+              </MantineRichTextEditor.Control>
+              <MantineRichTextEditor.Control
+                onClick={() =>
+                  editor?.chain().focus().indent().run()
+                }
+                aria-label="Increase indent"
+                title="Increase indent"
+              >
+                <IconIndentIncrease size={16} stroke={1.5} />
+              </MantineRichTextEditor.Control>
+            </MantineRichTextEditor.ControlsGroup>
+          )}
           {note && (
             <MantineRichTextEditor.ControlsGroup>
               <MantineRichTextEditor.Blockquote />

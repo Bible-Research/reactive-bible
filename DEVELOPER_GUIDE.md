@@ -2632,7 +2632,11 @@ Modal for selecting Bible translations.
   previews; its expanded mode lists the whole chapter with
   selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
-  read-only rendering (lazy chunk)
+  read-only rendering (lazy chunk); block indentation comes
+  from `src/extensions/indent.ts` (a `data-indent` attr →
+  `margin-left` on paragraphs/headings, sink/lift inside
+  lists) with toolbar buttons in the note variant and the
+  same margin applied in `RichTextView`'s renderer
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
   `CommentActions.tsx` + `CommentImageGrid.tsx` +
   `Lightbox.tsx` - threaded comments with image upload
