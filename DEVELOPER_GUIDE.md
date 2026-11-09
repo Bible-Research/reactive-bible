@@ -1395,6 +1395,11 @@ The app provides three-level navigation:
 - Sidebar book/chapter/verse picker (`BibleSelector`)
 - Bottom prev/next chapter bar (`BottomNav`) with the current
   book/chapter title kept in sync
+- Swipe chapter turns (`useChapterSwipe`): a horizontal swipe on
+  the passage — left for the previous chapter, right for the
+  next — via Pointer Events (touch, pen, mouse drag) and wheel
+  events (trackpad/Magic-Mouse swipes). Mouse drags that
+  select text are ignored.
 - Active state highlighting
 - Smooth scroll-to-view for selected verses
 - Responsive design (collapsible on mobile)
