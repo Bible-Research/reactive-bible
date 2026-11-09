@@ -359,6 +359,15 @@ const RichTextEditor = forwardRef<
               flex: 1,
               minHeight: 0,
             },
+            // One toolbar line: on narrow screens it scrolls
+            // sideways instead of wrapping to two rows.
+            '& .mantine-RichTextEditor-toolbar': {
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+            },
+            '& .mantine-RichTextEditor-controlsGroup': {
+              flexShrink: 0,
+            },
           }),
           '.ProseMirror p.is-editor-empty:first-of-type::before':
             {

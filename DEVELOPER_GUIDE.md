@@ -2438,21 +2438,35 @@ so capture is required to see the ProseMirror's internal
 scroller; elements marked `data-note-form-static` and an open
 tag dropdown are ignored), and the action bar becomes a
 single icon row (submit ✓, attach-image with count badge,
-autosave toggle, public/lock toggle) — the desktop bar with
-text buttons and checkboxes is unchanged. Modals may also
+autosave toggle, public/lock toggle) whose icons carry
+touch-enabled tooltips (`events.touch`) so a tap or hold
+labels each one; the desktop bar with text buttons and
+checkboxes is unchanged. Modals may also
 pass `trayLabel`/`trayCount`/`trayContent` to render a
 collapsible tray above the action bar — the linked verses:
-`AddTagNoteModal` passes `VerseTextGroups`, `EditNoteModal`
-passes the `PassagePicker` + verse texts (its desktop
-collapsible section is `!isMobile`-gated, and the shared JSX
-lives in `versesSection`). The tray panel scrolls internally
-(`max-height: 45vh`). The fullscreen modal content is sized
-with `height: 100dvh` — not the Mantine default `100vh`: on
-Android the `vh` unit ignores the browser/system chrome, so
-the modal's bottom edge (the sticky action bar and the
-ProseMirror's scroll boundary) could sit under the
-navigation buttons and hide the caret. `100dvh` tracks the
-dynamically visible height, and
+`AddTagNoteModal` passes `VerseTextGroups` (plus the
+`linkedNotesList` section), `EditNoteModal` passes the
+`PassagePicker` + verse texts (its desktop collapsible
+section is `!isMobile`-gated, and the shared JSX lives in
+`versesSection`). The tray panel scrolls internally
+(`max-height: 45vh`). The mobile modal's `body` is a bounded
+flex column and the form `flex: 1` with its own
+`overflowY: auto`, so `.content` NEVER scrolls — critical
+because Mantine's sticky modal header (`z-index: 1000`)
+would otherwise cover the sticky formatting toolbar's first
+row; the toolbar itself is `nowrap` + `overflowX: auto` (a
+single scrollable line). The header carries no heading — the
+`title` slot holds a collapse `ActionIcon` right-aligned via
+`styles.title`; collapsing sets `body: display:none`,
+`content: height:auto`, `overlay: display:none` and releases
+`lockScroll`/`trapFocus`, leaving a thin bar (expand chevron
++ X) over the still-interactive Bible. The fullscreen modal
+content is sized with `height: 100dvh` — not the Mantine
+default `100vh`: on Android the `vh` unit ignores the
+browser/system chrome, so the modal's bottom edge (the
+sticky action bar and the ProseMirror's scroll boundary)
+could sit under the navigation buttons and hide the caret.
+`100dvh` tracks the dynamically visible height, and
 `padding-bottom: env(safe-area-inset-bottom)` lifts the
 scrollport above a system bar in edge-to-edge WebViews —
 `index.html` therefore carries `viewport-fit=cover`, without

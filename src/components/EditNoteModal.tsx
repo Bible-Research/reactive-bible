@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActionIcon,
   Badge,
   Box,
   Collapse,
@@ -9,7 +10,11 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconChevronUp,
+} from "@tabler/icons-react";
 import { useMediaQuery } from "@mantine/hooks";
 import { showNotification } from "@mantine/notifications";
 
@@ -47,6 +52,9 @@ interface EditNoteModalProps {
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const isMobile = useMediaQuery("(max-width: 768px)");
+  // Collapsed = the editor hides completely, leaving a thin
+  // header bar (expand chevron + close) over the Bible.
+  const [collapsed, setCollapsed] = useState(false);
   const {
     tags,
     getTags,
@@ -329,22 +337,57 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     </>
   );
 
+  const collapsedMobile = isMobile && collapsed;
+
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Edit note"
+      // No heading on mobile (redundant chrome) — the title
+      // slot instead carries the collapse toggle, right-
+      // aligned next to the close button via `styles.title`.
+      title={
+        isMobile ? (
+          <ActionIcon
+            variant="subtle"
+            size="lg"
+            title={
+              collapsed ? "Expand editor" : "Collapse editor"
+            }
+            aria-label={
+              collapsed ? "Expand editor" : "Collapse editor"
+            }
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((c) => !c)}
+          >
+            {collapsed ? (
+              <IconChevronDown size={18} />
+            ) : (
+              <IconChevronUp size={18} />
+            )}
+          </ActionIcon>
+        ) : (
+          "Edit note"
+        )
+      }
       fullScreen
+      // Collapsed unlocks scroll/focus so the Bible behind
+      // stays readable and scrollable.
+      lockScroll={!collapsedMobile}
+      trapFocus={!collapsedMobile}
       styles={{
         // Mobile: let the form's editing surface fill the
-        // viewport — the body gets a bounded height so the
-        // form's min-height:100% resolves against it. The
-        // height must be 100dvh, not the default 100vh: on
-        // Android the vh unit ignores browser/system chrome,
-        // so the modal bottom (and the action bar with it)
-        // ends up under the navigation buttons. The
-        // safe-area-inset padding lifts the scrollport above
-        // a system bar in edge-to-edge WebViews.
+        // viewport — body is a bounded flex column so the
+        // form's flex:1 resolves and the modal content never
+        // scrolls (a scrolled content slides the sticky
+        // toolbar under the sticky header). Collapsed shrinks
+        // the modal to a thin header bar. The height must be
+        // 100dvh, not the default 100vh: on Android the vh
+        // unit ignores browser/system chrome, so the modal
+        // bottom (and the action bar with it) ends up under
+        // the navigation buttons. The safe-area-inset
+        // padding lifts the scrollport above a system bar
+        // in edge-to-edge WebViews.
         content: isMobile
           ? {
               display: "flex",
@@ -352,9 +395,26 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               height: "100dvh",
               paddingBottom:
                 "env(safe-area-inset-bottom, 0px)",
+              ...(collapsed && { height: "auto" }),
             }
           : {},
-        body: isMobile ? { flex: 1 } : {},
+        body: isMobile
+          ? {
+              flex: 1,
+              display: collapsed ? "none" : "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }
+          : {},
+        title: isMobile
+          ? {
+              display: "flex",
+              flex: 1,
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }
+          : {},
+        overlay: collapsedMobile ? { display: "none" } : {},
       }}
     >
       {note && (
