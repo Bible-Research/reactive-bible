@@ -725,18 +725,25 @@ const NoteForm = ({
       >
         {fillHeight ? (
           // Mobile: one compact icon row — submit, attach,
-          // autosave toggle, publicity toggle.
+          // autosave toggle, publicity toggle. touch-enabled
+          // tooltips label each icon on tap or hold.
           <Group spacing="md" noWrap position="apart">
-            <ActionIcon
-              type="submit"
-              variant="filled"
-              color="blue"
-              size="lg"
-              title={submitText}
-              aria-label={submitText}
+            <Tooltip
+              label={submitText}
+              position="top"
+              events={{ hover: true, focus: true, touch: true }}
             >
-              <IconCheck size={18} />
-            </ActionIcon>
+              <ActionIcon
+                type="submit"
+                variant="filled"
+                color="blue"
+                size="lg"
+                title={submitText}
+                aria-label={submitText}
+              >
+                <IconCheck size={18} />
+              </ActionIcon>
+            </Tooltip>
             {(onAttachFiles || onFilesChange) && (
               <FileButton
                 onChange={handleFileSelect}
@@ -755,52 +762,82 @@ const NoteForm = ({
                 }}
               >
                 {(props) => (
-                  <Box sx={{ position: "relative" }}>
-                    <ActionIcon
-                      {...props}
-                      variant="subtle"
-                      size="lg"
-                      disabled={attachCapReached}
-                      aria-label="Attach images"
-                      title="Attach images"
-                    >
-                      <IconPhoto size={18} />
-                    </ActionIcon>
-                    {totalAttached > 0 && (
-                      <Badge
-                        size="xs"
-                        variant="filled"
-                        color="blue"
-                        sx={{
-                          position: "absolute",
-                          top: -4,
-                          right: -4,
-                          pointerEvents: "none",
-                        }}
+                  <Tooltip
+                    label={
+                      totalAttached > 0
+                        ? `Attach images ` +
+                          `(${totalAttached}/${MAX_NOTE_IMAGES})`
+                        : "Attach images"
+                    }
+                    position="top"
+                    events={{
+                      hover: true,
+                      focus: true,
+                      touch: true,
+                    }}
+                  >
+                    <Box sx={{ position: "relative" }}>
+                      <ActionIcon
+                        {...props}
+                        variant="subtle"
+                        size="lg"
+                        disabled={attachCapReached}
+                        aria-label="Attach images"
+                        title="Attach images"
                       >
-                        {totalAttached}
-                      </Badge>
-                    )}
-                  </Box>
+                        <IconPhoto size={18} />
+                      </ActionIcon>
+                      {totalAttached > 0 && (
+                        <Badge
+                          size="xs"
+                          variant="filled"
+                          color="blue"
+                          sx={{
+                            position: "absolute",
+                            top: -4,
+                            right: -4,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          {totalAttached}
+                        </Badge>
+                      )}
+                    </Box>
+                  </Tooltip>
                 )}
               </FileButton>
             )}
             {onAutoSave && (
-              <ActionIcon
-                variant={autoSave ? "filled" : "subtle"}
-                color={autoSave ? "blue" : "gray"}
-                size="lg"
-                onClick={() => setAutoSave((v) => !v)}
-                aria-label="Auto save"
-                aria-pressed={autoSave}
-                title="Auto save"
+              <Tooltip
+                label={`Auto save ${autoSave ? "on" : "off"}`}
+                position="top"
+                events={{
+                  hover: true,
+                  focus: true,
+                  touch: true,
+                }}
               >
-                <IconRefresh size={18} />
-              </ActionIcon>
+                <ActionIcon
+                  variant={autoSave ? "filled" : "subtle"}
+                  color={autoSave ? "blue" : "gray"}
+                  size="lg"
+                  onClick={() => setAutoSave((v) => !v)}
+                  aria-label="Auto save"
+                  aria-pressed={autoSave}
+                  title="Auto save"
+                >
+                  <IconRefresh size={18} />
+                </ActionIcon>
+              </Tooltip>
             )}
             <Tooltip
-              label="Anyone with the link can view this note"
+              label={
+                isPublic
+                  ? "Public — anyone with the link can view"
+                  : "Private — only you can view"
+              }
               position="top"
+              events={{ hover: true, focus: true, touch: true }}
             >
               <ActionIcon
                 variant={isPublic ? "filled" : "subtle"}

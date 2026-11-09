@@ -2438,8 +2438,10 @@ so capture is required to see the ProseMirror's internal
 scroller; elements marked `data-note-form-static` and an open
 tag dropdown are ignored), and the action bar becomes a
 single icon row (submit ✓, attach-image with count badge,
-autosave toggle, public/lock toggle) — the desktop bar with
-text buttons and checkboxes is unchanged. Modals may also
+autosave toggle, public/lock toggle) whose icons carry
+touch-enabled tooltips (`events.touch`) so a tap or hold
+labels each one; the desktop bar with text buttons and
+checkboxes is unchanged. Modals may also
 pass `trayLabel`/`trayCount`/`trayContent` to render a
 collapsible tray above the action bar — the linked verses:
 `AddTagNoteModal` passes `VerseTextGroups`, `EditNoteModal`
