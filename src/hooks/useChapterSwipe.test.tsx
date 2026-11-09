@@ -108,22 +108,22 @@ describe('useChapterSwipe', () => {
     vi.clearAllMocks();
   });
 
-  it('navigates to the previous chapter on a left swipe', () => {
+  it('navigates to the next chapter on a left swipe', () => {
     renderWithProviders(<SwipeHarness />);
     swipe(screen.getByTestId('swipe-viewport'), {
       fromX: 300,
       toX: 100,
     });
-    expect(currentPath()).toBe('/bible/LUK.24');
+    expect(currentPath()).toBe('/bible/JHN.2');
   });
 
-  it('navigates to the next chapter on a right swipe', () => {
+  it('navigates to the previous chapter on a right swipe', () => {
     renderWithProviders(<SwipeHarness />);
     swipe(screen.getByTestId('swipe-viewport'), {
       fromX: 100,
       toX: 300,
     });
-    expect(currentPath()).toBe('/bible/JHN.2');
+    expect(currentPath()).toBe('/bible/LUK.24');
   });
 
   it('ignores drags shorter than the swipe distance', () => {
@@ -153,7 +153,7 @@ describe('useChapterSwipe', () => {
       toX: 100,
       pointerType: 'mouse',
     });
-    expect(currentPath()).toBe('/bible/LUK.24');
+    expect(currentPath()).toBe('/bible/JHN.2');
   });
 
   it('ignores a mouse drag that selected text', () => {

@@ -1396,8 +1396,8 @@ The app provides three-level navigation:
 - Bottom prev/next chapter bar (`BottomNav`) with the current
   book/chapter title kept in sync
 - Swipe chapter turns (`useChapterSwipe`): a horizontal swipe on
-  the passage — left for the previous chapter, right for the
-  next — via Pointer Events (touch, pen, mouse drag) and wheel
+  the passage — left for the next chapter, right for the
+  previous — via Pointer Events (touch, pen, mouse drag) and wheel
   events (trackpad/Magic-Mouse swipes). Mouse drags that
   select text are ignored.
 - Active state highlighting
