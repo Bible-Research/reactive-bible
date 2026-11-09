@@ -22,6 +22,15 @@ const BibleSelector = ({
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const verseSelection = useBibleStore((state) => state.verseSelection);
+  // MyHeader and BottomNav slide away on downward scroll; the
+  // AppShell only reclaims their padding on `main`, so the
+  // fixed navbar has to drop its own top/height offsets to
+  // fill the freed space. The audio player (~120px, fixed to
+  // the viewport bottom) never hides — keep clearing it.
+  const headerVisible = useBibleStore((state) => state.headerVisible);
+  const showAudioPlayer = useBibleStore(
+    (state) => state.showAudioPlayer
+  );
   const isMobileLandscape = useMediaQuery(MOBILE_LANDSCAPE_QUERY);
   const prepareBookSwitch = useBibleStore(
     (state) => state.prepareBookSwitch
@@ -47,9 +56,22 @@ const BibleSelector = ({
       hiddenBreakpoint="sm"
       hidden={!opened}
       width={{ sm: 320, lg: 320 }}
+      data-expanded={!headerVisible}
       sx={{
         overflow: "hidden",
-        transition: "width 1000ms ease, min-width 1000ms ease",
+        // Defaults (fixed under the header, above the footer)
+        // come from Mantine's HorizontalSection styles.
+        ...(headerVisible
+          ? {}
+          : {
+              top: 0,
+              height: showAudioPlayer
+                ? "calc(100vh - 120px)"
+                : "100vh",
+            }),
+        transition:
+          "width 1000ms ease, min-width 1000ms ease, " +
+          "top 0.3s ease-in-out, height 0.3s ease-in-out",
       }}
     >
       <Navbar.Section grow sx={{ overflow: "hidden" }}>
