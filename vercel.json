@@ -1,5 +1,27 @@
 {
+  "regions": ["fra1"],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/api/:path*/",
+      "destination":
+        "https://bible-research-489314.ey.r.appspot.com/api/:path*/"
+    },
+    {
+      "source": "/api/:path*",
+      "destination":
+        "https://bible-research-489314.ey.r.appspot.com/api/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

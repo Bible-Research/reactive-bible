@@ -237,6 +237,29 @@ Code conventions:
   `readingPositions` in `src/store.ts`).
 - KJV audio is fetched from wordpocket.org directly, not the API.
 
+## Deployment / Vercel
+
+- `vercel.json` rewrites `/api/:path*` to the GAE backend
+  (`bible-research-489314.ey.r.appspot.com`) BEFORE the SPA
+  catch-all, so the app can call the API same-origin when
+  `VITE_API_BASE_URL` is set to the Vercel domain — this kills
+  CORS preflights and makes anonymous GETs edge-cacheable.
+  Vercel's `:path*` does not match trailing-slash paths and
+  every Django endpoint ends in `/`, so vercel.json ships BOTH
+  `/api/:path*` and `/api/:path*/` rules — do not deduplicate.
+  Two dashboard steps are manual (agent cannot do them): set
+  `VITE_API_BASE_URL=https://bibleresearch.vercel.app` in the
+  Production scope + redeploy, and enable "cache responses
+  from external rewrites" in project settings (the project
+  predates the default-on rollout).
+- Requests carrying `Authorization` bypass the edge cache by
+  design — authenticated traffic only gains preflight
+  elimination.
+- Hashed `/assets/*` get `Cache-Control: public,
+  max-age=31536000, immutable`; `index.html` keeps default
+  no-cache. No `CDN-Cache-Control` anywhere — licensed Bible
+  content must not be CDN-cached.
+
 ## Android / Play Protect
 
 - `@anuradev/capacitor-background-mode` is patched via
