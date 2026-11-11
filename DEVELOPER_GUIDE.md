@@ -159,7 +159,10 @@ The app is configured for deployment on **Vercel**:
   before the SPA catch-all, so the SPA can call the API
   same-origin: set
   `VITE_API_BASE_URL=https://bibleresearch.vercel.app` in the
-  Vercel dashboard (Production scope) and redeploy.
+  Vercel dashboard (Production scope) and redeploy. Vercel's
+  `:path*` does not match trailing-slash paths and every
+  Django endpoint ends in `/`, so vercel.json ships BOTH
+  `/api/:path*` and `/api/:path*/` rules — do not deduplicate.
 - This eliminates CORS preflights and makes anonymous GETs
   eligible for Vercel edge caching — enable "cache responses
   from external rewrites" in project settings (the project

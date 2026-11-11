@@ -244,6 +244,9 @@ Code conventions:
   catch-all, so the app can call the API same-origin when
   `VITE_API_BASE_URL` is set to the Vercel domain — this kills
   CORS preflights and makes anonymous GETs edge-cacheable.
+  Vercel's `:path*` does not match trailing-slash paths and
+  every Django endpoint ends in `/`, so vercel.json ships BOTH
+  `/api/:path*` and `/api/:path*/` rules — do not deduplicate.
   Two dashboard steps are manual (agent cannot do them): set
   `VITE_API_BASE_URL=https://bibleresearch.vercel.app` in the
   Production scope + redeploy, and enable "cache responses
