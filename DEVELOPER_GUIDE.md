@@ -1,5 +1,13 @@
 # Reactive Bible - Developer Guide
 
+> **How this doc fits in**: this is the detailed human-facing
+> reference (setup, architecture, components, testing).
+> `AGENTS.md` is the agent-facing contract — where the two
+> disagree, trust `AGENTS.md`, and trust the code over both.
+> Cross-repo contracts (`fileset_id` routing,
+> `error`/`error_code`, auth) are spec'd in the workspace-level
+> `openspec/`.
+
 ## Table of Contents
 1. [Project Overview](#project-overview)
 2. [Development Setup](#development-setup)
@@ -3610,7 +3618,11 @@ The app is tested and works on:
 
 ### Media Session API Support
 
-The app uses the Media Session API for hardware audio controls:
+The app uses the Media Session API for hardware audio controls.
+The full implementation contract (single owner, sync handlers,
+teardown order, testing checklist) lives in
+[docs/MEDIA_SESSION_BEST_PRACTICES.md](docs/MEDIA_SESSION_BEST_PRACTICES.md)
+— read it before touching `useMediaSession` or `Audio.tsx`.
 
 ```typescript
 if ('mediaSession' in navigator) {
