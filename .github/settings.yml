@@ -7,10 +7,12 @@ repository:
   name: reactive-bible
   
   # Description
-  description: React TypeScript frontend for Bible reading and study application
+  description: >-
+    React TypeScript frontend for Bible reading and study
+    application
   
   # Homepage URL (Vercel deployment)
-  homepage: https://reactive-bible.vercel.app
+  homepage: https://bibleresearch.vercel.app
   
   # Repository visibility (public or private)
   private: false
