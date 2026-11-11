@@ -153,6 +153,28 @@ The app is configured for deployment on **Vercel**:
   set per-environment; sourcemap upload needs the `SENTRY_*`
   build env vars (see "Error Reporting & Monitoring")
 
+**Same-origin API proxy** (`vercel.json`):
+- `/api/:path*` is rewritten to the GAE backend
+  (`https://bible-research-489314.ey.r.appspot.com/api/:path*`)
+  before the SPA catch-all, so the SPA can call the API
+  same-origin: set
+  `VITE_API_BASE_URL=https://bibleresearch.vercel.app` in the
+  Vercel dashboard (Production scope) and redeploy.
+- This eliminates CORS preflights and makes anonymous GETs
+  eligible for Vercel edge caching — enable "cache responses
+  from external rewrites" in project settings (the project
+  predates the ~Apr-2026 default-on).
+- Requests with `Authorization` bypass the edge cache by
+  design, so authenticated traffic only gains the preflight
+  elimination.
+- Hashed `/assets/*` are served `Cache-Control: public,
+  max-age=31536000, immutable`; `index.html` keeps default
+  no-cache. Preview deploys and the Android APK still call
+  the appspot host directly — `index.html` carries
+  preconnect/dns-prefetch hints for it. No
+  `CDN-Cache-Control` anywhere: licensed Bible content must
+  not be CDN-cached.
+
 ---
 
 ## Architecture
