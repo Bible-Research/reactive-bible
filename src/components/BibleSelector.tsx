@@ -63,7 +63,16 @@ const BibleSelector = ({
         // Defaults (fixed under the header, above the footer)
         // come from Mantine's HorizontalSection styles.
         ...(headerVisible
-          ? {}
+          ? showAudioPlayer
+            ? {
+                // The footer sits on top of the player bar, so
+                // the navbar must clear both (footer 56px).
+                height:
+                  "calc(100vh - var(--mantine-header-height," +
+                  " 0px)" +
+                  ` - ${AUDIO_PLAYER_HEIGHT + 56}px)`,
+              }
+            : {}
           : {
               top: 0,
               height: showAudioPlayer

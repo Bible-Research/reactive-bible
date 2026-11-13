@@ -31,7 +31,6 @@ import {
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
 import CopyrightNotice from "./CopyrightNotice";
-import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
 import { shallow } from 'zustand/shallow';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -101,7 +100,6 @@ const PassageView = () => {
     activeChapter,
     activeTextFilesetId,
     activeAudioFilesetId,
-    showAudioPlayer,
     translations,
   } = useBibleStore(
     (state) => ({
@@ -109,7 +107,6 @@ const PassageView = () => {
       activeChapter: state.activeChapter,
       activeTextFilesetId: state.activeTextFilesetId,
       activeAudioFilesetId: state.activeAudioFilesetId,
-      showAudioPlayer: state.showAudioPlayer,
       translations: state.translations,
     }),
     shallow
@@ -620,11 +617,7 @@ const PassageView = () => {
     return (
       <Box ref={swipeRef} h="100%">
         <ScrollArea h="100%">
-        <Box
-          pb={showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0}
-          px={10}
-          pt="md"
-        >
+        <Box px={10} pt="md">
           <Title order={5} color="dimmed" mb="xs">
             {activeBookName} — Section Outline
           </Title>
@@ -673,10 +666,7 @@ const PassageView = () => {
         h="100%"
         viewportRef={viewportRef}
       >
-      <Box
-        pb={showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0}
-        data-verse-scope="bible"
-      >
+      <Box data-verse-scope="bible">
         {verses.map((verse) => {
           // Several headings may share one anchor — e.g. the
           // ESV Psalm 18 superscription sits at before_verse 1
