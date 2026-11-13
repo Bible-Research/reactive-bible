@@ -6,6 +6,7 @@ import { useBibleStore } from "../store";
 import { buildBiblePath } from "../utils/bibleUtils";
 import { verseNumbersFor } from "../utils/verseRefs";
 import { findVersesInBetween } from "../utils/findVersesInBetween";
+import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
 import PassagePicker from "./PassagePicker";
 
 const MOBILE_LANDSCAPE_QUERY =
@@ -25,8 +26,8 @@ const BibleSelector = ({
   // MyHeader and BottomNav slide away on downward scroll; the
   // AppShell only reclaims their padding on `main`, so the
   // fixed navbar has to drop its own top/height offsets to
-  // fill the freed space. The audio player (~120px, fixed to
-  // the viewport bottom) never hides — keep clearing it.
+  // fill the freed space. The audio player (AUDIO_PLAYER_HEIGHT,
+  // fixed to the viewport bottom) never hides — keep clearing it.
   const headerVisible = useBibleStore((state) => state.headerVisible);
   const showAudioPlayer = useBibleStore(
     (state) => state.showAudioPlayer
@@ -62,11 +63,20 @@ const BibleSelector = ({
         // Defaults (fixed under the header, above the footer)
         // come from Mantine's HorizontalSection styles.
         ...(headerVisible
-          ? {}
+          ? showAudioPlayer
+            ? {
+                // The footer sits on top of the player bar, so
+                // the navbar must clear both (footer 56px).
+                height:
+                  "calc(100vh - var(--mantine-header-height," +
+                  " 0px)" +
+                  ` - ${AUDIO_PLAYER_HEIGHT + 56}px)`,
+              }
+            : {}
           : {
               top: 0,
               height: showAudioPlayer
-                ? "calc(100vh - 120px)"
+                ? `calc(100vh - ${AUDIO_PLAYER_HEIGHT}px)`
                 : "100vh",
             }),
         transition:

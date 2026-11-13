@@ -1,6 +1,7 @@
 import { screen, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import BottomNav from './BottomNav';
+import { AUDIO_PLAYER_HEIGHT } from '../utils/audioUtils';
 import { useBibleStore } from '../store';
 import { renderWithProviders } from '../__tests__/helpers';
 
@@ -34,7 +35,7 @@ describe('BottomNav', () => {
     expect(isVisible()).toBe(true);
   });
 
-  it('sits above the fixed audio player (~120px) while ' +
+  it('sits above the fixed audio player while ' +
     'visible and still slides fully off-screen when hidden',
   () => {
     renderWithProviders(
@@ -42,7 +43,8 @@ describe('BottomNav', () => {
       { stores: { bible: { showAudioPlayer: true } } }
     );
 
-    expect(getComputedStyle(getFooter()).bottom).toBe('120px');
+    expect(getComputedStyle(getFooter()).bottom)
+      .toBe(`${AUDIO_PLAYER_HEIGHT}px`);
 
     act(() => {
       useBibleStore.getState().setHeaderVisible(false);

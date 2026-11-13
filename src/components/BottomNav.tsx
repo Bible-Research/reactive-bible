@@ -10,6 +10,7 @@ import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore, selectActiveBookName } from "../store";
+import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
 import { getAdjacentChapters } from "../api/structure";
 import { buildBiblePath } from "../utils/bibleUtils";
 
@@ -60,7 +61,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
       sx={{
         bottom: headerVisible
           ? showAudioPlayer
-            ? '120px'
+            ? `${AUDIO_PLAYER_HEIGHT}px`
             : '0'
           : `-${FOOTER_HEIGHT}px`,
         transition: 'bottom 0.3s ease-in-out',

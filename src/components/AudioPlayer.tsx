@@ -19,7 +19,10 @@ import {
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
-import { getPlayPosition } from '../utils/audioUtils';
+import {
+  AUDIO_PLAYER_HEIGHT,
+  getPlayPosition,
+} from '../utils/audioUtils';
 
 interface AudioPlayerProps {
   audio: Howl | null;
@@ -31,6 +34,9 @@ interface AudioPlayerProps {
   subtitle?: string;
   onFocus?: () => void;
 }
+
+// Height of this fixed bottom bar is AUDIO_PLAYER_HEIGHT in
+// utils/audioUtils — keep the layout within that budget.
 
 const AudioPlayer = ({
   audio,
@@ -121,13 +127,17 @@ const AudioPlayer = ({
     <Portal>
       <Paper
       shadow="lg"
-      p="md"
+      p="sm"
       sx={(theme) => ({
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
         zIndex: 1000,
+        height: AUDIO_PLAYER_HEIGHT,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
         backgroundColor:
           theme.colorScheme === 'dark'
             ? theme.colors.dark[7]
@@ -139,7 +149,7 @@ const AudioPlayer = ({
         }`,
       })}
     >
-      <Group position="apart" mb="xs">
+      <Group position="apart">
         <Group spacing={4} sx={{ flex: 1, minWidth: 0 }}>
           {onFocus && (
             <ActionIcon
@@ -158,75 +168,88 @@ const AudioPlayer = ({
         <CloseButton onClick={onClose} title="Close player" />
       </Group>
 
-      <Group spacing="xs" mb="xs">
-        <ActionIcon
+      <Group spacing="xs" noWrap>
+        <Text size="xs" color="dimmed" sx={{ minWidth: 34 }}>
+          {formatTime(currentTime)}
+        </Text>
+        <Slider
+          value={currentTime}
+          min={0}
+          max={duration || 100}
+          onChange={(value) => {
+            setSeeking(true);
+            setCurrentTime(value);
+          }}
+          onChangeEnd={(value) => {
+            seekTo(value);
+            setSeeking(false);
+          }}
+          label={null}
           size="lg"
-          variant="filled"
-          onClick={handleSkipBackward}
-          title="Skip backward 5s"
-        >
-          <IconPlayerSkipBack size={20} />
-        </ActionIcon>
-
-        <ActionIcon
-          size="xl"
-          variant="filled"
-          color="blue"
-          onClick={onPlayPause}
-          title={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? (
-            <IconPlayerPause size={24} />
-          ) : (
-            <IconPlayerPlay size={24} />
-          )}
-        </ActionIcon>
-
-        <ActionIcon
-          size="lg"
-          variant="filled"
-          onClick={handleSkipForward}
-          title="Skip forward 5s"
-        >
-          <IconPlayerSkipForward size={20} />
-        </ActionIcon>
-
-        <ActionIcon
-          size="lg"
-          variant={isLooping ? 'filled' : 'outline'}
-          color={isLooping ? 'blue' : 'gray'}
-          onClick={onLoopToggle}
-          title={isLooping ? 'Loop enabled' : 'Loop disabled'}
-        >
-          <IconRepeat size={20} />
-        </ActionIcon>
-
-        <Box sx={{ flex: 1, mx: 'md' }}>
-          <Slider
-            value={currentTime}
-            min={0}
-            max={duration || 100}
-            onChange={(value) => {
-              setSeeking(true);
-              setCurrentTime(value);
-            }}
-            onChangeEnd={(value) => {
-              seekTo(value);
-              setSeeking(false);
-            }}
-            label={null}
-            size="sm"
-          />
-        </Box>
-
+          thumbSize={20}
+          sx={{ flex: 1 }}
+        />
         <Text
           size="xs"
           color="dimmed"
-          sx={{ minWidth: 80, textAlign: 'right' }}
+          sx={{ minWidth: 34, textAlign: 'right' }}
         >
-          {formatTime(currentTime)} / {formatTime(duration)}
+          {formatTime(duration)}
         </Text>
       </Group>
+
+      <Box px={40} sx={{ position: 'relative' }}>
+        <Group position="center" spacing="md">
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={handleSkipBackward}
+            title="Skip backward 5s"
+          >
+            <IconPlayerSkipBack size={22} />
+          </ActionIcon>
+
+          <ActionIcon
+            size={60}
+            variant="filled"
+            color="blue"
+            radius="xl"
+            onClick={onPlayPause}
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? (
+              <IconPlayerPause size={30} />
+            ) : (
+              <IconPlayerPlay size={30} />
+            )}
+          </ActionIcon>
+
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={handleSkipForward}
+            title="Skip forward 5s"
+          >
+            <IconPlayerSkipForward size={22} />
+          </ActionIcon>
+        </Group>
+
+        <ActionIcon
+          size="lg"
+          variant={isLooping ? 'filled' : 'subtle'}
+          color={isLooping ? 'blue' : 'gray'}
+          onClick={onLoopToggle}
+          title={isLooping ? 'Loop enabled' : 'Loop disabled'}
+          sx={{
+            position: 'absolute',
+            right: 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+          }}
+        >
+          <IconRepeat size={20} />
+        </ActionIcon>
+      </Box>
       </Paper>
     </Portal>
   );
