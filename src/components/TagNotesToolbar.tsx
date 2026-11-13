@@ -195,7 +195,7 @@ const TagNotesToolbar = ({
               { value: '50', label: '50' },
               { value: '100', label: '100' },
             ]}
-            style={{ width: 60, flexShrink: 0 }}
+            style={{ width: 72, flexShrink: 0 }}
           />
           {hasChildren && onToggleDescendants && (
             <Switch
