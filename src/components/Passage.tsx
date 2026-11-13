@@ -11,16 +11,24 @@ const Passage = () => {
   const showAudioPlayer = useBibleStore(
     (state) => state.showAudioPlayer
   );
+  const headerVisible = useBibleStore(
+    (state) => state.headerVisible
+  );
 
   return (
     <Box style={{ flex: "1 0 100%", height: "100%" }}>
       {/* Shared clearance for the fixed player bar so both the
-          verse and notes views rest above it. */}
+          verse and notes views rest above it — only while the
+          footer is up, since App's main padding already clears
+          the player once the chrome has slid away. */}
       <Box
         style={{
           height: "100%",
           overflow: "auto",
-          paddingBottom: showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0,
+          paddingBottom:
+            showAudioPlayer && headerVisible
+              ? AUDIO_PLAYER_HEIGHT
+              : 0,
         }}
       >
         {showNotes ? (
