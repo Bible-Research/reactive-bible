@@ -149,11 +149,15 @@ interface VersionItemProps extends ComponentPropsWithoutRef<'div'> {
 const VersionItem = forwardRef<HTMLDivElement, VersionItemProps>(
   ({ label, capability, ...others }, ref) => (
     <div ref={ref} {...others}>
-      <Group position="apart" noWrap>
-        <Text size="sm" truncate>
+      <Group position="apart" align="flex-start" noWrap>
+        <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
           {label}
         </Text>
-        <Badge size="xs" variant="light">
+        <Badge
+          size="xs"
+          variant="light"
+          style={{ flexShrink: 0 }}
+        >
           {CAPABILITY_LABEL[capability]}
         </Badge>
       </Group>
