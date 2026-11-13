@@ -187,6 +187,7 @@ const TagNotesToolbar = ({
           />
           <Select
             size="xs"
+            aria-label="Notes per page"
             value={String(pageSize)}
             onChange={onPageSizeChange}
             data={[
