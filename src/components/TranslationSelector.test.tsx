@@ -977,6 +977,65 @@ describe('TranslationSelector Component', () => {
         },
       );
 
+      it('shows a loading indicator while the language ' +
+        'search is in flight', async () => {
+          useRealStore();
+          let resolveSearch: (rows: unknown) => void =
+            () => undefined;
+          (
+            api.searchLanguages as unknown as Mock
+          ).mockImplementation(
+            () =>
+              new Promise((resolve) => {
+                resolveSearch = resolve;
+              }),
+          );
+          render(<TranslationSelector />);
+          await openOtherTab();
+
+          await userEvent.type(
+            screen.getByPlaceholderText('Search languages…'),
+            'spa',
+          );
+          // Keystrokes spread over the 300 ms debounce can
+          // fire intermediate searches ('sp') — wait for the
+          // 'spa' call so `resolveSearch` resolves the live
+          // request, not a stale cancelled one.
+          const searchMock =
+            api.searchLanguages as unknown as Mock;
+          await waitFor(() => {
+            expect(searchMock).toHaveBeenCalledWith(
+              'spa',
+              1,
+              150,
+            );
+          });
+
+          // While the request is pending the dropdown shows
+          // the loader — it must never flash "No languages
+          // found".
+          expect(
+            await screen.findByText('Loading…'),
+          ).toBeInTheDocument();
+          expect(
+            screen.queryByText('No languages found'),
+          ).not.toBeInTheDocument();
+
+          resolveSearch([
+            {
+              iso: 'spa',
+              name: 'Spanish',
+              autonym: 'español',
+              bibles: 42,
+              filesets: 84,
+            },
+          ]);
+          expect(
+            await screen.findByText('Spanish — español'),
+          ).toBeInTheDocument();
+        },
+      );
+
       it('fetches translations for the picked language',
         async () => {
           useRealStore();
@@ -1028,6 +1087,87 @@ describe('TranslationSelector Component', () => {
             'No versions available for this language',
           ),
         ).toBeInTheDocument();
+      });
+
+      it('shows a loading indicator on the Version select ' +
+        'while translations are fetched', async () => {
+        useRealStore();
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            iso === 'spa'
+              ? new Promise(() => undefined)
+              : Promise.resolve(engTranslations),
+        );
+        render(<TranslationSelector />);
+        await openOtherTab();
+
+        await userEvent.type(
+          screen.getByPlaceholderText('Search languages…'),
+          'spa',
+        );
+        await userEvent.click(
+          await screen.findByText('Spanish — español'),
+        );
+
+        // Let the post-pick echo debounce settle so the
+        // Language select's own loader is out of the way.
+        await new Promise((r) => setTimeout(r, 400));
+        expect(
+          screen.queryByText('Loading…'),
+        ).not.toBeInTheDocument();
+
+        // The spa fetch never settles — the Version select
+        // must show the loader instead of an empty list, and
+        // the "no versions" text stays gated on the fetch.
+        await userEvent.click(
+          screen.getByPlaceholderText('Choose a version'),
+        );
+        expect(
+          await screen.findByText('Loading…'),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            'No versions available for this language',
+          ),
+        ).not.toBeInTheDocument();
+      });
+
+      it('stops the Version loader when the translations ' +
+        'fetch fails', async () => {
+        useRealStore();
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            iso === 'spa'
+              ? Promise.reject(new Error('offline'))
+              : Promise.resolve(engTranslations),
+        );
+        render(<TranslationSelector />);
+        await openOtherTab();
+
+        await userEvent.type(
+          screen.getByPlaceholderText('Search languages…'),
+          'spa',
+        );
+        await userEvent.click(
+          await screen.findByText('Spanish — español'),
+        );
+
+        // Both fetch attempts reject — the select must not
+        // spin forever; a failure note replaces the loader.
+        expect(
+          await screen.findByText(
+            'Could not load versions — check your ' +
+              'connection and reopen the picker',
+          ),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText('Loading…'),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            'No versions available for this language',
+          ),
+        ).not.toBeInTheDocument();
       });
 
       it('reopens on Other when the stored language is not ' +

@@ -11,7 +11,9 @@ import {
   Accordion,
   Badge,
   Button,
+  Center,
   Group,
+  Loader,
   Modal,
   Radio,
   ScrollArea,
@@ -200,12 +202,22 @@ const TranslationSelector = () => {
   const [languageOptions, setLanguageOptions] = useState<
     LanguageOption[]
   >([]);
+  // True while a `searchLanguages` request is in flight —
+  // the picker shows a loader instead of flashing "No
+  // languages found" before the first results arrive.
+  const [searchingLanguages, setSearchingLanguages] =
+    useState(false);
   // Iso of the last completed translations fetch — lets the
   // empty state distinguish "fetch finished, genuinely empty"
   // from "still loading" (DBT `bibles` counts are DBT-wide, not
   // scoped to our API key, so a listed language can return no
   // versions).
   const [fetchedIso, setFetchedIso] =
+    useState<string | null>(null);
+  // Iso whose translations fetch failed outright — releases the
+  // Version select from the loading state into a failure note
+  // instead of spinning forever.
+  const [failedIso, setFailedIso] =
     useState<string | null>(null);
   // Effective iso driving the fetch effect and the versionData
   // filter: the picked language on Other, else the tab itself.
@@ -359,9 +371,11 @@ const TranslationSelector = () => {
     // re-derives the pick from the active store selection.
     setLanguageQuery('');
     setLanguageOptions([]);
+    setSearchingLanguages(false);
     setOtherIso(null);
     setOtherLanguageName(null);
     setFetchedIso(null);
+    setFailedIso(null);
     pickedLanguageLabelRef.current = null;
     userInteractedRef.current = false;
     // Seed the tab synchronously from the stored selection so
@@ -443,6 +457,9 @@ const TranslationSelector = () => {
     if (!languageIso) return;
     const iso = languageIso;
     let cancelled = false;
+    // A new attempt for this language clears any earlier
+    // failure — the loader shows again until it settles.
+    setFailedIso(null);
 
     const fetchTranslations = async () => {
       // Merge by abbr instead of replacing: the store's
@@ -461,15 +478,21 @@ const TranslationSelector = () => {
         setTranslations([...byAbbr.values()]);
       };
 
+      let succeeded = false;
+
       // Show cached list immediately for snappy UX (stale)…
       try {
         const cached = await getAvailableTranslations(iso);
         if (!cancelled) {
           merge(cached);
           setFetchedIso(iso);
+          succeeded = true;
         }
       } catch (error) {
         console.warn('Failed to load translations:', error);
+        // Modal closed — no revalidation follows, so this
+        // failure is terminal and must release the loader.
+        if (!cancelled && !opened) setFailedIso(iso);
       }
 
       // …then revalidate against the API so newly published
@@ -486,6 +509,10 @@ const TranslationSelector = () => {
         // A stale failure (modal closed or language switched
         // mid-flight) must not toast over the new context.
         if (!cancelled) {
+          // Nothing was ever loaded for this language — without
+          // this the Version select would spin forever now that
+          // the toast has auto-closed.
+          if (!succeeded) setFailedIso(iso);
           notifications.show({
             title: 'Translations unavailable',
             message:
@@ -597,25 +624,34 @@ const TranslationSelector = () => {
   }, [languageIso]);
 
   useEffect(() => {
-    if (tab !== 'other') return;
+    if (tab !== 'other') {
+      // The Other tab is not visible — a stale in-flight flag
+      // must not linger for the next visit.
+      setSearchingLanguages(false);
+      return;
+    }
     const query = debouncedLanguageQuery.trim();
     if (query === pickedLanguageLabelRef.current) {
       // Consume the post-pick echo once — leaving the ref set
       // would silently skip a later real search that happens
       // to retype the same label.
       pickedLanguageLabelRef.current = null;
+      setSearchingLanguages(false);
       return;
     }
     if (query.length < 2) {
       setLanguageOptions([]);
+      setSearchingLanguages(false);
       return;
     }
     // A real user query — the pinned echo label is stale now.
     pickedLanguageLabelRef.current = null;
     let cancelled = false;
-    void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT).then(
-      (results) => {
+    setSearchingLanguages(true);
+    void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT)
+      .then((results) => {
         if (cancelled) return;
+        setSearchingLanguages(false);
         setLanguageOptions(
           results
             // Backend rows can carry null fields — a `null`
@@ -630,8 +666,16 @@ const TranslationSelector = () => {
               name: r.name,
             })),
         );
-      },
-    );
+      })
+      // A failed search must not surface as an unhandled
+      // rejection (global errorReporter toast) — warn and
+      // land on an empty option list instead.
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn('Failed to search languages:', error);
+        setSearchingLanguages(false);
+        setLanguageOptions([]);
+      });
     return () => {
       cancelled = true;
     };
@@ -732,6 +776,35 @@ const TranslationSelector = () => {
           capability: capabilityOf(t),
         })),
     [translations, languageIso],
+  );
+
+  // Async retrieval still in flight — the pickers show a
+  // loader instead of flashing the empty/no-results message.
+  // `languageQuery !== debouncedLanguageQuery` counts too: the
+  // search only fires after the 300 ms debounce, so the gap
+  // would otherwise flash "No languages found" mid-type.
+  const languageSearchPending =
+    languageQuery.trim().length >= 2 &&
+    languageQuery.trim() !== pickedLanguageLabelRef.current &&
+    (searchingLanguages ||
+      languageQuery.trim() !== debouncedLanguageQuery.trim());
+  const versionsLoading =
+    languageIso !== null &&
+    fetchedIso !== languageIso &&
+    failedIso !== languageIso;
+
+  // Shared dropdown body for the in-flight state — a spinner
+  // plus dimmed label where the pickers would otherwise show
+  // their empty/no-results text.
+  const dropdownLoading = (
+    <Center>
+      <Group spacing="xs" noWrap>
+        <Loader size="sm" />
+        <Text size="sm" color="dimmed">
+          Loading…
+        </Text>
+      </Group>
+    </Center>
   );
 
   // Language Select options: the latest search results, with
@@ -839,7 +912,14 @@ const TranslationSelector = () => {
               nothingFound={
                 languageQuery.trim().length < 2
                   ? 'Type at least 2 characters'
-                  : 'No languages found'
+                  : languageSearchPending
+                    ? dropdownLoading
+                    : 'No languages found'
+              }
+              rightSection={
+                languageSearchPending ? (
+                  <Loader size="xs" />
+                ) : undefined
               }
               searchable
               dropdownPosition="bottom"
@@ -859,6 +939,12 @@ const TranslationSelector = () => {
               userInteractedRef.current = true;
               applyVersionSelection(abbr);
             }}
+            rightSection={
+              versionsLoading ? <Loader size="xs" /> : undefined
+            }
+            nothingFound={
+              versionsLoading ? dropdownLoading : undefined
+            }
             disabled={!languageIso}
             searchable
             dropdownPosition="bottom"
@@ -868,6 +954,13 @@ const TranslationSelector = () => {
             versionData.length === 0 && (
               <Text size="sm" color="dimmed">
                 No versions available for this language
+              </Text>
+            )}
+          {languageIso !== null &&
+            failedIso === languageIso && (
+              <Text size="sm" color="dimmed">
+                Could not load versions — check your
+                connection and reopen the picker
               </Text>
             )}
 
