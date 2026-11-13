@@ -132,7 +132,7 @@ export default function App() {
               paddingTop: headerVisible
                 ? "var(--mantine-header-height, 0px)"
                 : 0,
-              paddingBottom: headerVisible
+              paddingBottom: headerVisible && isBibleView
                 ? "var(--mantine-footer-height, 0px)"
                 : showAudioPlayer
                   ? `${AUDIO_PLAYER_HEIGHT}px`
