@@ -12,8 +12,9 @@ description: >
 
 1. Prereqs: on a feature branch (never `main` — if commits
    landed on `main`, recover in a worktree: `git branch
-   <type>/<slug>`, verify `git status` shows only your own
-   changes (stash anything else), `git fetch origin`,
+   <type>/<slug>`, stash any uncommitted work
+   (`git stash -u`; pop it inside the new worktree if it
+   was yours), `git fetch origin`,
    `git reset --hard origin/main`, then `git worktree add
    worktrees/<slug> <type>/<slug>`). `gh` installed
    and authed; if missing, tell the user
@@ -55,11 +56,13 @@ description: >
    the UI, and then document an equivalent (curl command,
    log line to watch) under the same heading. Test login:
    `Tester5` / `password123`.
-7. `gh pr checks --watch` until green; fix failures on the
+7. `gh pr checks --watch --repo Bible-Research/reactive-bible`
+   until green; fix failures on the
    branch, push again.
 8. Report the PR URL. The PR is created ready for review —
    never a draft unless the user explicitly asks. Then run
    the review loop (workspace AGENTS.md): fresh reviewer
    subagent on the diff → fix useful findings, push, and
-   re-run `gh pr checks --watch` → repeat until a round
+   re-run `gh pr checks --watch --repo
+   Bible-Research/reactive-bible` → repeat until a round
    finds nothing meaningful and checks are green.
