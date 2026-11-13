@@ -11,7 +11,9 @@ import {
   Accordion,
   Badge,
   Button,
+  Center,
   Group,
+  Loader,
   Modal,
   Radio,
   ScrollArea,
@@ -200,6 +202,11 @@ const TranslationSelector = () => {
   const [languageOptions, setLanguageOptions] = useState<
     LanguageOption[]
   >([]);
+  // True while a `searchLanguages` request is in flight —
+  // the picker shows a loader instead of flashing "No
+  // languages found" before the first results arrive.
+  const [searchingLanguages, setSearchingLanguages] =
+    useState(false);
   // Iso of the last completed translations fetch — lets the
   // empty state distinguish "fetch finished, genuinely empty"
   // from "still loading" (DBT `bibles` counts are DBT-wide, not
@@ -359,6 +366,7 @@ const TranslationSelector = () => {
     // re-derives the pick from the active store selection.
     setLanguageQuery('');
     setLanguageOptions([]);
+    setSearchingLanguages(false);
     setOtherIso(null);
     setOtherLanguageName(null);
     setFetchedIso(null);
@@ -597,25 +605,34 @@ const TranslationSelector = () => {
   }, [languageIso]);
 
   useEffect(() => {
-    if (tab !== 'other') return;
+    if (tab !== 'other') {
+      // The Other tab is not visible — a stale in-flight flag
+      // must not linger for the next visit.
+      setSearchingLanguages(false);
+      return;
+    }
     const query = debouncedLanguageQuery.trim();
     if (query === pickedLanguageLabelRef.current) {
       // Consume the post-pick echo once — leaving the ref set
       // would silently skip a later real search that happens
       // to retype the same label.
       pickedLanguageLabelRef.current = null;
+      setSearchingLanguages(false);
       return;
     }
     if (query.length < 2) {
       setLanguageOptions([]);
+      setSearchingLanguages(false);
       return;
     }
     // A real user query — the pinned echo label is stale now.
     pickedLanguageLabelRef.current = null;
     let cancelled = false;
-    void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT).then(
-      (results) => {
+    setSearchingLanguages(true);
+    void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT)
+      .then((results) => {
         if (cancelled) return;
+        setSearchingLanguages(false);
         setLanguageOptions(
           results
             // Backend rows can carry null fields — a `null`
@@ -630,8 +647,16 @@ const TranslationSelector = () => {
               name: r.name,
             })),
         );
-      },
-    );
+      })
+      // A failed search must not surface as an unhandled
+      // rejection (global errorReporter toast) — warn and
+      // land on an empty option list instead.
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn('Failed to search languages:', error);
+        setSearchingLanguages(false);
+        setLanguageOptions([]);
+      });
     return () => {
       cancelled = true;
     };
@@ -732,6 +757,31 @@ const TranslationSelector = () => {
           capability: capabilityOf(t),
         })),
     [translations, languageIso],
+  );
+
+  // Async retrieval still in flight — the pickers show a
+  // loader instead of flashing the empty/no-results message.
+  // `languageQuery !== debouncedLanguageQuery` counts too: the
+  // search only fires after the 300 ms debounce, so the gap
+  // would otherwise flash "No languages found" mid-type.
+  const languageSearchPending =
+    searchingLanguages ||
+    languageQuery.trim() !== debouncedLanguageQuery.trim();
+  const versionsLoading =
+    languageIso !== null && fetchedIso !== languageIso;
+
+  // Shared dropdown body for the in-flight state — a spinner
+  // plus dimmed label where the pickers would otherwise show
+  // their empty/no-results text.
+  const dropdownLoading = (
+    <Center>
+      <Group spacing="xs" noWrap>
+        <Loader size="sm" />
+        <Text size="sm" color="dimmed">
+          Loading…
+        </Text>
+      </Group>
+    </Center>
   );
 
   // Language Select options: the latest search results, with
@@ -839,7 +889,14 @@ const TranslationSelector = () => {
               nothingFound={
                 languageQuery.trim().length < 2
                   ? 'Type at least 2 characters'
-                  : 'No languages found'
+                  : languageSearchPending
+                    ? dropdownLoading
+                    : 'No languages found'
+              }
+              rightSection={
+                languageSearchPending ? (
+                  <Loader size="xs" />
+                ) : undefined
               }
               searchable
               dropdownPosition="bottom"
@@ -859,6 +916,12 @@ const TranslationSelector = () => {
               userInteractedRef.current = true;
               applyVersionSelection(abbr);
             }}
+            rightSection={
+              versionsLoading ? <Loader size="xs" /> : undefined
+            }
+            nothingFound={
+              versionsLoading ? dropdownLoading : undefined
+            }
             disabled={!languageIso}
             searchable
             dropdownPosition="bottom"
