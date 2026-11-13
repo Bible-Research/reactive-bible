@@ -1,10 +1,9 @@
 # AGENTS.md — reactive-bible (React frontend)
 
 Guidance for AI agents working in this repository. Trust the code
-over docs that disagree — `DEVELOPER_GUIDE.md` still lists
-components that no longer exist (e.g. MyNavbar, PassageView,
-Verse, SearchModal, TranslationSelector, AddTagNoteModal/
-EditNoteModal notes flow was reworked).
+over docs that disagree — `DEVELOPER_GUIDE.md` is a detailed
+reference updated alongside features, but code is the source of
+truth wherever they drift.
 Cross-repo contracts are spec'd in the workspace-level `openspec/`
 (see workspace AGENTS.md).
 
@@ -202,6 +201,10 @@ Universal rules — follow exactly:
 - **OpenSpec lives at the workspace root** — never run
   `openspec init` in this repo; cross-repo contracts are
   spec'd there (see workspace AGENTS.md).
+- **All implementation work happens in a git worktree**
+  (`worktrees/<slug>` inside this repo — gitignored; needs
+  its own `npm install`) — never the main checkout; remove
+  the worktree + branch once the PR merges green.
 - Commit after each completed plan step.
 
 Code conventions:
