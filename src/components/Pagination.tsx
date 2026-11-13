@@ -39,7 +39,7 @@ export default function Pagination({
     <nav aria-label="Pagination">
       <Group position="center" spacing="xs" mt="md" mb="xl">
       <ActionIcon
-        variant="outline"
+        variant="default"
         size="lg"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
@@ -113,7 +113,7 @@ export default function Pagination({
         return (
           <Button
             key={page}
-            variant={page === currentPage ? 'filled' : 'outline'}
+            variant={page === currentPage ? 'filled' : 'default'}
             size="sm"
             onClick={() => onPageChange(page)}
             aria-label={`Page ${page}`}
@@ -127,7 +127,7 @@ export default function Pagination({
       })}
 
       <ActionIcon
-        variant="outline"
+        variant="default"
         size="lg"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
