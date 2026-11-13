@@ -2491,6 +2491,51 @@ Form for creating/editing notes.
 - `onDraftChange` reports live contents so the editor hook's
   draft store can restore an in-progress note after reopen
 
+On mobile (`max-width: 768px`) the three host modals
+(`AddStandaloneNoteModal`, `AddTagNoteModal`, `EditNoteModal`)
+pass `fillHeight`: their `styles` make the fullscreen modal's
+`content`/`body` a bounded flex column, the form fills it via
+`min-height: 100%`, and `RichTextEditor`'s `fillHeight` prop
+turns the TipTap content chain (`root` →
+`typographyStylesProvider` → `content` → `.ProseMirror`) into a
+`flex: 1` column that scrolls internally — a document-editor
+surface occupying the whole viewport between the tag picker
+and the sticky submit bar. Sections after the form (verse
+texts, linked notes, the verse picker) scroll below the fold.
+Mobile chrome in that mode follows the Google Docs pattern:
+the formatting toolbar stays pinned (`position: sticky` on
+`.mantine-RichTextEditor-toolbar`, applied on desktop too so
+it survives the modal's own scroll), the tag row collapses on
+scroll-down and returns on scroll-up (a capture-phase
+`scroll` listener in `NoteForm` — scroll events don't bubble,
+so capture is required to see the ProseMirror's internal
+scroller; elements marked `data-note-form-static` and an open
+tag dropdown are ignored), and the action bar becomes a
+single icon row (submit ✓, attach-image with count badge,
+autosave toggle, public/lock toggle) whose icons carry
+touch-enabled tooltips (`events.touch`) so a tap or hold
+labels each one; the desktop bar with text buttons and
+checkboxes is unchanged. Modals may also
+pass `trayLabel`/`trayCount`/`trayContent` to render a
+collapsible tray above the action bar — the linked verses:
+`AddTagNoteModal` passes `VerseTextGroups` (plus the
+`linkedNotesList` section), `EditNoteModal` passes the
+`PassagePicker` + verse texts (its desktop collapsible
+section is `!isMobile`-gated, and the shared JSX lives in
+`versesSection`). The tray panel scrolls internally
+(`max-height: 45vh`). The mobile modal's `body` is a bounded
+flex column and the form `flex: 1` with its own
+`overflowY: auto`, so `.content` NEVER scrolls — critical
+because Mantine's sticky modal header (`z-index: 1000`)
+would otherwise cover the sticky formatting toolbar's first
+row; the toolbar itself is `nowrap` + `overflowX: auto` (a
+single scrollable line). The header carries no heading — the
+`title` slot holds a collapse `ActionIcon` right-aligned via
+`styles.title`; collapsing sets `body: display:none`,
+`content: height:auto`, `overlay: display:none` and releases
+`lockScroll`/`trapFocus`, leaving a thin bar (expand chevron
++ X) over the still-interactive Bible.
+
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token; a book+chapter with no verse
 is also a complete ref — `@PSA.18` is a valid whole-chapter
@@ -2661,7 +2706,11 @@ Modal for selecting Bible translations.
   previews; its expanded mode lists the whole chapter with
   selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
-  read-only rendering (lazy chunk)
+  read-only rendering (lazy chunk); block indentation comes
+  from `src/extensions/indent.ts` (a `data-indent` attr →
+  `margin-left` on paragraphs/headings, sink/lift inside
+  lists) with toolbar buttons in the note variant and the
+  same margin applied in `RichTextView`'s renderer
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
   `CommentActions.tsx` + `CommentImageGrid.tsx` +
   `Lightbox.tsx` - threaded comments with image upload

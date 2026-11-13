@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActionIcon,
   Badge,
   Box,
   Collapse,
@@ -9,7 +10,12 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconChevronUp,
+} from "@tabler/icons-react";
+import { useMediaQuery } from "@mantine/hooks";
 import { showNotification } from "@mantine/notifications";
 
 import { useBibleStore } from "../store";
@@ -45,6 +51,10 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  // Collapsed = the editor hides completely, leaving a thin
+  // header bar (expand chevron + close) over the Bible.
+  const [collapsed, setCollapsed] = useState(false);
   const {
     tags,
     getTags,
@@ -287,17 +297,127 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     note?.verses
   );
 
+  // Picker + linked-verse texts — rendered inside the
+  // collapsible form tray on mobile, in the collapsible
+  // section below the form on desktop.
+  const versesSection = (
+    <>
+      <Box h={280} mt="sm">
+        <PassagePicker
+          bookId={pickerBookId}
+          chapter={pickerChapter}
+          verses={pickerVerses}
+          titlePrefix="edit-note-"
+          onSelectBook={(bookId) => {
+            setPickerBookId(bookId);
+            setPickerChapter(null);
+          }}
+          onSelectChapter={setPickerChapter}
+          onSelectVerse={handleSelectVerse}
+        />
+      </Box>
+      {verseError ? (
+        <Text color="red" size="sm" mt="sm">
+          {verseError}
+          {note?.error_code === "rate_limited"
+            ? " Try reloading in a few moments."
+            : ""}
+        </Text>
+      ) : (
+        <>
+          <VerseTextGroups groups={textGroups} />
+          {versesTruncated && (
+            <Text color="red" size="sm" mt="sm">
+              Cannot display more than 500 verses of the
+              Bible due to copyright restrictions.
+            </Text>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  const collapsedMobile = isMobile && collapsed;
+
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Edit note"
+      // No heading on mobile (redundant chrome) — the title
+      // slot instead carries the collapse toggle, right-
+      // aligned next to the close button via `styles.title`.
+      title={
+        isMobile ? (
+          <ActionIcon
+            variant="subtle"
+            size="lg"
+            title={
+              collapsed ? "Expand editor" : "Collapse editor"
+            }
+            aria-label={
+              collapsed ? "Expand editor" : "Collapse editor"
+            }
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((c) => !c)}
+          >
+            {collapsed ? (
+              <IconChevronDown size={18} />
+            ) : (
+              <IconChevronUp size={18} />
+            )}
+          </ActionIcon>
+        ) : (
+          "Edit note"
+        )
+      }
       fullScreen
+      // Collapsed unlocks scroll/focus so the Bible behind
+      // stays readable and scrollable.
+      lockScroll={!collapsedMobile}
+      trapFocus={!collapsedMobile}
+      styles={{
+        // Mobile: let the form's editing surface fill the
+        // viewport — body is a bounded flex column so the
+        // form's flex:1 resolves and the modal content never
+        // scrolls (a scrolled content slides the sticky
+        // toolbar under the sticky header). Collapsed shrinks
+        // the modal to a thin header bar.
+        content: isMobile
+          ? {
+              display: "flex",
+              flexDirection: "column",
+              ...(collapsed && { height: "auto" }),
+            }
+          : {},
+        body: isMobile
+          ? {
+              flex: 1,
+              display: collapsed ? "none" : "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }
+          : {},
+        title: isMobile
+          ? {
+              display: "flex",
+              flex: 1,
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }
+          : {},
+        overlay: collapsedMobile ? { display: "none" } : {},
+      }}
     >
       {note && (
         <>
           <NoteForm
             tags={tags}
+            fillHeight={isMobile}
+            trayLabel={
+              isMobile ? "Verse references" : undefined
+            }
+            trayCount={isMobile ? refs.length : undefined}
+            trayContent={isMobile ? versesSection : undefined}
             onSubmit={editor.submit}
             // Linked verses keep the note valid with no
             // text; the prop tracks the picker's live refs.
@@ -332,63 +452,38 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               isPublic: note.public,
             }}
           />
-          <Divider mt="xl" mb="sm" />
-          <UnstyledButton
-            w="100%"
-            title="toggle-verse-references"
-            aria-expanded={versesOpen}
-            onClick={() => setVersesOpen((open) => !open)}
-          >
-            <Group spacing="xs">
-              {versesOpen ? (
-                <IconChevronDown size={16} />
-              ) : (
-                <IconChevronRight size={16} />
-              )}
-              <Text size="sm" weight={600}>
-                Verse references
-              </Text>
-              {refs.length > 0 && (
-                <Badge size="sm" variant="light" color="blue">
-                  {refs.length}
-                </Badge>
-              )}
-            </Group>
-          </UnstyledButton>
-          <Collapse in={versesOpen}>
-            <Box h={280} mt="sm">
-              <PassagePicker
-                bookId={pickerBookId}
-                chapter={pickerChapter}
-                verses={pickerVerses}
-                titlePrefix="edit-note-"
-                onSelectBook={(bookId) => {
-                  setPickerBookId(bookId);
-                  setPickerChapter(null);
-                }}
-                onSelectChapter={setPickerChapter}
-                onSelectVerse={handleSelectVerse}
-              />
-            </Box>
-            {verseError ? (
-              <Text color="red" size="sm" mt="sm">
-                {verseError}
-                {note.error_code === "rate_limited"
-                  ? " Try reloading in a few moments."
-                  : ""}
-              </Text>
-            ) : (
-              <>
-                <VerseTextGroups groups={textGroups} />
-                {versesTruncated && (
-                  <Text color="red" size="sm" mt="sm">
-                    Cannot display more than 500 verses of the
-                    Bible due to copyright restrictions.
+          {!isMobile && (
+            <>
+              <Divider mt="xl" mb="sm" />
+              <UnstyledButton
+                w="100%"
+                title="toggle-verse-references"
+                aria-expanded={versesOpen}
+                onClick={() => setVersesOpen((open) => !open)}
+              >
+                <Group spacing="xs">
+                  {versesOpen ? (
+                    <IconChevronDown size={16} />
+                  ) : (
+                    <IconChevronRight size={16} />
+                  )}
+                  <Text size="sm" weight={600}>
+                    Verse references
                   </Text>
-                )}
-              </>
-            )}
-          </Collapse>
+                  {refs.length > 0 && (
+                    <Badge
+                      size="sm"
+                      variant="light"
+                      color="blue"
+                    >
+                      {refs.length}
+                    </Badge>
+                  )}
+                </Group>
+              </UnstyledButton>
+              <Collapse in={versesOpen}>{versesSection}</Collapse>
+            </>
+          )}
         </>
       )}
     </Modal>

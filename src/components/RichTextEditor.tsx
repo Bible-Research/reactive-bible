@@ -13,10 +13,15 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
+import {
+  IconIndentDecrease,
+  IconIndentIncrease,
+} from '@tabler/icons-react';
 import ScriptureMention, {
   ScriptureMentionNode,
   ScriptureRefNode,
 } from '../extensions/scriptureMention';
+import Indent from '../extensions/indent';
 import type { ScriptureMentionStorage } from '../extensions/scriptureMention';
 import ScripturePassagePopover from './ScripturePassagePopover';
 import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
@@ -39,6 +44,14 @@ interface RichTextEditorProps {
   placeholder?: string;
   label?: string;
   disabled?: boolean;
+  /**
+   * Stretch the writing surface to fill the parent's height —
+   * the mobile fullscreen note modals use this so the editor
+   * occupies the whole viewport like a document editor.
+   * Requires the parent chain to give the wrapper a bounded
+   * flex height.
+   */
+  fillHeight?: boolean;
 }
 
 // Legacy plain text loads as escaped text paragraphs — a '<' in
@@ -71,6 +84,7 @@ const RichTextEditor = forwardRef<
     placeholder,
     label,
     disabled = false,
+    fillHeight = false,
   },
   ref
 ) {
@@ -143,13 +157,16 @@ const RichTextEditor = forwardRef<
       // schema entries the editor would strip them on load.
       ScriptureRefNode,
       ScriptureMentionNode,
+      Indent,
     ],
     content: valueToContent(value),
     autofocus: autoFocus ? 'end' : false,
     editable: !disabled,
     // Note editors start one line high and grow with content up
-    // to 60% of the viewport height, then scroll internally.
-    // Comment editors cap at a smaller height for the same.
+    // to 60% of the viewport height, then scroll internally;
+    // in fillHeight mode they instead fill the parent flex
+    // column. Comment editors cap at a smaller height for the
+    // same.
     editorProps: {
       // Pasted clipboard text (mobile keyboards, Docs, Word)
       // carries NBSPs/zero-width chars that break '#'/'-'/'>' and
@@ -164,7 +181,9 @@ const RichTextEditor = forwardRef<
       clipboardTextParser: markdownClipboardParser,
       attributes: {
         style: note
-          ? 'max-height: 60vh; overflow-y: auto;'
+          ? fillHeight
+            ? 'flex: 1; overflow-y: auto;'
+            : 'max-height: 60vh; overflow-y: auto;'
           : `min-height: ${rem(76)};` +
             ` max-height: ${rem(240)}; overflow-y: auto;`,
       },
@@ -276,7 +295,19 @@ const RichTextEditor = forwardRef<
   }, [editor, disabled]);
 
   return (
-    <Input.Wrapper label={label}>
+    <Input.Wrapper
+      label={label}
+      sx={
+        fillHeight
+          ? {
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minHeight: 0,
+            }
+          : undefined
+      }
+    >
       {/* Subtle highlight on the live '@…' suggestion query. */}
       <Global
         styles={(theme) => ({
@@ -298,6 +329,52 @@ const RichTextEditor = forwardRef<
       <MantineRichTextEditor
         editor={editor}
         sx={(theme) => ({
+          // Note editors: the formatting toolbar stays pinned
+          // while the document scrolls (the modal's content
+          // scrolls on desktop; the ProseMirror scrolls
+          // internally in fill-height mode).
+          ...(note && {
+            '& .mantine-RichTextEditor-toolbar': {
+              position: 'sticky',
+              top: 0,
+              zIndex: 5,
+              backgroundColor:
+                theme.colorScheme === 'dark'
+                  ? theme.colors.dark[7]
+                  : theme.white,
+            },
+          }),
+          // Fill-height chain: every wrapper between the root
+          // and .ProseMirror must be a bounded flex column so
+          // the editor's flex:1 stretches and scrolls inside.
+          ...(fillHeight && {
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+            '& .mantine-RichTextEditor-typographyStylesProvider':
+              {
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                minHeight: 0,
+              },
+            '& .mantine-RichTextEditor-content': {
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minHeight: 0,
+            },
+            // One toolbar line: on narrow screens it scrolls
+            // sideways instead of wrapping to two rows.
+            '& .mantine-RichTextEditor-toolbar': {
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+            },
+            '& .mantine-RichTextEditor-controlsGroup': {
+              flexShrink: 0,
+            },
+          }),
           '.ProseMirror p.is-editor-empty:first-of-type::before':
             {
               content: 'attr(data-placeholder)',
@@ -329,6 +406,28 @@ const RichTextEditor = forwardRef<
             <MantineRichTextEditor.BulletList />
             <MantineRichTextEditor.OrderedList />
           </MantineRichTextEditor.ControlsGroup>
+          {note && (
+            <MantineRichTextEditor.ControlsGroup>
+              <MantineRichTextEditor.Control
+                onClick={() =>
+                  editor?.chain().focus().outdent().run()
+                }
+                aria-label="Decrease indent"
+                title="Decrease indent"
+              >
+                <IconIndentDecrease size={16} stroke={1.5} />
+              </MantineRichTextEditor.Control>
+              <MantineRichTextEditor.Control
+                onClick={() =>
+                  editor?.chain().focus().indent().run()
+                }
+                aria-label="Increase indent"
+                title="Increase indent"
+              >
+                <IconIndentIncrease size={16} stroke={1.5} />
+              </MantineRichTextEditor.Control>
+            </MantineRichTextEditor.ControlsGroup>
+          )}
           {note && (
             <MantineRichTextEditor.ControlsGroup>
               <MantineRichTextEditor.Blockquote />

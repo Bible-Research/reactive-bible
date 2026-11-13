@@ -1,6 +1,11 @@
-import { Modal } from "@mantine/core";
+import { ActionIcon, Modal } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
+import {
+  IconChevronDown,
+  IconChevronUp,
+} from "@tabler/icons-react";
 import { useBibleStore } from "../store";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNoteEditor } from "../hooks/useNoteEditor";
 import type { NoteVerseReference } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
@@ -19,6 +24,10 @@ const AddStandaloneNoteModal = ({
   opened,
   onClose,
 }: AddStandaloneNoteModalProps) => {
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  // Collapsed = the editor hides completely, leaving a thin
+  // header bar (expand chevron + close) over the Bible.
+  const [collapsed, setCollapsed] = useState(false);
   const {
     tags,
     getTags,
@@ -52,10 +61,80 @@ const AddStandaloneNoteModal = ({
     },
   });
 
+  const collapsedMobile = isMobile && collapsed;
+
   return (
-    <Modal opened={opened} onClose={onClose} title="New note" fullScreen>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      // No heading on mobile (redundant chrome) — the title
+      // slot instead carries the collapse toggle, right-
+      // aligned next to the close button via `styles.title`.
+      title={
+        isMobile ? (
+          <ActionIcon
+            variant="subtle"
+            size="lg"
+            title={
+              collapsed ? "Expand editor" : "Collapse editor"
+            }
+            aria-label={
+              collapsed ? "Expand editor" : "Collapse editor"
+            }
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((c) => !c)}
+          >
+            {collapsed ? (
+              <IconChevronDown size={18} />
+            ) : (
+              <IconChevronUp size={18} />
+            )}
+          </ActionIcon>
+        ) : (
+          "New note"
+        )
+      }
+      fullScreen
+      // Collapsed unlocks scroll/focus so the Bible behind
+      // stays readable and scrollable.
+      lockScroll={!collapsedMobile}
+      trapFocus={!collapsedMobile}
+      styles={{
+        // Mobile: let the form's editing surface fill the
+        // viewport — body is a bounded flex column so the
+        // form's flex:1 resolves and the modal content never
+        // scrolls (a scrolled content slides the sticky
+        // toolbar under the sticky header). Collapsed shrinks
+        // the modal to a thin header bar.
+        content: isMobile
+          ? {
+              display: "flex",
+              flexDirection: "column",
+              ...(collapsed && { height: "auto" }),
+            }
+          : {},
+        body: isMobile
+          ? {
+              flex: 1,
+              display: collapsed ? "none" : "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }
+          : {},
+        title: isMobile
+          ? {
+              display: "flex",
+              flex: 1,
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }
+          : {},
+        overlay: collapsedMobile ? { display: "none" } : {},
+      }}
+    >
       <NoteForm
         tags={tags}
+        fillHeight={isMobile}
         onSubmit={editor.submit}
         submitText="Submit"
         onTagDropdownOpen={() => {
