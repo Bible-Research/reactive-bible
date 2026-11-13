@@ -105,11 +105,20 @@ const AddStandaloneNoteModal = ({
         // form's flex:1 resolves and the modal content never
         // scrolls (a scrolled content slides the sticky
         // toolbar under the sticky header). Collapsed shrinks
-        // the modal to a thin header bar.
+        // the modal to a thin header bar. The height must be
+        // 100dvh, not the default 100vh: on Android the vh
+        // unit ignores browser/system chrome, so the modal
+        // bottom (and the action bar with it) ends up under
+        // the navigation buttons. The safe-area-inset
+        // padding lifts the scrollport above a system bar
+        // in edge-to-edge WebViews.
         content: isMobile
           ? {
               display: "flex",
               flexDirection: "column",
+              height: "100dvh",
+              paddingBottom:
+                "env(safe-area-inset-bottom, 0px)",
               ...(collapsed && { height: "auto" }),
             }
           : {},
