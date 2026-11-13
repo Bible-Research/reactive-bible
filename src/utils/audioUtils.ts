@@ -1,6 +1,10 @@
 import { Howl } from 'howler';
 import type { VerseTimestamp } from '../types';
 
+// Fixed height of the bottom AudioPlayer bar in px — BottomNav's
+// `bottom` offset and the page bottom padding must clear it.
+export const AUDIO_PLAYER_HEIGHT = 152;
+
 /**
  * Returns the Howl's current playback position in seconds, or null
  * when the position is not trustworthy. While a sound is still

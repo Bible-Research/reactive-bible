@@ -23,6 +23,7 @@ import { useAppUpdate } from "./hooks/useAppUpdate";
 import { useBibleStore } from "./store";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
+import { AUDIO_PLAYER_HEIGHT } from "./utils/audioUtils";
 import { useSlashSearchShortcut } from "./hooks/useSlashSearchShortcut";
 
 export default function App() {
@@ -78,9 +79,10 @@ export default function App() {
   const headerVisible = useBibleStore(
     (state) => state.headerVisible
   );
-  // The audio player is fixed to the viewport bottom (~120px)
-  // and never hides on scroll — keep clearing it even once
-  // the header/footer chrome has slid away.
+  // The audio player is fixed to the viewport bottom
+  // (AUDIO_PLAYER_HEIGHT) and never hides on scroll — keep
+  // clearing it even once the header/footer chrome has slid
+  // away.
   const showAudioPlayer = useBibleStore(
     (state) => state.showAudioPlayer
   );
@@ -133,7 +135,7 @@ export default function App() {
               paddingBottom: headerVisible
                 ? "var(--mantine-footer-height, 0px)"
                 : showAudioPlayer
-                  ? "120px"
+                  ? `${AUDIO_PLAYER_HEIGHT}px`
                   : 0,
               transition:
                 "padding-top 0.3s ease-in-out, " +
