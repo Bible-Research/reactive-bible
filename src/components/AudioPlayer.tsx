@@ -19,7 +19,10 @@ import {
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
 import { useBibleStore } from '../store';
-import { getPlayPosition } from '../utils/audioUtils';
+import {
+  AUDIO_PLAYER_HEIGHT,
+  getPlayPosition,
+} from '../utils/audioUtils';
 
 interface AudioPlayerProps {
   audio: Howl | null;
@@ -131,6 +134,10 @@ const AudioPlayer = ({
         left: 0,
         right: 0,
         zIndex: 1000,
+        height: AUDIO_PLAYER_HEIGHT,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
         backgroundColor:
           theme.colorScheme === 'dark'
             ? theme.colors.dark[7]
@@ -142,7 +149,7 @@ const AudioPlayer = ({
         }`,
       })}
     >
-      <Group position="apart" mb={4}>
+      <Group position="apart">
         <Group spacing={4} sx={{ flex: 1, minWidth: 0 }}>
           {onFocus && (
             <ActionIcon
@@ -161,7 +168,7 @@ const AudioPlayer = ({
         <CloseButton onClick={onClose} title="Close player" />
       </Group>
 
-      <Group spacing="xs" mb={4} noWrap>
+      <Group spacing="xs" noWrap>
         <Text size="xs" color="dimmed" sx={{ minWidth: 34 }}>
           {formatTime(currentTime)}
         </Text>
@@ -191,7 +198,7 @@ const AudioPlayer = ({
         </Text>
       </Group>
 
-      <Box sx={{ position: 'relative' }}>
+      <Box px={40} sx={{ position: 'relative' }}>
         <Group position="center" spacing="md">
           <ActionIcon
             size="lg"

@@ -47,6 +47,7 @@ import {
   faviconUrl,
 } from "../utils/externalLinks";
 import { lazyWithReload } from "../utils/lazyWithReload";
+import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
@@ -279,12 +280,13 @@ const VerseActionToolbar = () => {
   // BottomNav (56px) only renders on /bible routes and slides
   // away with MyHeader on downward scroll (headerVisible); on
   // /notes the toolbar would otherwise float mid-screen. The
-  // audio player bar (~120px) sits at the bottom on every route.
+  // audio player bar (AUDIO_PLAYER_HEIGHT) sits at the bottom
+  // on every route.
   const onBibleRoute = location.pathname.startsWith('/bible');
   const bottomOffset = showAudioPlayer
     ? onBibleRoute && headerVisible
-      ? 176
-      : 120
+      ? AUDIO_PLAYER_HEIGHT + 56
+      : AUDIO_PLAYER_HEIGHT
     : onBibleRoute && headerVisible
       ? 56
       : 0;
