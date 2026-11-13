@@ -214,6 +214,11 @@ const TranslationSelector = () => {
   // versions).
   const [fetchedIso, setFetchedIso] =
     useState<string | null>(null);
+  // Iso whose translations fetch failed outright — releases the
+  // Version select from the loading state into a failure note
+  // instead of spinning forever.
+  const [failedIso, setFailedIso] =
+    useState<string | null>(null);
   // Effective iso driving the fetch effect and the versionData
   // filter: the picked language on Other, else the tab itself.
   // `null` while Other has no language picked — no fetch then.
@@ -370,6 +375,7 @@ const TranslationSelector = () => {
     setOtherIso(null);
     setOtherLanguageName(null);
     setFetchedIso(null);
+    setFailedIso(null);
     pickedLanguageLabelRef.current = null;
     userInteractedRef.current = false;
     // Seed the tab synchronously from the stored selection so
@@ -451,6 +457,9 @@ const TranslationSelector = () => {
     if (!languageIso) return;
     const iso = languageIso;
     let cancelled = false;
+    // A new attempt for this language clears any earlier
+    // failure — the loader shows again until it settles.
+    setFailedIso(null);
 
     const fetchTranslations = async () => {
       // Merge by abbr instead of replacing: the store's
@@ -469,15 +478,21 @@ const TranslationSelector = () => {
         setTranslations([...byAbbr.values()]);
       };
 
+      let succeeded = false;
+
       // Show cached list immediately for snappy UX (stale)…
       try {
         const cached = await getAvailableTranslations(iso);
         if (!cancelled) {
           merge(cached);
           setFetchedIso(iso);
+          succeeded = true;
         }
       } catch (error) {
         console.warn('Failed to load translations:', error);
+        // Modal closed — no revalidation follows, so this
+        // failure is terminal and must release the loader.
+        if (!cancelled && !opened) setFailedIso(iso);
       }
 
       // …then revalidate against the API so newly published
@@ -494,6 +509,10 @@ const TranslationSelector = () => {
         // A stale failure (modal closed or language switched
         // mid-flight) must not toast over the new context.
         if (!cancelled) {
+          // Nothing was ever loaded for this language — without
+          // this the Version select would spin forever now that
+          // the toast has auto-closed.
+          if (!succeeded) setFailedIso(iso);
           notifications.show({
             title: 'Translations unavailable',
             message:
@@ -765,10 +784,14 @@ const TranslationSelector = () => {
   // search only fires after the 300 ms debounce, so the gap
   // would otherwise flash "No languages found" mid-type.
   const languageSearchPending =
-    searchingLanguages ||
-    languageQuery.trim() !== debouncedLanguageQuery.trim();
+    languageQuery.trim().length >= 2 &&
+    languageQuery.trim() !== pickedLanguageLabelRef.current &&
+    (searchingLanguages ||
+      languageQuery.trim() !== debouncedLanguageQuery.trim());
   const versionsLoading =
-    languageIso !== null && fetchedIso !== languageIso;
+    languageIso !== null &&
+    fetchedIso !== languageIso &&
+    failedIso !== languageIso;
 
   // Shared dropdown body for the in-flight state — a spinner
   // plus dimmed label where the pickers would otherwise show
@@ -931,6 +954,13 @@ const TranslationSelector = () => {
             versionData.length === 0 && (
               <Text size="sm" color="dimmed">
                 No versions available for this language
+              </Text>
+            )}
+          {languageIso !== null &&
+            failedIso === languageIso && (
+              <Text size="sm" color="dimmed">
+                Could not load versions — check your
+                connection and reopen the picker
               </Text>
             )}
 

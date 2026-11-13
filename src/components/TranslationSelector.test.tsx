@@ -1132,6 +1132,44 @@ describe('TranslationSelector Component', () => {
         ).not.toBeInTheDocument();
       });
 
+      it('stops the Version loader when the translations ' +
+        'fetch fails', async () => {
+        useRealStore();
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            iso === 'spa'
+              ? Promise.reject(new Error('offline'))
+              : Promise.resolve(engTranslations),
+        );
+        render(<TranslationSelector />);
+        await openOtherTab();
+
+        await userEvent.type(
+          screen.getByPlaceholderText('Search languages…'),
+          'spa',
+        );
+        await userEvent.click(
+          await screen.findByText('Spanish — español'),
+        );
+
+        // Both fetch attempts reject — the select must not
+        // spin forever; a failure note replaces the loader.
+        expect(
+          await screen.findByText(
+            'Could not load versions — check your ' +
+              'connection and reopen the picker',
+          ),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText('Loading…'),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            'No versions available for this language',
+          ),
+        ).not.toBeInTheDocument();
+      });
+
       it('reopens on Other when the stored language is not ' +
         'a fixed tab', async () => {
         useRealStore({
