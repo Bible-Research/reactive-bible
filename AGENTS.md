@@ -202,9 +202,12 @@ Universal rules — follow exactly:
   `openspec init` in this repo; cross-repo contracts are
   spec'd there (see workspace AGENTS.md).
 - **All implementation work happens in a git worktree**
-  (`worktrees/<slug>` inside this repo — gitignored; needs
-  its own `npm install`) — never the main checkout; remove
-  the worktree + branch once the PR merges green.
+  (`worktrees/<slug>` inside this repo — gitignored; cut
+  from `origin/main`, needs its own `npm install`) — never
+  the main checkout. Once the PR's checks are green, remove
+  the worktree + local branch right away — don't wait for
+  the merge (the PR lives on the remote branch). Full
+  lifecycle: workspace `../AGENTS.md` "Repo-specific rules".
 - Commit after each completed plan step.
 
 Code conventions:
