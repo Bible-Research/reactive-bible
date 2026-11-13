@@ -22,27 +22,28 @@ describe('pageNumberList', () => {
     expect(pageNumberList(3, 5)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('collapses the tail while on an early page', () => {
-    expect(pageNumberList(1, 10))
-      .toEqual([1, 2, 'ellipsis', 10]);
-    expect(pageNumberList(3, 10))
-      .toEqual([1, 2, 3, 4, 'ellipsis', 10]);
-  });
-
-  it('shows ellipsis on both sides of a middle page', () => {
+  it('bookends a middle page with both ellipses', () => {
     expect(pageNumberList(5, 10))
-      .toEqual([1, 'ellipsis', 4, 5, 6, 'ellipsis', 10]);
-  });
-
-  it('collapses the head while near the last page', () => {
-    expect(pageNumberList(9, 10))
-      .toEqual([1, 'ellipsis', 8, 9, 10]);
-    expect(pageNumberList(10, 10))
-      .toEqual([1, 'ellipsis', 9, 10]);
-  });
-
-  it('keeps first and last page reachable at boundaries', () => {
+      .toEqual([1, 'ellipsis', 5, 'ellipsis', 10]);
+    expect(pageNumberList(3, 10))
+      .toEqual([1, 'ellipsis', 3, 'ellipsis', 10]);
     expect(pageNumberList(4, 6))
-      .toEqual([1, 'ellipsis', 3, 4, 5, 6]);
+      .toEqual([1, 'ellipsis', 4, 'ellipsis', 6]);
   });
+
+  it('merges the current page into the first page near ' +
+    'the start', () => {
+      expect(pageNumberList(1, 10))
+        .toEqual([1, 'ellipsis', 10]);
+      expect(pageNumberList(2, 10))
+        .toEqual([1, 2, 'ellipsis', 10]);
+    });
+
+  it('merges the current page into the last page near ' +
+    'the end', () => {
+      expect(pageNumberList(9, 10))
+        .toEqual([1, 'ellipsis', 9, 10]);
+      expect(pageNumberList(10, 10))
+        .toEqual([1, 'ellipsis', 10]);
+    });
 });

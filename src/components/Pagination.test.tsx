@@ -16,19 +16,21 @@ describe('getPageNumbers', () => {
     expect(getPageNumbers(3, 5)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('windows around the first page without a leading ' +
-    'ellipsis', () => {
+  it('collapses to first/current/last beyond five pages',
+    () => {
       expect(getPageNumbers(1, 10)).toEqual([
+        1,
+        'ellipsis',
+        10,
+      ]);
+      expect(getPageNumbers(2, 10)).toEqual([
         1,
         2,
         'ellipsis',
         10,
       ]);
-      expect(getPageNumbers(3, 10)).toEqual([
+      expect(getPageNumbers(10, 10)).toEqual([
         1,
-        2,
-        3,
-        4,
         'ellipsis',
         10,
       ]);
@@ -38,31 +40,11 @@ describe('getPageNumbers', () => {
     expect(getPageNumbers(5, 10)).toEqual([
       1,
       'ellipsis',
-      4,
       5,
-      6,
       'ellipsis',
       10,
     ]);
   });
-
-  it('windows around the last page without a trailing ' +
-    'ellipsis', () => {
-      expect(getPageNumbers(10, 10)).toEqual([
-        1,
-        'ellipsis',
-        9,
-        10,
-      ]);
-      expect(getPageNumbers(8, 10)).toEqual([
-        1,
-        'ellipsis',
-        7,
-        8,
-        9,
-        10,
-      ]);
-    });
 
   it('never duplicates or skips the first/last page', () => {
     const pages = getPageNumbers(4, 6);
