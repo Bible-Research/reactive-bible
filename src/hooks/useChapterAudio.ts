@@ -547,12 +547,14 @@ export const useChapterAudio = (
       if (next) {
         goToChapter(next);
       } else {
-        // No next chapter — stop playing.
+        // No next chapter — stop playing and close the player;
+        // with no Howl left its reserved space is dead space.
         pendingGapRef.current = false;
         setIsPlaying(false);
+        setShowPlayer(false);
       }
     },
-    [goToChapter, resolveFilesetFor],
+    [goToChapter, resolveFilesetFor, setShowPlayer],
   );
 
   useEffect(() => {
@@ -764,7 +766,12 @@ export const useChapterAudio = (
       activeBlobUrlRef.current = null;
       audioRef.current = null;
       audioChapterKeyRef.current = null;
-      isPlayingRef.current = false;
+      // Do NOT clear isPlayingRef here — a still-true intent must
+      // survive so the load effect fetches and plays the new
+      // chapter (same as auto-advance). Clearing it makes the
+      // in-flight "paused mid-fetch" check bail, which wedges the
+      // player: no Howl ever materializes, isPlaying stays stuck
+      // true, and showAudioPlayer keeps reserving dead space.
       // User navigated mid-gap — cancel the scheduled play so the
       // new chapter starts promptly.
       clearAdvanceTimer();
@@ -783,6 +790,13 @@ export const useChapterAudio = (
     discardPreloaded();
     setTimestamps([]);
     setAudioActiveVerse(null);
+    // Landed with no Howl and no play intent — nothing will ever
+    // load, so close the player instead of leaving its height as
+    // dead space at the bottom. isPlayingRef still reflects the
+    // committed intent here: intent changes (pause/close) and
+    // navigation are separate user events, so they can't share
+    // this commit — the ref is never stale at read time.
+    if (!isPlayingRef.current) setShowPlayer(false);
   }, [
     isPlaylistMode,
     activeBookId,
@@ -792,6 +806,7 @@ export const useChapterAudio = (
     discardPreloaded,
     clearAdvanceTimer,
     setAudioActiveVerse,
+    setShowPlayer,
   ]);
 
   // Fetch timestamps when audio or text fileset changes
@@ -883,12 +898,16 @@ export const useChapterAudio = (
     // the pause.
     clearAdvanceTimer();
     pendingGapRef.current = false;
+    // Record the stop intent even when nothing is playing yet —
+    // a media-session pause during the gap or mid-fetch must
+    // stick; otherwise the intent stays true and the next load
+    // resumes playback the user tried to stop.
+    isPlayingRef.current = false;
+    setIsPlaying(false);
     const currentAudio = audioRef.current;
     if (!currentAudio || !currentAudio.playing()) return;
     try {
       currentAudio.pause();
-      isPlayingRef.current = false;
-      setIsPlaying(false);
     } catch (err) {
       console.warn('Pause operation failed:', err);
     }
@@ -968,6 +987,9 @@ export const useChapterAudio = (
           if (!resolved) {
             setIsPlaying(false);
             setLoading(false);
+            // No chrome will ever materialize — close the player
+            // so it doesn't reserve dead space at the bottom.
+            setShowPlayer(false);
             return;
           }
           const candidates = resolved.candidates;
@@ -1066,9 +1088,12 @@ export const useChapterAudio = (
             // A pause or player close that landed while the fetch
             // was in flight wins — never materialize a Howl that
             // would immediately start playing, and clear the
-            // spinner.
+            // spinner. With no Howl coming the player chrome has
+            // nothing to show — close it too, or it reserves dead
+            // space at the bottom.
             if (!isPlayingRef.current) {
               setLoading(false);
+              setShowPlayer(false);
               return;
             }
 
@@ -1103,6 +1128,7 @@ export const useChapterAudio = (
             disposeHowl(audioHowl, activeBlobUrlRef.current);
             activeBlobUrlRef.current = null;
             setLoading(false);
+            setShowPlayer(false);
             return;
           }
           audioChapterKeyRef.current = key;

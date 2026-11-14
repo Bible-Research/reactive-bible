@@ -324,6 +324,10 @@ const Audio = () => {
     if (loading) {
       setIsPlaying(false);
       setLoading(false);
+      // No Howl will ever arrive for a cancelled load — release
+      // the player's reserved space (a hung fetch would never
+      // reach the mid-flight bail that closes it).
+      setShowPlayer(false);
       return;
     }
     setIsPlaying((value) => !value);
