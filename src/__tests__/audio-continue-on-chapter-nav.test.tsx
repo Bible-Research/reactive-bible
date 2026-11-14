@@ -143,9 +143,6 @@ describe('Audio continues on manual chapter navigation', () => {
   it('closes the player when navigating while paused', async () => {
     renderReader();
     const first = await startPlaying();
-    act(() => {
-      first.emit('load');
-    });
 
     // Pause via the bottom player so its chrome is up.
     await waitFor(() => {
@@ -155,6 +152,9 @@ describe('Audio continues on manual chapter navigation', () => {
     expect(first.playing()).toBe(false);
 
     await goToNextChapter();
+
+    // The paused chapter's Howl is torn down instantly (#62).
+    expect(first.state()).toBe('unloaded');
 
     // Nothing will load while paused — the player must close
     // rather than reserve ~120px of empty space at the bottom.

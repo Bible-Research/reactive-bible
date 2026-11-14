@@ -70,6 +70,9 @@ describe('Audio stops instantly on chapter change (#62)', () => {
     });
   });
 
+  // "Stops" means the OLD chapter's Howl is torn down instantly
+  // — the play intent survives and the new chapter loads/plays
+  // (covered by audio-continue-on-chapter-nav.test.tsx).
   it('stops playing chapter audio on next-chapter click',
     async () => {
       // Playing chapter 1 preloads chapter 2's bytes — keep that

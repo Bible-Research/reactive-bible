@@ -775,13 +775,6 @@ export const useChapterAudio = (
       clearAdvanceTimer();
       pendingGapRef.current = false;
       setAudio(null);
-      // Nothing will load while paused — close the player instead
-      // of leaving the player's height as empty space at the
-      // bottom. isPlayingRef reflects the committed intent here
-      // because its writers (safePause, handleClose, the playlist
-      // branch) all set it synchronously — the isPlaying->ref
-      // sync effect runs AFTER this effect in a commit.
-      if (!isPlayingRef.current) setShowPlayer(false);
     }
     // Re-check the ref, not the captured `current` local: the
     // dispose branch above clears it on a key mismatch. Only a
@@ -795,6 +788,13 @@ export const useChapterAudio = (
     discardPreloaded();
     setTimestamps([]);
     setAudioActiveVerse(null);
+    // Landed with no Howl and no play intent — nothing will ever
+    // load, so close the player instead of leaving its height as
+    // dead space at the bottom. isPlayingRef still reflects the
+    // committed intent here: intent changes (pause/close) and
+    // navigation are separate user events, so they can't share
+    // this commit — the ref is never stale at read time.
+    if (!isPlayingRef.current) setShowPlayer(false);
   }, [
     isPlaylistMode,
     activeBookId,
@@ -896,12 +896,16 @@ export const useChapterAudio = (
     // the pause.
     clearAdvanceTimer();
     pendingGapRef.current = false;
+    // Record the stop intent even when nothing is playing yet —
+    // a media-session pause during the gap or mid-fetch must
+    // stick; otherwise the intent stays true and the next load
+    // resumes playback the user tried to stop.
+    isPlayingRef.current = false;
+    setIsPlaying(false);
     const currentAudio = audioRef.current;
     if (!currentAudio || !currentAudio.playing()) return;
     try {
       currentAudio.pause();
-      isPlayingRef.current = false;
-      setIsPlaying(false);
     } catch (err) {
       console.warn('Pause operation failed:', err);
     }
