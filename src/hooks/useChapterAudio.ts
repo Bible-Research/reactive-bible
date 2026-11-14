@@ -547,12 +547,14 @@ export const useChapterAudio = (
       if (next) {
         goToChapter(next);
       } else {
-        // No next chapter — stop playing.
+        // No next chapter — stop playing and close the player;
+        // with no Howl left its reserved space is dead space.
         pendingGapRef.current = false;
         setIsPlaying(false);
+        setShowPlayer(false);
       }
     },
-    [goToChapter, resolveFilesetFor],
+    [goToChapter, resolveFilesetFor, setShowPlayer],
   );
 
   useEffect(() => {
