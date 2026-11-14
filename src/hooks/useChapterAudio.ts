@@ -776,7 +776,11 @@ export const useChapterAudio = (
       pendingGapRef.current = false;
       setAudio(null);
       // Nothing will load while paused — close the player instead
-      // of leaving ~120px of empty space at the bottom.
+      // of leaving the player's height as empty space at the
+      // bottom. isPlayingRef reflects the committed intent here
+      // because its writers (safePause, handleClose, the playlist
+      // branch) all set it synchronously — the isPlaying->ref
+      // sync effect runs AFTER this effect in a commit.
       if (!isPlayingRef.current) setShowPlayer(false);
     }
     // Re-check the ref, not the captured `current` local: the
@@ -977,6 +981,9 @@ export const useChapterAudio = (
           if (!resolved) {
             setIsPlaying(false);
             setLoading(false);
+            // No chrome will ever materialize — close the player
+            // so it doesn't reserve dead space at the bottom.
+            setShowPlayer(false);
             return;
           }
           const candidates = resolved.candidates;
@@ -1075,9 +1082,12 @@ export const useChapterAudio = (
             // A pause or player close that landed while the fetch
             // was in flight wins — never materialize a Howl that
             // would immediately start playing, and clear the
-            // spinner.
+            // spinner. With no Howl coming the player chrome has
+            // nothing to show — close it too, or it reserves dead
+            // space at the bottom.
             if (!isPlayingRef.current) {
               setLoading(false);
+              setShowPlayer(false);
               return;
             }
 
@@ -1112,6 +1122,7 @@ export const useChapterAudio = (
             disposeHowl(audioHowl, activeBlobUrlRef.current);
             activeBlobUrlRef.current = null;
             setLoading(false);
+            setShowPlayer(false);
             return;
           }
           audioChapterKeyRef.current = key;

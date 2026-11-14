@@ -59,7 +59,9 @@ const startPlaying = async () => {
     expect(FakeHowl.instances.length).toBeGreaterThan(0);
   });
   const first = FakeHowl.instances[0];
-  act(() => {
+  // play() emits 'play' on a microtask — await it inside act so
+  // the resulting setIsPlaying isn't an unwrapped update.
+  await act(async () => {
     first.play();
   });
   expect(first.playing()).toBe(true);
