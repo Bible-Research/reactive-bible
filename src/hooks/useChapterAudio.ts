@@ -764,12 +764,20 @@ export const useChapterAudio = (
       activeBlobUrlRef.current = null;
       audioRef.current = null;
       audioChapterKeyRef.current = null;
-      isPlayingRef.current = false;
+      // Do NOT clear isPlayingRef here — a still-true intent must
+      // survive so the load effect fetches and plays the new
+      // chapter (same as auto-advance). Clearing it makes the
+      // in-flight "paused mid-fetch" check bail, which wedges the
+      // player: no Howl ever materializes, isPlaying stays stuck
+      // true, and showAudioPlayer keeps reserving dead space.
       // User navigated mid-gap — cancel the scheduled play so the
       // new chapter starts promptly.
       clearAdvanceTimer();
       pendingGapRef.current = false;
       setAudio(null);
+      // Nothing will load while paused — close the player instead
+      // of leaving ~120px of empty space at the bottom.
+      if (!isPlayingRef.current) setShowPlayer(false);
     }
     // Re-check the ref, not the captured `current` local: the
     // dispose branch above clears it on a key mismatch. Only a
@@ -792,6 +800,7 @@ export const useChapterAudio = (
     discardPreloaded,
     clearAdvanceTimer,
     setAudioActiveVerse,
+    setShowPlayer,
   ]);
 
   // Fetch timestamps when audio or text fileset changes
