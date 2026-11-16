@@ -37,6 +37,9 @@ import {
 } from '../utils/bibleUtils';
 import { resolveTextFileset } from '../utils/filesetGroups';
 import { useActiveStructure } from '../hooks/useBookName';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
+import { localizedErrorText } from '../i18n/errorText';
 
 const VERSE_PREVIEW_LIMIT = 3;
 
@@ -53,12 +56,16 @@ function toPlaylistItem(
     startVerse: v.verse_start,
     endVerse: v.verse_start,
     label:
-      `Result ${i + 1}/${total} \u2013 ${bookName} ` +
-      `${v.chapter}:${v.verse_start}`,
+      i18n.t('search.resultLabel', {
+        index: i + 1,
+        total,
+        ref: `${bookName} ${v.chapter}:${v.verse_start}`,
+      }),
   };
 }
 
 export default function SearchRoute() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -158,7 +165,7 @@ export default function SearchRoute() {
         setGroups([]);
         setTotal(0);
         setTruncated(false);
-        setError(err.message);
+        setError(localizedErrorText(err));
         setLoading(false);
       });
     return () => controller.abort();
@@ -235,7 +242,7 @@ export default function SearchRoute() {
   return (
     <Box p="md" maw={800} mx="auto">
       <Title order={2} mb="md">
-        Search Bible
+        {t('search.title')}
       </Title>
       <Box
         mb="md"
@@ -248,7 +255,7 @@ export default function SearchRoute() {
         <Group noWrap>
           <TextInput
             icon={<IconSearch size={16} />}
-            placeholder="Search for words or phrases..."
+            placeholder={t('search.placeholder')}
             value={inputValue}
             onChange={(e) => setInputValue(e.currentTarget.value)}
             size="md"
@@ -256,21 +263,20 @@ export default function SearchRoute() {
             sx={{ flex: 1 }}
           />
           <Button type="submit" size="md" aria-label="search-button">
-            Search
+            {t('search.submit')}
           </Button>
         </Group>
       </Box>
 
       {loading && (
         <Center mt="xl">
-          <Loader aria-label="loading" />
+          <Loader aria-label={t('search.loading')} />
         </Center>
       )}
 
       {!loading && filesetMissing && !error && (
         <Text color="dimmed" mt="md">
-          Search is unavailable — select a Bible translation
-          first.
+          {t('search.unavailable')}
         </Text>
       )}
 
@@ -282,19 +288,22 @@ export default function SearchRoute() {
 
       {!loading && searched && groups.length === 0 && !error && (
         <Text color="dimmed" mt="md">
-          No results found for &ldquo;{q}&rdquo;.
+          {t('search.noResults', { query: q })}
         </Text>
       )}
 
       {!loading && groups.length > 0 && (
         <>
           <Text size="sm" color="dimmed" mb="sm">
-            {verses.length} result{verses.length !== 1 ? 's' : ''}
+            {t('search.resultCount', { count: verses.length })}
           </Text>
 
           {truncated && (
             <Text size="sm" color="dimmed" mb="sm">
-              Showing first {verses.length} of {total} results
+              {t('search.showingFirst', {
+                shown: verses.length,
+                total,
+              })}
             </Text>
           )}
 
@@ -384,8 +393,7 @@ export default function SearchRoute() {
                             )
                           }
                         >
-                          Show {hiddenCount} more verse
-                          {hiddenCount !== 1 ? 's' : ''}
+                          {t('search.showMore', { count: hiddenCount })}
                         </Button>
                       )}
                     </Stack>

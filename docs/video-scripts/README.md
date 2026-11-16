@@ -10,6 +10,7 @@ on the app's `/getting-started` route (`GettingStartedRoute` +
 | ---- | -------- | ------ | ------------- | ------- |
 | `getting-started.en.md` | English | draft | 2026-11-16 | — |
 | `getting-started.lv.md` | Latvian | draft | 2026-11-16 | — |
+| `getting-started.ru.md` | Russian | draft | 2026-11-16 | — |
 
 Statuses: `draft` → `recorded` → `published`. When a video goes
 live, paste its URL into the YouTube column.
@@ -24,14 +25,18 @@ live, paste its URL into the YouTube column.
   doubles as the written user guide and the narration spine),
   and `### Recording` (session state, pacing, what to show or
   hide). In Latvian: `**Māca:**` / `### Soļi` /
-  `### Ieraksts`.
+  `### Ieraksts`. In Russian: `**Учит:**` / `### Шаги` /
+  `### Запись`.
 - Script sections map 1:1, in order, to `TUTORIAL_VIDEOS` entries
   in `src/data/gettingStartedVideos.ts`. When a video is
-  published, set that entry's `youtubeId` — `null` entries are
-  filtered out and never render.
-- Any PR that changes UI covered by a script updates BOTH
-  language files in the same PR (repo rule 10). "Last verified"
-  is the date the script was last checked against the live UI.
+  published in a language, set that locale's id in the entry's
+  `youtubeIds` map — a card renders only when an id resolves
+  for the active UI language (English is the fallback), so an
+  empty map hides the card everywhere.
+- Any PR that changes UI covered by a script updates ALL
+  locale files (en + lv + ru) in the same PR (repo rule 10).
+  "Last verified" is the date the script was last checked
+  against the live UI.
 - Recording logistics (shared account, demo translations,
   per-video pitfalls) live inside each script — the
   "Production notes" header and per-section "Recording" block

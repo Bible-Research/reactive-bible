@@ -1,4 +1,5 @@
 import type { Tag } from '../types';
+import i18n from '../i18n';
 
 /** A node in the tag hierarchy rendered by TagTree. */
 export interface TagNode {
@@ -78,7 +79,10 @@ export const TAG_NAME_MAX_LENGTH = 100;
  * Validates a tag name for create/edit. `excludeTagId` lets
  * the editor keep its own current name without tripping the
  * duplicate check. Returns the error message, or null when
- * the name is valid.
+ * the name is valid. The message is translated at call time
+ * and stored in form state — it stays in the old language if
+ * the UI language changes while the error is on screen
+ * (accepted: cleared on the next validation pass).
  */
 export const validateTagName = (
   name: string,
@@ -86,11 +90,11 @@ export const validateTagName = (
   excludeTagId?: string
 ): string | null => {
   if (!name.trim()) {
-    return 'Tag name is required';
+    return i18n.t('tags.nameRequired');
   }
 
   if (name.length > TAG_NAME_MAX_LENGTH) {
-    return 'Tag name must be 100 characters or less';
+    return i18n.t('tags.nameTooLong');
   }
 
   const isDuplicate = existingTags.some(
@@ -99,7 +103,7 @@ export const validateTagName = (
       tag.name.toLowerCase() === name.trim().toLowerCase()
   );
   if (isDuplicate) {
-    return 'A tag with this name already exists';
+    return i18n.t('tags.nameTaken');
   }
 
   return null;

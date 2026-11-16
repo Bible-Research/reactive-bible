@@ -7,6 +7,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { NoteOrderMenuData } from "../types";
+import { useTranslation } from 'react-i18next';
 
 interface NoteOrderMenuProps {
   /** The note this badge/menu belongs to. */
@@ -21,6 +22,7 @@ const NoteOrderMenu = ({
   orderId,
   data,
 }: NoteOrderMenuProps) => {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState('');
 
   // Labels are precomputed once per index refresh in
@@ -59,7 +61,7 @@ const NoteOrderMenu = ({
       </Menu.Target>
       <Menu.Dropdown>
         <TextInput
-          placeholder="Filter by passage or #id"
+          placeholder={t('notes.filterByPassage')}
           size="xs"
           value={filter}
           onChange={(event) =>
@@ -72,13 +74,13 @@ const NoteOrderMenu = ({
           disabled={orderId === data.topOrderId}
           onClick={() => data.onMoveToTop(noteId)}
         >
-          Move to top
+          {t('notes.moveToTop')}
         </Menu.Item>
         <Menu.Divider />
         <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
           {visibleEntries.length === 0 ? (
             <Text size="xs" color="dimmed" p="xs">
-              No matching notes
+              {t('notes.noMatchingNotes')}
             </Text>
           ) : (
             visibleEntries.map(({ entry, label }) => (

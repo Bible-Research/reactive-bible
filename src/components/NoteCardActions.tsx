@@ -19,6 +19,7 @@ import { Note } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { toPlainText } from "../utils/tiptapContent";
 import { shareOrCopyLink } from "../utils/share";
+import { useTranslation } from 'react-i18next';
 
 interface NoteCardActionsProps {
   note: Note;
@@ -61,6 +62,7 @@ const NoteCardActions = ({
   isTagOwner,
   sx,
 }: NoteCardActionsProps) => {
+  const { t } = useTranslation();
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
@@ -86,11 +88,11 @@ const NoteCardActions = ({
 
   const handleShare = async () => {
     const title = note.tag?.name
-      ? `Note: ${note.tag.name}`
-      : 'Shared note';
+      ? t('notes.noteTitle', { name: note.tag.name })
+      : t('notes.sharedNote');
     const text = note.note_text
       ? toPlainText(note.note_text).slice(0, 140)
-      : 'Shared Bible note';
+      : t('notes.sharedBibleNote');
 
     await shareOrCopyLink(
       {
@@ -100,8 +102,8 @@ const NoteCardActions = ({
       },
       {
         copySuccess: {
-          title: 'Link Copied!',
-          message: 'Note link copied to clipboard',
+          title: t('notes.linkCopied'),
+          message: t('notes.linkCopiedMsg'),
         },
         // A failed share sheet retries through the clipboard
         // rather than silently dropping the share.
@@ -119,7 +121,7 @@ const NoteCardActions = ({
   return (
     <Group spacing="xs" sx={sx}>
       {orderMenuNode}
-      <Tooltip label="View in Bible" position="top">
+      <Tooltip label={t('notes.viewInBible')} position="top">
         <Box component="span" sx={{ display: 'inline-block' }}>
           <ActionIcon
             variant="subtle"
@@ -132,7 +134,7 @@ const NoteCardActions = ({
         </Box>
       </Tooltip>
       {canShare && (
-        <Tooltip label="Share" position="top">
+        <Tooltip label={t('notes.share')} position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
             <ActionIcon
               variant="subtle"
@@ -146,7 +148,7 @@ const NoteCardActions = ({
         </Tooltip>
       )}
       {canPlay && onPlayFromNote && (
-        <Tooltip label="Play from here" position="top">
+        <Tooltip label={t('notes.playFromHere')} position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
             <ActionIcon
               variant="subtle"
@@ -161,7 +163,7 @@ const NoteCardActions = ({
         </Tooltip>
       )}
       {canEdit && (
-        <Tooltip label="Edit" position="top">
+        <Tooltip label={t('notes.edit')} position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
             <ActionIcon
               variant="subtle"
@@ -175,7 +177,7 @@ const NoteCardActions = ({
         </Tooltip>
       )}
       {canDelete && (
-        <Tooltip label="Remove" position="top">
+        <Tooltip label={t('notes.remove')} position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
             <ActionIcon
               variant="subtle"
@@ -196,10 +198,8 @@ const NoteCardActions = ({
         <Tooltip
           label={
             commentCount === 0
-              ? 'Add a comment'
-              : `${commentCount} comment${
-                  commentCount === 1 ? '' : 's'
-                }`
+              ? t('notes.addComment')
+              : t('notes.commentCount', { count: commentCount })
           }
           position="top"
         >
@@ -213,7 +213,7 @@ const NoteCardActions = ({
               }
               aria-label={
                 commentCount === 0
-                  ? 'Add a comment'
+                  ? t('notes.addComment')
                   : undefined
               }
               aria-expanded={threadOpen}

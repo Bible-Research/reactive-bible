@@ -18,6 +18,7 @@ import {
   groupFilesets,
 } from './filesetGroups';
 import type { Translation } from '../store';
+import i18n from '../i18n';
 
 /**
  * True when `playingId` is the timestamp-backed recording the
@@ -108,10 +109,13 @@ export const notifyAudioSubstitution = (
   notified.add(key);
   const bookLabel = localizedBookName(bookId) ?? bookId;
   showNotification({
-    title: 'Audio not in selected version',
+    title: i18n.t('audio.substitutionTitle'),
     message:
-      `${selectedOwner.name} audio for ${bookLabel} is ` +
-      `unavailable — playing ${playingOwner.name} instead.`,
+      i18n.t('audio.substitutionMsg', {
+        selected: selectedOwner.name,
+        book: bookLabel,
+        playing: playingOwner.name,
+      }),
     color: 'blue',
     autoClose: 8000,
   });

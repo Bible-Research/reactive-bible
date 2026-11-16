@@ -14,6 +14,7 @@ import {
   type MediaSessionMetadata,
   type MediaSessionPosition,
 } from '../utils/mediaSession';
+import i18n from '../i18n';
 
 export type {
   MediaSessionControls,
@@ -228,7 +229,7 @@ export const useMediaSession = ({
         navigator.mediaSession.metadata = new MediaMetadata({
           title: metadata.title,
           artist: metadata.artist,
-          album: metadata.album ?? 'Bible Audio',
+          album: metadata.album ?? i18n.t('app.audioAlbum'),
           artwork: metadata.artwork,
         });
       } catch (err) {
@@ -239,7 +240,7 @@ export const useMediaSession = ({
       void NativeMediaSession.setMetadata({
         title: metadata.title,
         artist: metadata.artist,
-        album: metadata.album ?? 'Bible Audio',
+        album: metadata.album ?? i18n.t('app.audioAlbum'),
         artwork: metadata.artwork,
       }).catch(ignoreRejection);
     }

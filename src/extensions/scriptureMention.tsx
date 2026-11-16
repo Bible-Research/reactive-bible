@@ -10,6 +10,7 @@ import type {
   SuggestionProps,
 } from '@tiptap/suggestion';
 import { Paper, Text } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import PassagePicker from '../components/PassagePicker';
 import {
   buildScriptureToken,
@@ -81,6 +82,7 @@ const ScriptureMentionPopup = ({
   rewriteQuery,
   insertToken,
 }: PopupProps) => {
+  const { t } = useTranslation();
   const parsed = parseMentionQuery(query);
   // The parser's own USFM resolution — `bookName` is the
   // localized display name once a non-English structure
@@ -128,9 +130,9 @@ const ScriptureMentionPopup = ({
         {parsed.error ??
           (preview +
             (parsed.complete && parsed.verseStart === null
-              ? ' — Enter for whole chapter'
+              ? ` — ${t('picker.enterForChapter')}`
               : '') ||
-            'Type @ to cite a passage')}
+            t('picker.typeToCite'))}
       </Text>
       <PassagePicker
         bookId={code ?? null}

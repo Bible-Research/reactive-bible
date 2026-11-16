@@ -16,17 +16,18 @@
 5. [State Management](#state-management)
 6. [Types & Interfaces](#types--interfaces)
 7. [Testing Guidelines](#testing-guidelines)
-8. [Bible Utilities](#bible-utilities)
-9. [Core Functionalities](#core-functionalities)
-10. [Data Flow](#data-flow)
-11. [Component Structure](#component-structure)
-12. [API Integration](#api-integration)
-13. [Caching System](#caching-system)
-14. [Code Style Guidelines](#code-style-guidelines)
-15. [Keeping Documentation Updated](#keeping-documentation-updated)
-16. [Browser Compatibility](#browser-compatibility)
-17. [Performance Considerations](#performance-considerations)
-18. [Android App & Release Channels](#android-app--release-channels)
+8. [UI Localization (i18n)](#ui-localization-i18n)
+9. [Bible Utilities](#bible-utilities)
+10. [Core Functionalities](#core-functionalities)
+11. [Data Flow](#data-flow)
+12. [Component Structure](#component-structure)
+13. [API Integration](#api-integration)
+14. [Caching System](#caching-system)
+15. [Code Style Guidelines](#code-style-guidelines)
+16. [Keeping Documentation Updated](#keeping-documentation-updated)
+17. [Browser Compatibility](#browser-compatibility)
+18. [Performance Considerations](#performance-considerations)
+19. [Android App & Release Channels](#android-app--release-channels)
 
 ---
 
@@ -1396,6 +1397,83 @@ npm test -- --run src/components/PassageView.performance.test.tsx
 # Run with performance logging
 npm test -- --run --reporter=verbose **/*.performance.test.tsx
 ```
+
+---
+
+## UI Localization (i18n)
+
+**Location**: `src/i18n/` — `index.ts`, `errorText.ts`,
+`i18next.d.ts`, `locales/{en,lv,ru}/{common,books}.json`
+
+The UI is localized with i18next + react-i18next in three
+languages: English (`en`), Latvian (`lv`), Russian (`ru`).
+
+### Architecture
+
+- `initI18n()` is awaited in `main.tsx` BEFORE the first
+  render so no untranslated flash paints. `en` is bundled in
+  the main chunk; `lv`/`ru` catalogs load on demand via one
+  dynamic import per locale inside `changeUiLanguage()`
+  (Vite splits each into its own chunk).
+- `en/common.json` is the source catalog: `i18next.d.ts`
+  augments the resource types from it, so `t()` rejects
+  unknown keys at compile time. A missing lv/ru key renders
+  English via `fallbackLng: 'en'`, but
+  `src/i18n/index.test.ts` enforces completeness — add all
+  three translations in the same change.
+- Namespaces: `common` (default, all UI strings) and
+  `books` (testament labels etc. — book NAMES themselves
+  come from the structure endpoint, see
+  `localizedBookName`).
+
+### Language selection
+
+- `uiLanguage: UiLanguage` is persisted in `bible-storage`
+  (store schema v7+; `setUiLanguage` writes it and calls
+  `changeUiLanguage`). The MainMenu selector lists autonyms
+  (English / Latviešu / Русский) which are intentionally
+  never translated.
+- `resolveUiLanguage()` precedence: persisted choice →
+  `navigator.language` prefix (`'lv-LV'` → `'lv'`) → `'en'`.
+  It reads `bible-storage` directly so i18n init stays free
+  of store imports (the store imports `changeUiLanguage`;
+  a back-edge would cycle through apiClient's `t()` calls).
+- `DEFAULT_TRANSLATION_BY_LOCALE` maps locale → first-run
+  TEXT fileset: en→`ENGESV_API`, lv→`LVSGLU8`,
+  ru→`RUSSYN` (1876 Synodal). `resolveInitialTextFileset()`
+  applies it ONLY on a genuine first run — a persisted
+  `activeTextFilesetId` always wins. UI language and
+  Bible translation selection are independent; changing the
+  UI language never re-picks the text/audio fileset.
+
+### Usage
+
+```tsx
+// Components: hook + typed keys
+const { t } = useTranslation();
+<Title>{t('menu.readBible')}</Title>
+
+// Plurals: pass count; i18next picks _one/_other
+// (lv also has _zero, ru has _few/_many — all translated)
+t('search.resultCount', { count: results.length })
+
+// Non-React code (stores, utils, api): module instance
+import i18n from '../i18n';
+i18n.t('errors.generic')
+```
+
+Backend `error_code` values map through
+`localizedErrorText()` (`src/i18n/errorText.ts`) to
+`errors.*` keys — raw provider messages are never shown for
+coded errors; uncoded `Error` messages pass through.
+`textOrKey()` renders stored values that may be either a
+catalog key or raw server text.
+
+What is NOT translated: server-provided content (book
+names, verse text, copyright strings), contract text
+(`passage=` params, stored note `book` fields, `@USFM`
+mention tokens), internal diagnostics/log lines, and DOM
+test hooks (`title="nav-book-*"` etc.).
 
 ---
 

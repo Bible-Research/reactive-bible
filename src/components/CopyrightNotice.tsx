@@ -7,8 +7,10 @@ import {
   resolveTextFileset,
 } from '../utils/filesetGroups';
 import { shallow } from 'zustand/shallow';
+import { useTranslation } from 'react-i18next';
 
 const CopyrightNotice = () => {
+  const { t, i18n } = useTranslation();
   const { activeTextFilesetId, translations, activeBookId } =
     useBibleStore(
       (state) => ({
@@ -80,14 +82,22 @@ const CopyrightNotice = () => {
       if (cr) {
         const text =
           cr.copyright_description || cr.copyright || '';
-        setCopyright(text ? `Copyright: ${text}` : '');
+        setCopyright(
+          text ? t('copyright.prefix', { text }) : '',
+        );
       } else {
         setCopyright('');
       }
     });
 
     return () => { stale = true; };
-  }, [activeTextFilesetId, activeBookId, translations]);
+  }, [
+    activeTextFilesetId,
+    activeBookId,
+    translations,
+    t,
+    i18n.language,
+  ]);
 
   if (!copyright) return null;
 

@@ -8,6 +8,7 @@ import {
   isChunkLoadError,
   reloadForStaleChunk,
 } from './chunkLoadError';
+import i18n from '../i18n';
 
 // Media elements are excluded: audio/video sources routinely
 // fail and are retried by the app's own fallback chains, so
@@ -31,6 +32,7 @@ interface PendingReport {
   error: Error;
   context?: string;
   resource: boolean;
+  resourceSrc?: string;
 }
 
 let notificationSeq = 0;
@@ -84,8 +86,12 @@ function deliverReport(report: PendingReport): void {
   if (report.resource) {
     showNotification({
       id: `resource-error-${++notificationSeq}`,
-      title: 'Resource failed to load',
-      message: report.error.message,
+      title: i18n.t('share.resourceLoadFailed'),
+      message: report.resourceSrc
+        ? i18n.t('share.resourceLoadFailedMsg', {
+            src: report.resourceSrc,
+          })
+        : report.error.message,
       color: 'yellow',
       autoClose: RESOURCE_AUTO_CLOSE_MS,
     });
@@ -95,7 +101,7 @@ function deliverReport(report: PendingReport): void {
   // would silently replace the previous report.
   showNotification({
     id: `unhandled-error-${++notificationSeq}`,
-    title: 'Unexpected error',
+    title: i18n.t('share.unexpectedError'),
     message: (
       <ErrorNotificationContent
         error={report.error}
@@ -142,7 +148,11 @@ function scheduleFlush(): void {
 export function reportError(
   error: unknown,
   context?: string,
-  options: { resource?: boolean; sentryMessage?: string } = {}
+  options: {
+    resource?: boolean;
+    sentryMessage?: string;
+    resourceSrc?: string;
+  } = {}
 ): void {
   const err = toError(error);
   try {
@@ -174,6 +184,7 @@ export function reportError(
       error: err,
       context,
       resource: options.resource === true,
+      resourceSrc: options.resourceSrc,
     };
     if (isNotificationsReady() && pendingReports.length === 0) {
       deliverReport(report);
@@ -255,6 +266,7 @@ function handleGlobalError(event: Event): void {
       'Resource load error',
       {
         resource: true,
+        resourceSrc: src,
         sentryMessage: `Failed to load resource: ${sentrySrc}`,
       }
     );

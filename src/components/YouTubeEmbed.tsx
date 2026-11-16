@@ -6,6 +6,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { IconPlayerPlay } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 
 interface YouTubeEmbedProps {
   /** YouTube video id (11-char id, not a URL). */
@@ -25,6 +26,7 @@ export default function YouTubeEmbed({
   title,
 }: YouTubeEmbedProps) {
   const [activated, setActivated] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <Box>
@@ -51,7 +53,7 @@ export default function YouTubeEmbed({
         ) : (
           <UnstyledButton
             onClick={() => setActivated(true)}
-            aria-label={`Play video: ${title}`}
+            aria-label={t('tutorials.playVideo', { title })}
             sx={{
               position: 'relative',
               display: 'block',
@@ -107,7 +109,7 @@ export default function YouTubeEmbed({
         mt="xs"
         sx={{ display: 'inline-block' }}
       >
-        Watch on YouTube
+        {t('tutorials.watchOnYouTube')}
       </Anchor>
     </Box>
   );

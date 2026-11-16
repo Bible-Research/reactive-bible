@@ -18,6 +18,8 @@ import { clearNotesCache } from '../utils/cacheManager';
 import { toPlainText } from '../utils/tiptapContent';
 import { imageFileSignature } from './useStagedImages';
 import type { Note, NoteImage } from '../types';
+import i18n from '../i18n';
+import { textOrKey } from '../i18n/errorText';
 
 /** The `verse_references` item shape the notes API expects. */
 export interface NoteVerseReference {
@@ -358,8 +360,8 @@ export const useNoteEditor = ({
                   .catch(() => {
                     showNotification({
                       color: 'red',
-                      title: 'Error',
-                      message: 'Failed to delete image.',
+                      title: i18n.t('common.error'),
+                      message: i18n.t('notes.deleteImageFailed'),
                     });
                   });
                 continue;
@@ -375,13 +377,17 @@ export const useNoteEditor = ({
                 (f) => f !== file
               );
             } catch (err: unknown) {
+              // apiClient throws catalog keys
+              // ('errors.forbidden', 'auth.sessionExpiredMsg')
+              // — textOrKey translates those and passes raw
+              // server text through.
               const msg =
                 err instanceof Error
-                  ? err.message
-                  : 'Failed to upload image.';
+                  ? textOrKey(err.message)
+                  : i18n.t('notes.failedToUpload');
               showNotification({
                 color: 'red',
-                title: 'Upload failed',
+                title: i18n.t('notes.uploadFailed'),
                 message: msg,
               });
             }
@@ -438,8 +444,8 @@ export const useNoteEditor = ({
       // console.error.
       if (!tagId) {
         showNotification({
-          title: 'Cannot save note',
-          message: 'Please choose a tag.',
+          title: i18n.t('notes.cannotSave'),
+          message: i18n.t('notes.chooseTag'),
           color: 'red',
         });
         return false;
@@ -453,10 +459,9 @@ export const useNoteEditor = ({
         attachedCountRef.current === 0
       ) {
         showNotification({
-          title: 'Cannot save note',
+          title: i18n.t('notes.cannotSave'),
           message:
-            'Add note text, attach an image, or link a ' +
-            'verse reference.',
+            i18n.t('notes.addNoteTextImageOrVerse'),
           color: 'red',
         });
         return false;
@@ -484,8 +489,8 @@ export const useNoteEditor = ({
       } catch (error) {
         console.error(error);
         showNotification({
-          title: 'Error',
-          message: 'Failed to save note. Please try again.',
+          title: i18n.t('common.error'),
+          message: i18n.t('notes.saveFailed'),
           color: 'red',
         });
         return false;
@@ -522,8 +527,8 @@ export const useNoteEditor = ({
           .catch(() => {
             showNotification({
               color: 'red',
-              title: 'Error',
-              message: 'Failed to delete image.',
+              title: i18n.t('common.error'),
+              message: i18n.t('notes.deleteImageFailed'),
             });
           });
       }
