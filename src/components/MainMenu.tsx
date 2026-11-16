@@ -99,13 +99,18 @@ const MainMenu = ({
         withCloseButton={false}
         padding="xl"
       >
-      {/* Close X sits top-right, under the burger that opened
-          the drawer (MyHeader pins it at right: 10px). */}
+      {/* Close X on the right: the drawer body is not a flex
+          container, so use an auto inline-start margin (the
+          block-level ActionIcon keeps a fixed width) — inert
+          align-self did nothing here. */}
       <ActionIcon
         onClick={onClose}
         size="lg"
         variant="transparent"
-        style={{ alignSelf: "flex-end", marginBottom: "2rem" }}
+        style={{
+          marginInlineStart: "auto",
+          marginBottom: "2rem",
+        }}
         title="Close menu"
       >
         <IconX size={24} />

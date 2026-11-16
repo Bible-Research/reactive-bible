@@ -101,10 +101,11 @@ describe('MainMenu Component', () => {
   it('pins the close button to the right side of the menu', () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
 
-    // The drawer slides in from the right and the header burger
-    // sits top-right — the X must land under it.
+    // The drawer body is a plain block container — the X is
+    // pushed right by an auto inline-start margin, not flex
+    // alignment.
     expect(screen.getByTitle('Close menu')).toHaveStyle(
-      'align-self: flex-end'
+      'margin-inline-start: auto'
     );
   });
 
