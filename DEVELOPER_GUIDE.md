@@ -2399,7 +2399,9 @@ Drawer panel for Books → Chapters → Verses navigation.
 #### `BottomNav.tsx`
 Footer bar for prev/next chapter navigation plus the current
 book/chapter title (kept in sync with the route — regression
-test `bottomnav-title-sync-95.test.tsx`).
+test `bottomnav-title-sync-95.test.tsx`). Pressing the title
+toggles `BibleSelector`: it opens the panel when closed and
+closes it — without navigating — when already open.
 
 #### `MainMenu.tsx`
 App drawer menu (opened from the header burger): navigation,

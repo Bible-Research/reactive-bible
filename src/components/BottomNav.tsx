@@ -17,10 +17,14 @@ import { buildBiblePath } from "../utils/bibleUtils";
 import { FOOTER_HEIGHT } from "../utils/layoutChrome";
 
 interface BottomNavProps {
+  bibleSelectorOpened: boolean;
   setBibleSelectorOpened: (opened: boolean) => void;
 }
 
-const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
+const BottomNav = ({
+  bibleSelectorOpened,
+  setBibleSelectorOpened,
+}: BottomNavProps) => {
   const navigate = useNavigate();
   const showAudioPlayer = useBibleStore(
     (state) => state.showAudioPlayer
@@ -86,7 +90,10 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         </ActionIcon>
         <Title order={4} title="nav-current-passage">
           <UnstyledButton
-            onClick={() => setBibleSelectorOpened(true)}
+            aria-expanded={bibleSelectorOpened}
+            onClick={() =>
+              setBibleSelectorOpened(!bibleSelectorOpened)
+            }
             sx={{
               minWidth: "120px",
               // Caps the title zone so an overflowing

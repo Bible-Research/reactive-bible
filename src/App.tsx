@@ -121,7 +121,10 @@ export default function App() {
           }
           footer={
             isBibleView ? (
-              <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
+              <BottomNav
+                bibleSelectorOpened={bibleSelectorOpened}
+                setBibleSelectorOpened={setBibleSelectorOpened}
+              />
             ) : undefined
           }
           styles={(theme) => ({
