@@ -546,7 +546,7 @@
   "tutorials": {
     "heading": "Darba sākšana",
     "intro": "Vai esat jauns šeit? Šīs īsās videoapmācības iepazīstina ar lietotnes iespējām — no Bībeles lasīšanas un meklēšanas līdz piezīmēm, birkām un audio. Skatieties tās pēc kārtas vai izvēlieties tieši vajadzīgo funkciju.",
-    "empty": "Apmācības tiek ierakstītas — pārbaudiet vēlāk.",
+    "empty": "Pamācības tiek ierakstītas — pārbaudiet vēlāk.",
     "playVideo": "Atskaņot video: {{title}}",
     "watchOnYouTube": "Skatīties YouTube",
     "tour-of-the-app": {
