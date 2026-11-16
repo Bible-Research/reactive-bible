@@ -92,19 +92,18 @@ const createAuthStore = () => create<AuthState>()(
               '🔐 Login error response status:',
               response.status
             );
-            let errorMessage = 'Invalid username or password';
+            let errorMessage = 'auth.invalidCredentials';
 
             if (response.status === 400) {
               errorMessage = errorData.non_field_errors?.[0] ||
                 errorData.detail ||
-                'Invalid credentials. Please ensure you have a ' +
-                'valid account with a password set via Django admin.';
+                'auth.invalidCredentialsHelp';
             } else if (response.status === 401) {
-              errorMessage = 'Invalid username or password';
+              errorMessage = 'auth.invalidCredentials';
             } else {
               errorMessage = errorData.detail ||
                 errorData.non_field_errors?.[0] ||
-                'Login failed. Please try again.';
+                'auth.loginFailed';
             }
 
             throw new Error(errorMessage);
@@ -131,7 +130,7 @@ const createAuthStore = () => create<AuthState>()(
         } catch (error) {
           const errorMessage = error instanceof Error 
             ? error.message 
-            : 'Login failed. Please try again.';
+            : 'auth.loginFailed';
           
           set({
             error: errorMessage,
@@ -197,7 +196,7 @@ const createAuthStore = () => create<AuthState>()(
               response.status
             );
             
-            let errorMessage = 'Registration failed. Please try again.';
+            let errorMessage = 'auth.registrationFailed';
             
             if (response.status === 400) {
               // Handle field-specific errors
@@ -251,7 +250,7 @@ const createAuthStore = () => create<AuthState>()(
         } catch (error) {
           const errorMessage = error instanceof Error
             ? error.message
-            : 'Registration failed. Please try again.';
+            : 'auth.registrationFailed';
           
           set({
             error: errorMessage,

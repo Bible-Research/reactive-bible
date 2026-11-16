@@ -20,6 +20,7 @@ import {
 import { toPlainText } from '../utils/tiptapContent';
 import { commentImageName } from '../utils/commentTree';
 import { CommentImage } from '../types';
+import { useTranslation } from 'react-i18next';
 
 const MAX_IMAGES = 5;
 
@@ -48,6 +49,7 @@ const CommentForm = ({
   onDeleteImage,
   onImageError,
 }: CommentFormProps) => {
+  const { t } = useTranslation();
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
   const [localSubmitting, setLocalSubmitting] = useState(false);
@@ -128,12 +130,12 @@ const CommentForm = ({
                   />
                 ) : (
                   <UnavailableThumb
-                    label={`${name} (unavailable)`}
+                    label={t('comments.imageUnavailable', { name })}
                   />
                 )}
                 {onDeleteImage && (
                   <RemoveImageButton
-                    label={`Remove image ${name}`}
+                    label={t('comments.removeImage', { name })}
                     offset={2}
                     onClick={() => onDeleteImage(img.id)}
                   />
@@ -151,7 +153,7 @@ const CommentForm = ({
             >
               {s.failed ? (
                 <UnavailableThumb
-                  label={`${s.file.name} (unavailable)`}
+                  label={t('comments.imageUnavailable', { name: s.file.name })}
                 />
               ) : (
                 <img
@@ -162,7 +164,7 @@ const CommentForm = ({
                 />
               )}
               <RemoveImageButton
-                label={`Remove staged image ${s.file.name}`}
+                label={t('comments.removeStagedImage', { name: s.file.name })}
                 offset={2}
                 onClick={() => removeStaged(s.id)}
               />
@@ -219,7 +221,7 @@ const CommentForm = ({
               variant="subtle"
               leftIcon={<IconPhoto size={14} />}
               disabled={isDisabled || totalAttached >= MAX_IMAGES}
-              aria-label="Attach images"
+              aria-label={t('comments.attachImages')}
             >
               {totalAttached > 0
                 ? `${totalAttached}/${MAX_IMAGES}`

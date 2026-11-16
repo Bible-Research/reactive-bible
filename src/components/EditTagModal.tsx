@@ -20,6 +20,7 @@ import {
   isTagDescendant,
   validateTagName,
 } from '../utils/tagTree';
+import { useTranslation } from 'react-i18next';
 
 interface EditTagModalProps {
   opened: boolean;
@@ -36,6 +37,7 @@ export function EditTagModal({
   tag,
   existingTags,
 }: EditTagModalProps) {
+  const { t } = useTranslation();
   // Full-screen at `sm` and narrower (768px is Mantine's
   // `sm` — the query includes it), where the
   // Created/Updated dates also collapse behind a "Details"
@@ -88,8 +90,8 @@ export function EditTagModal({
 
     if (parentTagId && !canSetParent(parentTagId)) {
       showNotification({
-        title: 'Invalid Parent',
-        message: 'Cannot create circular parent relationship',
+        title: t('tags.invalidParent'),
+        message: t('tags.circularParent'),
         color: 'red',
       });
       return;
@@ -118,8 +120,8 @@ export function EditTagModal({
         await setTagPublic(tag.id, isPublic);
       }
       showNotification({
-        title: 'Success',
-        message: 'Tag updated successfully',
+        title: t('common.success'),
+        message: t('tags.updated'),
         color: 'green',
       });
       onSuccess();
@@ -127,11 +129,11 @@ export function EditTagModal({
     } catch (error) {
       console.error('Error updating tag:', error);
       showNotification({
-        title: 'Error',
+        title: t('common.error'),
         message:
           error instanceof Error
             ? error.message
-            : 'Failed to update tag. Please try again.',
+            : t('tags.updateFailed'),
         color: 'red',
       });
       // Partial success: the PATCH landed but the cascade
@@ -175,15 +177,15 @@ export function EditTagModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      title="Edit Tag"
+      title={t('tags.edit')}
       size="md"
       fullScreen={compact}
     >
       <form onSubmit={handleFormSubmit}>
         <Stack spacing="md">
           <TextInput
-            label="Tag Name"
-            placeholder="Enter tag name"
+            label={t('tags.name')}
+            placeholder={t('tags.enterName')}
             value={tagName}
             onChange={(e) => {
               setTagName(e.currentTarget.value);
@@ -199,8 +201,8 @@ export function EditTagModal({
           />
 
           <Select
-            label="Parent Tag (Optional)"
-            placeholder="Select a parent tag"
+            label={t('tags.parentOptional')}
+            placeholder={t('tags.selectParent')}
             value={parentTagId}
             onChange={setParentTagId}
             data={parentTagOptions}
@@ -212,30 +214,25 @@ export function EditTagModal({
             withinPortal
             dropdownPosition="bottom"
             maxDropdownHeight={280}
-            description="Leave empty to make this a root-level tag"
+            description={t('tags.rootHintEdit')}
           />
 
           {hasChildren && (
             <Text size="xs" color="orange">
-              ⚠️ This tag has child tags. Changing its parent
-              will affect the hierarchy.
+              {t('tags.hasChildrenWarning')}
             </Text>
           )}
 
           <Switch
-            label="Public tag"
+            label={t('tags.publicTag')}
             checked={isPublic}
             onChange={(e) =>
               setIsPublic(e.currentTarget.checked)
             }
             description={
               isPublic
-                ? 'Existing notes under this tag become ' +
-                  'public — anyone with the link can view ' +
-                  'them.'
-                : 'Existing notes directly under this tag ' +
-                  'become private — anyone following a ' +
-                  'shared link loses access.'
+                ? t('tags.publicityPublicLong')
+                : t('tags.publicityPrivateLong')
             }
           />
 
@@ -249,8 +246,8 @@ export function EditTagModal({
                 >
                   <Text size="xs" color="dimmed" underline>
                     {detailsOpen
-                      ? 'Hide details'
-                      : 'Show details'}
+                      ? t('tags.hideDetails')
+                      : t('tags.showDetails')}
                   </Text>
                 </UnstyledButton>
                 <Collapse in={detailsOpen}>
@@ -263,10 +260,10 @@ export function EditTagModal({
 
           <Group position="right" mt="md">
             <Button variant="subtle" onClick={onClose} disabled={loading}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" loading={loading}>
-              Save Changes
+              {t('tags.saveChanges')}
             </Button>
           </Group>
         </Stack>

@@ -523,6 +523,9 @@ describe('useBibleStore', () => {
           TAG1: { page: 3, pageSize: 50 },
         },
         readingPositions: { MRK: { chapter: 4, verse: 2 } },
+        // Pinned so the snapshot can't wobble with the test
+        // environment's navigator.language detection.
+        uiLanguage: 'lv',
         // Non-persisted fields — set to non-defaults so the
         // snapshot proves they are excluded.
         detailNote: note,
@@ -557,6 +560,7 @@ describe('useBibleStore', () => {
         'tagPagination',
         'tags',
         'translations',
+        'uiLanguage',
         'verseSelection',
       ]);
       expect(JSON.stringify(persisted)).toMatchSnapshot();

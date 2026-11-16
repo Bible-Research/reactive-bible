@@ -5,6 +5,8 @@ import { ScriptureRef } from '../utils/scriptureRef';
 import { toUsfmCode } from '../utils/bibleUtils';
 import { SectionHeading } from '../types';
 import SectionHeadingComponent from './SectionHeading';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 
 // Passage lookups from notes/comments always use ESV
 const FILESET_ID = 'ENGESV_API';
@@ -31,6 +33,7 @@ const ScripturePassage = ({
   fullChapter = false,
   onToggleVerse,
 }: ScripturePassageProps) => {
+  useTranslation();
   const { book, chapter, verses } = reference;
   const [passages, setPassages] = useState<PassageVerse[]>([]);
   const [headings, setHeadings] = useState<SectionHeading[]>([]);
@@ -64,7 +67,7 @@ const ScripturePassage = ({
           setError(
             err instanceof Error
               ? err.message
-              : 'Failed to load passage'
+              : i18n.t('passage.loadPassageFailed')
           );
         }
       }

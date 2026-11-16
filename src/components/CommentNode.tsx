@@ -10,6 +10,7 @@ import ScripturePassagePopover from './ScripturePassagePopover';
 import useScriptureRefPreview from '../hooks/useScriptureRefPreview';
 import RichTextView from './RichTextView';
 import formatTime from '../utils/formatTime';
+import { useTranslation } from 'react-i18next';
 
 /** The signed-in viewer. `id` is optional until the auth store
  *  persists it — the username fallback below covers that. */
@@ -54,6 +55,7 @@ const CommentNode = ({
   onDeleteImage,
   onRequestRefresh,
 }: CommentNodeProps) => {
+  const { t } = useTranslation();
   const [replyOpen, setReplyOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   // Clicked '@…' refs open the passage in a floating popover
@@ -108,9 +110,12 @@ const CommentNode = ({
 
   const handleDeleteClick = () => {
     openConfirmModal({
-      title: 'Delete comment',
-      children: 'Are you sure you want to delete this comment?',
-      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      title: t('comments.deleteTitle'),
+      children: t('comments.deleteConfirm'),
+      labels: {
+        confirm: t('common.delete'),
+        cancel: t('common.cancel'),
+      },
       confirmProps: { color: 'red' },
       onConfirm: () => onDelete(comment.id),
     });
@@ -210,7 +215,7 @@ const CommentNode = ({
             <Box mt={6}>
               <CommentForm
                 submitLabel="Reply"
-                placeholder="Write a reply…"
+                placeholder={t('comments.writeReply')}
                 autoFocus
                 onSubmit={handleReplySubmit}
                 onCancel={() => setReplyOpen(false)}

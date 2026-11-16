@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import i18n from '../i18n';
 
 /**
  * Shared staging block for image-attach forms (comments and
@@ -132,12 +133,16 @@ export const useStagedImages = ({
     const errors: string[] = [];
     for (const file of files) {
       if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-        errors.push(`Unsupported file type: ${file.name}`);
+        errors.push(
+          i18n.t('notes.unsupportedFileType', {
+            name: file.name,
+          }),
+        );
         continue;
       }
       if (file.size > MAX_IMAGE_BYTES) {
         errors.push(
-          `File too large (max 10 MiB): ${file.name}`
+          i18n.t('notes.fileTooLarge', { name: file.name }),
         );
         continue;
       }
@@ -161,7 +166,14 @@ export const useStagedImages = ({
         maxImages
       ) {
         errors.push(
-          `Maximum ${maxImages} images per ${parentNoun}.`
+          i18n.t('notes.maxImages', {
+            max: maxImages,
+            noun: i18n.t(
+              parentNoun === 'comment'
+                ? 'common.comment'
+                : 'common.note',
+            ),
+          }),
         );
         break;
       }

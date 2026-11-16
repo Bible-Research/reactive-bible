@@ -37,6 +37,7 @@ import VerseTextGroups from "./VerseTextGroups";
 import { Note, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import { shallow } from "zustand/shallow";
+import { useTranslation } from 'react-i18next';
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -45,6 +46,7 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
+  const { t } = useTranslation();
   const {
     tags,
     getTags,
@@ -224,10 +226,10 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           const msg =
             err instanceof Error
               ? err.message
-              : 'Failed to upload image.';
+              : t('notes.failedToUpload');
           showNotification({
             color: 'red',
-            title: 'Upload failed',
+            title: t('notes.uploadFailed'),
             message: msg,
           });
         }
@@ -250,8 +252,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     } catch {
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to delete image.',
+        title: t('common.error'),
+        message: t('notes.deleteImageFailed'),
       });
     }
   };
@@ -291,7 +293,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Edit note"
+      title={t('notes.editNote')}
       fullScreen
     >
       {note && (

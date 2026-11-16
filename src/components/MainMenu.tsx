@@ -8,6 +8,7 @@ import {
   useMantineTheme,
   ColorScheme,
   Divider,
+  SegmentedControl,
 } from "@mantine/core";
 import {
   IconX,
@@ -20,9 +21,15 @@ import {
 } from "@tabler/icons-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
+import {
+  SUPPORTED_UI_LANGUAGES,
+  UI_LANGUAGE_AUTONYMS,
+  isUiLanguage,
+} from "../i18n";
 import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
@@ -60,6 +67,7 @@ const MainMenu = ({
   toggleColorScheme,
 }: MainMenuProps) => {
   const theme = useMantineTheme();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
   const [reportOpened, setReportOpened] = useState(false);
@@ -81,6 +89,10 @@ const MainMenu = ({
   // must not offer unreachable actions either.
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
+  );
+  const uiLanguage = useBibleStore((state) => state.uiLanguage);
+  const setUiLanguage = useBibleStore(
+    (state) => state.setUiLanguage
   );
 
   // Offer the APK only on Android browsers — useless on iOS,
@@ -112,7 +124,7 @@ const MainMenu = ({
           marginInlineStart: "auto",
           marginBottom: "2rem",
         }}
-        title="Close menu"
+        title={t('menu.closeMenu')}
       >
         <IconX size={24} />
       </ActionIcon>
@@ -120,10 +132,10 @@ const MainMenu = ({
       <Stack spacing="xl">
         {/* User Account Section */}
         <Group position="apart" spacing="xs">
-          <Text weight={500} size="lg">Account</Text>
+          <Text weight={500} size="lg">{t('menu.account')}</Text>
           <UserMenu onNavigate={onClose} />
         </Group>
-        
+
         <Divider />
 
         <Group position="apart" spacing="xs">
@@ -136,7 +148,7 @@ const MainMenu = ({
             }}
             sx={{ cursor: "pointer" }}
           >
-            Read Bible
+            {t('menu.readBible')}
           </Text>
         </Group>
 
@@ -154,7 +166,7 @@ const MainMenu = ({
               }}
               sx={{ cursor: "pointer" }}
             >
-              View Notes
+              {t('menu.viewNotes')}
             </Text>
           </Group>
         )}
@@ -168,7 +180,7 @@ const MainMenu = ({
                 onClick={() => setNewNoteOpened(true)}
                 sx={{ cursor: "pointer" }}
               >
-                New Note
+                {t('menu.newNote')}
               </Text>
             </Group>
 
@@ -182,7 +194,7 @@ const MainMenu = ({
                 }}
                 sx={{ cursor: "pointer" }}
               >
-                Tag Management
+                {t('menu.tagManagement')}
               </Text>
             </Group>
           </>
@@ -200,12 +212,12 @@ const MainMenu = ({
                 size="lg"
                 onClick={() => void checkForUpdatesManually()}
                 sx={{ cursor: "pointer" }}
-                title="Check for updates"
+                title={t('menu.checkUpdates')}
               >
-                Check for updates
+                {t('menu.checkUpdates')}
               </Text>
               <Text size="xs" color="dimmed">
-                Look for a newer build on GitHub Releases.
+                {t('menu.checkUpdatesHint')}
               </Text>
             </div>
           </Group>
@@ -226,13 +238,12 @@ const MainMenu = ({
                   component="a"
                   href={apkUrl}
                   sx={{ cursor: "pointer", color: "inherit" }}
-                  title="Download Android app"
+                  title={t('menu.downloadAndroidApp')}
                 >
-                  Download Android App
+                  {t('menu.downloadAndroidApp')}
                 </Text>
                 <Text size="xs" color="dimmed">
-                  For lock-screen audio playback. You may need to
-                  allow "install unknown apps" for your browser.
+                  {t('menu.downloadAndroidHint')}
                 </Text>
               </div>
             </Group>
@@ -276,13 +287,12 @@ const MainMenu = ({
               size="lg"
               onClick={() => setReportOpened(true)}
               sx={{ cursor: "pointer" }}
-              title="Report a problem"
+              title={t('menu.reportProblem')}
             >
-              Report a problem
+              {t('menu.reportProblem')}
             </Text>
             <Text size="xs" color="dimmed">
-              Tell us what went wrong — it goes to the team
-              with your current passage.
+              {t('menu.reportProblemHint')}
             </Text>
           </div>
         </Group>
@@ -290,7 +300,7 @@ const MainMenu = ({
         <Divider />
 
         <Group position="apart" spacing="xs">
-          <Text weight={500} size="lg">Theme</Text>
+          <Text weight={500} size="lg">{t('menu.theme')}</Text>
           <Switch
             checked={colorScheme === "dark"}
             onChange={toggleColorScheme}
@@ -305,6 +315,22 @@ const MainMenu = ({
                 stroke={1.5}
               />
             }
+          />
+        </Group>
+
+        <Group position="apart" spacing="xs">
+          <Text weight={500} size="lg">{t('menu.language')}</Text>
+          {/* Autonyms are intentional — a user who can't read
+              the current UI language must still find theirs. */}
+          <SegmentedControl
+            value={uiLanguage}
+            onChange={(value) => {
+              if (isUiLanguage(value)) setUiLanguage(value);
+            }}
+            data={SUPPORTED_UI_LANGUAGES.map((lang) => ({
+              value: lang,
+              label: UI_LANGUAGE_AUTONYMS[lang],
+            }))}
           />
         </Group>
       </Stack>

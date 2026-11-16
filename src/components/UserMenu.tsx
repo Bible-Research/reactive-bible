@@ -7,12 +7,14 @@ import {
 import { showNotification } from '@mantine/notifications';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface UserMenuProps {
   onNavigate?: () => void;
 }
 
 export function UserMenu({ onNavigate }: UserMenuProps = {}) {
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
@@ -23,8 +25,8 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
   const handleLogout = () => {
     logout();
     showNotification({
-      title: 'Logged out',
-      message: 'You have been successfully logged out',
+      title: t('auth.loggedOut'),
+      message: t('auth.loggedOutMsg'),
       color: 'blue',
     });
     onNavigate?.(); // Close menu if callback provided
@@ -41,7 +43,7 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
           void navigate('/login');
         }}
       >
-        Sign In
+        {t('auth.signInCaps')}
       </Button>
     );
   }
@@ -60,7 +62,7 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
       </Menu.Target>
 
       <Menu.Dropdown>
-        <Menu.Label>Account</Menu.Label>
+        <Menu.Label>{t('auth.account')}</Menu.Label>
         <Menu.Item icon={<IconUser size={14} />} disabled>
           {user.username}
         </Menu.Item>
@@ -70,7 +72,7 @@ export function UserMenu({ onNavigate }: UserMenuProps = {}) {
           icon={<IconLogout size={14} />}
           onClick={handleLogout}
         >
-          Logout
+          {t('auth.logout')}
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>

@@ -13,6 +13,7 @@ import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { createTag } from '../api';
 import { validateTagName } from '../utils/tagTree';
+import { useTranslation } from 'react-i18next';
 
 interface CreateTagModalProps {
   opened: boolean;
@@ -27,6 +28,7 @@ export function CreateTagModal({
   onSuccess,
   existingTags,
 }: CreateTagModalProps) {
+  const { t } = useTranslation();
   // Full-screen at `sm` and narrower (768px is Mantine's
   // `sm` — the query includes it) — the parent Select's
   // dropdown gets the whole viewport to work with on a
@@ -64,8 +66,8 @@ export function CreateTagModal({
     try {
       await createTag(tagName.trim(), parentTagId);
       showNotification({
-        title: 'Success',
-        message: 'Tag created successfully',
+        title: t('common.success'),
+        message: t('tags.created'),
         color: 'green',
       });
       onSuccess();
@@ -73,8 +75,8 @@ export function CreateTagModal({
     } catch (error) {
       console.error('Error creating tag:', error);
       showNotification({
-        title: 'Error',
-        message: 'Failed to create tag. Please try again.',
+        title: t('common.error'),
+        message: t('tags.createFailed'),
         color: 'red',
       });
     }
@@ -99,15 +101,15 @@ export function CreateTagModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      title="Create New Tag"
+      title={t('tags.createNew')}
       size="md"
       fullScreen={fullScreen}
     >
       <form onSubmit={handleFormSubmit}>
         <Stack spacing="md">
           <TextInput
-            label="Tag Name"
-            placeholder="Enter tag name"
+            label={t('tags.name')}
+            placeholder={t('tags.enterName')}
             value={tagName}
             onChange={(e) => {
               setTagName(e.currentTarget.value);
@@ -123,8 +125,8 @@ export function CreateTagModal({
           />
 
           <Select
-            label="Parent Tag (Optional)"
-            placeholder="Select a parent tag"
+            label={t('tags.parentOptional')}
+            placeholder={t('tags.selectParent')}
             value={parentTagId}
             onChange={setParentTagId}
             data={parentTagOptions}
@@ -136,22 +138,25 @@ export function CreateTagModal({
             withinPortal
             dropdownPosition="bottom"
             maxDropdownHeight={280}
-            description="Leave empty to create a root-level tag"
+            description={t('tags.rootHintCreate')}
           />
 
           {parentTagId && (
             <Text size="xs" color="dimmed">
-              This tag will be nested under "
-              {existingTags.find((t) => t.id === parentTagId)?.name}"
+              {t('tags.nestedUnder', {
+                name: existingTags.find(
+                  (tag) => tag.id === parentTagId,
+                )?.name,
+              })}
             </Text>
           )}
 
           <Group position="right" mt="md">
             <Button variant="subtle" onClick={onClose} disabled={loading}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" loading={loading}>
-              Create Tag
+              {t('tags.createTag')}
             </Button>
           </Group>
         </Stack>

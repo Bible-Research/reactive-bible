@@ -22,6 +22,7 @@ import {
   NOTES_PAGE_SIZES,
   pageCount,
 } from '../utils/pagination';
+import i18n from '../i18n';
 
 interface UseTagNotesDataOptions {
   tagId: string | undefined;
@@ -188,7 +189,7 @@ export const useTagNotesData = ({
 
     const loadTagAndNotes = async () => {
       if (!tagId) {
-        setError('No tag ID provided');
+        setError(i18n.t('notes.noTagId'));
         setLoading(false);
         return;
       }
@@ -469,15 +470,15 @@ export const useTagNotesData = ({
       }
 
       showNotification({
-        title: 'Refreshed!',
-        message: 'Notes updated from server',
+        title: i18n.t('notes.refreshed'),
+        message: i18n.t('notes.updated'),
         color: 'green',
       });
     } catch (err) {
       console.error('Error refreshing notes:', err);
       showNotification({
-        title: 'Error',
-        message: 'Failed to refresh notes',
+        title: i18n.t('common.error'),
+        message: i18n.t('notes.refreshFailed'),
         color: 'red',
       });
     }

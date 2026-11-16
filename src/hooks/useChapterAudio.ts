@@ -45,6 +45,8 @@ import {
 } from "../utils/verseSeek";
 import { useVerseHighlighter } from "./useVerseHighlighter";
 import { Translation, VerseTimestamp } from "../types";
+import i18n from '../i18n';
+import { localizedErrorText } from '../i18n/errorText';
 
 const chapterKey = (
   filesetId: string | null,
@@ -471,7 +473,7 @@ export const useChapterAudio = (
       // opus16 on an old device) retries as its next alternate —
       // typically the mp3 sibling — before surfacing an error.
       if (tryNextFallbackRef.current()) return;
-      setError('Failed to load audio');
+      setError(i18n.t('audio.failedToLoad'));
       setIsPlaying(false);
       setLoading(false);
     },
@@ -482,7 +484,7 @@ export const useChapterAudio = (
     (_id: number, err: unknown) => {
       console.error('Audio play error:', err);
       if (tryNextFallbackRef.current()) return;
-      setError('Failed to play audio');
+      setError(i18n.t('audio.failedToPlay'));
       setIsPlaying(false);
       setLoading(false);
     },
@@ -600,23 +602,21 @@ export const useChapterAudio = (
   // own message instead of a generic 'Audio unavailable'.
   const reportChapterAudioFailure = useCallback(
     (err: unknown, bookId: string) => {
-      let errorMsg = 'Audio unavailable';
+      let errorMsg = i18n.t('audio.unavailable');
       if (err instanceof Error) {
         // Extract just the key part of the error
         if (err.message.includes('not available')) {
-          errorMsg = 'Audio not available';
+          errorMsg = i18n.t('audio.notAvailable');
         } else if (err.message.includes('No Fileset')) {
-          errorMsg = 'Audio not available for this chapter';
+          errorMsg = i18n.t('audio.notAvailableForChapter');
         } else {
-          errorMsg = err.message.split(':')[0]; // Get first part
+          errorMsg = localizedErrorText(err);
         }
       }
 
       const state = useBibleStore.getState();
       const filesetId = state.activeAudioFilesetId;
-      let hint =
-        'Try selecting a different audio version in the ' +
-        'Translation Settings ("Change Translation" button).';
+      let hint = i18n.t('audio.differentVersionHint');
       if (err instanceof BookNotInFilesetError) {
         const bookLabel = localizedBookName(bookId) ?? bookId;
         const owner = findTranslationByFilesetId(
@@ -624,8 +624,10 @@ export const useChapterAudio = (
           state.translations,
         );
         hint =
-          `No audio for ${bookLabel} in ` +
-          `${owner?.name ?? filesetId}.`;
+          i18n.t('audio.noAudioFor', {
+            book: bookLabel,
+            name: owner?.name ?? filesetId,
+          });
       }
 
       showNotification({

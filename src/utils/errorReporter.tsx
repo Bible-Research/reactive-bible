@@ -8,6 +8,7 @@ import {
   isChunkLoadError,
   reloadForStaleChunk,
 } from './chunkLoadError';
+import i18n from '../i18n';
 
 // Media elements are excluded: audio/video sources routinely
 // fail and are retried by the app's own fallback chains, so
@@ -84,7 +85,7 @@ function deliverReport(report: PendingReport): void {
   if (report.resource) {
     showNotification({
       id: `resource-error-${++notificationSeq}`,
-      title: 'Resource failed to load',
+      title: i18n.t('share.resourceLoadFailed'),
       message: report.error.message,
       color: 'yellow',
       autoClose: RESOURCE_AUTO_CLOSE_MS,
@@ -95,7 +96,7 @@ function deliverReport(report: PendingReport): void {
   // would silently replace the previous report.
   showNotification({
     id: `unhandled-error-${++notificationSeq}`,
-    title: 'Unexpected error',
+    title: i18n.t('share.unexpectedError'),
     message: (
       <ErrorNotificationContent
         error={report.error}

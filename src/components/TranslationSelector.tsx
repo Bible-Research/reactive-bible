@@ -24,6 +24,7 @@ import {
   createStyles,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useTranslation } from 'react-i18next';
 import { loadKjvData, isKjvDataLoaded } from '../utils/kjvDataLoader';
 import { useBibleStore, type Translation } from '../store';
 import { shallow } from 'zustand/shallow';
@@ -55,12 +56,15 @@ const useStyles = createStyles((theme) => ({
   },
 }));
 
-/** Language tabs offered by the selector. */
+/**
+ * Language tabs offered by the selector. `labelKey` resolves
+ * through the UI catalog at render time.
+ */
 const LANGUAGES = [
-  { label: 'English', value: 'eng' },
-  { label: 'Latvian', value: 'lvs' },
-  { label: 'Russian', value: 'rus' },
-];
+  { labelKey: 'translations.langEnglish', value: 'eng' },
+  { labelKey: 'translations.langLatvian', value: 'lvs' },
+  { labelKey: 'translations.langRussian', value: 'rus' },
+] as const;
 
 /** Tab ids: the fixed languages plus the "Other" picker. */
 type LanguageTab = 'eng' | 'lvs' | 'rus' | 'other';
@@ -86,18 +90,18 @@ type LanguageOption = {
 
 type Capability = 'both' | 'text' | 'audio';
 
-const CAPABILITY_LABEL: Record<Capability, string> = {
-  both: 'Audio',
-  text: 'Text only',
-  audio: 'Audio only',
-};
+const CAPABILITY_LABEL_KEY = {
+  both: 'translations.capabilityBoth',
+  text: 'translations.capabilityText',
+  audio: 'translations.capabilityAudio',
+} as const;
 
-const AUDIO_KIND_LABEL: Record<OptionKind, string> = {
-  audio: 'Read aloud',
-  audio_drama: 'Dramatized',
-  generated: 'Generated voice',
-  text: 'Text',
-};
+const AUDIO_KIND_LABEL_KEY = {
+  audio: 'translations.kindReadAloud',
+  audio_drama: 'translations.kindDramatized',
+  generated: 'translations.kindGenerated',
+  text: 'translations.kindText',
+} as const satisfies Record<OptionKind, string>;
 
 /** Capability chip shown next to each version in the picker. */
 const capabilityOf = (translation: Translation): Capability => {
@@ -149,26 +153,30 @@ interface VersionItemProps extends ComponentPropsWithoutRef<'div'> {
 }
 
 const VersionItem = forwardRef<HTMLDivElement, VersionItemProps>(
-  ({ label, capability, ...others }, ref) => (
-    <div ref={ref} {...others}>
-      <Group position="apart" align="flex-start" noWrap>
-        <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
-          {label}
-        </Text>
-        <Badge
-          size="xs"
-          variant="light"
-          style={{ flexShrink: 0 }}
-        >
-          {CAPABILITY_LABEL[capability]}
-        </Badge>
-      </Group>
-    </div>
-  ),
+  ({ label, capability, ...others }, ref) => {
+    const { t } = useTranslation();
+    return (
+      <div ref={ref} {...others}>
+        <Group position="apart" align="flex-start" noWrap>
+          <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
+            {label}
+          </Text>
+          <Badge
+            size="xs"
+            variant="light"
+            style={{ flexShrink: 0 }}
+          >
+            {t(CAPABILITY_LABEL_KEY[capability])}
+          </Badge>
+        </Group>
+      </div>
+    );
+  },
 );
 VersionItem.displayName = 'VersionItem';
 
 const TranslationSelector = () => {
+  const { t } = useTranslation();
   const { classes } = useStyles();
   const [opened, setOpened] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -301,7 +309,9 @@ const TranslationSelector = () => {
         void handleTextChange(
           keepStored ? activeTextFilesetId : ownerText.id,
         );
-        setTextNote(`Text: ${owner.name}`);
+        setTextNote(
+          t('translations.textNote', { name: owner.name }),
+        );
       } else {
         const candidate = pickTextTranslation(
           translations,
@@ -312,13 +322,14 @@ const TranslationSelector = () => {
           : null;
         if (candidate && candidateText) {
           void handleTextChange(candidateText.id);
-          setTextNote(`Text: ${candidate.name} — auto-selected`);
+          setTextNote(
+            t('translations.textAutoSelected', {
+              name: candidate.name,
+            }),
+          );
         } else {
           void handleTextChange(activeTextFilesetId);
-          setTextNote(
-            'Text: no text version in this language — ' +
-              'keeping current',
-          );
+          setTextNote(t('translations.noTextInLanguage'));
         }
       }
     }
@@ -421,8 +432,8 @@ const TranslationSelector = () => {
       notifications.show({
         id: 'kjv-loading',
         loading: true,
-        title: 'Loading KJV Bible',
-        message: 'Downloading King James Version data...',
+        title: t('translations.kjvLoading'),
+        message: t('translations.kjvDownloading'),
         autoClose: false,
         withCloseButton: false,
       });
@@ -433,8 +444,8 @@ const TranslationSelector = () => {
         notifications.update({
           id: 'kjv-loading',
           color: 'green',
-          title: 'KJV Bible Loaded',
-          message: 'King James Version is ready to use.',
+          title: t('translations.kjvLoaded'),
+          message: t('translations.kjvReady'),
           loading: false,
           autoClose: 3000,
         });
@@ -442,8 +453,8 @@ const TranslationSelector = () => {
         notifications.update({
           id: 'kjv-loading',
           color: 'red',
-          title: 'Failed to Load KJV Bible',
-          message: 'Please check your connection and try again.',
+          title: t('translations.kjvFailed'),
+          message: t('translations.kjvFailedMsg'),
           loading: false,
           autoClose: 5000,
         });
@@ -518,10 +529,8 @@ const TranslationSelector = () => {
           // the toast has auto-closed.
           if (!succeeded) setFailedIso(iso);
           notifications.show({
-            title: 'Translations unavailable',
-            message:
-              'Could not refresh the translation list. ' +
-              'Please try again later.',
+            title: t('translations.unavailable'),
+            message: t('translations.refreshFailed'),
             color: 'red',
             autoClose: 5000,
           });
@@ -805,7 +814,7 @@ const TranslationSelector = () => {
       <Group spacing="xs" noWrap>
         <Loader size="sm" />
         <Text size="sm" color="dimmed">
-          Loading…
+          {t('translations.loading')}
         </Text>
       </Group>
     </Center>
@@ -830,11 +839,16 @@ const TranslationSelector = () => {
   }, [languageOptions, otherIso, otherLanguageName]);
 
   const languageTabs = [
-    ...LANGUAGES,
+    ...LANGUAGES.map((l) => ({
+      label: t(l.labelKey),
+      value: l.value,
+    })),
     {
       label: otherLanguageName
-        ? `Other: ${otherLanguageName}`
-        : 'Other',
+        ? t('translations.otherNamed', {
+            name: otherLanguageName,
+          })
+        : t('translations.other'),
       value: 'other',
     },
   ];
@@ -867,7 +881,7 @@ const TranslationSelector = () => {
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="Select Translation"
+        title={t('translations.select')}
         size="lg"
         fullScreen={isMobile}
       >
@@ -892,8 +906,8 @@ const TranslationSelector = () => {
           </ScrollArea>
           {tab === 'other' && (
             <Select
-              label="Language"
-              placeholder="Search languages…"
+              label={t('translations.language')}
+              placeholder={t('translations.searchLanguages')}
               data={languageSelectData}
               value={otherIso}
               onChange={(iso) => {
@@ -915,10 +929,10 @@ const TranslationSelector = () => {
               onSearchChange={setLanguageQuery}
               nothingFound={
                 languageQuery.trim().length < 2
-                  ? 'Type at least 2 characters'
+                  ? t('translations.typeMinChars')
                   : languageSearchPending
                     ? dropdownLoading
-                    : 'No languages found'
+                    : t('translations.noLanguages')
               }
               rightSection={
                 languageSearchPending ? (
@@ -930,11 +944,11 @@ const TranslationSelector = () => {
             />
           )}
           <Select
-            label="Version"
+            label={t('translations.version')}
             placeholder={
               languageIso
-                ? 'Choose a version'
-                : 'Pick a language first'
+                ? t('translations.chooseVersion')
+                : t('translations.pickLanguageFirst')
             }
             data={versionData}
             itemComponent={VersionItem}
@@ -957,14 +971,13 @@ const TranslationSelector = () => {
             fetchedIso === languageIso &&
             versionData.length === 0 && (
               <Text size="sm" color="dimmed">
-                No versions available for this language
+                {t('translations.noVersions')}
               </Text>
             )}
           {languageIso !== null &&
             failedIso === languageIso && (
               <Text size="sm" color="dimmed">
-                Could not load versions — check your
-                connection and reopen the picker
+                {t('translations.loadVersionsFailed')}
               </Text>
             )}
 
@@ -972,16 +985,17 @@ const TranslationSelector = () => {
             <>
               <div className={classes.groupWrapper}>
                 <Text size="sm" weight={500} mb={4}>
-                  Text
+                  {t('translations.text')}
                 </Text>
                 {grouped.text ? (
                   <Text size="xs" color="dimmed">
-                    Auto-resolved per testament:{' '}
-                    {testamentSummary(grouped.text)}
+                    {t('translations.autoResolved', {
+                      summary: testamentSummary(grouped.text),
+                    })}
                   </Text>
                 ) : (
                   <Text size="xs" color="dimmed" italic>
-                    {textNote ?? 'No text version available'}
+                    {textNote ?? t('translations.noTextAvailable')}
                   </Text>
                 )}
               </div>
@@ -991,17 +1005,20 @@ const TranslationSelector = () => {
                   <Radio.Group
                     value={audioGroupValue}
                     onChange={handleAudioChange}
-                    label="Audio"
+                    label={t('translations.audio')}
                   >
                     <Stack spacing="xs" mt="xs">
-                      <Radio value="none" label="None" />
+                      <Radio
+                        value="none"
+                        label={t('translations.none')}
+                      />
                       {grouped.audio.map((option) => (
                         <Radio
                           key={option.id}
                           value={option.id}
                           label={
-                            `${AUDIO_KIND_LABEL[option.kind]} — ` +
-                            `${option.coverageLabel}`
+                            `${t(AUDIO_KIND_LABEL_KEY[option.kind])}` +
+                            ` — ${option.coverageLabel}`
                           }
                         />
                       ))}
@@ -1014,7 +1031,7 @@ const TranslationSelector = () => {
                 <Accordion variant="contained">
                   <Accordion.Item value="advanced">
                     <Accordion.Control>
-                      Advanced — raw filesets
+                      {t('translations.advanced')}
                     </Accordion.Control>
                     <Accordion.Panel>
                       <Stack spacing="md">
@@ -1024,7 +1041,7 @@ const TranslationSelector = () => {
                             onChange={(id) =>
                               void handleTextChange(id)
                             }
-                            label="Text filesets"
+                            label={t('translations.textFilesets')}
                           >
                             <Stack spacing="xs" mt="xs">
                               {rawTextFilesets.map((f) => (
@@ -1041,7 +1058,7 @@ const TranslationSelector = () => {
                           <Radio.Group
                             value={rawAudioValue}
                             onChange={setSelectedAudioId}
-                            label="Audio filesets"
+                            label={t('translations.audioFilesets')}
                           >
                             <Stack spacing="xs" mt="xs">
                               {rawAudioFilesets.map((f) => (
@@ -1051,8 +1068,8 @@ const TranslationSelector = () => {
                                   label={
                                     `${
                                       f.type === 'audio_drama'
-                                        ? 'Drama'
-                                        : 'Audio'
+                                        ? t('translations.drama')
+                                        : t('translations.audio')
                                     } ${f.size} (${f.id})`
                                   }
                                 />
@@ -1070,7 +1087,7 @@ const TranslationSelector = () => {
 
           <Group position="right" mt="md">
             <Button variant="default" onClick={() => setOpened(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             {/* Disabled until a version resolves — saving with
                 none selected would wipe the stored ids — and
@@ -1080,7 +1097,7 @@ const TranslationSelector = () => {
               onClick={handleSave}
               disabled={!selectedTranslationAbbr || textResolving}
             >
-              Save
+              {t('common.save')}
             </Button>
           </Group>
         </Stack>
@@ -1091,7 +1108,7 @@ const TranslationSelector = () => {
         onClick={openModal}
         color="gray"
       >
-        Change Translation
+        {t('translations.change')}
       </Button>
     </>
   );

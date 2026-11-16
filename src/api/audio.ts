@@ -78,13 +78,15 @@ export const getBibleAudioUrl = async (
     const data = (await response.json()) as AudioApiResponse;
 
     if (isBookNotInFilesetBody(data)) {
-      throw new BookNotInFilesetError(
+      const err = new BookNotInFilesetError(
         errorMessageFromBody(
           data,
           `Audio not available for ${translation} ` +
             `${bookId} ${chapter}`
         )
       );
+      err.errorCode = 'book_not_in_fileset';
+      throw err;
     }
 
     // Provider failures carry `error`/`error_code` fields.
@@ -94,10 +96,15 @@ export const getBibleAudioUrl = async (
       const fullMsg =
         `Audio not available for ${translation} ${bookId} ` +
         `${chapter}: ${errorMsg}`;
-      throw data.error_code === 'rate_limited' ||
+      const err =
+        data.error_code === 'rate_limited' ||
         isRateLimitMessage(errorMsg)
-        ? new RateLimitError(fullMsg)
-        : new ProviderError(fullMsg);
+          ? new RateLimitError(fullMsg)
+          : new ProviderError(fullMsg);
+      if (typeof data.error_code === 'string') {
+        err.errorCode = data.error_code;
+      }
+      throw err;
     }
     // A missing audio_url means the book is outside the
     // fileset's coverage (backwards compat: older backends

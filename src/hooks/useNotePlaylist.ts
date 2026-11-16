@@ -7,6 +7,7 @@ import {
   buildNotePlaylistItems,
   playableNotes,
 } from '../utils/notePlaylist';
+import i18n from '../i18n';
 
 /**
  * Audio-playlist assembly for TagNotesRoute: keeps
@@ -77,10 +78,12 @@ export const useNotePlaylist = (
         (n) => n.id === noteId
       );
       showNotification({
-        title: 'Playlist Started',
+        title: i18n.t('audio.playlistStarted'),
         message:
-          `Playing from note ${noteIndex + 1} ` +
-          `of ${playable.length}`,
+          i18n.t('audio.playlistStartedMsg', {
+            index: noteIndex + 1,
+            total: playable.length,
+          }),
         color: 'blue',
         autoClose: 3000,
       });

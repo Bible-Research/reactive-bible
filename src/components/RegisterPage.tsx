@@ -15,8 +15,11 @@ import {
 import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import { useAuthStore } from '../stores/authStore';
+import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
 
 export function RegisterPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const register = useAuthStore((state) => state.register);
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -41,8 +44,8 @@ export function RegisterPage() {
     // Client-side validation
     if (password !== passwordConfirm) {
       showNotification({
-        title: 'Error',
-        message: 'Passwords do not match',
+        title: t('auth.error'),
+        message: t('auth.passwordsMismatch'),
         color: 'red',
         icon: <IconAlertCircle />,
       });
@@ -51,8 +54,8 @@ export function RegisterPage() {
 
     if (password.length < 8) {
       showNotification({
-        title: 'Error',
-        message: 'Password must be at least 8 characters long',
+        title: t('auth.error'),
+        message: t('auth.passwordTooShort'),
         color: 'red',
         icon: <IconAlertCircle />,
       });
@@ -63,8 +66,8 @@ export function RegisterPage() {
       await register(username, password, passwordConfirm, email || undefined);
       
       showNotification({
-        title: 'Success',
-        message: 'Account created successfully! Welcome to Bible Research.',
+        title: t('auth.success'),
+        message: t('auth.accountCreated'),
         color: 'green',
         icon: <IconCheck />,
       });
@@ -86,31 +89,31 @@ export function RegisterPage() {
           fontWeight: 900,
         })}
       >
-        Create Account
+        {t('auth.createAccount')}
       </Title>
       <Text color="dimmed" size="sm" align="center" mt={5}>
-        Join Bible Research to save and organize your study notes
+        {t('auth.joinPrompt')}
       </Text>
 
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">
         {error && (
           <Alert
             icon={<IconAlertCircle size="1rem" />}
-            title="Registration Failed"
+            title={t('auth.registrationFailedTitle')}
             color="red"
             mb="md"
             withCloseButton
             onClose={clearError}
           >
-            {error}
+            {error && textOrKey(error)}
           </Alert>
         )}
 
         <form onSubmit={handleSubmit}>
           <Stack>
             <TextInput
-              label="Username"
-              placeholder="Choose a username"
+              label={t('auth.username')}
+              placeholder={t('auth.chooseUsername')}
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -119,28 +122,28 @@ export function RegisterPage() {
             />
 
             <TextInput
-              label="Email (optional)"
+              label={t('auth.emailOptional')}
               placeholder="your.email@example.com"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
-              description="Used for password recovery"
+              description={t('auth.emailRecovery')}
             />
 
             <PasswordInput
-              label="Password"
-              placeholder="Create a strong password"
+              label={t('auth.password')}
+              placeholder={t('auth.createPassword')}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
-              description="Must be at least 8 characters"
+              description={t('auth.passwordMinLength')}
             />
 
             <PasswordInput
-              label="Confirm Password"
-              placeholder="Re-enter your password"
+              label={t('auth.confirmPassword')}
+              placeholder={t('auth.reenterPassword')}
               required
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
@@ -154,15 +157,15 @@ export function RegisterPage() {
               loading={isLoading}
               disabled={isLoading}
             >
-              Create Account
+              {t('auth.createAccount')}
             </Button>
           </Stack>
         </form>
 
         <Text color="dimmed" size="sm" align="center" mt="md">
-          Already have an account?{' '}
+          {t('auth.alreadyHaveAccount')}{' '}
           <Anchor component={Link} to="/login" size="sm">
-            Sign in
+            {t('auth.signIn')}
           </Anchor>
         </Text>
       </Paper>

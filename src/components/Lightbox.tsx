@@ -1,5 +1,6 @@
 import { Modal, Text } from '@mantine/core';
 import { CommentImage } from '../types';
+import { useTranslation } from 'react-i18next';
 
 interface LightboxProps {
   /** The image to show; null renders a closed modal. */
@@ -12,12 +13,14 @@ const Lightbox = ({
   image,
   onClose,
   onImageError,
-}: LightboxProps) => (
+}: LightboxProps) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     opened={image !== null}
     onClose={onClose}
     size="xl"
-    title="Image"
+    title={t('comments.imageTitle')}
     padding="xs"
   >
     {image &&
@@ -30,10 +33,11 @@ const Lightbox = ({
         />
       ) : (
         <Text size="sm" color="dimmed" ta="center" py="xl">
-          Image unavailable
+          {t('comments.unavailable')}
         </Text>
       ))}
   </Modal>
-);
+  );
+};
 
 export default Lightbox;

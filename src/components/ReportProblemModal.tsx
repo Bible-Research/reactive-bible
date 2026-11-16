@@ -13,6 +13,7 @@ import { shallow } from "zustand/shallow";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { sendUserReport } from "../utils/userReport";
+import { useTranslation } from 'react-i18next';
 
 interface ReportProblemModalProps {
   opened: boolean;
@@ -25,6 +26,7 @@ const ReportProblemModal = ({
   opened,
   onClose,
 }: ReportProblemModalProps) => {
+  const { t } = useTranslation();
   const [note, setNote] = useState("");
   const username = useAuthStore((state) => state.user?.username);
   // On phones the centered dialog leaves the textarea a few
@@ -56,10 +58,10 @@ const ReportProblemModal = ({
       context,
     });
     showNotification({
-      title: sent ? 'Report sent' : 'Report not sent',
+      title: sent ? t('report.sent') : t('report.notSent'),
       message: sent
-        ? 'Thanks — the report is on its way.'
-        : 'Could not send the report. Please try again later.',
+        ? t('report.thanks')
+        : t('report.failed'),
       color: sent ? 'green' : 'red',
     });
     setNote("");
@@ -70,7 +72,7 @@ const ReportProblemModal = ({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Report a problem"
+      title={t('report.title')}
       fullScreen={isMobile}
       styles={
         isMobile
@@ -94,15 +96,11 @@ const ReportProblemModal = ({
         sx={isMobile ? { flex: 1, minHeight: 0 } : undefined}
       >
         <Text size="sm" color="dimmed">
-          Tell us what went wrong — the report is sent with your
-          current passage for context.
+          {t('report.hint')}
         </Text>
         <Textarea
-          label="What went wrong?"
-          placeholder={
-            "e.g. The next-chapter button does nothing " +
-            "when the screen is locked"
-          }
+          label={t('report.label')}
+          placeholder={t('report.placeholder')}
           minRows={3}
           maxLength={NOTE_MAX_LENGTH}
           value={note}
@@ -138,13 +136,13 @@ const ReportProblemModal = ({
         />
         <Group position="right" spacing="xs">
           <Button variant="subtle" onClick={handleClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleSend}
             disabled={!note.trim()}
           >
-            Send report
+            {t('report.submit')}
           </Button>
         </Group>
       </Stack>

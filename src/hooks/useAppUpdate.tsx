@@ -13,6 +13,7 @@ import {
   reportInstalledBuild,
   reportUpdateOpened,
 } from '../utils/updateTelemetry';
+import i18n from '../i18n';
 
 // "reactive-bible-97.apk · 5.1 MB" — what the user should see in
 // Downloads, so an older / partial file is easy to tell apart.
@@ -55,7 +56,9 @@ const openUpdateModal = (
 ): void => {
   openConfirmModal({
     title:
-      `Update available · v${displayVersion(manifest.versionName)}`,
+      i18n.t('updates.availableTitle', {
+        version: displayVersion(manifest.versionName),
+      }),
     children: (
       <Stack spacing="xs">
         <Text size="sm">
@@ -104,16 +107,16 @@ const handleCheckResult = (
     case 'current':
       if (manual) {
         showNotification({
-          title: 'No update available',
-          message: 'You are on the latest version.',
+          title: i18n.t('updates.noneAvailable'),
+          message: i18n.t('updates.latestVersion'),
         });
       }
       break;
     case 'error':
       if (manual) {
         showNotification({
-          title: 'Update check failed',
-          message: 'Could not reach the update server.',
+          title: i18n.t('updates.checkFailed'),
+          message: i18n.t('updates.checkFailedMsg'),
           color: 'red',
         });
       }

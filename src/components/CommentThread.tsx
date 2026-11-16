@@ -28,6 +28,8 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import CommentForm from './CommentForm';
 import CommentNode from './CommentNode';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 
 const normalize = (
   nodes: Comment[] | undefined
@@ -63,10 +65,10 @@ const uploadImages = async (
       const msg =
         err instanceof Error
           ? err.message
-          : 'Failed to upload image.';
+          : i18n.t('comments.failedToUpload');
       showNotification({
         color: 'red',
-        title: 'Upload failed',
+        title: i18n.t('comments.uploadFailed'),
         message: msg,
       });
     }
@@ -99,6 +101,7 @@ const CommentThread = ({
   noteId,
   onCountChange,
 }: CommentThreadProps) => {
+  const { t } = useTranslation();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -312,8 +315,8 @@ const CommentThread = ({
     } catch (err) {
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to post comment.',
+        title: t('common.error'),
+        message: t('comments.postFailed'),
       });
       throw err;
     } finally {
@@ -346,8 +349,8 @@ const CommentThread = ({
     } catch (err) {
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to update comment.',
+        title: t('common.error'),
+        message: t('comments.updateFailed'),
       });
       throw err;
     }
@@ -370,8 +373,8 @@ const CommentThread = ({
     } catch {
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to delete image.',
+        title: t('common.error'),
+        message: t('comments.deleteImageFailed'),
       });
     }
   };
@@ -392,8 +395,8 @@ const CommentThread = ({
     } catch {
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to delete comment.',
+        title: t('common.error'),
+        message: t('comments.deleteFailed'),
       });
     }
   };
@@ -418,9 +421,9 @@ const CommentThread = ({
           size="xs"
           variant="subtle"
           onClick={load}
-          aria-label="Retry loading comments"
+          aria-label={t('comments.retryLoading')}
         >
-          Retry
+          {t('comments.retry')}
         </Button>
       </Stack>
     );
@@ -433,12 +436,12 @@ const CommentThread = ({
       {visible.length === 0 ? (
         isAuthenticated ? (
           <Text size="sm" color="dimmed">
-            No comments yet.
+            {t('comments.noComments')}
           </Text>
         ) : (
           <Text size="sm" color="dimmed">
-            No comments yet.{' '}
-            <Link to="/login">Log in to comment</Link>.
+            {t('comments.noComments')}{' '}
+            <Link to="/login">{t('comments.logInToComment')}</Link>.
           </Text>
         )
       ) : (
@@ -464,8 +467,8 @@ const CommentThread = ({
 
       {isAuthenticated && (
         <CommentForm
-          placeholder="Add a comment…"
-          submitLabel="Post"
+          placeholder={t('comments.addComment')}
+          submitLabel={t('comments.post')}
           submitting={submitting}
           onSubmit={(content, files) =>
             handleCreate(null, content, files)
