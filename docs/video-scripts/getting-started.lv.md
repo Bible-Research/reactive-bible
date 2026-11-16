@@ -7,27 +7,31 @@ skaidrojumus, vai vienkārši nekad neaizmirstu dārgās, skaistās
 pērles, kuras atrodat Bībelē.
 
 Īsas iegultu YouTube pamācības lietotnei
-(`bibleresearch.vercel.app`). Katrs video ir ~1–3 minūtes, sakārtoti
-tā, lai pavisam jauns lietotājs varētu skatīties no augšas uz leju:
-vispirms anonīmās funkcijas, tad konta izveide, tad viss, kam
-nepieciešama pieteikšanās.
+(`bibleresearch.vercel.app`). Katrs video ir ~1–3 minūtes,
+sakārtoti tā, lai pavisam jauns lietotājs varētu skatīties no
+augšas uz leju: vispirms anonīmās funkcijas, tad konta izveide,
+tad viss, kam nepieciešama pieteikšanās. Katra sadaļa kalpo arī
+kā rakstiska pamācība — **Soļi** ir izpildāmi bez video;
+**Ieraksts** ir uzņemšanas plāns.
 
 ## Ierakstīšanas piezīmes
 
-- **Ieraksta konts:** kopīgais UI konts `Tester5` / `password123`.
-  Pirms piezīmju video ierakstīšanas sagatavojiet: vienu tagu
-  (piem., "Sermon prep"), vienu publisku piezīmi ar komentāru
-  pavedienu.
-- **Demonstrācijas tulkojumi:** ESV (nodaļu virsraksti + audio ar
-  laika zīmēm) un KJV (iekļauts komplektā, strādā bezsaistē).
-  Tulkojuma video parādiet latviešu GLU8 opciju "Generated voice".
-  Dažiem failu kopumiem nav audio vai virsrakstu — izvēlieties
-  scenārijam atbilstošu tulkojumu, citādi demonstrācija neizdosies.
-- **Reģistrācija kamerā izveido īstu kontu** — lietojiet vienreizēju
-  lietotājvārdu vai pēc ieraksta noņemiet kontu.
-- **Mobilā ierīce pret datoru:** ekrānos ≥768px grāmatu izvēlne ir
-  pastāvīgā sānjoslā; telefonos tā atveras caur fragmenta nosaukumu
-  apakšējā joslā. Demonstrējot mobilo plūsmu, ierakstiet šaurā logā.
+- **Ieraksta konts:** kopīgais UI konts `Tester5` /
+  `password123`. Pirms piezīmju video ierakstīšanas
+  sagatavojiet: vienu tagu (piem., "Sermon prep"), vienu
+  publisku piezīmi ar komentāru pavedienu.
+- **Demonstrācijas tulkojumi:** ESV (nodaļu virsraksti + audio
+  ar laika zīmēm) un KJV (iekļauts komplektā, strādā
+  bezsaistē). Tulkojuma video parādiet latviešu GLU8 opciju
+  "Generated voice". Dažiem failu kopumiem nav audio vai
+  virsrakstu — izvēlieties scenārijam atbilstošu tulkojumu,
+  citādi demonstrācija neizdosies.
+- **Reģistrācija kamerā izveido īstu kontu** — lietojiet
+  vienreizēju lietotājvārdu vai pēc ieraksta noņemiet kontu.
+- **Mobilā ierīce pret datoru:** ekrānos ≥768px grāmatu
+  izvēlne ir pastāvīgā sānjoslā; telefonos tā atveras caur
+  fragmenta nosaukumu apakšējā joslā. Demonstrējot mobilo
+  plūsmu, ierakstiet šaurā logā.
 - Katru video dariet pašpietiekamu: viena rinda mērķim,
   demonstrācija, viena rinda kopsavilkumam.
 
@@ -35,339 +39,463 @@ nepieciešama pieteikšanās.
 
 ## 1. Lietotnes apskats (~90 s)
 
-**Mērķis:** iepazīstināt pirmreizēju apmeklētāju ar ekrāna
-izkārtojumu.
-**Priekšnoteikums:** anonīms lietotājs.
+**Māca:** kam paredzētas galvenās ekrāna zonas un kā atvērt
+izvēlni.
 
-- Atveriet vietni → nonāk uz `/bible` (noklusējuma fragments).
-- Norādiet augšējo joslu: tālskatis (meklēšana), atskaņošanas poga
-  (audio), poga "Change Translation", burgera izvēlne pa labi.
-- Norādiet apakšējo joslu: ‹ › nodaļu bultas, centrā fragmenta
-  nosaukums ("John 1").
-- Ritiniet lēnām uz leju → galvene un kājene pazūd, ļaujot lasīt bez
-  traucēkļiem; ritiniet uz augšu → tās atgriežas.
-- Pieskarieties burgera pogai → izvelkamā izvēlne: Account /
-  Sign In, Read Bible, Getting started (lapa, kurā dzīvo šīs
-  pamācības),
-  Report a problem, Theme switch. Pārslēdziet tumšo → gaišo →
-  tumšo režīmu.
-- Aizveriet izvēlni ar ✕ vai Esc.
+### Soļi
 
-**Kļūdas:** neritiniet pārāk ātri, citādi automātiskās paslēpšanās
-demonstrācija izskatīsies raustīta; motīva pārslēgs atrodas tikai
-izvelkamajā izvēlnē; Android ierīcēs izvēlnē redzama arī
-"Download Android App" (skat. 17. sadaļu).
+1. Atveriet vietni — nonāksiet uz `/bible` pie noklusējuma
+   fragmenta.
+2. Augšējā joslā ir: tālskatis (meklēšana), atskaņošanas poga
+   (audio), "Change Translation" un burgera izvēlne pa labi.
+3. Apakšējā joslā ir ‹ › nodaļu bultas ap centrēto fragmenta
+   nosaukumu ("John 1").
+4. Ritiniet uz leju — galvene un kājene pazūd, ļaujot lasīt
+   bez traucēkļiem; ritiniet uz augšu, lai tās atgrieztu.
+5. Pieskarieties burgera pogai — izvelkamā izvēlnē ir:
+   Account / Sign In, Read Bible, Getting started (lapa, kurā
+   dzīvo šīs pamācības), Report a problem, Theme switch.
+   Pārslēdziet tumšo → gaišo → tumšo režīmu.
+6. Aizveriet izvēlni ar ✕ vai Esc.
+
+### Ieraksts
+
+- Anonīma sesija.
+- Ritiniet lēnām — ātra ritināšana padara automātiskās
+  paslēpšanās demonstrāciju raustītu.
+- Android ierīcēs izvēlnē redzama arī "Download Android App"
+  (skat. 17. sadaļu).
+- Norādiet katru elementu, to nosaucot, lai skatītāji
+  sasaistītu nosaukumus ar pikseļiem.
 
 ## 2. Pārejiet uz jebkuru pantu (~2 min)
 
-**Mērķis:** navigēt pēc grāmatas/nodaļas/panta, bultām un
-vilkšanas žesta.
+**Māca:** navigēt uz jebkuru fragmentu pēc grāmatas, nodaļas
+un panta.
 
-- Pieskarieties nosaukumam "John 1" apakšējā joslā → trīskolonnas
-  panelis: Books | Chapters | Verses.
-- Pieskarieties **Psalms** kolonnā Books → aizpildās nodaļu
-  saraksts; pieskarieties **23** → nonāksiet uz `/bible/PSA.23`.
-- Atveriet paneli vēlreiz → parādiet pantu kolonnu; pieskarieties
-  **1** → izvēlēts 1. pants un URL kļūst `/bible/PSA.23.1`.
-- Lietojiet apakšējo › bultu divreiz → Psalmi 24, 25.
-- Telefonā/touchpad: velciet pa kreisi → nākamā nodaļa, pa labi →
-  iepriekšējā.
-- Pieminiet: URL ir kopīgojams — ielīmējiet `/bible/PSA.23` jaunā
-  cilnē.
+### Soļi
 
-**Kļūdas:** datorā panelis ir pastāvīgā sānjoslā — ierakstiet
-šaurā logā, lai skatītāji redzētu atvēršanu caur nosaukumu.
-Grāmatas izvēle var atjaunot saglabāto lasīšanas pozīciju, nevis
-1. nodaļu — izskaidrojiet to ("lietotne atceras, kur katrā
-grāmatā pārtraucāt").
+1. Pieskarieties fragmenta nosaukumam ("John 1") apakšējā
+   joslā — atveras panelis ar trim kolonnām: Books | Chapters
+   | Verses.
+2. Pieskarieties **Psalms** kolonnā Books — aizpildās nodaļu
+   saraksts.
+3. Pieskarieties **23** — nonāksiet Psalmu 23
+   (`/bible/PSA.23`).
+4. Atveriet paneli vēlreiz un pieskarieties **1** kolonnā
+   Verses — izvēlēts 1. pants un URL kļūst `/bible/PSA.23.1`.
+5. Lietojiet apakšējo › bultu, lai pārietu uz nākamo nodaļu
+   (Psalmi 24, 25).
+6. Telefonā vai touchpad velciet pa kreisi nākamajai nodaļai,
+   pa labi — iepriekšējai.
+7. URL ir kopīgojams — ielīmējiet `/bible/PSA.23` jaunā cilnē,
+   un atvērsies tas pats fragments.
+
+### Ieraksts
+
+- Ierakstiet šaurā logā — datorā panelis ir pastāvīgā
+  sānjoslā, tāpēc atvēršana caur nosaukumu platā ekrānā nav
+  redzama.
+- Grāmatas izvēle var atjaunot saglabāto lasīšanas pozīciju
+  1. nodaļas vietā — izskaidrojiet ("lietotne atceras, kur
+  katrā grāmatā pārtraucāt").
 
 ## 3. Grāmatas saturs ar nodaļu virsrakstiem (~60 s)
 
-**Mērķis:** parādīt pārlēcienu pa virsrakstu saturu.
-**Priekšnoteikums:** ESV (KJV nav virsrakstu datu).
+**Māca:** pārlēkt uz jebkuru grāmatas vietu pa virsrakstu
+saturu.
 
-- Atveriet grāmatu ar daudz virsrakstiem, piem., Psalms 18 vai
-  John 3; noklikšķiniet uz virsraksta tekstā ("Nicodemus Visits
-  Jesus").
-- Ekrāns pārslēdzas uz "John — Section Outline": virsraksti no
-  tuvējām nodaļām ar ielādētāju, kas ielādē vēl vairāk.
-- Noklikšķiniet uz virsraksta vairākas nodaļas tālāk → pārlēciens
-  tieši uz to sadaļu tekstā.
+### Soļi
 
-**Kļūdas:** saturs nav apzīmēts — paskaidrojiet, ka noklikšķināšana
-uz virsraksta to atver. Uz KJV nekas nenotiek; ierakstiet ar ESV.
+1. Atveriet grāmatu ar daudz virsrakstiem, piem., Psalms 18
+   vai John 3.
+2. Noklikšķiniet uz virsraksta tekstā ("Nicodemus Visits
+   Jesus") — ekrāns pārslēdzas uz "John — Section Outline".
+3. Saturs rāda tuvējo nodaļu virsrakstus un ritinot ielādē
+   vēl vairāk.
+4. Noklikšķiniet uz virsraksta vairākas nodaļas tālāk —
+   pārlēksiet tieši uz to sadaļu tekstā.
+
+### Ieraksts
+
+- Tikai ESV — KJV nav virsrakstu datu un nekas nenotiek.
+- Saturs nav apzīmēts — pasakiet "klikšķis uz virsraksta atver
+  saturu", lai skatītāji varētu atkārtot.
 
 ## 4. Atlasiet pantus, kopīgojiet, atveriet citur (~2.5 min)
 
-**Mērķis:** panta pieskāriena darbplūsma un apakšējā darbību
-rīkjosla.
+**Māca:** pantu atlasi, fragmenta kopīgošanu un atvēršanu
+ārējās pētījumu vietnēs.
 
-- Uz `/bible/JHN.3`: pieskarieties 16. pantam → izcelšana, parādās
-  rīkjosla: "1 verse selected".
-- Pieskarieties 17.–18. pantam → "3 verses selected"; pieskarieties
-  17 vēlreiz, lai noņemtu atlasi. (Datorā: noklikšķiniet 16, tad
-  Shift+klikšķis uz 18, lai atlasītu diapazonu.)
-- Parādiet, ka URL tagad ir `/bible/JHN.3.16-18`.
-- Kopīgošanas ikona → telefonā OS kopīgošanas lapa; datorā tā kopē
-  fragmenta tekstu + saiti — parādiet paziņojumu (toast).
-- Virziet kursoru pār ārējām ikonām: **View on map** → Bible Maps
-  modālis ar iegultu BibleMapper; YouVersion, BibleHub, Blue Letter
-  Bible, BibleMapper atver ārējās cilnes. Parādiet vienu, ne visas.
-- Notīriet atlasi ar ✕.
+### Soļi
 
-**Kļūdas:** grāmatzīmes ikona "Add note" parādās tikai pieteiktam
-lietotājam — palieciet anonīmi un izlaidiet to, atsaucoties uz
-piezīmju video.
+1. Uz `/bible/JHN.3` pieskarieties 16. pantam — tas izceljas
+   un parādās darbību rīkjosla ("1 verse selected").
+2. Pieskarieties 17.–18. pantam, lai paplašinātu atlasi
+   ("3 verses selected"); pieskarieties atlasītam pantam
+   vēlreiz, lai atlasi noņemtu. (Datorā: noklikšķiniet 16,
+   tad Shift+klikšķis uz 18 diapazonam.)
+3. URL tagad ir `/bible/JHN.3.16-18` — kopīgojams.
+4. Pieskarieties kopīgošanas ikonai — telefonā atveras OS
+   kopīgošanas lapa; datorā tā kopē fragmenta tekstu + saiti,
+   un paziņojums (toast) apstiprina.
+5. Ārējās ikonas atver fragmentu citur: "View on map" atver
+   lietotnes Bible Maps modāli; YouVersion, BibleHub, Blue
+   Letter Bible un BibleMapper atver ārējās cilnes.
+6. Notīriet atlasi ar ✕.
+
+### Ieraksts
+
+- Palieciet anonīmi — grāmatzīmes ikona "Add note" parādās
+  tikai pieteiktam lietotājam; izlaidiet to un norādiet uz
+  piezīmju video.
+- Pieskarieties pietiekami lēnām, lai izcelšana paspētu
+  parādīties; pauzējiet pie kopēšanas paziņojuma.
+- Virziet kursoru pār katru ārējo ikonu mirkli; parādiet vienu
+  (Bible Maps ir vizuālākā), neatveriet visas.
 
 ## 5. Nomainiet Bībeles tulkojumu (~2 min)
 
-**Mērķis:** tulkojuma izvēlne; teksts un audio ir neatkarīgi.
+**Māca:** tulkojuma izvēlni; teksts un audio tiek izvēlēti
+neatkarīgi.
 
-- Galvene → "Change Translation" → atveras modālis.
-- Cilnes: English / Latvian / Russian / Other. Cilnē English
-  atveriet Version → nozīmītes "Audio", "Text only", "Audio only".
-- Izvēlieties **KJV** → vienreizējs paziņojums "Loading KJV
-  Bible…" (iekļauts komplektā; pēc tam strādā bezsaistē).
-- Parādiet Audio radiopogu grupu: None / Read aloud / Dramatized /
-  Generated voice, ar pārklājuma etiķetēm.
-- Pārslēdzieties uz cilni Latvian → izvēlieties latviešu versiju →
-  teksts mainās; pievērsiet uzmanību audio opcijai
-  "Generated voice".
-- (Pēc izvēles 15 s) cilne "Other" → ierakstiet valodas
-  nosaukumu, izvēlieties to.
-- Save → nodaļa tiek pārzīmēta jaunajā tulkojumā.
+### Soļi
 
-**Kļūdas:** neklikšķiniet Save, kamēr notiek KJV lejupielāde (Save
-tāpat ir atspējota). Dažas versijas aptver tikai vienu derību —
-pārklājuma norāde ir sagaidāma, nevis kļūda.
+1. Galvene → "Change Translation" — atveras izvēlnes modālis.
+2. Cilnes: English / Latvian / Russian / Other.
+3. Cilnē English atveriet Version — nozīmītes apzīmē versijas
+   "Audio", "Text only", "Audio only".
+4. Izvēlieties **KJV** — parādās vienreizējs paziņojums
+   "Loading KJV Bible…" (tas ir iekļauts komplektā un pēc tam
+   strādā bezsaistē).
+5. Grupā Audio izvēlieties: None / Read aloud / Dramatized /
+   Generated voice — katrai ir pārklājuma etiķete.
+6. Pārslēdzieties uz cilni Latvian un izvēlieties latviešu
+   versiju — teksts mainās un "Generated voice" kļūst
+   pieejams.
+7. (Pēc izvēles) cilnē "Other" ierakstiet valodas nosaukumu
+   un izvēlieties to.
+8. Save — nodaļa tiek pārzīmēta jaunajā tulkojumā.
+
+### Ieraksts
+
+- Neklikšķiniet Save, kamēr notiek KJV lejupielāde (Save
+  tāpat ir atspējota).
+- Dažas versijas aptver tikai vienu derību — pārklājuma
+  norāde ir sagaidāma, nevis kļūda.
 
 ## 6. Klausieties nodaļu (~2 min)
 
-**Mērķis:** nodaļas audio un atskaņotāja josla.
-**Priekšnoteikums:** tulkojums ar audio UN panta laika zīmēm —
-ESV vai DBT opcija "Read aloud" (KJV audio nav panta izcelšanas).
+**Māca:** nodaļas audio atskaņošanu un atskaņotāja joslas
+lietošanu.
 
-- Nodaļā pieskarieties galvenes ▶ → apakšā parādās atskaņotāja
-  josla: nosaukums, ⏮/⏯/⏭, cilpa, meklēšanas slīdnis, laiks.
-- Norādiet **zilo malu uz pašlaik lasāmā panta**, kas automātiski
-  ritina, audio progresējot.
-- Pārleciet 5 s uz priekšu, velciet slīdni, pārslēdziet cilpu.
-- Ļaujiet nodaļai beigties → automātiski pāriet uz nākamo nodaļu.
-- Android: parādiet bloķēšanas ekrāna/multivides paziņojuma
-  vadības elementus; atskaņošana turpinās ar izslēgtu ekrānu.
-- Aizveriet atskaņotāju ar ✕.
+### Soļi
 
-**Kļūdas:** ierakstiet uz failu kopuma ar laika zīmēm, citādi panta
-izcelšanas segments neizdosies. Oranža brīdinājuma ikona nozīmē, ka
-šim tulkojumam/grāmatai nav audio — vispirms pārslēdziet.
+1. Nodaļā pieskarieties galvenes pogai ▶ — apakšā parādās
+   atskaņotāja josla.
+2. Joslā ir: nosaukums, ⏮/⏯/⏭, cilpas slēdzis, meklēšanas
+   slīdnis, laiks.
+3. Pašlaik lasāmais pants iegūst zilo malu un automātiski
+   ritinās, audio progresējot.
+4. Pārleciet 5 s uz priekšu vai velciet slīdni; pārslēdziet
+   cilpu, lai atkārtotu.
+5. Ļaujiet nodaļai beigties — atskaņošana automātiski pāriet
+   uz nākamo nodaļu.
+6. Android ierīcē atskaņošana turpinās ar izslēgtu ekrānu ar
+   bloķēšanas ekrāna/multivides paziņojuma vadīklām.
+7. Aizveriet atskaņotāju ar ✕.
+
+### Ieraksts
+
+- Vajadzīgs failu kopums ar laika zīmēm — ESV vai DBT opcija
+  "Read aloud". KJV audio nav panta izcelšanas, tāpēc zilās
+  malas demonstrācija tur neizdodas.
+- Oranža brīdinājuma ikona nozīmē, ka šim tulkojumam/
+  grāmatai nav audio — vispirms pārslēdziet.
 
 ## 7. Audio atskaņošanas saraksti (~90 s)
 
-**Mērķis:** nepārtraukta klausīšanās ārpus vienas nodaļas.
-**Priekšnoteikums:** pieteicies lietotājs piezīmju daļai.
+**Māca:** nepārtrauktu klausīšanos ārpus vienas nodaļas — no
+meklēšanas rezultātiem vai piezīmju fragmentiem.
 
-- `/search`: meklējiet "faith" → katram rezultāta pantam ir maza ▶
-  → pieskarieties vienai → atskaņotājs sāk rindu, kas virzās cauri
-  rezultātiem.
-- Uz `/notes/tag/<tag>` pieskarieties **Play from here** piezīmes
-  kartītē → atskaņo visu piezīmju saistītos fragmentus no šīs
-  piezīmes uz leju; poga "Go to passage" pārlēk Bībeles skatu uz
-  to, kas skan.
+### Soļi
 
-**Kļūdas:** vajadzīgs audio piezīmes tulkojumam; piezīmes bez
-pantiem nevar atskaņot. Turiet īsu — "vai zinājāt" stila video.
+1. `/search` meklējiet "faith" — katram rezultāta pantam ir
+   maza ▶.
+2. Pieskarieties vienai — atskaņotājs sāk rindu, kas virzās
+   cauri rezultātiem.
+3. Uz `/notes/tag/<tag>` pieskarieties **Play from here**
+   piezīmes kartītē — atskaņo visu piezīmju saistītos
+   fragmentus no šīs piezīmes uz leju.
+4. "Go to passage" pārlēk Bībeles skatu uz to, kas skan.
+
+### Ieraksts
+
+- Vispirms piesakieties — piezīmju daļai tas nepieciešams.
+- Vajadzīgs audio piezīmes tulkojumam; piezīmes bez pantiem
+  nevar atskaņot.
+- Turiet īsu — "vai zinājāt" stila video.
 
 ## 8. Meklējiet Bībelē (~90 s)
 
-**Mērķis:** pilnteksta meklēšana un saīsne `/`.
+**Māca:** pilnteksta meklēšanu un saīsni `/`.
 
-- Nospiediet `/` jebkur (vai pieskarieties tālskatim) → `/search`.
-- Ierakstiet "light of the world" → Enter → rezultātu akordeons,
-  sagrupēts pa grāmatām ("John (2)", "Matthew (1)"), 3 panta
-  priekšskatījumi.
-- "Show N more verses" izpleš grāmatu; noklikšķiniet uz panta →
-  atver `/bible/JHN.8.12` ar atlasītu pantu.
-- Piezīme: meklēšana notiek **pašlaik izvēlētajā teksta
+### Soļi
+
+1. Nospiediet `/` jebkur (vai pieskarieties tālskatim) —
+   atveras `/search`.
+2. Ierakstiet "light of the world" → Enter — rezultāti
+   parādās akordeonā, sagrupēti pa grāmatām ("John (2)",
+   "Matthew (1)") ar 3 panta priekšskatījumiem.
+3. "Show N more verses" izpleš grāmatas rezultātus.
+4. Noklikšķiniet uz panta — atveras `/bible/JHN.8.12` ar
+   atlasītu pantu.
+
+### Ieraksts
+
+- Pasakiet: meklēšana notiek **pašlaik izvēlētajā teksta
   tulkojumā** — ESV un KJV dod atšķirīgus vārdu rezultātus.
-
-**Kļūdas:** ja nav izvēlēts teksta tulkojums, lapa saka "select a
-Bible translation first"; tā nav globālā meklēšana.
+- Ja nav izvēlēts teksta tulkojums, lapa saka "select a Bible
+  translation first" — tā nav globālā meklēšana.
 
 ## 9. Izveidojiet kontu un piesakieties (~2 min)
 
-**Mērķis:** reģistrācija, pieteikšanās, atteikšanās, kas
-atbloķējas.
+**Māca:** reģistrāciju, pieteikšanos, atteikšanos — un ko
+konts atbloķē.
 
-- Burgers → Account → Sign In → `/login` → "Create one now" →
-  `/register`.
-- Aizpildiet Username, Email (pēc izvēles, "used for password
-  recovery"), Password ≥8, Confirm → Create Account → panākumu
-  paziņojums → nonāk uz `/notes`.
-- Atveriet izvēlni vēlreiz → konta rinda rāda avataru +
-  lietotājvārdu; **parādījās jaunas pozīcijas**: View Notes, New
-  Note, Tag Management.
-- Demonstrējiet atteikšanos: lietotājvārda izvēlne → Logout →
-  paziņojums → `/login`. Piesakieties atpakaļ kā Tester5.
-- Pasakiet: nepieteikušies lietotāji joprojām var lasīt, klausīties
-  un meklēt; konts saglabā piezīmes, tagus, komentārus un
-  sinhronizē lasīšanas pozīcijas.
+### Soļi
 
-**Kļūdas:** īstas reģistrācijas ierakstīšana izveido īstu kontu —
-lietojiet vienreizēju lietotājvārdu vai nogrieziet pirms
-iesniegšanas. Paroles noteikumi tiek pārbaudīti klienta pusē.
+1. Burgers → Account → Sign In → `/login` → "Create one now"
+   → `/register`.
+2. Aizpildiet Username, Email (pēc izvēles — "used for
+   password recovery"), Password (≥8 rakstzīmes), Confirm →
+   Create Account.
+3. Parādās panākumu paziņojums un nonākat uz `/notes`.
+4. Atveriet izvēlni vēlreiz — konta rinda rāda avataru +
+   lietotājvārdu, un parādījās jaunas pozīcijas: View Notes,
+   New Note, Tag Management.
+5. Atteikšanās: lietotājvārda izvēlne → Logout → paziņojums
+   → `/login`. Piesakieties atpakaļ.
+
+### Ieraksts
+
+- Īsta reģistrācija izveido īstu kontu — lietojiet
+  vienreizēju lietotājvārdu vai nogrieziet pirms iesniegšanas.
+- Paroles noteikumi tiek pārbaudīti klienta pusē.
+- Pasakiet: nepieteikušies lietotāji joprojām var lasīt,
+  klausīties un meklēt; konts saglabā piezīmes, tagus,
+  komentārus un sinhronizē lasīšanas pozīcijas.
 
 ## 10. Izveidojiet piezīmi pie pantiem (~2.5 min)
 
-**Mērķis:** galvenā pants→piezīme plūsma.
-**Priekšnoteikums:** pieteicies; pastāv vismaz viens tags.
+**Māca:** pievienot piezīmi atlasītiem pantiem.
 
-- Uz `/bible` atlasiet John 3:16–17 → rīkjosla → grāmatzīmes ikona
-  "Add note" → modālis.
-- Modālis rāda saistīto pantu tekstus un "N linked notes", ja
-  esošas piezīmes jau aptver šos pantus.
-- Taga nolaižamā izvēlne → izvēlieties tagu; ierakstiet teikumu;
-  atzīmējiet **Auto save** → pauze → zaļš ✓ uzliesmojums.
-- Pārslēdziet **Public note** — izskaidrojiet uzvedni ("anyone
-  with the link can view").
-- Submit → nonāk taga piezīmju sarakstā.
+### Soļi
 
-**Kļūdas:** Add-note poga nav redzama nepieteiktam — ierakstiet
-autentificētu sesiju. Piezīmi var saglabāt bez teksta (panta
-grāmatzīme) — vērts pieminēt. Mobilajā ierīcē modālis ir
-pilnekrāns pēc dizaina.
+1. Uz `/bible` atlasiet John 3:16–17 — parādās darbību
+   rīkjosla.
+2. Pieskarieties grāmatzīmes ikonai ("Add note") — atveras
+   piezīmes modālis.
+3. Modālis rāda saistīto pantu tekstus un "N linked notes",
+   ja esošas piezīmes jau aptver šos pantus.
+4. Taga nolaižamajā izvēlnē izvēlieties tagu.
+5. Ierakstiet teikumu — vai atstājiet tukšu, lai saglabātu
+   tīru panta grāmatzīmi.
+6. Ieslēdziet **Auto save** — pēc pauzes uzliesmo zaļš ✓.
+7. Pārslēdziet **Public note**, ja ikviens ar saiti drīkst to
+   skatīt.
+8. Submit — piezīme nonāk taga piezīmju sarakstā.
+
+### Ieraksts
+
+- Ierakstiet autentificētu sesiju — Add-note poga nepieteiktam
+  nav redzama — ar vismaz vienu iepriekš sagatavotu tagu.
+- Skaidri pieminiet tukšās piezīmes grāmatzīmes gadījumu.
+- Mobilajā ierīcē modālis ir pilnekrāns pēc dizaina.
 
 ## 11. Piezīmju redaktors (~2.5 min)
 
-**Mērķis:** viss, kas ir TipTap formā.
+**Māca:** bagātinātā teksta piezīmju redaktoru — formatējumu,
+Rakstu atsauces, attēlus, automātisko saglabāšanu.
 
-- Lietojiet treknrakstu, sarakstu, citātu bloku caur rīkjoslu.
-- Ierakstiet `@joh` → fragmenta izvēlnes uznirstošais logs →
-  rakstiet/klikšķiniet līdz `@JHN.3.16` → kļūst par atsauces
-  žetonu.
-- Vienkārši noklikšķiniet uz žetona → fragmenta priekšskatījuma
-  uznirstošais logs; dubultklikšķis → izvēlne atveras rediģēšanai.
-- Images poga → pievienojiet fotoattēlu (sīktēli; maks. 10).
-- Norādiet uz "Auto save" (ik pēc 5 s) un "Public note" apakšējā
-  joslā; Submit.
+### Soļi
 
-**Kļūdas:** `@` veido *Svēto Rakstu* atsauces, nevis lietotāju
-pieminējumus. Rakstot `@` bez atpazīstamas grāmatas, izvēlne
-joprojām parādās — turpiniet rakstīt grāmatas nosaukumu.
+1. Caur rīkjoslu lietojiet treknrakstu, sarakstu, citātu
+   bloku.
+2. Ierakstiet `@` plus grāmatas nosaukumu (piem., `@joh`) —
+   uznirst fragmenta izvēlne; turpiniet rakstīt vai
+   noklikšķiniet, lai ievietotu `@JHN.3.16` kā atsauces
+   žetonu.
+3. Vienkārši noklikšķiniet uz žetona fragmenta
+   priekšskatījumam; dubultklikšķis atver izvēlni
+   rediģēšanai.
+4. Poga Images pievieno fotoattēlus (sīktēli; maks. 10).
+5. "Auto save" saglabā ik pēc 5 s; slēdzis "Public note"
+   atrodas apakšējā joslā.
+6. Submit.
+
+### Ieraksts
+
+- `@` veido *Svēto Rakstu* atsauces, nevis lietotāju
+  pieminējumus — pasakiet to.
+- Rakstot `@` bez atpazīstamas grāmatas, izvēlne joprojām
+  parādās — turpiniet rakstīt grāmatas nosaukumu.
 
 ## 12. Pārlūkojiet un kārtojiet piezīmes (~2 min)
 
-**Mērķis:** lapa `/notes/tag/:tagId`.
+**Māca:** piezīmju lapu — filtrēšanu, kārtošanu, pārkārtošanu,
+pantu sakļaušanu.
 
-- Izvēlne → View Notes → pāradresē uz pēdējo lietoto tagu.
-- Rīkjoslas apskats: **Filter by tag** izvēlne (iesk. "Untagged"),
-  **sort** (Custom / Date / Verse), **page size** (5/25/50/100),
-  **fold/unfold verses**, atsvaidzināšana, taga-saites kopīgošanas
-  ikona.
-- Piezīmes kartītes apskats: panta tekstam var pieskarties
-  (atlase → tā pati rīkjosla, iesk. "View in Bible"),
-  "View in Bible" ikona pārlēk uz fragmentu, rediģēšanas zīmulis,
-  miskaste.
-- Custom kārtošana: velciet piezīmes kartīti, lai pārkārtotu;
-  `#k` secības nozīmīte.
-- Slēdzis "Include sub-tags" apvieno apakšzara piezīmes,
-  sagrupētas pa tagiem (tikai ja tagam ir bērni).
+### Soļi
 
-**Kļūdas:** `/notes` ar null tagiem rāda "Create your first tag" —
-vispirms sagatavojiet tagus. Rediģēt/dzēst parādās tikai pie
-saviem tagiem.
+1. Izvēlne → View Notes — pāradresē uz pēdējo lietoto tagu
+   (`/notes/tag/:tagId`).
+2. Rīkjosla: **Filter by tag** (iesk. "Untagged"), **sort**
+   (Custom / Date / Verse), **page size** (5/25/50/100),
+   **fold/unfold verses**, atsvaidzināšana, taga-saites
+   kopīgošanas ikona.
+3. Piezīmes kartītē pieskarieties panta tekstam, lai to
+   atlasītu — parādās tā pati darbību rīkjosla (iesk. "View
+   in Bible"). Kartītē ir arī "View in Bible" pārlēciena
+   ikona, rediģēšanas zīmulis, miskaste.
+4. Kārtojot Custom, velciet piezīmes kartīti, lai pārkārtotu
+   — `#k` nozīmīte rāda pozīciju.
+5. "Include sub-tags" apvieno apakšzara piezīmes, sagrupētas
+   pa tagiem (tikai ja tagam ir bērni).
+
+### Ieraksts
+
+- Vispirms sagatavojiet tagus — `/notes` ar null tagiem rāda
+  "Create your first tag" un demonstrācija iestājas.
+- Rediģēt/dzēst parādās tikai pie saviem tagiem.
 
 ## 13. Tagi: kārtojiet piezīmes un kopīgojiet publiski (~2.5 min)
 
-**Mērķis:** lapa Tag Management.
+**Māca:** tagu koku — izveidot, pārvecākot, publicēt tagus.
 
-- Izvēlne → Tag Management (`/tags`) → "New Tag" → nosaukums +
-  pēc izvēles vecāktags.
-- Koka apskats: mapju ikonas vecākiem, piezīmju skaita nozīmītes,
-  `+k` apakškoka nozīmītes; izplešana/sakļaušana; noklikšķiniet uz
-  lapas taga → tā piezīmes.
-- Velciet taga rokturi uz citu → pārvecākošana; vilkšanas laikā
-  parādās fiksētā josla "Move to top level".
-- Rindas darbības: **pasaules ikona** → "Make tag public" →
-  apstiprinājums skaidro, ka visas piezīmes zem tā kļūst skatāmas
-  pa saiti; zilganzaļa nozīmīte. Edit (pārdēvēt/pārvecākot),
-  Delete (apstiprinājums brīdina, ka piezīmes zaudēs tagu).
-- Meklēšanas lodziņš filtrē koku.
+### Soļi
 
-**Kļūdas:** taga dzēšana nedzēš piezīmes (tās nonāk Untagged) —
-pasakiet to skaidri. Public ir kaskāde — apstiprinājuma modālis
-brīdina.
+1. Izvēlne → Tag Management (`/tags`) → "New Tag" →
+   nosaukums + pēc izvēles vecāktags.
+2. Koks rāda mapju ikonas vecākiem, piezīmju skaita
+   nozīmītes, `+k` apakškoka nozīmītes; izplešiet/sakļaujiet;
+   noklikšķiniet uz lapas taga, lai atvērtu tā piezīmes.
+3. Velciet taga rokturi uz citu tagu, lai pārvecākotu —
+   vilkšanas laikā parādās fiksētā josla "Move to top level".
+4. Rindas darbības: **pasaules ikona** → "Make tag public"
+   (apstiprinājums skaidro, ka visas piezīmes zem tā kļūst
+   skatāmas pa saiti; parādās zilganzaļa nozīmīte); Edit
+   pārdēvēšanai/pārvecākošanai; Delete (brīdina, ka piezīmes
+   zaudēs tagu).
+5. Meklēšanas lodziņš filtrē koku.
+
+### Ieraksts
+
+- Pasakiet skaidri: taga dzēšana nedzēš piezīmes — tās nonāk
+  Untagged.
+- Public ir kaskāde — izlasiet apstiprinājuma modāļa
+  brīdinājumu skaļi.
 
 ## 14. Kopīgojiet piezīmi vai tagu (~90 s)
 
-**Mērķis:** publiskā kopīgošanas modelis.
+**Māca:** publisko kopīgošanas modeli — saites, kas darbojas
+bez pieteikšanās.
 
-- Uz publiskas piezīmes kartītes → kopīgošanas ikona → kopē
-  `/notes/<id>` (vai OS kopīgošanas lapa) → atveriet to incognito:
-  piezīme + komentāri redzami **bez pieteikšanās**.
-- Tas pats publiskam tagam: taga-saites kopīgošanas ikona →
-  anonīms skatītājs redz taga publiskās piezīmes.
-- Pārslēdziet atpakaļ uz privātu → saite pārstāj darboties
-  ("Note not found or is not public").
+### Soļi
 
-**Kļūdas:** tikai **publiskām** piezīmēm ir kopīgošanas ikona.
-Anonīmi skatītāji redz piezīmes, bet nevar komentēt
-("Log in to comment").
+1. Uz publiskas piezīmes kartītes pieskarieties kopīgošanas
+   ikonai — tā kopē `/notes/<id>` (vai telefonā atver OS
+   kopīgošanas lapu).
+2. Atveriet saiti incognito — piezīme + komentāri redzami
+   **bez pieteikšanās**.
+3. Publisks tags darbojas tāpat — tā saite anonīmiem
+   skatītājiem rāda taga publiskās piezīmes.
+4. Pārslēdziet piezīmi atpakaļ uz privātu — saite pārstāj
+   darboties ("Note not found or is not public").
+
+### Ieraksts
+
+- Tikai **publiskām** piezīmēm ir kopīgošanas ikona.
+- Anonīmi skatītāji var lasīt, bet nevar komentēt ("Log in to
+  comment") — parādiet šo rindiņu.
 
 ## 15. Komentāri piezīmēs (~2 min)
 
-**Mērķis:** komentāru pavedieni.
-**Priekšnoteikums:** pieteicies; piezīme ar pavedienu (sagatavota
-iepriekš).
+**Māca:** komentāru pavedienus piezīmēs.
 
-- Piezīmes kartītē pieskarieties 💬 skaitļa pogai → pavediens
-  izplešas vietēji.
-- Publicējiet komentāru: bagātināts teksts (treknraksts, saraksti,
-  `@` Rakstu atsauces), **Images** (maks. 5) → pievienojiet, Post.
-- Atbildiet uz komentāru → ligzdotā atkāpe; rediģējiet savu
-  komentāru; dzēsiet savu → "[deleted]" vietturis.
-- Pieminiet: pavedieni atsvaidzinās apmēram ik pēc 30 s.
+### Soļi
 
-**Kļūdas:** komentāra poga parādās tikai pieteiktam lietotājam VAI
-ja komentāri jau pastāv. Attēlu limits ir 5 (piezīmes atļauj 10).
+1. Piezīmes kartītē pieskarieties 💬 skaitļa pogai —
+   pavediens izplešas vietēji.
+2. Uzrakstiet komentāru — bagātināts teksts (treknraksts,
+   saraksti, `@` Rakstu atsauces) — pievienojiet attēlus ar
+   **Images** (maks. 5) → Post.
+3. Atbildiet uz komentāru — tas ligzdojas; savus komentārus
+   varat rediģēt.
+4. Sava komentāra dzēšana atstāj vietturi "[deleted]".
+5. Pavedieni atsvaidzinās apmēram ik pēc 30 s.
+
+### Ieraksts
+
+- Pieteikusies sesija; piezīme ar iepriekš sagatavotu
+  pavedienu.
+- Komentāra poga parādās tikai pieteiktam lietotājam VAI ja
+  komentāri jau pastāv.
+- Attēlu limits ir 5 (piezīmes atļauj 10).
 
 ## 16. Jūsu lasīšanas pozīcija seko līdzi (~60 s)
 
-**Mērķis:** atsākšana katrai grāmatai atsevišķi.
+**Māca:** atsākšanu katrā grāmatā; pozīcijas sinhronizāciju
+starp ierīcēm pieteiktam lietotājam.
 
-- Izlasiet daļu John 3; pārejiet uz Romans 5; atveriet grāmatu
-  paneli vēlreiz un pieskarieties **John** → atgriežas pie John 3,
-  kur pārtraucāt.
-- Pārlādējiet lapu → atjauno saglabāto pantu.
-- Pieteicies: pozīcija sinhronizējas ar kontu → piesakieties otrā
-  ierīcē/pārlūkā, un tā pati pozīcija tiek atjaunota.
+### Soļi
 
-**Kļūdas:** servera sinhronizācija ir tikai pieteiktiem — anonīmiem
-ir tikai lokālā atjaunošana tajā pašā pārlūkā. Turiet apgalvojumu
-godīgu.
+1. Izlasiet daļu John 3; pārejiet uz Romans 5.
+2. Atveriet grāmatu paneli vēlreiz un pieskarieties **John**
+   — atgriežaties pie John 3, kur pārtraucāt.
+3. Pārlādējiet lapu — saglabātais pants tiek atjaunots.
+4. Pieteiktam lietotājam pozīcija sinhronizējas ar kontu —
+   piesakieties otrā ierīcē vai pārlūkā, un tā pati pozīcija
+   tiek atjaunota.
+
+### Ieraksts
+
+- Turiet apgalvojumu godīgu: servera sinhronizācija ir tikai
+  pieteiktiem — anonīmiem ir tikai lokālā atjaunošana tajā
+  pašā pārlūkā.
 
 ## 17. Papildu iespējas: tumšais režīms, ziņojumi, Android (~90 s)
 
-**Mērķis:** atlikušās izvēlnes pozīcijas.
+**Māca:** motīva pārslēgu, problēmu ziņojumus un Android
+lietotni.
 
-- Motīva slēdzis (saule/mēness) izvēlnē — noklusējums ir tumšs.
-- "Report a problem" → aprakstiet problēmu → "Send report" →
-  paziņojums; tas automātiski pievieno pašreizējo fragmentu.
-- Android tālruņa pārlūkā: izvēlne rāda **"Download Android
-  App"** → APK → "install unknown apps" uzvedne; lietotnē izvēlne
-  rāda **"Check for updates"**.
-- Kopsavilkums: `/` meklēšanas saīsne, `Esc` aizver modāļus.
+### Soļi
 
-**Kļūdas:** APK tiek ielādēts no sāniem (nav Play Store
-saraksta) — Play Protect var brīdināt. Lejupielādes pozīcija
-pastāv tikai Android lietotāja aģentos; "Check for updates"
-tikai vietējā čaulā.
+1. Motīva slēdzis (saule/mēness) ir izvēlnē — noklusējums ir
+   tumšs.
+2. "Report a problem" → aprakstiet problēmu → "Send report"
+   → paziņojums; tas automātiski pievieno pašreizējo
+   fragmentu.
+3. Android tālruņa pārlūkā izvēlne rāda "Download Android
+   App" → APK → uzvednē atļaujiet "install unknown apps".
+4. Instalētajā lietotnē izvēlne tā vietā rāda "Check for
+   updates".
+5. Kopsavilkums saīsnēm: `/` atver meklēšanu, `Esc` aizver
+   modāļus.
+
+### Ieraksts
+
+- APK tiek ielādēts no sāniem (nav Play Store saraksta) —
+  Play Protect var brīdināt; pasakiet to.
+- Lejupielādes pozīcija pastāv tikai Android lietotāja
+  aģentos; "Check for updates" tikai vietējā čaulā.
 
 ---
 
 ## Apzināti neietverts
 
 - "Advanced — raw filesets" akordeons tulkojuma modālī.
-- Multivides sesijas meklēšanas semantika (pantu pārlēcieni caur
-  austiņām).
+- Multivides sesijas meklēšanas semantika (pantu pārlēcieni
+  caur austiņām).
 - 500 pantu autortiesību limita paziņojums, rate-limit/
   nodrošinātāja kļūdu stāvokļi.

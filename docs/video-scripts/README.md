@@ -19,6 +19,12 @@ live, paste its URL into the YouTube column.
 - One file per series per language: `<series>.<lang>.md`. Keep
   section numbering identical across languages so translations
   stay diffable side by side.
+- Each video section has three blocks: `**Teaches:**` (one-line
+  learning outcome), `### Steps` (numbered, imperative —
+  doubles as the written user guide and the narration spine),
+  and `### Recording` (session state, pacing, what to show or
+  hide). In Latvian: `**Māca:**` / `### Soļi` /
+  `### Ieraksts`.
 - Script sections map 1:1, in order, to `TUTORIAL_VIDEOS` entries
   in `src/data/gettingStartedVideos.ts`. When a video is
   published, set that entry's `youtubeId` — `null` entries are
@@ -27,6 +33,7 @@ live, paste its URL into the YouTube column.
   language files in the same PR (repo rule 10). "Last verified"
   is the date the script was last checked against the live UI.
 - Recording logistics (shared account, demo translations,
-  per-video pitfalls) live inside each script — "Production
-  notes" / "Pitfalls" in English, "Ierakstīšanas piezīmes" /
-  "Kļūdas" in Latvian — not in this index.
+  per-video pitfalls) live inside each script — the
+  "Production notes" header and per-section "Recording" block
+  in English, "Ierakstīšanas piezīmes" and "Ieraksts" in
+  Latvian — not in this index.
