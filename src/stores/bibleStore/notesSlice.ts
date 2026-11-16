@@ -490,9 +490,13 @@ export const createNotesSlice: StateCreator<
     removeTagPagination: (tagId) =>
       set((state) => {
         // A corrupted persisted blob (non-object or null)
-        // must not throw on the `in` check.
+        // self-heals to an empty map — returning {} would
+        // leave the corrupt value in place.
         const map = state.tagPagination;
-        if (!map || typeof map !== 'object' || !(tagId in map)) {
+        if (!map || typeof map !== 'object') {
+          return { tagPagination: {} };
+        }
+        if (!(tagId in map)) {
           return {};
         }
         const next = { ...map };

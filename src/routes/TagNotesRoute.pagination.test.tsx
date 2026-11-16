@@ -20,7 +20,10 @@ import {
   initialState as authInitialState,
 } from '../stores/authStore';
 import * as api from '../api';
-import { clearNotesCache } from '../utils/cacheManager';
+import {
+  clearNotesCache,
+  getCachedNotes,
+} from '../utils/cacheManager';
 import { Note, Tag } from '../types';
 
 const mockNavigate = vi.fn();
@@ -57,6 +60,12 @@ vi.mock('../utils/cacheManager');
 
 const mockApi = vi.mocked(api);
 const mockClearNotesCache = vi.mocked(clearNotesCache);
+const mockGetCachedNotes = vi.mocked(getCachedNotes);
+
+// The slice's real fetchNotes action, captured before any
+// test overrides it on the shared store — the stale-load
+// regression test drives the cache-hit path through it.
+const realFetchNotes = useBibleStore.getState().fetchNotes;
 
 const tag: Tag = {
   id: 'tag-123',
@@ -408,6 +417,110 @@ describe('TagNotesRoute pagination', () => {
             !(call[0] === 'tag-456' && call[1]?.page === 1)
         )
       ).toBe(true);
+      // The cancelled tag-123 continuation must stop before
+      // issuing its fetch at all — fetchNotes' synchronous
+      // cache-hit branch has no staleness check, so even a
+      // response dropped by requestId would already have
+      // rewritten tag-123's stored page.
+      expect(
+        mockFetchNotes.mock.calls.every(
+          (call) => call[0] !== 'tag-123'
+        )
+      ).toBe(true);
+    });
+
+  it('leaves the previous tag\'s stored pagination intact ' +
+    'when its in-flight load is cancelled', async () => {
+      // Same in-flight A->B switch through the REAL
+      // fetchNotes: without the early return after getTags,
+      // tag-123's stale continuation issues
+      // fetchNotes('tag-123', {page:1}), whose synchronous
+      // cache-hit branch — the requestId guard only covers
+      // network responses — would persist
+      // {page:1, pageSize:50} for tag-123: a page/size the
+      // user never viewed (50 is tag-456's restored size).
+      mockGetCachedNotes.mockImplementation((id) =>
+        id === 'tag-123'
+          ? {
+              notes: [makeNote()],
+              timestamp: 0,
+              count: 60,
+              hasMore: true,
+            }
+          : null
+      );
+      mockApi.getNotes.mockResolvedValue({
+        count: 60,
+        next: null,
+        previous: null,
+        results: [makeNote({ id: 'note-b', tag: secondTag })],
+      });
+      let resolveTags!: () => void;
+      const tagsPromise = new Promise<void>((res) => {
+        resolveTags = res;
+      });
+      mockGetTags.mockImplementation(() => tagsPromise);
+      const { rerender } = renderRoute(
+        '/notes/tag/tag-123',
+        true,
+        {
+          tags: [tag, secondTag],
+          fetchNotes: realFetchNotes,
+          tagPagination: {
+            'tag-123': { page: 3, pageSize: 25 },
+            'tag-456': { page: 5, pageSize: 50 },
+          },
+        }
+      );
+
+      mockUseParams.mockReturnValue({ tagId: 'tag-456' });
+      rerender(
+        <MemoryRouter initialEntries={['/notes/tag/tag-456']}>
+          <TagNotesRoute />
+          <LocationProbe />
+        </MemoryRouter>
+      );
+
+      await act(async () => {
+        resolveTags();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(
+          useBibleStore.getState().tagPagination['tag-456']
+        ).toEqual({ page: 5, pageSize: 50 });
+      });
+      // tag-123's cancelled loader never issued a fetch —
+      // its record keeps the page/size last viewed there.
+      expect(
+        useBibleStore.getState().tagPagination['tag-123']
+      ).toEqual({ page: 3, pageSize: 25 });
+      expect(mockApi.getNotes).not.toHaveBeenCalledWith(
+        'tag-123',
+        expect.anything()
+      );
+    });
+
+  it('falls back to page 1 when the stored page is not ' +
+    'a finite number', async () => {
+      // A hand-edited/injected non-finite page must not
+      // reach fetchNotes (Math.max(1, Math.floor(Infinity))
+      // is Infinity). No legacy fallback either — the tag
+      // is not the remembered selection.
+      renderRoute('/notes/tag/tag-123', true, {
+        lastSelectedTagId: 'tag-999',
+        tagPagination: {
+          'tag-123': { page: Infinity, pageSize: 25 },
+        },
+      });
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-123',
+          expect.objectContaining({ page: 1 })
+        );
+      });
     });
 
   it('resets to page 1 on a sort change even after an ' +

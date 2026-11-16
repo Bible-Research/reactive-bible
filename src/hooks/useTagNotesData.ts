@@ -140,7 +140,9 @@ export const useTagNotesData = ({
           ? stored.tagPagination[tagId]
           : null;
       const savedPage =
-        saved && typeof saved.page === 'number'
+        saved &&
+        typeof saved.page === 'number' &&
+        Number.isFinite(saved.page)
           ? Math.max(1, Math.floor(saved.page))
           : null;
       // Restore the tag's page size first — fetchNotes
@@ -204,6 +206,14 @@ export const useTagNotesData = ({
         if (isAuthenticated) {
           try { await getTags(); } catch { /* ignore */ }
         }
+
+        // The effect may have re-run for another tag while
+        // getTags was in flight — a stale continuation must
+        // stop here, not fetch the previous tag's page 1:
+        // fetchNotes' synchronous cache-hit branch has no
+        // staleness check and would persist a page/size for
+        // that tag the user never viewed.
+        if (cancelled) return;
 
         // Fetch notes with ordering if non-default sort
         const apiOrdering =

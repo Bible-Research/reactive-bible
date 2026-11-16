@@ -799,6 +799,21 @@ describe('useBibleStore', () => {
           });
       });
 
+    it('removeTagPagination self-heals a corrupted map',
+      () => {
+        // A hand-corrupted persisted blob (e.g. null) must
+        // not throw on the `in` check — and the bad value
+        // is replaced with an empty map, not left in place.
+        useBibleStore.setState({
+          tagPagination: null as never,
+        });
+
+        useBibleStore.getState().removeTagPagination('TAG1');
+
+        expect(useBibleStore.getState().tagPagination)
+          .toEqual({});
+      });
+
     it('resolves a stored product id before sending fileset_id',
       async () => {
         mockCacheManager.getCachedNotes.mockReturnValue(null);
