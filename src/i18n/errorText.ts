@@ -59,6 +59,24 @@ export const localizedErrorText = (err: unknown): string => {
 };
 
 /**
+ * Localized text for an `error_code` stored on a resource
+ * (e.g. `note.error_code`) rather than attached to a thrown
+ * error — same mapping as `localizedErrorText`: a cataloged
+ * code resolves to its `errors.*` text, any other code to the
+ * generic message (coded failures never leak raw provider
+ * text). Returns undefined when the resource carries no code
+ * so the caller keeps its raw-text fallback.
+ */
+export const localizedErrorCode = (
+  code: string | undefined
+): string | undefined => {
+  if (!code) return undefined;
+  return code in CODED_KEYS
+    ? i18n.t(CODED_KEYS[code as ErrorCode])
+    : i18n.t('errors.generic');
+};
+
+/**
  * Stored-error renderer: stores keep catalog keys (e.g.
  * `auth.loginFailed`) while backend field errors arrive as raw
  * text. Keys are translated; anything else passes through

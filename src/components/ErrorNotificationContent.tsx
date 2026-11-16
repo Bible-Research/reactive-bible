@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Stack, Text } from '@mantine/core';
 import { copyErrorDetails } from '../utils/errorReportDetails';
 import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
 
 interface Props {
   error: Error;
@@ -17,7 +18,7 @@ export function ErrorNotificationContent({ error, context }: Props) {
   const { t } = useTranslation();
   return (
     <Stack spacing={4}>
-      <Text size="sm">{error.message}</Text>
+      <Text size="sm">{textOrKey(error.message)}</Text>
       <Text size="xs" color="dimmed">
         {t('errorBoundary.reportHint')}
       </Text>

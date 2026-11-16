@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {
-const { t } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const hasNavigatedRef = useRef(false);
   const { lastSelectedTagId, getTags } = useBibleStore(
@@ -97,13 +97,13 @@ const { t } = useTranslation();
       <Center style={{ height: '100vh' }}>
         <Stack align="center" spacing="sm">
           <Text color="dimmed" size="lg">
-            No tags yet — create a tag to start taking notes.
+            {t('notes.noTagsYet')}
           </Text>
           <Button
             leftIcon={<IconPlus size={16} />}
             onClick={() => navigate('/tags')}
           >
-            Create your first tag
+            {t('tags.createFirst')}
           </Button>
         </Stack>
       </Center>
@@ -115,14 +115,14 @@ const { t } = useTranslation();
       <Center style={{ height: '100vh' }}>
         <Stack align="center" spacing="sm">
           <Text color="red" size="lg">
-            Failed to load your tags.
+            {t('notes.loadTagsFailed')}
           </Text>
           <Button
             variant="light"
             leftIcon={<IconRefresh size={16} />}
             onClick={() => setRetryCount((c) => c + 1)}
           >
-            Try again
+            {t('common.retry')}
           </Button>
         </Stack>
       </Center>

@@ -74,13 +74,13 @@ const NoteOrderMenu = ({
           disabled={orderId === data.topOrderId}
           onClick={() => data.onMoveToTop(noteId)}
         >
-          Move to top
+          {t('notes.moveToTop')}
         </Menu.Item>
         <Menu.Divider />
         <Box sx={{ maxHeight: 320, overflowY: 'auto' }}>
           {visibleEntries.length === 0 ? (
             <Text size="xs" color="dimmed" p="xs">
-              No matching notes
+              {t('notes.noMatchingNotes')}
             </Text>
           ) : (
             visibleEntries.map(({ entry, label }) => (

@@ -100,8 +100,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </Button>
             </Group>
             <Text size="xs" color="dimmed" align="center">
-              Please report this bug by pasting the details into a
-              GitHub issue.
+              {i18n.t('errorBoundary.reportHint')}
             </Text>
           </Stack>
         </Container>

@@ -131,9 +131,14 @@ describe('NoteVerseList', () => {
       <NoteVerseList note={note} scope="n1" folded={false} />
     );
 
+    // The rate_limited code maps to the localized errors.*
+    // text — the raw provider message stays off screen.
     expect(
-      screen.getByText(/rate limit exceeded/i)
+      screen.getByText(/rate-limiting requests/i)
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/rate limit exceeded/i)
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText(/reloading in about 1 minute/i)
     ).toBeInTheDocument();
