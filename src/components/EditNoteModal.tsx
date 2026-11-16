@@ -37,6 +37,8 @@ import VerseTextGroups from "./VerseTextGroups";
 import { Note, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import { shallow } from "zustand/shallow";
+import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -45,6 +47,7 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
+  const { t } = useTranslation();
   const {
     tags,
     getTags,
@@ -221,13 +224,17 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           mutateNoteImages(noteId, (imgs) => [...imgs, img]);
         } catch (err: unknown) {
           uploadedSigs.current.delete(signature);
+          // apiClient throws catalog keys
+          // ('errors.forbidden', 'auth.sessionExpiredMsg') —
+          // textOrKey translates those and passes raw
+          // server text through.
           const msg =
             err instanceof Error
-              ? err.message
-              : 'Failed to upload image.';
+              ? textOrKey(err.message)
+              : t('notes.failedToUpload');
           showNotification({
             color: 'red',
-            title: 'Upload failed',
+            title: t('notes.uploadFailed'),
             message: msg,
           });
         }
@@ -250,8 +257,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     } catch {
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to delete image.',
+        title: t('common.error'),
+        message: t('notes.deleteImageFailed'),
       });
     }
   };
@@ -291,7 +298,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Edit note"
+      title={t('notes.editNote')}
       fullScreen
     >
       {note && (

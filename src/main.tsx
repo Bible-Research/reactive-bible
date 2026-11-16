@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import { API_BASE_URL } from './config'
+import { initI18n } from './i18n'
 import { initGlobalErrorHandlers } from './utils/errorReporter'
 import { sentryBeforeSend } from './utils/sentry'
 
@@ -51,10 +52,20 @@ if (sentryDsn) {
 
 initGlobalErrorHandlers()
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>,
-)
+const renderApp = () => {
+  ReactDOM.createRoot(
+    document.getElementById('root') as HTMLElement,
+  ).render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </React.StrictMode>,
+  )
+}
+
+// The resolved UI language (persisted choice or detected
+// locale) loads before first paint so a non-English user never
+// sees an English flash. A failed catalog load must still
+// render — the English fallback is bundled.
+void initI18n().then(renderApp, renderApp)

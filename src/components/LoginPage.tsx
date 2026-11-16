@@ -15,8 +15,11 @@ import {
 import { IconAlertCircle } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
 import { useAuthStore } from '../stores/authStore';
+import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const login = useAuthStore((state) => state.login);
@@ -41,8 +44,8 @@ export function LoginPage() {
       
       // Show success notification
       showNotification({
-        title: 'Welcome!',
-        message: 'You have successfully logged in',
+        title: t('auth.welcome'),
+        message: t('auth.loggedIn'),
         color: 'green',
       });
       
@@ -70,10 +73,10 @@ export function LoginPage() {
           fontWeight: 900,
         })}
       >
-        Welcome to Bible Research
+        {t('auth.welcomeTitle')}
       </Title>
       <Text color="dimmed" size="sm" align="center" mt={5}>
-        Sign in to access your notes and tags
+        {t('auth.signInPrompt')}
       </Text>
 
       <Paper withBorder shadow="md" p={30} mt={30} radius="md">
@@ -82,18 +85,18 @@ export function LoginPage() {
             {error && (
               <Alert 
                 icon={<IconAlertCircle size={16} />} 
-                title="Error" 
+                title={t('auth.error')} 
                 color="red"
                 withCloseButton
                 onClose={clearError}
               >
-                {error}
+                {error && textOrKey(error)}
               </Alert>
             )}
             
             <TextInput
-              label="Username"
-              placeholder="Your username"
+              label={t('auth.username')}
+              placeholder={t('auth.usernamePlaceholder')}
               required
               value={username}
               onChange={(e) => setUsername(e.currentTarget.value)}
@@ -102,8 +105,8 @@ export function LoginPage() {
             />
             
             <PasswordInput
-              label="Password"
-              placeholder="Your password"
+              label={t('auth.password')}
+              placeholder={t('auth.passwordPlaceholder')}
               required
               value={password}
               onChange={(e) => setPassword(e.currentTarget.value)}
@@ -116,15 +119,15 @@ export function LoginPage() {
               loading={isLoading}
               mt="sm"
             >
-              Sign in
+              {t('auth.signIn')}
             </Button>
           </Stack>
         </form>
         
         <Text color="dimmed" size="sm" align="center" mt="xl">
-          Don't have an account?{' '}
+          {t('auth.noAccount')}{' '}
           <Anchor component={Link} to="/register" size="sm">
-            Create one now
+            {t('auth.createOne')}
           </Anchor>
         </Text>
       </Paper>

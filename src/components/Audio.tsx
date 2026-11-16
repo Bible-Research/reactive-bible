@@ -20,6 +20,7 @@ import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";
 import { useChapterAudio } from "../hooks/useChapterAudio";
 import { useActiveStructure } from "../hooks/useBookName";
+import { useTranslation } from "react-i18next";
 import {
   useMediaSession,
   MediaSessionControls,
@@ -32,6 +33,7 @@ const MEDIA_ARTWORK: MediaImage[] = [
 ];
 
 const Audio = () => {
+  const { t } = useTranslation();
   const playlist = useAudioPlaylist();
   const audioPlaylistItems = useBibleStore(
     (s) => s.audioPlaylistItems
@@ -148,8 +150,8 @@ const Audio = () => {
       findTranslationByFilesetId(
         activeAudioFilesetId,
         translations,
-      )?.name || 'Bible Audio',
-    [translations, activeAudioFilesetId],
+      )?.name || t('app.audioAlbum'),
+    [translations, activeAudioFilesetId, t],
   );
 
   const mediaActive = isPlaylistMode ? playlist.isActive : audio !== null;
@@ -168,7 +170,7 @@ const Audio = () => {
       return {
         title: playlist.currentItem.label,
         artist: translationName,
-        album: 'Bible Audio',
+        album: t('app.audioAlbum'),
         artwork: MEDIA_ARTWORK,
       };
     }
@@ -185,7 +187,7 @@ const Audio = () => {
       title: `${bookLabel ?? activeBookId} ` +
         `${activeChapter}`,
       artist: translationName,
-      album: 'Bible Audio',
+      album: t('app.audioAlbum'),
       artwork: MEDIA_ARTWORK,
     };
   }, [
@@ -196,6 +198,7 @@ const Audio = () => {
     activeStructure,
     activeChapter,
     translationName,
+    t,
   ]);
 
   const mediaControls = useMemo<MediaSessionControls>(() => {
@@ -355,14 +358,14 @@ const Audio = () => {
         title={
           isPlaylistMode
             ? playlistPlaying
-              ? "Pause playlist"
-              : "Play all notes"
+              ? t('audio.pausePlaylist')
+              : t('audio.playAllNotes')
             : error ||
               (loading
-                ? "Cancel loading"
+                ? t('audio.cancelLoading')
                 : isPlaying
-                  ? "Pause audio"
-                  : "Play audio")
+                  ? t('audio.pauseAudio')
+                  : t('audio.playAudio'))
         }
       >
         {!isPlaylistMode && loading ? (

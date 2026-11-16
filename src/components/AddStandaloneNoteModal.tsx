@@ -5,6 +5,7 @@ import { useNoteEditor } from "../hooks/useNoteEditor";
 import type { NoteVerseReference } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
 import { shallow } from "zustand/shallow";
+import { useTranslation } from 'react-i18next';
 
 interface AddStandaloneNoteModalProps {
   opened: boolean;
@@ -19,6 +20,7 @@ const AddStandaloneNoteModal = ({
   opened,
   onClose,
 }: AddStandaloneNoteModalProps) => {
+  const { t } = useTranslation();
   const {
     tags,
     getTags,
@@ -53,7 +55,12 @@ const AddStandaloneNoteModal = ({
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title="New note" fullScreen>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={t('notes.newNote')}
+      fullScreen
+    >
       <NoteForm
         tags={tags}
         onSubmit={editor.submit}

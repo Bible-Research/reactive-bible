@@ -15,6 +15,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 import { useBibleStore, type Translation } from "../store";
 import {
   getVersesInChapter,
@@ -54,6 +55,8 @@ import {
 import { verseDomId } from '../utils/verseRefs';
 import { useChapterSwipe } from '../hooks/useChapterSwipe';
 import { getCachedVerses } from '../utils/cacheManager';
+import { localizedErrorText } from '../i18n/errorText';
+import i18n from '../i18n';
 
 /**
  * First 'bible'-scoped verse whose element is at least partially
@@ -104,6 +107,7 @@ const scrollToIdDeferred = (id: string, smooth = false): void => {
 const CHAPTER_SETTLE_MS = 300;
 
 const PassageView = () => {
+  const { t } = useTranslation();
   const {
     activeBookId,
     activeChapter,
@@ -196,15 +200,17 @@ const PassageView = () => {
       return null;
     }
     const covered = coveredTestaments.includes('NT')
-      ? 'New Testament'
-      : 'Old Testament';
+      ? i18n.t('books:testament.nt')
+      : i18n.t('books:testament.ot');
     const needed =
-      testament === 'OT' ? 'Old Testament' : 'New Testament';
-    return (
-      `The selected text version (${selectionLabel}) only ` +
-      `covers the ${covered}. Try selecting a ${needed} text ` +
-      `version in the Translation Settings.`
-    );
+      testament === 'OT'
+        ? i18n.t('books:testament.ot')
+        : i18n.t('books:testament.nt');
+    return t('passage.mismatchHint', {
+      label: selectionLabel,
+      covered,
+      needed,
+    });
   };
 
   const enterHeadingsOnlyMode = async (
@@ -452,7 +458,7 @@ const PassageView = () => {
             !(error instanceof BookNotInFilesetError),
         );
         setFetchError(
-          error instanceof Error ? error.message : 'Failed to load text'
+          localizedErrorText(error)
         );
         setVerses([]);
         setHeadings([]);
@@ -582,18 +588,9 @@ const PassageView = () => {
       resolvedTextFilesetId,
       translations,
     );
-    const rateLimitHint =
-      'The translation provider has temporarily rate-limited ' +
-      'requests. Please wait about 1 minute and try again, ' +
-      'or switch to KJV which is always available offline.';
-    const providerHint =
-      'The translation provider could not deliver this ' +
-      'text. Its resources are likely exhausted (rate ' +
-      'limited). Try again in about 1 minute, or switch ' +
-      'to KJV which is always available offline.';
-    const genericHint =
-      'Try selecting a different text version in the ' +
-      'Translation Settings ("Change Translation" button).';
+    const rateLimitHint = t('passage.rateLimitHint');
+    const providerHint = t('passage.providerHint');
+    const genericHint = t('passage.genericHint');
     return (
       <Box ref={swipeRef} h="100%">
         <ScrollArea h="100%">
@@ -609,13 +606,15 @@ const PassageView = () => {
               icon={<IconAlertCircle size={16} />}
             title={
               isRateLimitError
-                ? 'Rate Limit Reached'
+                ? t('passage.rateLimitTitle')
                 : isProviderError
-                ? 'Provider Unavailable'
+                ? t('passage.providerTitle')
                 : fetchError
-                ? 'Failed to load text'
-                : `No content for ` +
-                  `${activeBookName} ${activeChapter}`
+                ? t('passage.loadFailed')
+                : t('passage.noContent', {
+                    book: activeBookName,
+                    chapter: activeChapter,
+                  })
             }
             color={
               isRateLimitError || isProviderError
@@ -656,7 +655,7 @@ const PassageView = () => {
           }
         >
           <Title order={5} color="dimmed" mb="xs">
-            {activeBookName} — Section Outline
+            {t('passage.sectionOutline', { book: activeBookName })}
           </Title>
           {[...tocEntries]
             .sort((a, b) => a.chapter - b.chapter)
@@ -670,7 +669,7 @@ const PassageView = () => {
                 px={0}
                 sx={{ opacity: 0.7, fontWeight: 600 }}
               >
-                Chapter {chapter}
+                {t('passage.chapterN', { chapter })}
               </Text>
               {chHeadings.map((h, index) => (
                 <SectionHeadingComponent

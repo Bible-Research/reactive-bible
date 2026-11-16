@@ -8,7 +8,17 @@
  * messages.
  */
 
+/**
+ * The backend's `error_code` when one was reported — kept on
+ * the thrown error so UI layers can map it to a localized
+ * catalog key instead of rendering raw provider text.
+ */
+interface CodedError extends Error {
+  errorCode?: string;
+}
+
 export class ConflictError extends Error {
+  errorCode?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ConflictError';
@@ -16,6 +26,7 @@ export class ConflictError extends Error {
 }
 
 export class RateLimitError extends Error {
+  errorCode?: string;
   constructor(message: string) {
     super(message);
     this.name = 'RateLimitError';
@@ -33,6 +44,7 @@ export class RateLimitError extends Error {
  * a client-input failure is a bug worth reporting.
  */
 export class ClientInputError extends Error {
+  errorCode?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ClientInputError';
@@ -40,6 +52,7 @@ export class ClientInputError extends Error {
 }
 
 export class ProviderError extends Error {
+  errorCode?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ProviderError';
@@ -60,6 +73,17 @@ export class BookNotInFilesetError extends ProviderError {
     this.name = 'BookNotInFilesetError';
   }
 }
+
+/**
+ * Reads the backend `error_code` off a thrown error, when one
+ * was attached by `throwFromErrorBody`/`throwAudioError`.
+ */
+export const errorCodeOf = (
+  err: unknown
+): string | undefined =>
+  err instanceof Error
+    ? (err as CodedError).errorCode
+    : undefined;
 
 /** Error fields a backend/provider response body can carry. */
 interface ErrorBody {
@@ -136,9 +160,19 @@ export const throwFromErrorBody = async (
 ): Promise<never> => {
   const body = (await response.json().catch(() => ({}))) as
     ErrorBody;
+  const code =
+    typeof body.error_code === 'string'
+      ? body.error_code
+      : undefined;
+  const attach = <T extends Error>(err: T): T => {
+    (err as CodedError).errorCode = code;
+    return err;
+  };
   if (isBookNotInFilesetBody(body)) {
-    throw new BookNotInFilesetError(
-      errorMessageFromBody(body, fallbacks.bookNotInFileset)
+    throw attach(
+      new BookNotInFilesetError(
+        errorMessageFromBody(body, fallbacks.bookNotInFileset)
+      )
     );
   }
   const message = errorMessageFromBody(body, fallbacks.failure);
@@ -146,17 +180,17 @@ export const throwFromErrorBody = async (
     body.error_code === 'rate_limited' ||
     isRateLimitMessage(message)
   ) {
-    throw new RateLimitError(message);
+    throw attach(new RateLimitError(message));
   }
   if (
     body.error_code === 'missing_parameter' ||
     body.error_code === 'invalid_parameter' ||
     (body.error_code && response.status === 400)
   ) {
-    throw new ClientInputError(message);
+    throw attach(new ClientInputError(message));
   }
   if (body.error_code) {
-    throw new ProviderError(message);
+    throw attach(new ProviderError(message));
   }
   throw new Error(message);
 };

@@ -345,7 +345,9 @@ describe('TagManagementRoute tag UX wiring', () => {
       expect(showNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           color: 'green',
-          message: expect.stringContaining('3 note(s)'),
+          message: expect.stringContaining(
+            '3 notes updated'
+          ),
         })
       );
     });

@@ -1,5 +1,6 @@
 import { toUsfmCode } from '../../utils/bibleUtils';
 import { DEFAULT_NOTES_PAGE_SIZE } from '../../utils/pagination';
+import { isUiLanguage } from '../../i18n';
 import type {
   ReadingPositionValue,
   VerseRef,
@@ -23,6 +24,7 @@ export const partializeState = (state: BibleState) => ({
       ? state.verseSelection
       : null,
   bibleVersion: state.bibleVersion,
+  uiLanguage: state.uiLanguage,
   translations: state.translations,
   activeTextFilesetId: state.activeTextFilesetId,
   activeAudioFilesetId: state.activeAudioFilesetId,
@@ -87,6 +89,10 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  * - pre-v8: `bookTitleMarquee` is introduced; pinned to the
  *   default (on) when absent so the migrated record carries
  *   the new field.
+ * - pre-v9: `uiLanguage` is introduced. An absent field keeps
+ *   the detected locale from initial state (detection is
+ *   first-run only by construction); an unrecognized value is
+ *   dropped rather than persisted forward.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -219,6 +225,16 @@ export const migratePersistedState = (
           ? migrated.bookTitleMarquee
           : true,
     };
+  }
+
+  if (version < 9) {
+    // Sanitize the new field: only shipped BCP-47 codes
+    // persist; anything else drops back to detection.
+    const lang = migrated.uiLanguage;
+    if (lang !== undefined && !isUiLanguage(lang)) {
+      migrated = { ...migrated };
+      delete migrated.uiLanguage;
+    }
   }
 
   return migrated as PersistedBibleState;

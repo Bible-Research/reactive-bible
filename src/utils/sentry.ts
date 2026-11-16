@@ -79,9 +79,14 @@ export function sentryBeforeSend(
     ((err instanceof Error || err instanceof DOMException) &&
       err.name === 'AbortError') ||
     (err instanceof Error &&
-      err.message.startsWith('Session expired')) ||
-    eventTexts.some((text) =>
-      text.startsWith('Session expired')
+      (err.message.startsWith('Session expired') ||
+        // apiClient throws the i18n catalog key so the UI can
+        // localize it — same handled session-expired noise.
+        err.message.startsWith('auth.sessionExpired'))) ||
+    eventTexts.some(
+      (text) =>
+        text.startsWith('Session expired') ||
+        text.startsWith('auth.sessionExpired')
     ) ||
     isChunkLoadError(err) ||
     (err instanceof Error &&

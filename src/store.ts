@@ -23,6 +23,13 @@ import {
   migratePersistedState,
   partializeState,
 } from './stores/bibleStore/persistence';
+import i18n, {
+  changeUiLanguage,
+  resolveInitialTextFileset,
+  resolveUiLanguage,
+  type UiLanguage,
+} from './i18n';
+import { showNotification } from '@mantine/notifications';
 
 export { migratePersistedState, partializeState };
 
@@ -54,6 +61,13 @@ export interface BibleState {
   activeChapter: number;
   verseSelection: VerseSelection | null;
   bibleVersion: string;
+  /**
+   * UI locale (BCP-47: 'en' | 'lv' | 'ru'). Persisted; the
+   * first-run value comes from `navigator.language` detection
+   * and is independent of the Bible translation choice.
+   */
+  uiLanguage: UiLanguage;
+  setUiLanguage: (lang: UiLanguage) => void;
   showAudioPlayer: boolean;
   translations: Translation[];
   activeTextFilesetId: string | null;
@@ -196,9 +210,10 @@ export const initialState = {
   activeChapter: 1,
   verseSelection: null as VerseSelection | null,
   bibleVersion: "KJV",
+  uiLanguage: resolveUiLanguage(),
   showAudioPlayer: false,
   translations: [],
-  activeTextFilesetId: "ENGESV_API",
+  activeTextFilesetId: resolveInitialTextFileset(),
   activeAudioFilesetId: "ENGESV_API",
   tags: [] as Tag[],
   notes: [] as Note[],
@@ -285,6 +300,27 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           return { verseSelection: { scope, refs: merged } };
         }),
       setBibleVersion: (bibleVersion) => set({ bibleVersion }),
+      // Persisted UI locale; rehydration bypasses this action
+      // but initI18n resolves the same stored value directly.
+      setUiLanguage: (uiLanguage) => {
+        const previous = get().uiLanguage;
+        set({ uiLanguage });
+        // A failed lazy-catalog import must not strand the
+        // persisted choice on a language the UI cannot
+        // render — roll back and tell the user.
+        void changeUiLanguage(uiLanguage).catch(() => {
+          // A later setUiLanguage may have already switched
+          // past this stale failure — reverting now would
+          // clobber the newer choice (and toast for nothing).
+          if (get().uiLanguage !== uiLanguage) return;
+          set({ uiLanguage: previous });
+          showNotification({
+            title: i18n.t('common.error'),
+            message: i18n.t('menu.languageLoadFailed'),
+            color: 'red',
+          });
+        });
+      },
       setShowAudioPlayer: (showAudioPlayer) => set({ showAudioPlayer }),
       setTranslations: (translations) => set({ translations }),
       setActiveTextFilesetId: (activeTextFilesetId) =>
@@ -416,7 +452,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 8,
+      version: 9,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

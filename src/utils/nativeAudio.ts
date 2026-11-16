@@ -1,4 +1,5 @@
 import { isNativeApp } from './platform';
+import i18n from '../i18n';
 
 /**
  * Native (Capacitor) helpers that keep the WebView's JS alive while
@@ -56,11 +57,10 @@ export const enableAudioKeepAlive = async (): Promise<void> => {
     const { enabled } = await BackgroundMode.isEnabled();
     if (!enabled) {
       await BackgroundMode.enable({
-        title: 'Bible Research',
-        text: 'Audio playback in progress',
-        channelName: 'Audio playback',
-        channelDescription:
-          'Keeps audio playing while the screen is off',
+        title: i18n.t('app.name'),
+        text: i18n.t('audio.playbackInProgress'),
+        channelName: i18n.t('audio.channelName'),
+        channelDescription: i18n.t('audio.keepAliveDesc'),
         disableWebViewOptimization: true,
       });
     } else {

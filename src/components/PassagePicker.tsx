@@ -1,6 +1,7 @@
 import { Box, ScrollArea, createStyles, rem } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { showNotification } from "@mantine/notifications";
 import { getChapters, getVerses } from "../api/structure";
 import { getAllBooks } from "../utils/scriptureMention";
@@ -146,6 +147,7 @@ const PassagePicker = ({
   onSelectVerse,
 }: PassagePickerProps) => {
   const { classes, cx } = useStyles();
+  const { t } = useTranslation();
 
   // Bootstrap the active structure — idempotent + in-flight
   // deduped, so all three picker mount points can kick it.
@@ -225,13 +227,16 @@ const PassagePicker = ({
       translations,
     );
     const translationName =
-      owner?.name ?? owner?.abbr ?? 'This translation';
+      owner?.name ?? owner?.abbr ?? t('picker.thisTranslation');
     const bookName =
       books.find((b) => b.book_id === bookId)?.book_name ??
       bookId;
     showNotification({
-      title: 'Book not included',
-      message: `${translationName} doesn't include ${bookName}`,
+      title: t('picker.bookNotIncluded'),
+      message: t('picker.notIncludedMsg', {
+        translation: translationName,
+        book: bookName,
+      }),
       color: 'yellow',
     });
   };

@@ -14,6 +14,7 @@ import { parseBibleRef } from "../utils/bibleUtils";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
 import { HEADER_HEIGHT } from "../utils/layoutChrome";
+import { useTranslation } from 'react-i18next';
 // px of accumulated scroll in one direction needed to toggle the
 // header — roughly "two swipes". Small scrolls are ignored so the
 // header does not flicker while reading.
@@ -43,6 +44,7 @@ const MyHeader = ({
   menuOpened: boolean;
   setMenuOpened: (opened: boolean) => void;
 }) => {
+  const { t } = useTranslation();
   const theme = useMantineTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -209,7 +211,7 @@ const MyHeader = ({
             onClick={() => setMenuOpened(!menuOpened)}
             size="sm"
             color={theme.colors.gray[6]}
-            title={menuOpened ? "Close menu" : "Open menu"}
+            title={menuOpened ? t('header.closeMenu') : t('header.openMenu')}
           />
         </Box>
       </Center>
