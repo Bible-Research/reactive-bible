@@ -204,6 +204,7 @@ export function TagCombobox({
       : 0;
 
   const closeAll = () => {
+    if (view === 'move') restoreActionToast();
     setOpen(false);
     setView('options');
     setSearch('');
@@ -227,7 +228,26 @@ export function TagCombobox({
     setHighlight(matchTagQuery(tags, '').length > 0 ? 1 : 0);
   };
 
+  /**
+   * Leaving the 'move' pane without reparenting re-arms
+   * the creation toast — otherwise Undo is unreachable
+   * while `actionRef` still holds a deleteable tag.
+   */
+  const restoreActionToast = () => {
+    const action = actionRef.current;
+    if (!action) return;
+    setToast({
+      title: 'Tag created',
+      message: tagPath(
+        [...tagsRef.current, ...action.created],
+        action.leaf
+      ),
+      actions: true,
+    });
+  };
+
   const backToOptions = () => {
+    if (view === 'move') restoreActionToast();
     setView('options');
     setSearch(view === 'parents' ? createQuery : '');
     setHighlight(0);
@@ -258,14 +278,20 @@ export function TagCombobox({
     setView('move');
     setSearch('');
     setHighlight(hasParents ? 1 : 0);
+    onDropdownOpen?.();
     inputRef.current?.focus();
   };
 
-  const refreshTags = () =>
-    useBibleStore.getState().getTags(true).catch(() => {
-      // A failed refresh only leaves labels stale — the
-      // created tag is still selected by id.
-    });
+  const refreshTags = (): Promise<boolean> =>
+    useBibleStore
+      .getState()
+      .getTags(true)
+      .then(() => true)
+      .catch(() => {
+        // A failed refresh only leaves labels stale — the
+        // created tag is still selected by id.
+        return false;
+      });
 
   const dismissToast = useCallback(
     () => setToast(null),
@@ -288,23 +314,27 @@ export function TagCombobox({
     try {
       const { deleted, kept } =
         await deleteUnusedCreatedTags(action.created);
-      const keptNote =
-        kept.length > 0
-          ? ` Kept in use: ${kept
-              .map((t) => t.name)
-              .join(', ')}.`
-          : '';
-      setToast({
-        title: 'Tag creation undone',
-        message:
-          deleted.length > 0
-            ? `Deleted ${deleted
+      // A newer create may have armed its own action toast
+      // while the sweep ran — don't clobber it.
+      if (actionRef.current === null) {
+        const keptNote =
+          kept.length > 0
+            ? ` Kept in use: ${kept
                 .map((t) => t.name)
-                .join(', ')}.${keptNote}`
-            : keptNote.trim() || 'Nothing left to undo.',
-        color: kept.length > 0 ? 'yellow' : 'green',
-        actions: false,
-      });
+                .join(', ')}.`
+            : '';
+        setToast({
+          title: 'Tag creation undone',
+          message:
+            deleted.length > 0
+              ? `Deleted ${deleted
+                  .map((t) => t.name)
+                  .join(', ')}.${keptNote}`
+              : keptNote.trim() || 'Nothing left to undo.',
+          color: kept.length > 0 ? 'yellow' : 'green',
+          actions: false,
+        });
+      }
     } catch {
       setToast({
         title: 'Error',
@@ -322,28 +352,33 @@ export function TagCombobox({
     setBusy(true);
     try {
       await reparentTag(target.id, parentTagId);
+      // The reparent commits the tag's position — Undo no
+      // longer applies.
+      actionRef.current = null;
       setMoveTarget(null);
       closeAll();
-      await refreshTags();
+      const refreshed = await refreshTags();
       const fresh = useBibleStore.getState().tags;
       const moved = fresh.find((t) => t.id === target.id);
       setToast({
         title: 'Tag moved',
-        message: moved ? tagPath(fresh, moved) : target.name,
+        message:
+          refreshed && moved
+            ? tagPath(fresh, moved)
+            : target.name,
         color: 'green',
         actions: false,
       });
     } catch (error) {
       setMoveTarget(null);
-      closeAll();
+      // Keep the actions armed — the tag still exists and
+      // Undo/Move must stay reachable after a failed move.
       setToast({
-        title: 'Error',
+        title: 'Failed to move tag',
         message:
-          error instanceof Error
-            ? error.message
-            : 'Failed to move tag',
+          error instanceof Error ? error.message : undefined,
         color: 'red',
-        actions: false,
+        actions: true,
       });
     } finally {
       setBusy(false);
@@ -385,10 +420,13 @@ export function TagCombobox({
           actions: true,
         });
       }
-    } catch {
+    } catch (error) {
       setToast({
         title: 'Error',
-        message: 'Failed to create tag. Please try again.',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create tag. Please try again.',
         color: 'red',
         actions: false,
       });
@@ -518,10 +556,14 @@ export function TagCombobox({
         label={label}
         variant="transparent"
       >
+        {/* withinPortal stays explicit: the dropdown must
+            render inside the note modal's DOM — a body
+            portal is aria-hidden while a modal is open. */}
         <Popover
           opened={open}
           position="bottom-start"
           width="target"
+          withinPortal={false}
           trapFocus={false}
           onClose={closeAll}
         >
@@ -593,6 +635,7 @@ export function TagCombobox({
                     color="dimmed"
                     px="sm"
                     py={4}
+                    role="presentation"
                   >
                     {view === 'parents'
                       ? `Create “${createQuery}” under:`
@@ -605,6 +648,7 @@ export function TagCombobox({
                     color="dimmed"
                     px="sm"
                     py={4}
+                    role="presentation"
                   >
                     {view !== 'options'
                       ? 'No parent tags'

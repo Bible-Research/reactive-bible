@@ -111,7 +111,8 @@ export const normalizeTagPath = (value: string): string =>
   value
     .trim()
     .toLowerCase()
-    .replace(/\s*(?:›|\/)\s*/g, '/');
+    .replace(/\s*(?:›|\/)\s*/g, '/')
+    .replace(/\/+/g, '/');
 
 /**
  * Tags whose full path contains `query` (normalized — a
