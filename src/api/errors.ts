@@ -60,6 +60,19 @@ export class ProviderError extends Error {
 }
 
 /**
+ * SWORD-fileset search is off: the backend's `sword_search`
+ * feature flag rejected the request with HTTP 403 +
+ * `error_code === 'search_disabled'`. Not an outage — the UI
+ * shows a supportive translated message instead of an error.
+ */
+export class SearchDisabledError extends ProviderError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SearchDisabledError';
+  }
+}
+
+/**
  * The requested book is not covered by the selected fileset.
  * Thrown when the backend reports
  * `error_code === 'book_not_in_fileset'` (HTTP 404), or — for
@@ -145,6 +158,7 @@ export const errorMessageFromBody = (
  * Parse the body of a failed provider response
  * (`!response.ok`) and throw the matching typed error:
  * BookNotInFilesetError for `book_not_in_fileset`,
+ * SearchDisabledError for `search_disabled`,
  * RateLimitError for a `rate_limited` code or a
  * rate-limit-shaped message, ClientInputError for
  * `missing_parameter`/`invalid_parameter` or any other coded
@@ -176,6 +190,9 @@ export const throwFromErrorBody = async (
     );
   }
   const message = errorMessageFromBody(body, fallbacks.failure);
+  if (body.error_code === 'search_disabled') {
+    throw attach(new SearchDisabledError(message));
+  }
   if (
     body.error_code === 'rate_limited' ||
     isRateLimitMessage(message)

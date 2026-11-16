@@ -173,9 +173,11 @@ whose head SHA was never merged into `staging`, and the
   refs: VerseRef[] }` — a `VerseRef` is `{ bookId, chapter, verse }`.
 - Backend errors carry `error`/`error_code`/`message`;
   `src/api/errors.ts` maps them to `RateLimitError`/
-  `ClientInputError`/`ProviderError`/`BookNotInFilesetError`
-  (coded HTTP 400 bodies -> `ClientInputError`, deliberately
-  not a `ProviderError`). Preserve this — do not
+  `ClientInputError`/`ProviderError`/`BookNotInFilesetError`/
+  `SearchDisabledError` (coded HTTP 400 bodies ->
+  `ClientInputError`, deliberately not a `ProviderError`;
+  `search_disabled` 403s -> `SearchDisabledError`, a
+  `ProviderError` subclass). Preserve this — do not
   silently swallow provider failures into empty verse lists.
 
 ## Behavior notes

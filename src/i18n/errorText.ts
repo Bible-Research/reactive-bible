@@ -11,6 +11,7 @@ import {
   BookNotInFilesetError,
   ProviderError,
   RateLimitError,
+  SearchDisabledError,
   errorCodeOf,
 } from '../api/errors';
 
@@ -18,6 +19,7 @@ import {
 const CODED_KEYS = {
   rate_limited: 'errors.rate_limited',
   book_not_in_fileset: 'errors.book_not_in_fileset',
+  search_disabled: 'errors.search_disabled',
   not_found: 'errors.not_found',
   provider_error: 'errors.provider_error',
   internal_error: 'errors.internal_error',
@@ -45,6 +47,9 @@ export const localizedErrorText = (err: unknown): string => {
   }
   if (err instanceof BookNotInFilesetError) {
     return i18n.t('errors.book_not_in_fileset');
+  }
+  if (err instanceof SearchDisabledError) {
+    return i18n.t('errors.search_disabled');
   }
   if (err instanceof ProviderError) {
     return i18n.t('errors.provider_error');

@@ -284,9 +284,26 @@ export interface SearchVerseGroup {
   verses: SearchVerse[];
 }
 
+/**
+ * SWORD grouped-search scan progress reported per window —
+ * `chapters_scanned` grows monotonically across windows and
+ * reaches `chapters_total` when the scan completes.
+ */
+export interface SearchScanProgress {
+  chapters_scanned: number;
+  chapters_total: number;
+}
+
 export interface GroupedSearchResponse {
   groups: SearchVerseGroup[];
-  meta: { total: number; truncated: boolean };
+  meta: {
+    total: number;
+    truncated: boolean;
+    /** Opaque resume token; present only on truncated scans. */
+    next_cursor?: string;
+    /** Scan coverage of the window that produced this meta. */
+    progress?: SearchScanProgress;
+  };
 }
 
 export type ReadingPositionValue = {
