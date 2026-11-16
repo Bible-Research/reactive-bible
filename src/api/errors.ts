@@ -37,6 +37,23 @@ export const endpointPath = (url: string): string => {
 
 type CodedError = TrackedError;
 
+/**
+ * Attaches `errorCode`/`status`/`endpoint` to an error thrown
+ * outside `throwFromErrorBody` — the 200-wrapped error bodies
+ * that never reach its `!response.ok` path. `url` is the raw
+ * `response.url` (query is stripped by `endpointPath`).
+ */
+export const trackError = <T extends Error>(
+  err: T,
+  details: { code?: string; status: number; url: string }
+): T => {
+  const coded = err as CodedError;
+  coded.errorCode = details.code;
+  coded.status = details.status;
+  coded.endpoint = endpointPath(details.url);
+  return err;
+};
+
 export class ConflictError extends Error {
   errorCode?: string;
   status?: number;

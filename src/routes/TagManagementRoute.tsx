@@ -118,8 +118,9 @@ export default function TagManagementRoute() {
         await getTags(forceRefresh);
         setInitialError(false);
       } catch (error) {
+        // getTags reports to Sentry before rethrowing —
+        // capturing here too would double-count the event.
         console.error('Error loading tags:', error);
-        captureHandledError(error, 'Tags fetch');
         // A failed first load must not fall through to the
         // "No tags yet" empty state — offer a retry instead.
         if (!silent) {

@@ -25,6 +25,7 @@ import {
   errorMessageFromBody,
   isBookNotInFilesetBody,
   throwFromErrorBody,
+  trackError,
   type TrackedError,
 } from './errors';
 
@@ -186,19 +187,36 @@ export const getVersesFromApi = async (
     const data = await response.json();
 
     if (isBookNotInFilesetBody(data)) {
-      throw new BookNotInFilesetError(
-        errorMessageFromBody(
-          data,
-          'Book not available in this fileset'
-        )
+      throw trackError(
+        new BookNotInFilesetError(
+          errorMessageFromBody(
+            data,
+            'Book not available in this fileset'
+          )
+        ),
+        {
+          code: 'book_not_in_fileset',
+          status: response.status,
+          url: response.url,
+        }
       );
     }
 
     // Provider failures carry `error`/`error_code` fields.
     if (typeof data.error === 'string' && data.error) {
-      throw data.error_code === 'rate_limited'
-        ? new RateLimitError(data.error)
-        : new ProviderError(data.error);
+      throw trackError(
+        data.error_code === 'rate_limited'
+          ? new RateLimitError(data.error)
+          : new ProviderError(data.error),
+        {
+          code:
+            typeof data.error_code === 'string'
+              ? data.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
     }
     // The API may also wrap provider failures (including
     // upstream rate limits) in a 200 response with empty verses
@@ -208,7 +226,10 @@ export const getVersesFromApi = async (
       typeof data.message === 'string' &&
       (!Array.isArray(data.verses) || data.verses.length === 0)
     ) {
-      throw new ProviderError(data.message);
+      throw trackError(
+        new ProviderError(data.message),
+        { status: response.status, url: response.url }
+      );
     }
     if (!Array.isArray(data.verses)) {
       throw new Error('Malformed response from verse API');

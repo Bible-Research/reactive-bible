@@ -20,9 +20,11 @@ import {
   ProviderError,
   RateLimitError,
   endpointPath,
+  errorDetailsOf,
   errorMessageFromBody,
   isRateLimitMessage,
   throwFromErrorBody,
+  trackError,
   type TrackedError,
 } from './errors';
 
@@ -110,11 +112,18 @@ export const getAvailableTranslations = async (
         ) {
           throw err;
         }
-        throw new ProviderError(
-          err instanceof Error
-            ? err.message
-            : `Failed to fetch translations ` +
-              `(HTTP ${response.status})`
+        throw trackError(
+          new ProviderError(
+            err instanceof Error
+              ? err.message
+              : `Failed to fetch translations ` +
+                `(HTTP ${response.status})`
+          ),
+          {
+            code: errorDetailsOf(err).code,
+            status: response.status,
+            url: response.url,
+          }
         );
       });
     }
@@ -126,17 +135,30 @@ export const getAvailableTranslations = async (
       const message = errorMessageFromBody(
         data, 'Failed to fetch translations'
       );
-      throw data.error_code === 'rate_limited' ||
-        isRateLimitMessage(message)
-        ? new RateLimitError(message)
-        : new ProviderError(message);
+      throw trackError(
+        data.error_code === 'rate_limited' ||
+          isRateLimitMessage(message)
+          ? new RateLimitError(message)
+          : new ProviderError(message),
+        {
+          code:
+            typeof data.error_code === 'string'
+              ? data.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
     }
 
     // Only cache real arrays — a malformed non-array body must
     // not poison the no-TTL translation cache (it also feeds
     // findOwnerIso).
     if (!Array.isArray(data.results)) {
-      throw new ProviderError('Malformed translations response');
+      throw trackError(
+        new ProviderError('Malformed translations response'),
+        { status: response.status, url: response.url }
+      );
     }
     // The actual translations are in the 'results' property
     const translations: Translation[] =
