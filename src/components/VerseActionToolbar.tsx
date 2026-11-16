@@ -88,7 +88,7 @@ const formatChapterGroup = (
 };
 
 const VerseActionToolbar = () => {
-const { t } = useTranslation();
+  const { t } = useTranslation();
   // Subscribe so group labels re-render when the localized
   // structure swaps in (formatChapterGroup reads the registry).
   useActiveStructure();
@@ -546,7 +546,7 @@ const { t } = useTranslation();
             rel="noopener noreferrer"
             size="sm"
           >
-            Open in new tab
+            {t('share.openInNewTab')}
           </Anchor>
         </Box>
       </Modal>

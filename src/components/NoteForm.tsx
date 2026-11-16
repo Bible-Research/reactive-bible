@@ -156,7 +156,7 @@ const NoteForm = ({
   const [isPublic, setIsPublic] = useState<boolean>(
     () =>
       note?.isPublic ??
-      tags.find((t) => t.id === (note?.tagId ?? ""))?.public ??
+      tags.find((tag) => tag.id === (note?.tagId ?? ""))?.public ??
       false
   );
   // Once the user toggles the box their choice wins over the
@@ -242,7 +242,7 @@ const NoteForm = ({
   useEffect(() => {
     if (!publicTouchedRef.current) {
       setIsPublic(
-        tags.find((t) => t.id === selectedTagId)?.public ?? false
+        tags.find((tag) => tag.id === selectedTagId)?.public ?? false
       );
     }
   }, [selectedTagId, tags]);

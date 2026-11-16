@@ -118,6 +118,10 @@
     "publicNote": "Публичная заметка",
     "anyoneWithLink": "Любой, у кого есть ссылка, может просмотреть эту заметку",
     "linkedNotes": "Связанные заметки",
+    "linkedCount_one": "{{count}} связанная заметка",
+    "linkedCount_few": "{{count}} связанные заметки",
+    "linkedCount_many": "{{count}} связанных заметок",
+    "linkedCount_other": "{{count}} связанные заметки",
     "toggleNoteDetails": "Показать/скрыть детали заметки",
     "submitChanges": "Сохранить изменения",
     "saveFailed": "Не удалось сохранить заметку. Пожалуйста, попробуйте ещё раз.",
@@ -177,7 +181,12 @@
     "noNotesForTag": "Для этой метки заметок не найдено.",
     "noNoteId": "Не указан ID заметки",
     "noteTitle": "Заметка: {{name}}",
-    "noPassage": "без отрывка"
+    "noPassage": "без отрывка",
+    "noTagsYet": "Пока нет меток — создайте метку, чтобы начать делать заметки.",
+    "moveToTop": "Переместить наверх",
+    "noMatchingNotes": "Подходящих заметок нет",
+    "verseReferences": "Ссылки на стихи",
+    "verseLimitNotice": "Из-за ограничений авторских прав невозможно отобразить более 500 стихов Библии."
   },
   "tags": {
     "createNew": "Создать новую метку",
@@ -213,13 +222,14 @@
     "includesSubtagNotes": "включает заметки в подметках",
     "tagActions": "Действия с меткой",
     "viewNotes": "Просмотреть заметки",
+    "moveToTopLevel": "Переместить на верхний уровень",
     "makePrivate": "Сделать метку приватной",
     "makePublic": "Сделать метку публичной",
     "delete": "Удалить метку",
     "deleted": "Метка успешно удалена",
     "deleteFailed": "Не удалось удалить метку. Возможно, с ней связаны заметки.",
     "deleteTitle": "Удалить метку",
-    "deleteBody": "Назначенные ей заметки потеряют эту метку.",
+    "deleteBody": "Назначенные ей заметки потеряют эту метку",
     "publicityUpdated": "Публичность метки обновлена",
     "publicityFailed": "Не удалось обновить публичность метки",
     "makePublicConfirm": "Сделать публичной",
@@ -319,6 +329,7 @@
     "removeImage": "Удалить изображение {{name}}",
     "removeStagedImage": "Удалить подготовленное изображение {{name}}",
     "imageTitle": "Изображение",
+    "imageFullSize": "в полном размере",
     "cannotPost": "Не удаётся отправить комментарий",
     "addTextOrAttach": "Добавьте текст или прикрепите изображение.",
     "unavailable": "Изображение недоступно",
@@ -326,15 +337,14 @@
     "deletedContent": "[удалено]"
   },
   "common": {
-    "loading": "Загрузка",
     "cancel": "Отмена",
     "delete": "Удалить",
     "save": "Сохранить",
-    "confirm": "Подтвердить",
     "error": "Ошибка",
     "success": "Успешно",
     "close": "Закрыть",
     "retry": "Повторить",
+    "submit": "Отправить",
     "tag": "Метка",
     "untagged": "Без меток"
   },
@@ -347,7 +357,6 @@
     "copied": "Скопировано!",
     "copyDetails": "Скопировать детали ошибки",
     "reportHint": "Пожалуйста, сообщите об этой ошибке, вставив детали в issue на GitHub.",
-    "contextRender": "Ошибка рендеринга React",
     "goHome": "На главную"
   },
   "errors": {
@@ -364,11 +373,32 @@
     "unknownBook": "Неизвестная книга: {{name}}",
     "noChapter": "В книге {{book}} нет главы {{chapter}}",
     "noVerse": "В {{where}} нет стиха {{verse}}",
-    "invalidVerseRange": "Недопустимый диапазон стихов {{range}}"
+    "invalidVerseRange": "Недопустимый диапазон стихов {{range}}",
+    "invalidChapter": "Недопустимая глава: {{chapter}}",
+    "invalidVerse": "Недопустимый стих: {{verse}}",
+    "unexpectedText": "Неожиданный текст: {{text}}"
   },
   "header": {
     "closeMenu": "Закрыть меню",
     "openMenu": "Открыть меню"
+  },
+  "editor": {
+    "bold": "Полужирный",
+    "italic": "Курсив",
+    "underline": "Подчёркнутый",
+    "strikethrough": "Зачёркнутый",
+    "clearFormatting": "Очистить форматирование",
+    "link": "Ссылка",
+    "unlink": "Удалить ссылку",
+    "bulletList": "Маркированный список",
+    "orderedList": "Нумерованный список",
+    "heading1": "Заголовок 1",
+    "heading2": "Заголовок 2",
+    "heading3": "Заголовок 3",
+    "blockquote": "Цитата",
+    "linkUrlLabel": "Введите URL",
+    "linkOpenNewTab": "Открыть ссылку в новой вкладке",
+    "linkOpenSameTab": "Открыть ссылку в той же вкладке"
   },
   "pagination": {
     "label": "Навигация по страницам",
@@ -394,7 +424,8 @@
     "bookNotIncluded": "Книга не включена",
     "notIncludedMsg": "{{translation}} не включает {{book}}",
     "thisTranslation": "Этот перевод",
-    "typeToCite": "Введите @, чтобы сослаться на отрывок"
+    "typeToCite": "Введите @, чтобы сослаться на отрывок",
+    "enterForChapter": "Нажмите Enter, чтобы сослаться на всю главу"
   },
   "report": {
     "title": "Сообщить о проблеме",
@@ -411,6 +442,7 @@
     "title": "Поиск в Библии",
     "placeholder": "Поиск слов или фраз...",
     "submit": "Поиск",
+    "loading": "Поиск…",
     "unavailable": "Поиск недоступен — сначала выберите перевод Библии.",
     "noResults": "По запросу «{{query}}» ничего не найдено.",
     "resultCount_one": "{{count}} результат",
@@ -453,11 +485,9 @@
     "scriptureReference": "Ссылка на Писание",
     "showLess": "Показать меньше",
     "readFullChapter": "Читать главу целиком",
-    "copyErrorDetails": "Скопировать детали ошибки",
-    "copiedExclaim": "Скопировано!",
     "unexpectedError": "Непредвиденная ошибка",
     "resourceLoadFailed": "Не удалось загрузить ресурс",
-    "renderError": "Ошибка рендеринга React",
+    "resourceLoadFailedMsg": "Не удалось загрузить ресурс: {{src}}",
     "tapToSelect": "Коснитесь стиха, чтобы выбрать его"
   },
   "updates": {

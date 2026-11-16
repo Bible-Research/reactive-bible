@@ -43,6 +43,9 @@ export const useNotePlaylist = (
   // localized labels when a fresher structure swaps in
   // mid-playlist (same pattern as VerseActionToolbar).
   const structure = useActiveStructure();
+  // Item labels are translated once at build time — a
+  // language switch mid-playlist leaves stale labels until
+  // the items rebuild (accepted: playlists are short-lived).
   const playlistItems = useMemo(
     () => buildNotePlaylistItems(sortedNotes, structure),
     [sortedNotes, structure]

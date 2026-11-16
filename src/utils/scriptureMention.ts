@@ -9,6 +9,7 @@ import {
   localizedShortName,
   structureVersion,
 } from './bookNameRegistry';
+import i18n from '../i18n';
 
 export interface ParsedMention {
   /** Canonical book_name (e.g. "John") once uniquely resolved. */
@@ -29,7 +30,10 @@ export interface ParsedMention {
    * verse counts — '@PSA.18' is a valid whole-chapter ref.
    */
   complete: boolean;
-  /** 'Unknown book', 'No chapter 99 in John', … — red line in popup. */
+  /**
+   * Localized 'Unknown book', 'No chapter 99 in John', … —
+   * red line in the popup (errors.* catalog keys).
+   */
   error: string | null;
 }
 
@@ -140,7 +144,9 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
   }
 
   if (bookTokens.length === 0) {
-    result.error = `Unknown book: ${tokens[0].replaceAll('+', ' ')}`;
+    result.error = i18n.t('errors.unknownBook', {
+      name: tokens[0].replaceAll('+', ' '),
+    });
     return result;
   }
 
@@ -167,13 +173,17 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
 
   if (chapterToken !== undefined) {
     if (!/^\d+$/.test(chapterToken)) {
-      result.error = `Invalid chapter: ${chapterToken}`;
+      result.error = i18n.t('errors.invalidChapter', {
+        chapter: chapterToken,
+      });
       return result;
     }
     const chapter = Number(chapterToken);
     if (!getChapters(bookId).includes(chapter)) {
-      result.error =
-        `No chapter ${chapter} in ${result.bookName}`;
+      result.error = i18n.t('errors.noChapter', {
+        chapter,
+        book: result.bookName,
+      });
       return result;
     }
     result.chapter = chapter;
@@ -184,7 +194,9 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
     const verseMatch =
       verseToken.match(/^(\d+)(?:-(\d+))?$/) ?? partialRange;
     if (!verseMatch) {
-      result.error = `Invalid verse: ${verseToken}`;
+      result.error = i18n.t('errors.invalidVerse', {
+        verse: verseToken,
+      });
       return result;
     }
     const start = Number(verseMatch[1]);
@@ -193,15 +205,23 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
     const verses = getVerses(bookId, result.chapter);
     const ref = `${result.bookName} ${result.chapter}`;
     if (!verses.includes(start)) {
-      result.error = `No verse ${start} in ${ref}`;
+      result.error = i18n.t('errors.noVerse', {
+        verse: start,
+        where: ref,
+      });
       return result;
     }
     if (end !== null && !verses.includes(end)) {
-      result.error = `No verse ${end} in ${ref}`;
+      result.error = i18n.t('errors.noVerse', {
+        verse: end,
+        where: ref,
+      });
       return result;
     }
     if (end !== null && end < start) {
-      result.error = `Invalid verse range ${start}-${end}`;
+      result.error = i18n.t('errors.invalidVerseRange', {
+        range: `${start}-${end}`,
+      });
       return result;
     }
     result.verseStart = start;
@@ -209,7 +229,9 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
   }
 
   if (extra.length > 0) {
-    result.error = `Unexpected text: ${extra.join(' ')}`;
+    result.error = i18n.t('errors.unexpectedText', {
+      text: extra.join(' '),
+    });
     return result;
   }
 

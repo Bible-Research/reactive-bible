@@ -118,6 +118,9 @@
     "publicNote": "Publiska piezīme",
     "anyoneWithLink": "Ikviens ar saiti var skatīt šo piezīmi",
     "linkedNotes": "Saistītās piezīmes",
+    "linkedCount_zero": "{{count}} saistīto piezīmju",
+    "linkedCount_one": "{{count}} saistītā piezīme",
+    "linkedCount_other": "{{count}} saistītās piezīmes",
     "toggleNoteDetails": "Pārslēgt piezīmes detaļas",
     "submitChanges": "Iesniegt izmaiņas",
     "saveFailed": "Neizdevās saglabāt piezīmi. Lūdzu, mēģiniet vēlreiz.",
@@ -176,7 +179,12 @@
     "noNotesForTag": "Šai birkai nav atrasta neviena piezīme.",
     "noNoteId": "Nav norādīts piezīmes ID",
     "noteTitle": "Piezīme: {{name}}",
-    "noPassage": "bez rakstu vietas"
+    "noPassage": "bez rakstu vietas",
+    "noTagsYet": "Vēl nav birku — izveidojiet birku, lai sāktu veidot piezīmes.",
+    "moveToTop": "Pārvietot uz augšu",
+    "noMatchingNotes": "Nav atbilstošu piezīmju",
+    "verseReferences": "Pantu atsauces",
+    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem."
   },
   "tags": {
     "createNew": "Izveidot jaunu birku",
@@ -212,13 +220,14 @@
     "includesSubtagNotes": "ietver piezīmes apakšbirkās",
     "tagActions": "Birkas darbības",
     "viewNotes": "Skatīt piezīmes",
+    "moveToTopLevel": "Pārvietot uz augšējo līmeni",
     "makePrivate": "Padarīt birku privātu",
     "makePublic": "Padarīt birku publisku",
     "delete": "Dzēst birku",
     "deleted": "Birka veiksmīgi dzēsta",
     "deleteFailed": "Neizdevās dzēst birku. Tai var būt saistītas piezīmes.",
     "deleteTitle": "Dzēst birku",
-    "deleteBody": "Tai piešķirtās piezīmes zaudēs šo birkas piešķiri.",
+    "deleteBody": "Tai piešķirtās piezīmes zaudēs šo birkas piešķiri",
     "publicityUpdated": "Birkas publiskums atjaunināts",
     "publicityFailed": "Neizdevās atjaunināt birkas publiskumu",
     "makePublicConfirm": "Padarīt publisku",
@@ -311,6 +320,7 @@
     "removeImage": "Noņemt attēlu {{name}}",
     "removeStagedImage": "Noņemt sagatavoto attēlu {{name}}",
     "imageTitle": "Attēls",
+    "imageFullSize": "pilnā izmērā",
     "cannotPost": "Nevar publicēt komentāru",
     "addTextOrAttach": "Pievienojiet tekstu vai attēlu.",
     "unavailable": "Attēls nav pieejams",
@@ -318,15 +328,14 @@
     "deletedContent": "[dzēsts]"
   },
   "common": {
-    "loading": "Ielādē",
     "cancel": "Atcelt",
     "delete": "Dzēst",
     "save": "Saglabāt",
-    "confirm": "Apstiprināt",
     "error": "Kļūda",
     "success": "Veiksmīgi",
     "close": "Aizvērt",
     "retry": "Mēģināt vēlreiz",
+    "submit": "Iesniegt",
     "tag": "Birka",
     "untagged": "Bez birkām"
   },
@@ -339,7 +348,6 @@
     "copied": "Nokopēts!",
     "copyDetails": "Kopēt kļūdas detaļas",
     "reportHint": "Lūdzu, ziņojiet par šo kļūdu, ielīmējot detaļas GitHub „Issues” ierakstā.",
-    "contextRender": "React renderēšanas kļūda",
     "goHome": "Uz sākumu"
   },
   "errors": {
@@ -356,11 +364,32 @@
     "unknownBook": "Nezināma grāmata: {{name}}",
     "noChapter": "Grāmatā {{book}} nav nodaļas {{chapter}}",
     "noVerse": "Vietā {{where}} nav panta {{verse}}",
-    "invalidVerseRange": "Nederīgs pantu diapazons {{range}}"
+    "invalidVerseRange": "Nederīgs pantu diapazons {{range}}",
+    "invalidChapter": "Nederīga nodaļa: {{chapter}}",
+    "invalidVerse": "Nederīgs pants: {{verse}}",
+    "unexpectedText": "Negaidīts teksts: {{text}}"
   },
   "header": {
     "closeMenu": "Aizvērt izvēlni",
     "openMenu": "Atvērt izvēlni"
+  },
+  "editor": {
+    "bold": "Treknraksts",
+    "italic": "Slīpraksts",
+    "underline": "Pasvītrojums",
+    "strikethrough": "Pārsvītrojums",
+    "clearFormatting": "Notīrīt formatējumu",
+    "link": "Saite",
+    "unlink": "Noņemt saiti",
+    "bulletList": "Aizzīmju saraksts",
+    "orderedList": "Numurēts saraksts",
+    "heading1": "Virsraksts 1",
+    "heading2": "Virsraksts 2",
+    "heading3": "Virsraksts 3",
+    "blockquote": "Citāts",
+    "linkUrlLabel": "Ievadiet URL",
+    "linkOpenNewTab": "Atvērt saiti jaunā cilnē",
+    "linkOpenSameTab": "Atvērt saiti tajā pašā cilnē"
   },
   "pagination": {
     "label": "Lapu numerācija",
@@ -386,7 +415,8 @@
     "bookNotIncluded": "Grāmata nav iekļauta",
     "notIncludedMsg": "{{translation}} neietver {{book}}",
     "thisTranslation": "Šis tulkojums",
-    "typeToCite": "Rakstiet @, lai citētu pantu"
+    "typeToCite": "Rakstiet @, lai citētu pantu",
+    "enterForChapter": "Nospiediet Enter, lai citētu visu nodaļu"
   },
   "report": {
     "title": "Ziņot par problēmu",
@@ -403,6 +433,7 @@
     "title": "Meklēt Bībelē",
     "placeholder": "Meklēt vārdus vai frāzes...",
     "submit": "Meklēt",
+    "loading": "Notiek meklēšana…",
     "unavailable": "Meklēšana nav pieejama — vispirms izvēlieties Bībeles tulkojumu.",
     "noResults": "Nav atrasts neviens rezultāts vaicājumam „{{query}}”.",
     "resultCount_zero": "{{count}} rezultātu",
@@ -442,11 +473,9 @@
     "scriptureReference": "Rakstu vieta",
     "showLess": "Rādīt mazāk",
     "readFullChapter": "Lasīt visu nodaļu",
-    "copyErrorDetails": "Kopēt kļūdas detaļas",
-    "copiedExclaim": "Nokopēts!",
     "unexpectedError": "Neparedzēta kļūda",
     "resourceLoadFailed": "Neizdevās ielādēt resursu",
-    "renderError": "React renderēšanas kļūda",
+    "resourceLoadFailedMsg": "Neizdevās ielādēt resursu: {{src}}",
     "tapToSelect": "Pieskarieties pantam, lai to atlasītu"
   },
   "updates": {

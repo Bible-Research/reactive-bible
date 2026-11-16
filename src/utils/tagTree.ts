@@ -79,7 +79,10 @@ export const TAG_NAME_MAX_LENGTH = 100;
  * Validates a tag name for create/edit. `excludeTagId` lets
  * the editor keep its own current name without tripping the
  * duplicate check. Returns the error message, or null when
- * the name is valid.
+ * the name is valid. The message is translated at call time
+ * and stored in form state — it stays in the old language if
+ * the UI language changes while the error is on screen
+ * (accepted: cleared on the next validation pass).
  */
 export const validateTagName = (
   name: string,

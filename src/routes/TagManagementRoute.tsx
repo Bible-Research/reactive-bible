@@ -62,7 +62,7 @@ const computeSubtreeCounts = (
 };
 
 export default function TagManagementRoute() {
-const { t } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { tags, getTags } = useBibleStore(
     (state) => ({

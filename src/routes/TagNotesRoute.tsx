@@ -46,7 +46,7 @@ const EditNoteModal = lazyWithReload(
 const NO_NOTES: Note[] = [];
 
 export default function TagNotesRoute() {
-const { t } = useTranslation();
+  const { t } = useTranslation();
   const { tagId } = useParams<{ tagId: string }>();
   // `/notes/tag/untagged` is the virtual "no tag" view: the
   // API translates the sentinel into a tag__isnull filter.
@@ -106,7 +106,7 @@ const { t } = useTranslation();
   ) =>
     isAuthenticated &&
     sectionNotes.every((n) => n.is_owner !== false) &&
-    (storedTags.some((t) => t.id === sectionTagId) ||
+    (storedTags.some((tag) => tag.id === sectionTagId) ||
       (sectionNotes.length > 0 &&
         sectionNotes.every((n) => n.is_owner === true)));
 
@@ -161,7 +161,7 @@ const { t } = useTranslation();
   // array scan (perf rule: build an index for repeated
   // lookups).
   const tagNameById = useMemo(
-    () => new Map(storedTags.map((t) => [t.id, t.name])),
+    () => new Map(storedTags.map((tag) => [tag.id, tag.name])),
     [storedTags]
   );
 
@@ -193,7 +193,7 @@ const { t } = useTranslation();
   }, [includeDescendants, sortedNotes, tagNameById, t]);
 
   const tagHasChildren = useMemo(
-    () => storedTags.some((t) => t.parent_tag === tagId),
+    () => storedTags.some((tag) => tag.parent_tag === tagId),
     [storedTags, tagId]
   );
 
@@ -264,7 +264,10 @@ const { t } = useTranslation();
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
+        <Loader
+          size="lg"
+          aria-label={t('notes.loadingNotes')}
+        />
       </Center>
     );
   }
@@ -338,7 +341,7 @@ const { t } = useTranslation();
       <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         {pageLoading ? (
           <Center style={{ height: 200 }}>
-            <Loader aria-label="loading" />
+            <Loader aria-label={t('notes.loadingNotes')} />
           </Center>
         ) : notes.length > 0 ? (
           <Stack spacing="md" pb="xl" px="md">

@@ -189,6 +189,9 @@ export const useTagNotesData = ({
 
     const loadTagAndNotes = async () => {
       if (!tagId) {
+        // Translated once into state — a later language
+        // switch won't re-resolve it (accepted: the error
+        // state is transient).
         setError(i18n.t('notes.noTagId'));
         setLoading(false);
         return;
@@ -273,7 +276,9 @@ export const useTagNotesData = ({
         let resolvedTag: Tag | null;
         if (isUntagged) {
           // No Tag row exists for the untagged view — use a
-          // synthetic label object for display.
+          // synthetic label object for display. The name is
+          // translated once into state, so a language switch
+          // leaves the old label until reload (accepted).
           resolvedTag = {
             id: UNTAGGED_TAG_ID,
             name: i18n.t('common.untagged'),
@@ -308,6 +313,8 @@ export const useTagNotesData = ({
         if (cancelled) return;
 
         if (!resolvedTag) {
+          // Translated once into state — stale on language
+          // switch until the next load (accepted).
           setError(i18n.t('notes.noNotesForTag'));
         } else {
           setTag(resolvedTag);
@@ -327,6 +334,8 @@ export const useTagNotesData = ({
         // A re-run failure (sort change, auth flip) keeps the
         // loaded list on screen — fetchNotes already toasted.
         if (!hasLoadedRef.current) {
+          // Translated once into state — stale on language
+          // switch until the next load (accepted).
           setError(i18n.t('notes.loadNotesFailed'));
         }
         setLoading(false);

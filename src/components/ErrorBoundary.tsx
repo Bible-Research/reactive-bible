@@ -11,6 +11,7 @@ import { IconAlertTriangle } from '@tabler/icons-react';
 import * as Sentry from '@sentry/react';
 import { copyErrorDetails } from '../utils/errorReportDetails';
 import { reportError } from '../utils/errorReporter';
+import { textOrKey } from '../i18n/errorText';
 import i18n from '../i18n';
 
 interface Props {
@@ -34,6 +35,21 @@ export class ErrorBoundary extends Component<Props, State> {
     super(props);
     this.state = { hasError: false, error: null, copied: false };
   }
+
+  componentDidMount(): void {
+    i18n.on('languageChanged', this.handleLanguageChange);
+  }
+
+  componentWillUnmount(): void {
+    i18n.off('languageChanged', this.handleLanguageChange);
+  }
+
+  // The fallback renders outside the React tree's translation
+  // context — re-render so its i18n.t calls resolve in the new
+  // language when the user switches from MainMenu.
+  private handleLanguageChange = (): void => {
+    this.forceUpdate();
+  };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error, copied: false };
@@ -70,8 +86,10 @@ export class ErrorBoundary extends Component<Props, State> {
             <IconAlertTriangle size={64} color="red" />
             <Title order={2}>{i18n.t('errorBoundary.title')}</Title>
             <Text color="dimmed" align="center">
-              {this.state.error?.message ||
-                i18n.t('errorBoundary.unexpected')}
+              {textOrKey(
+                this.state.error?.message ||
+                  'errorBoundary.unexpected'
+              )}
             </Text>
             <Group>
               <Button
@@ -100,8 +118,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </Button>
             </Group>
             <Text size="xs" color="dimmed" align="center">
-              Please report this bug by pasting the details into a
-              GitHub issue.
+              {i18n.t('errorBoundary.reportHint')}
             </Text>
           </Stack>
         </Container>

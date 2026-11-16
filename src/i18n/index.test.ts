@@ -15,7 +15,11 @@ import i18n, {
   resolveInitialTextFileset,
   resolveUiLanguage,
 } from './index';
-import { localizedErrorText, textOrKey } from './errorText';
+import {
+  localizedErrorCode,
+  localizedErrorText,
+  textOrKey,
+} from './errorText';
 import {
   BookNotInFilesetError,
   ProviderError,
@@ -288,6 +292,27 @@ describe('localizedErrorText', () => {
     expect(localizedErrorText('nope')).toBe(
       i18n.t('errors.generic')
     );
+  });
+});
+
+describe('localizedErrorCode', () => {
+  it('maps stored error_codes like thrown coded errors', () => {
+    expect(localizedErrorCode('rate_limited')).toBe(
+      i18n.t('errors.rate_limited')
+    );
+    expect(localizedErrorCode('not_found')).toBe(
+      i18n.t('errors.not_found')
+    );
+  });
+
+  it('uses the generic text for unmapped codes', () => {
+    expect(localizedErrorCode('upstream_gone')).toBe(
+      i18n.t('errors.generic')
+    );
+  });
+
+  it('returns undefined without a code', () => {
+    expect(localizedErrorCode(undefined)).toBeUndefined();
   });
 });
 

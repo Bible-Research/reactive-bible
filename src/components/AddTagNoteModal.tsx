@@ -206,10 +206,7 @@ const AddTagNoteModal = ({
     >
       {linkedNotes && (
         <Text size="sm" color="dimmed" mb="sm">
-          {linkedNotes.length}{" "}
-          {linkedNotes.length === 1
-            ? "linked note"
-            : "linked notes"}
+          {t('notes.linkedCount', { count: linkedNotes.length })}
         </Text>
       )}
       <NoteForm
@@ -218,7 +215,7 @@ const AddTagNoteModal = ({
         // The selection links verses — the note stays valid
         // with no text (a plain verse bookmark under a tag).
         allowEmptyText={refs.length > 0}
-        submitText="Submit"
+        submitText={t('common.submit')}
         onTagDropdownOpen={() => {
           void getTags().catch(() => {
             /* notified by the store */

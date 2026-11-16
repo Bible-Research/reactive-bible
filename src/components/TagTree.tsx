@@ -341,7 +341,7 @@ const TagTreeNode = ({
                       onViewNotes(node.tag.id);
                     }}
                   >
-                    View notes
+                    {t('tags.viewNotes')}
                   </Menu.Item>
                   {onTogglePublic && (
                     <Menu.Item
@@ -375,7 +375,7 @@ const TagTreeNode = ({
                       onEdit(node.tag);
                     }}
                   >
-                    Edit tag
+                    {t('tags.edit')}
                   </Menu.Item>
                   <Menu.Divider />
                   <Menu.Item
@@ -387,7 +387,7 @@ const TagTreeNode = ({
                       onDelete(node.tag.id, node.tag.name);
                     }}
                   >
-                    Delete tag
+                    {t('tags.delete')}
                   </Menu.Item>
                 </Menu.Dropdown>
               </Menu>
@@ -554,6 +554,7 @@ const TagTreeNode = ({
  * start remains safe.
  */
 const RootDropZone = ({ disabled }: { disabled: boolean }) => {
+  const { t } = useTranslation();
   const theme = useMantineTheme();
   const { setNodeRef, isOver, node } = useDroppable({
     id: ROOT_DROP_ID,
@@ -602,7 +603,7 @@ const RootDropZone = ({ disabled }: { disabled: boolean }) => {
       }}
     >
       <Text size="sm" color="dimmed" align="center">
-        Move to top level
+        {t('tags.moveToTopLevel')}
       </Text>
     </Paper>
   );
@@ -657,7 +658,7 @@ export function TagTree({
   });
 
   const activeDragTag = activeDragId
-    ? tags.find((t) => t.id === activeDragId) ?? null
+    ? tags.find((tag) => tag.id === activeDragId) ?? null
     : null;
 
   // Same sensor setup as the note reorder in TagSection so
@@ -702,7 +703,7 @@ export function TagTree({
     if (!over || !reparentEnabled) return;
 
     const draggedId = String(active.id);
-    const dragged = tags.find((t) => t.id === draggedId);
+    const dragged = tags.find((tag) => tag.id === draggedId);
     if (!dragged) return;
 
     if (over.id === ROOT_DROP_ID) {

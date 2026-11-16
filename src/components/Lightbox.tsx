@@ -27,7 +27,7 @@ const Lightbox = ({
       (image.signed_url ? (
         <img
           src={image.signed_url}
-          alt="full size"
+          alt={t('comments.imageFullSize')}
           onError={onImageError}
           style={{ width: '100%', height: 'auto' }}
         />

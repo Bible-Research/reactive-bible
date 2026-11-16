@@ -32,6 +32,7 @@ interface PendingReport {
   error: Error;
   context?: string;
   resource: boolean;
+  resourceSrc?: string;
 }
 
 let notificationSeq = 0;
@@ -86,7 +87,11 @@ function deliverReport(report: PendingReport): void {
     showNotification({
       id: `resource-error-${++notificationSeq}`,
       title: i18n.t('share.resourceLoadFailed'),
-      message: report.error.message,
+      message: report.resourceSrc
+        ? i18n.t('share.resourceLoadFailedMsg', {
+            src: report.resourceSrc,
+          })
+        : report.error.message,
       color: 'yellow',
       autoClose: RESOURCE_AUTO_CLOSE_MS,
     });
@@ -143,7 +148,11 @@ function scheduleFlush(): void {
 export function reportError(
   error: unknown,
   context?: string,
-  options: { resource?: boolean; sentryMessage?: string } = {}
+  options: {
+    resource?: boolean;
+    sentryMessage?: string;
+    resourceSrc?: string;
+  } = {}
 ): void {
   const err = toError(error);
   try {
@@ -175,6 +184,7 @@ export function reportError(
       error: err,
       context,
       resource: options.resource === true,
+      resourceSrc: options.resourceSrc,
     };
     if (isNotificationsReady() && pendingReports.length === 0) {
       deliverReport(report);
@@ -256,6 +266,7 @@ function handleGlobalError(event: Event): void {
       'Resource load error',
       {
         resource: true,
+        resourceSrc: src,
         sentryMessage: `Failed to load resource: ${sentrySrc}`,
       }
     );

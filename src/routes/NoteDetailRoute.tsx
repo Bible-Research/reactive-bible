@@ -28,7 +28,7 @@ import { useTranslation } from 'react-i18next';
  * from the backend and surfaces a friendly error.
  */
 export default function NoteDetailRoute() {
-const { t } = useTranslation();
+  const { t } = useTranslation();
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
 
@@ -106,7 +106,10 @@ const { t } = useTranslation();
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
+        <Loader
+          size="lg"
+          aria-label={t('notes.loadingNotes')}
+        />
       </Center>
     );
   }

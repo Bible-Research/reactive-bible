@@ -118,6 +118,8 @@
     "publicNote": "Public note",
     "anyoneWithLink": "Anyone with the link can view this note",
     "linkedNotes": "Linked notes",
+    "linkedCount_one": "{{count}} linked note",
+    "linkedCount_other": "{{count}} linked notes",
     "toggleNoteDetails": "Toggle note details",
     "submitChanges": "Submit changes",
     "saveFailed": "Failed to save note. Please try again.",
@@ -175,7 +177,12 @@
     "noNotesForTag": "No notes found for this tag.",
     "noNoteId": "No note ID provided",
     "noteTitle": "Note: {{name}}",
-    "noPassage": "no passage"
+    "noPassage": "no passage",
+    "noTagsYet": "No tags yet — create a tag to start taking notes.",
+    "moveToTop": "Move to top",
+    "noMatchingNotes": "No matching notes",
+    "verseReferences": "Verse references",
+    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions."
   },
   "tags": {
     "createNew": "Create New Tag",
@@ -211,13 +218,14 @@
     "includesSubtagNotes": "includes notes in sub-tags",
     "tagActions": "Tag actions",
     "viewNotes": "View notes",
+    "moveToTopLevel": "Move to top level",
     "makePrivate": "Make tag private",
     "makePublic": "Make tag public",
     "delete": "Delete tag",
     "deleted": "Tag deleted successfully",
     "deleteFailed": "Failed to delete tag. It may have associated notes.",
     "deleteTitle": "Delete tag",
-    "deleteBody": "Notes assigned to it will lose this tag assignment.",
+    "deleteBody": "Notes assigned to it will lose this tag assignment",
     "publicityUpdated": "Tag publicity updated",
     "publicityFailed": "Failed to update tag publicity",
     "makePublicConfirm": "Make public",
@@ -303,6 +311,7 @@
     "removeImage": "Remove image {{name}}",
     "removeStagedImage": "Remove staged image {{name}}",
     "imageTitle": "Image",
+    "imageFullSize": "full size",
     "cannotPost": "Cannot post comment",
     "addTextOrAttach": "Add text or attach an image.",
     "unavailable": "Image unavailable",
@@ -313,7 +322,8 @@
     "bookNotIncluded": "Book not included",
     "notIncludedMsg": "{{translation}} doesn't include {{book}}",
     "thisTranslation": "This translation",
-    "typeToCite": "Type @ to cite a passage"
+    "typeToCite": "Type @ to cite a passage",
+    "enterForChapter": "Enter for whole chapter"
   },
   "passage": {
     "noContent": "No content for {{book}} {{chapter}}",
@@ -332,6 +342,7 @@
     "title": "Search Bible",
     "placeholder": "Search for words or phrases...",
     "submit": "Search",
+    "loading": "Searching…",
     "unavailable": "Search is unavailable — select a Bible translation first.",
     "noResults": "No results found for “{{query}}”.",
     "resultCount_one": "{{count}} result",
@@ -341,6 +352,24 @@
     "showMore_other": "Show {{count}} more verses",
     "resultLabel": "Result {{index}}/{{total}} – {{ref}}",
     "playVerse": "Play verse"
+  },
+  "editor": {
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "strikethrough": "Strikethrough",
+    "clearFormatting": "Clear formatting",
+    "link": "Link",
+    "unlink": "Remove link",
+    "bulletList": "Bullet list",
+    "orderedList": "Ordered list",
+    "heading1": "Heading 1",
+    "heading2": "Heading 2",
+    "heading3": "Heading 3",
+    "blockquote": "Blockquote",
+    "linkUrlLabel": "Enter URL",
+    "linkOpenNewTab": "Open link in a new tab",
+    "linkOpenSameTab": "Open link in the same tab"
   },
   "pagination": {
     "label": "Pagination",
@@ -426,11 +455,9 @@
     "scriptureReference": "Scripture reference",
     "showLess": "Show less",
     "readFullChapter": "Read full chapter",
-    "copyErrorDetails": "Copy error details",
-    "copiedExclaim": "Copied!",
     "unexpectedError": "Unexpected error",
     "resourceLoadFailed": "Resource failed to load",
-    "renderError": "React render error",
+    "resourceLoadFailedMsg": "Failed to load resource: {{src}}",
     "tapToSelect": "Tap a verse to select it"
   },
   "report": {
@@ -458,7 +485,10 @@
     "unknownBook": "Unknown book: {{name}}",
     "noChapter": "No chapter {{chapter}} in {{book}}",
     "noVerse": "No verse {{verse}} in {{where}}",
-    "invalidVerseRange": "Invalid verse range {{range}}"
+    "invalidVerseRange": "Invalid verse range {{range}}",
+    "invalidChapter": "Invalid chapter: {{chapter}}",
+    "invalidVerse": "Invalid verse: {{verse}}",
+    "unexpectedText": "Unexpected text: {{text}}"
   },
   "updates": {
     "availableTitle": "Update available · v{{version}}",
@@ -550,15 +580,14 @@
     }
   },
   "common": {
-    "loading": "Loading",
     "cancel": "Cancel",
     "delete": "Delete",
     "save": "Save",
-    "confirm": "Confirm",
     "error": "Error",
     "success": "Success",
     "close": "Close",
     "retry": "Retry",
+    "submit": "Submit",
     "tag": "Tag",
     "untagged": "Untagged"
   },
@@ -568,7 +597,6 @@
     "copied": "Copied!",
     "copyDetails": "Copy error details",
     "reportHint": "Please report this bug by pasting the details into a GitHub issue.",
-    "contextRender": "React render error",
     "goHome": "Go to Home"
   },
   "header": {

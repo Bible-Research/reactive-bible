@@ -64,7 +64,7 @@ const AddStandaloneNoteModal = ({
       <NoteForm
         tags={tags}
         onSubmit={editor.submit}
-        submitText="Submit"
+        submitText={t('common.submit')}
         onTagDropdownOpen={() => {
           void getTags().catch(() => {
             /* notified by the store */
