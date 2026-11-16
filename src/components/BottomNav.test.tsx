@@ -1,4 +1,10 @@
-import { render, screen, act, within } from '@testing-library/react';
+import {
+  render,
+  screen,
+  act,
+  within,
+  fireEvent,
+} from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import BottomNav from './BottomNav';
@@ -9,9 +15,12 @@ import {
   renderWithProviders,
 } from '../__tests__/helpers';
 
-const renderNav = () =>
+const renderNav = (selectorOpened = false) =>
   renderWithProviders(
-    <BottomNav setBibleSelectorOpened={vi.fn()} />
+    <BottomNav
+      bibleSelectorOpened={selectorOpened}
+      setBibleSelectorOpened={vi.fn()}
+    />
   );
 
 const getFooter = () => screen.getByRole('contentinfo');
@@ -48,7 +57,10 @@ describe('BottomNav', () => {
     'visible and still slides fully off-screen when hidden',
   () => {
     renderWithProviders(
-      <BottomNav setBibleSelectorOpened={vi.fn()} />,
+      <BottomNav
+        bibleSelectorOpened={false}
+        setBibleSelectorOpened={vi.fn()}
+      />,
       { stores: { bible: { showAudioPlayer: true } } }
     );
 
@@ -59,6 +71,43 @@ describe('BottomNav', () => {
       useBibleStore.getState().setHeaderVisible(false);
     });
     expect(getComputedStyle(getFooter()).bottom).toBe('-56px');
+  });
+});
+
+describe('BottomNav passage button toggles the selector', () => {
+  const pressPassage = () =>
+    fireEvent.click(
+      within(screen.getByTitle('nav-current-passage'))
+        .getByRole('button')
+    );
+
+  it('opens the selector when it is closed', () => {
+    const setOpened = vi.fn();
+    renderWithProviders(
+      <BottomNav
+        bibleSelectorOpened={false}
+        setBibleSelectorOpened={setOpened}
+      />
+    );
+
+    pressPassage();
+    expect(setOpened).toHaveBeenCalledWith(true);
+  });
+
+  it('closes the selector without navigating when it ' +
+    'is already open', () => {
+    const setOpened = vi.fn();
+    renderWithProviders(
+      <BottomNav
+        bibleSelectorOpened={true}
+        setBibleSelectorOpened={setOpened}
+      />
+    );
+
+    pressPassage();
+    expect(setOpened).toHaveBeenCalledWith(false);
+    // The URL must not move — closing never re-navigates.
+    expect(window.location.pathname).toBe('/');
   });
 });
 
@@ -154,7 +203,10 @@ describe('BottomNav two-zone title + marquee', () => {
     'is off', () => {
     mockWidths(600, 100);
     renderWithProviders(
-      <BottomNav setBibleSelectorOpened={vi.fn()} />,
+      <BottomNav
+        bibleSelectorOpened={false}
+        setBibleSelectorOpened={vi.fn()}
+      />,
       { stores: { bible: { bookTitleMarquee: false } } }
     );
 
@@ -197,7 +249,10 @@ describe('BottomNav two-zone title + marquee', () => {
     });
     render(
       <MemoryRouter>
-        <BottomNav setBibleSelectorOpened={vi.fn()} />
+        <BottomNav
+          bibleSelectorOpened={false}
+          setBibleSelectorOpened={vi.fn()}
+        />
       </MemoryRouter>
     );
 
