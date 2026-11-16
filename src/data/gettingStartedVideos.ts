@@ -3,7 +3,7 @@
  * the /getting-started route.
  *
  * Entries are the recording checklist from
- * video-scripts/getting-started.en.md (workspace root), in the
+ * docs/video-scripts/getting-started.en.md, in the
  * order a brand-new user should watch them: anonymous features
  * first, then the account, then everything behind a login. They
  * ship with `youtubeId: null` — GettingStartedRoute filters those
