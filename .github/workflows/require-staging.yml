@@ -1,0 +1,53 @@
+name: Require staging first
+
+# Gate for PRs into `main`: production may only receive code
+# that has already soaked on the `staging` branch — the
+# invariant is main ⊆ staging, so only staging may be ahead.
+# The check is PR-metadata-based: a merged staging PR must
+# exist whose head was this PR's exact head SHA. That works
+# with squash-merged staging PRs, whose head commits never
+# become git ancestors of `staging`. See AGENTS.md
+# "Git workflow — staging-first".
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: staging-first-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  staging-first:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify head was merged into staging
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # headRefOid of a merged staging PR is the head SHA at
+          # merge time; matching on SHA (not branch name) is the
+          # real invariant — this exact code is already in
+          # staging. --limit guards the merged-PR history growing.
+          merged_shas=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state merged --base staging \
+            --limit 1000 \
+            --json headRefOid --jq '.[].headRefOid')
+          if grep -qx "$HEAD_SHA" <<<"$merged_shas"; then
+            echo "OK: head $HEAD_SHA is already on staging."
+            exit 0
+          fi
+          echo "::error::PR targets main, but head $HEAD_SHA was"
+          echo "::error::never merged into staging. Open a PR from"
+          echo "::error::this branch with --base staging, merge it"
+          echo "::error::once checks are green, and this check"
+          echo "::error::passes. If the branch moved since the"
+          echo "::error::staging merge, merge the new head into"
+          echo "::error::staging too. See AGENTS.md."
+          exit 1

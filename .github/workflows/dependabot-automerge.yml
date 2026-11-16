@@ -5,7 +5,7 @@ name: Dependabot auto-merge
 # get. Safe here because the PR code is never checked out.
 on:
   pull_request_target:
-    branches: [main]
+    branches: [staging]
 
 permissions:
   contents: write
@@ -100,7 +100,7 @@ jobs:
             # Dependabot disown the PR ("edited by someone
             # else"). Leave the branch alone: Dependabot rebases
             # conflicting PRs itself, which re-runs this job.
-            echo "Branch behind main; awaiting Dependabot rebase."
+            echo "Branch behind staging; awaiting Dependabot rebase."
             exit 0
           fi
           exit 1

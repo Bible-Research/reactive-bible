@@ -13,6 +13,47 @@ React 18 + TypeScript SPA (Vite + SWC, Mantine v6, Zustand, TipTap,
 Howler). Deployed on Vercel; Capacitor wrapper for Android.
 Talks to the `bible_research` Django API.
 
+## Git workflow — staging-first
+
+`main` is production (`bibleresearch.vercel.app`); `staging`
+is the integration branch — every push auto-deploys as a
+Vercel preview (`bible-research-git-staging-<team>.vercel.app`).
+The invariant is **`main` ⊆ `staging`**: production only
+receives code that has already soaked on staging. The
+`staging-first` required check
+(`.github/workflows/require-staging.yml`) fails `main` PRs
+whose head SHA was never merged into `staging`, and the
+`main` ruleset allows squash merges only.
+
+- **Features/fixes**: branch off `origin/main` — never
+  `staging`; the branch must carry no unverified staging
+  noise. Open the PR with `--base staging`, then
+  squash-merge once checks are green and the reviewer loop
+  is clean — agents merge into `staging` without asking.
+  GitHub auto-deletes the head branch on merge; expected.
+- **Staging fixes**: commit them on the ORIGINAL feature
+  branch (push it again if auto-deleted — same SHAs are
+  fine), then merge into `staging` via the still-open
+  staging PR or a new one.
+- **Promotion to `main`** — only when the user asks to
+  release or merge to main: for each verified branch
+  already in `staging`, re-push it if deleted, open a
+  second PR with `--base main` (same title + body), then
+  `gh pr merge <N> --squash --admin`. NEVER open
+  `staging`→`main` PRs — that drags integration noise and
+  fix commits into prod history. Afterwards reset staging:
+  `git fetch origin && git push --force-with-lease origin
+  origin/main:refs/heads/staging` — the only sanctioned
+  force-push in this repo (`staging` only, never `main`).
+- **"Merge straight to main" requests**: merge the branch
+  into `staging` first anyway, then the `main` PR — the
+  check blocks anything else, keeping `main` ⊆ `staging`
+  even for urgent merges.
+- **Dependabot** targets `staging` and auto-merges there;
+  its branches promote to `main` like any feature branch.
+- **Backend is unaffected** — `bible_research` keeps its
+  trunk-based `main` flow.
+
 ## Layout (actual)
 
 - `src/api/` — every backend call lives here, split by domain
@@ -232,7 +273,10 @@ Universal rules — follow exactly:
 ### Repo-specific rules
 
 - **Dangerous commands — never run**: `vercel` CLI deploys
-  (deploys are CI/Vercel-integration only); pushing `v*`
+  (deploys are CI/Vercel-integration only); force-pushes,
+  except the post-release `staging` reset documented in
+  "Git workflow — staging-first" (`--force-with-lease`,
+  `staging` only); pushing `v*`
   tags or moving the `continuous` release tag by hand (CI
   owns release publishing — the refs-API retag step in
   `android-release.yml` is not a manual flow); `gcloud`/
@@ -303,6 +347,13 @@ Code conventions:
   Production scope + redeploy, and enable "cache responses
   from external rewrites" in project settings (the project
   predates the default-on rollout).
+- The `staging` branch deploys as a Vercel preview
+  automatically (`bible-research-git-staging-<team>
+  .vercel.app`). Preview builds self-configure
+  `VITE_API_BASE_URL` to their own deployment domain via
+  `VERCEL_URL` (see `vite.config.ts`), so `/api` rewrites
+  work with zero dashboard config, and Sentry reports
+  `environment: 'preview'` — no env-var changes needed.
 - Requests carrying `Authorization` bypass the edge cache by
   design — authenticated traffic only gains preflight
   elimination.

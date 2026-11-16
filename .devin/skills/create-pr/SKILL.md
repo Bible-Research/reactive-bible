@@ -20,7 +20,10 @@ description: >
    and authed; if missing, tell the user
    `brew install gh && gh auth login`. All `gh` calls target
    `Bible-Research/reactive-bible` (remote `origin`) — never
-   the upstream `emmanz1995` remote.
+   the upstream `emmanz1995` remote. PRs target `staging`
+   (`--base staging`) — never `main`; `main` only receives
+   promotion PRs per AGENTS.md "Git workflow —
+   staging-first".
 2. `git status` — stage only this session's files, by path. Never
    `git add -A` / `git add .` / `git commit -a`; leave the user's
    dirty files and untracked secrets alone.
@@ -31,9 +34,9 @@ description: >
 4. `git push -u origin <branch>`.
 5. Write the PR body to a temp file at the repo root
    (`pr-body.md`), then `gh pr create --repo
-   Bible-Research/reactive-bible --title "Feat: …"
-   --body-file pr-body.md`. NEVER pass the body inline via
-   `--body`. Delete the temp file afterwards.
+   Bible-Research/reactive-bible --base staging --title
+   "Feat: …" --body-file pr-body.md`. NEVER pass the body
+   inline via `--body`. Delete the temp file afterwards.
 6. Body template:
 
    ```markdown
