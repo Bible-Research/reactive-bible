@@ -381,6 +381,20 @@ describe('useBibleStore', () => {
       expect(migrated.tagPagination).toEqual({});
     });
 
+  it('migratePersistedState folds with defaults when the ' +
+    'v4 page fields are absent', () => {
+      // `notesPage`/`notesPageSize` were only persisted from
+      // v4 — an older blob carrying just lastSelectedTagId
+      // still folds into the map with default values.
+      const migrated = migratePersistedState(
+        { lastSelectedTagId: 'TAG1' },
+        6
+      );
+      expect(migrated.tagPagination).toEqual({
+        TAG1: { page: 1, pageSize: 25 },
+      });
+    });
+
   describe('fetchNotes', () => {
     it('should fetch all notes and update state', async () => {
       const mockResponse = {
@@ -766,6 +780,23 @@ describe('useBibleStore', () => {
 
         expect(useBibleStore.getState().tagPagination)
           .toEqual({});
+      });
+
+    it('removeTagPagination prunes only the deleted tag\'s ' +
+      'entry', () => {
+        useBibleStore.setState({
+          tagPagination: {
+            TAG1: { page: 3, pageSize: 50 },
+            TAG2: { page: 1, pageSize: 25 },
+          },
+        });
+
+        useBibleStore.getState().removeTagPagination('TAG1');
+
+        expect(useBibleStore.getState().tagPagination)
+          .toEqual({
+            TAG2: { page: 1, pageSize: 25 },
+          });
       });
 
     it('resolves a stored product id before sending fileset_id',

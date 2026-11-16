@@ -1,4 +1,5 @@
 import { toUsfmCode } from '../../utils/bibleUtils';
+import { DEFAULT_NOTES_PAGE_SIZE } from '../../utils/pagination';
 import type {
   ReadingPositionValue,
   VerseRef,
@@ -175,7 +176,10 @@ export const migratePersistedState = (
   if (version < 7) {
     // v6 only remembered the last-viewed tag's page — fold it
     // into the per-tag map so that tag's restore keeps
-    // working under the new keyed lookup.
+    // working under the new keyed lookup. `notesPage` and
+    // `notesPageSize` were only persisted from v4 — absent
+    // values fall back to the defaults so pre-v4 blobs with
+    // just a lastSelectedTagId still fold.
     const lastTagId = migrated.lastSelectedTagId;
     const size = migrated.notesPageSize;
     const page = migrated.notesPage;
@@ -183,18 +187,16 @@ export const migratePersistedState = (
       string,
       { page: number; pageSize: number }
     > = {};
-    if (
-      typeof lastTagId === 'string' &&
-      lastTagId.length > 0 &&
-      typeof size === 'number' &&
-      size >= 1
-    ) {
+    if (typeof lastTagId === 'string' && lastTagId.length > 0) {
       tagPagination[lastTagId] = {
         page:
           typeof page === 'number' && page >= 1
             ? Math.floor(page)
             : 1,
-        pageSize: Math.floor(size),
+        pageSize:
+          typeof size === 'number' && size >= 1
+            ? Math.floor(size)
+            : DEFAULT_NOTES_PAGE_SIZE,
       };
     }
     migrated = { ...migrated, tagPagination };

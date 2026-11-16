@@ -33,6 +33,7 @@ type NotesActions = Pick<
   | 'setLastSelectedTagId'
   | 'setNotesPage'
   | 'setNotesPageSize'
+  | 'removeTagPagination'
 >;
 
 /**
@@ -486,5 +487,12 @@ export const createNotesSlice: StateCreator<
       set({ lastSelectedTagId }),
     setNotesPage: (page) => set({ notesPage: page }),
     setNotesPageSize: (pageSize) => set({ notesPageSize: pageSize }),
+    removeTagPagination: (tagId) =>
+      set((state) => {
+        if (!(tagId in state.tagPagination)) return {};
+        const next = { ...state.tagPagination };
+        delete next[tagId];
+        return { tagPagination: next };
+      }),
   };
 };

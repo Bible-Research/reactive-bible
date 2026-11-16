@@ -357,6 +357,83 @@ describe('TagNotesRoute pagination', () => {
       });
     });
 
+  it('resets to page 1 on a sort change even after an ' +
+    'anonymous StrictMode replay', async () => {
+      // Anonymous loads reach the restore-seed consume
+      // synchronously (no getTags await), so StrictMode's
+      // effect replay re-seeded the mount ref — a later
+      // sort change then restored the stored page instead
+      // of resetting to page 1.
+      useBibleStore.setState({
+        ...initialState,
+        ...storeOverrides,
+        tagPagination: {
+          'tag-123': { page: 3, pageSize: 25 },
+        },
+      });
+      useAuthStore.setState({
+        ...authInitialState,
+        token: null,
+        isAuthenticated: false,
+      });
+      mockDomApis();
+      render(
+        <StrictMode>
+          <MemoryRouter
+            initialEntries={['/notes/tag/tag-123']}
+          >
+            <TagNotesRoute />
+            <LocationProbe />
+          </MemoryRouter>
+        </StrictMode>
+      );
+
+      await waitFor(() => {
+        expect(
+          mockFetchNotes.mock.calls.length
+        ).toBeGreaterThanOrEqual(2);
+      });
+      // Both the mount load and the replay restore page 3.
+      expect(pagesRequested().every((p) => p === 3)).toBe(true);
+      mockFetchNotes.mockClear();
+
+      const sortSelect = await waitFor(() =>
+        visibleSelect('Custom: Ascending')
+      );
+      fireEvent.mouseDown(sortSelect);
+      await userEvent.click(
+        await screen.findByText('Date: Newest first')
+      );
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenLastCalledWith(
+          'tag-123',
+          expect.objectContaining({ page: 1 })
+        );
+      });
+    });
+
+  it('falls back to the default page size when the stored ' +
+    'size is not a toolbar option', async () => {
+      // A persisted pageSize outside {5,25,50,100} (e.g.
+      // hand-edited localStorage) must not reach the Select
+      // or the fetch — restore the default instead.
+      renderRoute('/notes/tag/tag-123', true, {
+        notesPageSize: 50,
+        tagPagination: {
+          'tag-123': { page: 3, pageSize: 7 },
+        },
+      });
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-123',
+          expect.objectContaining({ page: 3 })
+        );
+      });
+      expect(useBibleStore.getState().notesPageSize).toBe(25);
+    });
+
   it('refreshes only the currently selected page', async () => {
     renderRoute();
     const refreshButton = await screen.findByLabelText(

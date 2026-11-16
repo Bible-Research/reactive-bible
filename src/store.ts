@@ -141,6 +141,8 @@ export interface BibleState {
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
   setNotesPageSize: (pageSize: number) => void;
+  /** Drops a deleted tag's remembered pagination position. */
+  removeTagPagination: (tagId: string) => void;
   /**
    * Resolves the saved reading position for `bookId` and stages
    * the book-switch side effects (pendingScrollVerse,

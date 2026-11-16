@@ -68,6 +68,9 @@ export default function TagManagementRoute() {
     }),
     shallow
   );
+  const removeTagPagination = useBibleStore(
+    (state) => state.removeTagPagination
+  );
   // At `sm` and narrower (768px is Mantine's `sm` — the
   // query includes it) the page chrome compresses: smaller
   // title, icon-only New Tag button, full-width search
@@ -175,6 +178,9 @@ export default function TagManagementRoute() {
         // notes cache never expires — drop it whole
         // (same as deleteNote).
         clearNotesCache();
+        // The deleted tag's remembered page/pageSize is dead
+        // weight — tag ids are never reused.
+        removeTagPagination(tagId);
         await loadTags(true, { silent: true }); // Force refresh
       } catch (error) {
         console.error('Error deleting tag:', error);
@@ -186,7 +192,7 @@ export default function TagManagementRoute() {
         });
       }
     },
-    [loadTags]
+    [loadTags, removeTagPagination]
   );
 
   const handleDeleteTag = useCallback(

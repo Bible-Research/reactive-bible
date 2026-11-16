@@ -19,6 +19,7 @@ import {
 import { UNTAGGED_TAG_ID } from '../api';
 import type { Tag } from '../types';
 import type { SortOrder } from '../utils/noteSorting';
+import { NOTES_PAGE_SIZES } from '../utils/pagination';
 import { shareOrCopyLink } from '../utils/share';
 
 // Mantine keeps the readonly input focused while the
@@ -201,12 +202,10 @@ const TagNotesToolbar = ({
             aria-label="Notes per page"
             value={String(pageSize)}
             onChange={onPageSizeChange}
-            data={[
-              { value: '5', label: '5' },
-              { value: '25', label: '25' },
-              { value: '50', label: '50' },
-              { value: '100', label: '100' },
-            ]}
+            data={NOTES_PAGE_SIZES.map((size) => ({
+              value: String(size),
+              label: String(size),
+            }))}
             styles={READONLY_SELECT_STYLES}
             style={{ width: 72, flexShrink: 0 }}
           />

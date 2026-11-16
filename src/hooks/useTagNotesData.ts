@@ -17,7 +17,11 @@ import type { CommentCounts, Note, Tag } from '../types';
 import { clearNotesCache } from '../utils/cacheManager';
 import { getApiOrdering } from '../utils/noteSorting';
 import type { SortOrder } from '../utils/noteSorting';
-import { pageCount } from '../utils/pagination';
+import {
+  DEFAULT_NOTES_PAGE_SIZE,
+  NOTES_PAGE_SIZES,
+  pageCount,
+} from '../utils/pagination';
 
 interface UseTagNotesDataOptions {
   tagId: string | undefined;
@@ -135,14 +139,21 @@ export const useTagNotesData = ({
           : null;
       // Restore the tag's page size first — fetchNotes
       // reads notesPageSize at call time, and the loader
-      // effect fires right after this one.
+      // effect fires right after this one. A persisted size
+      // outside the toolbar's option set (e.g. hand-edited
+      // localStorage) falls back to the default rather than
+      // reaching the Select or a fetch.
+      const savedPageSize =
+        saved && typeof saved.pageSize === 'number'
+          ? NOTES_PAGE_SIZES.includes(saved.pageSize)
+            ? saved.pageSize
+            : DEFAULT_NOTES_PAGE_SIZE
+          : null;
       if (
-        saved &&
-        typeof saved.pageSize === 'number' &&
-        saved.pageSize >= 1 &&
-        saved.pageSize !== stored.notesPageSize
+        savedPageSize !== null &&
+        savedPageSize !== stored.notesPageSize
       ) {
-        setNotesPageSize(Math.floor(saved.pageSize));
+        setNotesPageSize(savedPageSize);
       }
       initialPageRef.current = {
         tagId,
@@ -200,6 +211,14 @@ export const useTagNotesData = ({
         // of bouncing back to page 1.
         const queryKey =
           `${tagId}:${sortOrder}:${includeDescendants}`;
+        // Consume the seed on EVERY run, not only on a new
+        // query key: an anonymous StrictMode replay reaches
+        // this point synchronously and re-seeds the mount
+        // ref — a stale seed would then restore the stored
+        // page on the next sort/descendants change instead
+        // of resetting to page 1.
+        const seeded = initialPageRef.current;
+        initialPageRef.current = null;
         let page: number;
         if (lastLoadRef.current?.key === queryKey) {
           // notesPage reflects this tag only once its notes are
@@ -215,11 +234,9 @@ export const useTagNotesData = ({
         } else {
           // A new query context: on a tag switch the mount
           // effect seeded this tag's stored page; on a
-          // sort/descendants change the ref is already
-          // consumed and this falls back to page 1.
-          const seeded = initialPageRef.current;
+          // sort/descendants change the ref is empty and
+          // this falls back to page 1.
           page = seeded?.tagId === tagId ? seeded.page : 1;
-          initialPageRef.current = null;
         }
         lastLoadRef.current = { key: queryKey, page };
 
