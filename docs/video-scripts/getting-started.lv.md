@@ -63,6 +63,8 @@ izvēlni.
 - Anonīma sesija.
 - Ritiniet lēnām — ātra ritināšana padara automātiskās
   paslēpšanās demonstrāciju raustītu.
+- Motīva pārslēgs atrodas tikai izvelkamajā izvēlnē —
+  nemeklējiet to augšējā joslā.
 - Android ierīcēs izvēlnē redzama arī "Download Android App"
   (skat. 17. sadaļu).
 - Norādiet katru elementu, to nosaucot, lai skatītāji
@@ -171,8 +173,8 @@ neatkarīgi.
 5. Grupā Audio izvēlieties: None / Read aloud / Dramatized /
    Generated voice — katrai ir pārklājuma etiķete.
 6. Pārslēdzieties uz cilni Latvian un izvēlieties latviešu
-   versiju — teksts mainās un "Generated voice" kļūst
-   pieejams.
+   versiju — tā piedāvā "Generated voice" audio (stāsies
+   spēkā ar Save).
 7. (Pēc izvēles) cilnē "Other" ierakstiet valodas nosaukumu
    un izvēlieties to.
 8. Save — nodaļa tiek pārzīmēta jaunajā tulkojumā.
@@ -311,7 +313,7 @@ konts atbloķē.
 - Ierakstiet autentificētu sesiju — Add-note poga nepieteiktam
   nav redzama — ar vismaz vienu iepriekš sagatavotu tagu.
 - Skaidri pieminiet tukšās piezīmes grāmatzīmes gadījumu.
-- Mobilajā ierīcē modālis ir pilnekrāns pēc dizaina.
+- Piezīmes modālis pēc dizaina ir pilnekrāns, arī datorā.
 
 ## 11. Piezīmju redaktors (~2.5 min)
 

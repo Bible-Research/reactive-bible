@@ -59,6 +59,8 @@ the menu.
 - Anonymous session.
 - Scroll slowly — a fast scroll makes the auto-hide demo look
   jumpy.
+- The theme toggle only lives in the drawer — don't hunt for
+  it in the top bar.
 - On Android the drawer also shows "Download Android App"
   (§17 covers it).
 - Point at each element as you name it so viewers map names to
@@ -161,7 +163,7 @@ independently.
 5. In the Audio group pick: None / Read aloud / Dramatized /
    Generated voice, each with a coverage label.
 6. Switch to the Latvian tab and pick the Latvian version —
-   the text changes and "Generated voice" becomes available.
+   it offers "Generated voice" audio (applied on Save).
 7. (Optional) On the "Other" tab, type a language name and
    pick it.
 8. Save — the chapter re-renders in the new translation.
@@ -299,7 +301,8 @@ unlocks.
 - Record authenticated — the Add-note button is invisible when
   logged out — with at least one tag pre-seeded.
 - Mention the empty-note bookmark case explicitly.
-- On mobile the modal is fullscreen by design.
+- The Add-note modal is fullscreen by design, desktop
+  included.
 
 ## 11. The note editor (~2.5 min)
 
