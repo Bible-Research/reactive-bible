@@ -146,16 +146,39 @@ jobs:
             branch=$(field .headRefName)
             spr=$(field .number)
             title=$(field .title)
+            if [ -z "$sha" ] || [ -z "$branch" ]; then
+              echo "  !! malformed staged entry ($spr)"
+              failed=$((failed+1)); continue
+            fi
 
-            # Already promoted? The same lookup the
-            # staging-first gate performs.
-            in_main=$(gh api -X GET \
-              "repos/$REPO/commits/$sha/pulls" -f per_page=100 \
-              --jq '[.[] | select(.merged_at != null and
-                     .base.ref == "main")] | length' \
+            # Already promoted? NOT the gate's
+            # commits/{sha}/pulls lookup — that endpoint
+            # only associates a commit with the FIRST PR
+            # that introduced it, so a promoted head SHA
+            # stays bound to its staging PR forever and the
+            # skip would never fire on reruns. Instead:
+            # a clean squash promotion leaves a merged main
+            # PR whose head IS this SHA on this branch…
+            in_main=$(gh pr list --repo "$REPO" \
+              --state merged --base main --head "$branch" \
+              --limit 100 \
+              --json headRefOid --jq --arg sha "$sha" \
+              'map(select(.headRefOid == $sha)) | length' \
               </dev/null) || {
-              echo "  !! association lookup failed"
+              echo "  !! promoted-PR lookup failed"
               failed=$((failed+1)); continue; }
+            if [ "$in_main" -eq 0 ]; then
+              # …and a replayed promotion merges a merge
+              # commit whose head differs but whose parents
+              # include this SHA — catch it via commit
+              # search (also the catch-all for any manual
+              # promotion shape).
+              in_main=$(gh api -X GET "search/issues" \
+                -f q="repo:$REPO is:pr is:merged base:main $sha" \
+                --jq .total_count </dev/null) || {
+                echo "  !! commit search failed"
+                failed=$((failed+1)); continue; }
+            fi
             if [ "$in_main" -gt 0 ]; then
               echo "skip: '$title' already in main"
               echo "- \`$title\` — already in main" \
