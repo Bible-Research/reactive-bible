@@ -51,7 +51,10 @@ whose head SHA was never merged into `staging`, and the
   resolved from the staging squash commit's tree — the
   validated integration state, never guessed; a replay is
   only attempted while all earlier promotions succeeded,
-  since a squash tree also carries their code. Manual
+  since a squash tree also carries their code. A branch
+  whose remote tip moved past its staging merge is skipped
+  — those commits were never staged. The scan covers the
+  200 most recent merged staging PRs. Manual
   equivalent, per branch: re-push it if auto-deleted
   (`git push origin <headRefOid>:refs/heads/<branch>`),
   open a PR with `--base main` (same title + body — keep

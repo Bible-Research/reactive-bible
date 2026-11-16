@@ -69,26 +69,40 @@ jobs:
             --jq 'sort_by(.mergedAt)
                   | group_by(.headRefName) | map(.[-1])
                   | sort_by(.mergedAt)' > /tmp/staged.json
-          echo "== $(jq length /tmp/staged.json) staged branch(es)"
+          count=$(jq length /tmp/staged.json)
+          echo "== $count staged branch(es)"
+          if [ "$count" -ge 200 ]; then
+            echo "::error::listing ceiling hit — older staged" \
+              "branches may be missing; refusing to risk an" \
+              "incomplete release"
+            exit 1
+          fi
 
           # Replay staging's resolution onto a conflicting
-          # promotion: merge main into the feature branch and
-          # resolve conflicted paths with the staging squash
-          # commit's versions — deleted there = remove.
+          # promotion: merge CURRENT main — refreshed, since
+          # earlier merges in this run advanced it — into the
+          # feature branch and resolve conflicted paths with
+          # the staging squash commit's versions (deleted
+          # there = remove).
           resolve_via_staging() {
-            git fetch -q origin "$2" "$3" </dev/null \
-              || return 1
+            # Isolate any half-done merge a previous replay
+            # left behind.
+            git merge --abort </dev/null 2>/dev/null || true
+            git reset -q --hard </dev/null 2>/dev/null || true
+            git fetch -q origin "$2" "$3" \
+              "+refs/heads/main:refs/remotes/origin/main" \
+              </dev/null || return 1
             git checkout -q -B "$1" "$2" || return 1
             git merge -q --no-commit origin/main \
               </dev/null || true
             local p
-            while IFS= read -r p; do
+            while IFS= read -r -d '' p; do
               if git cat-file -e "$3:$p" 2>/dev/null; then
                 git checkout -q "$3" -- "$p" || return 1
               else
-                git rm -q "$p" || return 1
+                git rm -q -- "$p" || return 1
               fi
-            done < <(git diff --name-only --diff-filter=U)
+            done < <(git diff -z --name-only --diff-filter=U)
             git commit -q --no-edit </dev/null || return 1
             git push -q origin "$1" </dev/null
           }
@@ -127,6 +141,23 @@ jobs:
             # push event fires, so no CI re-run — the SHA's
             # existing green `test` run satisfies the required
             # check instantly.
+            # If the branch still exists at a DIFFERENT tip,
+            # someone pushed past the staging merge — those
+            # commits were never staged, so bail rather than
+            # promote them behind the staging-first gate.
+            cur_ref=$(gh api \
+              "repos/$REPO/git/refs/heads/$branch" \
+              --jq .object.sha </dev/null 2>/dev/null || true)
+            if [ -n "$cur_ref" ] && [ "$cur_ref" != "$sha" ]
+            then
+              echo "  !! $branch tip ${cur_ref::7} moved past"
+              echo "     staging merge ${sha::7} — skipping"
+              failed=$((failed+1))
+              echo "- \`$title\` — FAILED (branch tip" \
+                "ahead of staging merge)" \
+                >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
             gh api -X POST "repos/$REPO/git/refs" \
               -f ref="refs/heads/$branch" -f sha="$sha" \
               </dev/null > /dev/null 2>&1 || true
@@ -144,7 +175,8 @@ jobs:
               </dev/null 2>/dev/null) || \
             mpr=$(gh pr list --repo "$REPO" --state open \
               --base main --head "$branch" \
-              --json url --jq '.[0].url // ""' </dev/null)
+              --json url --jq '.[0].url // ""' </dev/null) || \
+            mpr=""
             if [ -z "$mpr" ]; then
               echo "  !! could not open a main PR"
               failed=$((failed+1)); continue
@@ -211,8 +243,17 @@ jobs:
             } > /tmp/note.md
             gh pr comment "$mpr" --body-file /tmp/note.md \
               </dev/null || true
-            sleep 15
-            if gh pr merge "$mpr" --squash --admin </dev/null; then
+            mergeable=""
+            for _ in $(seq 1 24); do
+              mergeable=$(gh pr view "$mpr" --json mergeable \
+                -q .mergeable </dev/null 2>/dev/null \
+                || echo UNKNOWN)
+              [ "$mergeable" != "UNKNOWN" ] && break
+              sleep 5
+            done
+            echo "  mergeable=$mergeable after replay"
+            if gh pr merge "$mpr" --squash --admin \
+                </dev/null; then
               replayed=$((replayed+1))
               echo "- \`$title\` — promoted (staging replay)" \
                 >> "$GITHUB_STEP_SUMMARY"
