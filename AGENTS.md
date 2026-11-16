@@ -33,8 +33,11 @@ whose head SHA was never merged into `staging`, and the
   GitHub auto-deletes the head branch on merge; expected.
 - **Staging fixes**: commit them on the ORIGINAL feature
   branch (push it again if auto-deleted — same SHAs are
-  fine), then merge into `staging` via the still-open
-  staging PR or a new one.
+  fine; after auto-delete, restore it with
+  `git push origin <sha>:refs/heads/<branch>` where `<sha>`
+  is the merged staging PR's `headRefOid`), then merge
+  into `staging` via the still-open staging PR or a new
+  one.
 - **Promotion to `main`** — only when the user asks to
   release or merge to main: for each verified branch
   already in `staging`, re-push it if deleted, open a
@@ -45,6 +48,10 @@ whose head SHA was never merged into `staging`, and the
   `git fetch origin && git push --force-with-lease origin
   origin/main:refs/heads/staging` — the only sanctioned
   force-push in this repo (`staging` only, never `main`).
+  The reset discards anything still on `staging` that was
+  not promoted — reset only once staging matches the
+  release, and re-merge leftovers to `staging` afterwards
+  (re-pushing the same SHAs still satisfies the check).
 - **"Merge straight to main" requests**: merge the branch
   into `staging` first anyway, then the `main` PR — the
   check blocks anything else, keeping `main` ⊆ `staging`
