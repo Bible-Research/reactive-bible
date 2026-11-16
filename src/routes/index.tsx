@@ -21,6 +21,9 @@ const TagManagementRoute = lazyWithReload(
   () => import('./TagManagementRoute')
 );
 const SearchRoute = lazyWithReload(() => import('./SearchRoute'));
+const GettingStartedRoute = lazyWithReload(
+  () => import('./GettingStartedRoute')
+);
 const LoginPage = lazyWithReload(() =>
   import('../components/LoginPage').then((m) => ({
     default: m.LoginPage,
@@ -49,6 +52,12 @@ export function AppRoutes() {
 
         {/* Search route */}
         <Route path="/search" element={<SearchRoute />} />
+
+        {/* Getting started - public onboarding tutorials */}
+        <Route
+          path="/getting-started"
+          element={<GettingStartedRoute />}
+        />
 
         {/* Bible routes - public (can view Bible without auth) */}
         <Route path="/bible" element={<BibleRoute />} />

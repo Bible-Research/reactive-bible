@@ -70,6 +70,8 @@ export default function App() {
   const isAuthPage = location.pathname === '/login' ||
                      location.pathname === '/register';
   const isSearchPage = location.pathname === '/search';
+  const isGettingStartedPage =
+    location.pathname === '/getting-started';
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
@@ -140,8 +142,10 @@ export default function App() {
               transition:
                 "padding-top 0.3s ease-in-out, " +
                 "padding-bottom 0.3s ease-in-out",
-              // Allow scrolling on auth and search pages
-              overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
+              // Allow scrolling on auth, search, and
+              // getting-started pages
+              overflow: (isAuthPage || isSearchPage ||
+                isGettingStartedPage) ? "auto" : "hidden",
             },
           })}
         >
