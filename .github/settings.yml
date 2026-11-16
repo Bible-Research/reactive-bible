@@ -83,8 +83,9 @@ branches:
           - test
       enforce_admins: false
       required_linear_history: false
-      # Force pushes stay allowed for the post-release
-      # `staging` reset (admin-only via the non-default
-      # branch ruleset's bypass).
+      # Allow force pushes for the post-release `staging`
+      # reset (in practice admins; the non-default-branch
+      # ruleset separately blocks non-fast-forward for
+      # non-admins).
       allow_force_pushes: true
       allow_deletions: false

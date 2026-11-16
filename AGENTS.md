@@ -41,7 +41,9 @@ whose head SHA was never merged into `staging`, and the
 - **Promotion to `main`** — only when the user asks to
   release or merge to main: for each verified branch
   already in `staging`, re-push it if deleted, open a
-  second PR with `--base main` (same title + body), then
+  second PR with `--base main` (same title + body — keep
+  any `Closes #<N>` links so issues auto-close on the
+  default-branch merge), then
   `gh pr merge <N> --squash --admin`. NEVER open
   `staging`→`main` PRs — that drags integration noise and
   fix commits into prod history. Afterwards reset staging:

@@ -3,8 +3,8 @@ name: Require staging first
 # Gate for PRs into `main`: production may only receive code
 # already merged into the `staging` branch — the invariant is
 # main ⊆ staging, so only staging may be ahead. The check is
-# PR-metadata-based: the PR's exact head SHA must have been
-# the head of a MERGED PR into `staging`. That works with
+# PR-metadata-based: the PR's exact head SHA must be
+# associated with a MERGED PR into `staging`. That works with
 # squash-merged staging PRs, whose head commits never become
 # git ancestors of `staging`. See AGENTS.md
 # "Git workflow — staging-first".
@@ -40,10 +40,14 @@ jobs:
           # Pulls associated with the head SHA, filtered to a
           # MERGED staging PR — O(1) lookup, no paging over
           # merged-PR history (per_page=100 is headroom; a
-          # commit is never in 100+ PRs). A newer head SHA that
-          # was never staged correctly fails; identical code
-          # under a different branch name correctly passes.
-          resp=$(gh api \
+          # commit is never in 100+ PRs). -X GET is required:
+          # bare `-f` would make gh api POST and 404. A newer
+          # head SHA that was never staged correctly fails;
+          # identical code under a different branch name
+          # correctly passes. If this PR opened in the same
+          # seconds as the staging merge, GitHub's commit→PR
+          # association index can lag — re-run the job once.
+          resp=$(gh api -X GET \
             "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/pulls" \
             -f per_page=100) || {
             echo "::error::GitHub API error listing PRs for $HEAD_SHA"
