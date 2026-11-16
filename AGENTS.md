@@ -16,10 +16,14 @@ Talks to the `bible_research` Django API.
 ## Layout (actual)
 
 - `src/api/` — every backend call lives here, split by domain
-  (`errors`, `structure`, `verses`, `audio`, `translations`,
-  `notes`, `tags`, `comments`, `search`, `readingPositions`);
-  `index.ts` is the barrel — always import from `'../api'`,
-  never a leaf, so `vi.mock('../api')` keeps intercepting.
+  (`errors`, `structure`, `bibleStructure`, `verses`, `audio`,
+  `translations`, `notes`, `tags`, `comments`, `search`,
+  `readingPositions`); `index.ts` is the barrel — always
+  import from `'../api'`, never a leaf, so
+  `vi.mock('../api')` keeps intercepting.
+  Note `structure.ts` is the bundled KJV verse-count lookup
+  (sync, offline); `bibleStructure.ts` is the network client
+  for `GET /api/v1/bible/structure/?fileset_id=`.
 - `src/config.ts` — `API_BASE_URL` from `VITE_API_BASE_URL`, else
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
@@ -27,7 +31,11 @@ Talks to the `bible_research` Django API.
   schema v7, custom `migratePersistedState` — bump version when
   persisted shape changes). Composition root; notes
   orchestration in `src/stores/bibleStore/notesSlice.ts`,
-  partialize/migration in `src/stores/bibleStore/persistence.ts`.
+  structure SWR in `src/stores/bibleStore/structureSlice.ts`
+  (`structureByBible` + `loadStructure` — TRANSIENT, not in
+  `partializeState`; durable copies live in the
+  `bible_structure_cache` localStorage tier), partialize/
+  migration in `src/stores/bibleStore/persistence.ts`.
 - `src/stores/authStore.ts` — auth state (token, user, login,
   register, logout).
 - `src/utils/apiClient.ts` — `publicFetch` (attaches token if
@@ -36,11 +44,23 @@ Talks to the `bible_research` Django API.
   `authenticatedFetch` (401 → logout + "session expired"
   notification). Network-failure retry only fires for
   idempotent methods (GET/HEAD/OPTIONS).
-- `src/utils/cacheManager.ts` — 3-tier localStorage cache: verses
+- `src/utils/cacheManager.ts` — localStorage cache: verses
   (LRU, 500 cap for copyright), audio URLs (CloudFront expiry
-  parsing), translations (per language).
+  parsing), translations (per language), bible structures
+  (per bible abbr, 24h TTL — the localStorage SWR tier).
 - `src/utils/bibleUtils.ts` — USFM book metadata, testament lookup
   (drives ESV audio fileset choice: `ENGESVO1DA`/`ENGESVN1DA`).
+  `toBookName`/`toUsfmCode` are CONTRACT identity (English);
+  `localizedBookName` is the display name in the active
+  structure's language.
+- `src/utils/bookNameRegistry.ts` — module-level snapshot of the
+  ACTIVE structure (localized name/short-name/coverage maps +
+  additive localized name→code resolution). Sync readers only;
+  the structure slice pushes updates. Reset via
+  `resetActiveStructure()` between tests — async fetches
+  otherwise leak state across specs.
+- `src/hooks/useBookName.ts` — `useBookName`/`useActiveStructure`
+  store subscriptions for the display-name layer.
 - `src/hooks/` — audio playlist, media session, keep-alive,
   verse highlighter.
 - `src/routes/` — React Router routes; canonical Bible URL is
@@ -55,8 +75,16 @@ Talks to the `bible_research` Django API.
 ## Data model contracts
 
 - Books are identified by USFM codes (`GEN`, `JHN`) internally;
-  `book_name` is display-only. `toBookName()` maps id → name for
-  the backend's `passage` param.
+  `book_name` is display-only. `toBookName()` maps id → ENGLISH
+  name for the backend's `passage` param, stored note `book`
+  fields and external links — never localize those. Display
+  labels use `localizedBookName`/`useBookName`; `toUsfmCode`
+  resolves English + USFM + localized names additively.
+- `GET /api/v1/bible/structure/?fileset_id=` returns the
+  fileset's real book/chapter coverage with names localized to
+  its language — PassagePicker greys uncovered books (still
+  clickable → "… doesn't include {book}" notification, never
+  the `disabled` attribute, which swallows the click).
 - `fileset_id` selects the provider server-side: `ENGKJV` (bundled
   `src/assets/kjv.json`, offline, audio from wordpocket.org),
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.

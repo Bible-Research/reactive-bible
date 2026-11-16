@@ -78,6 +78,15 @@ beforeEach(async () => {
     // mocked without the export — nothing to reset
   }
 
+  // The bookNameRegistry sync view is module state outside the
+  // store — without a reset it leaks structures across tests.
+  try {
+    const registry = await import('./utils/bookNameRegistry');
+    registry.resetActiveStructure?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+
   // structuredClone gives each test fresh nested objects —
   // sharing initialState's arrays/objects would let one test's
   // in-place mutation leak into later tests. Both initialState

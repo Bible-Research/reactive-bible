@@ -1,4 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import {
+  describe, it, expect, beforeEach, afterEach,
+} from 'vitest';
+import type { BibleStructure } from '../types';
+import {
+  resetActiveStructure,
+  setActiveStructure,
+} from './bookNameRegistry';
+import catalogLv from '../assets/bookNames.lv.json';
 import {
   buildScriptureToken,
   formatMentionPreview,
@@ -337,5 +345,47 @@ describe('isValidScriptureToken', () => {
 
   it('ignores trailing punctuation after a full ref', () => {
     expect(isValidScriptureToken('@JHN.3.16.')).toBe(true);
+  });
+});
+
+describe('localized mention matching (task 3.4)', () => {
+  const LV = catalogLv as unknown as BibleStructure;
+  beforeEach(() => {
+    setActiveStructure(LV);
+  });
+  afterEach(() => {
+    resetActiveStructure();
+  });
+
+  it('parses a localized book name additively', () => {
+    const p = parseMentionQuery('Jāņa 3');
+    expect(p.bookName).toBe('Jāņa evaņģēlijs');
+    expect(p.chapter).toBe(3);
+    expect(p.complete).toBe(true);
+    // Canonical storage token is still the USFM code.
+    expect(buildScriptureToken(p)).toBe('@JHN.3');
+  });
+
+  it('matches localized prefixes and folded diacritics', () => {
+    const p = parseMentionQuery('jana 3');
+    expect(p.bookName).toBe('Jāņa evaņģēlijs');
+    expect(buildScriptureToken(p)).toBe('@JHN.3');
+  });
+
+  it('keeps English names and USFM codes resolving', () => {
+    expect(buildScriptureToken(
+      parseMentionQuery('john 3')
+    )).toBe('@JHN.3');
+    expect(buildScriptureToken(
+      parseMentionQuery('JHN.3')
+    )).toBe('@JHN.3');
+    expect(buildScriptureToken(
+      parseMentionQuery('genesis 1')
+    )).toBe('@GEN.1');
+  });
+
+  it('matchBookNames lists localized names', () => {
+    const matches = matchBookNames('jāņa');
+    expect(matches).toContain('Jāņa evaņģēlijs');
   });
 });

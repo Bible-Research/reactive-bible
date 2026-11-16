@@ -20,7 +20,7 @@ import {
 import { shallow } from "zustand/shallow";
 import { showNotification } from "@mantine/notifications";
 import {
-  toBookName,
+  localizedBookName,
   buildBiblePath,
   resolveTimestampsFilesetId,
   adjustTimestampsForENGESV,
@@ -618,7 +618,7 @@ export const useChapterAudio = (
         'Try selecting a different audio version in the ' +
         'Translation Settings ("Change Translation" button).';
       if (err instanceof BookNotInFilesetError) {
-        const bookLabel = toBookName(bookId) ?? bookId;
+        const bookLabel = localizedBookName(bookId) ?? bookId;
         const owner = findTranslationByFilesetId(
           filesetId,
           state.translations,

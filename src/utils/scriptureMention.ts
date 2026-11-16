@@ -2,11 +2,23 @@
 // mention parser never pulls the whole api barrel (network
 // modules, cache layer) into the editor chunk.
 import { getBooks, getChapters, getVerses } from '../api/structure';
-import { BOOK_NAME_TO_CODE } from './bibleUtils';
+import { toBookName, toUsfmCode } from './bibleUtils';
+import {
+  compactBookName,
+  localizedName,
+  localizedShortName,
+  structureVersion,
+} from './bookNameRegistry';
 
 export interface ParsedMention {
   /** Canonical book_name (e.g. "John") once uniquely resolved. */
   bookName: string | null;
+  /**
+   * USFM code for `bookName` — the parser's own resolution,
+   * so localized display names never have to re-enter an
+   * English-keyed lookup downstream.
+   */
+  bookId: string | null;
   /** Book names matching the typed prefix — drives the Books column. */
   bookMatches: string[];
   chapter: number | null;
@@ -26,23 +38,51 @@ interface BookEntry {
   book_id: string;
 }
 
-// getBooks() scans the bundled structure data — memoize once.
+// getBooks() scans the bundled structure data — memoized, and
+// rebuilt whenever the active structure changes (book_name is
+// the LOCALIZED display name once a structure lands).
 let booksCache: BookEntry[] | null = null;
+let booksCacheVersion = -1;
 export const getAllBooks = (): BookEntry[] => {
-  if (!booksCache) booksCache = getBooks();
+  const v = structureVersion();
+  if (!booksCache || booksCacheVersion !== v) {
+    booksCache = getBooks().map((b) => ({
+      book_id: b.book_id,
+      book_name: localizedName(b.book_id) ?? b.book_name,
+    }));
+    booksCacheVersion = v;
+  }
   return booksCache;
 };
 
-// "1 Corinthians" -> "1corinthians"; '+' escapes spaces in book names.
-const compact = (s: string): string =>
-  s.toLowerCase().replace(/[\s+]+/g, '');
+// "1 Corinthians" -> "1corinthians"; '+' escapes spaces in book
+// names; diacritics folded ("jana" matches "jāņa").
+const compact = compactBookName;
+
+/**
+ * Every name a book answers to for matching — the localized
+ * display name, its localized short form ("Jāņa") and the
+ * canonical English name (additive matching: "jāņa" and
+ * "john" both resolve JHN under a Latvian bible). The short
+ * name matters doubly: "Jāņa 3" must parse as John:3 — an
+ * exact short-name hit stops '3' being eaten into the
+ * "Jāņa 3. vēstule" book prefix.
+ */
+const namesOf = (b: BookEntry): string[] => {
+  const out = new Set<string>([b.book_name]);
+  const short = localizedShortName(b.book_id);
+  if (short) out.add(short);
+  const english = toBookName(b.book_id);
+  if (english) out.add(english);
+  return [...out];
+};
 
 const bookMatchesFor = (query: string): BookEntry[] => {
   const q = compact(query);
   if (!q) return getAllBooks();
   return getAllBooks().filter(
     (b) =>
-      compact(b.book_name).startsWith(q) ||
+      namesOf(b).some((n) => compact(n).startsWith(q)) ||
       b.book_id.toLowerCase().startsWith(q),
   );
 };
@@ -51,7 +91,8 @@ const exactBook = (query: string): BookEntry | undefined => {
   const q = compact(query);
   return getAllBooks().find(
     (b) =>
-      compact(b.book_name) === q || b.book_id.toLowerCase() === q,
+      namesOf(b).some((n) => compact(n) === q) ||
+      b.book_id.toLowerCase() === q,
   );
 };
 
@@ -64,6 +105,7 @@ export const matchBookNames = (query: string): string[] =>
 
 const emptyParsed = (): ParsedMention => ({
   bookName: null,
+  bookId: null,
   bookMatches: getAllBooks().map((b) => b.book_name),
   chapter: null,
   verseStart: null,
@@ -118,6 +160,7 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
 
   // getChapters/getVerses key on the USFM book_id, not the name.
   const bookId = exact?.book_id ?? prefixMatches[0].book_id;
+  result.bookId = bookId;
 
   const rest = tokens.slice(consumed);
   const [chapterToken, verseToken, ...extra] = rest;
@@ -231,7 +274,11 @@ export const buildScriptureToken = (
   p: ParsedMention,
 ): string | null => {
   if (p.bookName === null || p.chapter === null) return null;
-  const code = BOOK_NAME_TO_CODE[p.bookName.toLowerCase()];
+  // The parser's own USFM resolution first — a localized
+  // display name must produce the code it was resolved from,
+  // never an English-name collision. toUsfmCode stays as the
+  // fallback for hand-built ParsedMention objects.
+  const code = p.bookId ?? toUsfmCode(p.bookName);
   if (!code) return null;
   if (p.verseStart === null) {
     return `@${code}.${p.chapter}`;

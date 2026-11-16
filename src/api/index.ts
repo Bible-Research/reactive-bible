@@ -6,6 +6,7 @@
  */
 export * from './errors';
 export * from './structure';
+export * from './bibleStructure';
 export * from './verses';
 export * from './audio';
 export * from './translations';
@@ -39,4 +40,6 @@ export type {
   SearchVerseGroup,
   GroupedSearchResponse,
   ReadingPositionValue,
+  StructureBook,
+  BibleStructure,
 } from '../types';

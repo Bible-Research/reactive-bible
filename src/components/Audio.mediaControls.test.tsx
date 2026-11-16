@@ -32,6 +32,7 @@ vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>(
     '../api',
   );
+  const { mockStructure } = await import('../mocks/handlers');
   return {
     ...actual,
     getKjvAudioUrl: vi.fn(
@@ -42,6 +43,11 @@ vi.mock('../api', async () => {
       .fn()
       .mockResolvedValue('http://audio.test/file.mp3'),
     getAudioTimestamps: vi.fn().mockResolvedValue([]),
+    // The suite stubs global fetch (audio host has no CORS),
+    // so the real client would reject every loadStructure
+    // kick — resolve the shared fixture instead.
+    fetchBibleStructure:
+      vi.fn().mockResolvedValue(mockStructure),
   };
 });
 

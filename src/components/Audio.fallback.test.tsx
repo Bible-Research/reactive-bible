@@ -38,12 +38,21 @@ vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>(
     '../api',
   );
+  // The Latvian text fileset (GLU8) makes the slice stage the
+  // bundled LV catalog; resolving the same catalog keeps the
+  // localized book names deterministic instead of racing the
+  // English MSW payload.
+  const lvCatalog = (
+    await import('../assets/bookNames.lv.json')
+  ).default;
   return {
     ...actual,
     getKjvAudioUrl:
       vi.fn().mockReturnValue('http://audio.url/test.mp3'),
     getBibleAudioUrl: vi.fn(),
     getAudioTimestamps: vi.fn().mockResolvedValue([]),
+    fetchBibleStructure:
+      vi.fn().mockResolvedValue(lvCatalog),
     // No adjacent chapters: no next-chapter preload, so each
     // test sees exactly the Howls it causes.
     getAdjacentChapters: vi.fn().mockReturnValue({
@@ -290,11 +299,15 @@ describe('Audio cross-translation fallback', () => {
 
       // Every candidate misses — the failure surfaces as an
       // informative notification naming the book, not a crash.
+      // The label is the LOCALIZED name: the active GLU8
+      // structure renders Jeremiah as "Jeremijas grāmata".
       await waitFor(() =>
         expect(showNotification).toHaveBeenCalledWith(
           expect.objectContaining({
             color: 'orange',
-            message: expect.stringContaining('Jeremiah'),
+            message: expect.stringContaining(
+              'Jeremijas grāmata',
+            ),
           }),
         ),
       );

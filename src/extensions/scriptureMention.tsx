@@ -24,7 +24,6 @@ import {
   VALID_REF_PREFIX,
 } from '../utils/scriptureLinkify';
 import { UNASCII_SPACES } from '../utils/clipboardSanitize';
-import { BOOK_NAME_TO_CODE } from '../utils/bibleUtils';
 import { findVersesInBetween } from '../utils/findVersesInBetween';
 
 const POPUP_HEIGHT = 280;
@@ -83,9 +82,11 @@ const ScriptureMentionPopup = ({
   insertToken,
 }: PopupProps) => {
   const parsed = parseMentionQuery(query);
-  const code = parsed.bookName
-    ? BOOK_NAME_TO_CODE[parsed.bookName.toLowerCase()]
-    : null;
+  // The parser's own USFM resolution — `bookName` is the
+  // localized display name once a non-English structure
+  // loads, so an English-only name lookup would leave the
+  // chapter/verse columns dead.
+  const code = parsed.bookId;
   const preview = formatMentionPreview(parsed);
   const selectedVerses =
     parsed.verseStart !== null
@@ -140,6 +141,10 @@ const ScriptureMentionPopup = ({
         }
         height={POPUP_HEIGHT}
         titlePrefix="mention-"
+        // Citations are stored as USFM refs — valid under
+        // any translation, so an uncovered book stays
+        // selectable (typed input already parses it).
+        restrictToCoverage={false}
         onSelectBook={(bookId) => {
           rewriteQuery(`@${bookId}.`);
         }}

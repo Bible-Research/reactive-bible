@@ -11,7 +11,7 @@ import {
 import { PlaylistItem, VerseTimestamp } from '../types';
 import {
   resolveTimestampsFilesetId,
-  toBookName,
+  localizedBookName,
   adjustTimestampsForENGESV,
 } from '../utils/bibleUtils';
 import {
@@ -130,7 +130,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         return;
       }
 
-      const itemBookName = toBookName(item.bookId) ?? item.bookId;
+      const itemBookName = localizedBookName(item.bookId) ?? item.bookId;
       // Ordered candidates: timestamp-backed sibling recording,
       // then resolved primary, codec sibling, other-testament
       // member, and the translation's remaining audio options —

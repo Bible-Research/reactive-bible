@@ -17,6 +17,13 @@ import * as api from '../api';
 vi.mock('../api', () => ({
   getAvailableTranslations: vi.fn(),
   searchLanguages: vi.fn(),
+  // `loadStructure` fires via the store subscription; dynamic
+  // import keeps the sync factory legal (top-level refs are
+  // banned inside vi.mock factories).
+  fetchBibleStructure: vi.fn(
+    () =>
+      import('../mocks/handlers').then((m) => m.mockStructure),
+  ),
 }));
 
 const initialStoreState = useBibleStore.getState();

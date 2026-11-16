@@ -27,6 +27,12 @@ vi.mock('./api', async (importOriginal) => {
       mocked[key] = vi.fn();
     }
   }
+  // loadStructure's SWR calls this on fileset changes — the
+  // loop's bare vi.fn() resolves undefined, which the slice
+  // rejects as malformed. Resolve the shared MSW fixture.
+  const { mockStructure } = await import('./mocks/handlers');
+  mocked.fetchBibleStructure =
+    vi.fn().mockResolvedValue(mockStructure);
   return mocked;
 });
 vi.mock('./utils/cacheManager');

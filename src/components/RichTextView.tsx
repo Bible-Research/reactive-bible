@@ -9,7 +9,8 @@ import {
 import type { MantineSize } from '@mantine/core';
 import { linkifyScripture } from '../utils/scriptureLinkify';
 import { toPlainText } from '../utils/tiptapContent';
-import { BOOK_CODE_TO_NAME } from '../utils/bibleUtils';
+import { localizedBookName } from '../utils/bibleUtils';
+import { useActiveStructure } from '../hooks/useBookName';
 
 interface TiptapMark {
   type: string;
@@ -47,6 +48,8 @@ interface RenderCtx {
   size: MantineSize;
   /** Remaining node budget — decremented per rendered node. */
   remaining: number;
+  /** USFM code -> localized name from the active structure. */
+  bookNames: Map<string, string>;
 }
 
 const applyMarks = (
@@ -242,9 +245,12 @@ const renderNode = (
     case 'mention': {
       const token = mentionToken(node);
       if (!token) return null;
-      const bookName = BOOK_CODE_TO_NAME[
-        String(node.attrs?.code ?? '')
-      ];
+      const code = String(node.attrs?.code ?? '');
+      // Display layer: localized name when the active
+      // structure covers the book, English otherwise.
+      const bookName =
+        ctx.bookNames.get(code.toUpperCase()) ??
+        localizedBookName(code);
       const label =
         typeof node.attrs?.label === 'string' &&
         node.attrs.label
@@ -303,6 +309,9 @@ const parseDoc = (content: string): TiptapNode | null => {
 // useMemo — is caught and degraded per comment, not per page.
 const RichTextBody = memo(
   ({ content, onScriptureRef, size = 'md' }: RichTextViewProps) => {
+    // Subscribing to the resolved structure re-derives ref
+    // labels when a fresher structure lands mid-session.
+    const structure = useActiveStructure();
     const body = useMemo(() => {
       const doc = parseDoc(content);
       // Wrap in a single element: callers mount this inside
@@ -315,13 +324,19 @@ const RichTextBody = memo(
           </Text>
         );
       }
+      const bookNames = new Map(
+        (structure?.books ?? []).map(
+          (b) => [b.book_id, b.name] as const,
+        ),
+      );
       const ctx: RenderCtx = {
         onRef: onScriptureRef,
         size,
         remaining: MAX_RENDER_NODES,
+        bookNames,
       };
       return <Box>{renderChildren(doc, 'd', 0, ctx)}</Box>;
-    }, [content, onScriptureRef, size]);
+    }, [content, onScriptureRef, size, structure]);
     return <>{body}</>;
   }
 );

@@ -1,6 +1,38 @@
 import { http, HttpResponse } from 'msw';
+import bibleStructureJson from '../assets/bibleStructure.json';
 import { API_BASE_URL } from '../config';
 import { mockTranslations } from '../__tests__/mocks/data';
+
+/**
+ * Default `/bible/structure/` payload — built from the bundled
+ * `bibleStructure.json` so fetched structures carry the exact
+ * same English names/chapter coverage the bundled fallback
+ * shows: tests see zero visible delta when a structure fetch
+ * resolves mid-assertion. Exported so test files that
+ * factory-mock `../api` can resolve `fetchBibleStructure`
+ * with the same payload MSW serves.
+ */
+export const mockStructure = (() => {
+  const order = new Map<string, { name: string; chapters: number[] }>();
+  for (const e of bibleStructureJson as {
+    book_id: string; book_name: string; chapter: number;
+  }[]) {
+    const cur = order.get(e.book_id) ?? {
+      name: e.book_name, chapters: [],
+    };
+    cur.chapters.push(e.chapter);
+    order.set(e.book_id, cur);
+  }
+  return {
+    books: [...order.entries()].map(([id, v], i) => ({
+      book_id: id,
+      name: v.name,
+      name_short: v.name,
+      testament: i < 39 ? 'OT' : 'NT',
+      chapters: v.chapters,
+    })),
+  };
+})();
 
 // Define your request handlers
 const API_URL = `${API_BASE_URL}/api/v1`;
@@ -159,6 +191,12 @@ export const handlers = [
   }),
   http.get(`${API_URL}/bible/translations/`, () => {
     return HttpResponse.json({ results: mockTranslations });
+  }),
+
+  // --- Bible structure (localized names + coverage) ---
+  // Tests needing partial coverage override via server.use().
+  http.get(`${API_URL}/bible/structure/`, () => {
+    return HttpResponse.json(mockStructure);
   }),
 
   // --- Audio verse timestamps ---

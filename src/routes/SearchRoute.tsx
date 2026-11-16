@@ -32,10 +32,11 @@ import {
   type PlaylistItem,
 } from '../types';
 import {
-  BOOK_CODE_TO_NAME,
+  localizedBookName,
   buildBiblePath,
 } from '../utils/bibleUtils';
 import { resolveTextFileset } from '../utils/filesetGroups';
+import { useActiveStructure } from '../hooks/useBookName';
 
 const VERSE_PREVIEW_LIMIT = 3;
 
@@ -43,8 +44,8 @@ function toPlaylistItem(
   v: SearchVerse,
   i: number,
   total: number,
+  bookName: string,
 ): PlaylistItem {
-  const bookName = BOOK_CODE_TO_NAME[v.book_id] ?? v.book_id;
   return {
     itemId: `search-${v.book_id}-${v.chapter}-${v.verse_start}`,
     bookId: v.book_id,
@@ -173,6 +174,20 @@ export default function SearchRoute() {
     setExpandedBooks(new Set());
   }, [groups]);
 
+  // The resolved structure drives every book-name label —
+  // subscribing here re-derives them when a fresher
+  // structure lands mid-session.
+  const structure = useActiveStructure();
+  const bookNames = useMemo(
+    () =>
+      new Map(
+        (structure?.books ?? []).map(
+          (b) => [b.book_id, b.name] as const,
+        ),
+      ),
+    [structure],
+  );
+
   // Derived in-render (not via effect) so the play handler in the
   // same commit that renders the buttons never sees a stale null.
   const playlistItems = useMemo<PlaylistItem[] | null>(
@@ -180,9 +195,16 @@ export default function SearchRoute() {
       verses.length === 0
         ? null
         : verses.map((v, i) =>
-            toPlaylistItem(v, i, verses.length),
+            toPlaylistItem(
+              v,
+              i,
+              verses.length,
+              bookNames.get(v.book_id) ??
+                localizedBookName(v.book_id) ??
+                v.book_id,
+            ),
           ),
-    [verses],
+    [verses, bookNames],
   );
 
   useEffect(() => {
@@ -285,7 +307,9 @@ export default function SearchRoute() {
           >
             {groups.map((group) => {
               const displayName =
-                BOOK_CODE_TO_NAME[group.book_id] ?? group.book_id;
+                bookNames.get(group.book_id) ??
+                localizedBookName(group.book_id) ??
+                group.book_id;
               const isExpanded = expandedBooks.has(group.book_id);
               const visible = isExpanded
                 ? group.verses

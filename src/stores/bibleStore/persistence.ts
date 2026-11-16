@@ -38,6 +38,9 @@ export const partializeState = (state: BibleState) => ({
   // detailNote is NOT persisted (transient share context)
   // pendingScrollVerse is NOT persisted
   // headerVisible is NOT persisted
+  // structureByBible/activeStructureKey are NOT persisted —
+  // structures re-resolve via SWR; durable copies live in the
+  // cacheManager 'bible-structure' localStorage tier.
 });
 
 export type PersistedBibleState = ReturnType<typeof partializeState>;

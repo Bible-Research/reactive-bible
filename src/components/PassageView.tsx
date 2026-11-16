@@ -40,11 +40,12 @@ import { shallow } from 'zustand/shallow';
 import { useNavigate } from 'react-router-dom';
 import {
   getTestament,
-  toBookName,
+  localizedBookName,
   buildBiblePath,
   sizeToCoverage,
   type Testament,
 } from '../utils/bibleUtils';
+import { useActiveStructure } from '../hooks/useBookName';
 import {
   groupFilesets,
   resolveAudioFileset,
@@ -121,7 +122,10 @@ const PassageView = () => {
     }),
     shallow
   );
-  const activeBookName = toBookName(activeBookId) ?? activeBookId;
+  // Subscribe to the active structure so the localized header
+  // name swaps atomically when a fresher structure lands.
+  useActiveStructure();
+  const activeBookName = localizedBookName(activeBookId) ?? activeBookId;
   const [verses, setVerses] = useState<
     { verse: number; text: string }[]
   >([]);

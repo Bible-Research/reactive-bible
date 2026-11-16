@@ -18,6 +18,32 @@ import {
 import RichTextEditor from '../components/RichTextEditor';
 import type { RichTextEditorHandle } from '../components/RichTextEditor';
 import { renderWithProviders } from '../__tests__/helpers';
+import { setActiveStructure } from '../utils/bookNameRegistry';
+import type { BibleState } from '../store';
+import type { BibleStructure } from '../types';
+import catalogLv from '../assets/bookNames.lv.json';
+
+const LV = catalogLv as unknown as BibleStructure;
+
+/** Partial Latvian canon — GEN/JHN only; EXO is uncovered. */
+const PARTIAL_LV: BibleStructure = {
+  books: [
+    {
+      book_id: 'GEN',
+      name: '1. Mozus grāmata',
+      name_short: '1. Mozus',
+      testament: 'OT',
+      chapters: [1, 2, 3],
+    },
+    {
+      book_id: 'JHN',
+      name: 'Jāņa evaņģēlijs',
+      name_short: 'Jāņa',
+      testament: 'NT',
+      chapters: [1, 2, 3, 4, 5],
+    },
+  ],
+};
 
 // Mantine components in the popup need these jsdom globals.
 beforeAll(() => {
@@ -71,7 +97,9 @@ afterAll(() => {
 
 let editor: Editor | null = null;
 
-const renderEditor = async () => {
+const renderEditor = async (
+  bibleOverrides: Partial<BibleState> = {}
+) => {
   const ref = createRef<RichTextEditorHandle>();
   renderWithProviders(
     <RichTextEditor
@@ -79,7 +107,8 @@ const renderEditor = async () => {
       variant="comment"
       value=""
       onChange={vi.fn()}
-    />
+    />,
+    { stores: { bible: bibleOverrides } }
   );
   await waitFor(() => expect(ref.current?.editor).toBeTruthy());
   editor = ref.current?.editor ?? null;
@@ -251,6 +280,29 @@ describe('ScriptureMention suggestion', () => {
     );
   });
 
+  it('lets an uncovered book be cited from the picker',
+    async () => {
+      // Citations store USFM refs — valid under any
+      // translation — so coverage gating (a navigation
+      // concept) doesn't apply to the mention popup: an
+      // uncovered book stays clickable just like typing
+      // '@EXO.' already parses.
+      setActiveStructure(PARTIAL_LV);
+      await renderEditor({ loadStructure: vi.fn() });
+      editor?.commands.insertContent('@');
+      await waitFor(() => expect(popupOpen()).toBe(true));
+
+      const exo = document.querySelector(
+        '[title="mention-book-EXO"]'
+      );
+      expect(exo).toBeTruthy();
+      fireEvent.click(exo as Element);
+
+      await waitFor(() =>
+        expect(editor?.getText()).toBe('@EXO.')
+      );
+    });
+
   it('marks a dismissed invalid ref with a red decoration', async () => {
     await renderEditor();
     editor?.commands.insertContent('@JHN.99.1');
@@ -295,6 +347,45 @@ describe('ScriptureMention suggestion', () => {
     );
     await waitFor(() => expect(popupOpen()).toBe(false));
   });
+
+  it('populates chapter/verse columns for a localized ' +
+    'book name', async () => {
+      // Regression: `parsed.bookName` is the LOCALIZED
+      // display name under a non-English structure — an
+      // English-only name lookup left the columns empty and
+      // chapter/verse selection dead. `loadStructure` is
+      // mocked so the picker's mount kick can't re-stage an
+      // English structure over the Latvian one mid-test.
+      setActiveStructure(LV);
+      await renderEditor({ loadStructure: vi.fn() });
+      editor?.commands.insertContent('@jāņa.3.');
+      await waitFor(() => expect(popupOpen()).toBe(true));
+
+      const chapter = await waitFor(() => {
+        const el = document.querySelector(
+          '[title="mention-chapter-4"]'
+        );
+        expect(el).toBeTruthy();
+        return el as Element;
+      });
+      fireEvent.click(chapter);
+      await waitFor(() =>
+        expect(editor?.getText()).toBe('@JHN.4.')
+      );
+
+      const verse = await waitFor(() => {
+        const el = document.querySelector(
+          '[title="mention-verse-5"]'
+        );
+        expect(el).toBeTruthy();
+        return el as Element;
+      });
+      fireEvent.click(verse);
+      await waitFor(() =>
+        expect(editor?.getText()).toBe('@JHN.4.5 ')
+      );
+      await waitFor(() => expect(popupOpen()).toBe(false));
+    });
 
   // jsdom has no layout — posAtCoords is stubbed to report the
   // click position directly.

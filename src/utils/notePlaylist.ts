@@ -1,5 +1,9 @@
-import type { Note, PlaylistItem } from '../types';
-import { toUsfmCode } from './bibleUtils';
+import type {
+  BibleStructure,
+  Note,
+  PlaylistItem,
+} from '../types';
+import { localizedBookName, toUsfmCode } from './bibleUtils';
 
 /** Notes that can actually produce playlist items — the same
  *  filtered set the playlist and play-from index are built
@@ -17,10 +21,16 @@ export const playableNotes = (notes: Note[]): Note[] =>
  * playback crosses a block boundary, while `scope` keeps DOM
  * and highlight identity at the note level.
  * Labels read `Note i/n – Book C:V[-V]` where i/n is the
- * position within the playable (verse-bearing) subset.
+ * position within the playable (verse-bearing) subset and
+ * Book is the localized display name — the stored `book`
+ * field stays the English contract name. `structure` is the
+ * subscribed active structure: passing it in makes the
+ * caller's memo re-derive labels when a fresher structure
+ * swaps in mid-playlist.
  */
 export const buildNotePlaylistItems = (
-  notes: Note[]
+  notes: Note[],
+  structure?: BibleStructure | null
 ): PlaylistItem[] => {
   const playable = playableNotes(notes);
   return playable.flatMap((note, noteIndex) => {
@@ -41,9 +51,18 @@ export const buildNotePlaylistItems = (
       const verseNumbers = block.map((v) => v.verse);
       const startVerse = Math.min(...verseNumbers);
       const endVerse = Math.max(...verseNumbers);
+      // Display layer only: the structure's localized name
+      // first, then the registry fallback chain (same-language
+      // catalog, then English), then the raw stored value.
+      const bookName =
+        structure?.books.find(
+          (b) => b.book_id === bookId
+        )?.name ??
+        localizedBookName(bookId) ??
+        firstVerse.book;
       const label =
         `Note ${noteIndex + 1}/${playable.length} ` +
-        `– ${firstVerse.book} ` +
+        `– ${bookName} ` +
         `${firstVerse.chapter}:${startVerse}` +
         (startVerse !== endVerse ? `-${endVerse}` : '');
       return {
