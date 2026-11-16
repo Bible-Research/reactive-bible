@@ -155,12 +155,12 @@ describe('BibleMapper clipboard copy', () => {
         expect(writeText).toHaveBeenCalledWith('John 3:16');
       });
       expect(open).toHaveBeenCalled();
-      // The notification is human-facing display copy — it
-      // keeps the localized name.
+      // The toast echoes what actually landed on the
+      // clipboard — the English ref, not the localized
+      // display name.
       expect(showNotification).toHaveBeenCalledWith(
         expect.objectContaining({
-          message:
-            'Jāņa evaņģēlijs 3:16 copied to clipboard',
+          message: 'John 3:16 copied to clipboard',
         })
       );
 

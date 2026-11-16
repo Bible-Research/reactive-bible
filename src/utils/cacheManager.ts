@@ -945,6 +945,22 @@ export const getCachedStructure = (
       return null;
     }
 
+    // A corrupted or version-skewed entry must fall through
+    // to the next SWR tier — the slice applies the cached
+    // body unguarded, so a non-array (or all-greying empty)
+    // `books` is evicted here like a stale one.
+    if (
+      !Array.isArray(entry.data?.books) ||
+      entry.data.books.length === 0
+    ) {
+      delete cache[bibleAbbr];
+      setCachedLocalStorage(
+        STRUCTURE_CACHE_KEY,
+        JSON.stringify(cache)
+      );
+      return null;
+    }
+
     return entry.data;
   } catch (error) {
     console.error('Error reading structure cache:', error);

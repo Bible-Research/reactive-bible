@@ -243,9 +243,11 @@ const VerseActionToolbar = () => {
       });
       return;
     }
+    // Echo the English ref — that's what actually landed on
+    // the clipboard, not the localized display ref.
     showNotification({
       title: "Copied",
-      message: `${passageRef} copied to clipboard`,
+      message: `${passageRefEnglish} copied to clipboard`,
       color: "green",
     });
     window.open(
@@ -253,7 +255,7 @@ const VerseActionToolbar = () => {
       "_blank",
       "noopener,noreferrer"
     );
-  }, [passageRef, passageRefEnglish]);
+  }, [passageRefEnglish]);
 
   const youVersionUrl = useMemo(
     () =>

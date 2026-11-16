@@ -43,6 +43,24 @@ const LV_TRANSLATIONS = [
   },
 ];
 
+const EN_TRANSLATIONS = [
+  {
+    abbr: 'ENGKJV',
+    name: 'King James Version',
+    language: 'English',
+    language_iso: 'eng',
+    filesets: [
+      {
+        id: 'ENGKJV',
+        type: 'text_plain' as const,
+        size: 'C',
+        codec: null,
+        bitrate: null,
+      },
+    ],
+  },
+];
+
 /**
  * Minimal stand-in store — same shape the real persist store
  * gives the slice: data state + a mutating set().
@@ -119,6 +137,60 @@ describe('loadStructure SWR resolution', () => {
     expect(localizedName('GEN')).toBe('Cached Genesis');
     await p;
   });
+
+  it('skips a malformed localStorage entry instead of ' +
+    'throwing', async () => {
+      // A corrupted/version-skewed cache row must fall
+      // through to the next tier — the slice applies the
+      // localStorage result unguarded, so the tier itself
+      // evicts non-array `books` bodies.
+      localStorage.setItem(
+        'bible_structure_cache',
+        JSON.stringify({
+          ENGKJV: {
+            data: { books: 'not-an-array' },
+            cachedAt: Date.now(),
+          },
+        }),
+      );
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'ENGKJV',
+        translations: EN_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
+
+      const p = slice.loadStructure();
+
+      // Bundled en catalog staged synchronously — no
+      // TypeError from iterating a malformed `books`.
+      expect(localizedName('GEN')).toBe('Genesis');
+      await p;
+      expect(state.structureByBible['ENGKJV']).toEqual(EN);
+      // The bad row was evicted on read — the fetch tier
+      // repopulated the entry with a valid body.
+      expect(getCachedStructure('ENGKJV')).toEqual(EN);
+    });
+
+  it.each(['lat', 'lav'])(
+    'stages the bundled lv catalog for the 639-2 %s ' +
+      'spelling',
+    async (iso) => {
+      // DBT reports Latvian under 639-2 spellings — the
+      // backend's _ISO_ALIASES normalises them to 'lvs',
+      // so the bundled lv tier must apply on cold load.
+      const { slice } = makeStore({
+        activeTextFilesetId: 'LAVNLI',
+        translations: [
+          { ...LV_TRANSLATIONS[0], language_iso: iso },
+        ],
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(LV);
+
+      const p = slice.loadStructure();
+      expect(localizedName('GEN')).toBe('1. Mozus grāmata');
+      await p;
+    },
+  );
 
   it('keeps previous names rendered until fetch resolves',
     async () => {

@@ -40,7 +40,13 @@ const BUNDLED_CATALOGS: Record<string, BibleStructure> = {
  * is not a universal floor.
  */
 const catalogLangFor = (iso?: string): string | undefined => {
-  if (iso === 'lvs') return 'lv';
+  // DBT reports some languages under their 639-2 spelling —
+  // the backend's _ISO_ALIASES normalises 'lat'/'lav' to
+  // 'lvs', so the bundled-catalog tier mirrors the alias or
+  // those listings would skip the lv catalog on cold load.
+  if (iso === 'lvs' || iso === 'lat' || iso === 'lav') {
+    return 'lv';
+  }
   if (iso === 'rus') return 'ru';
   if (iso === 'eng') return 'en';
   return undefined;
