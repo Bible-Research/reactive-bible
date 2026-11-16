@@ -169,26 +169,107 @@ describe('loadStructure SWR resolution', () => {
     await p;
   });
 
-  it('retains previous structure when no tier can stage', async () => {
-    const { state, slice } = makeStore({
-      activeTextFilesetId: 'LAVNLI',
-      translations: LV_TRANSLATIONS,
-    });
-    vi.mocked(fetchBibleStructure).mockResolvedValue(LV);
-    state.structureByBible = { LAVNLI: LV };
-    await slice.loadStructure();
-    expect(localizedName('GEN')).toBe('1. Mozus grāmata');
+  it('retains previous names for an unshipped language',
+    async () => {
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'LAVNLI',
+        translations: LV_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(LV);
+      state.structureByBible = { LAVNLI: LV };
+      await slice.loadStructure();
+      expect(localizedName('GEN')).toBe('1. Mozus grāmata');
 
-    // A fileset with no translation owner, no cache, no
-    // bundled for its (unknown) language — bundled 'en' IS
-    // the floor, so names swap to English, never stay wrong.
-    state.activeTextFilesetId = 'UNKNOWN1';
-    state.translations = [];
-    vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
-    await slice.loadStructure();
-    expect(state.activeStructureKey).toBe('UNKNOWN1');
-    expect(localizedName('GEN')).toBe('Genesis');
-  });
+      // A bible whose language has no bundled catalog and
+      // no cache: the previous structure keeps rendering
+      // until the fetch resolves — bundled 'en' must NOT
+      // floor the names of a non-shipped language.
+      state.translations = [
+        {
+          abbr: 'DEUBIB',
+          name: 'German Bible',
+          language: 'German',
+          language_iso: 'deu',
+          filesets: [
+            {
+              id: 'DEUBIB',
+              type: 'text_plain' as const,
+              size: 'C', codec: null, bitrate: null,
+            },
+          ],
+        },
+      ];
+      state.activeTextFilesetId = 'DEUBIB';
+      let resolveFetch!: (s: BibleStructure) => void;
+      vi.mocked(fetchBibleStructure).mockImplementation(
+        () => new Promise((r) => { resolveFetch = r; }),
+      );
+
+      const p = slice.loadStructure();
+      expect(state.activeStructureKey).toBe('DEUBIB');
+      // Latvian names stay — no English flash in between.
+      expect(localizedName('GEN')).toBe('1. Mozus grāmata');
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure)
+          .toHaveBeenCalledWith('DEUBIB');
+      });
+      const german: BibleStructure = {
+        books: [{
+          book_id: 'GEN', name: '1. Mose',
+          name_short: '1Mo', testament: 'OT',
+          chapters: [1],
+        }],
+      };
+      resolveFetch(german);
+      await p;
+      expect(localizedName('GEN')).toBe('1. Mose');
+    });
+
+  it('reuses the pre-translations fetch when the owner ' +
+    'resolves mid-flight', async () => {
+      // Fileset selected before the translations list lands:
+      // the first load keys on the raw fileset id. When the
+      // list arrives the re-kick must reuse that fetch and
+      // re-key the result under the bible abbr — not fire a
+      // second fetch or leave a fileset-id entry behind.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'LAVNLIX_ET',
+        translations: [],
+      });
+      let resolveFetch!: (s: BibleStructure) => void;
+      vi.mocked(fetchBibleStructure).mockImplementation(
+        () => new Promise((r) => { resolveFetch = r; }),
+      );
+      const p1 = slice.loadStructure();
+      expect(state.activeStructureKey).toBe('LAVNLIX_ET');
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure).toHaveBeenCalledTimes(1);
+      });
+
+      state.translations = [
+        {
+          abbr: 'LAVNLIX',
+          name: 'Latvian X',
+          language: 'Latvian',
+          language_iso: 'lvs',
+          filesets: [
+            {
+              id: 'LAVNLIX_ET',
+              type: 'text_plain' as const,
+              size: 'C', codec: null, bitrate: null,
+            },
+          ],
+        },
+      ];
+      const p2 = slice.loadStructure();
+      expect(state.activeStructureKey).toBe('LAVNLIX');
+      expect(fetchBibleStructure).toHaveBeenCalledTimes(1);
+
+      resolveFetch(LV);
+      await Promise.all([p1, p2]);
+      // The single fetch lands under the resolved abbr.
+      expect(state.structureByBible['LAVNLIX']).toEqual(LV);
+    });
 
   it('atomically swaps names+coverage when fetch lands', async () => {
     const { state, slice } = makeStore({

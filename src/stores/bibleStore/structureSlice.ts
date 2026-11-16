@@ -19,7 +19,8 @@ import catalogRu from '../../assets/bookNames.ru.json';
  *
  * Resolution order per `loadStructure()`:
  *   localStorage (per bible abbr) -> bundled locale catalog
- *   -> previous rendered structure -> fetch.
+ *   (shipped locales only) -> previous rendered structure
+ *   -> fetch.
  * Names + coverage swap atomically when a fresher structure
  * lands: the store write and the `bookNameRegistry` sync-view
  * push happen in the same apply, so React and non-React
@@ -31,14 +32,25 @@ const BUNDLED_CATALOGS: Record<string, BibleStructure> = {
   ru: catalogRu as unknown as BibleStructure,
 };
 
-/** ISO-639-3 -> bundled catalog language; English is the floor. */
-const catalogLangFor = (iso?: string): string => {
+/**
+ * ISO-639-3 -> bundled catalog language. Only the shipped
+ * locales have catalogs — for any other language (or an
+ * unresolved owner) this returns undefined so the previous
+ * structure stays rendered until the fetch lands; English
+ * is not a universal floor.
+ */
+const catalogLangFor = (iso?: string): string | undefined => {
   if (iso === 'lvs') return 'lv';
   if (iso === 'rus') return 'ru';
-  return 'en';
+  if (iso === 'eng') return 'en';
+  return undefined;
 };
 
-/** In-flight fetches keyed by bible abbr — dedupes SWR kicks. */
+/**
+ * In-flight fetches keyed by the fileset id actually being
+ * fetched — dedupes SWR kicks, including a re-kick that
+ * re-keys the bible once the translations list lands.
+ */
 const inflight = new Map<string, Promise<void>>();
 
 export interface StructureSlice {
@@ -96,15 +108,21 @@ export const createStructureSlice: StateCreator<
     // old names stay rendered until the fetch lands.
     set({ activeStructureKey: abbr });
 
+    // A first load can race the translations list: until the
+    // owner resolves, the fileset id stands in for the abbr.
+    // Checking the id-keyed tiers too means the early load's
+    // staged/fetched/cached work is reused, not duplicated.
     const staged =
       structureByBible[abbr] ??
+      structureByBible[activeTextFilesetId] ??
       getCachedStructure(abbr) ??
-      BUNDLED_CATALOGS[lang];
+      getCachedStructure(activeTextFilesetId) ??
+      (lang ? BUNDLED_CATALOGS[lang] : undefined);
     if (staged) {
       applyStructure(abbr, staged, set, get);
     }
 
-    const existing = inflight.get(abbr);
+    const existing = inflight.get(activeTextFilesetId);
     if (existing) return existing;
     // Promise.resolve first: a synchronous throw from the
     // client layer (module-mocked api barrel, offline guard)
@@ -118,8 +136,16 @@ export const createStructureSlice: StateCreator<
         if (!Array.isArray(structure?.books)) {
           throw new Error('Malformed bible structure response');
         }
-        cacheStructure(abbr, structure);
-        applyStructure(abbr, structure, set, get);
+        // Re-resolve the owner at landing: the translations
+        // list may have arrived mid-flight, upgrading the
+        // key from the fileset id to the bible abbr.
+        const landAbbr =
+          findTranslationByFilesetId(
+            activeTextFilesetId,
+            get().translations,
+          )?.abbr ?? abbr;
+        cacheStructure(landAbbr, structure);
+        applyStructure(landAbbr, structure, set, get);
       })
       .catch((error) => {
         // Failure keeps the staged/previous structure — the
@@ -127,9 +153,9 @@ export const createStructureSlice: StateCreator<
         console.warn('Bible structure fetch failed:', error);
       })
       .finally(() => {
-        inflight.delete(abbr);
+        inflight.delete(activeTextFilesetId);
       });
-    inflight.set(abbr, p);
+    inflight.set(activeTextFilesetId, p);
     return p;
   },
 });

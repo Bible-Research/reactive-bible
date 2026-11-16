@@ -13,6 +13,12 @@ import {
 export interface ParsedMention {
   /** Canonical book_name (e.g. "John") once uniquely resolved. */
   bookName: string | null;
+  /**
+   * USFM code for `bookName` — the parser's own resolution,
+   * so localized display names never have to re-enter an
+   * English-keyed lookup downstream.
+   */
+  bookId: string | null;
   /** Book names matching the typed prefix — drives the Books column. */
   bookMatches: string[];
   chapter: number | null;
@@ -99,6 +105,7 @@ export const matchBookNames = (query: string): string[] =>
 
 const emptyParsed = (): ParsedMention => ({
   bookName: null,
+  bookId: null,
   bookMatches: getAllBooks().map((b) => b.book_name),
   chapter: null,
   verseStart: null,
@@ -153,6 +160,7 @@ export const parseMentionQuery = (raw: string): ParsedMention => {
 
   // getChapters/getVerses key on the USFM book_id, not the name.
   const bookId = exact?.book_id ?? prefixMatches[0].book_id;
+  result.bookId = bookId;
 
   const rest = tokens.slice(consumed);
   const [chapterToken, verseToken, ...extra] = rest;
@@ -266,9 +274,11 @@ export const buildScriptureToken = (
   p: ParsedMention,
 ): string | null => {
   if (p.bookName === null || p.chapter === null) return null;
-  // Localized + English + USFM — the mention stores canonical
-  // codes regardless of the display language it was typed in.
-  const code = toUsfmCode(p.bookName);
+  // The parser's own USFM resolution first — a localized
+  // display name must produce the code it was resolved from,
+  // never an English-name collision. toUsfmCode stays as the
+  // fallback for hand-built ParsedMention objects.
+  const code = p.bookId ?? toUsfmCode(p.bookName);
   if (!code) return null;
   if (p.verseStart === null) {
     return `@${code}.${p.chapter}`;

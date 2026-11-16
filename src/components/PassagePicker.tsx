@@ -184,12 +184,12 @@ const PassagePicker = ({
       translations,
     );
     const translationName =
-      owner?.name ?? owner?.abbr ?? activeTextFilesetId;
+      owner?.name ?? owner?.abbr ?? 'This translation';
     const bookName =
       books.find((b) => b.book_id === bookId)?.book_name ??
       bookId;
     showNotification({
-      title: `${translationName}`,
+      title: 'Book not included',
       message: `${translationName} doesn't include ${bookName}`,
       color: 'yellow',
     });
