@@ -126,7 +126,9 @@ export const fetchHeadingsOnly = async (
         responseData.headings.length === 0)
     ) {
       throw trackError(
-        new ProviderError(responseData.message),
+        isRateLimitMessage(responseData.message)
+          ? new RateLimitError(responseData.message)
+          : new ProviderError(responseData.message),
         { status: response.status, url: response.url }
       );
     }
@@ -235,7 +237,9 @@ export const getVersesFromApi = async (
       (!Array.isArray(data.verses) || data.verses.length === 0)
     ) {
       throw trackError(
-        new ProviderError(data.message),
+        isRateLimitMessage(data.message)
+          ? new RateLimitError(data.message)
+          : new ProviderError(data.message),
         { status: response.status, url: response.url }
       );
     }

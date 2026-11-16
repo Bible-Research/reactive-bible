@@ -408,6 +408,10 @@ export const useTagNotesData = ({
           append: false,
           includeDescendants,
         });
+      } catch {
+        // fetchNotes already reported to Sentry and toasted —
+        // swallow so the caller's discarded promise doesn't
+        // also hit the unhandledrejection path.
       } finally {
         setPageLoading(false);
       }
@@ -441,6 +445,9 @@ export const useTagNotesData = ({
           append: false,
           includeDescendants,
         });
+      } catch {
+        // Same as handlePageChange — fetchNotes already
+        // reported and toasted.
       } finally {
         setPageLoading(false);
       }
