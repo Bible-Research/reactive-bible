@@ -65,6 +65,23 @@ const parseChapterKey = (
     : null;
 };
 
+// Full inverse of chapterKey, including the fileset id — the
+// timestamps effect needs the recording actually playing, not
+// just the passage.
+const parsePlayingKey = (
+  key: string | null,
+): { filesetId: string; bookId: string; chapter: number } | null => {
+  if (!key) return null;
+  const parts = key.split(':');
+  const chapter = Number(parts[parts.length - 1]);
+  const bookId = parts[parts.length - 2];
+  const filesetId = parts.slice(0, -2).join(':');
+  return bookId && Number.isInteger(chapter) &&
+    filesetId && filesetId !== 'none'
+    ? { filesetId, bookId, chapter }
+    : null;
+};
+
 // Brief silence between chapters on auto-advance.
 const INTER_CHAPTER_GAP_MS = 2000;
 
@@ -162,6 +179,10 @@ export const useChapterAudio = (
   const [isLooping, setIsLooping] = useState(false);
   const isLoopingRef = useRef(false);
   const [timestamps, setTimestamps] = useState<VerseTimestamp[]>([]);
+  // `fileset:book:chapter` key the rows in `timestamps` describe
+  // — verse navigation and highlighting are only valid while
+  // this matches what is actually playing.
+  const timestampsKeyRef = useRef<string | null>(null);
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const setAudioActiveVerse = useBibleStore(
@@ -809,38 +830,65 @@ export const useChapterAudio = (
     setShowPlayer,
   ]);
 
-  // Fetch timestamps when audio or text fileset changes
+  // Fetch verse timestamps for the recording actually playing —
+  // the fileset the candidate walk landed on (audioChapterKey),
+  // not merely the selected one: a coverage/codec fallback that
+  // substituted a different recording must use THAT recording's
+  // timestamps (timestamps are only valid for the recording
+  // they were generated from) or degrade to the ±10s seek
+  // fallback rather than mis-seek against a foreign verse map.
   useEffect(() => {
-    if (!activeAudioFilesetId) return;
+    // `audio` in the deps re-runs this at publish/adopt/swap —
+    // audioChapterKeyRef is already updated by then.
+    const playing = audio
+      ? parsePlayingKey(audioChapterKeyRef.current)
+      : null;
+    const bookId = playing?.bookId ?? activeBookId;
+    const chapter = playing?.chapter ?? activeChapter;
     // Stored ids may be grouped product ids — resolve to the
     // concrete members so the ENGESV_API timestamp special cases
     // keep matching.
-    const resolvedAudioId = resolveFilesetFor(
-      activeBookId,
-      activeAudioFilesetId,
+    const audioId =
+      playing?.filesetId ??
+      resolveFilesetFor(activeBookId, activeAudioFilesetId);
+    const tsFilesetId = audioId
+      ? resolveTimestampsFilesetId(
+          audioId,
+          resolveTextFileset(
+            activeTextFilesetId,
+            bookId,
+            translations,
+          ),
+          bookId,
+        )
+      : null;
+    const tsKey = tsFilesetId
+      ? `${tsFilesetId}:${bookId}:${chapter}`
+      : null;
+    // Rows in state describe the last resolved key — clear them
+    // when they no longer match what is about to play so verse
+    // navigation/highlight never runs on another recording's
+    // verse map.
+    if (timestampsKeyRef.current !== tsKey) {
+      timestampsKeyRef.current = null;
+      setTimestamps([]);
+    }
+    if (!tsFilesetId || !tsKey) return;
+    let cancelled = false;
+    void getAudioTimestamps(bookId, chapter, tsFilesetId).then(
+      (ts) => {
+        // A superseded fetch resolving late must not overwrite
+        // a newer chapter's rows with stale ones.
+        if (cancelled) return;
+        timestampsKeyRef.current = tsKey;
+        setTimestamps(adjustTimestampsForENGESV(ts, audioId));
+      },
     );
-    const tsFilesetId = resolveTimestampsFilesetId(
-      resolvedAudioId,
-      resolveTextFileset(
-        activeTextFilesetId,
-        activeBookId,
-        translations,
-      ),
-      activeBookId,
-    );
-    if (!tsFilesetId) return;
-    void getAudioTimestamps(
-      activeBookId,
-      activeChapter,
-      tsFilesetId,
-    ).then((ts) => {
-      const adjusted = adjustTimestampsForENGESV(
-        ts,
-        resolvedAudioId,
-      );
-      setTimestamps(adjusted);
-    });
+    return () => {
+      cancelled = true;
+    };
   }, [
+    audio,
     activeBookId,
     activeChapter,
     activeAudioFilesetId,
