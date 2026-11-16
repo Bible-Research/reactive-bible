@@ -5,7 +5,6 @@ import {
   Checkbox,
   FileButton,
   Group,
-  Select,
   Text,
   ThemeIcon,
   Tooltip,
@@ -26,6 +25,7 @@ import {
   UnavailableThumb,
 } from "./CommentImageGrid";
 import RichTextEditor from "./RichTextEditor";
+import { TagCombobox } from "./TagCombobox";
 
 interface NoteFormProps {
   tags: Tag[];
@@ -466,22 +466,13 @@ const NoteForm = ({
 
   return (
     <form onSubmit={handleSubmit}>
-      <Select
-        variant="transparent"
-        label="Tag"
+      <TagCombobox
         // Select by id — mapping by name silently picked the
         // first of two same-named tags.
-        value={selectedTagId || null}
-        onChange={(item: string | null) => {
-          setSelectedTagId(item ?? "");
-        }}
+        value={selectedTagId}
+        onChange={setSelectedTagId}
         onDropdownOpen={onTagDropdownOpen}
-        data={tags.map((tag) => ({
-          value: tag.id,
-          label: tag.name,
-        }))}
-        searchable
-        maxDropdownHeight={window.innerHeight * 0.7}
+        tags={tags}
       />
       <RichTextEditor
         variant="note"

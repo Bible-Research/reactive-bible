@@ -3,6 +3,10 @@ import {
   buildTagTree,
   isTagDescendant,
   validateTagName,
+  tagPath,
+  matchTagQuery,
+  isExactPathMatch,
+  isTopLevelNameTaken,
 } from './tagTree';
 import type { Tag } from '../types';
 
@@ -129,5 +133,88 @@ describe('validateTagName', () => {
 
   it('accepts a fresh name', () => {
     expect(validateTagName('New Tag', existing)).toBeNull();
+  });
+});
+
+describe('tagPath', () => {
+  it('labels a root tag with its bare name', () => {
+    const tags = [tag('1', 'Work')];
+    expect(tagPath(tags, tags[0])).toBe('Work');
+  });
+
+  it('joins ancestors root to leaf', () => {
+    const tags = [
+      tag('1', 'Work'),
+      tag('2', 'design', '1'),
+      tag('3', 'ui', '2'),
+    ];
+    expect(tagPath(tags, tags[2])).toBe('Work › design › ui');
+  });
+
+  it('treats a missing parent as root', () => {
+    const tags = [tag('2', 'design', 'gone')];
+    expect(tagPath(tags, tags[0])).toBe('design');
+  });
+
+  it('does not loop on a parent cycle', () => {
+    const tags = [tag('1', 'a', '2'), tag('2', 'b', '1')];
+    expect(tagPath(tags, tags[0])).toBe('b › a');
+  });
+});
+
+describe('matchTagQuery', () => {
+  const tags = [
+    tag('1', 'Work'),
+    tag('2', 'design', '1'),
+    tag('3', 'School'),
+    tag('4', 'design', '3'),
+  ];
+
+  it('returns everything on an empty query', () => {
+    expect(matchTagQuery(tags, '  ')).toEqual(tags);
+  });
+
+  it('matches child names through the path', () => {
+    const hits = matchTagQuery(tags, 'design');
+    expect(hits.map((t) => t.id)).toEqual(['2', '4']);
+  });
+
+  it('treats a slash query as a path match', () => {
+    const hits = matchTagQuery(tags, 'Work/design');
+    expect(hits.map((t) => t.id)).toEqual(['2']);
+  });
+
+  it('matches ancestor prefixes case-insensitively', () => {
+    const hits = matchTagQuery(tags, 'work');
+    expect(hits.map((t) => t.id)).toEqual(['1', '2']);
+  });
+});
+
+describe('isExactPathMatch', () => {
+  const tags = [tag('1', 'Work'), tag('2', 'design', '1')];
+
+  it('matches a slash query against the full path', () => {
+    expect(isExactPathMatch(tags, 'Work/design')).toBe(true);
+    expect(isExactPathMatch(tags, 'work / design')).toBe(true);
+    expect(isExactPathMatch(tags, 'work')).toBe(true);
+    expect(isExactPathMatch(tags, 'design')).toBe(false);
+    expect(isExactPathMatch(tags, 'Work/other')).toBe(false);
+  });
+});
+
+describe('isTopLevelNameTaken', () => {
+  const tags = [
+    tag('1', 'Work'),
+    tag('2', 'design', '1'),
+  ];
+
+  it('is true for a top-level name case-insensitively', () => {
+    expect(isTopLevelNameTaken(tags, 'work')).toBe(true);
+    expect(isTopLevelNameTaken(tags, ' WORK ')).toBe(true);
+  });
+
+  it('is false when the name only exists nested', () => {
+    expect(isTopLevelNameTaken(tags, 'design')).toBe(false);
+    expect(isTopLevelNameTaken(tags, 'other')).toBe(false);
   });
 });
