@@ -100,7 +100,7 @@ export const validateTagName = (
       tag.name.toLowerCase() === name.trim().toLowerCase()
   );
   if (isDuplicate) {
-    return 'A tag with this name already exists';
+    return i18n.t('tags.nameTaken');
   }
 
   return null;

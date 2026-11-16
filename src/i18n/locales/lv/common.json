@@ -100,7 +100,8 @@
     "error": "Kļūda",
     "success": "Veiksmīgi",
     "sessionExpired": "Sesija beigusies",
-    "sessionExpiredMsg": "Jūsu sesija ir beigusies. Lūdzu, pierakstieties vēlreiz."
+    "sessionExpiredMsg": "Jūsu sesija ir beigusies. Lūdzu, pierakstieties vēlreiz.",
+    "required": "Šim pieprasījumam nepieciešama autentifikācija."
   },
   "notes": {
     "newNote": "Jauna piezīme",
@@ -174,7 +175,8 @@
     "noNotesWithSubtags": "Šajā birkā vai tās apakšbirkās nav piezīmju.",
     "noNotesForTag": "Šai birkai nav atrasta neviena piezīme.",
     "noNoteId": "Nav norādīts piezīmes ID",
-    "noteTitle": "Piezīme: {{name}}"
+    "noteTitle": "Piezīme: {{name}}",
+    "noPassage": "bez rakstu vietas"
   },
   "tags": {
     "createNew": "Izveidot jaunu birku",
@@ -202,6 +204,7 @@
     "showDetails": "Rādīt detaļas",
     "nameRequired": "Birkas nosaukums ir obligāts",
     "nameTooLong": "Birkas nosaukumam jābūt 100 rakstzīmēm vai īsākam",
+    "nameTaken": "Birka ar šādu nosaukumu jau pastāv",
     "dragToMove": "Velciet, lai pārvietotu zem citas birkas",
     "dragToReparent": "Velciet, lai mainītu birkas vecāku",
     "collapse": "Sakļaut",
@@ -261,6 +264,7 @@
     "hasChildrenWarning": "⚠️ Šai birkai ir apakšbirkas. Tās vecāka maiņa ietekmēs hierarhiju.",
     "noTagsSearch": "Nav atrastas birkas, kas atbilstu meklējumam",
     "noTags": "Vēl nav birku",
+    "createFirst": "Izveidojiet savu pirmo birku",
     "sortOrder": "Kārtošanas secība",
     "deleteConfirm": "Vai tiešām vēlaties dzēst „{{name}}”? {{body}}{{suffix}}. Šo darbību nevar atsaukt.",
     "deleteChildSuffix_zero": ", un var tikt ietekmētas tās {{count}} apakšbirku",
@@ -272,7 +276,13 @@
     "statePublic": "publiska",
     "statePrivate": "privāta",
     "makePublicBody": "Padarīt „{{name}}” un visas tieši zem tās esošās piezīmes publiskas? Ikviens ar saiti varēs tās skatīt.",
-    "makePrivateBody": "Padarīt „{{name}}” privātu? Visas tieši zem tās esošās piezīmes arī kļūs privātas — ikviens, kas seko kopīgotai saitei, zaudēs piekļuvi. To nevar atsaukt pa vienai piezīmei."
+    "makePrivateBody": "Padarīt „{{name}}” privātu? Visas tieši zem tās esošās piezīmes arī kļūs privātas — ikviens, kas seko kopīgotai saitei, zaudēs piekļuvi. To nevar atsaukt pa vienai piezīmei.",
+    "tagCount_zero": "{{count}} birku",
+    "tagCount_one": "{{count}} birka",
+    "tagCount_other": "{{count}} birkas",
+    "noteCount_zero": "{{count}} piezīmju",
+    "noteCount_one": "{{count}} piezīme",
+    "noteCount_other": "{{count}} piezīmes"
   },
   "comments": {
     "post": "Publicēt",
@@ -297,7 +307,6 @@
     "image": "Attēls",
     "noComments": "Vēl nav komentāru.",
     "logInToComment": "Pierakstieties, lai komentētu",
-    "retry": "Mēģināt vēlreiz",
     "deleteImage": "Dzēst attēlu {{id}}",
     "removeImage": "Noņemt attēlu {{name}}",
     "removeStagedImage": "Noņemt sagatavoto attēlu {{name}}",
@@ -317,6 +326,7 @@
     "error": "Kļūda",
     "success": "Veiksmīgi",
     "close": "Aizvērt",
+    "retry": "Mēģināt vēlreiz",
     "tag": "Birka",
     "untagged": "Bez birkām"
   },
@@ -328,6 +338,7 @@
     "unexpected": "Radās neparedzēta kļūda. Lūdzu, mēģiniet vēlreiz.",
     "copied": "Nokopēts!",
     "copyDetails": "Kopēt kļūdas detaļas",
+    "reportHint": "Lūdzu, ziņojiet par šo kļūdu, ielīmējot detaļas GitHub „Issues” ierakstā.",
     "contextRender": "React renderēšanas kļūda",
     "goHome": "Uz sākumu"
   },

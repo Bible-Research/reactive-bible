@@ -19,8 +19,7 @@ export function ErrorNotificationContent({ error, context }: Props) {
     <Stack spacing={4}>
       <Text size="sm">{error.message}</Text>
       <Text size="xs" color="dimmed">
-        Please report this bug by pasting the details into a
-        GitHub issue.
+        {t('errorBoundary.reportHint')}
       </Text>
       <Button
         size="xs"

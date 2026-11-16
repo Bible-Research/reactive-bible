@@ -198,9 +198,10 @@ export const authenticatedFetch = async (
   // session expired", and must not log anyone out.
   if (response.status === 401) {
     if (!issuedToken) {
-      throw new Error(
-        'Authentication required for this request.'
-      );
+      // Catalog key, not display text — surfaced to the
+      // user via localizedErrorText/textOrKey like
+      // 'errors.forbidden' (see throwForbidden).
+      throw new Error('auth.required');
     }
     expireSession(issuedToken);
   }
@@ -247,9 +248,7 @@ export const authenticatedUpload = async (
   // session.
   if (response.status === 401) {
     if (!issuedToken) {
-      throw new Error(
-        'Authentication required for this request.'
-      );
+      throw new Error('auth.required');
     }
     expireSession(issuedToken);
   }

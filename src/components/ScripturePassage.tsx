@@ -6,7 +6,7 @@ import { toUsfmCode } from '../utils/bibleUtils';
 import { SectionHeading } from '../types';
 import SectionHeadingComponent from './SectionHeading';
 import { useTranslation } from 'react-i18next';
-import i18n from '../i18n';
+import { localizedErrorText } from '../i18n/errorText';
 
 // Passage lookups from notes/comments always use ESV
 const FILESET_ID = 'ENGESV_API';
@@ -64,11 +64,11 @@ const ScripturePassage = ({
       } catch (err) {
         console.error('Failed to load passage', err);
         if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : i18n.t('passage.loadPassageFailed')
-          );
+          // Typed API errors (rate limit, provider,
+          // book-not-in-fileset) resolve to catalog text;
+          // anything else falls back to its own message or
+          // the generic error.
+          setError(localizedErrorText(err));
         }
       }
     };

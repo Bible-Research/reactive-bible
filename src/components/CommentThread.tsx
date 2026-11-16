@@ -427,7 +427,7 @@ const CommentThread = ({
           onClick={load}
           aria-label={t('comments.retryLoading')}
         >
-          {t('comments.retry')}
+          {t('common.retry')}
         </Button>
       </Stack>
     );

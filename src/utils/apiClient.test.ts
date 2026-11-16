@@ -182,7 +182,7 @@ describe('apiClient', () => {
       });
 
       await expect(authenticatedFetch(mockUrl))
-        .rejects.toThrow('Authentication required');
+        .rejects.toThrow('auth.required');
       expect(showNotification).not.toHaveBeenCalled();
       expect(
         useAuthStore.getState().isAuthenticated

@@ -201,7 +201,7 @@ const { t } = useTranslation();
   const handleDeleteTag = useCallback(
     (tagId: string, tagName: string) => {
       const childCount = tags.filter(
-        (t) => t.parent_tag === tagId
+        (tag) => tag.parent_tag === tagId
       ).length;
       openConfirmModal({
         title: t('tags.deleteTitle'),
@@ -374,7 +374,7 @@ const { t } = useTranslation();
   // otherwise the tree renders the match as a root and the
   // hierarchy (and the path to it) is lost.
   const tagById = useMemo(
-    () => new Map(tags.map((t) => [t.id, t])),
+    () => new Map(tags.map((tag) => [tag.id, tag])),
     [tags]
   );
   // Derived counts — memoized on `tags` so rows never redo the
@@ -405,7 +405,7 @@ const { t } = useTranslation();
           : undefined;
       }
     }
-    return tags.filter((t) => keep.has(t.id));
+    return tags.filter((tag) => keep.has(tag.id));
   }, [tags, searchQuery, tagById]);
   const searching = searchQuery.trim().length > 0;
 
@@ -422,13 +422,13 @@ const { t } = useTranslation();
       <Center style={{ height: '100vh' }}>
         <Stack align="center" spacing="sm">
           <Text color="red" size="lg">
-            Failed to load your tags.
+            {t('tags.loadFailed')}
           </Text>
           <Button
             variant="light"
             onClick={() => void loadTags(true)}
           >
-            Try again
+            {t('common.retry')}
           </Button>
         </Stack>
       </Center>
@@ -446,7 +446,9 @@ const { t } = useTranslation();
       }}
     >
       <Group position="apart" mb={compact ? 'sm' : 'lg'} noWrap>
-        <Title order={compact ? 3 : 2}>Tag Management</Title>
+        <Title order={compact ? 3 : 2}>
+          {t('menu.tagManagement')}
+        </Title>
         {compact ? (
           <ActionIcon
             variant="filled"
@@ -461,7 +463,7 @@ const { t } = useTranslation();
             leftIcon={<IconPlus size={16} />}
             onClick={handleCreateTag}
           >
-            New Tag
+            {t('tags.new')}
           </Button>
         )}
       </Group>
@@ -487,11 +489,13 @@ const { t } = useTranslation();
               size="sm"
               sx={{ whiteSpace: 'nowrap' }}
             >
-              {filteredTags.length}{' '}
-              {filteredTags.length === 1 ? 'tag' : 'tags'}
+              {t('tags.tagCount', {
+                count: filteredTags.length,
+              })}
               {noteTotal !== null &&
-                ` · ${noteTotal} ` +
-                  `${noteTotal === 1 ? 'note' : 'notes'}`}
+                ` · ${t('tags.noteCount', {
+                  count: noteTotal,
+                })}`}
             </Text>
             {refreshing && <Loader size="xs" />}
           </>
@@ -512,7 +516,7 @@ const { t } = useTranslation();
                 leftIcon={<IconPlus size={16} />}
                 onClick={handleCreateTag}
               >
-                Create your first tag
+                {t('tags.createFirst')}
               </Button>
             )}
           </Stack>

@@ -150,15 +150,17 @@ export function EditTagModal({
   };
 
   const sortedTags = [...existingTags]
-    .filter((t) => t.id !== tag?.id)
+    .filter((candidate) => candidate.id !== tag?.id)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const parentTagOptions = sortedTags.map((t) => ({
-    value: t.id,
-    label: t.name,
+  const parentTagOptions = sortedTags.map((candidate) => ({
+    value: candidate.id,
+    label: candidate.name,
   }));
 
-  const hasChildren = existingTags.some((t) => t.parent_tag === tag?.id);
+  const hasChildren = existingTags.some(
+    (candidate) => candidate.parent_tag === tag?.id
+  );
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();

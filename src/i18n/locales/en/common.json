@@ -100,7 +100,8 @@
     "error": "Error",
     "success": "Success",
     "sessionExpired": "Session Expired",
-    "sessionExpiredMsg": "Your session has expired. Please log in again."
+    "sessionExpiredMsg": "Your session has expired. Please log in again.",
+    "required": "Authentication required for this request."
   },
   "notes": {
     "newNote": "New note",
@@ -173,7 +174,8 @@
     "noNotesWithSubtags": "No notes in this tag or its sub-tags.",
     "noNotesForTag": "No notes found for this tag.",
     "noNoteId": "No note ID provided",
-    "noteTitle": "Note: {{name}}"
+    "noteTitle": "Note: {{name}}",
+    "noPassage": "no passage"
   },
   "tags": {
     "createNew": "Create New Tag",
@@ -201,6 +203,7 @@
     "showDetails": "Show details",
     "nameRequired": "Tag name is required",
     "nameTooLong": "Tag name must be 100 characters or less",
+    "nameTaken": "A tag with this name already exists",
     "dragToMove": "Drag to move under another tag",
     "dragToReparent": "Drag to reparent tag",
     "collapse": "Collapse",
@@ -257,6 +260,7 @@
     "hasChildrenWarning": "⚠️ This tag has child tags. Changing its parent will affect the hierarchy.",
     "noTagsSearch": "No tags found matching your search",
     "noTags": "No tags yet",
+    "createFirst": "Create your first tag",
     "sortOrder": "Sort order",
     "deleteConfirm": "Are you sure you want to delete \"{{name}}\"? {{body}}{{suffix}}. This action cannot be undone.",
     "deleteChildSuffix_one": ", and its {{count}} child tag may be affected",
@@ -266,7 +270,11 @@
     "statePublic": "public",
     "statePrivate": "private",
     "makePublicBody": "Make \"{{name}}\" and all notes directly under it public? Anyone with the link can view them.",
-    "makePrivateBody": "Make \"{{name}}\" private? All notes directly under it will also become private — anyone following a shared link loses access. This cannot be undone per-note."
+    "makePrivateBody": "Make \"{{name}}\" private? All notes directly under it will also become private — anyone following a shared link loses access. This cannot be undone per-note.",
+    "tagCount_one": "{{count}} tag",
+    "tagCount_other": "{{count}} tags",
+    "noteCount_one": "{{count}} note",
+    "noteCount_other": "{{count}} notes"
   },
   "comments": {
     "post": "Post",
@@ -291,7 +299,6 @@
     "image": "Image",
     "noComments": "No comments yet.",
     "logInToComment": "Log in to comment",
-    "retry": "Retry",
     "deleteImage": "Delete image {{id}}",
     "removeImage": "Remove image {{name}}",
     "removeStagedImage": "Remove staged image {{name}}",
@@ -551,6 +558,7 @@
     "error": "Error",
     "success": "Success",
     "close": "Close",
+    "retry": "Retry",
     "tag": "Tag",
     "untagged": "Untagged"
   },
@@ -559,6 +567,7 @@
     "unexpected": "An unexpected error occurred. Please try again.",
     "copied": "Copied!",
     "copyDetails": "Copy error details",
+    "reportHint": "Please report this bug by pasting the details into a GitHub issue.",
     "contextRender": "React render error",
     "goHome": "Go to Home"
   },
