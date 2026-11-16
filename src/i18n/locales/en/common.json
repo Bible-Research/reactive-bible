@@ -506,7 +506,7 @@
   },
   "tutorials": {
     "heading": "Getting started",
-    "intro": "New here? These short video tutorials walk through the app's features — from reading and searching the Bible to notes, tags, and audio. Watch them in order or jump straight to the feature you need.",
+    "intro": "These short video tutorials walk through the app's features — from reading and searching the Bible to notes, tags, and audio. Watch them in order or jump straight to the feature you need.",
     "empty": "Tutorials are being recorded — check back soon.",
     "playVideo": "Play video: {{title}}",
     "watchOnYouTube": "Watch on YouTube",

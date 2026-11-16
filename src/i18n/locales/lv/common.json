@@ -6,7 +6,7 @@
   "menu": {
     "account": "Konts",
     "readBible": "Lasīt Bībeli",
-    "gettingStarted": "Darba sākšana",
+    "gettingStarted": "Pamācība",
     "viewNotes": "Skatīt piezīmes",
     "newNote": "Jauna piezīme",
     "tagManagement": "Birku pārvaldība",
@@ -90,7 +90,7 @@
     "joinPrompt": "Pievienojieties Bible Research, lai saglabātu un sakārtotu savas pētījumu piezīmes",
     "createAccount": "Izveidot kontu",
     "alreadyHaveAccount": "Vai jums jau ir konts?",
-    "emailOptional": "E-pasts (neobligāti)",
+    "emailOptional": "E-pasts (nav obligāts)",
     "emailPlaceholder": "jusu.epasts@example.com",
     "emailRecovery": "Tiek izmantots paroles atjaunošanai",
     "loggedOut": "Izrakstīts",
@@ -191,7 +191,7 @@
     "new": "Jauna birka",
     "name": "Birkas nosaukums",
     "enterName": "Ievadiet birkas nosaukumu",
-    "parentOptional": "Vecākbirka (neobligāti)",
+    "parentOptional": "Vecākbirka (nav obligāta)",
     "selectParent": "Izvēlieties vecākbirku",
     "rootHintCreate": "Atstājiet tukšu, lai izveidotu saknes līmeņa birku",
     "rootHintEdit": "Atstājiet tukšu, lai padarītu šo par saknes līmeņa birku",
@@ -544,9 +544,9 @@
     "coveragePartial": "{{base}} (daļēji)"
   },
   "tutorials": {
-    "heading": "Darba sākšana",
-    "intro": "Vai esat jauns šeit? Šīs īsās videoapmācības iepazīstina ar lietotnes iespējām — no Bībeles lasīšanas un meklēšanas līdz piezīmēm, birkām un audio. Skatieties tās pēc kārtas vai izvēlieties tieši vajadzīgo funkciju.",
-    "empty": "Apmācības tiek ierakstītas — pārbaudiet vēlāk.",
+    "heading": "Pamācība",
+    "intro": "Šīs īsās videoapmācības iepazīstina ar lietotnes iespējām — no Bībeles lasīšanas un meklēšanas līdz piezīmēm, birkām un audio. Skatieties tās pēc kārtas vai izvēlieties tieši vajadzīgo funkciju.",
+    "empty": "Pamācības tiek ierakstītas — pārbaudiet vēlāk.",
     "playVideo": "Atskaņot video: {{title}}",
     "watchOnYouTube": "Skatīties YouTube",
     "tour-of-the-app": {
