@@ -28,7 +28,7 @@ Talks to the `bible_research` Django API.
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
 - `src/store.ts` — main persisted Zustand store (`bible-storage`,
-  schema v7, custom `migratePersistedState` — bump version when
+  schema v8, custom `migratePersistedState` — bump version when
   persisted shape changes). Composition root; notes
   orchestration in `src/stores/bibleStore/notesSlice.ts`,
   structure SWR in `src/stores/bibleStore/structureSlice.ts`
@@ -101,6 +101,13 @@ Talks to the `bible_research` Django API.
 
 - Cache-first everywhere; prefetch adjacent chapters silently.
 - `showAudioPlayer` is intentionally NOT persisted.
+- `BottomNav`'s passage title is two zones: the localized book
+  name scrolls on a slow reveal-then-restart marquee
+  (`src/components/Marquee.tsx`) only when it overflows; the
+  chapter is pinned right (`flex: none`) and never moves.
+  `bookTitleMarquee` (persisted, default on) and
+  `prefers-reduced-motion` both collapse it to a clipped name —
+  a future settings toggle only writes that one field.
 - Auth: token persisted via authStore; `authenticatedFetch` is for
   user-owned resources (notes, tags, comments), `publicFetch` for
   bible content.

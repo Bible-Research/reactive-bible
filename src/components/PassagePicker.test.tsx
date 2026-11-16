@@ -178,6 +178,28 @@ describe('structure coverage (task 3.2)', () => {
     expect(exo).not.toBeDisabled();
   });
 
+  it('wraps long localized book names across lines', () => {
+    const overrides = stagePartial();
+    renderWithProviders(<PassagePicker {...{
+      bookId: 'JHN', chapter: 3, verses: [16],
+      titlePrefix: 'mention-', onSelectBook: vi.fn(),
+      onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+    }} />, { stores: { bible: overrides } });
+    const gen = screen.getByTitle('mention-book-GEN');
+    expect(gen).toHaveTextContent('1. Mozus grāmata');
+    // Book rows wrap instead of clipping: content-driven
+    // height + wrapping whitespace. Chapter rows keep the
+    // fixed single-line height (numbers can't wrap).
+    const style = getComputedStyle(gen);
+    expect(style.whiteSpace).toBe('normal');
+    expect(style.height).toBe('auto');
+    expect(
+      getComputedStyle(
+        screen.getByTitle('mention-chapter-1')
+      ).height
+    ).not.toBe('auto');
+  });
+
   it('click on uncovered book notifies, never navigates', async () => {
     const overrides = stagePartial();
     const onSelectBook = vi.fn();

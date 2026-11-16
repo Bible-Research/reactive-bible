@@ -542,7 +542,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v5 with a
+management. The main store (`bible-storage`, schema v8 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -1490,9 +1490,21 @@ The app provides three-level navigation:
   swallows the click), and lists the structure's real chapter
   coverage instead of assuming 66-book English shape. The
   structure resolves through the `structureByBible` SWR slice
-  (see State Management).
+  (see State Management). Long book names wrap across lines
+  (`linkBook`, content-driven row height) rather than
+  truncating.
 - Bottom prev/next chapter bar (`BottomNav`) with the current
-  book/chapter title kept in sync
+  book/chapter title kept in sync. The title is split into
+  two zones: the localized book name lives in a clipped flex
+  container that scrolls horizontally on a slow
+  reveal-then-restart marquee (`Marquee.tsx`, ~45px/s CSS
+  keyframes + ~1s hold) only when it overflows, while the
+  chapter stays pinned at the right edge (`flex: none`),
+  always visible. The persisted `bookTitleMarquee` pref
+  (default on, `bible-storage` v8) and
+  `prefers-reduced-motion` both fall back to an
+  ellipsis-clipped name — the settings toggle UI is
+  deferred; it only needs to write that pref.
 - Swipe chapter turns (`useChapterSwipe`): a horizontal swipe on
   the passage — left for the next chapter, right for the
   previous — via Pointer Events (touch, pen, mouse drag) and wheel

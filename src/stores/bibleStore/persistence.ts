@@ -34,6 +34,9 @@ export const partializeState = (state: BibleState) => ({
   notesPageSize: state.notesPageSize,
   tagPagination: state.tagPagination,
   readingPositions: state.readingPositions,
+  // Bottom-bar name marquee opt-out — the deferred settings
+  // toggle will only need to write this one field.
+  bookTitleMarquee: state.bookTitleMarquee,
   // showAudioPlayer is NOT persisted
   // detailNote is NOT persisted (transient share context)
   // pendingScrollVerse is NOT persisted
@@ -81,6 +84,9 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   introduced; the last-viewed tag's single-slot
  *   `notesPage`/`notesPageSize` seed its entry so that tag's
  *   restore keeps working.
+ * - pre-v8: `bookTitleMarquee` is introduced; pinned to the
+ *   default (on) when absent so the migrated record carries
+ *   the new field.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -203,6 +209,16 @@ export const migratePersistedState = (
       };
     }
     migrated = { ...migrated, tagPagination };
+  }
+
+  if (version < 8) {
+    migrated = {
+      ...migrated,
+      bookTitleMarquee:
+        typeof migrated.bookTitleMarquee === 'boolean'
+          ? migrated.bookTitleMarquee
+          : true,
+    };
   }
 
   return migrated as PersistedBibleState;
