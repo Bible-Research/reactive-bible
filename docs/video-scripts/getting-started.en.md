@@ -48,7 +48,8 @@ account creation, then everything that needs a login.
 - Close the menu with the ✕ or Esc.
 
 **Pitfalls:** don't scroll too fast or the auto-hide demo looks
-jumpy; the theme toggle only lives in the drawer.
+jumpy; the theme toggle only lives in the drawer; on Android the
+drawer also shows "Download Android App" (§17 covers it).
 
 ## 2. Go to any verse (~2 min)
 

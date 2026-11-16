@@ -46,15 +46,17 @@ izkārtojumu.
   nosaukums ("John 1").
 - Ritiniet lēnām uz leju → galvene un kājene pazūd, ļaujot lasīt bez
   traucēkļiem; ritiniet uz augšu → tās atgriežas.
-- Pieskarieties burgera pogai → izvēlne: Account / Sign In, Read
-  Bible, Getting started (lapa, kurā dzīvos šīs pamācības),
+- Pieskarieties burgera pogai → izvelkamā izvēlne: Account /
+  Sign In, Read Bible, Getting started (lapa, kurā dzīvo šīs
+  pamācības),
   Report a problem, Theme switch. Pārslēdziet tumšo → gaišo →
   tumšo režīmu.
 - Aizveriet izvēlni ar ✕ vai Esc.
 
 **Kļūdas:** neritiniet pārāk ātri, citādi automātiskās paslēpšanās
 demonstrācija izskatīsies raustīta; motīva pārslēgs atrodas tikai
-izvelkamajā izvēlnē.
+izvelkamajā izvēlnē; Android ierīcēs izvēlnē redzama arī
+"Download Android App" (skat. 17. sadaļu).
 
 ## 2. Pārejiet uz jebkuru pantu (~2 min)
 
@@ -343,7 +345,7 @@ ja komentāri jau pastāv. Attēlu limits ir 5 (piezīmes atļauj 10).
 ir tikai lokālā atjaunošana tajā pašā pārlūkā. Turiet apgalvojumu
 godīgu.
 
-## 17. Papildu: tumšais režīms, problēmu ziņojumi, Android (~90 s)
+## 17. Papildu iespējas: tumšais režīms, problēmu ziņojumi, Android (~90 s)
 
 **Mērķis:** atlikušās izvēlnes pozīcijas.
 
