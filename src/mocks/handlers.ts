@@ -8,9 +8,11 @@ import { mockTranslations } from '../__tests__/mocks/data';
  * `bibleStructure.json` so fetched structures carry the exact
  * same English names/chapter coverage the bundled fallback
  * shows: tests see zero visible delta when a structure fetch
- * resolves mid-assertion.
+ * resolves mid-assertion. Exported so test files that
+ * factory-mock `../api` can resolve `fetchBibleStructure`
+ * with the same payload MSW serves.
  */
-const mockStructure = (() => {
+export const mockStructure = (() => {
   const order = new Map<string, { name: string; chapters: number[] }>();
   for (const e of bibleStructureJson as {
     book_id: string; book_name: string; chapter: number;

@@ -112,6 +112,12 @@ export const createStructureSlice: StateCreator<
     const p = Promise.resolve()
       .then(() => fetchBibleStructure(activeTextFilesetId))
       .then((structure) => {
+        // A malformed resolution (or a test mock returning
+        // undefined) must take the warn path — applying it
+        // would crash the registry on `structure.books`.
+        if (!Array.isArray(structure?.books)) {
+          throw new Error('Malformed bible structure response');
+        }
         cacheStructure(abbr, structure);
         applyStructure(abbr, structure, set, get);
       })
