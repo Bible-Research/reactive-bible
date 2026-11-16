@@ -489,8 +489,13 @@ export const createNotesSlice: StateCreator<
     setNotesPageSize: (pageSize) => set({ notesPageSize: pageSize }),
     removeTagPagination: (tagId) =>
       set((state) => {
-        if (!(tagId in state.tagPagination)) return {};
-        const next = { ...state.tagPagination };
+        // A corrupted persisted blob (non-object or null)
+        // must not throw on the `in` check.
+        const map = state.tagPagination;
+        if (!map || typeof map !== 'object' || !(tagId in map)) {
+          return {};
+        }
+        const next = { ...map };
         delete next[tagId];
         return { tagPagination: next };
       }),

@@ -357,6 +357,59 @@ describe('TagNotesRoute pagination', () => {
       });
     });
 
+  it('restores the new tag\'s page when switching tags ' +
+    'while the previous tag\'s load is in flight', async () => {
+      // Both mount loads park on the same pending getTags
+      // promise: switch tag-123 -> tag-456 before it
+      // resolves, so tag-123's stale continuation resumes
+      // after tag-456's seed was written. An unguarded
+      // consume would discard that seed and fetch page 1.
+      let resolveTags!: () => void;
+      const tagsPromise = new Promise<void>((res) => {
+        resolveTags = res;
+      });
+      mockGetTags.mockImplementation(() => tagsPromise);
+      const { rerender } = renderRoute(
+        '/notes/tag/tag-123',
+        true,
+        {
+          tagPagination: {
+            'tag-123': { page: 3, pageSize: 25 },
+            'tag-456': { page: 5, pageSize: 25 },
+          },
+        }
+      );
+
+      mockUseParams.mockReturnValue({ tagId: 'tag-456' });
+      rerender(
+        <MemoryRouter initialEntries={['/notes/tag/tag-456']}>
+          <TagNotesRoute />
+          <LocationProbe />
+        </MemoryRouter>
+      );
+
+      await act(async () => {
+        resolveTags();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-456',
+          expect.objectContaining({ page: 5 })
+        );
+      });
+      // tag-456 must never have been fetched at page 1 —
+      // that would clobber its stored record on the next
+      // fetchNotes write.
+      expect(
+        mockFetchNotes.mock.calls.every(
+          (call) =>
+            !(call[0] === 'tag-456' && call[1]?.page === 1)
+        )
+      ).toBe(true);
+    });
+
   it('resets to page 1 on a sort change even after an ' +
     'anonymous StrictMode replay', async () => {
       // Anonymous loads reach the restore-seed consume

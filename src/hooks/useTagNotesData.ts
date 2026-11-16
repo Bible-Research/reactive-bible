@@ -132,7 +132,13 @@ export const useTagNotesData = ({
       // check would always pass. This runs before the
       // loader effect (declared below) consumes the ref.
       const stored = useBibleStore.getState();
-      const saved = stored.tagPagination[tagId];
+      // A corrupted blob (non-object or null) must not throw
+      // on the property read — treat it as "no record".
+      const saved =
+        stored.tagPagination &&
+        typeof stored.tagPagination === 'object'
+          ? stored.tagPagination[tagId]
+          : null;
       const savedPage =
         saved && typeof saved.page === 'number'
           ? Math.max(1, Math.floor(saved.page))
@@ -211,14 +217,19 @@ export const useTagNotesData = ({
         // of bouncing back to page 1.
         const queryKey =
           `${tagId}:${sortOrder}:${includeDescendants}`;
-        // Consume the seed on EVERY run, not only on a new
-        // query key: an anonymous StrictMode replay reaches
-        // this point synchronously and re-seeds the mount
-        // ref — a stale seed would then restore the stored
-        // page on the next sort/descendants change instead
-        // of resetting to page 1.
+        // Consume the seed on every run for THIS tag — an
+        // anonymous StrictMode replay reaches this point
+        // synchronously and re-seeds the mount ref, and a
+        // stale seed would restore the stored page on the
+        // next sort/descendants change instead of resetting
+        // to page 1. But the consume is tag-guarded: a stale
+        // run for the PREVIOUS tag (its getTags await still
+        // in flight when the user switched) must not discard
+        // the seed the new tag's loader is about to restore.
         const seeded = initialPageRef.current;
-        initialPageRef.current = null;
+        if (seeded?.tagId === tagId) {
+          initialPageRef.current = null;
+        }
         let page: number;
         if (lastLoadRef.current?.key === queryKey) {
           // notesPage reflects this tag only once its notes are
