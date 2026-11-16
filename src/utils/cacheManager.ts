@@ -3,6 +3,7 @@ import {
   VerseTimestamp,
   FilesetCopyright,
   SectionHeading,
+  BibleStructure,
 } from '../types';
 import type { Translation } from '../store';
 
@@ -20,6 +21,7 @@ const AUDIO_CACHE_KEY = 'bible_audio_cache';
 const NOTES_CACHE_KEY = 'bible_notes_cache_v2';
 const LEGACY_NOTES_CACHE_KEY = 'bible_notes_cache';
 const TRANSLATION_CACHE_KEY = 'bible_translation_cache';
+const STRUCTURE_CACHE_KEY = 'bible_structure_cache';
 const MAX_VERSES = 500;
 const CACHE_VERSION = 2;
 
@@ -899,4 +901,79 @@ export const cacheHeadings = (
 
 export const clearHeadingsCache = () => {
   removeCachedLocalStorage(HEADINGS_CACHE_KEY);
+};
+
+// ============================================
+// BIBLE STRUCTURE CACHE (24h, keyed by bible abbr)
+// ============================================
+
+const STRUCTURE_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+interface StructureCacheEntry {
+  data: BibleStructure;
+  cachedAt: number;
+}
+
+interface StructureCache {
+  [bibleAbbr: string]: StructureCacheEntry;
+}
+
+/**
+ * Cached book/chapter structure keyed by bible abbr —
+ * testament-split filesets of the same bible share one entry.
+ * 24h TTL matches the backend's module cache; stale entries
+ * are used only as the localStorage tier of the structure
+ * slice's SWR resolution, never as a hard answer.
+ */
+export const getCachedStructure = (
+  bibleAbbr: string
+): BibleStructure | null => {
+  try {
+    const cacheStr = getCachedLocalStorage(STRUCTURE_CACHE_KEY);
+    if (!cacheStr) return null;
+
+    const cache: StructureCache = JSON.parse(cacheStr);
+    const entry = cache[bibleAbbr];
+    if (!entry) return null;
+
+    if (Date.now() - entry.cachedAt > STRUCTURE_CACHE_TTL) {
+      delete cache[bibleAbbr];
+      setCachedLocalStorage(
+        STRUCTURE_CACHE_KEY,
+        JSON.stringify(cache)
+      );
+      return null;
+    }
+
+    return entry.data;
+  } catch (error) {
+    console.error('Error reading structure cache:', error);
+    return null;
+  }
+};
+
+export const cacheStructure = (
+  bibleAbbr: string,
+  data: BibleStructure
+) => {
+  try {
+    const cacheStr = getCachedLocalStorage(STRUCTURE_CACHE_KEY);
+    const cache: StructureCache = cacheStr
+      ? JSON.parse(cacheStr)
+      : {};
+    cache[bibleAbbr] = {
+      data,
+      cachedAt: Date.now(),
+    };
+    setCachedLocalStorage(
+      STRUCTURE_CACHE_KEY,
+      JSON.stringify(cache)
+    );
+  } catch (error) {
+    console.error('Error writing structure cache:', error);
+  }
+};
+
+export const clearStructureCache = () => {
+  removeCachedLocalStorage(STRUCTURE_CACHE_KEY);
 };

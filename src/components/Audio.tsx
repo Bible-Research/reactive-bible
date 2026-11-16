@@ -8,13 +8,14 @@ import {
   IconPlayerPause,
 } from "@tabler/icons-react";
 import AudioPlayer from "./AudioPlayer";
-import { toBookName, buildBiblePath } from "../utils/bibleUtils";
+import { localizedBookName, buildBiblePath } from "../utils/bibleUtils";
 import { findTranslationByFilesetId } from "../utils/filesetGroups";
 import { getPlayPosition } from "../utils/audioUtils";
 import { verseDomId } from "../utils/verseRefs";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";
 import { useChapterAudio } from "../hooks/useChapterAudio";
+import { useActiveStructure } from "../hooks/useBookName";
 import {
   useMediaSession,
   MediaSessionControls,
@@ -145,6 +146,9 @@ const Audio = () => {
   // Capacitor shell (no-op in the browser).
   useAudioKeepAlive(mediaActive, mediaIsPlaying);
 
+  // Structure swap must rebuild the media title's book name.
+  const activeStructure = useActiveStructure();
+
   const mediaMetadata = useMemo<MediaSessionMetadata | null>(() => {
     if (isPlaylistMode) {
       if (!playlist.currentItem) return null;
@@ -156,8 +160,16 @@ const Audio = () => {
       };
     }
     if (!audio) return null;
+    // Read the name off the subscribed structure — its
+    // identity change is also this memo's invalidation
+    // signal when a fresher structure swaps in.
+    const bookRow = activeStructure?.books.find(
+      (b) => b.book_id === activeBookId.toUpperCase(),
+    );
+    const bookLabel =
+      bookRow?.name ?? localizedBookName(activeBookId);
     return {
-      title: `${toBookName(activeBookId) ?? activeBookId} ` +
+      title: `${bookLabel ?? activeBookId} ` +
         `${activeChapter}`,
       artist: translationName,
       album: 'Bible Audio',
@@ -168,6 +180,7 @@ const Audio = () => {
     playlist.currentItem,
     audio,
     activeBookId,
+    activeStructure,
     activeChapter,
     translationName,
   ]);

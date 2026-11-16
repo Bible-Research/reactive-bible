@@ -293,3 +293,21 @@ export type ReadingPositionValue = {
   chapter: number;
   verse: number;
 };
+
+/**
+ * One book row from `GET /api/v1/bible/structure/` — `chapters`
+ * is the covered chapter-number list (not verse counts) and
+ * `name`/`name_short` are localized to the fileset's language.
+ */
+export interface StructureBook {
+  book_id: string;
+  name: string;
+  name_short: string;
+  testament: 'OT' | 'NT';
+  chapters: number[];
+}
+
+/** `/api/v1/bible/structure/` response body. */
+export interface BibleStructure {
+  books: StructureBook[];
+}

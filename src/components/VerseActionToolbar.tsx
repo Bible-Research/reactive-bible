@@ -24,11 +24,12 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { useActiveStructure } from "../hooks/useBookName";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
 import {
   buildBiblePath,
-  toBookName,
+  localizedBookName,
   toUsfmCode,
 } from "../utils/bibleUtils";
 import { copyTextToClipboard } from "../utils/clipboard";
@@ -66,7 +67,7 @@ export interface PrimaryChapterRef {
 const formatChapterGroup = (group: PrimaryChapterRef): string => {
   const sorted = group.verses;
   const label =
-    `${toBookName(group.bookId) ?? group.bookId} ` +
+    `${localizedBookName(group.bookId) ?? group.bookId} ` +
     `${group.chapter}`;
   if (sorted.length === 0) return label;
   const isConsecutive = sorted.every(
@@ -81,6 +82,9 @@ const formatChapterGroup = (group: PrimaryChapterRef): string => {
 };
 
 const VerseActionToolbar = () => {
+  // Subscribe so group labels re-render when the localized
+  // structure swaps in (formatChapterGroup reads the registry).
+  useActiveStructure();
   const verseSelection = useBibleStore((state) => state.verseSelection);
   const setVerseSelection = useBibleStore(
     (state) => state.setVerseSelection

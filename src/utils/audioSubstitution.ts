@@ -11,7 +11,7 @@
 import { showNotification } from '@mantine/notifications';
 import {
   preferTimestampedAudioFileset,
-  toBookName,
+  localizedBookName,
 } from './bibleUtils';
 import {
   findTranslationByFilesetId,
@@ -106,7 +106,7 @@ export const notifyAudioSubstitution = (
     `${selectedOwner.abbr}->${playingOwner.abbr}:${bookId}`;
   if (notified.has(key)) return;
   notified.add(key);
-  const bookLabel = toBookName(bookId) ?? bookId;
+  const bookLabel = localizedBookName(bookId) ?? bookId;
   showNotification({
     title: 'Audio not in selected version',
     message:

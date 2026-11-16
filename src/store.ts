@@ -11,12 +11,13 @@ import {
   VerseSelection,
 } from './types';
 import { refsInclude, sameRef } from './utils/verseRefs';
-import { toBookName } from './utils/bibleUtils';
+import { localizedBookName } from './utils/bibleUtils';
 import {
   useAuthStore,
   registerBibleStore,
 } from './stores/authStore';
 import { createNotesSlice } from './stores/bibleStore/notesSlice';
+import { createStructureSlice } from './stores/bibleStore/structureSlice';
 import {
   migratePersistedState,
   partializeState,
@@ -30,6 +31,23 @@ export type Fileset = import('./types').Fileset;
 export type Translation = import('./types').Translation;
 
 export interface BibleState {
+  /**
+   * Resolved `/bible/structure/` data keyed by bible abbr
+   * (transient — persistence lives in the cacheManager tier;
+   * SWR resolution in stores/bibleStore/structureSlice.ts).
+   */
+  structureByBible: Record<string, api.BibleStructure>;
+  /**
+   * The abbr whose structure currently drives localized
+   * names + picker coverage.
+   */
+  activeStructureKey: string | null;
+  /**
+   * SWR resolve of the structure for `activeTextFilesetId` —
+   * localStorage -> bundled catalog -> previous -> fetch.
+   * Idempotent + in-flight deduped.
+   */
+  loadStructure: () => void;
   /** USFM book code (e.g. "JHN") — canonical passage identity. */
   activeBookId: string;
   activeChapter: number;
@@ -184,6 +202,8 @@ export const initialState = {
   >,
   pendingScrollVerse: null as VerseRef | null,
   headerVisible: true,
+  structureByBible: {} as Record<string, api.BibleStructure>,
+  activeStructureKey: null as string | null,
 };
 
 export const useBibleStore = createWithEqualityFn<BibleState>()(
@@ -254,6 +274,9 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       // with conflict refresh) lives in
       // stores/bibleStore/notesSlice.ts — one store, same state.
       ...createNotesSlice(set, get, store),
+      // Per-bible structure (localized names + coverage) with
+      // stale-while-revalidate loading — structureSlice.ts.
+      ...createStructureSlice(set, get, store),
       setAudioActiveVerse: (audioActiveVerse) =>
         set({ audioActiveVerse }),
       setAudioPlaylistItems: (audioPlaylistItems) =>
@@ -383,6 +406,21 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
 // and bind the real api, breaking vi.mock('../api').
 registerBibleStore(useBibleStore);
 
-/** Display name for the active book (e.g. "John"). */
+// Re-resolve the bible structure whenever the active text
+// fileset changes or the translation list first populates
+// (the list arriving is also the first moment a fileset id
+// can be mapped to its owning bible abbr). A same-shape list
+// reset ([] -> []) must NOT kick a redundant SWR load.
+useBibleStore.subscribe((state, prev) => {
+  if (
+    state.activeTextFilesetId !== prev.activeTextFilesetId ||
+    (prev.translations.length === 0 &&
+      state.translations.length > 0)
+  ) {
+    void state.loadStructure();
+  }
+});
+
+/** Localized display name for the active book. */
 export const selectActiveBookName = (state: BibleState): string =>
-  toBookName(state.activeBookId) ?? state.activeBookId;
+  localizedBookName(state.activeBookId) ?? state.activeBookId;

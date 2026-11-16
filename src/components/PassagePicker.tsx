@@ -1,8 +1,12 @@
 import { Box, ScrollArea, createStyles, rem } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent } from "react";
+import { showNotification } from "@mantine/notifications";
 import { getChapters, getVerses } from "../api/structure";
 import { getAllBooks } from "../utils/scriptureMention";
+import { useActiveStructure } from "../hooks/useBookName";
+import { useBibleStore } from "../store";
+import { findTranslationByFilesetId } from "../utils/filesetGroups";
 
 const useStyles = createStyles((theme) => ({
   border: {
@@ -53,6 +57,13 @@ const useStyles = createStyles((theme) => ({
           : theme.colors.gray[1],
       color: theme.colorScheme === "dark" ? theme.white : theme.black,
     },
+  },
+
+  // Uncovered books: dimmed but still a real <button> — the
+  // `disabled` attribute would swallow the click that shows
+  // the "not included" notification.
+  linkDimmed: {
+    opacity: 0.4,
   },
 }));
 
@@ -106,17 +117,92 @@ const PassagePicker = ({
 }: PassagePickerProps) => {
   const { classes, cx } = useStyles();
 
+  // Bootstrap the active structure — idempotent + in-flight
+  // deduped, so all three picker mount points can kick it.
+  // Deferred past the commit: a synchronous store write inside
+  // a passive effect crashes React's work loop.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void useBibleStore.getState().loadStructure();
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const structure = useActiveStructure();
+
+  /**
+   * Books column = canonical 66 order with localized names
+   * overlaid. `covered` marks books the active structure
+   * actually contains; uncovered books stay rendered but
+   * dimmed+clickable (spec: notification, no navigation).
+   */
   const books = useMemo(() => {
-    const all = getAllBooks();
+    const covered = new Map(
+      (structure?.books ?? []).map((b) => [
+        b.book_id,
+        b.name,
+      ])
+    );
+    const all = getAllBooks().map((b) => ({
+      book_id: b.book_id,
+      book_name: covered.get(b.book_id) ?? b.book_name,
+      covered:
+        structure === null || covered.has(b.book_id),
+    }));
     if (!bookFilter) return all;
     const allowed = new Set(bookFilter);
-    return all.filter((b) => allowed.has(b.book_name));
-  }, [bookFilter]);
+    return all.filter(
+      (b) =>
+        allowed.has(b.book_name) || allowed.has(b.book_id)
+    );
+  }, [bookFilter, structure]);
 
-  const chapters = useMemo(
-    () => (bookId ? getChapters(bookId) : []),
-    [bookId]
-  );
+  /**
+   * Chapters column = the structure's real coverage when
+   * loaded; bundled canon otherwise.
+   */
+  const chapters = useMemo(() => {
+    if (!bookId) return [];
+    const covered = structure?.books.find(
+      (b) => b.book_id === bookId
+    );
+    if (covered && covered.chapters.length > 0) {
+      return covered.chapters;
+    }
+    return getChapters(bookId);
+  }, [bookId, structure]);
+
+  /**
+   * Uncovered-book click: notification, no navigation. Uses
+   * the owning translation's display name.
+   */
+  const notifyNotIncluded = (bookId: string) => {
+    const { translations, activeTextFilesetId } =
+      useBibleStore.getState();
+    const owner = findTranslationByFilesetId(
+      activeTextFilesetId,
+      translations,
+    );
+    const translationName =
+      owner?.name ?? owner?.abbr ?? activeTextFilesetId;
+    const bookName =
+      books.find((b) => b.book_id === bookId)?.book_name ??
+      bookId;
+    showNotification({
+      title: `${translationName}`,
+      message: `${translationName} doesn't include ${bookName}`,
+      color: 'yellow',
+    });
+  };
+
+  const selectBook = (id: string) => {
+    const entry = books.find((b) => b.book_id === id);
+    if (entry && !entry.covered) {
+      notifyNotIncluded(id);
+      return;
+    }
+    onSelectBook(id);
+  };
 
   const verseList = useMemo(
     () =>
@@ -169,19 +255,21 @@ const PassagePicker = ({
               type="button"
               className={cx(classes.link, {
                 [classes.linkActive]: bookId === b.book_id,
+                [classes.linkDimmed]: !b.covered,
               })}
               data-active={bookId === b.book_id || undefined}
               aria-current={bookId === b.book_id || undefined}
               role="button"
               tabIndex={0}
-              onClick={() => onSelectBook(b.book_id)}
+              onClick={() => selectBook(b.book_id)}
               onKeyDown={(event) =>
                 activateOnKeyDown(event, () =>
-                  onSelectBook(b.book_id)
+                  selectBook(b.book_id)
                 )
               }
               key={b.book_id}
               title={`${titlePrefix}book-${b.book_id}`}
+              data-covered={b.covered || undefined}
             >
               {b.book_name}
             </button>

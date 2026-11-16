@@ -4,6 +4,15 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import PassagePicker from './PassagePicker';
 import { renderWithProviders } from '../__tests__/helpers';
+import { setActiveStructure } from '../utils/bookNameRegistry';
+import { showNotification } from '@mantine/notifications';
+import type { BibleStructure } from '../types';
+
+vi.mock('@mantine/notifications', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  showNotification: vi.fn(),
+}));
+
 
 const renderPicker = (
   overrides: Partial<
@@ -98,4 +107,120 @@ describe('PassagePicker', () => {
     expect(screen.queryByTitle('mention-verse-1'))
       .not.toBeInTheDocument();
   });
+
+describe('structure coverage (task 3.2)', () => {
+  const partial: BibleStructure = {
+    books: [
+      {
+        book_id: 'GEN',
+        name: '1. Mozus grāmata',
+        name_short: '1. Mozus',
+        testament: 'OT',
+        chapters: [1, 2, 3],
+      },
+      {
+        book_id: 'JHN',
+        name: 'Jāņa evaņģēlijs',
+        name_short: 'Jāņa',
+        testament: 'NT',
+        chapters: [1, 2],
+      },
+    ],
+  };
+
+  /**
+   * Stage a partial-canon structure. `loadStructure` is
+   * mocked out so the store-change subscription cannot kick
+   * an SWR fetch that would overwrite the staged registry.
+   */
+  const stagePartial = () => {
+    setActiveStructure(partial);
+    return {
+      activeTextFilesetId: 'LAVNLI',
+      translations: [
+        {
+          abbr: 'LAVNLI',
+          name: 'Jaunā Latviešu Bībele',
+          language: 'Latvian',
+          language_iso: 'lvs',
+          filesets: [
+            {
+              id: 'LAVNLI',
+              type: 'text_plain' as const,
+              size: 'C',
+              codec: null,
+              bitrate: null,
+            },
+          ],
+        },
+      ],
+      structureByBible: { LAVNLI: partial },
+      activeStructureKey: 'LAVNLI',
+      loadStructure: vi.fn(),
+    };
+  };
+
+  it('renders localized names + dims uncovered books', () => {
+    const overrides = stagePartial();
+    renderWithProviders(<PassagePicker {...{
+      bookId: 'JHN', chapter: 3, verses: [16],
+      titlePrefix: 'mention-', onSelectBook: vi.fn(),
+      onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+    }} />, { stores: { bible: overrides } });
+    const gen = screen.getByTitle('mention-book-GEN');
+    const exo = screen.getByTitle('mention-book-EXO');
+    expect(gen).toHaveTextContent('1. Mozus grāmata');
+    expect(gen).not.toHaveStyle({ opacity: '0.4' });
+    // Uncovered book stays a clickable button — only dimmed.
+    expect(exo).not.toBeDisabled();
+  });
+
+  it('click on uncovered book notifies, never navigates', async () => {
+    const overrides = stagePartial();
+    const onSelectBook = vi.fn();
+    renderWithProviders(<PassagePicker {...{
+      bookId: 'JHN', chapter: 3, verses: [16],
+      titlePrefix: 'mention-', onSelectBook,
+      onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+    }} />, { stores: { bible: overrides } });
+    await userEvent.click(
+      screen.getByTitle('mention-book-EXO')
+    );
+    expect(onSelectBook).not.toHaveBeenCalled();
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "doesn't include"
+        ),
+      })
+    );
+  });
+
+  it('click on covered book still navigates', async () => {
+    const overrides = stagePartial();
+    const onSelectBook = vi.fn();
+    renderWithProviders(<PassagePicker {...{
+      bookId: 'JHN', chapter: 3, verses: [16],
+      titlePrefix: 'mention-', onSelectBook,
+      onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+    }} />, { stores: { bible: overrides } });
+    await userEvent.click(
+      screen.getByTitle('mention-book-JHN')
+    );
+    expect(onSelectBook).toHaveBeenCalledWith('JHN');
+  });
+
+  it('limits chapters to the structure coverage', () => {
+    const overrides = stagePartial();
+    renderWithProviders(<PassagePicker {...{
+      bookId: 'GEN', chapter: 3, verses: [16],
+      titlePrefix: 'mention-', onSelectBook: vi.fn(),
+      onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+    }} />, { stores: { bible: overrides } });
+    expect(screen.getByTitle('mention-chapter-3'))
+      .toBeInTheDocument();
+    expect(screen.queryByTitle('mention-chapter-4'))
+      .not.toBeInTheDocument();
+  });
+});
 });

@@ -15,6 +15,7 @@ import RichTextView from "./RichTextView";
 import NoteCardActions from "./NoteCardActions";
 import NoteVerseList from "./NoteVerseList";
 import { noteHeading } from "../utils/noteHeading";
+import { useActiveStructure } from "../hooks/useBookName";
 
 interface NoteCardProps {
   note: Note;
@@ -117,6 +118,9 @@ const NoteCard = ({
     [openPassage]
   );
 
+  // Localized note heading must swap when a fresher bible
+  // structure lands — subscribing here re-renders the card.
+  useActiveStructure();
   const heading = noteHeading(note);
   const lightboxImage =
     images.find((img) => img.id === lightboxImageId) ?? null;
