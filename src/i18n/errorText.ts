@@ -45,7 +45,10 @@ export const localizedErrorText = (err: unknown): string => {
     return i18n.t('errors.provider_error');
   }
   if (err instanceof Error && err.message) {
-    return err.message;
+    // Callers may throw catalog keys (e.g. apiClient's
+    // 'auth.sessionExpiredMsg') — translate those, pass raw
+    // messages through unchanged.
+    return textOrKey(err.message);
   }
   return i18n.t('errors.generic');
 };

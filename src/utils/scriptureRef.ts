@@ -6,6 +6,7 @@ import {
   getVerses,
 } from '../api/structure';
 import { findVersesInBetween } from './findVersesInBetween';
+import i18n from '../i18n';
 
 export interface ScriptureRef {
   book: string;
@@ -47,7 +48,7 @@ export const parseScriptureRef = (
   const found = match ?? chapterMatch;
 
   if (!found) {
-    return { ok: false, error: 'Invalid scripture format' };
+    return { ok: false, error: i18n.t('errors.invalidScriptureFormat') };
   }
 
   const rawBook = found[1];

@@ -19,7 +19,8 @@
     "theme": "Theme",
     "language": "Language",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "gettingStartedHint": "Watch short video tutorials on the app's features."
   },
   "audio": {
     "play": "Play",
@@ -165,7 +166,12 @@
     "noTagId": "No tag ID provided",
     "nounNote": "note",
     "nounComment": "comment",
-    "addNoteTextImageOrVerse": "Add note text, attach an image, or link a verse."
+    "addNoteTextImageOrVerse": "Add note text, attach an image, or link a verse.",
+    "noUntagged": "No untagged notes.",
+    "noNotesWithSubtags": "No notes in this tag or its sub-tags.",
+    "noNotesForTag": "No notes found for this tag.",
+    "noNoteId": "No note ID provided",
+    "noteTitle": "Note: {{name}}"
   },
   "tags": {
     "createNew": "Create New Tag",
@@ -180,7 +186,7 @@
     "publicTagLink": "Public tag — notes are viewable by link",
     "publicityPublic": "Existing notes under this tag become publicly viewable.",
     "publicityPrivate": "Existing notes directly under this tag stay private.",
-    "edit": "Edit Tag",
+    "edit": "Edit tag",
     "invalidParent": "Invalid Parent",
     "circularParent": "Cannot create circular parent relationship",
     "created": "Tag created successfully",
@@ -239,7 +245,19 @@
     "nestedUnder": "This tag will be nested under \"{{name}}\"",
     "publicityPublicLong": "Existing notes under this tag become public — anyone with the link can view them.",
     "publicityPrivateLong": "Existing notes directly under this tag become private — anyone following a shared link loses access.",
-    "hasChildrenWarning": "⚠️ This tag has child tags. Changing its parent will affect the hierarchy."
+    "hasChildrenWarning": "⚠️ This tag has child tags. Changing its parent will affect the hierarchy.",
+    "noTagsSearch": "No tags found matching your search",
+    "noTags": "No tags yet",
+    "sortOrder": "Sort order",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"? {{body}}{{suffix}}. This action cannot be undone.",
+    "deleteChildSuffix_one": ", and its {{count}} child tag may be affected",
+    "deleteChildSuffix_other": ", and its {{count}} child tags may be affected",
+    "publicityResult_one": "Tag is now {{state}} — {{count}} note updated",
+    "publicityResult_other": "Tag is now {{state}} — {{count}} notes updated",
+    "statePublic": "public",
+    "statePrivate": "private",
+    "makePublicBody": "Make \"{{name}}\" and all notes directly under it public? Anyone with the link can view them.",
+    "makePrivateBody": "Make \"{{name}}\" private? All notes directly under it will also become private — anyone following a shared link loses access. This cannot be undone per-note."
   },
   "comments": {
     "post": "Post",
@@ -361,7 +379,8 @@
     "coverageUnknown": "Unknown coverage",
     "coverageFull": "Full Bible",
     "coverageNt": "New Testament only",
-    "coverageOt": "Old Testament only"
+    "coverageOt": "Old Testament only",
+    "coveragePartial": "{{base}} (partial)"
   },
   "share": {
     "clearSelection": "Clear selection",
@@ -415,7 +434,8 @@
     "not_found": "The requested resource was not found.",
     "provider_error": "The translation provider could not deliver the requested content.",
     "internal_error": "Something went wrong. Please try again later.",
-    "generic": "Something went wrong. Please try again."
+    "generic": "Something went wrong. Please try again.",
+    "invalidScriptureFormat": "Invalid scripture format"
   },
   "updates": {
     "availableTitle": "Update available · v{{version}}",

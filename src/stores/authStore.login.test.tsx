@@ -99,12 +99,12 @@ describe('authStore - Login', () => {
 
       await expect(
         store.getState().login(mockUsername, mockPassword)
-      ).rejects.toThrow('Invalid username or password');
+      ).rejects.toThrow('auth.invalidCredentials');
 
       const state = store.getState();
       expect(state.isAuthenticated).toBe(false);
       expect(state.token).toBeNull();
-      expect(state.error).toBe('Invalid username or password');
+      expect(state.error).toBe('auth.invalidCredentials');
     });
 
     it('should handle network errors', async () => {

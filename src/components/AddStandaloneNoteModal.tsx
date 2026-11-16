@@ -55,7 +55,12 @@ const AddStandaloneNoteModal = ({
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title={t('notes.newNote')} fullScreen>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={t('notes.newNote')}
+      fullScreen
+    >
       <NoteForm
         tags={tags}
         onSubmit={editor.submit}

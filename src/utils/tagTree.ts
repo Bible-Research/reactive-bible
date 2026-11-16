@@ -1,4 +1,5 @@
 import type { Tag } from '../types';
+import i18n from '../i18n';
 
 /** A node in the tag hierarchy rendered by TagTree. */
 export interface TagNode {
@@ -86,11 +87,11 @@ export const validateTagName = (
   excludeTagId?: string
 ): string | null => {
   if (!name.trim()) {
-    return 'Tag name is required';
+    return i18n.t('tags.nameRequired');
   }
 
   if (name.length > TAG_NAME_MAX_LENGTH) {
-    return 'Tag name must be 100 characters or less';
+    return i18n.t('tags.nameTooLong');
   }
 
   const isDuplicate = existingTags.some(

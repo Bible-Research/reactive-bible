@@ -265,13 +265,12 @@ const MainMenu = ({
                 onClose();
               }}
               sx={{ cursor: "pointer" }}
-              title="Getting started"
+              title={t('menu.gettingStarted')}
             >
-              Getting started
+              {t('menu.gettingStarted')}
             </Text>
             <Text size="xs" color="dimmed">
-              Watch short video tutorials on the app&apos;s
-              features.
+              {t('menu.gettingStartedHint')}
             </Text>
           </div>
         </Group>

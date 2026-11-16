@@ -32,6 +32,7 @@ import { useNoteOrderMenu } from '../hooks/useNoteOrderMenu';
 import { useTagNotesData } from '../hooks/useTagNotesData';
 import { useNotePlaylist } from '../hooks/useNotePlaylist';
 import { lazyWithReload } from '../utils/lazyWithReload';
+import { useTranslation } from 'react-i18next';
 
 // Lazy + gated below on isEditModalOpen — the modal pulls in
 // TipTap, which should not ship with the route chunk.
@@ -45,6 +46,7 @@ const EditNoteModal = lazyWithReload(
 const NO_NOTES: Note[] = [];
 
 export default function TagNotesRoute() {
+const { t } = useTranslation();
   const { tagId } = useParams<{ tagId: string }>();
   // `/notes/tag/untagged` is the virtual "no tag" view: the
   // API translates the sentinel into a tag__isnull filter.
@@ -271,7 +273,7 @@ export default function TagNotesRoute() {
     return (
       <Center style={{ height: '100vh' }}>
         <Text color="red" size="lg">
-          {error || 'Tag not found'}
+          {error || t('tags.notFound')}
         </Text>
       </Center>
     );
@@ -407,10 +409,10 @@ export default function TagNotesRoute() {
           <Center style={{ height: 200 }}>
             <Text>
               {isUntagged
-                ? 'No untagged notes.'
+                ? t('notes.noUntagged')
                 : includeDescendants
-                  ? 'No notes in this tag or its sub-tags.'
-                  : 'No notes found for this tag.'}
+                  ? t('notes.noNotesWithSubtags')
+                  : t('notes.noNotesForTag')}
             </Text>
           </Center>
         )}

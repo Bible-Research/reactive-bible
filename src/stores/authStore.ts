@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { showNotification } from '@mantine/notifications';
 import { API_BASE_URL } from '../config';
 import { clearNotesCache } from '../utils/cacheManager';
+import i18n from '../i18n';
 
 // The bible store registers itself here from ../store's module
 // scope (registerBibleStore below). A static `../store` import
@@ -337,9 +338,9 @@ const createAuthStore = () => create<AuthState>()(
               );
               get().logout();
               showNotification({
-                title: 'Session Expired',
+                title: i18n.t('auth.sessionExpired'),
                 message:
-                  'Your session has expired. Please log in again.',
+                  i18n.t('auth.sessionExpiredMsg'),
                 color: 'orange',
                 autoClose: 5000,
               });

@@ -59,6 +59,17 @@ Talks to the `bible_research` Django API.
   the structure slice pushes updates. Reset via
   `resetActiveStructure()` between tests — async fetches
   otherwise leak state across specs.
+- `src/i18n/` — UI localization (i18next + react-i18next):
+  `index.ts` exports `initI18n` (awaited in `main.tsx` before
+  first render), `changeUiLanguage`, `resolveUiLanguage`
+  (persisted choice → `navigator.language` → `en`),
+  `DEFAULT_TRANSLATION_BY_LOCALE` (first-run TEXT fileset:
+  en→ENGESV_API, lv→LVSGLU8, ru→RUSSYN; never overrides a
+  persisted selection) and the `UiLanguage` type.
+  `locales/<lang>/{common,books}.json` — `en` is bundled and
+  is the source catalog (`i18next.d.ts` types `t()` keys from
+  it); `lv`/`ru` lazy-load per locale. `errorText.ts` maps
+  `error_code`/typed API errors to `errors.*` keys.
 - `src/hooks/useBookName.ts` — `useBookName`/`useActiveStructure`
   store subscriptions for the display-name layer.
 - `src/hooks/` — audio playlist, media session, keep-alive,
@@ -279,6 +290,18 @@ Code conventions:
   just "throw on !ok". Keep custom `try/catch` only where the
   endpoint has a richer contract (typed provider errors, 409
   bodies, 204s, swallowed failures).
+- UI strings: no hardcoded English in components — every
+  user-facing string (labels, aria-labels, notifications,
+  placeholders, titles) goes through `t('section.key')` from
+  `useTranslation()` (components) or `i18n.t()` from
+  `src/i18n` (non-React code like stores/utils). English keys
+  live in `src/i18n/locales/en/common.json`; add the lv/ru
+  translations in the same change — `src/i18n/index.test.ts`
+  fails on missing keys. Counts use `t(key, { count })`
+  plural keys (`_one`/`_other`, plus `_zero` for lv and
+  `_few`/`_many` for ru). Server-provided messages and
+  contract text (book names for `passage=`, storage) are NOT
+  translated.
 
 ## Known gaps (do NOT "fix" without asking)
 

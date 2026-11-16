@@ -359,7 +359,7 @@ export const useNoteEditor = ({
                   .catch(() => {
                     showNotification({
                       color: 'red',
-                      title: 'Error',
+                      title: i18n.t('common.error'),
                       message: i18n.t('notes.deleteImageFailed'),
                     });
                   });
@@ -484,7 +484,7 @@ export const useNoteEditor = ({
       } catch (error) {
         console.error(error);
         showNotification({
-          title: 'Error',
+          title: i18n.t('common.error'),
           message: i18n.t('notes.saveFailed'),
           color: 'red',
         });
@@ -522,7 +522,7 @@ export const useNoteEditor = ({
           .catch(() => {
             showNotification({
               color: 'red',
-              title: 'Error',
+              title: i18n.t('common.error'),
               message: i18n.t('notes.deleteImageFailed'),
             });
           });

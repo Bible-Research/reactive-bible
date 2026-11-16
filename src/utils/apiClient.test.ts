@@ -126,7 +126,7 @@ describe('apiClient', () => {
       vi.stubGlobal('fetch', mockFetch);
 
       await expect(authenticatedFetch(mockUrl)).rejects.toThrow(
-        'Session expired'
+        'auth.sessionExpiredMsg'
       );
 
       // Should have logged out
@@ -164,7 +164,7 @@ describe('apiClient', () => {
         );
 
         await expect(authenticatedFetch(mockUrl))
-          .rejects.toThrow('Session expired');
+          .rejects.toThrow('auth.sessionExpiredMsg');
         expect(showNotification).not.toHaveBeenCalled();
       });
 
@@ -215,7 +215,7 @@ describe('apiClient', () => {
 
         const request = authenticatedFetch(mockUrl);
         const assertion = expect(request).rejects.toThrow(
-          'Session expired'
+          'auth.sessionExpiredMsg'
         );
 
         // Rotate the token while the stale request is held.
@@ -247,7 +247,7 @@ describe('apiClient', () => {
         });
 
         await expect(authenticatedFetch(mockUrl))
-          .rejects.toThrow('Session expired');
+          .rejects.toThrow('auth.sessionExpiredMsg');
 
         expect(useAuthStore.getState().token).toBeNull();
         expect(useAuthStore.getState().isAuthenticated)
@@ -399,7 +399,7 @@ describe('apiClient', () => {
 
       await expect(
         authenticatedUpload(mockUrl, new FormData())
-      ).rejects.toThrow('Session expired');
+      ).rejects.toThrow('auth.sessionExpiredMsg');
 
       expect(useAuthStore.getState().token).toBeNull();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);

@@ -233,7 +233,14 @@ const { t } = useTranslation();
         });
       }
     }
-  }, [primary, refs, scope, noteVerseText, passageRef]);
+  }, [
+    primary,
+    refs,
+    scope,
+    noteVerseText,
+    passageRef,
+    t,
+  ]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
     // Copy first — opening the viewer after a failed copy would
@@ -258,7 +265,7 @@ const { t } = useTranslation();
       "_blank",
       "noopener,noreferrer"
     );
-  }, [passageRefEnglish]);
+  }, [passageRefEnglish, t]);
 
   const youVersionUrl = useMemo(
     () =>

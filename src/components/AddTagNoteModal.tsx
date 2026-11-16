@@ -198,7 +198,12 @@ const AddTagNoteModal = ({
   );
 
   return (
-    <Modal opened={opened} onClose={onClose} title={t('notes.addNote')} fullScreen>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={t('notes.addNote')}
+      fullScreen
+    >
       {linkedNotes && (
         <Text size="sm" color="dimmed" mb="sm">
           {linkedNotes.length}{" "}

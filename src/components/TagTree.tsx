@@ -50,6 +50,7 @@ import {
   TagNode,
 } from '../utils/tagTree';
 import { useAuthStore } from '../stores/authStore';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Id of the "Move to top level" droppable bar pinned above
@@ -140,6 +141,7 @@ const TagTreeNode = ({
   onViewNotes,
   onTogglePublic,
 }: TagTreeNodeProps) => {
+  const { t } = useTranslation();
   const theme = useMantineTheme();
   const hasChildren = node.children.length > 0;
   const isExpanded =
@@ -213,7 +215,7 @@ const TagTreeNode = ({
           <Group spacing="xs" style={{ flex: 1, minWidth: 0 }} noWrap>
             {reparentEnabled && isAuthenticated && (
               <Tooltip
-                label="Drag to move under another tag"
+                label={t('tags.dragToMove')}
                 position="top"
                 disabled={!tooltipsEnabled}
               >
@@ -221,7 +223,7 @@ const TagTreeNode = ({
                   size="lg"
                   variant="subtle"
                   color="gray"
-                  title="Drag to reparent tag"
+                  title={t('tags.dragToReparent')}
                   ref={setGripRef}
                   {...listeners}
                   {...attributes}
@@ -237,7 +239,7 @@ const TagTreeNode = ({
               <ActionIcon
                 size="lg"
                 variant="subtle"
-                title={isExpanded ? 'Collapse' : 'Expand'}
+                title={isExpanded ? t('tags.collapse') : t('tags.expand')}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleNode(node.tag.id);
@@ -283,7 +285,7 @@ const TagTreeNode = ({
 
             {node.tag.public && (
               <Tooltip
-                label="Public tag — notes are viewable by link"
+                label={t('tags.publicTagLink')}
                 position="top"
                 disabled={!tooltipsEnabled}
               >
@@ -301,7 +303,7 @@ const TagTreeNode = ({
 
             {descendantCount > 0 && (
               <Tooltip
-                label="includes notes in sub-tags"
+                label={t('tags.includesSubtagNotes')}
                 position="top"
                 disabled={!tooltipsEnabled}
               >
@@ -324,7 +326,7 @@ const TagTreeNode = ({
                     size="lg"
                     variant="subtle"
                     color="gray"
-                    title="Tag actions"
+                    title={t('tags.tagActions')}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <IconDotsVertical size={18} />
@@ -333,7 +335,7 @@ const TagTreeNode = ({
                 <Menu.Dropdown>
                   <Menu.Item
                     icon={<IconEye size={16} />}
-                    title="View notes"
+                    title={t('tags.viewNotes')}
                     onClick={(e) => {
                       e.stopPropagation();
                       onViewNotes(node.tag.id);
@@ -352,8 +354,8 @@ const TagTreeNode = ({
                       }
                       title={
                         node.tag.public
-                          ? 'Make tag private'
-                          : 'Make tag public'
+                          ? t('tags.makePrivate')
+                          : t('tags.makePublic')
                       }
                       onClick={(e) => {
                         e.stopPropagation();
@@ -361,13 +363,13 @@ const TagTreeNode = ({
                       }}
                     >
                       {node.tag.public
-                        ? 'Make tag private'
-                        : 'Make tag public'}
+                        ? t('tags.makePrivate')
+                        : t('tags.makePublic')}
                     </Menu.Item>
                   )}
                   <Menu.Item
                     icon={<IconEdit size={16} />}
-                    title="Edit tag"
+                    title={t('tags.edit')}
                     onClick={(e) => {
                       e.stopPropagation();
                       onEdit(node.tag);
@@ -379,7 +381,7 @@ const TagTreeNode = ({
                   <Menu.Item
                     color="red"
                     icon={<IconTrash size={16} />}
-                    title="Delete tag"
+                    title={t('tags.delete')}
                     onClick={(e) => {
                       e.stopPropagation();
                       onDelete(node.tag.id, node.tag.name);
@@ -396,7 +398,7 @@ const TagTreeNode = ({
                 size="lg"
                 variant="subtle"
                 color="blue"
-                title="View notes"
+                title={t('tags.viewNotes')}
                 onClick={(e) => {
                   e.stopPropagation();
                   onViewNotes(node.tag.id);
@@ -411,8 +413,8 @@ const TagTreeNode = ({
                 <Tooltip
                   label={
                     node.tag.public
-                      ? 'Make tag private'
-                      : 'Make tag public'
+                      ? t('tags.makePrivate')
+                      : t('tags.makePublic')
                   }
                   position="top"
                   disabled={!tooltipsEnabled}
@@ -423,8 +425,8 @@ const TagTreeNode = ({
                     color={node.tag.public ? 'teal' : 'gray'}
                     title={
                       node.tag.public
-                        ? 'Make tag private'
-                        : 'Make tag public'
+                        ? t('tags.makePrivate')
+                        : t('tags.makePublic')
                     }
                     onClick={(e) => {
                       e.stopPropagation();
@@ -441,7 +443,7 @@ const TagTreeNode = ({
               )}
 
               <Tooltip
-                label="View notes"
+                label={t('tags.viewNotes')}
                 position="top"
                 disabled={!tooltipsEnabled}
               >
@@ -449,7 +451,7 @@ const TagTreeNode = ({
                   size="lg"
                   variant="subtle"
                   color="blue"
-                  title="View notes"
+                  title={t('tags.viewNotes')}
                   onClick={(e) => {
                     e.stopPropagation();
                     onViewNotes(node.tag.id);
@@ -462,7 +464,7 @@ const TagTreeNode = ({
               {isAuthenticated && (
                 <>
                   <Tooltip
-                    label="Edit tag"
+                    label={t('tags.edit')}
                     position="top"
                     disabled={!tooltipsEnabled}
                   >
@@ -470,7 +472,7 @@ const TagTreeNode = ({
                       size="lg"
                       variant="subtle"
                       color="gray"
-                      title="Edit tag"
+                      title={t('tags.edit')}
                       onClick={(e) => {
                         e.stopPropagation();
                         onEdit(node.tag);
@@ -481,7 +483,7 @@ const TagTreeNode = ({
                   </Tooltip>
 
                   <Tooltip
-                    label="Delete tag"
+                    label={t('tags.delete')}
                     position="top"
                     disabled={!tooltipsEnabled}
                   >
@@ -489,7 +491,7 @@ const TagTreeNode = ({
                       size="lg"
                       variant="subtle"
                       color="red"
-                      title="Delete tag"
+                      title={t('tags.delete')}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(node.tag.id, node.tag.name);

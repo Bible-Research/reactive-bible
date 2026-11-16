@@ -1,37 +1,41 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
+  beforeAll,
   beforeEach,
+  afterEach,
   describe,
   it,
   expect,
   vi,
 } from 'vitest';
+import i18n from '../i18n';
+import { useBibleStore } from '../store';
 import GettingStartedRoute from './GettingStartedRoute';
 
-// A mutable catalogue: `unrecorded` has no video id and must
-// never render, while the other two keep their catalogue
-// order. Tests mutate `videos` in place (splice), so the array
-// reference the mock exports stays the same object.
+// A mutable catalogue: `unrecorded` has no video id in any
+// locale and must never render, while the other entries keep
+// their catalogue order. Tests mutate `videos` in place
+// (splice), so the array reference the mock exports stays the
+// same object.
 const catalogue = vi.hoisted(() => {
   const defaults = [
     {
       id: 'unrecorded',
-      title: 'Script not yet recorded',
-      description: 'No video id yet.',
-      youtubeId: null as string | null,
+      youtubeIds: {} as Record<string, string>,
     },
     {
       id: 'first-video',
-      title: 'First published video',
-      description: 'First.',
-      youtubeId: 'dQw4w9WgXcQ' as string | null,
+      youtubeIds: {
+        en: 'dQw4w9WgXcQ',
+        lv: 'lvFirstVid1',
+      } as Record<string, string>,
     },
     {
       id: 'second-video',
-      title: 'Second published video',
-      description: 'Second.',
-      youtubeId: '9bZkp7q19f0' as string | null,
+      youtubeIds: {
+        en: '9bZkp7q19f0',
+      } as Record<string, string>,
     },
   ];
   return { defaults, videos: [...defaults] };
@@ -59,12 +63,45 @@ function renderRoute(path = '/getting-started') {
 }
 
 describe('GettingStartedRoute', () => {
+  beforeAll(() => {
+    // Mock-catalogue ids need test-only catalog entries so card
+    // titles/descriptions render deterministically.
+    i18n.addResourceBundle(
+      'en',
+      'common',
+      {
+        tutorials: {
+          'first-video': {
+            title: 'First published video',
+            description: 'First.',
+          },
+          'second-video': {
+            title: 'Second published video',
+            description: 'Second.',
+          },
+          unrecorded: {
+            title: 'Script not yet recorded',
+            description: 'No video id yet.',
+          },
+        },
+      },
+      true,
+      true,
+    );
+  });
+
   beforeEach(() => {
     catalogue.videos.splice(
       0,
       catalogue.videos.length,
       ...catalogue.defaults,
     );
+    useBibleStore.setState({ uiLanguage: 'en' });
+  });
+
+  afterEach(() => {
+    useBibleStore.setState({ uiLanguage: 'en' });
+    void i18n.changeLanguage('en');
   });
 
   it('renders anonymously at /getting-started without redirect', () => {
@@ -108,6 +145,38 @@ describe('GettingStartedRoute', () => {
         name: 'Play video: Second published video',
       }),
     ).toBeInTheDocument();
+  });
+
+  it('prefers the Latvian recording when the UI is Latvian', () => {
+    useBibleStore.setState({ uiLanguage: 'lv' });
+    renderRoute();
+
+    const thumbs = Array.from(
+      document.querySelectorAll('img'),
+    ).map((img) => img.getAttribute('src'));
+    expect(
+      thumbs.some((s) => s?.includes('lvFirstVid1')),
+    ).toBe(true);
+    expect(
+      thumbs.some((s) => s?.includes('dQw4w9WgXcQ')),
+    ).toBe(false);
+  });
+
+  it('falls back to the English video when the active locale ' +
+    'lacks its own', () => {
+    useBibleStore.setState({ uiLanguage: 'ru' });
+    renderRoute();
+
+    const thumbs = Array.from(
+      document.querySelectorAll('img'),
+    ).map((img) => img.getAttribute('src'));
+    // Neither entry has a ru recording — both English ids show.
+    expect(
+      thumbs.some((s) => s?.includes('dQw4w9WgXcQ')),
+    ).toBe(true);
+    expect(
+      thumbs.some((s) => s?.includes('9bZkp7q19f0')),
+    ).toBe(true);
   });
 
   it('shows an empty state while no entry has a video id', () => {

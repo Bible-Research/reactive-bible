@@ -12,10 +12,12 @@ import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import { defaultTagId } from '../utils/defaultTag';
 import { shallow } from 'zustand/shallow';
+import { useTranslation } from 'react-i18next';
 
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {
+const { t } = useTranslation();
   const navigate = useNavigate();
   const hasNavigatedRef = useRef(false);
   const { lastSelectedTagId, getTags } = useBibleStore(
@@ -130,7 +132,7 @@ export default function NotesRoute() {
   // Show loading while redirecting
   return (
     <Center style={{ height: '100vh' }}>
-      <Loader size="lg" aria-label="Loading notes" />
+      <Loader size="lg" aria-label={t('notes.loadingNotes')} />
     </Center>
   );
 }
