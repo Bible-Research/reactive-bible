@@ -1,4 +1,4 @@
-# Darba sākšana — video pamācību scenāriji (latviski)
+# Pamācība — video pamācību scenāriji (latviski)
 
 Bible Research ir Bībeles lietotne, kurā varat lasīt Bībeli,
 klausīties Bībeli un pierakstīt konkrētus Bībeles fragmentus — lai
