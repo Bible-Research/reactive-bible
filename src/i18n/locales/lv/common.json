@@ -520,7 +520,7 @@
     "capabilityBoth": "Audio",
     "capabilityText": "Tikai teksts",
     "capabilityAudio": "Tikai audio",
-    "kindReadAloud": "Lasīts",
+    "kindReadAloud": "Ierakstīts audio",
     "kindDramatized": "Dramatizēts",
     "kindGenerated": "Ģenerēta balss",
     "kindText": "Teksts",
