@@ -27,5 +27,6 @@ live, paste its URL into the YouTube column.
   language files in the same PR (repo rule 10). "Last verified"
   is the date the script was last checked against the live UI.
 - Recording logistics (shared account, demo translations,
-  per-video pitfalls) live inside each script's "Production
-  notes" / "Pitfalls" sections — not in this index.
+  per-video pitfalls) live inside each script — "Production
+  notes" / "Pitfalls" in English, "Ierakstīšanas piezīmes" /
+  "Kļūdas" in Latvian — not in this index.

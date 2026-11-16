@@ -47,8 +47,9 @@ izkārtojumu.
 - Ritiniet lēnām uz leju → galvene un kājene pazūd, ļaujot lasīt bez
   traucēkļiem; ritiniet uz augšu → tās atgriežas.
 - Pieskarieties burgera pogai → izvēlne: Account / Sign In, Read
-  Bible, Report a problem, Theme switch. Pārslēdziet tumšo → gaišo
-  → tumšo režīmu.
+  Bible, Getting started (lapa, kurā dzīvos šīs pamācības),
+  Report a problem, Theme switch. Pārslēdziet tumšo → gaišo →
+  tumšo režīmu.
 - Aizveriet izvēlni ar ✕ vai Esc.
 
 **Kļūdas:** neritiniet pārāk ātri, citādi automātiskās paslēpšanās
@@ -150,7 +151,7 @@ ESV vai DBT opcija "Read aloud" (KJV audio nav panta izcelšanas).
   ritina, audio progresējot.
 - Pārleciet 5 s uz priekšu, velciet slīdni, pārslēdziet cilpu.
 - Ļaujiet nodaļai beigties → automātiski pāriet uz nākamo nodaļu.
-- Android: parādiet bloķēšanas ekrāna/multivijdes paziņojuma
+- Android: parādiet bloķēšanas ekrāna/multivides paziņojuma
   vadības elementus; atskaņošana turpinās ar izslēgtu ekrānu.
 - Aizveriet atskaņotāju ar ✕.
 
@@ -354,17 +355,17 @@ godīgu.
   rāda **"Check for updates"**.
 - Kopsavilkums: `/` meklēšanas saīsne, `Esc` aizver modāļus.
 
-**Kļūdas:** APK tiek ielādēts sānis (nav Play Store saraksta) —
-Play Protect var brīdināt. Lejupielādes pozīcija pastāv tikai
-Android lietotāja aģentos; "Check for updates" tikai vietējā
-čaulā.
+**Kļūdas:** APK tiek ielādēts no sāniem (nav Play Store
+saraksta) — Play Protect var brīdināt. Lejupielādes pozīcija
+pastāv tikai Android lietotāja aģentos; "Check for updates"
+tikai vietējā čaulā.
 
 ---
 
 ## Apzināti neietverts
 
 - "Advanced — raw filesets" akordeons tulkojuma modālī.
-- Multivijdes sesijas meklēšanas semantika (pantu pārlēcieni caur
+- Multivides sesijas meklēšanas semantika (pantu pārlēcieni caur
   austiņām).
 - 500 pantu autortiesību limita paziņojums, rate-limit/
   nodrošinātāja kļūdu stāvokļi.

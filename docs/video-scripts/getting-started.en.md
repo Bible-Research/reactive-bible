@@ -43,6 +43,7 @@ account creation, then everything that needs a login.
 - Scroll down slowly → header and footer slide away for
   distraction-free reading; scroll up → they return.
 - Tap the burger → menu drawer: Account / Sign In, Read Bible,
+  Getting started (the very page these tutorials live on),
   Report a problem, Theme switch. Toggle dark → light → dark.
 - Close the menu with the ✕ or Esc.
 
