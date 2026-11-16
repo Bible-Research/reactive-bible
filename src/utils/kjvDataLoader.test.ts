@@ -27,10 +27,12 @@ const mockKjvImport = (error?: Error) => {
 
 const mockChunkHelpers = (
   isChunkError: boolean,
-  reloadTriggered: boolean
+  reloadTriggered: boolean,
+  reloadPending = false
 ) => {
   vi.doMock('./chunkLoadError', () => ({
     isChunkLoadError: vi.fn(() => isChunkError),
+    isStaleChunkReloadPending: vi.fn(() => reloadPending),
     reloadForStaleChunk: vi.fn(() => reloadTriggered),
   }));
 };
@@ -39,6 +41,10 @@ const importLoader = () => import('./kjvDataLoader');
 
 const mockedReloadForStaleChunk = async () =>
   (await import('./chunkLoadError')).reloadForStaleChunk;
+
+const mockedIsStaleChunkReloadPending = async () =>
+  (await import('./chunkLoadError'))
+    .isStaleChunkReloadPending;
 
 beforeEach(() => {
   vi.resetModules();
@@ -90,7 +96,42 @@ describe('loadKjvData', () => {
       expect(settled).toBe(false);
     });
 
-  it('rethrows as a KJV error once the reload guard fired',
+  it('holds the promise pending while a reload is already ' +
+    'tearing the page down', async () => {
+      mockKjvImport(new Error('import failed'));
+      // The vite:preloadError listener (or a modulepreload
+      // link failure) already fired the guarded reload —
+      // reloadForStaleChunk returns false but a reload is in
+      // flight, so the callers must stay suspended.
+      mockChunkHelpers(true, false, true);
+      const { loadKjvData } = await importLoader();
+
+      const promise = loadKjvData();
+      let settled = false;
+      void promise.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        }
+      );
+
+      // Wait for the catch to actually run — without this the
+      // unsettled assertion below would pass even if the
+      // pending-reload branch never executed.
+      await vi.waitFor(async () =>
+        expect(
+          await mockedIsStaleChunkReloadPending()
+        ).toHaveBeenCalledTimes(1)
+      );
+      // Flush microtasks — the returned promise must stay
+      // pending while the reload tears the page down.
+      await Promise.resolve();
+      expect(settled).toBe(false);
+    });
+
+  it('rethrows as a KJV error when no reload is coming',
     async () => {
       mockKjvImport(new Error('import failed'));
       mockChunkHelpers(true, false);

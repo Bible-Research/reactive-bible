@@ -2083,12 +2083,23 @@ pasting into a GitHub issue.
   rejection the page reloads at most once per URL per
   10-minute window (sessionStorage timestamp guard +
   in-memory flag) to fetch the fresh `index.html`, holding the
-  Suspense fallback instead of crashing. While
+  Suspense fallback instead of crashing. `errorReporter` adds
+  two more triggers on top of the `import()` rejections:
+  it listens for Vite's `vite:preloadError` window event (the
+  canonical preload-failure hook, covering `import()`s not
+  wrapped by `lazyWithReload`), and it attempts the same
+  guarded reload when a `<script>`/`<link>` element for a
+  same-origin `/assets/*` file errors — Vite 8 attaches no
+  error listener to the JS `modulepreload` links it injects,
+  so a 404'd hashed dependency surfaces only as a resource
+  error, never as a rejection. While
   `navigator.onLine` reports the tab offline the reload is
   skipped — a reload would land on the browser's
   connection-error page — and the error propagates to the
-  route's boundary. Once the guard has fired — or for any
-  non-chunk failure — the original error is rethrown so
+  route's boundary. Once a reload is already tearing the page
+  down the failure stays suspended (`isStaleChunkReloadPending`);
+  when no reload is coming — or for any non-chunk failure —
+  the original error is rethrown so
   `ErrorBoundary`/`reportError` handle it.
 
 **Implementation**:
