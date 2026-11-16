@@ -328,9 +328,10 @@ Universal rules — follow exactly:
 - **Test login**: shared UI account `Tester5` /
   `password123` (workspace AGENTS.md). `Tester5`/`Daniels`
   also exist on the staging backend's `stagingdb` database
-  with their prod data — run the app against the staging
-  API deployment (`VITE_API_BASE_URL=<staging-api>`) to
-  exercise it.
+  with their prod data (see `bible_research/AGENTS.md`
+  "Databases") — run the app against the staging API
+  deployment (`VITE_API_BASE_URL=<staging-api> npm run
+  dev`) to exercise it.
 - **OpenSpec lives at the workspace root** — never run
   `openspec init` in this repo; cross-repo contracts are
   spec'd there (see workspace AGENTS.md).
