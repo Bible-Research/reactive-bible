@@ -1724,7 +1724,8 @@ Streams audio Bible chapters with full playback controls.
 **Features**:
 - Play/Pause controls
 - Progress bar with seek functionality
-- Skip forward/backward (±10 seconds)
+- Skip forward/backward (±5 seconds on-screen; ±10 via
+  Media Session controls)
 - Auto-advance to next chapter
 - Loop current chapter infinitely
 - Starts at the earliest selected verse's timestamp when verses
