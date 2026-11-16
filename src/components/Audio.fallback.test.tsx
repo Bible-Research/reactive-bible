@@ -10,7 +10,11 @@ import {
 import Audio from './Audio';
 import { renderWithProviders } from '../__tests__/helpers';
 import { useBibleStore } from '../store';
-import { getBibleAudioUrl, BookNotInFilesetError } from '../api';
+import {
+  getBibleAudioUrl,
+  getAudioTimestamps,
+  BookNotInFilesetError,
+} from '../api';
 import { showNotification } from '@mantine/notifications';
 import {
   stubMediaSession,
@@ -197,6 +201,18 @@ describe('Audio cross-translation fallback', () => {
       expect(
         screen.getByTitle('Close player'),
       ).toBeInTheDocument();
+
+      // Verse timestamps are fetched for the recording actually
+      // playing (LVSGLU8C1DA), not only the selected LAVLVR
+      // fileset — timestamps only describe the recording they
+      // came from.
+      await waitFor(() =>
+        expect(getAudioTimestamps).toHaveBeenCalledWith(
+          'JER',
+          1,
+          'LVSGLU8C1DA',
+        ),
+      );
     },
   );
 

@@ -1676,6 +1676,19 @@ Streams audio Bible chapters with full playback controls.
 - Previous Track: restarts the current verse when more than 2s
   into it, otherwise jumps to the previous verse's start; at
   verse 1, goes to the previous chapter
+- Repeat presses in one direction within 4s chain off the last
+  seek TARGET, not the live position (`verseNavTarget` in
+  `src/utils/verseNav.ts`) — html5 seeks apply asynchronously,
+  so computing a follow-up press from `seek()` could read a
+  stale position and restart the verse the press just landed
+  on. The chain is dropped on a direction change, a chapter
+  change, or an outside seek (player slider).
+- Verse timestamps are fetched for the recording actually
+  playing (the fileset the candidate walk landed on, tracked in
+  `audioChapterKeyRef`) — a coverage/codec fallback that
+  substituted another recording gets THAT recording's
+  timestamps or, when it has none, the ±10s fallback; never a
+  misaligned foreign verse map.
 - When no verse timestamps are available (e.g. KJV), Next/
   Previous Track fall back to a ±10 second seek
 
@@ -1764,7 +1777,9 @@ All prefetching happens silently in the background.
 **Hardware Controls**:
 - **Play/Pause**: Works on all devices (headphones, car)
 - **Seek Forward/Backward**: Skips ±10 seconds (headphones)
-- **Next/Previous Track**: Skips ±10 seconds (car stereo)
+- **Next/Previous Track**: verse-aware jumps (car stereo);
+  repeated presses chain verse steps — see the "Hardware
+  controls" contract above
 - **Seek To**: Direct time seeking (car stereo fallback)
 - **Lock Screen**: Shows chapter info and controls (mobile)
 
