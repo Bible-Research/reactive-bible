@@ -257,10 +257,14 @@ const Audio = () => {
       seekBy: (offset) => {
         const pos = getPlayPosition(audioRef.current);
         if (pos === null) return;
+        // An outside seek breaks the nav chain.
+        lastNavRef.current = null;
         safeSeek(pos + offset);
       },
       seekTo: (time) => {
-        if (Number.isFinite(time)) safeSeek(time);
+        if (!Number.isFinite(time)) return;
+        lastNavRef.current = null;
+        safeSeek(time);
       },
     };
   }, [

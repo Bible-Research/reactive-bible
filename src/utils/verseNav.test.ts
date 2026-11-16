@@ -52,6 +52,26 @@ describe('verseNavTarget — forward', () => {
       time: 30,
     });
   });
+
+  it('breaks a forward chain when an outside seek intervened', () => {
+    // Position jumped backward past the last target — outside
+    // the corridor, so compute from the live position.
+    const last = nav(1, 12, 20, 1000);
+    expect(verseNavTarget(TS, 5, 1, last, 1500)).toEqual({
+      kind: 'seek',
+      time: 10,
+    });
+  });
+
+  it('still chains while paused (position does not drift)', () => {
+    // A paused press leaves pos frozen at the last target —
+    // inside the corridor, so the next press steps forward.
+    const last = nav(1, 12, 20, 1000);
+    expect(verseNavTarget(TS, 20, 1, last, 3500)).toEqual({
+      kind: 'seek',
+      time: 30,
+    });
+  });
 });
 
 describe('verseNavTarget — backward', () => {

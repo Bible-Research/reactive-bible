@@ -769,6 +769,7 @@ export const useChapterAudio = (
       clearAdvanceTimer();
       pendingGapRef.current = false;
       discardPreloaded();
+      timestampsKeyRef.current = null;
       setTimestamps([]);
       setAudioActiveVerse(null);
       return;
@@ -804,11 +805,13 @@ export const useChapterAudio = (
     // still-live Howl — the ended handler adopted this chapter's
     // preloaded one — may skip the discard and keep playing.
     if (audioRef.current) {
+      timestampsKeyRef.current = null;
       setTimestamps([]);
       setAudioActiveVerse(null);
       return;
     }
     discardPreloaded();
+    timestampsKeyRef.current = null;
     setTimestamps([]);
     setAudioActiveVerse(null);
     // Landed with no Howl and no play intent — nothing will ever
@@ -862,8 +865,12 @@ export const useChapterAudio = (
           bookId,
         )
       : null;
+    // The key names the recording the rows were fetched+adjusted
+    // for (audioId), not the timestamp source — ENGESV_API and
+    // ENGESVN1DA share the ENGESVN1DA source rows but receive
+    // differently-adjusted output.
     const tsKey = tsFilesetId
-      ? `${tsFilesetId}:${bookId}:${chapter}`
+      ? `${audioId}:${bookId}:${chapter}`
       : null;
     // Rows in state describe the last resolved key — clear them
     // when they no longer match what is about to play so verse
@@ -873,7 +880,7 @@ export const useChapterAudio = (
       timestampsKeyRef.current = null;
       setTimestamps([]);
     }
-    if (!tsFilesetId || !tsKey) return;
+    if (!tsFilesetId) return;
     let cancelled = false;
     void getAudioTimestamps(bookId, chapter, tsFilesetId).then(
       (ts) => {
