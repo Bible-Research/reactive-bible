@@ -125,10 +125,23 @@ export function TagCombobox({
   const actionRef = useRef<CreatedAction | null>(null);
 
   const selected = tags.find((t) => t.id === value);
+  // The just-created leaf isn't in `tags` until the
+  // refresh resolves — fall back to the action record so
+  // the closed field isn't blank meanwhile.
+  const displayTag =
+    selected ??
+    (actionRef.current?.leaf.id === value
+      ? actionRef.current.leaf
+      : undefined);
   const displayValue = open
     ? search
-    : selected
-    ? tagPath(tags, selected)
+    : displayTag
+    ? tagPath(
+        selected
+          ? tags
+          : [...tags, ...(actionRef.current?.created ?? [])],
+        displayTag
+      )
     : '';
 
   const rows = useMemo<Row[]>(() => {
@@ -162,13 +175,14 @@ export function TagCombobox({
       label: tagPath(tags, tag),
     }));
     const query = search.trim();
-    // Slash-typed paths that already exist offer the
-    // existing tag, never the create rows; a literal name
-    // that only duplicates a top-level tag still gets
-    // `under…` (same-named children are legal).
+    // A separator-bearing query that exactly names an
+    // existing path — typed `Work/design` or pasted
+    // `Work › design` — offers the existing tag, never the
+    // create rows. A literal name that only duplicates a
+    // top-level tag still gets `under…` (same-named
+    // children are legal).
     const pathTaken =
-      splitPathQuery(query) !== null &&
-      isExactPathMatch(tags, query);
+      /[/›]/.test(query) && isExactPathMatch(tags, query);
     if (query && !pathTaken) {
       if (
         splitPathQuery(query) !== null ||
@@ -180,6 +194,14 @@ export function TagCombobox({
     }
     return out;
   }, [tags, search, view, moveTarget]);
+
+  // `rows` can shrink without a reset (a `tags` refresh
+  // while open) — clamp rather than leave
+  // aria-activedescendant pointing at a gone row.
+  const active =
+    rows.length > 0
+      ? Math.min(highlight, rows.length - 1)
+      : 0;
 
   const closeAll = () => {
     setOpen(false);
@@ -221,6 +243,9 @@ export function TagCombobox({
   const startMove = () => {
     const action = actionRef.current;
     if (!action) return;
+    // Drop the action toast — Undo during a reparent would
+    // delete the tag out from under the PATCH.
+    setToast(null);
     setMoveTarget(action.leaf);
     const excluded = moveExclusions(
       tagsRef.current,
@@ -251,6 +276,9 @@ export function TagCombobox({
     const action = actionRef.current;
     if (!action) return;
     actionRef.current = null;
+    // Disarm the buttons immediately — a second click while
+    // the sweep is in flight must not re-run it.
+    setToast(null);
     // Revert only when the user hasn't picked another tag —
     // a deliberately changed selection must not be
     // clobbered by a late Undo.
@@ -290,7 +318,8 @@ export function TagCombobox({
 
   const handleMove = async (parentTagId: string) => {
     const target = moveTarget;
-    if (!target) return;
+    if (!target || busy) return;
+    setBusy(true);
     try {
       await reparentTag(target.id, parentTagId);
       setMoveTarget(null);
@@ -316,6 +345,8 @@ export function TagCombobox({
         color: 'red',
         actions: false,
       });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -340,6 +371,9 @@ export function TagCombobox({
           [...tagsRef.current, ...created],
           leaf
         );
+        // One pending action at a time — a second create
+        // replaces the first's undo affordance (its toast
+        // was already replaced visually anyway).
         actionRef.current = {
           created,
           leaf,
@@ -411,12 +445,12 @@ export function TagCombobox({
     if (event.key === 'Enter') {
       if (!open) return; // let the form submit
       event.preventDefault();
-      const row = rows[highlight];
+      const row = rows[active];
       if (row) activate(row);
       return;
     }
     if (event.key === 'ArrowRight' || event.key === 'Tab') {
-      const row = rows[highlight];
+      const row = rows[active];
       if (
         open &&
         view === 'options' &&
@@ -497,129 +531,135 @@ export function TagCombobox({
                 id={inputId}
                 ref={inputRef}
                 variant="transparent"
-              placeholder="Select a tag"
-              value={displayValue}
-              role="combobox"
-              aria-expanded={open}
-              aria-autocomplete="list"
-              aria-controls={listboxId}
-              aria-activedescendant={
-                open && rows[highlight]
-                  ? optionId(highlight)
-                  : undefined
-              }
-              onFocus={(event) =>
-                event.currentTarget.select()
-              }
-              onMouseDown={() => {
-                if (!open) openDrop();
-              }}
-              onChange={(event) => {
-                setSearch(event.currentTarget.value);
-                setHighlight(0);
-                if (!open) {
-                  setOpen(true);
-                  setView('options');
-                  onDropdownOpen?.();
+                placeholder="Select a tag"
+                value={displayValue}
+                role="combobox"
+                aria-haspopup="listbox"
+                aria-expanded={open}
+                aria-autocomplete="list"
+                aria-controls={open ? listboxId : undefined}
+                aria-activedescendant={
+                  open && rows[active]
+                    ? optionId(active)
+                    : undefined
                 }
-              }}
-              onKeyDown={handleKeyDown}
-              rightSection={
-                busy ? (
-                  <Loader size="xs" />
-                ) : (
-                  <IconChevronDown size={16} />
-                )
-              }
+                onFocus={(event) =>
+                  event.currentTarget.select()
+                }
+                onMouseDown={() => {
+                  if (!open) openDrop();
+                }}
+                onChange={(event) => {
+                  setSearch(event.currentTarget.value);
+                  // In the picker panes row 0 is ‹ Back —
+                  // land on the first real parent instead.
+                  setHighlight(view === 'options' ? 0 : 1);
+                  if (!open) {
+                    setOpen(true);
+                    setView('options');
+                    onDropdownOpen?.();
+                  }
+                }}
+                onKeyDown={handleKeyDown}
+                rightSection={
+                  busy ? (
+                    <Loader size="xs" />
+                  ) : (
+                    <IconChevronDown size={16} />
+                  )
+                }
               />
             </div>
           </Popover.Target>
           <Popover.Dropdown p={4}>
-          <ScrollArea
-            mah={window.innerHeight * 0.7}
-            type="auto"
-          >
-            <div
-              role="listbox"
-              id={listboxId}
-              aria-label={
-                view === 'parents'
-                  ? `Create "${createQuery}" under`
-                  : view === 'move'
-                  ? `Move "${moveTarget?.name ?? ''}" under`
-                  : 'Tags'
-              }
+            <ScrollArea
+              mah={window.innerHeight * 0.7}
+              type="auto"
             >
-              {view !== 'options' && (
-                <Text
-                  size="xs"
-                  color="dimmed"
-                  px="sm"
-                  py={4}
-                >
-                  {view === 'parents'
-                    ? `Create “${createQuery}” under:`
-                    : `Move “${moveTarget?.name}” under:`}
-                </Text>
-              )}
-              {rows.length === 0 && (
-                <Text
-                  size="sm"
-                  color="dimmed"
-                  px="sm"
-                  py={4}
-                >
-                  {view === 'parents'
-                    ? 'No parent tags'
-                    : 'No tags'}
-                </Text>
-              )}
-              {rows.map((row, index) => {
-                const highlighted = index === highlight;
-                return (
-                  <Box
-                    key={`${row.kind}-${
-                      row.kind === 'tag' ? row.tag.id : index
-                    }`}
-                    id={optionId(index)}
-                    role="option"
-                    aria-selected={
-                      row.kind === 'tag' &&
-                      view === 'options'
-                        ? row.tag.id === value
-                        : false
-                    }
-                    data-highlighted={
-                      highlighted || undefined
-                    }
-                    aria-disabled={busy || undefined}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      activate(row);
-                    }}
-                    onMouseEnter={() => setHighlight(index)}
-                    sx={(theme) => ({
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '8px 12px',
-                      fontSize: theme.fontSizes.sm,
-                      cursor: busy ? 'default' : 'pointer',
-                      borderRadius: theme.radius.sm,
-                      backgroundColor: highlighted
-                        ? theme.colorScheme === 'dark'
-                          ? theme.colors.dark[5]
-                          : theme.colors.blue[0]
-                        : 'transparent',
-                    })}
+              <div
+                role="listbox"
+                id={listboxId}
+                aria-label={
+                  view === 'parents'
+                    ? `Create "${createQuery}" under`
+                    : view === 'move'
+                    ? `Move "${moveTarget?.name ?? ''}" under`
+                    : 'Tags'
+                }
+              >
+                {view !== 'options' && (
+                  <Text
+                    size="xs"
+                    color="dimmed"
+                    px="sm"
+                    py={4}
                   >
-                    {rowIcon(row)}
-                    <span>{rowLabel(row)}</span>
-                  </Box>
-                );
-              })}
-            </div>
-          </ScrollArea>
+                    {view === 'parents'
+                      ? `Create “${createQuery}” under:`
+                      : `Move “${moveTarget?.name}” under:`}
+                  </Text>
+                )}
+                {rows.length === 0 && (
+                  <Text
+                    size="sm"
+                    color="dimmed"
+                    px="sm"
+                    py={4}
+                  >
+                    {view !== 'options'
+                      ? 'No parent tags'
+                      : 'No tags'}
+                  </Text>
+                )}
+                {rows.map((row, index) => {
+                  const highlighted = index === active;
+                  return (
+                    <Box
+                      key={`${row.kind}-${
+                        row.kind === 'tag' ? row.tag.id : index
+                      }`}
+                      id={optionId(index)}
+                      role="option"
+                      aria-selected={
+                        row.kind === 'tag' &&
+                        view === 'options'
+                          ? row.tag.id === value
+                          : false
+                      }
+                      data-highlighted={
+                        highlighted || undefined
+                      }
+                      aria-disabled={busy || undefined}
+                      onMouseDown={(event) => {
+                        // Primary button only — right-click
+                        // keeps its context menu.
+                        if (event.button !== 0) return;
+                        event.preventDefault();
+                        activate(row);
+                      }}
+                      onMouseEnter={() => setHighlight(index)}
+                      sx={(theme) => ({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 12px',
+                        fontSize: theme.fontSizes.sm,
+                        cursor: busy ? 'default' : 'pointer',
+                        borderRadius: theme.radius.sm,
+                        backgroundColor: highlighted
+                          ? theme.colorScheme === 'dark'
+                            ? theme.colors.dark[5]
+                            : theme.colors.blue[0]
+                          : 'transparent',
+                      })}
+                    >
+                      {rowIcon(row)}
+                      <span>{rowLabel(row)}</span>
+                    </Box>
+                  );
+                })}
+                </div>
+            </ScrollArea>
           </Popover.Dropdown>
         </Popover>
       </Input.Wrapper>

@@ -323,10 +323,14 @@ describe('path creation', () => {
 });
 
 describe('post-create toast', () => {
-  const create = async () => {
+  const create = async (
+    props: Partial<
+      React.ComponentProps<typeof TagCombobox>
+    > = {}
+  ) => {
     mockedCreate.mockResolvedValue(tag('9', 'prayer'));
     const onChange = vi.fn();
-    renderCombobox({ onChange });
+    renderCombobox({ onChange, ...props });
     fireEvent.mouseDown(input());
     fireEvent.change(input(), {
       target: { value: 'prayer' },
@@ -375,7 +379,13 @@ describe('post-create toast', () => {
   });
 
   it('Move under… re-parents the new tag', async () => {
-    await create();
+    // Include a descendant of the created tag — it must be
+    // excluded (moving under it would create a cycle). The
+    // created '9' itself isn't in the fixture — the store
+    // refresh hasn't landed yet.
+    await create({
+      tags: [...baseTags, tag('10', 'prayerbaby', '9')],
+    });
     mockedReparent.mockResolvedValue(tag('9', 'prayer'));
     fireEvent.click(
       screen.getByRole('button', {
@@ -383,12 +393,21 @@ describe('post-create toast', () => {
       })
     );
     // The dropdown reopens in the move pane — same
-    // searchable parent list, minus the tag itself.
+    // searchable parent list, minus the tag itself and its
+    // descendants — and the action toast disarms.
     const pane = await screen.findByRole('listbox', {
       name: 'Move "prayer" under',
     });
     expect(
       within(pane).queryByRole('option', { name: 'prayer' })
+    ).not.toBeInTheDocument();
+    expect(
+      within(pane).queryByRole('option', {
+        name: 'prayerbaby',
+      })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Undo' })
     ).not.toBeInTheDocument();
     fireEvent.mouseDown(
       await within(pane).findByRole('option', {

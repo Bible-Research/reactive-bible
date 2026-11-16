@@ -144,7 +144,13 @@ export const deleteUnusedCreatedTags = async (
       (other) =>
         other.parent_tag === tag.id && !deletedIds.has(other.id)
     );
-    if ((current.note_count ?? 0) > 0 || foreignChild) {
+    // A missing count means "unknown" — keep rather than
+    // risk deleting a tag that has notes.
+    const inUse =
+      current.note_count === undefined ||
+      current.note_count > 0 ||
+      foreignChild;
+    if (inUse) {
       kept.push(current);
       continue;
     }

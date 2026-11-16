@@ -103,6 +103,7 @@ const makeTag = (
   id,
   name,
   parent_tag,
+  note_count: 0,
   public: false,
   created_at: '',
   updated_at: '',
@@ -219,9 +220,14 @@ describe('inline tag creation (AddTagNoteModal)', () => {
     expect(
       screen.queryByRole('dialog', { name: /tag/i })
     ).not.toBeInTheDocument();
+    const status = await screen.findByRole('status');
+    // The live region sits inside the modal's accessible
+    // tree — portals are aria-hidden under an open modal.
     expect(
-      await screen.findByRole('status')
-    ).toBeInTheDocument();
+      status.closest('[aria-modal="true"]')
+    ).not.toBeNull();
+    // Enter on the combobox must never submit the form.
+    expect(editorSubmit).not.toHaveBeenCalled();
   });
 
   it('creates under a parent via the picker', async () => {

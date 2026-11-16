@@ -56,7 +56,12 @@ export function TagActionToast({
   if (!toast) return null;
 
   return (
-    <Affix position={{ top: 20, right: 20 }}>
+    // withinPortal off keeps the toast inside the note
+    // modal's DOM — the whole point of this component.
+    <Affix
+      withinPortal={false}
+      position={{ top: 20, right: 20 }}
+    >
       <Notification
         role="status"
         color={toast.color}
