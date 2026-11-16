@@ -138,17 +138,25 @@ describe('loadStructure SWR resolution', () => {
     await p;
   });
 
-  it('skips a malformed localStorage entry instead of ' +
-    'throwing', async () => {
+  it.each([
+    { books: 'not-an-array' },
+    // Row shape: `setActiveStructure` iterates
+    // `book.book_id` — a tampered/skewed row missing it
+    // must evict too, not throw synchronously.
+    { books: [{ name: 'x' }] },
+  ])(
+    'skips a malformed localStorage entry %# instead of ' +
+      'throwing',
+    async (malformed) => {
       // A corrupted/version-skewed cache row must fall
       // through to the next tier — the slice applies the
       // localStorage result unguarded, so the tier itself
-      // evicts non-array `books` bodies.
+      // evicts malformed `books` bodies.
       localStorage.setItem(
         'bible_structure_cache',
         JSON.stringify({
           ENGKJV: {
-            data: { books: 'not-an-array' },
+            data: malformed,
             cachedAt: Date.now(),
           },
         }),
@@ -169,7 +177,8 @@ describe('loadStructure SWR resolution', () => {
       // The bad row was evicted on read — the fetch tier
       // repopulated the entry with a valid body.
       expect(getCachedStructure('ENGKJV')).toEqual(EN);
-    });
+    },
+  );
 
   it.each(['lat', 'lav'])(
     'stages the bundled lv catalog for the 639-2 %s ' +

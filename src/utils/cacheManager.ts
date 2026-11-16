@@ -4,6 +4,7 @@ import {
   FilesetCopyright,
   SectionHeading,
   BibleStructure,
+  StructureBook,
 } from '../types';
 import type { Translation } from '../store';
 
@@ -951,7 +952,13 @@ export const getCachedStructure = (
     // `books` is evicted here like a stale one.
     if (
       !Array.isArray(entry.data?.books) ||
-      entry.data.books.length === 0
+      entry.data.books.length === 0 ||
+      !entry.data.books.every(
+        (b: StructureBook) =>
+          b &&
+          typeof b.book_id === 'string' &&
+          Array.isArray(b.chapters)
+      )
     ) {
       delete cache[bibleAbbr];
       setCachedLocalStorage(
