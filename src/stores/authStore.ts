@@ -285,6 +285,7 @@ const createAuthStore = () => create<AuthState>()(
           allNotesFetched: false,
           lastSelectedTagId: null,
           notesPage: 1,
+          tagPagination: {},
           readingPositions: {},
         });
         clearNotesCache();
@@ -401,6 +402,7 @@ useAuthStore.subscribe((auth, prevAuth) => {
     notesPage: 1,
     notesOrdering: null,
     lastSelectedTagId: null,
+    tagPagination: {},
   });
 });
 

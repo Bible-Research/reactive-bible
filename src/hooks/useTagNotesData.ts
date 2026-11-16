@@ -17,7 +17,11 @@ import type { CommentCounts, Note, Tag } from '../types';
 import { clearNotesCache } from '../utils/cacheManager';
 import { getApiOrdering } from '../utils/noteSorting';
 import type { SortOrder } from '../utils/noteSorting';
-import { pageCount } from '../utils/pagination';
+import {
+  DEFAULT_NOTES_PAGE_SIZE,
+  NOTES_PAGE_SIZES,
+  pageCount,
+} from '../utils/pagination';
 
 interface UseTagNotesDataOptions {
   tagId: string | undefined;
@@ -94,12 +98,16 @@ export const useTagNotesData = ({
   const [commentCounts, setCommentCounts] =
     useState<CommentCounts>({});
 
-  // Page to restore on the first load. Seeded inside the mount
-  // effect below — reading the store during render is unsafe —
-  // and it must be captured before that effect writes
-  // lastSelectedTagId (which would make the same-tag check
-  // always true).
-  const initialPageRef = useRef<number | null>(null);
+  // Page to restore on the first load for THIS tag. Seeded
+  // inside the mount effect below — reading the store during
+  // render is unsafe — and it must be captured before that
+  // effect writes lastSelectedTagId (which would make the
+  // same-tag check always true). Re-seeded on every tag
+  // switch so each tag restores its own stored page.
+  const initialPageRef = useRef<{
+    tagId: string;
+    page: number;
+  } | null>(null);
   // The load effect re-runs on mount (StrictMode, auth
   // hydration); remember the last requested query so repeats
   // refetch the current page instead of resetting to page 1.
@@ -115,21 +123,58 @@ export const useTagNotesData = ({
   const hasLoadedRef = useRef(false);
 
   // Set showNotes to true and save lastSelectedTagId when on
-  // notes route.
+  // notes route. Also seeds the page/pageSize restore from
+  // the persisted per-tag pagination record.
   useEffect(() => {
-    if (tagId) {
+    if (tagId && initialPageRef.current?.tagId !== tagId) {
       // Capture the page to restore BEFORE overwriting
       // lastSelectedTagId — after the write the same-tag
       // check would always pass. This runs before the
       // loader effect (declared below) consumes the ref.
-      if (initialPageRef.current === null) {
-        const stored = useBibleStore.getState();
-        initialPageRef.current =
-          stored.lastSelectedTagId === tagId &&
+      const stored = useBibleStore.getState();
+      // A corrupted blob (non-object or null) must not throw
+      // on the property read — treat it as "no record".
+      const saved =
+        stored.tagPagination &&
+        typeof stored.tagPagination === 'object'
+          ? stored.tagPagination[tagId]
+          : null;
+      const savedPage =
+        saved &&
+        typeof saved.page === 'number' &&
+        Number.isFinite(saved.page)
+          ? Math.max(1, Math.floor(saved.page))
+          : null;
+      // Restore the tag's page size first — fetchNotes
+      // reads notesPageSize at call time, and the loader
+      // effect fires right after this one. A persisted size
+      // outside the toolbar's option set (e.g. hand-edited
+      // localStorage) falls back to the default rather than
+      // reaching the Select or a fetch.
+      const savedPageSize =
+        saved && typeof saved.pageSize === 'number'
+          ? NOTES_PAGE_SIZES.includes(saved.pageSize)
+            ? saved.pageSize
+            : DEFAULT_NOTES_PAGE_SIZE
+          : null;
+      if (
+        savedPageSize !== null &&
+        savedPageSize !== stored.notesPageSize
+      ) {
+        setNotesPageSize(savedPageSize);
+      }
+      initialPageRef.current = {
+        tagId,
+        // A stored per-tag record wins; without one, keep
+        // the legacy single-slot restore for pre-v7 state
+        // that was never migrated (e.g. test injection).
+        page:
+          savedPage ??
+          (stored.lastSelectedTagId === tagId &&
           stored.notesPage > 1
             ? stored.notesPage
-            : 1;
-      }
+            : 1),
+      };
     }
     setShowNotes(true);
     if (tagId) {
@@ -162,6 +207,14 @@ export const useTagNotesData = ({
           try { await getTags(); } catch { /* ignore */ }
         }
 
+        // The effect may have re-run for another tag while
+        // getTags was in flight — a stale continuation must
+        // stop here, not fetch the previous tag's page 1:
+        // fetchNotes' synchronous cache-hit branch has no
+        // staleness check and would persist a page/size for
+        // that tag the user never viewed.
+        if (cancelled) return;
+
         // Fetch notes with ordering if non-default sort
         const apiOrdering =
           sortOrder !== 'custom_asc'
@@ -174,6 +227,19 @@ export const useTagNotesData = ({
         // of bouncing back to page 1.
         const queryKey =
           `${tagId}:${sortOrder}:${includeDescendants}`;
+        // Consume the seed on every run for THIS tag — an
+        // anonymous StrictMode replay reaches this point
+        // synchronously and re-seeds the mount ref, and a
+        // stale seed would restore the stored page on the
+        // next sort/descendants change instead of resetting
+        // to page 1. But the consume is tag-guarded: a stale
+        // run for the PREVIOUS tag (its getTags await still
+        // in flight when the user switched) must not discard
+        // the seed the new tag's loader is about to restore.
+        const seeded = initialPageRef.current;
+        if (seeded?.tagId === tagId) {
+          initialPageRef.current = null;
+        }
         let page: number;
         if (lastLoadRef.current?.key === queryKey) {
           // notesPage reflects this tag only once its notes are
@@ -187,8 +253,11 @@ export const useTagNotesData = ({
             ? current.notesPage
             : lastLoadRef.current.page;
         } else {
-          page = initialPageRef.current ?? 1;
-          initialPageRef.current = 1;
+          // A new query context: on a tag switch the mount
+          // effect seeded this tag's stored page; on a
+          // sort/descendants change the ref is empty and
+          // this falls back to page 1.
+          page = seeded?.tagId === tagId ? seeded.page : 1;
         }
         lastLoadRef.current = { key: queryKey, page };
 

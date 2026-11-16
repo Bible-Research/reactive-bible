@@ -24,7 +24,7 @@ Talks to the `bible_research` Django API.
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
 - `src/store.ts` — main persisted Zustand store (`bible-storage`,
-  schema v5, custom `migratePersistedState` — bump version when
+  schema v7, custom `migratePersistedState` — bump version when
   persisted shape changes). Composition root; notes
   orchestration in `src/stores/bibleStore/notesSlice.ts`,
   partialize/migration in `src/stores/bibleStore/persistence.ts`.

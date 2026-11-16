@@ -586,6 +586,10 @@ auth lives in a separate persisted `authStore`.
 - `tags: Tag[]`, `notes: Note[]`, `allNotesFetched: boolean`
 - Pagination: `notesCount`, `notesPage`, `notesPageSize`,
   `notesHasMore`, `notesOrdering`
+- `tagPagination: Record<string, TagPagination>` - persisted
+  per-tag `{ page, pageSize }` written by `fetchNotes` and
+  restored by `useTagNotesData` so revisiting a tag lands on
+  the page and page size the user last selected for it
 - `lastSelectedTagId: string | null` - remembered for the
   `/notes` redirect
 
@@ -658,7 +662,7 @@ persist(
   (set, get) => ({ /* state and actions */ }),
   {
     name: 'bible-storage',
-    version: 5,
+    version: 7,
     storage: createJSONStorage(() => localStorage),
     partialize: /* in stores/bibleStore/persistence.ts */,
     migrate: migratePersistedState,
