@@ -428,9 +428,9 @@ export const useChapterAudio = (
     // silent version swap).
     const state = useBibleStore.getState();
     const selection = state.activeAudioFilesetId;
-    const playingKey = audioChapterKeyRef.current;
-    const playingId = playingKey?.split(':')[0];
-    if (selection && playingId && playingId !== 'none') {
+    const playing = parsePlayingKey(audioChapterKeyRef.current);
+    const playingId = playing?.filesetId;
+    if (selection && playingId) {
       if (
         !isCrossTranslationPlayback(
           selection,
@@ -447,9 +447,7 @@ export const useChapterAudio = (
       // recording — announce it once per (pair, book);
       // within-translation codec/option alternates stay
       // silent.
-      const bookId =
-        (playingKey ? parseChapterKey(playingKey) : null)
-          ?.bookId ?? state.activeBookId;
+      const bookId = playing?.bookId ?? state.activeBookId;
       notifyAudioSubstitution(
         selection,
         playingId,
@@ -660,11 +658,12 @@ export const useChapterAudio = (
         // error from starting a fallback for a passage the user
         // already navigated away from.
         const keyNow = audioChapterKeyRef.current;
-        if (!keyNow) return false;
-        const [playingId, bookId, chapter] = keyNow.split(':');
+        const parsed = parsePlayingKey(keyNow);
+        if (!parsed) return false;
+        const { filesetId: playingId, bookId, chapter } = parsed;
         if (
           bookId !== state.activeBookId ||
-          Number(chapter) !== state.activeChapter
+          chapter !== state.activeChapter
         ) {
           return false;
         }
@@ -816,11 +815,15 @@ export const useChapterAudio = (
     setAudioActiveVerse(null);
     // Landed with no Howl and no play intent — nothing will ever
     // load, so close the player instead of leaving its height as
-    // dead space at the bottom. isPlayingRef still reflects the
-    // committed intent here: intent changes (pause/close) and
-    // navigation are separate user events, so they can't share
-    // this commit — the ref is never stale at read time.
-    if (!isPlayingRef.current) setShowPlayer(false);
+    // dead space at the bottom. The ref alone can lag a batched
+    // intent flip (React 18 can merge a setIsPlaying and a
+    // navigation into one commit — the sync effect runs after
+    // this one), so the render-captured isPlaying guards too.
+    if (!isPlayingRef.current && !isPlaying) setShowPlayer(false);
+    // isPlaying intentionally read from the render closure, not
+    // a dep — adding it would re-run the teardown on every
+    // play/pause toggle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isPlaylistMode,
     activeBookId,
