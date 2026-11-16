@@ -127,6 +127,9 @@ describe('API Functions', () => {
       ).rejects.toThrow(
         'The translation provider is currently rate-limited'
       );
+      await expect(
+        api.getVersesFromApi('JHN', 3, 'ENGESV')
+      ).rejects.toThrow('in about 1 minute');
     });
 
     it('getVersesFromApi should throw RateLimitError when a ' +
