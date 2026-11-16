@@ -320,6 +320,7 @@
     "removeImage": "Noņemt attēlu {{name}}",
     "removeStagedImage": "Noņemt sagatavoto attēlu {{name}}",
     "imageTitle": "Attēls",
+    "imageFullSize": "pilnā izmērā",
     "cannotPost": "Nevar publicēt komentāru",
     "addTextOrAttach": "Pievienojiet tekstu vai attēlu.",
     "unavailable": "Attēls nav pieejams",
@@ -372,6 +373,24 @@
     "closeMenu": "Aizvērt izvēlni",
     "openMenu": "Atvērt izvēlni"
   },
+  "editor": {
+    "bold": "Treknraksts",
+    "italic": "Slīpraksts",
+    "underline": "Pasvītrojums",
+    "strikethrough": "Pārsvītrojums",
+    "clearFormatting": "Notīrīt formatējumu",
+    "link": "Saite",
+    "unlink": "Noņemt saiti",
+    "bulletList": "Aizzīmju saraksts",
+    "orderedList": "Numurēts saraksts",
+    "heading1": "Virsraksts 1",
+    "heading2": "Virsraksts 2",
+    "heading3": "Virsraksts 3",
+    "blockquote": "Citāts",
+    "linkUrlLabel": "Ievadiet URL",
+    "linkOpenNewTab": "Atvērt saiti jaunā cilnē",
+    "linkOpenSameTab": "Atvērt saiti tajā pašā cilnē"
+  },
   "pagination": {
     "label": "Lapu numerācija",
     "previous": "Iepriekšējā lapa",
@@ -414,6 +433,7 @@
     "title": "Meklēt Bībelē",
     "placeholder": "Meklēt vārdus vai frāzes...",
     "submit": "Meklēt",
+    "loading": "Notiek meklēšana…",
     "unavailable": "Meklēšana nav pieejama — vispirms izvēlieties Bībeles tulkojumu.",
     "noResults": "Nav atrasts neviens rezultāts vaicājumam „{{query}}”.",
     "resultCount_zero": "{{count}} rezultātu",
@@ -455,6 +475,7 @@
     "readFullChapter": "Lasīt visu nodaļu",
     "unexpectedError": "Neparedzēta kļūda",
     "resourceLoadFailed": "Neizdevās ielādēt resursu",
+    "resourceLoadFailedMsg": "Neizdevās ielādēt resursu: {{src}}",
     "tapToSelect": "Pieskarieties pantam, lai to atlasītu"
   },
   "updates": {

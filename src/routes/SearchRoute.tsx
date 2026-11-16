@@ -270,7 +270,7 @@ export default function SearchRoute() {
 
       {loading && (
         <Center mt="xl">
-          <Loader aria-label={t('notes.loadingNotes')} />
+          <Loader aria-label={t('search.loading')} />
         </Center>
       )}
 

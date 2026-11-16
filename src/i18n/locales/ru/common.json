@@ -329,6 +329,7 @@
     "removeImage": "Удалить изображение {{name}}",
     "removeStagedImage": "Удалить подготовленное изображение {{name}}",
     "imageTitle": "Изображение",
+    "imageFullSize": "в полном размере",
     "cannotPost": "Не удаётся отправить комментарий",
     "addTextOrAttach": "Добавьте текст или прикрепите изображение.",
     "unavailable": "Изображение недоступно",
@@ -381,6 +382,24 @@
     "closeMenu": "Закрыть меню",
     "openMenu": "Открыть меню"
   },
+  "editor": {
+    "bold": "Полужирный",
+    "italic": "Курсив",
+    "underline": "Подчёркнутый",
+    "strikethrough": "Зачёркнутый",
+    "clearFormatting": "Очистить форматирование",
+    "link": "Ссылка",
+    "unlink": "Удалить ссылку",
+    "bulletList": "Маркированный список",
+    "orderedList": "Нумерованный список",
+    "heading1": "Заголовок 1",
+    "heading2": "Заголовок 2",
+    "heading3": "Заголовок 3",
+    "blockquote": "Цитата",
+    "linkUrlLabel": "Введите URL",
+    "linkOpenNewTab": "Открыть ссылку в новой вкладке",
+    "linkOpenSameTab": "Открыть ссылку в той же вкладке"
+  },
   "pagination": {
     "label": "Навигация по страницам",
     "previous": "Предыдущая страница",
@@ -423,6 +442,7 @@
     "title": "Поиск в Библии",
     "placeholder": "Поиск слов или фраз...",
     "submit": "Поиск",
+    "loading": "Поиск…",
     "unavailable": "Поиск недоступен — сначала выберите перевод Библии.",
     "noResults": "По запросу «{{query}}» ничего не найдено.",
     "resultCount_one": "{{count}} результат",
@@ -467,6 +487,7 @@
     "readFullChapter": "Читать главу целиком",
     "unexpectedError": "Непредвиденная ошибка",
     "resourceLoadFailed": "Не удалось загрузить ресурс",
+    "resourceLoadFailedMsg": "Не удалось загрузить ресурс: {{src}}",
     "tapToSelect": "Коснитесь стиха, чтобы выбрать его"
   },
   "updates": {

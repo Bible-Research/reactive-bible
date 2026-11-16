@@ -36,6 +36,21 @@ export class ErrorBoundary extends Component<Props, State> {
     this.state = { hasError: false, error: null, copied: false };
   }
 
+  componentDidMount(): void {
+    i18n.on('languageChanged', this.handleLanguageChange);
+  }
+
+  componentWillUnmount(): void {
+    i18n.off('languageChanged', this.handleLanguageChange);
+  }
+
+  // The fallback renders outside the React tree's translation
+  // context — re-render so its i18n.t calls resolve in the new
+  // language when the user switches from MainMenu.
+  private handleLanguageChange = (): void => {
+    this.forceUpdate();
+  };
+
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error, copied: false };
   }
