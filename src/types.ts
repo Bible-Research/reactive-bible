@@ -310,4 +310,13 @@ export interface StructureBook {
 /** `/api/v1/bible/structure/` response body. */
 export interface BibleStructure {
   books: StructureBook[];
+  /**
+   * Present on bodies whose provider names failed to
+   * resolve (the SWORD canonical-name overlay fell back to
+   * English module names). The backend ships these with
+   * `Cache-Control: no-store` and never caches them itself;
+   * the client mirrors that — applied in memory, never
+   * persisted to the 24h localStorage tier.
+   */
+  degraded?: boolean;
 }

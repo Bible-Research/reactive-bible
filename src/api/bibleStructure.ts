@@ -51,7 +51,15 @@ export const fetchBibleStructure = async (
     });
   }
   const data = await response.json();
-  if (data.error || !Array.isArray(data.books)) {
+  // `books: []` is a transient upstream anomaly (the backend
+  // refuses to cache it) — it must surface as a failure so
+  // the store keeps the staged/previous structure rather
+  // than rendering all-66-uncovered.
+  if (
+    data.error ||
+    !Array.isArray(data.books) ||
+    data.books.length === 0
+  ) {
     throw new ProviderError('Malformed bible structure response');
   }
   return data as BibleStructure;

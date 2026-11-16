@@ -30,6 +30,7 @@ import { showNotification } from "@mantine/notifications";
 import {
   buildBiblePath,
   localizedBookName,
+  toBookName,
   toUsfmCode,
 } from "../utils/bibleUtils";
 import { copyTextToClipboard } from "../utils/clipboard";
@@ -64,10 +65,13 @@ export interface PrimaryChapterRef {
   verses: number[];
 }
 
-const formatChapterGroup = (group: PrimaryChapterRef): string => {
+const formatChapterGroup = (
+  group: PrimaryChapterRef,
+  bookName: (code: string) => string | null,
+): string => {
   const sorted = group.verses;
   const label =
-    `${localizedBookName(group.bookId) ?? group.bookId} ` +
+    `${bookName(group.bookId) ?? group.bookId} ` +
     `${group.chapter}`;
   if (sorted.length === 0) return label;
   const isConsecutive = sorted.every(
@@ -128,7 +132,20 @@ const VerseActionToolbar = () => {
   }, [refs]);
   const passageRef = useMemo(() => {
     if (refs.length === 0) return "";
-    return groupRefsByChapter(refs).map(formatChapterGroup).join("; ");
+    return groupRefsByChapter(refs)
+      .map((g) => formatChapterGroup(g, localizedBookName))
+      .join("; ");
+  }, [refs]);
+
+  // The BibleMapper clipboard copy is pasted into an
+  // English-language tool — like every other external-link
+  // surface it stays English (`toBookName`), never the
+  // active structure's localized names.
+  const passageRefEnglish = useMemo(() => {
+    if (refs.length === 0) return "";
+    return groupRefsByChapter(refs)
+      .map((g) => formatChapterGroup(g, toBookName))
+      .join("; ");
   }, [refs]);
 
   // Selected verse text from the note's own data when the
@@ -218,7 +235,7 @@ const VerseActionToolbar = () => {
   const handleCopyAndOpenWebViewer = useCallback(async () => {
     // Copy first — opening the viewer after a failed copy would
     // send the user to a page with nothing on the clipboard.
-    if (!(await copyTextToClipboard(passageRef))) {
+    if (!(await copyTextToClipboard(passageRefEnglish))) {
       showNotification({
         title: "Error",
         message: "Failed to copy to clipboard",
@@ -236,7 +253,7 @@ const VerseActionToolbar = () => {
       "_blank",
       "noopener,noreferrer"
     );
-  }, [passageRef]);
+  }, [passageRef, passageRefEnglish]);
 
   const youVersionUrl = useMemo(
     () =>

@@ -1,15 +1,18 @@
 import { useBibleStore } from '../store';
-import { toBookName } from '../utils/bibleUtils';
+import { localizedBookName } from '../utils/bibleUtils';
 
 /**
- * React display-name lookup — the localized name for a USFM
- * code in the active bible structure, falling back to the
- * English `toBookName` before a structure lands or when the
- * book isn't covered.
+ * React display-name lookup — resolves a USFM code through
+ * the registry's full chain (covered-book name ->
+ * same-language bundled fallback for uncovered books ->
+ * English `toBookName`), matching every other sync reader.
+ * A partial canon therefore names its uncovered books in
+ * its own language, not English.
  *
- * Re-renders atomically when a fresher structure swaps in —
- * the store write that replaces `structureByBible[key]` is
- * the same one the sync registry consumes, so hook and
+ * The selector reads the registry rather than the store
+ * rows: `applyStructure` pushes the registry BEFORE the
+ * store write, so when the set() notification re-runs this
+ * selector it already sees the fresh names — hook and
  * non-hook readers never disagree.
  *
  * `toBookName` stays the CONTRACT identity (passage= params,
@@ -19,17 +22,9 @@ import { toBookName } from '../utils/bibleUtils';
 export const useBookName = (
   code: string | null | undefined
 ): string | null =>
-  useBibleStore((state) => {
-    if (!code) return null;
-    const key = state.activeStructureKey;
-    const structure = key
-      ? state.structureByBible[key]
-      : null;
-    const row = structure?.books.find(
-      (b) => b.book_id === code.toUpperCase()
-    );
-    return row?.name ?? toBookName(code);
-  });
+  useBibleStore(() =>
+    code ? localizedBookName(code) : null
+  );
 
 /**
  * The whole resolved structure for the active bible — the

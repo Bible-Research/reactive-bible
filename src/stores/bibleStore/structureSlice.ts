@@ -151,6 +151,14 @@ export const createStructureSlice: StateCreator<
         if (!Array.isArray(structure?.books)) {
           throw new Error('Malformed bible structure response');
         }
+        // An empty coverage body is an upstream anomaly the
+        // backend refuses to cache — applying it would grey
+        // out every book, so it takes the same warn path as
+        // a failed fetch: the staged/previous structure
+        // keeps rendering.
+        if (structure.books.length === 0) {
+          throw new Error('Empty bible structure response');
+        }
         // Re-resolve the owner at landing: the translations
         // list may have arrived mid-flight, upgrading the
         // key from the fileset id to the bible abbr.
@@ -162,7 +170,13 @@ export const createStructureSlice: StateCreator<
         const landLang = catalogLangFor(
           landOwner?.language_iso,
         );
-        cacheStructure(landAbbr, structure);
+        // A degraded body (English names after a failed
+        // SWORD canonical-name overlay — backend `no-store`)
+        // applies in memory but must not pin localStorage
+        // for 24h: it recovers as soon as the overlay does.
+        if (!structure.degraded) {
+          cacheStructure(landAbbr, structure);
+        }
         applyStructure(
           landAbbr,
           structure,

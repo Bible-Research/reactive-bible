@@ -9,6 +9,7 @@ import {
 import {
   resetStorageCacheForTests,
   cacheStructure,
+  getCachedStructure,
   clearStructureCache,
 } from '../../utils/cacheManager';
 import { fetchBibleStructure } from '../../api';
@@ -363,4 +364,59 @@ describe('loadStructure SWR resolution', () => {
     resolveFetch(LV);
     await p;
   });
+
+  it('applies a degraded body but never persists it',
+    async () => {
+      // The SWORD canonical-name-overlay failure ships
+      // `degraded: true` with `no-store` — usable in memory
+      // but it must not pin English names into the 24h
+      // localStorage tier.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'LAVNLI',
+        translations: LV_TRANSLATIONS,
+      });
+      const degraded: BibleStructure = {
+        degraded: true,
+        books: [{
+          book_id: 'GEN', name: 'Genesis',
+          name_short: 'Gen', testament: 'OT',
+          chapters: [1],
+        }],
+      };
+      vi.mocked(fetchBibleStructure)
+        .mockResolvedValue(degraded);
+
+      await slice.loadStructure();
+
+      expect(state.structureByBible['LAVNLI'])
+        .toEqual(degraded);
+      expect(localizedName('GEN')).toBe('Genesis');
+      expect(getCachedStructure('LAVNLI')).toBeNull();
+    });
+
+  it('treats an empty books body as a fetch failure',
+    async () => {
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'LAVNLI',
+        translations: LV_TRANSLATIONS,
+      });
+      // The previous structure is already live — a
+      // `{books: []}` anomaly must not replace it with an
+      // all-66-uncovered view, in memory or on disk.
+      state.structureByBible = { LAVNLI: LV };
+      vi.mocked(fetchBibleStructure).mockResolvedValue({
+        books: [],
+      });
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+
+      await slice.loadStructure();
+
+      expect(state.structureByBible['LAVNLI']).toEqual(LV);
+      expect(localizedName('GEN')).toBe('1. Mozus grāmata');
+      expect(getCachedStructure('LAVNLI')).toBeNull();
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
 });
