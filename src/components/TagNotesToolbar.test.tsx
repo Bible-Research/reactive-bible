@@ -150,6 +150,28 @@ describe('TagNotesToolbar', () => {
     ).toBeGreaterThan(0);
   });
 
+  it('hides the text caret inside the page-size select',
+    () => {
+      renderToolbar();
+
+      // Mantine keeps the readonly input focused while the
+      // dropdown is open; caretColor transparent stops the
+      // blinking caret from showing. Emotion injects the
+      // rule into <style> tags (non-speedy in tests), so
+      // match one of the input's classes against them.
+      const input = screen.getByLabelText('Notes per page');
+      const css = Array.from(
+        document.querySelectorAll('style')
+      )
+        .map((el) => el.textContent ?? '')
+        .join('');
+      const caretHidden = [...input.classList].some((cls) =>
+        new RegExp(`\\.${cls}{[^}]*caret-color:transparent`)
+          .test(css)
+      );
+      expect(caretHidden).toBe(true);
+    });
+
   it('renders a share button', () => {
     renderToolbar();
     expect(
