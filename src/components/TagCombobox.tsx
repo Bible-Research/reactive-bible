@@ -319,8 +319,11 @@ export function TagCombobox({
     if (!action) return;
     actionRef.current = null;
     // Disarm the buttons immediately — a second click while
-    // the sweep is in flight must not re-run it.
+    // the sweep is in flight must not re-run it. An open
+    // move pane for this action is dead too (reparenting a
+    // deleted tag can only fail).
     setToast(null);
+    if (view === 'move') closeAll();
     // Revert only when the user hasn't picked another tag —
     // a deliberately changed selection must not be
     // clobbered by a late Undo.
