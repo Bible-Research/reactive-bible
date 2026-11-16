@@ -284,9 +284,34 @@ export interface SearchVerseGroup {
   verses: SearchVerse[];
 }
 
+/**
+ * SWORD grouped-search scan progress reported per window —
+ * `chapters_scanned` grows monotonically across windows and
+ * reaches `chapters_total` when the scan completes.
+ */
+export interface SearchScanProgress {
+  chapters_scanned: number;
+  chapters_total: number;
+}
+
+/**
+ * What `searchBibleGrouped` resolves to: every fetched
+ * window's groups merged by `book_id`, with `meta`
+ * accumulated across windows. The wire-level
+ * `next_cursor`/`progress` fields are consumed inside the
+ * fetch loop and never surface here.
+ */
 export interface GroupedSearchResponse {
   groups: SearchVerseGroup[];
-  meta: { total: number; truncated: boolean };
+  meta: {
+    /** Matches across all fetched windows. */
+    total: number;
+    /**
+     * True when the merged result is incomplete — a
+     * result cap or a scan the client could not finish.
+     */
+    truncated: boolean;
+  };
 }
 
 export type ReadingPositionValue = {

@@ -4,6 +4,8 @@ import {
   ClientInputError,
   ProviderError,
   RateLimitError,
+  SearchDisabledError,
+  errorCodeOf,
   errorMessageFromBody,
   isBookNotInFilesetBody,
   isRateLimitMessage,
@@ -147,6 +149,27 @@ describe('throwFromErrorBody', () => {
       expect(err).toBeInstanceOf(BookNotInFilesetError);
       expect(err.message)
         .toBe('Book not available in this fileset');
+    }
+  );
+
+  // The search_disabled check sits before the rate-limit
+  // branch — a rate-limit-shaped message must not reclassify
+  // the feature-flag rejection.
+  it('throws SearchDisabledError for a search_disabled ' +
+    '403 body', async () => {
+      const err = await thrownFrom(
+        {
+          error_code: 'search_disabled',
+          error: 'HTTP 429 from upstream',
+        },
+        403
+      );
+      expect(err).toBeInstanceOf(SearchDisabledError);
+      // SearchDisabledError extends ProviderError; the pin
+      // that matters is it did NOT classify as rate-limited.
+      expect(err).not.toBeInstanceOf(RateLimitError);
+      expect(errorCodeOf(err)).toBe('search_disabled');
+      expect(err.message).toBe('HTTP 429 from upstream');
     }
   );
 
