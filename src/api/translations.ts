@@ -14,6 +14,7 @@ import {
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { captureHandledError } from '../utils/errorReporter';
 import {
   ClientInputError,
   ProviderError,
@@ -183,6 +184,7 @@ export const getCopyrightInfo = async (
     console.warn(
       'Failed to fetch copyright info:', error
     );
+    captureHandledError(error, 'Copyright fetch', { bibleId });
     return [];
   }
 };
@@ -245,6 +247,15 @@ export const searchLanguages = async (
         `Language search failed (HTTP ${response.status}):`,
         data.error ?? data
       );
+      captureHandledError(
+        new Error(
+          typeof data.error === 'string'
+            ? data.error
+            : `Language search failed (HTTP ${response.status})`
+        ),
+        'Language search',
+        { search, page, status: response.status }
+      );
       return [];
     }
     const rows = (data.results ?? []) as RawLanguage[];
@@ -263,6 +274,10 @@ export const searchLanguages = async (
     return results;
   } catch (error) {
     console.error('Failed to search languages:', error);
+    captureHandledError(error, 'Language search', {
+      search,
+      page,
+    });
     return [];
   }
 };

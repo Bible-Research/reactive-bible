@@ -1,7 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import * as Sentry from '@sentry/react'
-import { BrowserRouter } from 'react-router-dom'
+import {
+  BrowserRouter,
+  useLocation,
+  useNavigationType,
+  createRoutesFromChildren,
+  matchRoutes,
+} from 'react-router-dom'
 import App from './App.tsx'
 import { API_BASE_URL } from './config'
 import { initI18n } from './i18n'
@@ -33,7 +39,15 @@ if (sentryDsn) {
       (import.meta.env.VITE_APP_RELEASE as string | undefined) ||
       undefined,
     integrations: [
-      Sentry.browserTracingIntegration(),
+      // Route-aware browser tracing — the hook set lets the
+      // integration name transactions after the matched route
+      // pattern (paired with SentryRoutes in routes/index.tsx).
+      Sentry.reactRouterBrowserTracingIntegration({
+        useLocation,
+        useNavigationType,
+        createRoutesFromChildren,
+        matchRoutes,
+      }),
       // Free tier ~= 50 replays/mo: record only sessions that hit
       // an error (0 ambient sampling, 1.0 on-error). Text and
       // media are masked — verse text and notes are user content.
@@ -47,6 +61,14 @@ if (sentryDsn) {
     tracePropagationTargets: [API_BASE_URL || location.origin],
     tracesSampleRate: 0.1,
     beforeSend: sentryBeforeSend,
+    // 'Script error.' is the masked cross-origin failure — it
+    // carries no stack and can never be made actionable.
+    ignoreErrors: [/^Script error\.?$/],
+    // Events whose frames point inside a browser extension are
+    // not app code.
+    denyUrls: [
+      /^(?:chrome|moz|safari)(?:-web)?-extension:\/\//,
+    ],
   })
 }
 

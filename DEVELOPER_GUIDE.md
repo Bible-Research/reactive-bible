@@ -4266,14 +4266,29 @@ surface as the transport layer:
   `VITE_SENTRY_DSN` is set — dev, tests, and preview builds
   without it send nothing (`captureException`/`captureMessage`
   are safe no-ops uninitialised).
-- `src/utils/errorReporter.tsx` (`reportError`) forwards every
-  surfaced fatal error as an exception tagged with its context
-  string; resource-load failures go as `warning`-level messages
-  tagged `reportType: resource-load` with the query string
-  stripped — signed-URL credentials never reach Sentry.
+- `src/utils/errorReporter.tsx` exposes three reporters.
+  `reportError(error, context?)` shows the fatal notification
+  AND sends a Sentry exception — reserved for global
+  catch-alls (`initGlobalErrorHandlers`, `ErrorBoundary`,
+  stale-chunk recovery), never for ordinary catches.
+  `captureHandledError(error, context, extra?)` sends a
+  `reportType: handled-api` exception with no notification —
+  the standard call at handled catch sites (chapter/audio
+  fetches, notes/tags/comments, reading positions, auth
+  non-4xx failures). `captureHandledWarning(msg, reportType,
+  extra?)` sends a warning-level message for the
+  `media-failure` (audio hooks' terminal paths) and
+  `native-bridge` (Capacitor bridge calls) streams.
+  Resource-load failures stay `warning`-level messages tagged
+  `reportType: resource-load` with the query string stripped —
+  signed-URL credentials never reach Sentry.
   `src/components/ErrorBoundary.tsx` captures render errors
   with `extra.componentStack` and the `context` tag on the
-  first capture (the tagged re-capture is deduped).
+  first capture (the tagged re-capture is deduped). The global
+  window handlers themselves are notify-only — Sentry's
+  GlobalHandlers integration transports each uncaught error
+  exactly once, and `beforeSend` re-adds `context` to
+  surviving `onerror`/`onunhandledrejection` events.
 - `src/utils/sentry.ts` exports `sentryBeforeSend`, which drops
   the handled taxonomy (`RateLimitError`,
   `BookNotInFilesetError`, `AbortError`, 'Session expired',
@@ -4281,21 +4296,31 @@ surface as the transport layer:
   chunk` — stale-chunk failures the app already self-heals via
   `lazyWithReload`'s guarded reload —, `ResizeObserver loop`)
   so expected conditions don't
-  burn quota. `ClientInputError` is deliberately NOT dropped —
+  burn quota — including untyped errors carrying the same
+  `error_code`s. `ClientInputError` is deliberately NOT dropped —
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',
   'Load failed', 'NetworkError…') are kept but tagged
   `errorKind: network` so Sentry-side rules can route them.
+  `ConflictError` is downgraded to warning level;
+  `ProviderError` gets a `['api-error', code, endpoint]
+  fingerprint so provider outages group per endpoint instead of
+  per message. Typed API errors (`src/api/errors.ts` +
+  `apiClient.ts`) carry `errorCode`/`status`/`endpoint` on the
+  error object — those become `errorCode`/`httpStatus` tags and
+  an `endpoint` extra, so keep them when wrapping errors.
 - **Event-stream contract:** `is:unresolved level:error
   environment:production` is the bug queue — everything else is
   deliberately routed by tag. Untagged exception events are
-  real bugs; `reportType` marks non-bug `captureMessage`
-  streams: `resource-load` (warning, missing assets),
-  `user-report` (info, "Report a problem"), `media-debug`
-  (info, APK diagnostics), `app-update` (info, sideload
-  updater: `updateStep` `download-opened` / `installed`).
-  `errorKind` refines which kind of failure an exception was
-  (`network` today).
+  real bugs; `reportType` marks routed streams: `handled-api`
+  (error, graceful catch sites), `media-failure` (warning,
+  audio terminal failures — extras carry fileset + passage),
+  `native-bridge` (warning, Capacitor bridge calls — expected
+  on web), `resource-load` (warning, missing assets),
+  `user-report` (info, "Report a problem"), `app-update`
+  (info, sideload updater: `updateStep` `download-opened` /
+  `installed`). `errorKind` refines which kind of failure an
+  exception was (`network` today).
 - **User reports:** the main menu's "Report a problem" row
   (always visible) opens `ReportProblemModal`, where the user
   describes the issue. `sendUserReport`
@@ -4320,8 +4345,22 @@ surface as the transport layer:
   `@sentry/vite-plugin` only when `SENTRY_AUTH_TOKEN` +
   `SENTRY_ORG` + `SENTRY_PROJECT` are all present (CI/Vercel env,
   never `VITE_`-prefixed); without them no `.map` files ship.
-  Release name comes from `VERCEL_GIT_COMMIT_SHA`, falling back
-  to git auto-detection.
+  Release name prefers `VITE_APP_RELEASE`, falls back to
+  `VERCEL_GIT_COMMIT_SHA`, then git auto-detection — so Android
+  builds get `android-<versionCode>` and Vercel deploys the
+  commit SHA.
+- Performance: `reactRouterV6BrowserTracingIntegration` wraps
+  the `<Routes>` tree for per-route page-load spans;
+  `Sentry.startSpan` wraps the chapter-fetch and audio-load
+  paths. `tracesSampleRate` is 0.1.
+- Scope: the auth store calls `Sentry.setUser`/`setUser(null)`
+  on login/logout; the bible store syncs `bible` context
+  (active text/audio filesets, book, chapter) so every event
+  shows which content failed.
+- `@sentry/capacitor` is deliberately not adopted — see
+  AGENTS.md ("Sentry event-stream contract") for the
+  rationale; native-side failures are covered by the
+  `native-bridge`/`app-update` streams.
 - Configure per-environment DSNs in the Vercel dashboard
   (Production + Preview); see `.env.example`. Backend-side
   init lives in `bible_research/bible_research/settings.py`;

@@ -4,6 +4,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { fetchNoteImages } from '../api';
+import { captureHandledError } from '../utils/errorReporter';
 import type { NoteImage } from '../types';
 
 /**
@@ -57,6 +58,12 @@ interface NoteImagesEntry {
 
 const entries = new Map<string, NoteImagesEntry>();
 const subscribers = new Map<string, Set<() => void>>();
+
+// Exhaustion is reported once per (note, signature): the
+// same dead image-set can trigger the `count >= MAX` early
+// return on every later <img> onError, and a note's images
+// may span several failing signatures in one session.
+const exhaustionReported = new Set<string>();
 
 const getEntry = (noteId: string): NoteImagesEntry => {
   let entry = entries.get(noteId);
@@ -160,7 +167,20 @@ const refreshNoteImages = (
   const sig = signatureOf(entry.images);
   const count =
     entry.attempts.sig === sig ? entry.attempts.count : 0;
-  if (count >= MAX_IMAGE_REFRESHES) return null;
+  if (count >= MAX_IMAGE_REFRESHES) {
+    // The backend keeps minting signed URLs that still fail
+    // to load — that streak is worth one Sentry event.
+    const key = `${noteId}|${sig}`;
+    if (!exhaustionReported.has(key)) {
+      exhaustionReported.add(key);
+      captureHandledError(
+        new Error('Note image refresh budget exhausted'),
+        'Note image refresh',
+        { noteId, imageCount: entry.images.length },
+      );
+    }
+    return null;
+  }
   entry.attempts = { sig, count: count + 1 };
   return requestImages(noteId, entry, sig);
 };
@@ -209,6 +229,7 @@ export const mutateNoteImages = (
  */
 export const resetNoteImages = () => {
   entries.clear();
+  exhaustionReported.clear();
 };
 
 export interface UseNoteImagesResult {

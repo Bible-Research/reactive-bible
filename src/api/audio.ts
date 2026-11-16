@@ -14,6 +14,7 @@ import {
 import { publicFetch } from '../utils/apiClient';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
+import { captureHandledError } from '../utils/errorReporter';
 import { getBooks } from './structure';
 import {
   BookNotInFilesetError,
@@ -246,6 +247,11 @@ export const getAudioTimestamps = async (
     return timestamps;
   } catch (error) {
     console.warn('Failed to fetch audio timestamps:', error);
+    captureHandledError(error, 'Audio timestamps fetch', {
+      book: bookId,
+      chapter,
+      filesetId,
+    });
     return []; // Graceful degradation: no highlighting
   }
 };

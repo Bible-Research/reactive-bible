@@ -2,6 +2,7 @@ import { App } from '@capacitor/app';
 import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './platform';
 import { updateBreadcrumb } from './updateTelemetry';
+import { captureHandledWarning } from './errorReporter';
 
 /**
  * Sideload update check for the Android APK build.
@@ -121,6 +122,11 @@ export const fetchUpdateManifest =
       updateBreadcrumb('manifest fetch failed', {
         error: err instanceof Error ? err.message : String(err),
       });
+      captureHandledWarning(
+        'Update manifest fetch failed',
+        'native-bridge',
+        { error: String(err) },
+      );
       return null;
     }
   };

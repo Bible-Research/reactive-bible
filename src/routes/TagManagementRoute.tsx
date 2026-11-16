@@ -39,6 +39,7 @@ import { buildTagTree, TagNode } from '../utils/tagTree';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from 'react-i18next';
 import { textOrKey } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 /**
  * Sums each node's own `note_count` with all of its
@@ -118,6 +119,7 @@ export default function TagManagementRoute() {
         setInitialError(false);
       } catch (error) {
         console.error('Error loading tags:', error);
+        captureHandledError(error, 'Tags fetch');
         // A failed first load must not fall through to the
         // "No tags yet" empty state — offer a retry instead.
         if (!silent) {
@@ -157,6 +159,7 @@ export default function TagManagementRoute() {
         }
       } catch (error) {
         console.error('Error loading notes count:', error);
+        captureHandledError(error, 'Notes count fetch');
       }
     };
     void loadNoteTotal();
@@ -187,6 +190,7 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true }); // Force refresh
       } catch (error) {
         console.error('Error deleting tag:', error);
+        captureHandledError(error, 'Tag delete', { tagId });
         showNotification({
           title: t('common.error'),
           message:
@@ -270,6 +274,9 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error updating tag publicity:', error);
+        captureHandledError(error, 'Tag publicity update', {
+          tagId: tag.id,
+        });
         // apiClient throws catalog keys — textOrKey
         // translates those, passes server text through.
         showNotification({
@@ -337,6 +344,10 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error reparenting tag:', error);
+        captureHandledError(error, 'Tag reparent', {
+          tagId,
+          parentId,
+        });
         // The API helper surfaces the server's message (e.g.
         // a same-named sibling already exists under the
         // target parent). textOrKey passes that raw text

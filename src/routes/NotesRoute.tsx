@@ -13,6 +13,7 @@ import { useAuthStore } from '../stores/authStore';
 import { defaultTagId } from '../utils/defaultTag';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from 'react-i18next';
+import { captureHandledError } from '../utils/errorReporter';
 
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
@@ -78,6 +79,7 @@ export default function NotesRoute() {
       } catch (error) {
         if (cancelled) return;
         console.error('Error loading tags:', error);
+        captureHandledError(error, 'Tags fetch');
         // A failed getTags used to be caught-and-logged, leaving
         // the loader spinning forever — offer a retry instead.
         setStatus('error');

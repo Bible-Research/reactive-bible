@@ -1,7 +1,10 @@
 import type { ErrorEvent, EventHint } from '@sentry/react';
 import {
   BookNotInFilesetError,
+  ConflictError,
+  ProviderError,
   RateLimitError,
+  errorDetailsOf,
 } from '../api/errors';
 import {
   CHUNK_LOAD_PATTERN,
@@ -102,19 +105,69 @@ export function sentryBeforeSend(
       errorKind: 'network',
     };
   }
-  // Sentry's GlobalHandlers integration captures unhandled
-  // rejections before this app's tagged captureException —
-  // which Dedupe then drops, taking the `context` tag with
-  // it. Re-apply the tag on the surviving event.
+  // error_code-level mapping: the instanceof drops above only
+  // catch typed errors — a plain Error that still carries the
+  // code (e.g. rethrown through another layer) follows the
+  // same rule.
+  const details = errorDetailsOf(err);
+  if (
+    details.code === 'book_not_in_fileset' ||
+    details.code === 'rate_limited'
+  ) {
+    return null;
+  }
+  // A 409 conflict is an expected multi-session outcome —
+  // keep the event (a conflict storm still shows up) but
+  // downgrade it out of the error queue.
+  if (err instanceof ConflictError) {
+    event.level = 'warning';
+  }
+  // Provider failures group by code+endpoint instead of the
+  // default stack/message fingerprint — a chapter fetch and a
+  // notes save hitting the same upstream outage land in one
+  // issue.
+  if (err instanceof ProviderError) {
+    event.fingerprint = [
+      'api-error',
+      details.code ?? 'uncoded',
+      details.endpoint ?? 'unknown',
+    ];
+  }
+  if (details.code) {
+    event.tags = {
+      ...event.tags,
+      errorCode: details.code,
+    };
+  }
+  if (details.status !== undefined) {
+    event.tags = {
+      ...event.tags,
+      httpStatus: String(details.status),
+    };
+  }
+  if (details.endpoint) {
+    event.extra = {
+      ...event.extra,
+      endpoint: details.endpoint,
+    };
+  }
+  // Sentry's GlobalHandlers integration captures uncaught
+  // errors/rejections while the app's own captureException is
+  // dedupe-dropped — re-apply the `context` tag the dropped
+  // event would have carried so both paths tag identically.
   const mechanism =
     event.exception?.values?.[0]?.mechanism?.type;
   if (
-    mechanism === 'onunhandledrejection' &&
+    (mechanism === 'onunhandledrejection' ||
+      mechanism === 'onerror') &&
     event.tags?.context === undefined
   ) {
     event.tags = {
       ...event.tags,
-      context: 'Unhandled promise rejection',
+      context:
+        mechanism === 'onerror'
+          ? 'Unhandled error'
+          : 'Unhandled promise rejection',
     };
   }
   return event;

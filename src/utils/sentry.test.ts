@@ -3,9 +3,11 @@ import type { ErrorEvent, EventHint } from '@sentry/react';
 import {
   BookNotInFilesetError,
   ClientInputError,
+  ConflictError,
   ProviderError,
   RateLimitError,
 } from '../api/errors';
+import type { TrackedError } from '../api/errors';
 import { sentryBeforeSend } from './sentry';
 
 const event = { event_id: 'test-event' } as ErrorEvent;
@@ -288,5 +290,120 @@ describe('sentryBeforeSend', () => {
 
     expect(result).toBe(typeErrorEvent);
     expect(result?.tags?.errorKind).toBeUndefined();
+  });
+
+  const tracked = (
+    err: Error,
+    details: {
+      code?: string;
+      status?: number;
+      endpoint?: string;
+    }
+  ): TrackedError =>
+    Object.assign(err as TrackedError, {
+      errorCode: details.code,
+      status: details.status,
+      endpoint: details.endpoint,
+    });
+
+  it.each([
+    'book_not_in_fileset',
+    'rate_limited',
+  ])('drops error_code "%s" on untyped errors', (code) => {
+    // The instanceof drops only catch typed errors — a plain
+    // Error rethrown through another layer still follows the
+    // same drop rule.
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(tracked(new Error('x'), { code }))
+      )
+    ).toBeNull();
+  });
+
+  it('downgrades ConflictError to warning', () => {
+    const conflictEvent = { event_id: 'c' } as ErrorEvent;
+
+    const result = sentryBeforeSend(
+      conflictEvent,
+      hintOf(new ConflictError('modified elsewhere'))
+    );
+
+    expect(result).toBe(conflictEvent);
+    expect(result?.level).toBe('warning');
+  });
+
+  it('fingerprints ProviderError by code + endpoint', () => {
+    const providerEvent = { event_id: 'p' } as ErrorEvent;
+    const err = tracked(new ProviderError('upstream broke'), {
+      code: 'provider_unavailable',
+      status: 502,
+      endpoint: '/api/v1/bible',
+    });
+
+    const result = sentryBeforeSend(
+      providerEvent,
+      hintOf(err)
+    );
+
+    expect(result).toBe(providerEvent);
+    expect(result?.fingerprint).toEqual([
+      'api-error',
+      'provider_unavailable',
+      '/api/v1/bible',
+    ]);
+    expect(result?.tags?.errorCode).toBe('provider_unavailable');
+    expect(result?.tags?.httpStatus).toBe('502');
+    expect(result?.extra?.endpoint).toBe('/api/v1/bible');
+  });
+
+  it('fingerprints uncoded ProviderError with sentinels', () => {
+    const providerEvent = { event_id: 'p2' } as ErrorEvent;
+
+    const result = sentryBeforeSend(
+      providerEvent,
+      hintOf(new ProviderError('200-wrapped outage'))
+    );
+
+    expect(result?.fingerprint).toEqual([
+      'api-error',
+      'uncoded',
+      'unknown',
+    ]);
+  });
+
+  it('keeps ClientInputError without a provider fingerprint',
+    () => {
+      const clientEvent = { event_id: 'ci' } as ErrorEvent;
+      const err = tracked(
+        new ClientInputError('bad param'),
+        { code: 'missing_parameter', status: 400 }
+      );
+
+      const result = sentryBeforeSend(
+        clientEvent,
+        hintOf(err)
+      );
+
+      expect(result).toBe(clientEvent);
+      expect(result?.fingerprint).toBeUndefined();
+      expect(result?.tags?.errorCode).toBe('missing_parameter');
+    });
+
+  it('retags GlobalHandlers onerror events with context', () => {
+    const onerrorEvent: ErrorEvent = {
+      ...event,
+      event_id: 'onerror',
+      exception: {
+        values: [{ mechanism: { type: 'onerror' } }],
+      },
+    };
+
+    const result = sentryBeforeSend(
+      onerrorEvent,
+      hintOf(new Error('sync failed'))
+    );
+
+    expect(result?.tags?.context).toBe('Unhandled error');
   });
 });

@@ -15,6 +15,7 @@ import {
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { publicFetch } from '../utils/apiClient';
+import { captureHandledError } from '../utils/errorReporter';
 import { getAdjacentChapters, getChapters } from './structure';
 import {
   BookNotInFilesetError,
@@ -124,6 +125,11 @@ export const fetchHeadingsOnly = async (
       `Failed to fetch headings for ${bookId} ${chapter}:`,
       error
     );
+    captureHandledError(error, 'Section headings fetch', {
+      book: bookId,
+      chapter,
+      filesetId,
+    });
     return [];
   }
 };

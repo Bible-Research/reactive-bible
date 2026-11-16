@@ -11,14 +11,34 @@
 /**
  * The backend's `error_code` when one was reported — kept on
  * the thrown error so UI layers can map it to a localized
- * catalog key instead of rendering raw provider text.
+ * catalog key instead of rendering raw provider text —
+ * plus the HTTP status and endpoint path the error was
+ * raised against (`sentryBeforeSend` fingerprints provider
+ * failures on the pair). Fields are attached by
+ * `throwFromErrorBody`/`fetchJson`, never constructed.
  */
-interface CodedError extends Error {
+export interface TrackedError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
 }
+
+/** URL path portion used for `endpoint` — grouping must
+ *  never carry query strings (signed URLs embed auth). */
+export const endpointPath = (url: string): string => {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+};
+
+type CodedError = TrackedError;
 
 export class ConflictError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ConflictError';
@@ -27,6 +47,8 @@ export class ConflictError extends Error {
 
 export class RateLimitError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'RateLimitError';
@@ -45,6 +67,8 @@ export class RateLimitError extends Error {
  */
 export class ClientInputError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ClientInputError';
@@ -53,6 +77,8 @@ export class ClientInputError extends Error {
 
 export class ProviderError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ProviderError';
@@ -84,6 +110,26 @@ export const errorCodeOf = (
   err instanceof Error
     ? (err as CodedError).errorCode
     : undefined;
+
+/**
+ * `code`/`status`/`endpoint` details attached to a thrown
+ * error — all optional, read once by `sentryBeforeSend`.
+ */
+export const errorDetailsOf = (
+  err: unknown
+): {
+  code?: string;
+  status?: number;
+  endpoint?: string;
+} => {
+  const coded =
+    err instanceof Error ? (err as CodedError) : undefined;
+  return {
+    code: coded?.errorCode,
+    status: coded?.status,
+    endpoint: coded?.endpoint,
+  };
+};
 
 /** Error fields a backend/provider response body can carry. */
 interface ErrorBody {
@@ -165,7 +211,10 @@ export const throwFromErrorBody = async (
       ? body.error_code
       : undefined;
   const attach = <T extends Error>(err: T): T => {
-    (err as CodedError).errorCode = code;
+    const coded = err as CodedError;
+    coded.errorCode = code;
+    coded.status = response.status;
+    coded.endpoint = endpointPath(response.url);
     return err;
   };
   if (isBookNotInFilesetBody(body)) {
@@ -192,5 +241,5 @@ export const throwFromErrorBody = async (
   if (body.error_code) {
     throw attach(new ProviderError(message));
   }
-  throw new Error(message);
+  throw attach(new Error(message));
 };

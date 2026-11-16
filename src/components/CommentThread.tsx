@@ -31,6 +31,7 @@ import CommentNode from './CommentNode';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { textOrKey } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 const normalize = (
   nodes: Comment[] | undefined
@@ -63,6 +64,10 @@ const uploadImages = async (
       );
       uploaded.push(img);
     } catch (err: unknown) {
+      captureHandledError(err, 'Comment image upload', {
+        noteId,
+        commentId,
+      });
       // apiClient throws catalog keys ('errors.forbidden',
       // 'auth.sessionExpiredMsg') — textOrKey translates
       // those and passes raw server text through.
@@ -173,9 +178,13 @@ const CommentThread = ({
       .then((data) => {
         if (dataVersion.current === version) applyFetched(data);
       })
-      .catch(() => {
-        if (dataVersion.current === version)
+      .catch((err) => {
+        if (dataVersion.current === version) {
+          captureHandledError(err, 'Comments fetch', {
+            noteId,
+          });
           setError(i18n.t('comments.loadFailed'));
+        }
       })
       .finally(() => {
         if (loadingSeq.current === seq) setLoading(false);
@@ -317,6 +326,7 @@ const CommentThread = ({
       onCountChange?.(1);
       silentLoad();
     } catch (err) {
+      captureHandledError(err, 'Comment create', { noteId });
       showNotification({
         color: 'red',
         title: t('common.error'),
@@ -351,6 +361,10 @@ const CommentThread = ({
       );
       silentLoad();
     } catch (err) {
+      captureHandledError(err, 'Comment update', {
+        noteId,
+        commentId: id,
+      });
       showNotification({
         color: 'red',
         title: t('common.error'),
@@ -374,7 +388,11 @@ const CommentThread = ({
           ),
         }))
       );
-    } catch {
+    } catch (err) {
+      captureHandledError(err, 'Comment image delete', {
+        noteId,
+        commentId,
+      });
       showNotification({
         color: 'red',
         title: t('common.error'),
@@ -396,7 +414,11 @@ const CommentThread = ({
       );
       onCountChange?.(-1);
       silentLoad();
-    } catch {
+    } catch (err) {
+      captureHandledError(err, 'Comment delete', {
+        noteId,
+        commentId: id,
+      });
       showNotification({
         color: 'red',
         title: t('common.error'),

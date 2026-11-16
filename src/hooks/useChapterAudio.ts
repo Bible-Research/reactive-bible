@@ -38,6 +38,8 @@ import {
 } from "../utils/audioSubstitution";
 import { disposeHowl } from "../utils/audioUtils";
 import { createChapterHowl } from "../utils/chapterHowl";
+import { captureHandledWarning } from "../utils/errorReporter";
+import * as Sentry from "@sentry/react";
 import {
   selectedStartVerse,
   verseStartTimestamp,
@@ -466,6 +468,28 @@ export const useChapterAudio = (
     setIsPlaying(false);
   }, []);
 
+  // Terminal Howler failures (every candidate exhausted) emit
+  // a warning-level media-failure event — Howler errors carry
+  // no useful stack, so a captureMessage with fileset +
+  // passage extras carries the signal.
+  const reportMediaFailure = useCallback(
+    (what: string, err: unknown) => {
+      const playing = parsePlayingKey(audioChapterKeyRef.current);
+      captureHandledWarning(
+        `${what}: ${err instanceof Error ? err.message : String(err)}`,
+        'media-failure',
+        {
+          filesetId:
+            playing?.filesetId ??
+            useBibleStore.getState().activeAudioFilesetId,
+          book: playing?.bookId ?? activeBookId,
+          chapter: playing?.chapter ?? activeChapter,
+        },
+      );
+    },
+    [activeBookId, activeChapter],
+  );
+
   const handleChapterLoadError = useCallback(
     (_id: number, err: unknown) => {
       console.error('Audio load error:', err);
@@ -473,22 +497,24 @@ export const useChapterAudio = (
       // opus16 on an old device) retries as its next alternate —
       // typically the mp3 sibling — before surfacing an error.
       if (tryNextFallbackRef.current()) return;
+      reportMediaFailure('Chapter audio load failed', err);
       setError(i18n.t('audio.failedToLoad'));
       setIsPlaying(false);
       setLoading(false);
     },
-    [],
+    [reportMediaFailure],
   );
 
   const handleChapterPlayError = useCallback(
     (_id: number, err: unknown) => {
       console.error('Audio play error:', err);
       if (tryNextFallbackRef.current()) return;
+      reportMediaFailure('Chapter audio play failed', err);
       setError(i18n.t('audio.failedToPlay'));
       setIsPlaying(false);
       setLoading(false);
     },
-    [],
+    [reportMediaFailure],
   );
 
   // Kept in a ref so `onChapterEnd` can wire the adopted Howl
@@ -602,6 +628,17 @@ export const useChapterAudio = (
   // own message instead of a generic 'Audio unavailable'.
   const reportChapterAudioFailure = useCallback(
     (err: unknown, bookId: string) => {
+      const reportState = useBibleStore.getState();
+      captureHandledWarning(
+        'Chapter audio fetch failed: ' +
+          (err instanceof Error ? err.message : String(err)),
+        'media-failure',
+        {
+          filesetId: reportState.activeAudioFilesetId,
+          book: bookId,
+          chapter: reportState.activeChapter,
+        },
+      );
       let errorMsg = i18n.t('audio.unavailable');
       if (err instanceof Error) {
         // Extract just the key part of the error
@@ -1120,10 +1157,19 @@ export const useChapterAudio = (
               const candidate = candidates[nextIndex];
               nextIndex += 1;
               try {
-                audioUrl = await resolveAudioUrl(
-                  activeBookId,
-                  activeChapter,
-                  candidate,
+                audioUrl = await Sentry.startSpan(
+                  {
+                    name:
+                      `audio ${activeBookId} ${activeChapter}`,
+                    op: 'bible.audio.load',
+                    attributes: { filesetId: candidate },
+                  },
+                  () =>
+                    resolveAudioUrl(
+                      activeBookId,
+                      activeChapter,
+                      candidate,
+                    ),
                 );
                 if (audioUrl && typeof audioUrl === 'string') {
                   key = chapterKey(

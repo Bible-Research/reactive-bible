@@ -23,6 +23,7 @@ import { notifyAudioSubstitution } from '../utils/audioSubstitution';
 import { useVerseHighlighter } from './useVerseHighlighter';
 import { disposeHowl } from '../utils/audioUtils';
 import { attachVerseBounds } from '../utils/verseBounds';
+import { captureHandledWarning } from '../utils/errorReporter';
 import i18n from '../i18n';
 
 export interface UseAudioPlaylistReturn {
@@ -369,6 +370,16 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     retryNextCandidate(i + 1);
                     return;
                   }
+                  captureHandledWarning(
+                    'Playlist audio load failed: ' + String(err),
+                    'media-failure',
+                    {
+                      filesetId: candidateId,
+                      book: item.bookId,
+                      chapter: item.chapter,
+                      item: item.label,
+                    },
+                  );
                   showNotification({
                     title: i18n.t('audio.loadFailed'),
                     message:
@@ -390,6 +401,16 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     retryNextCandidate(i + 1);
                     return;
                   }
+                  captureHandledWarning(
+                    'Playlist audio play failed: ' + String(err),
+                    'media-failure',
+                    {
+                      filesetId: candidateId,
+                      book: item.bookId,
+                      chapter: item.chapter,
+                      item: item.label,
+                    },
+                  );
                   showNotification({
                     title: i18n.t('audio.playFailed'),
                     message:
@@ -436,6 +457,17 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
           // Every candidate was exhausted — report once.
           if (stale()) return;
+          captureHandledWarning(
+            'Playlist audio candidates exhausted',
+            'media-failure',
+            {
+              filesetId: activeAudioFilesetId,
+              candidates: candidates.join(','),
+              book: item.bookId,
+              chapter: item.chapter,
+              item: item.label,
+            },
+          );
           showNotification({
             title: i18n.t('audio.notAvailable'),
             message:
@@ -457,6 +489,17 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           void loadFromIndex(startAt).catch((err) => {
             if (stale()) return;
             console.error('Playlist retry failed:', err);
+            captureHandledWarning(
+              'Playlist audio retry failed: ' +
+                (err instanceof Error ? err.message : String(err)),
+              'media-failure',
+              {
+                filesetId: candidates[startAt],
+                book: item.bookId,
+                chapter: item.chapter,
+                item: item.label,
+              },
+            );
             showNotification({
               title: i18n.t('audio.unavailable'),
               message:
@@ -472,6 +515,17 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       } catch (err) {
         if (stale()) return;
         console.error('Playlist error loading item:', err);
+        captureHandledWarning(
+          'Playlist audio error: ' +
+            (err instanceof Error ? err.message : String(err)),
+          'media-failure',
+          {
+            filesetId: activeAudioFilesetId,
+            book: item.bookId,
+            chapter: item.chapter,
+            item: item.label,
+          },
+        );
         showNotification({
           title: i18n.t('audio.unavailable'),
           message: i18n.t('audio.couldNotLoad', { label: item.label }),

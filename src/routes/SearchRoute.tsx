@@ -40,6 +40,7 @@ import { useActiveStructure } from '../hooks/useBookName';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { localizedErrorText } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 const VERSE_PREVIEW_LIMIT = 3;
 
@@ -162,6 +163,10 @@ export default function SearchRoute() {
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
+        captureHandledError(err, 'Search', {
+          query: q,
+          filesetId,
+        });
         setGroups([]);
         setTotal(0);
         setTruncated(false);

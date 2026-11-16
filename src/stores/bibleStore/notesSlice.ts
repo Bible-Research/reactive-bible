@@ -13,6 +13,7 @@ import {
 } from '../../utils/cacheManager';
 import { useAuthStore } from '../authStore';
 import type { BibleState } from '../../store';
+import { captureHandledError } from '../../utils/errorReporter';
 import i18n from '../../i18n';
 
 /**
@@ -269,6 +270,10 @@ export const createNotesSlice: StateCreator<
           return;
         }
         console.error('Error fetching notes:', error);
+        captureHandledError(error, 'Notes fetch', {
+          tagId,
+          page,
+        });
         showNotification({
           title: i18n.t('common.error'),
           message: i18n.t('notes.loadFailed'),
@@ -303,6 +308,7 @@ export const createNotesSlice: StateCreator<
         set({ tags });
       } catch (error) {
         console.error('Error fetching tags:', error);
+        captureHandledError(error, 'Tags fetch');
         showNotification({
           title: i18n.t('common.error'),
           message: i18n.t('notes.loadTagsFailed'),
@@ -330,6 +336,7 @@ export const createNotesSlice: StateCreator<
         });
       } catch (error) {
         console.error('Error deleting note:', error);
+        captureHandledError(error, 'Note delete', { noteId });
         showNotification({
           title: i18n.t('common.error'),
           message: i18n.t('notes.deleteFailed'),
@@ -389,6 +396,7 @@ export const createNotesSlice: StateCreator<
           color: 'green',
         });
       } catch (error) {
+        captureHandledError(error, 'Notes reorder', { tagId });
         if (error instanceof api.ConflictError) {
           showNotification({
             title: i18n.t('notes.conflict'),
@@ -458,6 +466,7 @@ export const createNotesSlice: StateCreator<
           color: 'green',
         });
       } catch (error) {
+        captureHandledError(error, 'Note move', { tagId });
         if (error instanceof api.ConflictError) {
           showNotification({
             title: i18n.t('notes.conflict'),
