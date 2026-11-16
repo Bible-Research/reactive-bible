@@ -98,6 +98,11 @@ describe('BottomNav passage button toggles the selector', () => {
       />
     );
 
+    expect(
+      within(screen.getByTitle('nav-current-passage'))
+        .getByRole('button')
+    ).toHaveAttribute('aria-expanded', 'false');
+
     pressPassage();
     expect(setOpened).toHaveBeenCalledTimes(1);
     expect(setOpened).toHaveBeenCalledWith(true);
@@ -115,6 +120,11 @@ describe('BottomNav passage button toggles the selector', () => {
         />
       </>
     );
+
+    expect(
+      within(screen.getByTitle('nav-current-passage'))
+        .getByRole('button')
+    ).toHaveAttribute('aria-expanded', 'true');
 
     pressPassage();
     expect(setOpened).toHaveBeenCalledTimes(1);
