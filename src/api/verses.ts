@@ -21,9 +21,11 @@ import {
   BookNotInFilesetError,
   ProviderError,
   RateLimitError,
+  endpointPath,
   errorMessageFromBody,
   isBookNotInFilesetBody,
   throwFromErrorBody,
+  type TrackedError,
 } from './errors';
 
 type VerseResult = {
@@ -97,11 +99,18 @@ export const fetchHeadingsOnly = async (
     }
     const responseData = await response.json();
     if (responseData.error) {
-      throw new Error(
+      const err = new Error(
         errorMessageFromBody(
           responseData, 'Headings fetch failed'
         )
-      );
+      ) as TrackedError;
+      err.errorCode =
+        typeof responseData.error_code === 'string'
+          ? responseData.error_code
+          : undefined;
+      err.status = response.status;
+      err.endpoint = endpointPath(response.url);
+      throw err;
     }
     // The API may also wrap provider failures in a 200 response
     // with a `message` field and no headings — surface it

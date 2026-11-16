@@ -229,9 +229,14 @@ export const getAudioTimestamps = async (
       `&chapter=${chapter}`;
     const response = await publicFetch(url);
     if (!response.ok) {
-      throw new Error(
-        `Timestamps fetch failed: ${response.statusText}`
-      );
+      // A `book_not_in_fileset` coverage gap must stay a typed
+      // error — the Sentry drop rules key off it, and a plain
+      // Error would land as an error-level handled-api event.
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Timestamps not in this fileset',
+        failure:
+          `Timestamps fetch failed (HTTP ${response.status})`,
+      });
     }
     const data = await response.json();
     const timestamps: VerseTimestamp[] = (data.data || []).map(

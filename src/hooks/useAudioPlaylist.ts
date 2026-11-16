@@ -451,6 +451,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             } catch (err) {
               if (stale()) return;
               if (err instanceof BookNotInFilesetError) continue;
+              // Report sites name the fileset that actually
+              // failed — not the retry's startAt candidate.
+              (err as { filesetId?: string }).filesetId =
+                candidateId;
               throw err;
             }
           }
@@ -494,7 +498,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                 (err instanceof Error ? err.message : String(err)),
               'media-failure',
               {
-                filesetId: candidates[startAt],
+                filesetId:
+                  (err as { filesetId?: string }).filesetId ??
+                  candidates[startAt],
                 book: item.bookId,
                 chapter: item.chapter,
                 item: item.label,
@@ -520,7 +526,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             (err instanceof Error ? err.message : String(err)),
           'media-failure',
           {
-            filesetId: activeAudioFilesetId,
+            filesetId:
+              (err as { filesetId?: string }).filesetId ??
+              activeAudioFilesetId,
             book: item.bookId,
             chapter: item.chapter,
             item: item.label,

@@ -86,7 +86,14 @@ export const getInstalledVersion =
       const build = Number(info.build);
       if (!Number.isFinite(build)) return null;
       return { build, version: info.version };
-    } catch {
+    } catch (err) {
+      // A broken App bridge would otherwise leave every update
+      // check reporting kind:'error' with zero Sentry signal.
+      captureHandledWarning(
+        'Get installed version failed',
+        'native-bridge',
+        { error: String(err) },
+      );
       return null;
     }
   };

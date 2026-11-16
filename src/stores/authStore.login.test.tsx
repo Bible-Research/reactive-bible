@@ -3,6 +3,11 @@ import { http, HttpResponse } from 'msw';
 import { createTestAuthStore } from './authStore';
 import { server } from '../mocks/server';
 import { API_BASE_URL } from '../config';
+import { captureHandledError } from '../utils/errorReporter';
+
+vi.mock('../utils/errorReporter', () => ({
+  captureHandledError: vi.fn(),
+}));
 
 const TOKEN_URL = `${API_BASE_URL}/api/token/`;
 
@@ -87,6 +92,27 @@ describe('authStore - Login', () => {
       expect(state.user).toBeNull();
       expect(state.isAuthenticated).toBe(false);
       expect(state.error).toContain('credentials');
+      // A credential outcome is not a bug — no Sentry event.
+      expect(captureHandledError).not.toHaveBeenCalled();
+    });
+
+    it('should report a 500 to Sentry', async () => {
+      server.use(
+        http.post(TOKEN_URL, () =>
+          HttpResponse.json({}, { status: 500 })
+        )
+      );
+      const store = createTestAuthStore();
+
+      await expect(
+        store.getState().login(mockUsername, mockPassword)
+      ).rejects.toThrow();
+
+      expect(captureHandledError).toHaveBeenCalledWith(
+        expect.any(Error),
+        'Login',
+        { status: 500 }
+      );
     });
 
     it('should handle 401 error', async () => {
@@ -125,6 +151,12 @@ describe('authStore - Login', () => {
       expect(state.token).toBeNull();
       // The store surfaces the fetch error's own message.
       expect(state.error).toBe((thrown as Error).message);
+      // Transport failures carry no status and DO report.
+      expect(captureHandledError).toHaveBeenCalledWith(
+        thrown,
+        'Login',
+        { status: undefined }
+      );
     });
 
     it('should send correct request format', async () => {

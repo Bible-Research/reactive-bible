@@ -29,7 +29,9 @@ export const endpointPath = (url: string): string => {
   try {
     return new URL(url).pathname;
   } catch {
-    return url;
+    // Relative URL — still strip the query so signed-URL
+    // credentials and per-request params never group.
+    return url.split(/[?#]/)[0];
   }
 };
 

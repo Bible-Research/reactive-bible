@@ -4349,14 +4349,17 @@ surface as the transport layer:
   `VERCEL_GIT_COMMIT_SHA`, then git auto-detection — so Android
   builds get `android-<versionCode>` and Vercel deploys the
   commit SHA.
-- Performance: `reactRouterV6BrowserTracingIntegration` wraps
-  the `<Routes>` tree for per-route page-load spans;
-  `Sentry.startSpan` wraps the chapter-fetch and audio-load
-  paths. `tracesSampleRate` is 0.1.
-- Scope: the auth store calls `Sentry.setUser`/`setUser(null)`
-  on login/logout; the bible store syncs `bible` context
-  (active text/audio filesets, book, chapter) so every event
-  shows which content failed.
+- Performance: `reactRouterBrowserTracingIntegration` (wired
+  in `main.tsx`) + `Sentry.wrapReactRouterRouting(Routes)`
+  (`routes/index.tsx`) name transactions after the matched
+  route patterns; `Sentry.startSpan` wraps the chapter-fetch
+  and audio-load paths. `tracesSampleRate` is 0.1.
+- Scope: an auth-store subscription calls
+  `Sentry.setUser`/`setUser(null)` as the logged-in user
+  changes (seeded at module load for the persisted session);
+  the bible store syncs `bible` context (active text/audio
+  filesets, book, chapter) so every event shows which
+  content failed.
 - `@sentry/capacitor` is deliberately not adopted — see
   AGENTS.md ("Sentry event-stream contract") for the
   rationale; native-side failures are covered by the

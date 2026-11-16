@@ -19,9 +19,11 @@ import {
   ClientInputError,
   ProviderError,
   RateLimitError,
+  endpointPath,
   errorMessageFromBody,
   isRateLimitMessage,
   throwFromErrorBody,
+  type TrackedError,
 } from './errors';
 
 /**
@@ -171,9 +173,11 @@ export const getCopyrightInfo = async (
       `?bible_id=${encodeURIComponent(bibleId)}`;
     const response = await publicFetch(url);
     if (!response.ok) {
-      throw new Error(
-        `Copyright fetch failed: ${response.statusText}`
-      );
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Copyright not in this fileset',
+        failure:
+          `Copyright fetch failed (HTTP ${response.status})`,
+      });
     }
     const data = await response.json();
     const copyrights: FilesetCopyright[] =
@@ -247,15 +251,21 @@ export const searchLanguages = async (
         `Language search failed (HTTP ${response.status}):`,
         data.error ?? data
       );
-      captureHandledError(
-        new Error(
-          typeof data.error === 'string'
-            ? data.error
-            : `Language search failed (HTTP ${response.status})`
-        ),
-        'Language search',
-        { search, page, status: response.status }
-      );
+      const err = new Error(
+        typeof data.error === 'string'
+          ? data.error
+          : `Language search failed (HTTP ${response.status})`
+      ) as TrackedError;
+      err.errorCode =
+        typeof data.error_code === 'string'
+          ? data.error_code
+          : undefined;
+      err.status = response.status;
+      err.endpoint = endpointPath(response.url);
+      captureHandledError(err, 'Language search', {
+        search,
+        page,
+      });
       return [];
     }
     const rows = (data.results ?? []) as RawLanguage[];

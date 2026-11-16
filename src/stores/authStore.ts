@@ -136,15 +136,12 @@ const createAuthStore = () => create<AuthState>()(
             error: null,
           });
         } catch (error) {
-          // A 4xx is a credential outcome, not a bug — report
-          // only transport failures and unexpected (5xx/other)
-          // response statuses.
+          // A classified 4xx is a credential outcome, not a
+          // bug — report everything else: unclassified
+          // transport/parse failures (no status) and 5xx+.
           const loginStatus =
             (error as { status?: number }).status;
-          if (
-            error instanceof TypeError ||
-            (loginStatus !== undefined && loginStatus >= 500)
-          ) {
+          if (loginStatus === undefined || loginStatus >= 500) {
             captureHandledError(error, 'Login', {
               status: loginStatus,
             });
@@ -274,14 +271,13 @@ const createAuthStore = () => create<AuthState>()(
             error: null,
           });
         } catch (error) {
-          // Same rule as login: only transport failures and
-          // unexpected (5xx/other) statuses reach Sentry.
+          // Same rule as login: everything but a classified
+          // 4xx reaches Sentry.
           const registerStatus =
             (error as { status?: number }).status;
           if (
-            error instanceof TypeError ||
-            (registerStatus !== undefined &&
-              registerStatus >= 500)
+            registerStatus === undefined ||
+            registerStatus >= 500
           ) {
             captureHandledError(error, 'Register', {
               status: registerStatus,

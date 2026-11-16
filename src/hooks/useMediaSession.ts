@@ -70,19 +70,17 @@ const isNative = (): boolean => {
 };
 
 // Native plugin calls are best-effort — a rejected call is
-// reported once per (call, error) pair as a warning-level
-// native-bridge event. Deduping matters: position-state ticks
-// fire every second, so an always-failing call on an old
-// WebView would otherwise spam an event per tick.
+// reported once per call as a warning-level native-bridge
+// event. Deduping matters: position-state ticks fire every
+// second, so an always-failing call on an old WebView would
+// otherwise spam an event per tick; keying on the call alone
+// also bounds the set if error messages vary.
 const reportedNativeCalls = new Set<string>();
 const reportNativeCall =
   (call: string) =>
   (err: unknown): void => {
-    const key =
-      `${call}:` +
-      (err instanceof Error ? err.message : String(err));
-    if (reportedNativeCalls.has(key)) return;
-    reportedNativeCalls.add(key);
+    if (reportedNativeCalls.has(call)) return;
+    reportedNativeCalls.add(call);
     captureHandledWarning(
       `Native media session call failed: ${call}`,
       'native-bridge',
