@@ -711,8 +711,15 @@ const PassageView = () => {
           (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0)
         }
         sx={{
-          '& [id^="verse-bible-"], & [id^="section-heading-"]':
-            { scrollMarginTop: HEADER_HEIGHT },
+          // Margins mirror the pt/pb above so center/nearest
+          // scrollIntoView targets also clear the chrome on
+          // short viewports (mobile landscape).
+          '& [id^="verse-bible-"], & [id^="section-heading-"]': {
+            scrollMarginTop: HEADER_HEIGHT,
+            scrollMarginBottom:
+              FOOTER_HEIGHT +
+              (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0),
+          },
         }}
         data-verse-scope="bible"
       >
