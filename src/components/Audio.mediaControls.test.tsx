@@ -319,7 +319,7 @@ describe('Audio media session track controls', () => {
       return howl;
     };
 
-    it('previoustrack restarts a real verse boundary', async () => {
+    it('previoustrack restarts a real verse mid-verse', async () => {
       const howl = await renderGlu8();
       // 3.5s into verse 25 (starts at 170.472).
       act(() => {
@@ -331,17 +331,18 @@ describe('Audio media session track controls', () => {
 
     it('chained presses step through real verse boundaries', async () => {
       const howl = await renderGlu8();
-      // 0.5s into verse 25 — a single press lands on verse 24.
+      // Just into verse 25 — a single press lands on verse 24.
       act(() => {
         howl.seek(171);
       });
       pressTrackButton('previoustrack');
       expect(howl._pos).toBe(168.048);
 
-      // Repeat press steps to verse 23's real start even though
-      // verse 25's start (170.472) is barely 2.4s ahead of 24.
+      // Position readback still stale at 171 (the first seek
+      // has not applied yet — the real-world failure mode).
+      // Without chaining this would land back on verse 24.
       act(() => {
-        howl.seek(168.4);
+        howl.seek(171);
       });
       pressTrackButton('previoustrack');
       expect(howl._pos).toBe(159.144);
