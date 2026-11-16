@@ -2098,6 +2098,12 @@ const toggleColorScheme = () =>
   );
 ```
 
+**Light-mode palette**: `lightModeGray` (built from
+`DEFAULT_THEME.colors.gray`) shifts `gray[2..4]` one step
+darker so dividers, borders and the Slider track stay
+visible against the `gray[0]` page background. Dark mode
+keeps the stock ramp.
+
 ### 8. Analytics
 
 **Location**: `src/App.tsx`
@@ -2518,10 +2524,10 @@ Floating audio player UI at bottom of screen.
 
 **UI Elements**:
 - Skip backward 5s button
-- Play/Pause button (large, blue)
+- Play/Pause button (large, teal)
 - Skip forward 5s button
-- Loop toggle button
-- Progress slider
+- Loop toggle button (filled teal when enabled)
+- Progress slider (teal bar)
 - Time display
 
 ---
