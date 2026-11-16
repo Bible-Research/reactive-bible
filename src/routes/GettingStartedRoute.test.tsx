@@ -1,32 +1,44 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, it, expect, vi } from 'vitest';
+import {
+  beforeEach,
+  describe,
+  it,
+  expect,
+  vi,
+} from 'vitest';
 import GettingStartedRoute from './GettingStartedRoute';
 
-// A mixed catalogue exercises the filter: `unrecorded` has no
-// video id and must never render, while the other two keep
-// their catalogue order.
-vi.mock('../data/gettingStartedVideos', () => ({
-  TUTORIAL_VIDEOS: [
+// A mutable catalogue: `unrecorded` has no video id and must
+// never render, while the other two keep their catalogue
+// order. Tests mutate `videos` in place (splice), so the array
+// reference the mock exports stays the same object.
+const catalogue = vi.hoisted(() => {
+  const defaults = [
     {
       id: 'unrecorded',
       title: 'Script not yet recorded',
       description: 'No video id yet.',
-      youtubeId: null,
+      youtubeId: null as string | null,
     },
     {
       id: 'first-video',
       title: 'First published video',
       description: 'First.',
-      youtubeId: 'dQw4w9WgXcQ',
+      youtubeId: 'dQw4w9WgXcQ' as string | null,
     },
     {
       id: 'second-video',
       title: 'Second published video',
       description: 'Second.',
-      youtubeId: '9bZkp7q19f0',
+      youtubeId: '9bZkp7q19f0' as string | null,
     },
-  ],
+  ];
+  return { defaults, videos: [...defaults] };
+});
+
+vi.mock('../data/gettingStartedVideos', () => ({
+  TUTORIAL_VIDEOS: catalogue.videos,
 }));
 
 function renderRoute(path = '/getting-started') {
@@ -47,6 +59,14 @@ function renderRoute(path = '/getting-started') {
 }
 
 describe('GettingStartedRoute', () => {
+  beforeEach(() => {
+    catalogue.videos.splice(
+      0,
+      catalogue.videos.length,
+      ...catalogue.defaults,
+    );
+  });
+
   it('renders anonymously at /getting-started without redirect', () => {
     renderRoute();
 
@@ -88,5 +108,29 @@ describe('GettingStartedRoute', () => {
         name: 'Play video: Second published video',
       }),
     ).toBeInTheDocument();
+  });
+
+  it('shows an empty state while no entry has a video id', () => {
+    catalogue.videos.splice(0, catalogue.videos.length);
+    renderRoute();
+
+    expect(
+      screen.getByText(
+        'Tutorials are being recorded — check back soon.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryAllByRole('heading', { level: 3 }),
+    ).toHaveLength(0);
+  });
+
+  it('hides the empty state once any video is published', () => {
+    renderRoute();
+
+    expect(
+      screen.queryByText(
+        'Tutorials are being recorded — check back soon.',
+      ),
+    ).not.toBeInTheDocument();
   });
 });
