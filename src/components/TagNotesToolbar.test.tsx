@@ -150,8 +150,9 @@ describe('TagNotesToolbar', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('hides the text caret inside the page-size select',
-    () => {
+  it.each(['Sort order', 'Notes per page'])(
+    'hides the text caret inside the "%s" select',
+    (label) => {
       renderToolbar();
 
       // Mantine keeps the readonly input focused while the
@@ -159,7 +160,7 @@ describe('TagNotesToolbar', () => {
       // blinking caret from showing. Emotion injects the
       // rule into <style> tags (non-speedy in tests), so
       // match one of the input's classes against them.
-      const input = screen.getByLabelText('Notes per page');
+      const input = screen.getByLabelText(label);
       const css = Array.from(
         document.querySelectorAll('style')
       )

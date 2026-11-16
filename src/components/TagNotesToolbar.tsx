@@ -21,6 +21,15 @@ import type { Tag } from '../types';
 import type { SortOrder } from '../utils/noteSorting';
 import { shareOrCopyLink } from '../utils/share';
 
+// Mantine keeps the readonly input focused while the
+// dropdown is open, which shows a blinking text caret —
+// hide it on non-searchable selects; they are not editable.
+// Kept scoped (not a theme override) so searchable selects
+// keep their caret.
+const READONLY_SELECT_STYLES = {
+  input: { caretColor: 'transparent' },
+};
+
 interface TagNotesToolbarProps {
   /** The caller's own tags — powers the switcher Select. */
   tags: Tag[];
@@ -151,6 +160,7 @@ const TagNotesToolbar = ({
         <Group spacing="xs" noWrap>
           <Select
             size="xs"
+            aria-label="Sort order"
             value={sortOrder}
             onChange={(v) => {
               if (v) {
@@ -183,6 +193,7 @@ const TagNotesToolbar = ({
                 label: 'Verse: Descending',
               },
             ]}
+            styles={READONLY_SELECT_STYLES}
             style={{ width: 170, flexShrink: 0 }}
           />
           <Select
@@ -196,11 +207,7 @@ const TagNotesToolbar = ({
               { value: '50', label: '50' },
               { value: '100', label: '100' },
             ]}
-            // Mantine keeps the readonly input focused while
-            // the dropdown is open, which shows a blinking
-            // text caret — hide it; the select is not
-            // editable.
-            styles={{ input: { caretColor: 'transparent' } }}
+            styles={READONLY_SELECT_STYLES}
             style={{ width: 72, flexShrink: 0 }}
           />
           {hasChildren && onToggleDescendants && (
