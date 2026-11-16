@@ -94,9 +94,12 @@ export default function NotesRoute() {
 
   if (status === 'empty') {
     return (
-      <Center style={{ height: '100vh' }}>
+      // `px` keeps long translations of the empty-state text off
+      // the screen edges on narrow mobile viewports; `ta` centers
+      // the wrapped lines.
+      <Center style={{ height: '100vh' }} px="md">
         <Stack align="center" spacing="sm">
-          <Text color="dimmed" size="lg">
+          <Text color="dimmed" size="lg" ta="center">
             {t('notes.noTagsYet')}
           </Text>
           <Button
@@ -112,9 +115,9 @@ export default function NotesRoute() {
 
   if (status === 'error') {
     return (
-      <Center style={{ height: '100vh' }}>
+      <Center style={{ height: '100vh' }} px="md">
         <Stack align="center" spacing="sm">
-          <Text color="red" size="lg">
+          <Text color="red" size="lg" ta="center">
             {t('notes.loadTagsFailed')}
           </Text>
           <Button
