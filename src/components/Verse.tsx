@@ -31,11 +31,11 @@ const useStyles = createStyles((theme) => ({
     color: theme.colorScheme === "dark" ? theme.white : theme.black,
   },
   linkAudioActive: {
-    borderLeft: `3px solid ${theme.colors.teal[6]}`,
+    borderLeft: `3px solid ${theme.colors.blue[5]}`,
     backgroundColor:
       theme.colorScheme === 'dark'
-        ? theme.fn.rgba(theme.colors.teal[9], 0.15)
-        : theme.fn.rgba(theme.colors.teal[1], 0.5),
+        ? theme.fn.rgba(theme.colors.blue[9], 0.15)
+        : theme.fn.rgba(theme.colors.blue[1], 0.5),
   },
 }));
 

@@ -2525,10 +2525,10 @@ Floating audio player UI at bottom of screen.
 
 **UI Elements**:
 - Skip backward 5s button
-- Play/Pause button (large, teal)
+- Play/Pause button (large, blue)
 - Skip forward 5s button
-- Loop toggle button (filled teal when enabled)
-- Progress slider (teal bar)
+- Loop toggle button (filled blue when enabled)
+- Progress slider
 - Time display
 
 ---

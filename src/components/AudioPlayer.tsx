@@ -187,7 +187,7 @@ const AudioPlayer = ({
           label={null}
           size="lg"
           thumbSize={20}
-          color="teal"
+          color="blue"
           styles={(theme) => ({
             // Mantine v6 paints the rail on track::before —
             // default gray[2] is invisible on the gray[0]
@@ -226,7 +226,7 @@ const AudioPlayer = ({
           <ActionIcon
             size={60}
             variant="filled"
-            color="teal"
+            color="blue"
             radius="xl"
             onClick={onPlayPause}
             title={isPlaying ? 'Pause' : 'Play'}
@@ -251,7 +251,7 @@ const AudioPlayer = ({
         <ActionIcon
           size="lg"
           variant={isLooping ? 'filled' : 'outline'}
-          color={isLooping ? 'teal' : 'gray'}
+          color={isLooping ? 'blue' : 'gray'}
           aria-pressed={isLooping}
           onClick={onLoopToggle}
           title={isLooping ? 'Loop enabled' : 'Loop disabled'}
