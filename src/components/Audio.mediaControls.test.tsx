@@ -12,6 +12,9 @@ import {
 } from '../stores/authStore';
 import { getAudioTimestamps } from '../api';
 import { mockDomApis } from '../__tests__/helpers';
+import {
+  GLU8_JHN3_TIMESTAMPS,
+} from '../__tests__/fixtures/glu8Jhn3Timestamps';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 import {
   stubMediaSession,
@@ -290,6 +293,77 @@ describe('Audio media session track controls', () => {
     await waitFor(() =>
       expect(useBibleStore.getState().activeChapter).toBe(4),
     );
+  });
+
+  // Same flows against vendored production timestamps for the
+  // self-hosted GLU8 recording (LVSGLU8C1DA, John 3) — guards
+  // the nav math against real data shape: fractional seconds,
+  // irregular verse lengths, no announcement row.
+  describe('with real GLU8 timestamps (LVSGLU8C1DA)', () => {
+    const renderGlu8 = async () => {
+      useBibleStore.setState({
+        activeAudioFilesetId: 'LVSGLU8C1DA',
+      });
+      vi.mocked(getAudioTimestamps).mockResolvedValue(
+        GLU8_JHN3_TIMESTAMPS,
+      );
+      const howl = await renderAndStartPlayback();
+      await waitFor(() =>
+        expect(getAudioTimestamps).toHaveBeenCalledWith(
+          'JHN',
+          3,
+          'LVSGLU8C1DA',
+        ),
+      );
+      await waitForTimestamps();
+      return howl;
+    };
+
+    it('previoustrack restarts a real verse boundary', async () => {
+      const howl = await renderGlu8();
+      // 3.5s into verse 25 (starts at 170.472).
+      act(() => {
+        howl.seek(174);
+      });
+      pressTrackButton('previoustrack');
+      expect(howl._pos).toBe(170.472);
+    });
+
+    it('chained presses step through real verse boundaries', async () => {
+      const howl = await renderGlu8();
+      // 0.5s into verse 25 — a single press lands on verse 24.
+      act(() => {
+        howl.seek(171);
+      });
+      pressTrackButton('previoustrack');
+      expect(howl._pos).toBe(168.048);
+
+      // Repeat press steps to verse 23's real start even though
+      // verse 25's start (170.472) is barely 2.4s ahead of 24.
+      act(() => {
+        howl.seek(168.4);
+      });
+      pressTrackButton('previoustrack');
+      expect(howl._pos).toBe(159.144);
+    });
+
+    it('nexttrack lands on the next real verse start', async () => {
+      const howl = await renderGlu8();
+      act(() => {
+        howl.seek(171);
+      });
+      pressTrackButton('nexttrack');
+      expect(howl._pos).toBe(175.68);
+    });
+
+    it('restarts the real last verse when >2s in', async () => {
+      const howl = await renderGlu8();
+      act(() => {
+        howl.seek(245);
+      });
+      pressTrackButton('previoustrack');
+      expect(howl._pos).toBe(242.592);
+    });
   });
 
   it('falls back to ±10s seeks without timestamps', async () => {
