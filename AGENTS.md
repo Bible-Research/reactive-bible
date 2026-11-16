@@ -44,10 +44,14 @@ whose head SHA was never merged into `staging`, and the
   `gh workflow run "Promote to main"` (or the Actions tab;
   `-f dry_run=true` lists pending promotions). It opens a
   `main` PR per staged branch — oldest staging-merge
-  first, original title + body — squash-merges each, then
-  resets `staging` to `main`. Conflicting promotions are
+  first, original title + body + a promotion footer —
+  squash-merges each, then resets `staging` to `main`
+  (skipped entirely if any promotion fails — staging then
+  still holds unreleased work). Conflicting promotions are
   resolved from the staging squash commit's tree — the
-  validated integration state, never guessed. Manual
+  validated integration state, never guessed; a replay is
+  only attempted while all earlier promotions succeeded,
+  since a squash tree also carries their code. Manual
   equivalent, per branch: re-push it if auto-deleted
   (`git push origin <headRefOid>:refs/heads/<branch>`),
   open a PR with `--base main` (same title + body — keep

@@ -61,7 +61,8 @@ jobs:
           # Latest merged staging PR per head branch, in
           # staging-merge order — promotion follows that order
           # so each squash commit's tree only ever holds
-          # already-promoted features plus its own.
+          # already-promoted features plus its own. 200 is
+          # headroom (same idea as the gate's 100-per-page).
           gh pr list --repo "$REPO" --state merged \
             --base staging --limit 200 \
             --json number,title,body,headRefName,headRefOid,mergedAt \
@@ -69,6 +70,28 @@ jobs:
                   | group_by(.headRefName) | map(.[-1])
                   | sort_by(.mergedAt)' > /tmp/staged.json
           echo "== $(jq length /tmp/staged.json) staged branch(es)"
+
+          # Replay staging's resolution onto a conflicting
+          # promotion: merge main into the feature branch and
+          # resolve conflicted paths with the staging squash
+          # commit's versions — deleted there = remove.
+          resolve_via_staging() {
+            git fetch -q origin "$2" "$3" </dev/null \
+              || return 1
+            git checkout -q -B "$1" "$2" || return 1
+            git merge -q --no-commit origin/main \
+              </dev/null || true
+            local p
+            while IFS= read -r p; do
+              if git cat-file -e "$3:$p" 2>/dev/null; then
+                git checkout -q "$3" -- "$p" || return 1
+              else
+                git rm -q "$p" || return 1
+              fi
+            done < <(git diff --name-only --diff-filter=U)
+            git commit -q --no-edit </dev/null || return 1
+            git push -q origin "$1" </dev/null
+          }
 
           promoted=0; skipped=0; replayed=0; failed=0
           while read -r row; do
@@ -83,7 +106,10 @@ jobs:
             in_main=$(gh api -X GET \
               "repos/$REPO/commits/$sha/pulls" -f per_page=100 \
               --jq '[.[] | select(.merged_at != null and
-                     .base.ref == "main")] | length')
+                     .base.ref == "main")] | length' \
+              </dev/null) || {
+              echo "  !! association lookup failed"
+              failed=$((failed+1)); continue; }
             if [ "$in_main" -gt 0 ]; then
               echo "skip: '$title' already in main"
               echo "- \`$title\` — already in main" \
@@ -103,7 +129,7 @@ jobs:
             # check instantly.
             gh api -X POST "repos/$REPO/git/refs" \
               -f ref="refs/heads/$branch" -f sha="$sha" \
-              > /dev/null 2>&1 || true
+              </dev/null > /dev/null 2>&1 || true
 
             field '.body // ""' > /tmp/body.md
             {
@@ -114,10 +140,11 @@ jobs:
             } > /tmp/promo-body.md
             mpr=$(gh pr create --repo "$REPO" --base main \
               --head "$branch" --title "$title" \
-              --body-file /tmp/promo-body.md 2>/dev/null) || \
+              --body-file /tmp/promo-body.md \
+              </dev/null 2>/dev/null) || \
             mpr=$(gh pr list --repo "$REPO" --state open \
               --base main --head "$branch" \
-              --json url --jq '.[0].url')
+              --json url --jq '.[0].url // ""' </dev/null)
             if [ -z "$mpr" ]; then
               echo "  !! could not open a main PR"
               failed=$((failed+1)); continue
@@ -129,38 +156,50 @@ jobs:
             mergeable=""
             for _ in $(seq 1 24); do
               mergeable=$(gh pr view "$mpr" --json mergeable \
-                -q .mergeable)
+                -q .mergeable </dev/null 2>/dev/null \
+                || echo UNKNOWN)
               [ "$mergeable" != "UNKNOWN" ] && break
               sleep 5
             done
             echo "  mergeable=$mergeable"
             if [ "$mergeable" = "MERGEABLE" ] && \
-               gh pr merge "$mpr" --squash --admin; then
+               gh pr merge "$mpr" --squash --admin </dev/null
+            then
               promoted=$((promoted+1))
               echo "- \`$title\` — promoted" \
                 >> "$GITHUB_STEP_SUMMARY"
               continue
             fi
 
-            # ---- conflict fallback ------------------------------
-            # Replay the resolution staging already performed:
-            # merge main into the feature branch and resolve
-            # conflicted paths with the staging squash commit's
-            # versions.
-            echo "  conflicted — replaying staging's resolution"
+            # Only a genuinely CONFLICTING PR earns the replay
+            # — and only while every earlier promotion merged:
+            # this branch's staging squash tree also contains
+            # all earlier features, so replaying it after a
+            # failure would drag unpromoted code into main.
+            mergeable=$(gh pr view "$mpr" --json mergeable \
+              -q .mergeable </dev/null 2>/dev/null \
+              || echo UNKNOWN)
             merge_sha=$(gh pr view "$spr" --repo "$REPO" \
-              --json mergeCommit -q .mergeCommit.oid)
-            git fetch -q origin "$sha" "$merge_sha"
-            git checkout -q -B "$branch" "$sha"
-            if ! git merge -q --no-commit origin/main; then
-              git diff --name-only --diff-filter=U | \
-              while read -r p; do
-                git checkout "$merge_sha" -- "$p" 2>/dev/null \
-                  || git rm -q "$p"
-              done
+              --json mergeCommit -q .mergeCommit.oid \
+              </dev/null 2>/dev/null || true)
+            if [ "$mergeable" != "CONFLICTING" ] || \
+               [ "$failed" -gt 0 ] || [ -z "$merge_sha" ]; then
+              echo "  !! merge failed (mergeable=$mergeable," \
+                "earlier_failures=$failed)"
+              failed=$((failed+1))
+              echo "- \`$title\` — FAILED" >> "$GITHUB_STEP_SUMMARY"
+              continue
             fi
-            git commit -q --no-edit || true
-            git push -q origin "$branch"
+
+            echo "  conflicted — replaying staging's" \
+              "resolution ($merge_sha)"
+            if ! resolve_via_staging "$branch" "$sha" \
+                "$merge_sha"; then
+              echo "  !! replay failed"
+              failed=$((failed+1))
+              echo "- \`$title\` — FAILED" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
             {
               echo "Auto-resolved: this branch conflicted with"
               echo "\`main\`. Conflicted paths were resolved"
@@ -170,9 +209,10 @@ jobs:
               echo "with \`--admin\`: the new head SHA cannot"
               echo "satisfy \`staging-first\` by design."
             } > /tmp/note.md
-            gh pr comment "$mpr" --body-file /tmp/note.md
+            gh pr comment "$mpr" --body-file /tmp/note.md \
+              </dev/null || true
             sleep 15
-            if gh pr merge "$mpr" --squash --admin; then
+            if gh pr merge "$mpr" --squash --admin </dev/null; then
               replayed=$((replayed+1))
               echo "- \`$title\` — promoted (staging replay)" \
                 >> "$GITHUB_STEP_SUMMARY"
@@ -182,17 +222,28 @@ jobs:
             fi
           done < <(jq -r '.[] | @base64' /tmp/staged.json)
 
-          # Post-release staging reset — refs API PATCH (admin
-          # token bypasses the non-fast-forward ruleset).
-          if [ "$DRY_RUN" != "true" ]; then
+          # Post-release staging reset — only on a fully clean
+          # train: a failed promotion means staging still holds
+          # unreleased work (matches AGENTS.md: "reset only
+          # once staging matches the release"). Refs API PATCH;
+          # the admin token bypasses the non-ff ruleset.
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "dry run — staging left as-is"
+          elif [ "$failed" -gt 0 ]; then
+            echo "::warning::$failed promotion(s) failed —" \
+              "staging NOT reset"
+            echo "- staging reset skipped — $failed" \
+              "failure(s)" >> "$GITHUB_STEP_SUMMARY"
+          else
             main_sha=$(gh api "repos/$REPO/branches/main" \
-              --jq .commit.sha)
+              --jq .commit.sha </dev/null)
             cur=$(gh api "repos/$REPO/branches/staging" \
-              --jq .commit.sha)
+              --jq .commit.sha </dev/null)
             if [ "$cur" != "$main_sha" ]; then
               gh api -X PATCH \
                 "repos/$REPO/git/refs/heads/staging" \
-                -f sha="$main_sha" -F force=true > /dev/null
+                -f sha="$main_sha" -F force=true \
+                </dev/null > /dev/null
               echo "staging reset $cur -> $main_sha"
               echo "- staging reset to \`$main_sha\`" \
                 >> "$GITHUB_STEP_SUMMARY"
