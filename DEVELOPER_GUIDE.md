@@ -1771,7 +1771,9 @@ All prefetching happens silently in the background.
 **Hardware Controls**:
 - **Play/Pause**: Works on all devices (headphones, car)
 - **Seek Forward/Backward**: Skips ±10 seconds (headphones)
-- **Next/Previous Track**: Skips ±10 seconds (car stereo)
+- **Next/Previous Track**: verse-aware jumps (car stereo);
+  repeated presses chain verse steps — see the "Hardware
+  controls" contract above
 - **Seek To**: Direct time seeking (car stereo fallback)
 - **Lock Screen**: Shows chapter info and controls (mobile)
 

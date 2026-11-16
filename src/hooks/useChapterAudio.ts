@@ -460,6 +460,7 @@ export const useChapterAudio = (
   }, [preloadNextChapter]);
 
   const handleChapterPause = useCallback(() => {
+    isPlayingRef.current = false;
     setIsPlaying(false);
   }, []);
 
