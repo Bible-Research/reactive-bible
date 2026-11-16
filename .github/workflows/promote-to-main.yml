@@ -83,6 +83,12 @@ jobs:
             > /tmp/staged.json
           echo "== $(jq length /tmp/staged.json) staged branch(es)"
 
+          # Snapshot staging's tip — the reset at the end
+          # refuses to run if staging moved mid-run (a merge
+          # landing now would not be in this snapshot).
+          start_staging=$(gh api "repos/$REPO/branches/staging" \
+            --jq .commit.sha </dev/null)
+
           # Replay staging's resolution onto a conflicting
           # promotion: merge CURRENT main — refreshed, since
           # earlier merges in this run advanced it — into the
@@ -195,13 +201,15 @@ jobs:
 
             # A push landing between the ref check and the
             # PR create would bind the PR to the moved tip —
-            # assert the head is still the staged SHA.
+            # assert the head is still the staged SHA, and
+            # fail closed when it can't be verified (the
+            # fallback PR could carry any head).
             head_now=$(gh pr view "$mpr" --json headRefOid \
-              -q .headRefOid </dev/null 2>/dev/null || true)
-            if [ -n "$head_now" ] && [ "$head_now" != "$sha" ]
-            then
-              echo "  !! PR head ${head_now::7} moved past" \
-                "staging merge ${sha::7} — skipping"
+              -q .headRefOid </dev/null 2>/dev/null) || \
+              head_now=""
+            if [ "$head_now" != "$sha" ]; then
+              echo "  !! PR head ${head_now:-unreadable} is" \
+                "not staging merge ${sha::7} — skipping"
               failed=$((failed+1))
               echo "- \`$title\` — FAILED (PR head moved)" \
                 >> "$GITHUB_STEP_SUMMARY"
@@ -306,13 +314,28 @@ jobs:
             cur=$(gh api "repos/$REPO/branches/staging" \
               --jq .commit.sha </dev/null)
             if [ "$cur" != "$main_sha" ]; then
-              gh api -X PATCH \
-                "repos/$REPO/git/refs/heads/staging" \
-                -f sha="$main_sha" -F force=true \
-                </dev/null > /dev/null
-              echo "staging reset $cur -> $main_sha"
-              echo "- staging reset to \`$main_sha\`" \
-                >> "$GITHUB_STEP_SUMMARY"
+              if [ "$cur" != "$start_staging" ]; then
+                echo "::warning::staging moved during the" \
+                  "run — NOT resetting; re-run the workflow"
+                echo "- staging reset skipped — staging" \
+                  "moved mid-run" >> "$GITHUB_STEP_SUMMARY"
+              elif [ "$(jq length /tmp/staged.json)" -eq 0 ]
+              then
+                echo "::warning::staging holds commits no" \
+                  "merged staging PR accounts for — NOT" \
+                  "resetting"
+                echo "- staging reset skipped —" \
+                  "unaccounted staging commits" \
+                  >> "$GITHUB_STEP_SUMMARY"
+              else
+                gh api -X PATCH \
+                  "repos/$REPO/git/refs/heads/staging" \
+                  -f sha="$main_sha" -F force=true \
+                  </dev/null > /dev/null
+                echo "staging reset $cur -> $main_sha"
+                echo "- staging reset to \`$main_sha\`" \
+                  >> "$GITHUB_STEP_SUMMARY"
+              fi
             fi
           fi
           echo "== done: $promoted merged, $skipped" \
