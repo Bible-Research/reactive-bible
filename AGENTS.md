@@ -55,7 +55,9 @@ whose head SHA was never merged into `staging`, and the
 - **"Merge straight to main" requests**: merge the branch
   into `staging` first anyway, then the `main` PR — the
   check blocks anything else, keeping `main` ⊆ `staging`
-  even for urgent merges.
+  even for urgent merges. If the `main` PR's check already
+  ran red before the staging merge, re-run the failed job
+  after it (`gh run rerun <run-id> --failed` or a push).
 - **Dependabot** targets `staging` and auto-merges there;
   its branches promote to `main` like any feature branch.
 - **Backend is unaffected** — `bible_research` keeps its

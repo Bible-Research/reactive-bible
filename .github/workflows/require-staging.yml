@@ -39,11 +39,13 @@ jobs:
         run: |
           # Pulls associated with the head SHA, filtered to a
           # MERGED staging PR — O(1) lookup, no paging over
-          # merged-PR history. A newer head SHA that was never
-          # staged correctly fails; identical code under a
-          # different branch name correctly passes.
+          # merged-PR history (per_page=100 is headroom; a
+          # commit is never in 100+ PRs). A newer head SHA that
+          # was never staged correctly fails; identical code
+          # under a different branch name correctly passes.
           resp=$(gh api \
-            "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/pulls") || {
+            "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/pulls" \
+            -f per_page=100) || {
             echo "::error::GitHub API error listing PRs for $HEAD_SHA"
             exit 1
           }
@@ -53,7 +55,8 @@ jobs:
             echo "OK: head $HEAD_SHA is already on staging."
             exit 0
           fi
-          echo "::error::PR targets main but head $HEAD_SHA was never merged into staging."
+          echo "::error::PR targets main but head $HEAD_SHA was"
+          echo "::error::never merged into staging."
           echo "Open a PR from this branch with --base staging,"
           echo "merge it once checks are green, and this check"
           echo "passes. If the branch moved since the staging"
