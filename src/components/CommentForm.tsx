@@ -39,8 +39,8 @@ interface CommentFormProps {
 
 const CommentForm = ({
   initialValue = '',
-  submitLabel = 'Post',
-  placeholder = 'Write a comment…',
+  submitLabel,
+  placeholder,
   autoFocus = false,
   onSubmit,
   onCancel,
@@ -72,7 +72,7 @@ const CommentForm = ({
   const handleSubmit = async () => {
     // Doc-JSON is never '' even when the editor is blank.
     if (!toPlainText(value).trim() && staged.length === 0) {
-      setError('Add text or attach an image.');
+      setError(t('comments.addTextOrAttach'));
       return;
     }
     setError(null);
@@ -98,7 +98,7 @@ const CommentForm = ({
         variant="comment"
         value={value}
         onChange={setValue}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('comments.writeComment')}
         autoFocus={autoFocus}
         disabled={isDisabled}
       />
@@ -186,7 +186,7 @@ const CommentForm = ({
           disabled={isDisabled}
           loading={isDisabled}
         >
-          {submitLabel}
+          {submitLabel ?? t('comments.post')}
         </Button>
         {onCancel && (
           <Button
@@ -195,7 +195,7 @@ const CommentForm = ({
             onClick={onCancel}
             disabled={isDisabled}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
         )}
         <FileButton
@@ -225,7 +225,7 @@ const CommentForm = ({
             >
               {totalAttached > 0
                 ? `${totalAttached}/${MAX_IMAGES}`
-                : 'Images'}
+                : t('comments.images')}
             </Button>
           )}
         </FileButton>

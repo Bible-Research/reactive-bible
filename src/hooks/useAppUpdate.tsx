@@ -38,7 +38,9 @@ export const describeApk = (manifest: UpdateManifest): string => {
 // the raw "+113" metadata reads like noise in the popup.
 export const displayVersion = (versionName: string): string => {
   const [base, build] = versionName.split('+');
-  return build ? `${base} (build ${build})` : base;
+  return build
+    ? `${base}${i18n.t('updates.buildSuffix', { build })}`
+    : base;
 };
 
 /**
@@ -62,26 +64,29 @@ const openUpdateModal = (
     children: (
       <Stack spacing="xs">
         <Text size="sm">
-          A newer build is available (installed: v
-          {displayVersion(installed.version)}).
+          {i18n.t('updates.availableBody', {
+            installed: displayVersion(installed.version),
+          })}
         </Text>
         <Text size="sm" color="dimmed">
-          Downloading opens your browser; Android will ask you to
-          confirm the install once the APK finishes downloading.
+          {i18n.t('updates.availableHint')}
         </Text>
         {describeApk(manifest) && (
-          <Text size="sm">File: {describeApk(manifest)}</Text>
+          <Text size="sm">
+            {i18n.t('updates.file', {
+              name: describeApk(manifest),
+            })}
+          </Text>
         )}
         <Text size="xs" color="dimmed">
-          If Android says &quot;There was a problem parsing the
-          package&quot;, the download is incomplete or an older
-          file was opened: wait for the download to finish, then
-          open exactly this file from the browser&apos;s download
-          notification or Downloads.
+          {i18n.t('updates.parseWarning')}
         </Text>
       </Stack>
     ),
-    labels: { confirm: 'Update', cancel: 'Later' },
+    labels: {
+      confirm: i18n.t('updates.update'),
+      cancel: i18n.t('updates.later'),
+    },
     // `@capacitor/browser` is not installed, so `Browser.open`
     // is unavailable. `window.open(url, '_system')` relies on
     // Capacitor's WebView handling `_system` targets by handing

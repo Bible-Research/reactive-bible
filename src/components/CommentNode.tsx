@@ -142,7 +142,7 @@ const CommentNode = ({
     >
       {comment.is_deleted ? (
         <Text size="sm" color="dimmed" fs="italic" py={4}>
-          [deleted]
+          {t('comments.deletedContent')}
         </Text>
       ) : (
         <Stack spacing={4}>
@@ -154,7 +154,7 @@ const CommentNode = ({
           {editing ? (
             <CommentForm
               initialValue={comment.content}
-              submitLabel="Save"
+              submitLabel={t('common.save')}
               autoFocus
               onSubmit={handleEditSubmit}
               onCancel={() => setEditing(false)}
@@ -214,7 +214,7 @@ const CommentNode = ({
           {replyOpen && (
             <Box mt={6}>
               <CommentForm
-                submitLabel="Reply"
+                submitLabel={t('comments.reply')}
                 placeholder={t('comments.writeReply')}
                 autoFocus
                 onSubmit={handleReplySubmit}

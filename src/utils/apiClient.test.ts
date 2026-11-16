@@ -265,7 +265,7 @@ describe('apiClient', () => {
       );
 
       await expect(authenticatedFetch(mockUrl)).rejects.toThrow(
-        'You do not have permission'
+        'errors.forbidden'
       );
     });
 

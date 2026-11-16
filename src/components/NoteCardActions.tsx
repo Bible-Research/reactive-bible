@@ -88,11 +88,11 @@ const NoteCardActions = ({
 
   const handleShare = async () => {
     const title = note.tag?.name
-      ? `Note: ${note.tag.name}`
-      : 'Shared note';
+      ? t('notes.noteTitle', { name: note.tag.name })
+      : t('notes.sharedNote');
     const text = note.note_text
       ? toPlainText(note.note_text).slice(0, 140)
-      : 'Shared Bible note';
+      : t('notes.sharedBibleNote');
 
     await shareOrCopyLink(
       {

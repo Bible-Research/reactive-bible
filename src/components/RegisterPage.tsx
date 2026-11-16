@@ -123,7 +123,7 @@ export function RegisterPage() {
 
             <TextInput
               label={t('auth.emailOptional')}
-              placeholder="your.email@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

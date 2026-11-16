@@ -29,8 +29,10 @@ live, paste its URL into the YouTube column.
   `### Запись`.
 - Script sections map 1:1, in order, to `TUTORIAL_VIDEOS` entries
   in `src/data/gettingStartedVideos.ts`. When a video is
-  published, set that entry's `youtubeId` — `null` entries are
-  filtered out and never render.
+  published in a language, set that locale's id in the entry's
+  `youtubeIds` map — a card renders only when an id resolves
+  for the active UI language (English is the fallback), so an
+  empty map hides the card everywhere.
 - Any PR that changes UI covered by a script updates ALL
   locale files (en + lv + ru) in the same PR (repo rule 10).
   "Last verified" is the date the script was last checked

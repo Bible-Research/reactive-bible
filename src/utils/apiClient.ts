@@ -103,9 +103,9 @@ const expireSession = (issuedToken: string | null): never => {
  * Shared 403 handling for the authenticated wrappers.
  */
 const throwForbidden = (): never => {
-  throw new Error(
-    'You do not have permission to access this resource.'
-  );
+  // Catalog key, not display text — surfaced to the user via
+  // localizedErrorText/textOrKey like 'auth.sessionExpiredMsg'.
+  throw new Error('errors.forbidden');
 };
 
 /**

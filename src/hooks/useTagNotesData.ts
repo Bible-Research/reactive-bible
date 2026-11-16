@@ -308,7 +308,7 @@ export const useTagNotesData = ({
         if (cancelled) return;
 
         if (!resolvedTag) {
-          setError('No public notes available for this tag.');
+          setError(i18n.t('notes.noNotesForTag'));
         } else {
           setTag(resolvedTag);
         }
@@ -327,7 +327,7 @@ export const useTagNotesData = ({
         // A re-run failure (sort change, auth flip) keeps the
         // loaded list on screen — fetchNotes already toasted.
         if (!hasLoadedRef.current) {
-          setError('Failed to load notes');
+          setError(i18n.t('notes.loadNotesFailed'));
         }
         setLoading(false);
         setPageLoading(false);
@@ -499,9 +499,7 @@ export const useTagNotesData = ({
       evt.preventDefault();
       if (!note.id || deletingRef.current) return;
       if (
-        !window.confirm(
-          'Are you sure you want to delete this note?'
-        )
+        !window.confirm(i18n.t('notes.deleteConfirm'))
       ) {
         return;
       }

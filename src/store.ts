@@ -23,12 +23,13 @@ import {
   migratePersistedState,
   partializeState,
 } from './stores/bibleStore/persistence';
-import {
+import i18n, {
   changeUiLanguage,
   resolveInitialTextFileset,
   resolveUiLanguage,
   type UiLanguage,
 } from './i18n';
+import { showNotification } from '@mantine/notifications';
 
 export { migratePersistedState, partializeState };
 
@@ -302,8 +303,19 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       // Persisted UI locale; rehydration bypasses this action
       // but initI18n resolves the same stored value directly.
       setUiLanguage: (uiLanguage) => {
+        const previous = get().uiLanguage;
         set({ uiLanguage });
-        void changeUiLanguage(uiLanguage);
+        // A failed lazy-catalog import must not strand the
+        // persisted choice on a language the UI cannot
+        // render — roll back and tell the user.
+        void changeUiLanguage(uiLanguage).catch(() => {
+          set({ uiLanguage: previous });
+          showNotification({
+            title: i18n.t('common.error'),
+            message: i18n.t('menu.languageLoadFailed'),
+            color: 'red',
+          });
+        });
       },
       setShowAudioPlayer: (showAudioPlayer) => set({ showAudioPlayer }),
       setTranslations: (translations) => set({ translations }),

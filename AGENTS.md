@@ -80,7 +80,8 @@ Talks to the `bible_research` Django API.
   its pathname is whitelisted for `overflow: auto` in `App.tsx`.
 - `src/data/` — static typed content catalogues, e.g.
   `gettingStartedVideos.ts` (the /getting-started video list —
-  entries with `youtubeId: null` never render).
+  a card renders only when `youtubeIds` resolves an id for the
+  active UI language, falling back to English).
 - `src/mocks/` + `setupTests.ts` — MSW server for tests.
 
 ## Data model contracts

@@ -18,6 +18,7 @@
     "reportProblemHint": "Pastāstiet, kas nogāja greizi — ziņojums komandai nonāk kopā ar pašreizējo pantsu.",
     "theme": "Tēma",
     "language": "Valoda",
+    "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
     "openMenu": "Atvērt izvēlni",
     "closeMenu": "Aizvērt izvēlni",
     "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām."
@@ -40,7 +41,7 @@
     "channelName": "Audio atskaņošana",
     "keepAliveDesc": "Uztur audio atskaņošanu, kamēr ekrāns ir izslēgts",
     "playlistStarted": "Atskaņošanas saraksts sākts",
-    "playlistStartedMsg": "Atskaņo no piezīmes {{index}} no {{total}}",
+    "playlistStartedMsg": "Atskaņo piezīmi {{index}} no {{total}}",
     "noFileset": "Nav izvēlēts audio fails",
     "selectTranslation": "Izvēlieties audio tulkojumu, lai lietotu atskaņošanas sarakstu.",
     "noTimestamps": "Nav panta laika zīmju",
@@ -90,6 +91,7 @@
     "createAccount": "Izveidot kontu",
     "alreadyHaveAccount": "Vai jums jau ir konts?",
     "emailOptional": "E-pasts (neobligāti)",
+    "emailPlaceholder": "jusu.epasts@example.com",
     "emailRecovery": "Tiek izmantots paroles atjaunošanai",
     "loggedOut": "Izrakstīts",
     "loggedOutMsg": "Jūs esat veiksmīgi izrakstījies",
@@ -292,7 +294,9 @@
     "imageTitle": "Attēls",
     "cannotPost": "Nevar publicēt komentāru",
     "addTextOrAttach": "Pievienojiet tekstu vai attēlu.",
-    "unavailable": "Attēls nav pieejams"
+    "unavailable": "Attēls nav pieejams",
+    "reply": "Atbildēt",
+    "deletedContent": "[dzēsts]"
   },
   "common": {
     "loading": "Ielādē",
@@ -328,7 +332,12 @@
     "provider_error": "Tulkojumu nodrošinātājs nevarēja piegādāt pieprasīto saturu.",
     "internal_error": "Kaut kas nogāja greizi. Lūdzu, mēģiniet vēlāk.",
     "generic": "Kaut kas nogāja greizi. Lūdzu, mēģiniet vēlreiz.",
-    "invalidScriptureFormat": "Nederīgs rakstu vietas formāts"
+    "forbidden": "Jums nav atļaujas piekļūt šim resursam.",
+    "invalidScriptureFormat": "Nederīgs rakstu vietas formāts",
+    "unknownBook": "Nezināma grāmata: {{name}}",
+    "noChapter": "Grāmatā {{book}} nav nodaļas {{chapter}}",
+    "noVerse": "Vietā {{where}} nav panta {{verse}}",
+    "invalidVerseRange": "Nederīgs pantu diapazons {{range}}"
   },
   "header": {
     "closeMenu": "Aizvērt izvēlni",
@@ -426,6 +435,7 @@
     "availableBody": "Ir pieejama jaunāka versija (instalētā: v{{installed}}).",
     "availableHint": "Lejupielāde atver pārlūku; pēc APK lejupielādes Android lūgs apstiprināt instalēšanu.",
     "file": "Fails: {{name}}",
+    "buildSuffix": " (būvējums {{build}})",
     "parseWarning": "Ja Android paziņo „Instalējot pakotni radās problēma”, lejupielāde nav pabeigta vai tika atvērts vecāks fails: uzgaidiet, līm lejupielāde pabeidzas, un atveriet tieši šo failu no pārlūka lejupielādes paziņojuma vai Lejupielādes.",
     "update": "Atjaunināt",
     "later": "Vēlāk",

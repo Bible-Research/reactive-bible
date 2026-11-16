@@ -62,7 +62,10 @@ export const parseScriptureRef = (
   );
 
   if (!bookEntry) {
-    return { ok: false, error: `Unknown book: ${bookQuery}` };
+    return {
+      ok: false,
+      error: i18n.t('errors.unknownBook', { name: bookQuery }),
+    };
   }
 
   // Range validation against the bundled structure data — the
@@ -74,7 +77,10 @@ export const parseScriptureRef = (
   if (!getChapters(bookEntry.book_id).includes(chapter)) {
     return {
       ok: false,
-      error: `No chapter ${chapter} in ${bookEntry.book_name}`,
+      error: i18n.t('errors.noChapter', {
+        chapter,
+        book: bookEntry.book_name,
+      }),
     };
   }
 
@@ -92,15 +98,29 @@ export const parseScriptureRef = (
   const end = endStr !== undefined ? Number(endStr) : null;
   const chapterVerses = getVerses(bookEntry.book_id, chapter);
   if (!chapterVerses.includes(start)) {
-    return { ok: false, error: `No verse ${start} in ${where}` };
+    return {
+      ok: false,
+      error: i18n.t('errors.noVerse', {
+        verse: start,
+        where,
+      }),
+    };
   }
   if (end !== null && !chapterVerses.includes(end)) {
-    return { ok: false, error: `No verse ${end} in ${where}` };
+    return {
+      ok: false,
+      error: i18n.t('errors.noVerse', {
+        verse: end,
+        where,
+      }),
+    };
   }
   if (end !== null && end < start) {
     return {
       ok: false,
-      error: `Invalid verse range ${start}-${end}`,
+      error: i18n.t('errors.invalidVerseRange', {
+        range: `${start}-${end}`,
+      }),
     };
   }
 

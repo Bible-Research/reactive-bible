@@ -171,7 +171,7 @@ const CommentThread = ({
       })
       .catch(() => {
         if (dataVersion.current === version)
-          setError('Failed to load comments.');
+          setError(i18n.t('comments.loadFailed'));
       })
       .finally(() => {
         if (loadingSeq.current === seq) setLoading(false);

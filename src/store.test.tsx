@@ -426,6 +426,37 @@ describe('useBibleStore', () => {
     expect(migrated.bookTitleMarquee).toBe(false);
   });
 
+  it('migratePersistedState drops an unrecognized ' +
+    'uiLanguage across the v9 bump', () => {
+    // Only shipped BCP-47 codes persist — anything else
+    // falls back to detection rather than migrating forward.
+    const migrated = migratePersistedState(
+      { uiLanguage: 'de' },
+      8
+    );
+    expect('uiLanguage' in migrated).toBe(false);
+  });
+
+  it('migratePersistedState keeps a valid uiLanguage ' +
+    'across the v9 bump', () => {
+    const migrated = migratePersistedState(
+      { uiLanguage: 'lv' },
+      8
+    );
+    expect(migrated.uiLanguage).toBe('lv');
+  });
+
+  it('migratePersistedState leaves an absent uiLanguage ' +
+    'absent so detection runs', () => {
+    // A pre-v9 blob has no stored choice; the migration must
+    // not invent one — initial state resolves the locale.
+    const migrated = migratePersistedState(
+      { activeBookId: 'JHN' },
+      8
+    );
+    expect('uiLanguage' in migrated).toBe(false);
+  });
+
   it('defaults bookTitleMarquee to true', () => {
     expect(useBibleStore.getState().bookTitleMarquee)
       .toBe(true);

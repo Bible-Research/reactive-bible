@@ -32,8 +32,13 @@ type ErrorCode = keyof typeof CODED_KEYS;
  */
 export const localizedErrorText = (err: unknown): string => {
   const code = errorCodeOf(err);
-  if (code && code in CODED_KEYS) {
-    return i18n.t(CODED_KEYS[code as ErrorCode]);
+  if (code) {
+    // Any coded backend failure resolves to a catalog string —
+    // an unmapped code (e.g. missing_parameter on a
+    // ClientInputError) must not leak raw provider text.
+    return code in CODED_KEYS
+      ? i18n.t(CODED_KEYS[code as ErrorCode])
+      : i18n.t('errors.generic');
   }
   if (err instanceof RateLimitError) {
     return i18n.t('errors.rate_limited');
@@ -59,7 +64,14 @@ export const localizedErrorText = (err: unknown): string => {
  * text. Keys are translated; anything else passes through
  * unchanged.
  */
-export const textOrKey = (value: string): string =>
-  i18n.exists(value)
-    ? (i18n.t as (key: string) => string)(value)
-    : value;
+export const textOrKey = (value: string): string => {
+  if (!i18n.exists(value)) return value;
+  // `exists` is true for section keys too — a stored string
+  // equal to a section name would resolve to an object and
+  // crash the React render. Only leaf (string) results are
+  // translations.
+  const resolved: unknown = (
+    i18n.t as (key: string) => unknown
+  )(value);
+  return typeof resolved === 'string' ? resolved : value;
+};

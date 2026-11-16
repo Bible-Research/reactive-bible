@@ -170,8 +170,8 @@ export const useStagedImages = ({
             max: maxImages,
             noun: i18n.t(
               parentNoun === 'comment'
-                ? 'common.comment'
-                : 'common.note',
+                ? 'notes.nounComment'
+                : 'notes.nounNote',
             ),
           }),
         );

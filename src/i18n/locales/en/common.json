@@ -18,6 +18,7 @@
     "reportProblemHint": "Tell us what went wrong — it goes to the team with your current passage.",
     "theme": "Theme",
     "language": "Language",
+    "languageLoadFailed": "Could not load the selected language — keeping the current one.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "gettingStartedHint": "Watch short video tutorials on the app's features."
@@ -90,6 +91,7 @@
     "createAccount": "Create Account",
     "alreadyHaveAccount": "Already have an account?",
     "emailOptional": "Email (optional)",
+    "emailPlaceholder": "your.email@example.com",
     "emailRecovery": "Used for password recovery",
     "loggedOut": "Logged out",
     "loggedOutMsg": "You have been successfully logged out",
@@ -289,7 +291,9 @@
     "imageTitle": "Image",
     "cannotPost": "Cannot post comment",
     "addTextOrAttach": "Add text or attach an image.",
-    "unavailable": "Image unavailable"
+    "unavailable": "Image unavailable",
+    "reply": "Reply",
+    "deletedContent": "[deleted]"
   },
   "picker": {
     "bookNotIncluded": "Book not included",
@@ -435,13 +439,19 @@
     "provider_error": "The translation provider could not deliver the requested content.",
     "internal_error": "Something went wrong. Please try again later.",
     "generic": "Something went wrong. Please try again.",
-    "invalidScriptureFormat": "Invalid scripture format"
+    "forbidden": "You do not have permission to access this resource.",
+    "invalidScriptureFormat": "Invalid scripture format",
+    "unknownBook": "Unknown book: {{name}}",
+    "noChapter": "No chapter {{chapter}} in {{book}}",
+    "noVerse": "No verse {{verse}} in {{where}}",
+    "invalidVerseRange": "Invalid verse range {{range}}"
   },
   "updates": {
     "availableTitle": "Update available · v{{version}}",
     "availableBody": "A newer build is available (installed: v{{installed}}).",
     "availableHint": "Downloading opens your browser; Android will ask you to confirm the install once the APK finishes downloading.",
     "file": "File: {{name}}",
+    "buildSuffix": " (build {{build}})",
     "parseWarning": "If Android says \"There was a problem parsing the package\", the download is incomplete or an older file was opened: wait for the download to finish, then open exactly this file from the browser's download notification or Downloads.",
     "update": "Update",
     "later": "Later",
