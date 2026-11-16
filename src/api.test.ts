@@ -999,7 +999,10 @@ describe('API Functions', () => {
                 },
               ],
               meta: {
-                total: 4,
+                // Per-window match count, like the real
+                // SWORD provider emits — the client must
+                // accumulate across windows.
+                total: 2,
                 truncated: false,
                 progress: {
                   chapters_scanned: 20,
@@ -1062,6 +1065,34 @@ describe('API Functions', () => {
 
         expect(calls).toBe(1);
         expect(res.meta).toEqual({ total: 0, truncated: false });
+      });
+
+    it('stops when the server repeats the same next_cursor',
+      async () => {
+        let calls = 0;
+        server.use(
+          http.get(`${API_URL}/bible/search/`, () => {
+            calls += 1;
+            return HttpResponse.json({
+              data: {
+                groups: [],
+                meta: {
+                  total: 0,
+                  truncated: true,
+                  // Same token every window — a server that
+                  // cannot advance must not loop the client.
+                  next_cursor: 'djE6MQ==',
+                },
+              },
+            });
+          })
+        );
+
+        const res = await api.searchBibleGrouped(
+          'love', 'LVSGLU8');
+
+        expect(calls).toBe(2);
+        expect(res.meta.truncated).toBe(true);
       });
 
     it('aborts between windows when the signal fires',

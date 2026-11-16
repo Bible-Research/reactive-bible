@@ -85,17 +85,6 @@ interface SearchWindowData {
   meta?: SearchWindowMeta;
 }
 
-/** Sum of verse counts across merged groups. */
-const mergedTotal = (
-  merged: Map<string, SearchVerseGroup>
-): number => {
-  let count = 0;
-  for (const group of merged.values()) {
-    count += group.verses.length;
-  }
-  return count;
-};
-
 export const searchBibleGrouped = async (
   query: string,
   filesetId: string,
@@ -103,6 +92,7 @@ export const searchBibleGrouped = async (
   onProgress?: (progress: SearchScanProgress) => void
 ): Promise<GroupedSearchResponse> => {
   const merged = new Map<string, SearchVerseGroup>();
+  const seenCursors = new Set<string>();
   let total = 0;
   let truncated = false;
   let cursor: string | undefined;
@@ -146,17 +136,32 @@ export const searchBibleGrouped = async (
     }
     mergeWindowGroups(merged, groups ?? []);
     const meta = data.meta ?? {};
-    // `meta.total` is the backend's running total; fall back
-    // to our own verse count for non-cursor providers.
-    total =
+    // `meta.total` is this window's match count on resumable
+    // providers — accumulate it; fall back to counting this
+    // window's verses when a provider omits it.
+    total +=
       typeof meta.total === 'number'
         ? meta.total
-        : mergedTotal(merged);
+        : (groups ?? []).reduce(
+            (n, g) => n + g.verses.length,
+            0
+          );
     truncated = Boolean(meta.truncated);
     cursor =
       typeof meta.next_cursor === 'string'
         ? meta.next_cursor
         : undefined;
+    if (cursor) {
+      if (seenCursors.has(cursor)) {
+        // A repeated resume token means the server cannot
+        // advance — stop with what we have rather than loop
+        // until the rate limiter kicks in.
+        cursor = undefined;
+        truncated = true;
+      } else {
+        seenCursors.add(cursor);
+      }
+    }
     if (meta.progress) {
       onProgress?.(meta.progress);
     }
