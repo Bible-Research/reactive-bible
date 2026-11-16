@@ -115,6 +115,14 @@ export interface BibleState {
    */
   headerVisible: boolean;
   setHeaderVisible: (visible: boolean) => void;
+  /**
+   * Persisted opt-out for the bottom-bar book-name marquee
+   * (default on; `prefers-reduced-motion` also disables it
+   * regardless of this flag). The settings toggle UI is
+   * deferred — it will only need to write this field.
+   */
+  bookTitleMarquee: boolean;
+  setBookTitleMarquee: (enabled: boolean) => void;
   setActiveBookAndChapter: (
     activeBookId: string,
     activeChapter: number
@@ -214,6 +222,7 @@ export const initialState = {
   >,
   pendingScrollVerse: null as VerseRef | null,
   headerVisible: true,
+  bookTitleMarquee: true,
   structureByBible: {} as Record<string, api.BibleStructure>,
   activeStructureKey: null as string | null,
 };
@@ -300,6 +309,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setPendingScrollVerse: (pendingScrollVerse) =>
         set({ pendingScrollVerse }),
       setHeaderVisible: (headerVisible) => set({ headerVisible }),
+      setBookTitleMarquee: (bookTitleMarquee) =>
+        set({ bookTitleMarquee }),
       prepareBookSwitch: (bookId) => {
         // pendingScrollVerse carries the verse > 1 restore —
         // PassageView consumes it once the chapter loads.
@@ -405,7 +416,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 7,
+      version: 8,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

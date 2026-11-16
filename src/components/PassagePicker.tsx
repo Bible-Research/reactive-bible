@@ -53,6 +53,20 @@ const useStyles = createStyles((theme) => ({
     },
   },
 
+  // Book rows only: localized names ("Pāvila 2. vēstule
+  // korintiešiem") exceed the 185px column — wrap across
+  // lines with content-driven height instead of clipping.
+  // Composed AFTER `link` (cx order) so these win.
+  linkBook: {
+    height: "auto",
+    minHeight: rem(30),
+    lineHeight: 1.25,
+    whiteSpace: "normal",
+    overflowWrap: "break-word",
+    paddingTop: rem(4),
+    paddingBottom: rem(4),
+  },
+
   linkActive: {
     "&, &:hover": {
       backgroundColor:
@@ -280,7 +294,7 @@ const PassagePicker = ({
           {books.map((b) => (
             <button
               type="button"
-              className={cx(classes.link, {
+              className={cx(classes.link, classes.linkBook, {
                 [classes.linkActive]: bookId === b.book_id,
                 [classes.linkDimmed]: !b.covered,
               })}

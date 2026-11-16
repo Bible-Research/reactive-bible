@@ -401,6 +401,45 @@ describe('useBibleStore', () => {
       });
     });
 
+  it('migratePersistedState defaults bookTitleMarquee on ' +
+    'across the v8 bump', () => {
+    const migrated = migratePersistedState(
+      { activeBookId: 'JHN', activeChapter: 3 },
+      6
+    );
+    expect(migrated.bookTitleMarquee).toBe(true);
+  });
+
+  it('migratePersistedState preserves an explicit ' +
+    'bookTitleMarquee value', () => {
+    // A record that already carries the field keeps it —
+    // the migration only fills the gap, never rewrites a
+    // stored choice.
+    const migrated = migratePersistedState(
+      {
+        activeBookId: 'JHN',
+        activeChapter: 3,
+        bookTitleMarquee: false,
+      },
+      6
+    );
+    expect(migrated.bookTitleMarquee).toBe(false);
+  });
+
+  it('defaults bookTitleMarquee to true', () => {
+    expect(useBibleStore.getState().bookTitleMarquee)
+      .toBe(true);
+  });
+
+  it('setBookTitleMarquee toggles the pref', () => {
+    useBibleStore.getState().setBookTitleMarquee(false);
+    expect(useBibleStore.getState().bookTitleMarquee)
+      .toBe(false);
+    useBibleStore.getState().setBookTitleMarquee(true);
+    expect(useBibleStore.getState().bookTitleMarquee)
+      .toBe(true);
+  });
+
   describe('fetchNotes', () => {
     it('should fetch all notes and update state', async () => {
       const mockResponse = {
@@ -509,6 +548,7 @@ describe('useBibleStore', () => {
         'activeTextFilesetId',
         'audioActiveVerse',
         'bibleVersion',
+        'bookTitleMarquee',
         'lastSelectedTagId',
         'notes',
         'notesPage',
