@@ -293,3 +293,12 @@ export type ReadingPositionValue = {
   chapter: number;
   verse: number;
 };
+
+/**
+ * A tag's remembered pagination position — restored by
+ * `useTagNotesData` when `/notes/tag/:tagId` is revisited.
+ */
+export interface TagPagination {
+  page: number;
+  pageSize: number;
+}

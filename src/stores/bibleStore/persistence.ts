@@ -31,6 +31,7 @@ export const partializeState = (state: BibleState) => ({
   tags: state.tags,
   notesPage: state.notesPage,
   notesPageSize: state.notesPageSize,
+  tagPagination: state.tagPagination,
   readingPositions: state.readingPositions,
   // showAudioPlayer is NOT persisted
   // detailNote is NOT persisted (transient share context)
@@ -72,6 +73,10 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   USFM codes.
  * - pre-v6: persisted `verseSelection` is dropped unless its
  *   scope is 'bible' — note scopes are transient UI state.
+ * - pre-v7: `tagPagination` (per-tag page/pageSize map) is
+ *   introduced; the last-viewed tag's single-slot
+ *   `notesPage`/`notesPageSize` seed its entry so that tag's
+ *   restore keeps working.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -165,6 +170,34 @@ export const migratePersistedState = (
     if (sel && sel.scope !== 'bible') {
       migrated = { ...migrated, verseSelection: null };
     }
+  }
+
+  if (version < 7) {
+    // v6 only remembered the last-viewed tag's page — fold it
+    // into the per-tag map so that tag's restore keeps
+    // working under the new keyed lookup.
+    const lastTagId = migrated.lastSelectedTagId;
+    const size = migrated.notesPageSize;
+    const page = migrated.notesPage;
+    const tagPagination: Record<
+      string,
+      { page: number; pageSize: number }
+    > = {};
+    if (
+      typeof lastTagId === 'string' &&
+      lastTagId.length > 0 &&
+      typeof size === 'number' &&
+      size >= 1
+    ) {
+      tagPagination[lastTagId] = {
+        page:
+          typeof page === 'number' && page >= 1
+            ? Math.floor(page)
+            : 1,
+        pageSize: Math.floor(size),
+      };
+    }
+    migrated = { ...migrated, tagPagination };
   }
 
   return migrated as PersistedBibleState;

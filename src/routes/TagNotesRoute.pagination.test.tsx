@@ -160,6 +160,22 @@ const renderRoute = (
 const pagesRequested = () =>
   mockFetchNotes.mock.calls.map((call) => call[1]?.page);
 
+// Mantine renders each Select as a hidden input carrying
+// the raw value plus a visible readonly input showing the
+// chosen label — the visible one is what a user clicks.
+const visibleSelect = (displayValue: string) => {
+  const match = screen
+    .getAllByDisplayValue(displayValue)
+    .find(
+      (el): el is HTMLInputElement =>
+        el instanceof HTMLInputElement && el.type !== 'hidden'
+    );
+  if (!match) {
+    throw new Error(`No visible select for ${displayValue}`);
+  }
+  return match;
+};
+
 describe('TagNotesRoute pagination', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -227,6 +243,119 @@ describe('TagNotesRoute pagination', () => {
     // Every load must request the restored page, never page 1.
     expect(pagesRequested().every((p) => p === 3)).toBe(true);
   });
+
+  it('restores each tag\'s own stored page and page size, ' +
+    'not just the last tag\'s', async () => {
+      // tag-456 was last browsed at page 5 with 50 per page,
+      // even though the single-slot restore fields
+      // (lastSelectedTagId/notesPage) belong to tag-123.
+      mockUseParams.mockReturnValue({ tagId: 'tag-456' });
+      renderRoute('/notes/tag/tag-456', true, {
+        tagPagination: {
+          'tag-456': { page: 5, pageSize: 50 },
+        },
+      });
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-456',
+          expect.objectContaining({ page: 5 })
+        );
+      });
+      expect(useBibleStore.getState().notesPageSize).toBe(50);
+    });
+
+  it('prefers the per-tag record over the legacy ' +
+    'single-slot restore fields', async () => {
+      // Both records exist for tag-123: the per-tag map is
+      // authoritative — page 4 from the map, not page 3 from
+      // notesPage.
+      renderRoute('/notes/tag/tag-123', true, {
+        tagPagination: {
+          'tag-123': { page: 4, pageSize: 50 },
+        },
+      });
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-123',
+          expect.objectContaining({ page: 4 })
+        );
+      });
+      expect(useBibleStore.getState().notesPageSize).toBe(50);
+    });
+
+  it('restores the stored page when switching tags without ' +
+    'remounting', async () => {
+      // Navigate tag-123 -> tag-456 inside one mount (same
+      // route, new param): the seed must re-read the map for
+      // the new tag instead of reusing tag-123's page.
+      const { rerender } = renderRoute(
+        '/notes/tag/tag-123',
+        true,
+        {
+          tagPagination: {
+            'tag-123': { page: 3, pageSize: 25 },
+            'tag-456': { page: 5, pageSize: 50 },
+          },
+        }
+      );
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-123',
+          expect.objectContaining({ page: 3 })
+        );
+      });
+      mockFetchNotes.mockClear();
+      mockUseParams.mockReturnValue({ tagId: 'tag-456' });
+      rerender(
+        <MemoryRouter initialEntries={['/notes/tag/tag-456']}>
+          <TagNotesRoute />
+          <LocationProbe />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-456',
+          expect.objectContaining({ page: 5 })
+        );
+      });
+      // The restored page size must be tag-456's own —
+      // fetchNotes reads notesPageSize at call time.
+      expect(useBibleStore.getState().notesPageSize).toBe(50);
+    });
+
+  it('still resets to page 1 on a sort change even when ' +
+    'the tag has a stored page', async () => {
+      renderRoute('/notes/tag/tag-123', true, {
+        tagPagination: {
+          'tag-123': { page: 3, pageSize: 25 },
+        },
+      });
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenCalledWith(
+          'tag-123',
+          expect.objectContaining({ page: 3 })
+        );
+      });
+      mockFetchNotes.mockClear();
+
+      const sortSelect = await waitFor(() =>
+        visibleSelect('Custom: Ascending')
+      );
+      fireEvent.mouseDown(sortSelect);
+      await userEvent.click(
+        await screen.findByText('Date: Newest first')
+      );
+
+      await waitFor(() => {
+        expect(mockFetchNotes).toHaveBeenLastCalledWith(
+          'tag-123',
+          expect.objectContaining({ page: 1 })
+        );
+      });
+    });
 
   it('refreshes only the currently selected page', async () => {
     renderRoute();
@@ -438,22 +567,6 @@ describe('TagNotesRoute play from note', () => {
 });
 
 describe('TagNotesRoute sort/page-size/delete handlers', () => {
-  // Mantine renders each Select as a hidden input carrying
-  // the raw value plus a visible readonly input showing the
-  // chosen label — the visible one is what a user clicks.
-  const visibleSelect = (displayValue: string) => {
-    const match = screen
-      .getAllByDisplayValue(displayValue)
-      .find(
-        (el): el is HTMLInputElement =>
-          el instanceof HTMLInputElement && el.type !== 'hidden'
-      );
-    if (!match) {
-      throw new Error(`No visible select for ${displayValue}`);
-    }
-    return match;
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ tagId: 'tag-123' });

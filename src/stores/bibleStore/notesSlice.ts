@@ -178,6 +178,12 @@ export const createNotesSlice: StateCreator<
               notesPage: page,
               notesHasMore: cachedData.hasMore ?? false,
               notesOrdering: ordering || null,
+              // Record the viewed page/page size so revisiting
+              // this tag restores them.
+              tagPagination: {
+                ...state.tagPagination,
+                [tagId]: { page, pageSize: notesPageSize },
+              },
               // Remember the selection only for the user's own
               // tags — a foreign public tag must not hijack the
               // next /notes visit.
@@ -229,6 +235,14 @@ export const createNotesSlice: StateCreator<
           notesHasMore: response.next !== null,
           notesOrdering: ordering || null,
           allNotesFetched: !tagId && !response.next,
+          // Tagless fetches (the all-notes view) have no map
+          // key — leave every tag's record untouched.
+          tagPagination: tagId
+            ? {
+                ...state.tagPagination,
+                [tagId]: { page, pageSize: notesPageSize },
+              }
+            : state.tagPagination,
           // Browsing a foreign public tag must not rewrite the
           // remembered own-tag selection.
           lastSelectedTagId: tagId
