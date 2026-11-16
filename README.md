@@ -15,6 +15,7 @@ authentication, notes management, and Bible study tools.
 - 🔍 **Search** - Find verses and notes quickly
 - 🎵 **Audio Bible** - Listen to Bible chapters
 - 📱 **Responsive Design** - Works on all devices
+- 🎓 **Getting Started** - In-app video tutorials for new users
 
 ## Quick Start
 

@@ -45,7 +45,11 @@ Talks to the `bible_research` Django API.
   verse highlighter.
 - `src/routes/` — React Router routes; canonical Bible URL is
   `/bible/JHN.3.16-18` (USFM refs, also legacy `/bible/:book/...`
-  redirect).
+  redirect). `/getting-started` is a public document-style page —
+  its pathname is whitelisted for `overflow: auto` in `App.tsx`.
+- `src/data/` — static typed content catalogues, e.g.
+  `gettingStartedVideos.ts` (the /getting-started video list —
+  entries with `youtubeId: null` never render).
 - `src/mocks/` + `setupTests.ts` — MSW server for tests.
 
 ## Data model contracts

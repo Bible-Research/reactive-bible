@@ -189,6 +189,41 @@ describe('MainMenu Component', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('shows Getting started to anonymous visitors', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: { isAuthenticated: false },
+    });
+
+    expect(
+      screen.getByTitle('Getting started')
+    ).toBeInTheDocument();
+  });
+
+  it('places Getting started above Report a problem', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />);
+
+    const gettingStarted = screen.getByTitle('Getting started');
+    const report = screen.getByText('Report a problem');
+    expect(
+      gettingStarted.compareDocumentPosition(report),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('navigates to /getting-started and closes the menu',
+    async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<MainMenu {...defaultProps} />, {
+        authStoreState: { isAuthenticated: false },
+      });
+
+      await user.click(screen.getByTitle('Getting started'));
+
+      expect(mockNavigate).toHaveBeenCalledWith(
+        '/getting-started'
+      );
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+
   it('always shows the Report a problem row', () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
 

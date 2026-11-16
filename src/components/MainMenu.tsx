@@ -16,6 +16,7 @@ import {
   IconBrandAndroid,
   IconRefresh,
   IconBug,
+  IconRocket,
 } from "@tabler/icons-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -237,6 +238,32 @@ const MainMenu = ({
             </Group>
           </>
         )}
+
+        {/* Ungated: new anonymous users are the audience. */}
+        <Group spacing="xs" align="flex-start" noWrap>
+          <IconRocket
+            size={22}
+            style={{ marginTop: 4, flexShrink: 0 }}
+          />
+          <div>
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/getting-started');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+              title="Getting started"
+            >
+              Getting started
+            </Text>
+            <Text size="xs" color="dimmed">
+              Watch short video tutorials on the app&apos;s
+              features.
+            </Text>
+          </div>
+        </Group>
 
         <Group spacing="xs" align="flex-start" noWrap>
           <IconBug

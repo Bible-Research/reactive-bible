@@ -15,5 +15,8 @@ working together.
 - `protected-tags.test.tsx` - /tags route protection (issue
   #68): anonymous visitors redirect to /login while public
   share pages stay reachable
+- `getting-started.test.tsx` - /getting-started registration
+  stays public: anonymous visitors see the page, no /login
+  redirect
 - `tag-refresh.test.tsx` - Tags force-refresh on navigating to
   TagNotesRoute, BibleRoute, and TagManagementRoute
