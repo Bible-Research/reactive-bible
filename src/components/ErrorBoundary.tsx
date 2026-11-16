@@ -11,6 +11,7 @@ import { IconAlertTriangle } from '@tabler/icons-react';
 import * as Sentry from '@sentry/react';
 import { copyErrorDetails } from '../utils/errorReportDetails';
 import { reportError } from '../utils/errorReporter';
+import { textOrKey } from '../i18n/errorText';
 import i18n from '../i18n';
 
 interface Props {
@@ -70,8 +71,10 @@ export class ErrorBoundary extends Component<Props, State> {
             <IconAlertTriangle size={64} color="red" />
             <Title order={2}>{i18n.t('errorBoundary.title')}</Title>
             <Text color="dimmed" align="center">
-              {this.state.error?.message ||
-                i18n.t('errorBoundary.unexpected')}
+              {textOrKey(
+                this.state.error?.message ||
+                  'errorBoundary.unexpected'
+              )}
             </Text>
             <Group>
               <Button

@@ -186,7 +186,6 @@
     "moveToTop": "Переместить наверх",
     "noMatchingNotes": "Подходящих заметок нет",
     "verseReferences": "Ссылки на стихи",
-    "reloadHint": "Попробуйте перезагрузить примерно через 1 минуту.",
     "verseLimitNotice": "Из-за ограничений авторских прав невозможно отобразить более 500 стихов Библии."
   },
   "tags": {
@@ -337,11 +336,9 @@
     "deletedContent": "[удалено]"
   },
   "common": {
-    "loading": "Загрузка",
     "cancel": "Отмена",
     "delete": "Удалить",
     "save": "Сохранить",
-    "confirm": "Подтвердить",
     "error": "Ошибка",
     "success": "Успешно",
     "close": "Закрыть",
@@ -359,7 +356,6 @@
     "copied": "Скопировано!",
     "copyDetails": "Скопировать детали ошибки",
     "reportHint": "Пожалуйста, сообщите об этой ошибке, вставив детали в issue на GitHub.",
-    "contextRender": "Ошибка рендеринга React",
     "goHome": "На главную"
   },
   "errors": {
@@ -376,7 +372,10 @@
     "unknownBook": "Неизвестная книга: {{name}}",
     "noChapter": "В книге {{book}} нет главы {{chapter}}",
     "noVerse": "В {{where}} нет стиха {{verse}}",
-    "invalidVerseRange": "Недопустимый диапазон стихов {{range}}"
+    "invalidVerseRange": "Недопустимый диапазон стихов {{range}}",
+    "invalidChapter": "Недопустимая глава: {{chapter}}",
+    "invalidVerse": "Недопустимый стих: {{verse}}",
+    "unexpectedText": "Неожиданный текст: {{text}}"
   },
   "header": {
     "closeMenu": "Закрыть меню",
@@ -406,7 +405,8 @@
     "bookNotIncluded": "Книга не включена",
     "notIncludedMsg": "{{translation}} не включает {{book}}",
     "thisTranslation": "Этот перевод",
-    "typeToCite": "Введите @, чтобы сослаться на отрывок"
+    "typeToCite": "Введите @, чтобы сослаться на отрывок",
+    "enterForChapter": "Нажмите Enter, чтобы сослаться на всю главу"
   },
   "report": {
     "title": "Сообщить о проблеме",
@@ -465,11 +465,8 @@
     "scriptureReference": "Ссылка на Писание",
     "showLess": "Показать меньше",
     "readFullChapter": "Читать главу целиком",
-    "copyErrorDetails": "Скопировать детали ошибки",
-    "copiedExclaim": "Скопировано!",
     "unexpectedError": "Непредвиденная ошибка",
     "resourceLoadFailed": "Не удалось загрузить ресурс",
-    "renderError": "Ошибка рендеринга React",
     "tapToSelect": "Коснитесь стиха, чтобы выбрать его"
   },
   "updates": {

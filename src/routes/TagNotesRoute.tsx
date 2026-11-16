@@ -264,7 +264,10 @@ export default function TagNotesRoute() {
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
+        <Loader
+          size="lg"
+          aria-label={t('notes.loadingNotes')}
+        />
       </Center>
     );
   }
@@ -338,7 +341,7 @@ export default function TagNotesRoute() {
       <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         {pageLoading ? (
           <Center style={{ height: 200 }}>
-            <Loader aria-label="loading" />
+            <Loader aria-label={t('notes.loadingNotes')} />
           </Center>
         ) : notes.length > 0 ? (
           <Stack spacing="md" pb="xl" px="md">

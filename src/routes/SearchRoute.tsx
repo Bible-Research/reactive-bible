@@ -65,7 +65,7 @@ function toPlaylistItem(
 }
 
 export default function SearchRoute() {
-const { t } = useTranslation();
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -270,7 +270,7 @@ const { t } = useTranslation();
 
       {loading && (
         <Center mt="xl">
-          <Loader aria-label="loading" />
+          <Loader aria-label={t('notes.loadingNotes')} />
         </Center>
       )}
 

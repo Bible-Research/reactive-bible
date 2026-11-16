@@ -184,7 +184,6 @@
     "moveToTop": "Pārvietot uz augšu",
     "noMatchingNotes": "Nav atbilstošu piezīmju",
     "verseReferences": "Pantu atsauces",
-    "reloadHint": "Mēģiniet pārlādēt pēc aptuveni 1 minūtes.",
     "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem."
   },
   "tags": {
@@ -328,11 +327,9 @@
     "deletedContent": "[dzēsts]"
   },
   "common": {
-    "loading": "Ielādē",
     "cancel": "Atcelt",
     "delete": "Dzēst",
     "save": "Saglabāt",
-    "confirm": "Apstiprināt",
     "error": "Kļūda",
     "success": "Veiksmīgi",
     "close": "Aizvērt",
@@ -350,7 +347,6 @@
     "copied": "Nokopēts!",
     "copyDetails": "Kopēt kļūdas detaļas",
     "reportHint": "Lūdzu, ziņojiet par šo kļūdu, ielīmējot detaļas GitHub „Issues” ierakstā.",
-    "contextRender": "React renderēšanas kļūda",
     "goHome": "Uz sākumu"
   },
   "errors": {
@@ -367,7 +363,10 @@
     "unknownBook": "Nezināma grāmata: {{name}}",
     "noChapter": "Grāmatā {{book}} nav nodaļas {{chapter}}",
     "noVerse": "Vietā {{where}} nav panta {{verse}}",
-    "invalidVerseRange": "Nederīgs pantu diapazons {{range}}"
+    "invalidVerseRange": "Nederīgs pantu diapazons {{range}}",
+    "invalidChapter": "Nederīga nodaļa: {{chapter}}",
+    "invalidVerse": "Nederīgs pants: {{verse}}",
+    "unexpectedText": "Negaidīts teksts: {{text}}"
   },
   "header": {
     "closeMenu": "Aizvērt izvēlni",
@@ -397,7 +396,8 @@
     "bookNotIncluded": "Grāmata nav iekļauta",
     "notIncludedMsg": "{{translation}} neietver {{book}}",
     "thisTranslation": "Šis tulkojums",
-    "typeToCite": "Rakstiet @, lai citētu pantu"
+    "typeToCite": "Rakstiet @, lai citētu pantu",
+    "enterForChapter": "Nospiediet Enter, lai citētu visu nodaļu"
   },
   "report": {
     "title": "Ziņot par problēmu",
@@ -453,11 +453,8 @@
     "scriptureReference": "Rakstu vieta",
     "showLess": "Rādīt mazāk",
     "readFullChapter": "Lasīt visu nodaļu",
-    "copyErrorDetails": "Kopēt kļūdas detaļas",
-    "copiedExclaim": "Nokopēts!",
     "unexpectedError": "Neparedzēta kļūda",
     "resourceLoadFailed": "Neizdevās ielādēt resursu",
-    "renderError": "React renderēšanas kļūda",
     "tapToSelect": "Pieskarieties pantam, lai to atlasītu"
   },
   "updates": {

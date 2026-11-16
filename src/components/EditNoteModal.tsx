@@ -387,9 +387,6 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             {verseError ? (
               <Text color="red" size="sm" mt="sm">
                 {verseError}
-                {note.error_code === "rate_limited"
-                  ? ` ${t('notes.reloadHint')}`
-                  : ""}
               </Text>
             ) : (
               <>

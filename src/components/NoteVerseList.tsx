@@ -111,9 +111,6 @@ const NoteVerseList = ({
       {verseError ? (
         <Text color="red" size="sm" mt={8}>
           {verseError}
-          {note.error_code === 'rate_limited'
-            ? ` ${t('notes.reloadHint')}`
-            : ''}
         </Text>
       ) : folded ? (
         note?.verses?.slice(0, 1).map((v) => renderVerse(v, true))

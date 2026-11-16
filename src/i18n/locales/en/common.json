@@ -182,7 +182,6 @@
     "moveToTop": "Move to top",
     "noMatchingNotes": "No matching notes",
     "verseReferences": "Verse references",
-    "reloadHint": "Try reloading in about 1 minute.",
     "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions."
   },
   "tags": {
@@ -322,7 +321,8 @@
     "bookNotIncluded": "Book not included",
     "notIncludedMsg": "{{translation}} doesn't include {{book}}",
     "thisTranslation": "This translation",
-    "typeToCite": "Type @ to cite a passage"
+    "typeToCite": "Type @ to cite a passage",
+    "enterForChapter": "Enter for whole chapter"
   },
   "passage": {
     "noContent": "No content for {{book}} {{chapter}}",
@@ -435,11 +435,8 @@
     "scriptureReference": "Scripture reference",
     "showLess": "Show less",
     "readFullChapter": "Read full chapter",
-    "copyErrorDetails": "Copy error details",
-    "copiedExclaim": "Copied!",
     "unexpectedError": "Unexpected error",
     "resourceLoadFailed": "Resource failed to load",
-    "renderError": "React render error",
     "tapToSelect": "Tap a verse to select it"
   },
   "report": {
@@ -467,7 +464,10 @@
     "unknownBook": "Unknown book: {{name}}",
     "noChapter": "No chapter {{chapter}} in {{book}}",
     "noVerse": "No verse {{verse}} in {{where}}",
-    "invalidVerseRange": "Invalid verse range {{range}}"
+    "invalidVerseRange": "Invalid verse range {{range}}",
+    "invalidChapter": "Invalid chapter: {{chapter}}",
+    "invalidVerse": "Invalid verse: {{verse}}",
+    "unexpectedText": "Unexpected text: {{text}}"
   },
   "updates": {
     "availableTitle": "Update available · v{{version}}",
@@ -559,11 +559,9 @@
     }
   },
   "common": {
-    "loading": "Loading",
     "cancel": "Cancel",
     "delete": "Delete",
     "save": "Save",
-    "confirm": "Confirm",
     "error": "Error",
     "success": "Success",
     "close": "Close",
@@ -578,7 +576,6 @@
     "copied": "Copied!",
     "copyDetails": "Copy error details",
     "reportHint": "Please report this bug by pasting the details into a GitHub issue.",
-    "contextRender": "React render error",
     "goHome": "Go to Home"
   },
   "header": {
