@@ -362,6 +362,9 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 chapter={pickerChapter}
                 verses={pickerVerses}
                 titlePrefix="edit-note-"
+                // Note refs are stored USFM — an uncovered
+                // book is a legitimate citation target.
+                restrictToCoverage={false}
                 onSelectBook={(bookId) => {
                   setPickerBookId(bookId);
                   setPickerChapter(null);

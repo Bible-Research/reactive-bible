@@ -141,6 +141,10 @@ const ScriptureMentionPopup = ({
         }
         height={POPUP_HEIGHT}
         titlePrefix="mention-"
+        // Citations are stored as USFM refs — valid under
+        // any translation, so an uncovered book stays
+        // selectable (typed input already parses it).
+        restrictToCoverage={false}
         onSelectBook={(bookId) => {
           rewriteQuery(`@${bookId}.`);
         }}

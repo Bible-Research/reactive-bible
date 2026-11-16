@@ -303,6 +303,48 @@ describe('loadStructure SWR resolution', () => {
     expect(isBookCovered('EXO')).toBe(false);
   });
 
+  it('fetches by the resolved abbr for a grouped ' +
+    'product id', async () => {
+      // Stored selections are grouped product ids minted as
+      // '{abbr}:text:{n}' by groupTextFilesets — the ':'
+      // fails the backend FILESET_ID_RE (400
+      // invalid_parameter), so the fetch must go out under
+      // the resolved listing abbr.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'LAVNLI:text:1',
+        translations: LV_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(LV);
+
+      const p = slice.loadStructure();
+      expect(state.activeStructureKey).toBe('LAVNLI');
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure)
+          .toHaveBeenCalledWith('LAVNLI');
+      });
+      await p;
+    });
+
+  it('resolves the product-id abbr prefix before the ' +
+    'translations list lands', async () => {
+      // No owner resolvable yet — the abbr still comes off
+      // the '{abbr}:{kind}:{n}' prefix so the request is
+      // never fired with a ':'-bearing product id.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'LAVNLI:text:1',
+        translations: [],
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(LV);
+
+      const p = slice.loadStructure();
+      expect(state.activeStructureKey).toBe('LAVNLI');
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure)
+          .toHaveBeenCalledWith('LAVNLI');
+      });
+      await p;
+    });
+
   it('dedupes concurrent fetches per abbr', async () => {
     const { slice } = makeStore({
       activeTextFilesetId: 'LAVNLI',

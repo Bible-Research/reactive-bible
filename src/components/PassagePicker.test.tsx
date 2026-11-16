@@ -7,6 +7,9 @@ import { renderWithProviders } from '../__tests__/helpers';
 import { setActiveStructure } from '../utils/bookNameRegistry';
 import { showNotification } from '@mantine/notifications';
 import type { BibleStructure } from '../types';
+import catalogLv from '../assets/bookNames.lv.json';
+
+const LV = catalogLv as unknown as BibleStructure;
 
 vi.mock('@mantine/notifications', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -221,6 +224,75 @@ describe('structure coverage (task 3.2)', () => {
       .toBeInTheDocument();
     expect(screen.queryByTitle('mention-chapter-4'))
       .not.toBeInTheDocument();
+  });
+
+  it('shows same-language names for uncovered books', () => {
+    const overrides = stagePartial();
+    // Same-language fallback catalog: uncovered entries
+    // display Latvian names, not English.
+    setActiveStructure(partial, LV);
+    renderWithProviders(<PassagePicker {...{
+      bookId: 'JHN', chapter: 3, verses: [16],
+      titlePrefix: 'nav-', onSelectBook: vi.fn(),
+      onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+    }} />, { stores: { bible: overrides } });
+    expect(screen.getByTitle('nav-book-EXO'))
+      .toHaveTextContent('2. Mozus grāmata');
+  });
+
+  it('keeps the previous coverage while the switched-to ' +
+    'structure is in flight', () => {
+      // activeStructureKey already flipped to a bible whose
+      // structure hasn't landed — `structure` is null but
+      // the registry still holds the previous coverage, so
+      // uncovered books stay dimmed instead of flashing
+      // all-covered.
+      setActiveStructure(partial);
+      renderWithProviders(<PassagePicker {...{
+        bookId: 'GEN', chapter: 2, verses: [],
+        titlePrefix: 'nav-', onSelectBook: vi.fn(),
+        onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+      }} />, { stores: { bible: {
+        activeTextFilesetId: 'DEUBIB',
+        translations: [],
+        structureByBible: {},
+        activeStructureKey: 'DEUBIB',
+        loadStructure: vi.fn(),
+      }}});
+      // Names still come from the previous structure…
+      expect(screen.getByTitle('nav-book-GEN'))
+        .toHaveTextContent('1. Mozus grāmata');
+      // …and so does coverage: EXO stays uncovered (no
+      // data-covered attr) and GEN keeps its [1,2,3]
+      // chapter list — no canon flash.
+      expect(screen.getByTitle('nav-book-EXO'))
+        .not.toHaveAttribute('data-covered');
+      expect(screen.getByTitle('nav-book-GEN'))
+        .toHaveAttribute('data-covered');
+      expect(screen.getByTitle('nav-chapter-3'))
+        .toBeInTheDocument();
+      expect(screen.queryByTitle('nav-chapter-4'))
+        .not.toBeInTheDocument();
+    });
+
+  it('lets citation pickers select uncovered books', async () => {
+    const overrides = stagePartial();
+    const onSelectBook = vi.fn();
+    renderWithProviders(<PassagePicker {...{
+      bookId: 'GEN', chapter: 1, verses: [],
+      titlePrefix: 'mention-', restrictToCoverage: false,
+      onSelectBook,
+      onSelectChapter: vi.fn(), onSelectVerse: vi.fn(),
+    }} />, { stores: { bible: overrides } });
+    await userEvent.click(
+      screen.getByTitle('mention-book-EXO')
+    );
+    expect(onSelectBook).toHaveBeenCalledWith('EXO');
+    expect(showNotification).not.toHaveBeenCalled();
+    // Chapter column shows the bundled canon for citation,
+    // not the structure's coverage.
+    expect(screen.getByTitle('mention-chapter-50'))
+      .toBeInTheDocument();
   });
 });
 });

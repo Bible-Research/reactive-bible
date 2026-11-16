@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { showNotification } from '@mantine/notifications';
 import { useBibleStore } from '../store';
+import { useActiveStructure } from './useBookName';
 import type { Note } from '../types';
 import {
   buildNotePlaylistItems,
@@ -37,9 +38,13 @@ export const useNotePlaylist = (
     [sortedNotes]
   );
 
+  // Subscribing to the resolved structure re-derives the
+  // localized labels when a fresher structure swaps in
+  // mid-playlist (same pattern as VerseActionToolbar).
+  const structure = useActiveStructure();
   const playlistItems = useMemo(
-    () => buildNotePlaylistItems(sortedNotes),
-    [sortedNotes]
+    () => buildNotePlaylistItems(sortedNotes, structure),
+    [sortedNotes, structure]
   );
 
   useEffect(() => {

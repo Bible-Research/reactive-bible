@@ -12,10 +12,17 @@
 import type { BibleStructure } from '../types';
 
 interface ActiveStructure {
-  /** USFM code -> localized display name. */
+  /** USFM code -> localized display name (covered books). */
   nameByCode: Map<string, string>;
-  /** USFM code -> localized short name. */
+  /** USFM code -> localized short name (covered books). */
   shortByCode: Map<string, string>;
+  /**
+   * USFM code -> same-language bundled name for books the
+   * structure does NOT cover — a partial canon still names
+   * its missing books in its own language, not English.
+   */
+  fallbackNameByCode: Map<string, string>;
+  fallbackShortByCode: Map<string, string>;
   /** compacted lowercase localized name -> USFM code. */
   codeByName: Map<string, string>;
   /** USFM code -> covered chapter-number list. */
@@ -27,6 +34,8 @@ interface ActiveStructure {
 const empty = (): ActiveStructure => ({
   nameByCode: new Map(),
   shortByCode: new Map(),
+  fallbackNameByCode: new Map(),
+  fallbackShortByCode: new Map(),
   codeByName: new Map(),
   chaptersByCode: new Map(),
   version: 0,
@@ -54,9 +63,16 @@ export const structureVersion = (): number => active.version;
  * Called by the store slice only when the structure belongs
  * to the active bible — a stale fetch landing for a previous
  * translation must not re-point the display layer.
+ *
+ * `fallback` is the bundled catalog for the structure's own
+ * language: it names the books the structure does not cover
+ * (a partial Latvian canon still shows Latvian names for its
+ * missing books). Coverage reads stay on the covered maps —
+ * fallback entries never make a book count as covered.
  */
 export const setActiveStructure = (
-  structure: BibleStructure
+  structure: BibleStructure,
+  fallback?: BibleStructure
 ): void => {
   const next = empty();
   next.version = active.version + 1;
@@ -71,6 +87,23 @@ export const setActiveStructure = (
       if (n) next.codeByName.set(compactBookName(n), code);
     }
   }
+  for (const book of fallback?.books ?? []) {
+    const code = book.book_id.toUpperCase();
+    if (next.nameByCode.has(code)) continue;
+    next.fallbackNameByCode.set(code, book.name);
+    if (book.name_short) {
+      next.fallbackShortByCode.set(code, book.name_short);
+    }
+    for (const n of [book.name, book.name_short]) {
+      if (!n) continue;
+      const q = compactBookName(n);
+      // Covered names claim their compacted form first, and
+      // a duplicated fallback name keeps its first owner.
+      if (!next.codeByName.has(q)) {
+        next.codeByName.set(q, code);
+      }
+    }
+  }
   active = next;
 };
 
@@ -79,17 +112,24 @@ export const resetActiveStructure = (): void => {
   active = empty();
 };
 
-/** Localized display name for a USFM code, if loaded. */
+/**
+ * Localized display name for a USFM code: the covered-book
+ * name from the active structure, then the same-language
+ * bundled name for an uncovered entry (undefined when no
+ * structure/catalog resolved).
+ */
 export const localizedName = (
   code: string
 ): string | undefined =>
-  active.nameByCode.get(code.toUpperCase());
+  active.nameByCode.get(code.toUpperCase()) ??
+  active.fallbackNameByCode.get(code.toUpperCase());
 
-/** Localized short name for a USFM code, if loaded. */
+/** Localized short name — same chain as localizedName. */
 export const localizedShortName = (
   code: string
 ): string | undefined =>
-  active.shortByCode.get(code.toUpperCase());
+  active.shortByCode.get(code.toUpperCase()) ??
+  active.fallbackShortByCode.get(code.toUpperCase());
 
 /**
  * Additive localized name resolution: localized name ->

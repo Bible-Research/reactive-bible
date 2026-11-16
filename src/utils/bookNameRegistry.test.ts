@@ -8,6 +8,7 @@ import {
   chaptersFor,
   isBookCovered,
   localizedName,
+  localizedShortName,
   resetActiveStructure,
   setActiveStructure,
   structureVersion,
@@ -133,4 +134,34 @@ describe('coverage queries', () => {
     setActiveStructure(EN);
     expect(structureVersion()).toBe(v0 + 2);
   });
+});
+
+describe('same-language fallback for uncovered books', () => {
+  it('names uncovered books from the bundled catalog ' +
+    'without flipping coverage', () => {
+      setActiveStructure(partialStructure, LV);
+      // Covered name comes from the structure itself.
+      expect(localizedName('GEN')).toBe('1. Mozus grāmata');
+      // Uncovered name comes from the same-language
+      // catalog — not English.
+      expect(localizedName('EXO')).toBe('2. Mozus grāmata');
+      expect(localizedBookName('EXO'))
+        .toBe('2. Mozus grāmata');
+      expect(localizedShortName('EXO')).toBe('2. Mozus');
+      // Fallback names never flip coverage.
+      expect(isBookCovered('EXO')).toBe(false);
+      expect(chaptersFor('EXO')).toBeNull();
+    });
+
+  it('keeps English fallback when no catalog is passed', () => {
+    setActiveStructure(partialStructure);
+    expect(localizedName('EXO')).toBeUndefined();
+    expect(localizedBookName('EXO')).toBe('Exodus');
+  });
+
+  it('lets typed localized names resolve uncovered books',
+    () => {
+      setActiveStructure(partialStructure, LV);
+      expect(toUsfmCode('2. Mozus grāmata')).toBe('EXO');
+    });
 });

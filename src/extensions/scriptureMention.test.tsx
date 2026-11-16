@@ -25,6 +25,26 @@ import catalogLv from '../assets/bookNames.lv.json';
 
 const LV = catalogLv as unknown as BibleStructure;
 
+/** Partial Latvian canon — GEN/JHN only; EXO is uncovered. */
+const PARTIAL_LV: BibleStructure = {
+  books: [
+    {
+      book_id: 'GEN',
+      name: '1. Mozus grāmata',
+      name_short: '1. Mozus',
+      testament: 'OT',
+      chapters: [1, 2, 3],
+    },
+    {
+      book_id: 'JHN',
+      name: 'Jāņa evaņģēlijs',
+      name_short: 'Jāņa',
+      testament: 'NT',
+      chapters: [1, 2, 3, 4, 5],
+    },
+  ],
+};
+
 // Mantine components in the popup need these jsdom globals.
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -259,6 +279,29 @@ describe('ScriptureMention suggestion', () => {
       ).toBeTruthy()
     );
   });
+
+  it('lets an uncovered book be cited from the picker',
+    async () => {
+      // Citations store USFM refs — valid under any
+      // translation — so coverage gating (a navigation
+      // concept) doesn't apply to the mention popup: an
+      // uncovered book stays clickable just like typing
+      // '@EXO.' already parses.
+      setActiveStructure(PARTIAL_LV);
+      await renderEditor({ loadStructure: vi.fn() });
+      editor?.commands.insertContent('@');
+      await waitFor(() => expect(popupOpen()).toBe(true));
+
+      const exo = document.querySelector(
+        '[title="mention-book-EXO"]'
+      );
+      expect(exo).toBeTruthy();
+      fireEvent.click(exo as Element);
+
+      await waitFor(() =>
+        expect(editor?.getText()).toBe('@EXO.')
+      );
+    });
 
   it('marks a dismissed invalid ref with a red decoration', async () => {
     await renderEditor();

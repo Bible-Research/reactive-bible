@@ -47,9 +47,10 @@ const catalogLangFor = (iso?: string): string | undefined => {
 };
 
 /**
- * In-flight fetches keyed by the fileset id actually being
- * fetched — dedupes SWR kicks, including a re-kick that
- * re-keys the bible once the translations list lands.
+ * In-flight fetches keyed by the stored selection id —
+ * dedupes SWR kicks, including a re-kick that resolves the
+ * owner abbr once the translations list lands (the abbr
+ * changes between kicks; the selection id does not).
  */
 const inflight = new Map<string, Promise<void>>();
 
@@ -99,7 +100,15 @@ export const createStructureSlice: StateCreator<
         activeTextFilesetId,
         translations,
       );
-    const abbr = owner?.abbr ?? activeTextFilesetId;
+    // The structure endpoint takes a fileset id or the
+    // bible's listing abbr — never a grouped product id:
+    // '{abbr}:{kind}:{n}' carries a ':' that the backend's
+    // FILESET_ID_RE rejects with 400. The abbr is
+    // recoverable from the product id's prefix even before
+    // the translations list resolves the owner, and raw
+    // fileset ids contain no ':' so the split is loss-free.
+    const abbr =
+      owner?.abbr ?? activeTextFilesetId.split(':')[0];
     const lang = catalogLangFor(owner?.language_iso);
 
     // Point the display layer at the new bible first; the
@@ -119,7 +128,13 @@ export const createStructureSlice: StateCreator<
       getCachedStructure(activeTextFilesetId) ??
       (lang ? BUNDLED_CATALOGS[lang] : undefined);
     if (staged) {
-      applyStructure(abbr, staged, set, get);
+      applyStructure(
+        abbr,
+        staged,
+        lang ? BUNDLED_CATALOGS[lang] : undefined,
+        set,
+        get,
+      );
     }
 
     const existing = inflight.get(activeTextFilesetId);
@@ -128,7 +143,7 @@ export const createStructureSlice: StateCreator<
     // client layer (module-mocked api barrel, offline guard)
     // must degrade into the warn path, not crash the loader.
     const p = Promise.resolve()
-      .then(() => fetchBibleStructure(activeTextFilesetId))
+      .then(() => fetchBibleStructure(abbr))
       .then((structure) => {
         // A malformed resolution (or a test mock returning
         // undefined) must take the warn path — applying it
@@ -139,13 +154,22 @@ export const createStructureSlice: StateCreator<
         // Re-resolve the owner at landing: the translations
         // list may have arrived mid-flight, upgrading the
         // key from the fileset id to the bible abbr.
-        const landAbbr =
-          findTranslationByFilesetId(
-            activeTextFilesetId,
-            get().translations,
-          )?.abbr ?? abbr;
+        const landOwner = findTranslationByFilesetId(
+          activeTextFilesetId,
+          get().translations,
+        );
+        const landAbbr = landOwner?.abbr ?? abbr;
+        const landLang = catalogLangFor(
+          landOwner?.language_iso,
+        );
         cacheStructure(landAbbr, structure);
-        applyStructure(landAbbr, structure, set, get);
+        applyStructure(
+          landAbbr,
+          structure,
+          landLang ? BUNDLED_CATALOGS[landLang] : undefined,
+          set,
+          get,
+        );
       })
       .catch((error) => {
         // Failure keeps the staged/previous structure — the
@@ -165,10 +189,13 @@ export const createStructureSlice: StateCreator<
  * registry re-pointing (only when `abbr` is still the active
  * bible — a fetch landing for a previous translation updates
  * the cache/store but must not steal the display layer).
+ * `fallback` is the same-language bundled catalog used to
+ * name uncovered books — see bookNameRegistry.
  */
 const applyStructure = (
   abbr: string,
   structure: BibleStructure,
+  fallback: BibleStructure | undefined,
   set: (fn: (s: BibleState) => Partial<BibleState>) => void,
   get: () => BibleState,
 ): void => {
@@ -178,7 +205,7 @@ const applyStructure = (
   // result — pushing after set() would leave display
   // selectors one update behind.
   if (get().activeStructureKey === abbr) {
-    setActiveStructure(structure);
+    setActiveStructure(structure, fallback);
   }
   set((state) => ({
     structureByBible: {

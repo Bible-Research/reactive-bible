@@ -7,6 +7,10 @@ import { getAllBooks } from "../utils/scriptureMention";
 import { useActiveStructure } from "../hooks/useBookName";
 import { useBibleStore } from "../store";
 import { findTranslationByFilesetId } from "../utils/filesetGroups";
+import {
+  chaptersFor,
+  isBookCovered,
+} from "../utils/bookNameRegistry";
 
 const useStyles = createStyles((theme) => ({
   border: {
@@ -94,6 +98,17 @@ interface PassagePickerProps {
   /** 'nav-' for BibleSelector, 'mention-' for the picker popup. */
   titlePrefix?: string;
   /**
+   * Restrict books/chapters to the active structure's
+   * coverage. True for navigation pickers — the reader
+   * cannot open a book the bible lacks, so uncovered
+   * entries dim and refuse with a notification. Citation
+   * pickers (mention-, edit-note-) pass false: refs are
+   * stored as USFM and stay valid under any translation,
+   * so an uncovered book is a legitimate citation target
+   * (typed input already parses it).
+   */
+  restrictToCoverage?: boolean;
+  /**
    * Toggling this re-runs the scroll-to-active effects — e.g. when
    * the picker becomes visible again after display:none hid it.
    */
@@ -110,6 +125,7 @@ const PassagePicker = ({
   bookFilter,
   height = "100%",
   titlePrefix = "nav-",
+  restrictToCoverage = true,
   scrollSignal,
   onSelectBook,
   onSelectChapter,
@@ -135,9 +151,13 @@ const PassagePicker = ({
    * overlaid. `covered` marks books the active structure
    * actually contains; uncovered books stay rendered but
    * dimmed+clickable (spec: notification, no navigation).
+   * `isBookCovered` reads the registry — it still holds the
+   * previous structure while a bible-switch fetch is in
+   * flight (`structure` === null), so the greying never
+   * resets to all-covered mid-swap.
    */
   const books = useMemo(() => {
-    const covered = new Map(
+    const names = new Map(
       (structure?.books ?? []).map((b) => [
         b.book_id,
         b.name,
@@ -145,9 +165,9 @@ const PassagePicker = ({
     );
     const all = getAllBooks().map((b) => ({
       book_id: b.book_id,
-      book_name: covered.get(b.book_id) ?? b.book_name,
+      book_name: names.get(b.book_id) ?? b.book_name,
       covered:
-        structure === null || covered.has(b.book_id),
+        !restrictToCoverage || isBookCovered(b.book_id),
     }));
     if (!bookFilter) return all;
     const allowed = new Set(bookFilter);
@@ -155,22 +175,29 @@ const PassagePicker = ({
       (b) =>
         allowed.has(b.book_name) || allowed.has(b.book_id)
     );
-  }, [bookFilter, structure]);
+  }, [bookFilter, structure, restrictToCoverage]);
 
   /**
    * Chapters column = the structure's real coverage when
-   * loaded; bundled canon otherwise.
+   * loaded; bundled canon otherwise. Coverage only applies
+   * to navigation pickers — a citation picker can reference
+   * any canonical chapter. The registry's `chaptersFor`
+   * still answers from the previous structure while the
+   * switched-to structure is in flight, so the column
+   * doesn't flash the bundled canon mid-swap.
    */
   const chapters = useMemo(() => {
     if (!bookId) return [];
-    const covered = structure?.books.find(
-      (b) => b.book_id === bookId
-    );
-    if (covered && covered.chapters.length > 0) {
-      return covered.chapters;
+    const covered = restrictToCoverage
+      ? structure?.books.find(
+          (b) => b.book_id === bookId
+        )?.chapters ?? chaptersFor(bookId)
+      : null;
+    if (covered && covered.length > 0) {
+      return covered;
     }
     return getChapters(bookId);
-  }, [bookId, structure]);
+  }, [bookId, structure, restrictToCoverage]);
 
   /**
    * Uncovered-book click: notification, no navigation. Uses
