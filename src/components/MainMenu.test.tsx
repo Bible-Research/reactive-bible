@@ -98,6 +98,17 @@ describe('MainMenu Component', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
+  it('pins the close button to the right side of the menu', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />);
+
+    // The drawer body is a plain block container — the X is
+    // pushed right by an auto inline-start margin, not flex
+    // alignment.
+    expect(screen.getByTitle('Close menu')).toHaveStyle(
+      'margin-inline-start: auto'
+    );
+  });
+
   it('should navigate to the active passage on Read Bible', async () => {
     const user = userEvent.setup();
     renderWithProviders(<MainMenu {...defaultProps} />);
