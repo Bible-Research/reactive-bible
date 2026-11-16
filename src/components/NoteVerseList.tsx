@@ -105,7 +105,7 @@ const NoteVerseList = ({
         <Text color="red" size="sm" mt={8}>
           {verseError}
           {note.error_code === 'rate_limited'
-            ? ' Try reloading in a few moments.'
+            ? ' Try reloading in about 1 minute.'
             : ''}
         </Text>
       ) : folded ? (

@@ -155,7 +155,7 @@ export const getVersesFromApi = async (
     if (response.status === 429) {
       throw new RateLimitError(
         'The translation provider is currently rate-limited. ' +
-        'Please try again in a few moments or switch to KJV.'
+        'Please try again in about 1 minute or switch to KJV.'
       );
     }
 

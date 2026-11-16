@@ -561,12 +561,12 @@ const PassageView = () => {
     );
     const rateLimitHint =
       'The translation provider has temporarily rate-limited ' +
-      'requests. Please wait a few moments and try again, or ' +
-      'switch to KJV which is always available offline.';
+      'requests. Please wait about 1 minute and try again, ' +
+      'or switch to KJV which is always available offline.';
     const providerHint =
       'The translation provider could not deliver this ' +
       'text. Its resources are likely exhausted (rate ' +
-      'limited). Try again in a few moments, or switch ' +
+      'limited). Try again in about 1 minute, or switch ' +
       'to KJV which is always available offline.';
     const genericHint =
       'Try selecting a different text version in the ' +

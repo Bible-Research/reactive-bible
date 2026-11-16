@@ -374,7 +374,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               <Text color="red" size="sm" mt="sm">
                 {verseError}
                 {note.error_code === "rate_limited"
-                  ? " Try reloading in a few moments."
+                  ? " Try reloading in about 1 minute."
                   : ""}
               </Text>
             ) : (

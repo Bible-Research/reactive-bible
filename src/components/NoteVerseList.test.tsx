@@ -135,7 +135,7 @@ describe('NoteVerseList', () => {
       screen.getByText(/rate limit exceeded/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/reloading in a few moments/i)
+      screen.getByText(/reloading in about 1 minute/i)
     ).toBeInTheDocument();
   });
 
