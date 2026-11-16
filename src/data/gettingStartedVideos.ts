@@ -28,8 +28,9 @@ export const TUTORIAL_VIDEOS: TutorialVideo[] = [
     description:
       'Get oriented: the top bar, the bottom bar, auto-hiding ' +
       'chrome, and the main menu.',
-    // Placeholder until the real tutorial is recorded.
-    youtubeId: 'aqz-KE-bpKQ',
+    // Placeholder until the real tutorial is recorded —
+    // "Moses Got That Aura" (The Promised Land, ~22 s).
+    youtubeId: 'sUbMYzgIfRM',
   },
   {
     id: 'go-to-any-verse',
