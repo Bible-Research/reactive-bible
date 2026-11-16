@@ -4,6 +4,7 @@ import {
   ErrorNotificationContent,
 } from '../components/ErrorNotificationContent';
 import {
+  CHUNK_LOAD_PATTERN,
   isChunkLoadError,
   reloadForStaleChunk,
 } from './chunkLoadError';
@@ -234,7 +235,8 @@ function handleGlobalError(event: Event): void {
     // online can still self-heal. The guard makes this safe to
     // attempt on every failure.
     if (
-      target.tagName !== 'IMG' &&
+      (target.tagName === 'SCRIPT' ||
+        target.tagName === 'LINK') &&
       isOwnBuildAsset(src)
     ) {
       reloadForStaleChunk();
@@ -285,7 +287,14 @@ function handleUnhandledRejection(
 // including import()s not wrapped by lazyWithReload.
 function handleVitePreloadError(event: Event): void {
   const payload = (event as { payload?: unknown }).payload;
-  if (isChunkLoadError(payload)) {
+  // Vite passes the rejection reason — normally an Error — but
+  // a bare string rejection naming a stale chunk should still
+  // self-heal, so the pattern is matched against strings too.
+  if (
+    isChunkLoadError(payload) ||
+    (typeof payload === 'string' &&
+      CHUNK_LOAD_PATTERN.test(payload))
+  ) {
     reloadForStaleChunk();
   }
 }

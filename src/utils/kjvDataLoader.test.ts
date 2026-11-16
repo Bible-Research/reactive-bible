@@ -42,6 +42,10 @@ const importLoader = () => import('./kjvDataLoader');
 const mockedReloadForStaleChunk = async () =>
   (await import('./chunkLoadError')).reloadForStaleChunk;
 
+const mockedIsStaleChunkReloadPending = async () =>
+  (await import('./chunkLoadError'))
+    .isStaleChunkReloadPending;
+
 beforeEach(() => {
   vi.resetModules();
   // The loader logs handled failures before rethrowing — keep
@@ -113,6 +117,16 @@ describe('loadKjvData', () => {
         }
       );
 
+      // Wait for the catch to actually run — without this the
+      // unsettled assertion below would pass even if the
+      // pending-reload branch never executed.
+      await vi.waitFor(async () =>
+        expect(
+          await mockedIsStaleChunkReloadPending()
+        ).toHaveBeenCalledTimes(1)
+      );
+      // Flush microtasks — the returned promise must stay
+      // pending while the reload tears the page down.
       await Promise.resolve();
       expect(settled).toBe(false);
     });

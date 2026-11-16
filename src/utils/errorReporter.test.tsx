@@ -467,6 +467,17 @@ describe('errorReporter', () => {
           expect(reloadMock).toHaveBeenCalledTimes(1);
         });
 
+      it('reloads when the preload-error payload is a ' +
+        'chunk-load string', async () => {
+          await freshHandlers();
+
+          // Vite normally passes an Error, but a bare string
+          // rejection naming a stale chunk must heal too.
+          firePreloadError('Loading chunk 5 failed.');
+
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+        });
+
       it('ignores vite:preloadError for non-chunk failures',
         async () => {
           await freshHandlers();
