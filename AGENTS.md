@@ -401,7 +401,15 @@ Code conventions:
   predates the default-on rollout).
 - The `staging` branch deploys as a Vercel preview
   automatically (`bible-research-git-staging-<team>
-  .vercel.app`). Preview builds self-configure
+  .vercel.app`). `git.deploymentEnabled` in `vercel.json`
+  whitelists `main` + `staging` — every other branch
+  matches `"**": false` and the matching `true` rule wins
+  for the two named branches, so feature branches and PRs
+  get NO deployment (no preview URL, no Vercel check).
+  The config is read from the pushed commit's
+  `vercel.json`: a branch cut before this landed still
+  deploys until rebased onto a commit that has it.
+  Preview builds self-configure
   `VITE_API_BASE_URL` to their own deployment domain via
   `VERCEL_URL` (see `vite.config.ts`), so `/api` rewrites
   work with zero dashboard config, and Sentry reports
