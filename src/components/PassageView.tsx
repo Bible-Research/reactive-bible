@@ -31,6 +31,11 @@ import {
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
 import CopyrightNotice from "./CopyrightNotice";
+import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
+import {
+  HEADER_HEIGHT,
+  FOOTER_HEIGHT,
+} from "../utils/layoutChrome";
 import { shallow } from 'zustand/shallow';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -53,12 +58,15 @@ import { getCachedVerses } from '../utils/cacheManager';
  * First 'bible'-scoped verse whose element is at least partially
  * visible below the top edge of the scroll viewport. Verse ids
  * look like `verse-bible-jhn-3-16` — the last segment is the
- * verse number.
+ * verse number. `topInset` shifts the measurement line down so a
+ * verse still hidden behind the overlaying header is not
+ * reported while it cannot actually be read.
  */
 const firstVisibleVerse = (
   viewport: HTMLElement,
+  topInset = 0,
 ): number | null => {
-  const top = viewport.getBoundingClientRect().top;
+  const top = viewport.getBoundingClientRect().top + topInset;
   const elements = viewport.querySelectorAll(
     '[id^="verse-bible-"]'
   );
@@ -100,6 +108,7 @@ const PassageView = () => {
     activeChapter,
     activeTextFilesetId,
     activeAudioFilesetId,
+    showAudioPlayer,
     translations,
   } = useBibleStore(
     (state) => ({
@@ -107,6 +116,7 @@ const PassageView = () => {
       activeChapter: state.activeChapter,
       activeTextFilesetId: state.activeTextFilesetId,
       activeAudioFilesetId: state.activeAudioFilesetId,
+      showAudioPlayer: state.showAudioPlayer,
       translations: state.translations,
     }),
     shallow
@@ -518,7 +528,16 @@ const PassageView = () => {
     const handleScroll = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        const verse = firstVisibleVerse(viewport);
+        // The header overlays the viewport — verses scrolling
+        // behind it are not readable, so measure below it.
+        // getState() keeps this non-reactive (no re-render on
+        // every bar toggle).
+        const verse = firstVisibleVerse(
+          viewport,
+          useBibleStore.getState().headerVisible
+            ? HEADER_HEIGHT
+            : 0,
+        );
         if (verse === null) return;
         const {
           activeBookId: bookId,
@@ -574,7 +593,14 @@ const PassageView = () => {
     return (
       <Box ref={swipeRef} h="100%">
         <ScrollArea h="100%">
-          <Box p="md">
+          <Box
+            p="md"
+            pt={HEADER_HEIGHT + 16}
+            pb={
+              FOOTER_HEIGHT +
+              (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0)
+            }
+          >
             <Alert
               icon={<IconAlertCircle size={16} />}
             title={
@@ -617,7 +643,14 @@ const PassageView = () => {
     return (
       <Box ref={swipeRef} h="100%">
         <ScrollArea h="100%">
-        <Box px={10} pt="md">
+        <Box
+          px={10}
+          pt={HEADER_HEIGHT + 16}
+          pb={
+            FOOTER_HEIGHT +
+            (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0)
+          }
+        >
           <Title order={5} color="dimmed" mb="xs">
             {activeBookName} — Section Outline
           </Title>
@@ -666,7 +699,23 @@ const PassageView = () => {
         h="100%"
         viewportRef={viewportRef}
       >
-      <Box data-verse-scope="bible">
+      {/* Header/footer/player clearance lives INSIDE the
+          scrolled content: the bars overlay the viewport and
+          slide away without resizing it, so the text never
+          reflows (jumps) when they toggle. scrollMarginTop
+          keeps scrollIntoView targets below the header. */}
+      <Box
+        pt={HEADER_HEIGHT}
+        pb={
+          FOOTER_HEIGHT +
+          (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0)
+        }
+        sx={{
+          '& [id^="verse-bible-"], & [id^="section-heading-"]':
+            { scrollMarginTop: HEADER_HEIGHT },
+        }}
+        data-verse-scope="bible"
+      >
         {verses.map((verse) => {
           // Several headings may share one anchor — e.g. the
           // ESV Psalm 18 superscription sits at before_verse 1

@@ -13,12 +13,11 @@ import { useBibleStore, selectActiveBookName } from "../store";
 import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
 import { getAdjacentChapters } from "../api/structure";
 import { buildBiblePath } from "../utils/bibleUtils";
+import { FOOTER_HEIGHT } from "../utils/layoutChrome";
 
 interface BottomNavProps {
   setBibleSelectorOpened: (opened: boolean) => void;
 }
-
-const FOOTER_HEIGHT = 56;
 
 const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
   const navigate = useNavigate();

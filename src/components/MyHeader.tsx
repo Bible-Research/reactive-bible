@@ -13,8 +13,7 @@ import { useBibleStore } from "../store";
 import { parseBibleRef } from "../utils/bibleUtils";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
-
-const HEADER_HEIGHT = 56;
+import { HEADER_HEIGHT } from "../utils/layoutChrome";
 // px of accumulated scroll in one direction needed to toggle the
 // header — roughly "two swipes". Small scrolls are ignored so the
 // header does not flicker while reading.

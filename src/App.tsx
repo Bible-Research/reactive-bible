@@ -131,11 +131,19 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
-              paddingTop: headerVisible
-                ? "var(--mantine-header-height, 0px)"
-                : 0,
-              paddingBottom: headerVisible && isBibleView
-                ? "var(--mantine-footer-height, 0px)"
+              // On /bible the header/footer overlay the scroll
+              // viewport instead of pushing it: PassageView puts
+              // the clearance INSIDE the scrolled content, so
+              // sliding the bars away never reflows the text
+              // (verses just scroll under the freed space).
+              // Other routes keep reclaiming the reserved
+              // padding when the chrome hides.
+              paddingTop:
+                isBibleView || !headerVisible
+                  ? 0
+                  : "var(--mantine-header-height, 0px)",
+              paddingBottom: isBibleView
+                ? 0
                 : showAudioPlayer
                   ? `${AUDIO_PLAYER_HEIGHT}px`
                   : 0,
