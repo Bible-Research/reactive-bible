@@ -1,6 +1,7 @@
 import type { KjvBook } from '../api';
 import {
   isChunkLoadError,
+  isStaleChunkReloadPending,
   reloadForStaleChunk,
 } from './chunkLoadError';
 
@@ -33,9 +34,13 @@ export const loadKjvData = async (): Promise<KjvBook[]> => {
       // after a deploy 404s it exactly like a lazy component.
       // A guarded reload fetches the fresh index.html; the
       // never-settling promise keeps callers suspended while
-      // the reload tears the page down. Once the guard fired,
-      // fall through to the normal error below.
-      if (isChunkLoadError(error) && reloadForStaleChunk()) {
+      // the reload tears the page down — also when another
+      // handler already fired it this page load. When no
+      // reload is coming, fall through to the normal error.
+      if (
+        isChunkLoadError(error) &&
+        (reloadForStaleChunk() || isStaleChunkReloadPending())
+      ) {
         return new Promise<KjvBook[]>(() => {
           // Never settles — the reload replaces this page.
         });

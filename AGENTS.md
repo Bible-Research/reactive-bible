@@ -84,7 +84,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   agents may fix and resolve.
 - `reportType: resource-load` — warning `captureMessage` from
   `errorReporter.tsx` (missing hashed assets, dead signed
-  URLs). Low-priority; usually self-healing noise.
+  URLs). Low-priority; usually self-healing noise — a failed
+  same-origin `/assets/*` script/link also triggers the
+  guarded stale-chunk reload in the same handler.
 - `reportType: user-report` — info `captureMessage` +
   `captureFeedback` from "Report a problem" (`userReport.ts`).
   Not an error queue item; investigated separately via the
@@ -113,7 +115,11 @@ therefore excludes the APK — use `environment:android` for it.
 noise before it reaches Sentry: `RateLimitError`,
 `BookNotInFilesetError`, `AbortError`, 'Session expired',
 `ChunkLoadError` / `Loading chunk N failed` / `Loading CSS
-chunk` (stale tabs after a deploy), and `ResizeObserver loop`.
+chunk` (stale tabs after a deploy — self-healed by the
+guarded reload in `chunkLoadError.ts`, wired through
+`lazyWithReload`, `kjvDataLoader`, and `errorReporter`'s
+`vite:preloadError` / hashed-asset resource-error handlers),
+and `ResizeObserver loop`.
 `ClientInputError` is deliberately kept — a malformed request
 is a bug.
 

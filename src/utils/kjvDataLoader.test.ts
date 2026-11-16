@@ -27,10 +27,12 @@ const mockKjvImport = (error?: Error) => {
 
 const mockChunkHelpers = (
   isChunkError: boolean,
-  reloadTriggered: boolean
+  reloadTriggered: boolean,
+  reloadPending = false
 ) => {
   vi.doMock('./chunkLoadError', () => ({
     isChunkLoadError: vi.fn(() => isChunkError),
+    isStaleChunkReloadPending: vi.fn(() => reloadPending),
     reloadForStaleChunk: vi.fn(() => reloadTriggered),
   }));
 };
@@ -90,7 +92,32 @@ describe('loadKjvData', () => {
       expect(settled).toBe(false);
     });
 
-  it('rethrows as a KJV error once the reload guard fired',
+  it('holds the promise pending while a reload is already ' +
+    'tearing the page down', async () => {
+      mockKjvImport(new Error('import failed'));
+      // The vite:preloadError listener (or a modulepreload
+      // link failure) already fired the guarded reload —
+      // reloadForStaleChunk returns false but a reload is in
+      // flight, so the callers must stay suspended.
+      mockChunkHelpers(true, false, true);
+      const { loadKjvData } = await importLoader();
+
+      const promise = loadKjvData();
+      let settled = false;
+      void promise.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        }
+      );
+
+      await Promise.resolve();
+      expect(settled).toBe(false);
+    });
+
+  it('rethrows as a KJV error when no reload is coming',
     async () => {
       mockKjvImport(new Error('import failed'));
       mockChunkHelpers(true, false);

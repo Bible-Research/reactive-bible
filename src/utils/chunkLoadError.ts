@@ -89,3 +89,13 @@ export const reloadForStaleChunk = (): boolean => {
   window.location.reload();
   return true;
 };
+
+/**
+ * True once this page load has triggered the stale-chunk
+ * reload — e.g. after the `vite:preloadError` listener beat a
+ * lazy import's own rejection handler to it. Callers should
+ * keep the UI suspended (the page is already tearing down)
+ * instead of surfacing an error that can never be retried.
+ */
+export const isStaleChunkReloadPending = (): boolean =>
+  reloadFiredThisPageLoad;

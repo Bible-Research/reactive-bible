@@ -351,5 +351,173 @@ describe('errorReporter', () => {
 
       expect(mockShowNotification).not.toHaveBeenCalled();
     });
+
+    describe('stale-chunk recovery', () => {
+      let reloadMock: ReturnType<typeof vi.fn>;
+      let freshShowNotification: typeof mockShowNotification;
+      let freshCaptureMessage: typeof mockCaptureMessage;
+
+      // Each test imports errorReporter fresh so chunkLoadError's
+      // per-page-load state resets — the same trick
+      // lazyWithReload.test.tsx uses to simulate a reload.
+      // vi.resetModules also re-runs the vi.mock factories, so
+      // the top-level mock references go stale and must be
+      // re-acquired from the fresh registry.
+      const freshHandlers = async () => {
+        vi.resetModules();
+        const mod = await import('./errorReporter');
+        cleanup = mod.initGlobalErrorHandlers();
+        freshShowNotification = vi.mocked(
+          (await import('@mantine/notifications'))
+            .showNotification
+        );
+        freshCaptureMessage = vi.mocked(
+          (await import('@sentry/react')).captureMessage
+        );
+      };
+
+      const fireResourceError = (el: HTMLElement) => {
+        const event = new Event('error');
+        Object.defineProperty(event, 'target', { value: el });
+        window.dispatchEvent(event);
+      };
+
+      const firePreloadError = (payload: unknown) => {
+        const event = new Event('vite:preloadError', {
+          cancelable: true,
+        });
+        Object.defineProperty(event, 'payload', {
+          value: payload,
+        });
+        window.dispatchEvent(event);
+        return event;
+      };
+
+      const chunkError = () =>
+        new TypeError(
+          'Failed to fetch dynamically imported module: ' +
+            window.location.origin +
+            '/assets/VerseTextGroups-DzkkTFBH.js'
+        );
+
+      beforeEach(() => {
+        reloadMock = vi.fn();
+        Object.defineProperty(window.location, 'reload', {
+          configurable: true,
+          writable: true,
+          value: reloadMock,
+        });
+        window.sessionStorage.clear();
+      });
+
+      afterEach(() => {
+        // Drop the own-property stub so the prototype's real
+        // reload is visible again.
+        delete (window.location as Partial<Location>).reload;
+        window.sessionStorage.clear();
+      });
+
+      it('reloads once when a modulepreload for a hashed ' +
+        'asset fails', async () => {
+          await freshHandlers();
+          // The reported Sentry issue: Vite 8 attaches no error
+          // listener to the JS modulepreload links it creates,
+          // so a 404'd hashed dep surfaces only as this
+          // element error — never as a promise rejection.
+          const link = document.createElement('link');
+          link.rel = 'modulepreload';
+          link.href =
+            window.location.origin +
+            '/assets/VerseTextGroups-DzkkTFBH.js';
+
+          fireResourceError(link);
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+
+          // A second failure in the same page load must not
+          // reload again — and the resource-load warning is
+          // still reported once.
+          fireResourceError(link);
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+          expect(freshCaptureMessage).toHaveBeenCalledTimes(1);
+        });
+
+      it('reloads once on vite:preloadError without ' +
+        'swallowing the error', async () => {
+          await freshHandlers();
+
+          const event = firePreloadError(chunkError());
+
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+          // preventDefault stays uncalled — the rejection must
+          // still reach lazyWithReload / the error pipeline.
+          expect(event.defaultPrevented).toBe(false);
+        });
+
+      it('keeps the reload once-only across a simulated ' +
+        'page reload', async () => {
+          await freshHandlers();
+          firePreloadError(chunkError());
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+
+          // A real reload wipes module state; sessionStorage
+          // (holding the guard timestamp) survives — a
+          // still-broken chunk must not loop the reload.
+          await freshHandlers();
+          firePreloadError(chunkError());
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+        });
+
+      it('ignores vite:preloadError for non-chunk failures',
+        async () => {
+          await freshHandlers();
+
+          firePreloadError(new Error('boom'));
+
+          expect(reloadMock).not.toHaveBeenCalled();
+        });
+
+      it('reloads for a failed hashed script tag too',
+        async () => {
+          await freshHandlers();
+          const script = document.createElement('script');
+          script.src =
+            window.location.origin + '/assets/index-abc123.js';
+
+          fireResourceError(script);
+
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+        });
+
+      it('does not reload for third-party asset failures',
+        async () => {
+          await freshHandlers();
+          const script = document.createElement('script');
+          script.src =
+            'https://cdn.example.com/assets/chunk-abc123.js';
+
+          fireResourceError(script);
+
+          expect(reloadMock).not.toHaveBeenCalled();
+          // Still reported as a resource-load warning.
+          expect(freshShowNotification)
+            .toHaveBeenCalledTimes(1);
+        });
+
+      it('does not reload for a failed own-origin image',
+        async () => {
+          await freshHandlers();
+          const img = document.createElement('img');
+          img.src =
+            window.location.origin + '/assets/icon-abc123.png';
+
+          fireResourceError(img);
+
+          // Image 404s stay report-only — they can fail for
+          // reasons unrelated to a stale deploy.
+          expect(reloadMock).not.toHaveBeenCalled();
+          expect(freshShowNotification)
+            .toHaveBeenCalledTimes(1);
+        });
+    });
   });
 });
