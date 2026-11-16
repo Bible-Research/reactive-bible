@@ -1802,7 +1802,8 @@ Streams audio Bible chapters with full playback controls.
 **Features**:
 - Play/Pause controls
 - Progress bar with seek functionality
-- Skip forward/backward (±10 seconds)
+- Skip forward/backward (±5 seconds on-screen; ±10 via
+  Media Session controls)
 - Auto-advance to next chapter
 - Loop current chapter infinitely
 - Starts at the earliest selected verse's timestamp when verses
@@ -2175,6 +2176,12 @@ const toggleColorScheme = () =>
     current === "dark" ? "light" : "dark"
   );
 ```
+
+**Light-mode palette**: `lightModeGray` (built from
+`DEFAULT_THEME.colors.gray`) shifts `gray[2..4]` one step
+darker so dividers, borders and the Slider track stay
+visible against the `gray[0]` page background. Dark mode
+keeps the stock ramp.
 
 ### 8. Analytics
 
@@ -2598,7 +2605,7 @@ Floating audio player UI at bottom of screen.
 - Skip backward 5s button
 - Play/Pause button (large, blue)
 - Skip forward 5s button
-- Loop toggle button
+- Loop toggle button (filled blue when enabled)
 - Progress slider
 - Time display
 

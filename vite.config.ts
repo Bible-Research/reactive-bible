@@ -30,26 +30,9 @@ const sentryPlugins = sentryUploadEnabled
     ]
   : [];
 
-// Preview deploys (the `staging` branch + PR previews) have no
-// VITE_API_BASE_URL — the dashboard var is Production-scoped.
-// Point the bundle at the deployment's own domain instead, so
-// the same-origin /api rewrites in vercel.json reach the
-// backend with zero dashboard config. An explicit
-// VITE_API_BASE_URL still wins; locally VERCEL_URL is unset,
-// so dev keeps using .env or the GAE fallback in config.ts.
-const apiBaseUrlDefine =
-  !process.env.VITE_API_BASE_URL && process.env.VERCEL_URL
-    ? {
-        'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
-          `https://${process.env.VERCEL_URL}`
-        ),
-      }
-    : {};
-
 export default defineConfig({
   plugins: [react(), ...sentryPlugins],
   define: {
-    ...apiBaseUrlDefine,
     // Vercel exposes VERCEL_ENV ('production' | 'preview' |
     // 'development') to the build env; baking it into the
     // bundle makes preview deploys report Sentry environment
