@@ -25,9 +25,14 @@ import { fileURLToPath } from 'node:url';
 const BASE =
   process.argv[2] ?? 'https://bible-research-489314.ey.r.appspot.com';
 
+// Filesets queried per language. lv uses LVSGLU8, not the
+// canonical LAVNLI: LAVNLI's DBT-verified coverage is partial
+// (~29 books), while the SWORD branch answers all 66 books
+// with the canonical Latvian name table overlaid — exactly
+// the full-canon display names the fallback needs.
 const CANON = {
   en: 'ENGESV',
-  lv: 'LAVNLI',
+  lv: 'LVSGLU8',
   ru: 'RUSSYN',
 };
 
