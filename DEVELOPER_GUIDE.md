@@ -653,7 +653,11 @@ auth lives in a separate persisted `authStore`.
   fileset id (a first load can key store/cache on the raw
   fileset id until the translations list resolves the owning
   bible abbr — the id-keyed tiers are consulted too, and the
-  landing fetch re-resolves the abbr before writing);
+  landing fetch re-resolves the abbr before writing). A
+  `degraded: true` body (the backend's `no-store` SWORD
+  fallback names) applies in memory but is never written to
+  localStorage; a `{books: []}` anomaly is treated as a
+  fetch failure, keeping the staged/previous structure;
   `void` it at call sites.
 
 **UI Actions**:
