@@ -14,9 +14,12 @@ import type { Tag } from '../types';
  * and `a//b` are paths.
  */
 export const splitPathQuery = (query: string): string[] | null => {
-  if (!query.includes('/')) return null;
+  // `›` splits too — a pasted display path (`Work ›
+  // design`) must behave like the typed `Work/design`,
+  // not create a literal separator-bearing name.
+  if (!/[/›]/.test(query)) return null;
   const segments = query
-    .split('/')
+    .split(/[/›]/)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
   return segments.length >= 2 ? segments : null;

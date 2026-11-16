@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useRef,
@@ -203,8 +204,20 @@ export function TagCombobox({
       ? Math.min(highlight, rows.length - 1)
       : 0;
 
+  // Keep the highlighted row visible in the ScrollArea
+  // during keyboard navigation of long tag lists.
+  useEffect(() => {
+    if (open && rows[active]) {
+      document
+        .getElementById(optionId(active))
+        ?.scrollIntoView({ block: 'nearest' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, open]);
+
   const closeAll = () => {
     if (view === 'move') restoreActionToast();
+    setMoveTarget(null);
     setOpen(false);
     setView('options');
     setSearch('');
@@ -247,7 +260,10 @@ export function TagCombobox({
   };
 
   const backToOptions = () => {
-    if (view === 'move') restoreActionToast();
+    if (view === 'move') {
+      restoreActionToast();
+      setMoveTarget(null);
+    }
     setView('options');
     setSearch(view === 'parents' ? createQuery : '');
     setHighlight(0);
@@ -319,7 +335,7 @@ export function TagCombobox({
       if (actionRef.current === null) {
         const keptNote =
           kept.length > 0
-            ? ` Kept in use: ${kept
+            ? ` Kept: ${kept
                 .map((t) => t.name)
                 .join(', ')}.`
             : '';
@@ -336,12 +352,18 @@ export function TagCombobox({
         });
       }
     } catch {
-      setToast({
-        title: 'Error',
-        message: 'Failed to undo tag creation.',
-        color: 'red',
-        actions: false,
-      });
+      // A newer create may be armed — keep its affordance
+      // instead of overwriting it with this failure.
+      if (actionRef.current !== null) {
+        restoreActionToast();
+      } else {
+        setToast({
+          title: 'Error',
+          message: 'Failed to undo tag creation.',
+          color: 'red',
+          actions: false,
+        });
+      }
     }
     void refreshTags();
   };
@@ -370,9 +392,9 @@ export function TagCombobox({
         actions: false,
       });
     } catch (error) {
-      setMoveTarget(null);
-      // Keep the actions armed — the tag still exists and
-      // Undo/Move must stay reachable after a failed move.
+      // Keep `moveTarget` — the pane stays live so the
+      // user can retry a different parent — and keep the
+      // actions armed for Undo/Move.
       setToast({
         title: 'Failed to move tag',
         message:
@@ -428,7 +450,10 @@ export function TagCombobox({
             ? error.message
             : 'Failed to create tag. Please try again.',
         color: 'red',
-        actions: false,
+        // An earlier successful create may still be armed —
+        // don't strand its Undo/Move under… behind this
+        // failure.
+        actions: actionRef.current !== null,
       });
     } finally {
       setBusy(false);

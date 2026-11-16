@@ -58,9 +58,11 @@ export function TagActionToast({
   return (
     // withinPortal off keeps the toast inside the note
     // modal's DOM — the whole point of this component.
+    // Bottom-right avoids the autosave indicator at
+    // top-right.
     <Affix
       withinPortal={false}
-      position={{ top: 20, right: 20 }}
+      position={{ bottom: 20, right: 20 }}
     >
       <Notification
         role="status"
