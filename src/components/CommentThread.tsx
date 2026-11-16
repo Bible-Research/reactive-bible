@@ -30,6 +30,7 @@ import CommentForm from './CommentForm';
 import CommentNode from './CommentNode';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
+import { textOrKey } from '../i18n/errorText';
 
 const normalize = (
   nodes: Comment[] | undefined
@@ -62,9 +63,12 @@ const uploadImages = async (
       );
       uploaded.push(img);
     } catch (err: unknown) {
+      // apiClient throws catalog keys ('errors.forbidden',
+      // 'auth.sessionExpiredMsg') — textOrKey translates
+      // those and passes raw server text through.
       const msg =
         err instanceof Error
-          ? err.message
+          ? textOrKey(err.message)
           : i18n.t('comments.failedToUpload');
       showNotification({
         color: 'red',

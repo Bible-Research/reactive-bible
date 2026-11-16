@@ -21,6 +21,7 @@ import {
   validateTagName,
 } from '../utils/tagTree';
 import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
 
 interface EditTagModalProps {
   opened: boolean;
@@ -128,11 +129,13 @@ export function EditTagModal({
       onClose();
     } catch (error) {
       console.error('Error updating tag:', error);
+      // apiClient throws catalog keys — textOrKey translates
+      // those and passes raw server text through.
       showNotification({
         title: t('common.error'),
         message:
           error instanceof Error
-            ? error.message
+            ? textOrKey(error.message)
             : t('tags.updateFailed'),
         color: 'red',
       });
@@ -165,10 +168,14 @@ export function EditTagModal({
   const datesBlock = tag && (
     <Stack spacing={4}>
       <Text size="xs" color="dimmed">
-        Created: {new Date(tag.created_at).toLocaleDateString()}
+        {t('tags.createdAt', {
+          date: new Date(tag.created_at).toLocaleDateString(),
+        })}
       </Text>
       <Text size="xs" color="dimmed">
-        Updated: {new Date(tag.updated_at).toLocaleDateString()}
+        {t('tags.updatedAt', {
+          date: new Date(tag.updated_at).toLocaleDateString(),
+        })}
       </Text>
     </Stack>
   );

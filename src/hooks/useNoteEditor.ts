@@ -19,6 +19,7 @@ import { toPlainText } from '../utils/tiptapContent';
 import { imageFileSignature } from './useStagedImages';
 import type { Note, NoteImage } from '../types';
 import i18n from '../i18n';
+import { textOrKey } from '../i18n/errorText';
 
 /** The `verse_references` item shape the notes API expects. */
 export interface NoteVerseReference {
@@ -376,9 +377,13 @@ export const useNoteEditor = ({
                 (f) => f !== file
               );
             } catch (err: unknown) {
+              // apiClient throws catalog keys
+              // ('errors.forbidden', 'auth.sessionExpiredMsg')
+              // — textOrKey translates those and passes raw
+              // server text through.
               const msg =
                 err instanceof Error
-                  ? err.message
+                  ? textOrKey(err.message)
                   : i18n.t('notes.failedToUpload');
               showNotification({
                 color: 'red',

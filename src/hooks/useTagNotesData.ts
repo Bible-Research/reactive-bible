@@ -276,7 +276,7 @@ export const useTagNotesData = ({
           // synthetic label object for display.
           resolvedTag = {
             id: UNTAGGED_TAG_ID,
-            name: 'Untagged',
+            name: i18n.t('common.untagged'),
             parent_tag: null,
             public: false,
             created_at: '',

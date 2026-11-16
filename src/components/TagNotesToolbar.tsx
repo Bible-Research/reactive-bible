@@ -100,9 +100,10 @@ const TagNotesToolbar = ({
         title: t('tags.notesTitle', { tag: tagName || t('common.tag') }),
         // totalCount is the tag total; shownCount is only
         // the currently loaded page.
-        text:
-          `Check out these ${totalCount} note(s) ` +
-          `tagged with "${tagName}"`,
+        text: t('tags.shareText', {
+          count: totalCount,
+          tag: tagName,
+        }),
         url: window.location.href,
       },
       {
@@ -135,12 +136,15 @@ const TagNotesToolbar = ({
             // ungrouped "Untagged" entry lands in its own
             // bottom section (Mantine v6 SelectItems).
             data={[
-              ...sortedTags.map((t) => ({
-                value: t.id,
-                label: t.name,
-                group: 'Tags',
+              ...sortedTags.map((tag) => ({
+                value: tag.id,
+                label: tag.name,
+                group: t('tags.tagsGroup'),
               })),
-              { value: UNTAGGED_TAG_ID, label: 'Untagged' },
+              {
+                value: UNTAGGED_TAG_ID,
+                label: t('common.untagged'),
+              },
             ]}
             searchable
             style={{ maxWidth: 400 }}
@@ -232,10 +236,19 @@ const TagNotesToolbar = ({
               },
             })}
           >
-            {shownCount}
-            {totalCount > shownCount && ` of ${totalCount}`}
-            {' '}
-            {shownCount === 1 ? 'note' : 'notes'}
+            {totalCount > shownCount
+              ? // "3 of 20 notes" — the noun follows the
+                // total, which also fixes the former
+                // "1 of 20 note" edge.
+                t('tags.notesShownOfTotal', {
+                  count: totalCount,
+                  shown: shownCount,
+                  total: totalCount,
+                })
+              : t('tags.notesShown', {
+                  count: shownCount,
+                  shown: shownCount,
+                })}
           </Text>
           <Tooltip
             label={

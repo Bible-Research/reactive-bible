@@ -179,7 +179,7 @@ const { t } = useTranslation();
           tagName:
             tagNameById.get(id) ??
             note.tag?.name ??
-            'Untagged',
+            t('common.untagged'),
           notes: [],
         };
         byTag.set(id, group);
@@ -190,7 +190,7 @@ const { t } = useTranslation();
       tagId: sectionTagId,
       ...group,
     }));
-  }, [includeDescendants, sortedNotes, tagNameById]);
+  }, [includeDescendants, sortedNotes, tagNameById, t]);
 
   const tagHasChildren = useMemo(
     () => storedTags.some((t) => t.parent_tag === tagId),

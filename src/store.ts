@@ -309,6 +309,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         // persisted choice on a language the UI cannot
         // render — roll back and tell the user.
         void changeUiLanguage(uiLanguage).catch(() => {
+          // A later setUiLanguage may have already switched
+          // past this stale failure — reverting now would
+          // clobber the newer choice (and toast for nothing).
+          if (get().uiLanguage !== uiLanguage) return;
           set({ uiLanguage: previous });
           showNotification({
             title: i18n.t('common.error'),

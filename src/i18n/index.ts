@@ -177,7 +177,29 @@ export const initI18n = (): Promise<unknown> => {
     })
     .then(async () => {
       const lang = resolveUiLanguage();
-      if (lang !== 'en') await changeUiLanguage(lang);
+      if (lang === 'en') return;
+      try {
+        await changeUiLanguage(lang);
+      } catch (error) {
+        // The persisted choice's catalog failed to load and
+        // i18next stays on 'en' — revert the stored
+        // selection too, or the language selector would
+        // keep showing `lang` over an English UI with no
+        // explanation (the notification provider is not
+        // mounted yet, so a toast here would be lost).
+        // The store is imported dynamically: it already
+        // depends on this module, so a static edge back
+        // would create an import cycle.
+        console.warn(
+          `Failed to load the '${lang}' catalog — ` +
+            'falling back to English.',
+          error
+        );
+        const { useBibleStore } = await import('../store');
+        if (useBibleStore.getState().uiLanguage === lang) {
+          useBibleStore.setState({ uiLanguage: 'en' });
+        }
+      }
     });
   return initPromise;
 };

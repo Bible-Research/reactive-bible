@@ -38,6 +38,7 @@ import { Note, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import { shallow } from "zustand/shallow";
 import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -223,9 +224,13 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           mutateNoteImages(noteId, (imgs) => [...imgs, img]);
         } catch (err: unknown) {
           uploadedSigs.current.delete(signature);
+          // apiClient throws catalog keys
+          // ('errors.forbidden', 'auth.sessionExpiredMsg') —
+          // textOrKey translates those and passes raw
+          // server text through.
           const msg =
             err instanceof Error
-              ? err.message
+              ? textOrKey(err.message)
               : t('notes.failedToUpload');
           showNotification({
             color: 'red',
