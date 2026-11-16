@@ -86,17 +86,13 @@ export const dispatchMediaAction = (
         break;
       case 'previoustrack':
         if (controls.previousTrack) controls.previousTrack();
-        else {
-          controls.seekBy?.(-10);
-          updatePosition();
-        }
+        else controls.seekBy?.(-10);
+        updatePosition();
         break;
       case 'nexttrack':
         if (controls.nextTrack) controls.nextTrack();
-        else {
-          controls.seekBy?.(10);
-          updatePosition();
-        }
+        else controls.seekBy?.(10);
+        updatePosition();
         break;
       case 'seekbackward':
         controls.seekBy?.(-(details.seekOffset ?? 10));

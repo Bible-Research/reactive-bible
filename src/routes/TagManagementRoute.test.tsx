@@ -59,6 +59,8 @@ const storeStub = vi.hoisted(() => {
     getTags: vi.fn((_forceRefresh?: boolean) =>
       Promise.resolve(),
     ),
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    removeTagPagination: vi.fn((_tagId: string) => undefined),
   };
   const useBibleStore = Object.assign(
     (selector: (s: typeof state) => unknown) => selector(state),
@@ -484,6 +486,24 @@ describe('TagManagementRoute tag UX wiring', () => {
       expect(mockClearNotesCache).not.toHaveBeenCalledWith(
         'tag-1'
       );
+    });
+
+  it('prunes the deleted tag\'s stored pagination entry',
+    async () => {
+      mockApi.deleteTag.mockResolvedValue(undefined);
+
+      fireEvent.click(screen.getByTestId('delete-tag-1'));
+
+      await waitFor(() => {
+        expect(mockApi.deleteTag).toHaveBeenCalledWith(
+          'tag-1'
+        );
+      });
+      // The stored tag id can never be reused — its
+      // remembered page/pageSize is dead weight.
+      expect(
+        storeStub.state.removeTagPagination
+      ).toHaveBeenCalledWith('tag-1');
     });
 
   it('deletes through a red-button confirm modal, not ' +

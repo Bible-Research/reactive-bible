@@ -75,6 +75,9 @@ describe('authStore - Logout', () => {
             allNotesFetched: true,
             lastSelectedTagId: 'tag-1',
             notesPage: 3,
+            tagPagination: {
+              'tag-1': { page: 3, pageSize: 50 },
+            },
             readingPositions: {
               MRK: { chapter: 2, verse: 5 },
             },
@@ -97,6 +100,7 @@ describe('authStore - Logout', () => {
         expect(state.allNotesFetched).toBe(false);
         expect(state.lastSelectedTagId).toBeNull();
         expect(state.notesPage).toBe(1);
+        expect(state.tagPagination).toEqual({});
         expect(state.readingPositions).toEqual({});
         expect(getCachedNotes('tag-1', 1, null)).toBeNull();
       });

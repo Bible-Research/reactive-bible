@@ -65,6 +65,23 @@ const parseChapterKey = (
     : null;
 };
 
+// Full inverse of chapterKey, including the fileset id — the
+// timestamps effect needs the recording actually playing, not
+// just the passage.
+const parsePlayingKey = (
+  key: string | null,
+): { filesetId: string; bookId: string; chapter: number } | null => {
+  if (!key) return null;
+  const parts = key.split(':');
+  const chapter = Number(parts[parts.length - 1]);
+  const bookId = parts[parts.length - 2];
+  const filesetId = parts.slice(0, -2).join(':');
+  return bookId && Number.isInteger(chapter) &&
+    filesetId && filesetId !== 'none'
+    ? { filesetId, bookId, chapter }
+    : null;
+};
+
 // Brief silence between chapters on auto-advance.
 const INTER_CHAPTER_GAP_MS = 2000;
 
@@ -162,6 +179,10 @@ export const useChapterAudio = (
   const [isLooping, setIsLooping] = useState(false);
   const isLoopingRef = useRef(false);
   const [timestamps, setTimestamps] = useState<VerseTimestamp[]>([]);
+  // `fileset:book:chapter` key the rows in `timestamps` describe
+  // — verse navigation and highlighting are only valid while
+  // this matches what is actually playing.
+  const timestampsKeyRef = useRef<string | null>(null);
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const setAudioActiveVerse = useBibleStore(
@@ -407,9 +428,9 @@ export const useChapterAudio = (
     // silent version swap).
     const state = useBibleStore.getState();
     const selection = state.activeAudioFilesetId;
-    const playingKey = audioChapterKeyRef.current;
-    const playingId = playingKey?.split(':')[0];
-    if (selection && playingId && playingId !== 'none') {
+    const playing = parsePlayingKey(audioChapterKeyRef.current);
+    const playingId = playing?.filesetId;
+    if (selection && playingId) {
       if (
         !isCrossTranslationPlayback(
           selection,
@@ -426,9 +447,7 @@ export const useChapterAudio = (
       // recording — announce it once per (pair, book);
       // within-translation codec/option alternates stay
       // silent.
-      const bookId =
-        (playingKey ? parseChapterKey(playingKey) : null)
-          ?.bookId ?? state.activeBookId;
+      const bookId = playing?.bookId ?? state.activeBookId;
       notifyAudioSubstitution(
         selection,
         playingId,
@@ -441,6 +460,7 @@ export const useChapterAudio = (
   }, [preloadNextChapter]);
 
   const handleChapterPause = useCallback(() => {
+    isPlayingRef.current = false;
     setIsPlaying(false);
   }, []);
 
@@ -639,11 +659,12 @@ export const useChapterAudio = (
         // error from starting a fallback for a passage the user
         // already navigated away from.
         const keyNow = audioChapterKeyRef.current;
-        if (!keyNow) return false;
-        const [playingId, bookId, chapter] = keyNow.split(':');
+        const parsed = parsePlayingKey(keyNow);
+        if (!parsed) return false;
+        const { filesetId: playingId, bookId, chapter } = parsed;
         if (
           bookId !== state.activeBookId ||
-          Number(chapter) !== state.activeChapter
+          chapter !== state.activeChapter
         ) {
           return false;
         }
@@ -748,6 +769,7 @@ export const useChapterAudio = (
       clearAdvanceTimer();
       pendingGapRef.current = false;
       discardPreloaded();
+      timestampsKeyRef.current = null;
       setTimestamps([]);
       setAudioActiveVerse(null);
       return;
@@ -783,20 +805,26 @@ export const useChapterAudio = (
     // still-live Howl — the ended handler adopted this chapter's
     // preloaded one — may skip the discard and keep playing.
     if (audioRef.current) {
+      timestampsKeyRef.current = null;
       setTimestamps([]);
       setAudioActiveVerse(null);
       return;
     }
     discardPreloaded();
+    timestampsKeyRef.current = null;
     setTimestamps([]);
     setAudioActiveVerse(null);
     // Landed with no Howl and no play intent — nothing will ever
     // load, so close the player instead of leaving its height as
-    // dead space at the bottom. isPlayingRef still reflects the
-    // committed intent here: intent changes (pause/close) and
-    // navigation are separate user events, so they can't share
-    // this commit — the ref is never stale at read time.
-    if (!isPlayingRef.current) setShowPlayer(false);
+    // dead space at the bottom. The ref alone can lag a batched
+    // intent flip (React 18 can merge a setIsPlaying and a
+    // navigation into one commit — the sync effect runs after
+    // this one), so the render-captured isPlaying guards too.
+    if (!isPlayingRef.current && !isPlaying) setShowPlayer(false);
+    // isPlaying intentionally read from the render closure, not
+    // a dep — adding it would re-run the teardown on every
+    // play/pause toggle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isPlaylistMode,
     activeBookId,
@@ -809,38 +837,69 @@ export const useChapterAudio = (
     setShowPlayer,
   ]);
 
-  // Fetch timestamps when audio or text fileset changes
+  // Fetch verse timestamps for the recording actually playing —
+  // the fileset the candidate walk landed on (audioChapterKey),
+  // not merely the selected one: a coverage/codec fallback that
+  // substituted a different recording must use THAT recording's
+  // timestamps (timestamps are only valid for the recording
+  // they were generated from) or degrade to the ±10s seek
+  // fallback rather than mis-seek against a foreign verse map.
   useEffect(() => {
-    if (!activeAudioFilesetId) return;
+    // `audio` in the deps re-runs this at publish/adopt/swap —
+    // audioChapterKeyRef is already updated by then.
+    const playing = audio
+      ? parsePlayingKey(audioChapterKeyRef.current)
+      : null;
+    const bookId = playing?.bookId ?? activeBookId;
+    const chapter = playing?.chapter ?? activeChapter;
     // Stored ids may be grouped product ids — resolve to the
     // concrete members so the ENGESV_API timestamp special cases
     // keep matching.
-    const resolvedAudioId = resolveFilesetFor(
-      activeBookId,
-      activeAudioFilesetId,
-    );
-    const tsFilesetId = resolveTimestampsFilesetId(
-      resolvedAudioId,
-      resolveTextFileset(
-        activeTextFilesetId,
-        activeBookId,
-        translations,
-      ),
-      activeBookId,
-    );
+    const audioId =
+      playing?.filesetId ??
+      resolveFilesetFor(activeBookId, activeAudioFilesetId);
+    const tsFilesetId = audioId
+      ? resolveTimestampsFilesetId(
+          audioId,
+          resolveTextFileset(
+            activeTextFilesetId,
+            bookId,
+            translations,
+          ),
+          bookId,
+        )
+      : null;
+    // The key names the recording the rows were fetched+adjusted
+    // for (audioId), not the timestamp source — ENGESV_API and
+    // ENGESVN1DA share the ENGESVN1DA source rows but receive
+    // differently-adjusted output.
+    const tsKey = tsFilesetId
+      ? `${audioId}:${bookId}:${chapter}`
+      : null;
+    // Rows in state describe the last resolved key — clear them
+    // when they no longer match what is about to play so verse
+    // navigation/highlight never runs on another recording's
+    // verse map.
+    if (timestampsKeyRef.current !== tsKey) {
+      timestampsKeyRef.current = null;
+      setTimestamps([]);
+    }
     if (!tsFilesetId) return;
-    void getAudioTimestamps(
-      activeBookId,
-      activeChapter,
-      tsFilesetId,
-    ).then((ts) => {
-      const adjusted = adjustTimestampsForENGESV(
-        ts,
-        resolvedAudioId,
-      );
-      setTimestamps(adjusted);
-    });
+    let cancelled = false;
+    void getAudioTimestamps(bookId, chapter, tsFilesetId).then(
+      (ts) => {
+        // A superseded fetch resolving late must not overwrite
+        // a newer chapter's rows with stale ones.
+        if (cancelled) return;
+        timestampsKeyRef.current = tsKey;
+        setTimestamps(adjustTimestampsForENGESV(ts, audioId));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [
+    audio,
     activeBookId,
     activeChapter,
     activeAudioFilesetId,

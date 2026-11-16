@@ -4,6 +4,7 @@ import * as api from './api';
 import {
   Note,
   Tag,
+  TagPagination,
   PlaylistItem,
   AudioActiveVerse,
   VerseRef,
@@ -75,6 +76,14 @@ export interface BibleState {
   notesPageSize: number;
   notesHasMore: boolean;
   notesOrdering: string | null;
+  /**
+   * Persisted per-tag pagination prefs keyed by tag id (the
+   * UNTAGGED sentinel included): the page and page size the
+   * user last viewed that tag at. `fetchNotes` writes it on
+   * every successful tag fetch; `useTagNotesData` restores
+   * it when a tag is revisited.
+   */
+  tagPagination: Record<string, TagPagination>;
   audioActiveVerse: AudioActiveVerse | null;
   setAudioActiveVerse: (verse: AudioActiveVerse | null) => void;
   audioPlaylistItems: PlaylistItem[] | null;
@@ -150,6 +159,8 @@ export interface BibleState {
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
   setNotesPageSize: (pageSize: number) => void;
+  /** Drops a deleted tag's remembered pagination position. */
+  removeTagPagination: (tagId: string) => void;
   /**
    * Resolves the saved reading position for `bookId` and stages
    * the book-switch side effects (pendingScrollVerse,
@@ -192,6 +203,7 @@ export const initialState = {
   notesPageSize: 25,
   notesHasMore: false,
   notesOrdering: null,
+  tagPagination: {} as Record<string, TagPagination>,
   audioActiveVerse: null as AudioActiveVerse | null,
   audioPlaylistItems: null as PlaylistItem[] | null,
   audioPlaylistStartIndex: null as number | null,
@@ -393,7 +405,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 7,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

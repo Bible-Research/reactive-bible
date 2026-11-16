@@ -3,6 +3,11 @@ import * as Sentry from '@sentry/react';
 import {
   ErrorNotificationContent,
 } from '../components/ErrorNotificationContent';
+import {
+  CHUNK_LOAD_PATTERN,
+  isChunkLoadError,
+  reloadForStaleChunk,
+} from './chunkLoadError';
 
 // Media elements are excluded: audio/video sources routinely
 // fail and are retried by the app's own fallback chains, so
@@ -48,6 +53,25 @@ function toError(error: unknown): Error {
     return new Error(JSON.stringify(error));
   } catch {
     return new Error(String(error));
+  }
+}
+
+// Every Vite build artifact lives under `assets/` with a
+// content-hashed filename, so a same-origin /assets/* script
+// or stylesheet that fails to load can only mean the tab holds
+// a stale index.html from the previous deploy — the missing
+// hash was deleted, not the file. Third-party URLs with
+// /assets/ in their path must not trigger a reload, so the
+// origin is compared too.
+function isOwnBuildAsset(src: string): boolean {
+  try {
+    const url = new URL(src);
+    return (
+      url.origin === window.location.origin &&
+      url.pathname.startsWith('/assets/')
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -199,6 +223,24 @@ function handleGlobalError(event: Event): void {
     if (src.includes('/_vercel/')) {
       return;
     }
+    // Vite 8 attaches no error listener to the <link
+    // rel="modulepreload"> it creates for a lazy chunk's JS
+    // dependencies, so a 404'd hashed asset surfaces only as
+    // this element error event — no promise rejection reaches
+    // lazyWithReload (this is the 'Failed to load resource:
+    // …/assets/<chunk>.js' warning stream). A missing own-build
+    // script or stylesheet means a stale index.html: trigger
+    // the same guarded reload lazyWithReload uses, before the
+    // dedup early-return so a failure retried after coming back
+    // online can still self-heal. The guard makes this safe to
+    // attempt on every failure.
+    if (
+      (target.tagName === 'SCRIPT' ||
+        target.tagName === 'LINK') &&
+      isOwnBuildAsset(src)
+    ) {
+      reloadForStaleChunk();
+    }
     // Report each failing resource once — a persistent 404 would
     // otherwise flood notifications on every retry/mount.
     if (reportedResources.has(src)) return;
@@ -235,6 +277,28 @@ function handleUnhandledRejection(
   reportError(event.reason, 'Unhandled promise rejection');
 }
 
+// Vite's __vitePreload wrapper dispatches this cancelable event
+// on window when a lazy chunk's dependency preload or the
+// dynamic import() itself rejects; `payload` is the rejection
+// reason. preventDefault is deliberately never called — the
+// rejection must still propagate to lazyWithReload / the
+// unhandledrejection pipeline; this listener only guarantees a
+// stale-tab reload is attempted for every chunk-load failure,
+// including import()s not wrapped by lazyWithReload.
+function handleVitePreloadError(event: Event): void {
+  const payload = (event as { payload?: unknown }).payload;
+  // Vite passes the rejection reason — normally an Error — but
+  // a bare string rejection naming a stale chunk should still
+  // self-heal, so the pattern is matched against strings too.
+  if (
+    isChunkLoadError(payload) ||
+    (typeof payload === 'string' &&
+      CHUNK_LOAD_PATTERN.test(payload))
+  ) {
+    reloadForStaleChunk();
+  }
+}
+
 // Survives module replacement: Vite HMR re-executes main.tsx on
 // every edit, and without a window-level marker each reload would
 // stack another pair of listeners, duplicating every report.
@@ -246,7 +310,8 @@ declare global {
 
 /**
  * Installs window-level handlers for uncaught exceptions,
- * unhandled promise rejections, and resource load failures.
+ * unhandled promise rejections, resource load failures, and
+ * Vite's `vite:preloadError` (stale-chunk recovery).
  * Idempotent — a previous installation (e.g. after HMR) is
  * removed first. Returns a cleanup function.
  */
@@ -257,11 +322,19 @@ export function initGlobalErrorHandlers(): () => void {
     'unhandledrejection',
     handleUnhandledRejection
   );
+  window.addEventListener(
+    'vite:preloadError',
+    handleVitePreloadError
+  );
   const cleanup = () => {
     window.removeEventListener('error', handleGlobalError, true);
     window.removeEventListener(
       'unhandledrejection',
       handleUnhandledRejection
+    );
+    window.removeEventListener(
+      'vite:preloadError',
+      handleVitePreloadError
     );
     pendingReports = [];
     reportedResources.clear();

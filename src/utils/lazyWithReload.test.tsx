@@ -280,17 +280,42 @@ describe('lazyWithReload', () => {
       expect(reloadMock).not.toHaveBeenCalled();
     });
 
-  it('rethrows the chunk error once the reload guard fired',
-    async () => {
+  it('keeps the Suspense fallback while a reload is ' +
+    'already tearing the page down', async () => {
       const { reloadForStaleChunk } =
         await import('./chunkLoadError');
       const { lazyWithReload } =
         await import('./lazyWithReload');
-      // Burn the one allowed reload — a second stale-chunk
-      // failure must fall through to the normal error path.
+      // Another handler (e.g. the vite:preloadError listener
+      // or a failed modulepreload link) already triggered the
+      // one allowed reload — a second stale-chunk rejection
+      // must stay suspended, not flash an error the user can
+      // never act on.
       reloadForStaleChunk();
       expect(reloadMock).toHaveBeenCalledTimes(1);
 
+      const Lazy = lazyWithReload(() =>
+        Promise.reject<DummyModule>(chromeChunkError())
+      );
+      renderLazy(Lazy);
+
+      expect(await screen.findByText('chunk loading'))
+        .toBeInTheDocument();
+      expect(screen.queryByTestId('boundary-error')).toBeNull();
+      expect(reloadMock).toHaveBeenCalledTimes(1);
+    });
+
+  it('rethrows the chunk error when no reload is coming',
+    async () => {
+      const { lazyWithReload } =
+        await import('./lazyWithReload');
+      // A still-valid guard timestamp from an earlier page
+      // load spent the reload window — surface the failure
+      // to the boundary instead of reloading. getItem is
+      // spied rather than setItem because an earlier suite's
+      // throwing storage spy can leak into this test.
+      vi.spyOn(window.sessionStorage, 'getItem')
+        .mockReturnValue(String(Date.now()));
       const err = chromeChunkError();
       const Lazy = lazyWithReload(() =>
         Promise.reject<DummyModule>(err)
@@ -299,7 +324,7 @@ describe('lazyWithReload', () => {
 
       expect(await screen.findByTestId('boundary-error'))
         .toHaveTextContent(err.message);
-      expect(reloadMock).toHaveBeenCalledTimes(1);
+      expect(reloadMock).not.toHaveBeenCalled();
     });
 
   it('surfaces the chunk error to the boundary when offline',

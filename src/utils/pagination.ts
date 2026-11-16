@@ -1,4 +1,16 @@
 /**
+ * Page sizes offered by the notes toolbar — and the only
+ * values `tagPagination` may restore. A persisted size
+ * outside this set (e.g. hand-edited localStorage) falls
+ * back to `DEFAULT_NOTES_PAGE_SIZE` instead of reaching the
+ * Select or a fetch.
+ */
+export const NOTES_PAGE_SIZES: readonly number[] = [
+  5, 25, 50, 100,
+];
+export const DEFAULT_NOTES_PAGE_SIZE = 25;
+
+/**
  * Total number of pages for a paginated list.
  */
 export const pageCount = (

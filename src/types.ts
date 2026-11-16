@@ -295,6 +295,15 @@ export type ReadingPositionValue = {
 };
 
 /**
+ * A tag's remembered pagination position — restored by
+ * `useTagNotesData` when `/notes/tag/:tagId` is revisited.
+ */
+export interface TagPagination {
+  page: number;
+  pageSize: number;
+}
+
+/**
  * One book row from `GET /api/v1/bible/structure/` — `chapters`
  * is the covered chapter-number list (not verse counts) and
  * `name`/`name_short` are localized to the fileset's language.

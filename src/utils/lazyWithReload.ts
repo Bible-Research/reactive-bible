@@ -1,6 +1,7 @@
 import { lazy, type ComponentType } from 'react';
 import {
   isChunkLoadError,
+  isStaleChunkReloadPending,
   reloadForStaleChunk,
 } from './chunkLoadError';
 
@@ -21,9 +22,13 @@ const NEVER_SETTLES = new Promise<never>(() => undefined);
  * error the page reloads once (fresh index.html → fresh asset
  * hashes) and the returned promise deliberately never settles
  * while the reload tears the page down — the Suspense fallback
- * stays mounted instead of flashing an error. Once the reload
- * guard has fired, or for any non-chunk failure, the original
- * error is rethrown so ErrorBoundary/reportError handle it.
+ * stays mounted instead of flashing an error. The same holds
+ * when a reload is already tearing the page down (another
+ * handler, e.g. the `vite:preloadError` listener, fired first).
+ * When no reload is coming — the guard window already spent it,
+ * or the tab is offline — or for any non-chunk failure, the
+ * original error is rethrown so ErrorBoundary/reportError
+ * handle it.
  */
 // `ComponentType<never>` is the universal component supertype:
 // props are contravariant, so every ComponentType<P> is
@@ -39,7 +44,10 @@ export const lazyWithReload = <T extends ComponentType<never>>(
     try {
       return await factory();
     } catch (error) {
-      if (isChunkLoadError(error) && reloadForStaleChunk()) {
+      if (
+        isChunkLoadError(error) &&
+        (reloadForStaleChunk() || isStaleChunkReloadPending())
+      ) {
         return NEVER_SETTLES;
       }
       throw error;

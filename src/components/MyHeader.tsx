@@ -13,8 +13,7 @@ import { useBibleStore } from "../store";
 import { parseBibleRef } from "../utils/bibleUtils";
 import Audio from "./Audio";
 import TranslationSelector from "./TranslationSelector";
-
-const HEADER_HEIGHT = 56;
+import { HEADER_HEIGHT } from "../utils/layoutChrome";
 // px of accumulated scroll in one direction needed to toggle the
 // header — roughly "two swipes". Small scrolls are ignored so the
 // header does not flicker while reading.
@@ -48,8 +47,10 @@ const MyHeader = ({
   const navigate = useNavigate();
   const location = useLocation();
   // Visibility lives in the store so the AppShell can collapse
-  // the padding it reserves for this header at the same time the
-  // header slides away.
+  // the padding it reserves for this header on non-/bible
+  // routes at the same time the header slides away (on /bible
+  // the header overlays the scroll viewport — PassageView
+  // carries the clearance inside the scrolled content).
   const visible = useBibleStore((state) => state.headerVisible);
   const setVisible = useBibleStore(
     (state) => state.setHeaderVisible

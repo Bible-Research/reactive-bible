@@ -244,6 +244,7 @@ stay eager because they serve the landing path.
 | `/bible/:ref` | `BibleRoute` | USFM chapter or verse ref |
 | `/bible/:book/:chapterVerse` | `LegacyBibleRedirect` | → canonical ref |
 | `/search` | `SearchRoute` | Search (`?q=`) |
+| `/getting-started` | `GettingStartedRoute` | Video tutorials |
 | `/notes` | `NotesRoute` | → default tag |
 | `/notes/tag/:tagId` | `TagNotesRoute` | Tag notes (`untagged`) |
 | `/notes/:noteId` | `NoteDetailRoute` | Note detail (public) |
@@ -259,6 +260,7 @@ stay eager because they serve the landing path.
 src/routes/
 ├── index.tsx              # Route table + lazy boundaries
 ├── BibleRoute.tsx         # USFM ref parsing → store sync
+├── GettingStartedRoute.tsx# Embedded video tutorials
 ├── LegacyBibleRedirect.tsx# /bible/:book/:chapterVerse → canonical
 ├── NotesRoute.tsx         # Tag load + redirect
 ├── TagNotesRoute.tsx      # Tag notes list (pagination, reorder)
@@ -594,6 +596,10 @@ auth lives in a separate persisted `authStore`.
 - `tags: Tag[]`, `notes: Note[]`, `allNotesFetched: boolean`
 - Pagination: `notesCount`, `notesPage`, `notesPageSize`,
   `notesHasMore`, `notesOrdering`
+- `tagPagination: Record<string, TagPagination>` - persisted
+  per-tag `{ page, pageSize }` written by `fetchNotes` and
+  restored by `useTagNotesData` so revisiting a tag lands on
+  the page and page size the user last selected for it
 - `lastSelectedTagId: string | null` - remembered for the
   `/notes` redirect
 
@@ -691,7 +697,7 @@ persist(
   (set, get) => ({ /* state and actions */ }),
   {
     name: 'bible-storage',
-    version: 5,
+    version: 7,
     storage: createJSONStorage(() => localStorage),
     partialize: /* in stores/bibleStore/persistence.ts */,
     migrate: migratePersistedState,
@@ -1729,6 +1735,19 @@ Streams audio Bible chapters with full playback controls.
 - Previous Track: restarts the current verse when more than 2s
   into it, otherwise jumps to the previous verse's start; at
   verse 1, goes to the previous chapter
+- Repeat presses in one direction within 4s chain off the last
+  seek TARGET, not the live position (`verseNavTarget` in
+  `src/utils/verseNav.ts`) — html5 seeks apply asynchronously,
+  so computing a follow-up press from `seek()` could read a
+  stale position and restart the verse the press just landed
+  on. The chain is dropped on a direction change, a chapter
+  change, or an outside seek (player slider).
+- Verse timestamps are fetched for the recording actually
+  playing (the fileset the candidate walk landed on, tracked in
+  `audioChapterKeyRef`) — a coverage/codec fallback that
+  substituted another recording gets THAT recording's
+  timestamps or, when it has none, the ±10s fallback; never a
+  misaligned foreign verse map.
 - When no verse timestamps are available (e.g. KJV), Next/
   Previous Track fall back to a ±10 second seek
 
@@ -1817,7 +1836,9 @@ All prefetching happens silently in the background.
 **Hardware Controls**:
 - **Play/Pause**: Works on all devices (headphones, car)
 - **Seek Forward/Backward**: Skips ±10 seconds (headphones)
-- **Next/Previous Track**: Skips ±10 seconds (car stereo)
+- **Next/Previous Track**: verse-aware jumps (car stereo);
+  repeated presses chain verse steps — see the "Hardware
+  controls" contract above
 - **Seek To**: Direct time seeking (car stereo fallback)
 - **Lock Screen**: Shows chapter info and controls (mobile)
 
@@ -2142,12 +2163,23 @@ pasting into a GitHub issue.
   rejection the page reloads at most once per URL per
   10-minute window (sessionStorage timestamp guard +
   in-memory flag) to fetch the fresh `index.html`, holding the
-  Suspense fallback instead of crashing. While
+  Suspense fallback instead of crashing. `errorReporter` adds
+  two more triggers on top of the `import()` rejections:
+  it listens for Vite's `vite:preloadError` window event (the
+  canonical preload-failure hook, covering `import()`s not
+  wrapped by `lazyWithReload`), and it attempts the same
+  guarded reload when a `<script>`/`<link>` element for a
+  same-origin `/assets/*` file errors — Vite 8 attaches no
+  error listener to the JS `modulepreload` links it injects,
+  so a 404'd hashed dependency surfaces only as a resource
+  error, never as a rejection. While
   `navigator.onLine` reports the tab offline the reload is
   skipped — a reload would land on the browser's
   connection-error page — and the error propagates to the
-  route's boundary. Once the guard has fired — or for any
-  non-chunk failure — the original error is rethrown so
+  route's boundary. Once a reload is already tearing the page
+  down the failure stays suspended (`isStaleChunkReloadPending`);
+  when no reload is coming — or for any non-chunk failure —
+  the original error is rethrown so
   `ErrorBoundary`/`reportError` handle it.
 
 **Implementation**:
@@ -2384,8 +2416,13 @@ Top header bar with controls.
   tapping a verse must only raise the `VerseActionToolbar`, not
   un-hide the bars.
 - The same `headerVisible` store flag also gates `BottomNav`
-  (slides below the viewport on hide) and the AppShell's
-  reserved footer padding, so both bars move together.
+  (slides below the viewport on hide), so both bars move
+  together. On `/bible` the bars overlay a full-height scroll
+  viewport — the AppShell reserves no padding there; instead
+  `PassageView` pads the scrolled CONTENT itself
+  (`layoutChrome.ts` heights), so hiding/showing the bars
+  never reflows (jumps) the text. Other routes still reclaim
+  the AppShell's reserved padding when the chrome hides.
 
 ---
 

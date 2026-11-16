@@ -50,6 +50,7 @@ import {
 } from "../utils/externalLinks";
 import { lazyWithReload } from "../utils/lazyWithReload";
 import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
+import { FOOTER_HEIGHT } from "../utils/layoutChrome";
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
@@ -308,10 +309,10 @@ const VerseActionToolbar = () => {
   const onBibleRoute = location.pathname.startsWith('/bible');
   const bottomOffset = showAudioPlayer
     ? onBibleRoute && headerVisible
-      ? AUDIO_PLAYER_HEIGHT + 56
+      ? AUDIO_PLAYER_HEIGHT + FOOTER_HEIGHT
       : AUDIO_PLAYER_HEIGHT
     : onBibleRoute && headerVisible
-      ? 56
+      ? FOOTER_HEIGHT
       : 0;
 
   const handleViewInBible = useCallback(() => {

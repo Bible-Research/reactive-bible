@@ -7,6 +7,7 @@ import { buildBiblePath } from "../utils/bibleUtils";
 import { verseNumbersFor } from "../utils/verseRefs";
 import { findVersesInBetween } from "../utils/findVersesInBetween";
 import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
+import { FOOTER_HEIGHT } from "../utils/layoutChrome";
 import PassagePicker from "./PassagePicker";
 
 const MOBILE_LANDSCAPE_QUERY =
@@ -70,7 +71,7 @@ const BibleSelector = ({
                 height:
                   "calc(100vh - var(--mantine-header-height," +
                   " 0px)" +
-                  ` - ${AUDIO_PLAYER_HEIGHT + 56}px)`,
+                  ` - ${AUDIO_PLAYER_HEIGHT + FOOTER_HEIGHT}px)`,
               }
             : {}
           : {

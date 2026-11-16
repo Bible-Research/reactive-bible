@@ -70,6 +70,8 @@ export default function App() {
   const isAuthPage = location.pathname === '/login' ||
                      location.pathname === '/register';
   const isSearchPage = location.pathname === '/search';
+  const isGettingStartedPage =
+    location.pathname.startsWith('/getting-started');
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
@@ -129,19 +131,31 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
-              paddingTop: headerVisible
-                ? "var(--mantine-header-height, 0px)"
-                : 0,
-              paddingBottom: headerVisible && isBibleView
-                ? "var(--mantine-footer-height, 0px)"
+              // On /bible the header/footer overlay the scroll
+              // viewport instead of pushing it: PassageView puts
+              // the clearance INSIDE the scrolled content, so
+              // sliding the bars away never reflows the text
+              // (verses just scroll under the freed space).
+              // Other routes keep reclaiming the reserved
+              // padding when the chrome hides.
+              paddingTop:
+                isBibleView || !headerVisible
+                  ? 0
+                  : "var(--mantine-header-height, 0px)",
+              paddingBottom: isBibleView
+                ? 0
                 : showAudioPlayer
                   ? `${AUDIO_PLAYER_HEIGHT}px`
                   : 0,
+              // Inert on /bible (paddings are constant 0);
+              // still animates the reclaim on other routes.
               transition:
                 "padding-top 0.3s ease-in-out, " +
                 "padding-bottom 0.3s ease-in-out",
-              // Allow scrolling on auth and search pages
-              overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
+              // Allow scrolling on auth, search, and
+              // getting-started pages
+              overflow: (isAuthPage || isSearchPage ||
+                isGettingStartedPage) ? "auto" : "hidden",
             },
           })}
         >
