@@ -6,9 +6,9 @@
  * video-scripts/getting-started.en.md (workspace root), in the
  * order a brand-new user should watch them: anonymous features
  * first, then the account, then everything behind a login. They
- * ship as `youtubeId: null` until recorded — GettingStartedRoute filters those
- * out, so the page can go live before anything is recorded and
- * grows as real video ids are filled in.
+ * ship as `youtubeId: null` until recorded — GettingStartedRoute
+ * filters those out, so the page can go live before anything is
+ * recorded and grows as real video ids are filled in.
  */
 export interface TutorialVideo {
   /** Stable catalogue id — also the React key. */
