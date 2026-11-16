@@ -99,11 +99,13 @@ const MainMenu = ({
         withCloseButton={false}
         padding="xl"
       >
+      {/* Close X sits top-right, under the burger that opened
+          the drawer (MyHeader pins it at right: 10px). */}
       <ActionIcon
         onClick={onClose}
         size="lg"
         variant="transparent"
-        style={{ alignSelf: "flex-start", marginBottom: "2rem" }}
+        style={{ alignSelf: "flex-end", marginBottom: "2rem" }}
         title="Close menu"
       >
         <IconX size={24} />
