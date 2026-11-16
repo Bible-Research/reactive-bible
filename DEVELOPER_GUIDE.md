@@ -244,6 +244,7 @@ stay eager because they serve the landing path.
 | `/bible/:ref` | `BibleRoute` | USFM chapter or verse ref |
 | `/bible/:book/:chapterVerse` | `LegacyBibleRedirect` | → canonical ref |
 | `/search` | `SearchRoute` | Search (`?q=`) |
+| `/getting-started` | `GettingStartedRoute` | Video tutorials |
 | `/notes` | `NotesRoute` | → default tag |
 | `/notes/tag/:tagId` | `TagNotesRoute` | Tag notes (`untagged`) |
 | `/notes/:noteId` | `NoteDetailRoute` | Note detail (public) |
@@ -259,6 +260,7 @@ stay eager because they serve the landing path.
 src/routes/
 ├── index.tsx              # Route table + lazy boundaries
 ├── BibleRoute.tsx         # USFM ref parsing → store sync
+├── GettingStartedRoute.tsx# Embedded video tutorials
 ├── LegacyBibleRedirect.tsx# /bible/:book/:chapterVerse → canonical
 ├── NotesRoute.tsx         # Tag load + redirect
 ├── TagNotesRoute.tsx      # Tag notes list (pagination, reorder)
