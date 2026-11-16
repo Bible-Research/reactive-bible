@@ -294,15 +294,23 @@ export interface SearchScanProgress {
   chapters_total: number;
 }
 
+/**
+ * What `searchBibleGrouped` resolves to: every fetched
+ * window's groups merged by `book_id`, with `meta`
+ * accumulated across windows. The wire-level
+ * `next_cursor`/`progress` fields are consumed inside the
+ * fetch loop and never surface here.
+ */
 export interface GroupedSearchResponse {
   groups: SearchVerseGroup[];
   meta: {
+    /** Matches across all fetched windows. */
     total: number;
+    /**
+     * True when the merged result is incomplete — a
+     * result cap or a scan the client could not finish.
+     */
     truncated: boolean;
-    /** Opaque resume token; present only on truncated scans. */
-    next_cursor?: string;
-    /** Scan coverage of the window that produced this meta. */
-    progress?: SearchScanProgress;
   };
 }
 

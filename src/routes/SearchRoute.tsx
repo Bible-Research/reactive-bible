@@ -27,13 +27,11 @@ import { useBibleStore } from '../store';
 import {
   searchBibleGrouped,
   SearchDisabledError,
+  SearchScanProgress,
   SearchVerse,
   SearchVerseGroup,
 } from '../api';
-import {
-  type PlaylistItem,
-  type SearchScanProgress,
-} from '../types';
+import { type PlaylistItem } from '../types';
 import {
   localizedBookName,
   buildBiblePath,
@@ -88,8 +86,10 @@ export default function SearchRoute() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] =
     useState<SearchScanProgress | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [searchDisabled, setSearchDisabled] = useState(false);
+  // The thrown error itself is stored (not a display
+  // string) so `searchDisabled` and the localized text can
+  // both be derived in render — no second state to sync.
+  const [error, setError] = useState<Error | null>(null);
   const [searched, setSearched] = useState(false);
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [expandedBooks, setExpandedBooks] =
@@ -149,7 +149,6 @@ export default function SearchRoute() {
       setTotal(0);
       setTruncated(false);
       setError(null);
-      setSearchDisabled(false);
       setProgress(null);
       setSearched(false);
       // A cleared query aborts the in-flight search (swallowed
@@ -160,7 +159,6 @@ export default function SearchRoute() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    setSearchDisabled(false);
     setProgress(null);
     searchBibleGrouped(
       q,
@@ -180,8 +178,7 @@ export default function SearchRoute() {
         setGroups([]);
         setTotal(0);
         setTruncated(false);
-        setSearchDisabled(err instanceof SearchDisabledError);
-        setError(localizedErrorText(err));
+        setError(err);
         setLoading(false);
       });
     return () => controller.abort();
@@ -255,6 +252,12 @@ export default function SearchRoute() {
     );
   };
 
+  // Derived in render from the stored error (not synced
+  // state): a SearchDisabledError renders the supportive
+  // dimmed hint, any other failure the red error text.
+  const searchDisabled = error instanceof SearchDisabledError;
+  const errorText = error ? localizedErrorText(error) : null;
+
   return (
     <Box p="md" maw={800} mx="auto">
       <Title order={2} mb="md">
@@ -291,11 +294,14 @@ export default function SearchRoute() {
             {progress && progress.chapters_total > 0 && (
               <>
                 <Progress
-                  value={
+                  // A progress report ahead of the window's
+                  // chapter count would overflow the bar.
+                  value={Math.min(
+                    100,
                     (progress.chapters_scanned /
                       progress.chapters_total) *
-                    100
-                  }
+                      100,
+                  )}
                   size="sm"
                   w="60%"
                   aria-label={t('search.progress')}
@@ -320,13 +326,13 @@ export default function SearchRoute() {
 
       {!loading && error && searchDisabled && (
         <Text color="dimmed" mt="md">
-          {error}
+          {errorText}
         </Text>
       )}
 
       {!loading && error && !searchDisabled && (
         <Text color="red" mt="md">
-          {error}
+          {errorText}
         </Text>
       )}
 

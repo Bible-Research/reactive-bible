@@ -98,6 +98,21 @@ export const errorCodeOf = (
     ? (err as CodedError).errorCode
     : undefined;
 
+/**
+ * Attach the backend's `error_code` to a thrown error so
+ * `errorCodeOf` consumers keep it — used by
+ * `throwFromErrorBody` and the 200-body error paths that
+ * build their own typed errors (e.g. search's
+ * `throwSearchError`).
+ */
+export const attachErrorCode = <T extends Error>(
+  err: T,
+  code: string | undefined
+): T => {
+  (err as CodedError).errorCode = code;
+  return err;
+};
+
 /** Error fields a backend/provider response body can carry. */
 interface ErrorBody {
   error?: unknown;
@@ -178,10 +193,8 @@ export const throwFromErrorBody = async (
     typeof body.error_code === 'string'
       ? body.error_code
       : undefined;
-  const attach = <T extends Error>(err: T): T => {
-    (err as CodedError).errorCode = code;
-    return err;
-  };
+  const attach = <T extends Error>(err: T): T =>
+    attachErrorCode(err, code);
   if (isBookNotInFilesetBody(body)) {
     throw attach(
       new BookNotInFilesetError(

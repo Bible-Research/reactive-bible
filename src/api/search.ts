@@ -18,12 +18,17 @@ import {
   ProviderError,
   RateLimitError,
   SearchDisabledError,
+  attachErrorCode,
   errorMessageFromBody,
   isRateLimitMessage,
   throwFromErrorBody,
 } from './errors';
 
-/** Throw the typed error matching a failure response body. */
+/**
+ * Throw the typed error matching a failure response body,
+ * carrying the parsed `error_code` so `errorCodeOf`
+ * consumers keep it on the 200-body path too.
+ */
 const throwSearchError = (json: {
   error?: unknown;
   error_code?: unknown;
@@ -34,13 +39,23 @@ const throwSearchError = (json: {
     json,
     'Search failed'
   );
+  const code =
+    typeof json.error_code === 'string'
+      ? json.error_code
+      : undefined;
   if (json.error_code === 'search_disabled') {
-    throw new SearchDisabledError(message);
+    throw attachErrorCode(
+      new SearchDisabledError(message),
+      code
+    );
   }
-  throw json.error_code === 'rate_limited' ||
-    isRateLimitMessage(message)
-    ? new RateLimitError(message)
-    : new ProviderError(message);
+  throw attachErrorCode(
+    json.error_code === 'rate_limited' ||
+      isRateLimitMessage(message)
+      ? new RateLimitError(message)
+      : new ProviderError(message),
+    code
+  );
 };
 
 /**
@@ -73,16 +88,29 @@ const mergeWindowGroups = (
   }
 };
 
-interface SearchWindowMeta {
-  total?: number;
-  truncated?: boolean;
-  next_cursor?: string;
-  progress?: SearchScanProgress;
-}
-
-interface SearchWindowData {
+/**
+ * One `data` payload of `GET /api/v1/bible/search/` as it
+ * arrives on the wire — a single scan window. The loop
+ * below follows `meta.next_cursor` and merges the windows
+ * into the public `GroupedSearchResponse`, whose `meta`
+ * therefore exposes only the accumulated
+ * `total`/`truncated`.
+ */
+interface GroupedSearchWindow {
   groups?: SearchVerseGroup[];
-  meta?: SearchWindowMeta;
+  meta?: {
+    /** This window's match count — accumulated by the loop. */
+    total?: number;
+    truncated?: boolean;
+    /**
+     * Opaque resume token marking a deadline-stopped
+     * (incomplete) scan — sent back as `cursor` to fetch
+     * the next window.
+     */
+    next_cursor?: string;
+    /** Scan coverage of this window. */
+    progress?: SearchScanProgress;
+  };
 }
 
 export const searchBibleGrouped = async (
@@ -124,7 +152,7 @@ export const searchBibleGrouped = async (
     if (json.error || json.error_code) {
       throwSearchError(json);
     }
-    const data = (json.data ?? {}) as SearchWindowData;
+    const data = (json.data ?? {}) as GroupedSearchWindow;
     const groups = data.groups;
     if (
       typeof json.message === 'string' &&
