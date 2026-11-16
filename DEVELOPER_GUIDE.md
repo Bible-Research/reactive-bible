@@ -2342,8 +2342,13 @@ Top header bar with controls.
   tapping a verse must only raise the `VerseActionToolbar`, not
   un-hide the bars.
 - The same `headerVisible` store flag also gates `BottomNav`
-  (slides below the viewport on hide) and the AppShell's
-  reserved footer padding, so both bars move together.
+  (slides below the viewport on hide), so both bars move
+  together. On `/bible` the bars overlay a full-height scroll
+  viewport — the AppShell reserves no padding there; instead
+  `PassageView` pads the scrolled CONTENT itself
+  (`layoutChrome.ts` heights), so hiding/showing the bars
+  never reflows (jumps) the text. Other routes still reclaim
+  the AppShell's reserved padding when the chrome hides.
 
 ---
 
