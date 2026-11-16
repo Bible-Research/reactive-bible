@@ -129,13 +129,13 @@ jobs:
             local pr_id
             pr_id=$(gh api graphql -f query='query($u:URI!)
               {resource(url:$u){... on PullRequest{id}}}' \
-              -F u="$1" --jq .data.resource.id \
+              -f u="$1" --jq .data.resource.id \
               </dev/null 2>/dev/null) || return 1
             gh api graphql -f query='mutation($id:ID!,
               $oid:GitObjectID!){mergePullRequest(input:
               {pullRequestId:$id,expectedHeadOid:$oid,
               mergeMethod:SQUASH}){pullRequest{state}}}' \
-              -F id="$pr_id" -F oid="$2" \
+              -f id="$pr_id" -f oid="$2" \
               </dev/null > /dev/null
           }
 
