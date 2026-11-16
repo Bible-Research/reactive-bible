@@ -90,6 +90,7 @@ const BottomNav = ({
         </ActionIcon>
         <Title order={4} title="nav-current-passage">
           <UnstyledButton
+            aria-expanded={bibleSelectorOpened}
             onClick={() =>
               setBibleSelectorOpened(!bibleSelectorOpened)
             }

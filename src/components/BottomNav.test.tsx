@@ -5,7 +5,7 @@ import {
   within,
   fireEvent,
 } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import BottomNav from './BottomNav';
 import { AUDIO_PLAYER_HEIGHT } from '../utils/audioUtils';
@@ -75,6 +75,14 @@ describe('BottomNav', () => {
 });
 
 describe('BottomNav passage button toggles the selector', () => {
+  // Proves a press never navigates: useNavigate would update
+  // this probe, while window.location sits outside the
+  // MemoryRouter and is meaningless here.
+  const LocationProbe = () => {
+    const { pathname } = useLocation();
+    return <div data-testid="location">{pathname}</div>;
+  };
+
   const pressPassage = () =>
     fireEvent.click(
       within(screen.getByTitle('nav-current-passage'))
@@ -91,6 +99,7 @@ describe('BottomNav passage button toggles the selector', () => {
     );
 
     pressPassage();
+    expect(setOpened).toHaveBeenCalledTimes(1);
     expect(setOpened).toHaveBeenCalledWith(true);
   });
 
@@ -98,16 +107,42 @@ describe('BottomNav passage button toggles the selector', () => {
     'is already open', () => {
     const setOpened = vi.fn();
     renderWithProviders(
+      <>
+        <LocationProbe />
+        <BottomNav
+          bibleSelectorOpened={true}
+          setBibleSelectorOpened={setOpened}
+        />
+      </>
+    );
+
+    pressPassage();
+    expect(setOpened).toHaveBeenCalledTimes(1);
+    expect(setOpened).toHaveBeenCalledWith(false);
+    expect(screen.getByTestId('location').textContent).toBe('/');
+  });
+
+  it('toggles open then closed across renders', () => {
+    const setOpened = vi.fn();
+    const { rerender } = renderWithProviders(
       <BottomNav
-        bibleSelectorOpened={true}
+        bibleSelectorOpened={false}
         setBibleSelectorOpened={setOpened}
       />
     );
 
     pressPassage();
-    expect(setOpened).toHaveBeenCalledWith(false);
-    // The URL must not move — closing never re-navigates.
-    expect(window.location.pathname).toBe('/');
+    expect(setOpened).toHaveBeenLastCalledWith(true);
+
+    rerender(
+      <BottomNav
+        bibleSelectorOpened={true}
+        setBibleSelectorOpened={setOpened}
+      />
+    );
+    pressPassage();
+    expect(setOpened).toHaveBeenLastCalledWith(false);
+    expect(setOpened).toHaveBeenCalledTimes(2);
   });
 });
 
