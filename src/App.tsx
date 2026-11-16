@@ -71,7 +71,7 @@ export default function App() {
                      location.pathname === '/register';
   const isSearchPage = location.pathname === '/search';
   const isGettingStartedPage =
-    location.pathname === '/getting-started';
+    location.pathname.startsWith('/getting-started');
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
