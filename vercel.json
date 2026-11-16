@@ -1,5 +1,12 @@
 {
   "regions": ["fra1"],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "staging": true,
+      "**": false
+    }
+  },
   "headers": [
     {
       "source": "/assets/(.*)",
