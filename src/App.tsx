@@ -147,6 +147,8 @@ export default function App() {
                 : showAudioPlayer
                   ? `${AUDIO_PLAYER_HEIGHT}px`
                   : 0,
+              // Inert on /bible (paddings are constant 0);
+              // still animates the reclaim on other routes.
               transition:
                 "padding-top 0.3s ease-in-out, " +
                 "padding-bottom 0.3s ease-in-out",
