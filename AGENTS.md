@@ -39,21 +39,31 @@ whose head SHA was never merged into `staging`, and the
   into `staging` via the still-open staging PR or a new
   one.
 - **Promotion to `main`** — only when the user asks to
-  release or merge to main: for each verified branch
-  already in `staging`, re-push it if deleted, open a
-  second PR with `--base main` (same title + body — keep
-  any `Closes #<N>` links so issues auto-close on the
-  default-branch merge), then
-  `gh pr merge <N> --squash --admin`. NEVER open
-  `staging`→`main` PRs — that drags integration noise and
-  fix commits into prod history. Afterwards reset staging:
-  `git fetch origin && git push --force-with-lease origin
+  release or merge to main. The `Promote to main` workflow
+  (`.github/workflows/promote-to-main.yml`) automates it:
+  `gh workflow run "Promote to main"` (or the Actions tab;
+  `-f dry_run=true` lists pending promotions). It opens a
+  `main` PR per staged branch — oldest staging-merge
+  first, original title + body — squash-merges each, then
+  resets `staging` to `main`. Conflicting promotions are
+  resolved from the staging squash commit's tree — the
+  validated integration state, never guessed. Manual
+  equivalent, per branch: re-push it if auto-deleted
+  (`git push origin <headRefOid>:refs/heads/<branch>`),
+  open a PR with `--base main` (same title + body — keep
+  `Closes #<N>` links so issues auto-close), then
+  `gh pr merge <N> --squash --admin`; then reset staging
+  (`git fetch origin && git push --force-with-lease origin
   origin/main:refs/heads/staging` — the only sanctioned
-  force-push in this repo (`staging` only, never `main`).
-  The reset discards anything still on `staging` that was
-  not promoted — reset only once staging matches the
-  release, and re-merge leftovers to `staging` afterwards
-  (re-pushing the same SHAs still satisfies the check).
+  force-push; the workflow does it via the refs API
+  instead). NEVER open `staging`→`main` PRs — that drags
+  integration noise into prod history. The reset discards
+  anything still on `staging` that was not promoted —
+  reset only once staging matches the release, and
+  re-merge leftovers to `staging` afterwards (re-pushing
+  the same SHAs still satisfies the check). The workflow
+  needs the `AUTOMERGE_TOKEN` admin PAT (the same secret
+  the dependabot automerge uses).
 - **"Merge straight to main" requests**: merge the branch
   into `staging` first anyway, then the `main` PR — the
   check blocks anything else, keeping `main` ⊆ `staging`
