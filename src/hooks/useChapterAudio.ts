@@ -634,7 +634,9 @@ export const useChapterAudio = (
           (err instanceof Error ? err.message : String(err)),
         'media-failure',
         {
-          filesetId: reportState.activeAudioFilesetId,
+          filesetId:
+            (err as { filesetId?: string }).filesetId ??
+            reportState.activeAudioFilesetId,
           book: bookId,
           chapter: reportState.activeChapter,
         },
@@ -774,6 +776,10 @@ export const useChapterAudio = (
           ) {
             return;
           }
+          // The report must name the candidate that failed —
+          // on an alternates walk that is `nextId`, not the
+          // active fileset.
+          (err as { filesetId?: string }).filesetId = nextId;
           reportChapterAudioFailure(err, activeBookId);
         }
       })();

@@ -24,6 +24,7 @@ import {
   endpointPath,
   errorMessageFromBody,
   isBookNotInFilesetBody,
+  isRateLimitMessage,
   throwFromErrorBody,
   trackError,
   type TrackedError,
@@ -121,7 +122,10 @@ export const fetchHeadingsOnly = async (
       (!Array.isArray(responseData.headings) ||
         responseData.headings.length === 0)
     ) {
-      throw new ProviderError(responseData.message);
+      throw trackError(
+        new ProviderError(responseData.message),
+        { status: response.status, url: response.url }
+      );
     }
     // API.Bible responses carry a FUMS token in `meta` that must
     // be reported per their license terms (silent on failure).
@@ -205,7 +209,8 @@ export const getVersesFromApi = async (
     // Provider failures carry `error`/`error_code` fields.
     if (typeof data.error === 'string' && data.error) {
       throw trackError(
-        data.error_code === 'rate_limited'
+        data.error_code === 'rate_limited' ||
+          isRateLimitMessage(data.error)
           ? new RateLimitError(data.error)
           : new ProviderError(data.error),
         {

@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react";
 import { NoteImage, Tag } from "../types";
 import { commentImageName } from "../utils/commentTree";
 import { toPlainText } from "../utils/tiptapContent";
+import { captureHandledError } from "../utils/errorReporter";
 import {
   useStagedImages,
   ALLOWED_IMAGE_TYPES,
@@ -329,7 +330,12 @@ const NoteForm = ({
           return save(tagId, text, isPublic);
         })
         .then(() => onUnmountedSaveRef.current?.())
-        .catch((error) => console.error(error));
+        .catch((error) => {
+          console.error(error);
+          captureHandledError(error, 'Note save (unmount)', {
+            tagId,
+          });
+        });
     },
     []
   );
@@ -376,7 +382,10 @@ const NoteForm = ({
             SAVED_FLASH_MS
           );
         })
-        .catch((error) => console.error(error));
+        .catch((error) => {
+          console.error(error);
+          captureHandledError(error, 'Note autosave', { tagId });
+        });
     };
     const interval = window.setInterval(tick, AUTOSAVE_INTERVAL_MS);
     return () => window.clearInterval(interval);

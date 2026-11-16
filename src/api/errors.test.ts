@@ -4,10 +4,12 @@ import {
   ClientInputError,
   ProviderError,
   RateLimitError,
+  errorDetailsOf,
   errorMessageFromBody,
   isBookNotInFilesetBody,
   isRateLimitMessage,
   throwFromErrorBody,
+  trackError,
 } from './errors';
 
 /**
@@ -333,5 +335,47 @@ describe('throwFromErrorBody', () => {
     expectPlainError(notJson);
     expect(notJson.message)
       .toBe('Failed to fetch verses (HTTP 500)');
+  });
+});
+
+describe('trackError / errorDetailsOf', () => {
+  it('attaches code, status and a query-stripped endpoint',
+    () => {
+      const err = trackError(
+        new ProviderError('upstream broke'),
+        {
+          code: 'provider_unavailable',
+          status: 502,
+          url: 'https://api.example.com/api/v1/bible?x=1',
+        }
+      );
+
+      expect(errorDetailsOf(err)).toEqual({
+        code: 'provider_unavailable',
+        status: 502,
+        endpoint: '/api/v1/bible',
+      });
+    });
+
+  it('strips the query from relative endpoints too', () => {
+    const err = trackError(new Error('x'), {
+      status: 500,
+      url: '/api/v1/notes/?tag_id=5&page=2',
+    });
+
+    expect(errorDetailsOf(err).endpoint).toBe('/api/v1/notes/');
+  });
+
+  it('returns undefined fields for untracked errors', () => {
+    expect(errorDetailsOf(new Error('x'))).toEqual({
+      code: undefined,
+      status: undefined,
+      endpoint: undefined,
+    });
+    expect(errorDetailsOf('not an error')).toEqual({
+      code: undefined,
+      status: undefined,
+      endpoint: undefined,
+    });
   });
 });

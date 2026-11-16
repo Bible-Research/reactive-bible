@@ -65,6 +65,12 @@ const subscribers = new Map<string, Set<() => void>>();
 // may span several failing signatures in one session.
 const exhaustionReported = new Set<string>();
 
+// Endpoint failures report once per (note, message): the
+// note page re-fetches on every mount and image error, so an
+// always-failing endpoint would otherwise spam one Sentry
+// event per remount.
+const fetchReported = new Set<string>();
+
 const getEntry = (noteId: string): NoteImagesEntry => {
   let entry = entries.get(noteId);
   if (!entry) {
@@ -122,7 +128,7 @@ const requestImages = (
       }
       return images;
     })
-    .catch(() => {
+    .catch((err: unknown) => {
       if (entry.gen === gen) {
         entry.status = 'error';
         if (sig !== null && entry.attempts.sig === sig) {
@@ -133,6 +139,16 @@ const requestImages = (
               : { sig, count: count - 1 };
         }
         emit(noteId, entry);
+      }
+      const key =
+        `${noteId}:` +
+        (err instanceof Error ? err.message : String(err));
+      if (!fetchReported.has(key)) {
+        fetchReported.add(key);
+        captureHandledError(err, 'Note images fetch', {
+          noteId,
+          budgeted: sig !== null,
+        });
       }
       // Resolve (not reject) with the last known list —
       // consumers never await, and an unhandled rejection

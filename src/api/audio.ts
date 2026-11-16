@@ -80,15 +80,20 @@ export const getBibleAudioUrl = async (
     const data = (await response.json()) as AudioApiResponse;
 
     if (isBookNotInFilesetBody(data)) {
-      const err = new BookNotInFilesetError(
-        errorMessageFromBody(
-          data,
-          `Audio not available for ${translation} ` +
-            `${bookId} ${chapter}`
-        )
+      throw trackError(
+        new BookNotInFilesetError(
+          errorMessageFromBody(
+            data,
+            `Audio not available for ${translation} ` +
+              `${bookId} ${chapter}`
+          )
+        ),
+        {
+          code: 'book_not_in_fileset',
+          status: response.status,
+          url: response.url,
+        }
       );
-      err.errorCode = 'book_not_in_fileset';
-      throw err;
     }
 
     // Provider failures carry `error`/`error_code` fields.

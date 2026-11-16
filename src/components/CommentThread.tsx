@@ -210,6 +210,7 @@ const CommentThread = ({
   const imageRefreshAttempts = useRef(
     new Map<string, { sig: string; count: number }>()
   );
+  const imageRefreshReported = useRef(new Set<string>());
   const commentsRef = useRef<Comment[]>(comments);
   useEffect(() => {
     commentsRef.current = comments;
@@ -230,8 +231,25 @@ const CommentThread = ({
       if (
         count >= MAX_IMAGE_REFRESHES ||
         pendingImageRefresh.current.has(commentId)
-      )
+      ) {
+        // Parity with useNoteImages: a comment whose refresh
+        // budget is spent can never recover this session —
+        // report once per (comment, image-set).
+        if (count >= MAX_IMAGE_REFRESHES) {
+          const key = `${commentId}:${sig}`;
+          if (!imageRefreshReported.current.has(key)) {
+            imageRefreshReported.current.add(key);
+            captureHandledError(
+              new Error(
+                'Comment image refresh attempts exhausted'
+              ),
+              'Comment images refresh',
+              { noteId, commentId }
+            );
+          }
+        }
         return;
+      }
       pendingImageRefresh.current.add(commentId);
       imageRefreshAttempts.current.set(commentId, {
         sig,
