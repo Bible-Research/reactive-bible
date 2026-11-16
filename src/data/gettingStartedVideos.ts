@@ -28,7 +28,8 @@ export const TUTORIAL_VIDEOS: TutorialVideo[] = [
     description:
       'Get oriented: the top bar, the bottom bar, auto-hiding ' +
       'chrome, and the main menu.',
-    youtubeId: null,
+    // Placeholder until the real tutorial is recorded.
+    youtubeId: 'aqz-KE-bpKQ',
   },
   {
     id: 'go-to-any-verse',
