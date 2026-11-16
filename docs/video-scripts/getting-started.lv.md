@@ -345,7 +345,7 @@ ja komentāri jau pastāv. Attēlu limits ir 5 (piezīmes atļauj 10).
 ir tikai lokālā atjaunošana tajā pašā pārlūkā. Turiet apgalvojumu
 godīgu.
 
-## 17. Papildu iespējas: tumšais režīms, problēmu ziņojumi, Android (~90 s)
+## 17. Papildu iespējas: tumšais režīms, ziņojumi, Android (~90 s)
 
 **Mērķis:** atlikušās izvēlnes pozīcijas.
 
