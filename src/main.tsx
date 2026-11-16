@@ -44,7 +44,7 @@ if (sentryDsn) {
     ],
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
-    tracePropagationTargets: [API_BASE_URL],
+    tracePropagationTargets: [API_BASE_URL || location.origin],
     tracesSampleRate: 0.1,
     beforeSend: sentryBeforeSend,
   })
