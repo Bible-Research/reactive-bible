@@ -66,17 +66,22 @@ jobs:
           gh pr list --repo "$REPO" --state merged \
             --base staging --limit 200 \
             --json number,title,body,headRefName,headRefOid,mergedAt \
-            --jq 'sort_by(.mergedAt)
-                  | group_by(.headRefName) | map(.[-1])
-                  | sort_by(.mergedAt)' > /tmp/staged.json
-          count=$(jq length /tmp/staged.json)
-          echo "== $count staged branch(es)"
-          if [ "$count" -ge 200 ]; then
+            > /tmp/staged-raw.json
+          # The ceiling guards the RAW list: checking the
+          # deduped count would miss truncation whenever the
+          # dropped PRs shared branches with kept ones.
+          if [ "$(jq length /tmp/staged-raw.json)" -ge 200 ]
+          then
             echo "::error::listing ceiling hit — older staged" \
-              "branches may be missing; refusing to risk an" \
+              "PRs may be missing; refusing to risk an" \
               "incomplete release"
             exit 1
           fi
+          jq 'sort_by(.mergedAt)
+              | group_by(.headRefName) | map(.[-1])
+              | sort_by(.mergedAt)' /tmp/staged-raw.json \
+            > /tmp/staged.json
+          echo "== $(jq length /tmp/staged.json) staged branch(es)"
 
           # Replay staging's resolution onto a conflicting
           # promotion: merge CURRENT main — refreshed, since
@@ -145,9 +150,14 @@ jobs:
             # someone pushed past the staging merge — those
             # commits were never staged, so bail rather than
             # promote them behind the staging-first gate.
-            cur_ref=$(gh api \
-              "repos/$REPO/git/refs/heads/$branch" \
-              --jq .object.sha </dev/null 2>/dev/null || true)
+            # ls-remote: empty output = missing ref (normal —
+            # branches auto-delete), nonzero = real failure.
+            if ! cur_ref=$(git ls-remote origin \
+                "refs/heads/$branch" </dev/null \
+                2>/dev/null | cut -f1); then
+              echo "  !! could not read remote ref state"
+              failed=$((failed+1)); continue
+            fi
             if [ -n "$cur_ref" ] && [ "$cur_ref" != "$sha" ]
             then
               echo "  !! $branch tip ${cur_ref::7} moved past"
@@ -182,6 +192,21 @@ jobs:
               failed=$((failed+1)); continue
             fi
             echo "  main PR: $mpr"
+
+            # A push landing between the ref check and the
+            # PR create would bind the PR to the moved tip —
+            # assert the head is still the staged SHA.
+            head_now=$(gh pr view "$mpr" --json headRefOid \
+              -q .headRefOid </dev/null 2>/dev/null || true)
+            if [ -n "$head_now" ] && [ "$head_now" != "$sha" ]
+            then
+              echo "  !! PR head ${head_now::7} moved past" \
+                "staging merge ${sha::7} — skipping"
+              failed=$((failed+1))
+              echo "- \`$title\` — FAILED (PR head moved)" \
+                >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
 
             # mergeable settles async; staging-first re-runs on
             # PR open and passes by construction.
