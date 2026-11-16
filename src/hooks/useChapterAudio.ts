@@ -778,8 +778,11 @@ export const useChapterAudio = (
           }
           // The report must name the candidate that failed —
           // on an alternates walk that is `nextId`, not the
-          // active fileset.
-          (err as { filesetId?: string }).filesetId = nextId;
+          // active fileset. A primitive or frozen rejection
+          // can't carry the stamp — leave those unstamped.
+          if (err instanceof Error) {
+            (err as { filesetId?: string }).filesetId = nextId;
+          }
           reportChapterAudioFailure(err, activeBookId);
         }
       })();

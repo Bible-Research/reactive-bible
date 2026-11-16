@@ -15,6 +15,7 @@ import {
 import { useBibleStore } from '../store';
 import type { CommentCounts, Note, Tag } from '../types';
 import { clearNotesCache } from '../utils/cacheManager';
+import { captureHandledError } from '../utils/errorReporter';
 import { getApiOrdering } from '../utils/noteSorting';
 import type { SortOrder } from '../utils/noteSorting';
 import {
@@ -304,7 +305,12 @@ export const useTagNotesData = ({
           if (!resolvedTag) {
             try {
               resolvedTag = await getTag(tagId);
-            } catch {
+            } catch (err) {
+              // A network/5xx failure masquerades as
+              // "no notes for tag" — report it.
+              captureHandledError(err, 'Tag fetch', {
+                tagId,
+              });
               resolvedTag = null;
             }
           }
@@ -326,7 +332,16 @@ export const useTagNotesData = ({
         if (!cancelled && tagId) {
           fetchCommentCounts({ tagId }).then((counts) => {
             if (!cancelled) setCommentCounts(counts);
-          }).catch(() => { /* ignore comment count errors */ });
+          }).catch((err: unknown) => {
+            // A persistent counts-endpoint failure would
+            // otherwise be invisible — badges just stay
+            // hidden.
+            captureHandledError(
+              err,
+              'Comment counts fetch',
+              { tagId }
+            );
+          });
         }
       } catch (err) {
         if (cancelled) return;

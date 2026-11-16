@@ -264,8 +264,21 @@ const CommentThread = ({
             }))
           );
         })
-        .catch(() => {
-          // background refresh — don't surface errors
+        .catch((err: unknown) => {
+          // background refresh — don't surface errors, but a
+          // persistently failing endpoint still reports once
+          // per (comment, message).
+          const key =
+            `${commentId}:` +
+            (err instanceof Error ? err.message : String(err));
+          if (!imageRefreshReported.current.has(key)) {
+            imageRefreshReported.current.add(key);
+            captureHandledError(
+              err,
+              'Comment images fetch',
+              { noteId, commentId }
+            );
+          }
           refundAttempt(
             imageRefreshAttempts.current,
             commentId,

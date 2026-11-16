@@ -236,7 +236,7 @@ is the agent-fixable bug queue** — anything else is deliberate:
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
   reportable but routable.
 
-Two reporting paths, both non-duplicating:
+Three reporting paths, all non-duplicating:
 
 - `reportError(error, context?)` — fatal notification +
   Sentry exception. Reserved for global catch-alls

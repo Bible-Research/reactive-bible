@@ -19,13 +19,11 @@ import {
   ClientInputError,
   ProviderError,
   RateLimitError,
-  endpointPath,
   errorDetailsOf,
   errorMessageFromBody,
   isRateLimitMessage,
   throwFromErrorBody,
   trackError,
-  type TrackedError,
 } from './errors';
 
 /**
@@ -273,17 +271,24 @@ export const searchLanguages = async (
         `Language search failed (HTTP ${response.status}):`,
         data.error ?? data
       );
-      const err = new Error(
+      const message =
         typeof data.error === 'string'
           ? data.error
-          : `Language search failed (HTTP ${response.status})`
-      ) as TrackedError;
-      err.errorCode =
-        typeof data.error_code === 'string'
-          ? data.error_code
-          : undefined;
-      err.status = response.status;
-      err.endpoint = endpointPath(response.url);
+          : `Language search failed (HTTP ${response.status})`;
+      const err = trackError(
+        data.error_code === 'rate_limited' ||
+          isRateLimitMessage(message)
+          ? new RateLimitError(message)
+          : new ProviderError(message),
+        {
+          code:
+            typeof data.error_code === 'string'
+              ? data.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
       captureHandledError(err, 'Language search', {
         search,
         page,

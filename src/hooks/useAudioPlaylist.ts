@@ -453,8 +453,12 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               if (err instanceof BookNotInFilesetError) continue;
               // Report sites name the fileset that actually
               // failed — not the retry's startAt candidate.
-              (err as { filesetId?: string }).filesetId =
-                candidateId;
+              // A primitive or frozen rejection can't carry
+              // the stamp — leave those unstamped.
+              if (err instanceof Error) {
+                (err as { filesetId?: string }).filesetId =
+                  candidateId;
+              }
               throw err;
             }
           }

@@ -21,13 +21,11 @@ import {
   BookNotInFilesetError,
   ProviderError,
   RateLimitError,
-  endpointPath,
   errorMessageFromBody,
   isBookNotInFilesetBody,
   isRateLimitMessage,
   throwFromErrorBody,
   trackError,
-  type TrackedError,
 } from './errors';
 
 type VerseResult = {
@@ -101,18 +99,23 @@ export const fetchHeadingsOnly = async (
     }
     const responseData = await response.json();
     if (responseData.error) {
-      const err = new Error(
-        errorMessageFromBody(
-          responseData, 'Headings fetch failed'
-        )
-      ) as TrackedError;
-      err.errorCode =
-        typeof responseData.error_code === 'string'
-          ? responseData.error_code
-          : undefined;
-      err.status = response.status;
-      err.endpoint = endpointPath(response.url);
-      throw err;
+      const message = errorMessageFromBody(
+        responseData, 'Headings fetch failed'
+      );
+      throw trackError(
+        responseData.error_code === 'rate_limited' ||
+          isRateLimitMessage(message)
+          ? new RateLimitError(message)
+          : new ProviderError(message),
+        {
+          code:
+            typeof responseData.error_code === 'string'
+              ? responseData.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
     }
     // The API may also wrap provider failures in a 200 response
     // with a `message` field and no headings — surface it

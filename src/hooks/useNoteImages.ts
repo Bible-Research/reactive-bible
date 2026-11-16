@@ -246,6 +246,7 @@ export const mutateNoteImages = (
 export const resetNoteImages = () => {
   entries.clear();
   exhaustionReported.clear();
+  fetchReported.clear();
 };
 
 export interface UseNoteImagesResult {
