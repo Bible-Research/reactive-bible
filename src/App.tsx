@@ -3,6 +3,7 @@ import {
   MantineProvider,
   ColorSchemeProvider,
   ColorScheme,
+  DEFAULT_THEME,
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { ModalsProvider } from "@mantine/modals";
@@ -25,6 +26,17 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
 import { AUDIO_PLAYER_HEIGHT } from "./utils/audioUtils";
 import { useSlashSearchShortcut } from "./hooks/useSlashSearchShortcut";
+
+// Mantine's lightest grays render dividers, borders and the
+// Slider track nearly invisible against the gray[0] light
+// page background. Shift gray[2..4] one step darker in
+// light mode only — dark mode keeps the stock ramp.
+const lightModeGray = [
+  ...DEFAULT_THEME.colors.gray,
+] as typeof DEFAULT_THEME.colors.gray;
+lightModeGray[2] = lightModeGray[3];
+lightModeGray[3] = lightModeGray[4];
+lightModeGray[4] = lightModeGray[5];
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -97,7 +109,15 @@ export default function App() {
       toggleColorScheme={toggleColorScheme}
     >
       <MantineProvider
-        theme={{ colorScheme }}
+        theme={{
+          colorScheme,
+          colors: {
+            gray:
+              colorScheme === "dark"
+                ? DEFAULT_THEME.colors.gray
+                : lightModeGray,
+          },
+        }}
         withGlobalStyles
         withNormalizeCSS
       >
