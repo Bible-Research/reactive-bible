@@ -2,6 +2,9 @@ version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    # Staging-first workflow: dep updates soak on `staging`
+    # like every other change, then promote to `main`.
+    target-branch: "staging"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -34,6 +37,7 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "staging"
     schedule:
       interval: "weekly"
       day: "monday"
