@@ -93,7 +93,7 @@ describe('TagNotesRoute states', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('No public notes available for this tag.')
+        screen.getByText('No notes found for this tag.')
       ).toBeInTheDocument();
     });
   });
