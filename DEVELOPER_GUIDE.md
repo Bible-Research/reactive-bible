@@ -2687,7 +2687,20 @@ Form for creating/editing notes.
 
 **Responsibilities**:
 - Rich text editor (TipTap)
-- Tag selection (Select keyed by tag id, not name)
+- Tag selection via `TagCombobox` (keyed by tag id, not
+  name): an ARIA combobox that filters existing tags by
+  full path (`Work › design`) and creates tags inline —
+  `+ Create "<query>"` for top-level, `+ Create "<query>"
+  under…` opens an in-dropdown parent picker (Right
+  Arrow/Tab to enter, Esc to go back), and `Parent/child`
+  queries reuse/create path segments atomically
+  (`src/utils/tagCreation.ts`). A `TagActionToast`
+  announces the created path with Undo (deletes only the
+  still-unused tags the action created) and Move under…
+  (re-opens the dropdown's parent pane to re-parent). The
+  toast and dropdown render inside the modal's own DOM
+  because Mantine `Modal` aria-hides portals — including
+  the notifications container — while open
 - Verse reference display
 - Form validation
 - Submit handler — serialized against in-flight autosaves so
