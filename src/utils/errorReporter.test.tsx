@@ -398,6 +398,36 @@ describe('errorReporter', () => {
         expect(mockCaptureMessage).toHaveBeenCalledTimes(1);
       });
 
+    it('ignores failures on data-favicon marked images', () => {
+      cleanup = initGlobalErrorHandlers();
+      const img = document.createElement('img');
+      img.dataset.favicon = '';
+      img.src = 'https://www.bible.com/apple-touch-icon.png';
+      const event = new Event('error');
+      Object.defineProperty(event, 'target', { value: img });
+      window.dispatchEvent(event);
+
+      // The marker opts the decorative icon out on any host —
+      // e.g. YouVersion's direct bible.com icon.
+      expect(mockShowNotification).not.toHaveBeenCalled();
+      expect(mockCaptureMessage).not.toHaveBeenCalled();
+    });
+
+    it('still reports an unmarked image on an icon host',
+      () => {
+        cleanup = initGlobalErrorHandlers();
+        const img = document.createElement('img');
+        img.src = 'https://www.bible.com/apple-touch-icon.png';
+        const event = new Event('error');
+        Object.defineProperty(event, 'target', { value: img });
+        window.dispatchEvent(event);
+
+        // Only the element marker opts out — the host itself
+        // is not excluded for other images.
+        expect(mockShowNotification).toHaveBeenCalledTimes(1);
+        expect(mockCaptureMessage).toHaveBeenCalledTimes(1);
+      });
+
     it('stops reporting after cleanup', () => {
       cleanup = initGlobalErrorHandlers();
       cleanup();

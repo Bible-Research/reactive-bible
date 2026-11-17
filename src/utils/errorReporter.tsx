@@ -321,6 +321,14 @@ function handleGlobalError(event: Event): void {
     if (src.includes('/_vercel/')) {
       return;
     }
+    // Decorative external-link icons (FaviconImg) opt out via a
+    // data-favicon marker: they hide themselves on error and
+    // their hosts fail routinely. The element-level marker
+    // covers icon hosts the URL check below doesn't — e.g.
+    // YouVersion's direct bible.com apple-touch-icon.
+    if ('favicon' in target.dataset) {
+      return;
+    }
     if (isGoogleFavicons(src)) {
       return;
     }
