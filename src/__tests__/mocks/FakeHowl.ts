@@ -13,7 +13,8 @@ import type { HowlOptions } from 'howler';
  * - `play()`/`pause()` on a still-'loading' Howl do not act
  *   immediately — real Howler pushes them onto its load queue
  *   and `playing()` stays false through the whole window (the
- *   queued play action runs synchronously inside `_emit`, but
+ *   queued play action runs in `_loadQueue()` right after
+ *   `_emit('load')`, but
  *   `_paused = false` waits on the <audio> node's ready event,
  *   so an `onload` handler can still observe
  *   `playing() === false` with a play in flight). The fake
@@ -399,8 +400,9 @@ export class FakeHowl {
     }
     // 'load' handlers run before the queue drains — a
     // stand-in for real Howler's play-lock deferral: the
-    // queued play action runs synchronously inside `_emit`,
-    // but `_paused = false` waits on the <audio> node's ready
+    // queued play action runs in `_loadQueue()` right after
+    // `_emit('load')`, but `_paused = false` waits on the
+    // <audio> node's ready
     // event, so onload can still observe `playing() === false`
     // with a play in flight.
     [...(this._handlers.load ?? [])].forEach((h) => h(0));
