@@ -14,6 +14,7 @@ import type {
 import { authenticatedFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
 import { captureHandledError } from '../utils/errorReporter';
+import { throwHttpError } from './errors';
 
 /**
  * Get the saved reading position for a book. `bookId` is a USFM
@@ -32,7 +33,8 @@ export const getReadingPosition = async (
     );
     if (!response.ok) {
       if (response.status === 404) return null;
-      throw new Error('Failed to fetch reading position');
+      throwHttpError(
+        response, 'Failed to fetch reading position');
     }
     const data: ReadingPosition[] = await response.json();
     return data.length > 0 ? data[0] : null;
@@ -68,7 +70,8 @@ export const updateReadingPosition = async (
       }
     );
     if (!response.ok) {
-      throw new Error('Failed to update reading position');
+      throwHttpError(
+        response, 'Failed to update reading position');
     }
   } catch (error) {
     console.error('Error updating reading position:', error);
@@ -101,7 +104,8 @@ export const getBulkReadingPositions = async (
       }
     );
     if (!response.ok) {
-      throw new Error('Failed to fetch bulk reading positions');
+      throwHttpError(
+        response, 'Failed to fetch bulk reading positions');
     }
     const byName: Record<string, ReadingPositionValue | null> =
       await response.json();

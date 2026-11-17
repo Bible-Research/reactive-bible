@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/authStore';
 import { showNotification } from '@mantine/notifications';
-import { RateLimitError, trackError } from '../api/errors';
+import { throwHttpError } from '../api/errors';
 import i18n from '../i18n';
 
 /**
@@ -287,22 +287,10 @@ export const fetchJson = async <T>(
   try {
     const response = await fetcher(url, options);
     if (!response.ok) {
-      // Attach status/endpoint — plus `rate_limited` on a
+      // Stamps status/endpoint — plus `rate_limited` on a
       // 429 — so `sentryBeforeSend` drops throttling noise
       // and can group the rest like a coded API error.
-      throw trackError(
-        response.status === 429
-          ? new RateLimitError(fallbackMessage)
-          : new Error(fallbackMessage),
-        {
-          code:
-            response.status === 429
-              ? 'rate_limited'
-              : undefined,
-          status: response.status,
-          url,
-        }
-      );
+      throwHttpError(response, fallbackMessage, url);
     }
     return (await response.json()) as T;
   } catch (error) {

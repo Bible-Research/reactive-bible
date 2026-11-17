@@ -779,8 +779,10 @@ export const useChapterAudio = (
           // The report must name the candidate that failed —
           // on an alternates walk that is `nextId`, not the
           // active fileset. A primitive or frozen rejection
-          // can't carry the stamp — leave those unstamped.
-          if (err instanceof Error) {
+          // can't carry the stamp — assigning to a frozen
+          // Error throws in strict mode and would replace the
+          // real rejection, so leave those unstamped.
+          if (err instanceof Error && !Object.isFrozen(err)) {
             (err as { filesetId?: string }).filesetId = nextId;
           }
           reportChapterAudioFailure(err, activeBookId);

@@ -278,3 +278,34 @@ export const throwFromErrorBody = async (
   }
   throw attach(new Error(message));
 };
+
+/**
+ * `!response.ok` path for endpoints that keep their own
+ * body/message handling — the same contract `fetchJson`
+ * applies: HTTP 429 throws `RateLimitError` and any other
+ * status a plain `Error`, both stamped with
+ * `status`/`endpoint` (and `rate_limited` on a 429) so
+ * `sentryBeforeSend` can drop throttling noise and group the
+ * rest. The status — not the body — is authoritative for
+ * throttling: a bare DRF throttle response carries only
+ * `detail: 'Request was throttled…'`, which never reaches
+ * `isRateLimitMessage`. `url` defaults to `response.url`;
+ * callers holding the request URL (e.g. `fetchJson`) pass it.
+ */
+export const throwHttpError = (
+  response: Response,
+  message: string,
+  url = response.url
+): never => {
+  throw trackError(
+    response.status === 429
+      ? new RateLimitError(message)
+      : new Error(message),
+    {
+      code:
+        response.status === 429 ? 'rate_limited' : undefined,
+      status: response.status,
+      url,
+    }
+  );
+};

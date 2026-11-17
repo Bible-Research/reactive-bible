@@ -454,8 +454,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               // Report sites name the fileset that actually
               // failed — not the retry's startAt candidate.
               // A primitive or frozen rejection can't carry
-              // the stamp — leave those unstamped.
-              if (err instanceof Error) {
+              // the stamp — assigning to a frozen Error throws
+              // in strict mode and would replace the real
+              // rejection, so leave those unstamped.
+              if (err instanceof Error && !Object.isFrozen(err)) {
                 (err as { filesetId?: string }).filesetId =
                   candidateId;
               }

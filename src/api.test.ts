@@ -5,8 +5,11 @@ import * as fums from './utils/fums';
 import { http, HttpResponse } from 'msw';
 import { server } from './mocks/server';
 import * as kjvDataLoader from './utils/kjvDataLoader';
+import * as errorReporter from './utils/errorReporter';
+import { sentryBeforeSend } from './utils/sentry';
 import { API_BASE_URL } from './config';
 import type { Translation } from './store';
+import type { ErrorEvent, EventHint } from '@sentry/react';
 
 const API_URL = `${API_BASE_URL}/api/v1`;
 const COMMENT_BASE = `${API_URL}`;
@@ -460,6 +463,96 @@ describe('API Functions', () => {
         expect(result.note_id).toBe('n1');
         expect(result.tag_position).toBe(1);
         expect(result.rebalanced).toBe(false);
+      });
+  });
+
+  describe('custom-endpoint 429 handling', () => {
+    const throttleBody = {
+      // A bare DRF throttle response — no `error_code`, and
+      // 'Request was throttled…' does not match the
+      // rate-limit message pattern, so only the HTTP status
+      // can map this onto RateLimitError.
+      detail:
+        'Request was throttled. Expected available in ' +
+        '60 seconds.',
+    };
+    const beforeSendDrops = (err: unknown): boolean =>
+      sentryBeforeSend(
+        { event_id: 'api-429' } as ErrorEvent,
+        { originalException: err } as EventHint
+      ) === null;
+
+    it('reorderNotes maps a 429 to a RateLimitError ' +
+      'sentryBeforeSend drops', async () => {
+        server.use(
+          http.post(`${API_URL}/notes/reorder/`, () =>
+            HttpResponse.json(throttleBody, { status: 429 })
+          )
+        );
+
+        const err = await api
+          .reorderNotes('tag1', [{ note_id: 'n1', position: 1 }])
+          .catch((e: unknown) => e);
+
+        // A throttling failure on a custom `!response.ok`
+        // endpoint must not emit a level-error handled-api
+        // event — same contract fetchJson endpoints have.
+        expect(err).toBeInstanceOf(api.RateLimitError);
+        expect((err as Error).message)
+          .toBe(throttleBody.detail);
+        expect(api.errorDetailsOf(err)).toEqual({
+          code: 'rate_limited',
+          status: 429,
+          endpoint: '/api/v1/notes/reorder/',
+        });
+        expect(beforeSendDrops(err)).toBe(true);
+      });
+
+    it('deleteNote keeps the rate-limit type/code through ' +
+      'its message re-wrap', async () => {
+        server.use(
+          http.delete(`${API_URL}/notes/:id/`, () =>
+            HttpResponse.json(throttleBody, { status: 429 })
+          )
+        );
+
+        const err = await api
+          .deleteNote('n1')
+          .catch((e: unknown) => e);
+
+        // The outer catch re-wraps into a friendlier message;
+        // the wrapped error must still carry the RateLimitError
+        // class and `rate_limited` code so the event drops.
+        expect(err).toBeInstanceOf(api.RateLimitError);
+        expect((err as Error).message).toBe(
+          'Failed to delete your note, please try again'
+        );
+        expect(api.errorDetailsOf(err).code)
+          .toBe('rate_limited');
+        expect(api.errorDetailsOf(err).status).toBe(429);
+        expect(beforeSendDrops(err)).toBe(true);
+      });
+
+    it('updateReadingPosition reports a dropped ' +
+      'RateLimitError on 429', async () => {
+        // The position writes swallow their failure into
+        // captureHandledError — a throttled save must reach
+        // Sentry (if at all) as a drop, not an error event.
+        const handled = vi
+          .spyOn(errorReporter, 'captureHandledError')
+          .mockImplementation(() => undefined);
+        server.use(
+          http.post(`${API_URL}/reading-positions/`, () =>
+            HttpResponse.json(throttleBody, { status: 429 })
+          )
+        );
+
+        await api.updateReadingPosition('GEN', 1);
+
+        expect(handled).toHaveBeenCalledTimes(1);
+        const err = handled.mock.calls[0][0];
+        expect(err).toBeInstanceOf(api.RateLimitError);
+        expect(beforeSendDrops(err)).toBe(true);
       });
   });
 
