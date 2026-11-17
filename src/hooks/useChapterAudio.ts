@@ -289,6 +289,12 @@ export const useChapterAudio = (
       // suppresses safePlay while a timer is pending).
       const current = audioRef.current;
       if (!current || current.state() === 'unloaded') return;
+      // A play() on an already-playing Howl never resumes — it
+      // spawns a second sound instance (html5: another <audio>
+      // node) and the same file plays twice. A stray
+      // media-session 'play' (head unit, focus regain) can
+      // start the adopted chapter during the gap; leave it be.
+      if (current.playing()) return;
       current.play();
     }, INTER_CHAPTER_GAP_MS);
   }, [clearAdvanceTimer]);
@@ -532,6 +538,17 @@ export const useChapterAudio = (
     (finished: Howl) => {
       // Defensive: onend shouldn't fire when looping.
       if (finished.loop()) return;
+
+      // A Howl emits 'end' once per sound instance, and Howler
+      // queues each listener call on a macrotask — a doubled
+      // sound (a stray play() while already playing) makes the
+      // same Howl end twice, the second emit landing after the
+      // first already adopted/tore down. Re-advancing would
+      // orphan the Howl now owning audioRef — it keeps playing
+      // untracked on top of whatever loads next — or skip a
+      // chapter. A stale 'end' must also never invalidate an
+      // in-flight load.
+      if (finished !== audioRef.current) return;
 
       // Invalidate any load still in flight — the advance below
       // supersedes whatever passage it was fetching.
