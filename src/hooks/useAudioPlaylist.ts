@@ -342,7 +342,18 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     )
                   ) {
                     playRequestedHowlRef.current = howl;
-                    howl.play();
+                    try {
+                      howl.play();
+                    } catch (err) {
+                      // A synchronous throw must not leave the
+                      // marker set — it would swallow every
+                      // later resume for this Howl.
+                      playRequestedHowlRef.current = null;
+                      console.warn(
+                        'Play operation failed:',
+                        err,
+                      );
+                    }
                   }
                   prefetchNext(index);
                 },
@@ -640,7 +651,14 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       return;
     }
     playRequestedHowlRef.current = current;
-    current.play();
+    try {
+      current.play();
+    } catch (err) {
+      // A synchronous throw must not leave the marker set —
+      // it would swallow every later resume for this Howl.
+      playRequestedHowlRef.current = null;
+      console.warn('Play operation failed:', err);
+    }
   }, []);
 
   const next = useCallback(() => {

@@ -323,7 +323,14 @@ export const useChapterAudio = (
         return;
       }
       playRequestedHowlRef.current = current;
-      current.play();
+      try {
+        current.play();
+      } catch (err) {
+        // A synchronous throw must not leave the marker set —
+        // it would swallow every later play for this Howl.
+        playRequestedHowlRef.current = null;
+        console.warn('Play operation failed:', err);
+      }
     }, INTER_CHAPTER_GAP_MS);
   }, [clearAdvanceTimer]);
 
@@ -497,8 +504,16 @@ export const useChapterAudio = (
     preloadNextChapter();
   }, [preloadNextChapter]);
 
-  const handleChapterPause = useCallback(() => {
-    playRequestedHowlRef.current = null;
+  const handleChapterPause = useCallback((howl: Howl) => {
+    // Only retire the marker when the marked Howl itself
+    // paused — a stale Howl's pause must not clear a play
+    // queued against the current one.
+    if (playRequestedHowlRef.current === howl) {
+      playRequestedHowlRef.current = null;
+    }
+    // A stale Howl's deferred 'pause' must not flip playback
+    // state off under the current one.
+    if (howl !== audioRef.current) return;
     isPlayingRef.current = false;
     setIsPlaying(false);
   }, []);
@@ -526,8 +541,12 @@ export const useChapterAudio = (
   );
 
   const handleChapterLoadError = useCallback(
-    (_id: number, err: unknown) => {
-      playRequestedHowlRef.current = null;
+    (howl: Howl, _id: number, err: unknown) => {
+      // A stale/disposed Howl's deferred error must not clear
+      // a marker the current Howl earned.
+      if (playRequestedHowlRef.current === howl) {
+        playRequestedHowlRef.current = null;
+      }
       console.error('Audio load error:', err);
       // A candidate that fetched but cannot be decoded (e.g.
       // opus16 on an old device) retries as its next alternate —
@@ -542,8 +561,10 @@ export const useChapterAudio = (
   );
 
   const handleChapterPlayError = useCallback(
-    (_id: number, err: unknown) => {
-      playRequestedHowlRef.current = null;
+    (howl: Howl, _id: number, err: unknown) => {
+      if (playRequestedHowlRef.current === howl) {
+        playRequestedHowlRef.current = null;
+      }
       console.error('Audio play error:', err);
       if (tryNextFallbackRef.current()) return;
       reportMediaFailure('Chapter audio play failed', err);
@@ -662,10 +683,14 @@ export const useChapterAudio = (
   useEffect(() => {
     wireChapterHowlRef.current = (howl: Howl) => {
       howl.on('play', handleChapterPlay);
-      howl.on('pause', handleChapterPause);
+      howl.on('pause', () => handleChapterPause(howl));
       howl.on('end', () => onChapterEnd(howl));
-      howl.once('loaderror', handleChapterLoadError);
-      howl.once('playerror', handleChapterPlayError);
+      howl.once('loaderror', (id, err) =>
+        handleChapterLoadError(howl, id, err),
+      );
+      howl.once('playerror', (id, err) =>
+        handleChapterPlayError(howl, id, err),
+      );
     };
   }, [
     handleChapterPlay,
@@ -801,14 +826,17 @@ export const useChapterAudio = (
           // reschedule) the replacement.
           clearAdvanceTimer();
           disposeHowl(audioRef.current, activeBlobUrlRef.current);
+          playRequestedHowlRef.current = null;
           activeBlobUrlRef.current = null;
           const howl = createChapterHowl(url, {
             loop: isLoopingRef.current,
             onplay: handleChapterPlay,
-            onpause: handleChapterPause,
+            onpause: () => handleChapterPause(howl),
             onend: () => onChapterEnd(howl),
-            onloaderror: handleChapterLoadError,
-            onplayerror: handleChapterPlayError,
+            onloaderror: (id, err) =>
+              handleChapterLoadError(howl, id, err),
+            onplayerror: (id, err) =>
+              handleChapterPlayError(howl, id, err),
           });
           audioChapterKeyRef.current = chapterKey(
             nextId,
@@ -890,6 +918,7 @@ export const useChapterAudio = (
     // preloaded Howl and it must keep playing.
     if (current && audioChapterKeyRef.current !== key) {
       disposeHowl(current, activeBlobUrlRef.current);
+      playRequestedHowlRef.current = null;
       activeBlobUrlRef.current = null;
       audioRef.current = null;
       audioChapterKeyRef.current = null;
@@ -1321,10 +1350,12 @@ export const useChapterAudio = (
             audioHowl = createChapterHowl(audioUrl, {
               loop: isLoopingRef.current,
               onplay: handleChapterPlay,
-              onpause: handleChapterPause,
+              onpause: () => handleChapterPause(audioHowl),
               onend: () => onChapterEnd(audioHowl),
-              onloaderror: handleChapterLoadError,
-              onplayerror: handleChapterPlayError,
+              onloaderror: (id, err) =>
+                handleChapterLoadError(audioHowl, id, err),
+              onplayerror: (id, err) =>
+                handleChapterPlayError(audioHowl, id, err),
             });
             activeBlobUrlRef.current = null;
           }
