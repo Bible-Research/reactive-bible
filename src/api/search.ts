@@ -18,23 +18,29 @@ import {
   ProviderError,
   RateLimitError,
   SearchDisabledError,
-  attachErrorCode,
   errorMessageFromBody,
   isRateLimitMessage,
   throwFromErrorBody,
+  trackError,
 } from './errors';
 
 /**
  * Throw the typed error matching a failure response body,
- * carrying the parsed `error_code` so `errorCodeOf`
- * consumers keep it on the 200-body path too.
+ * carrying the parsed `error_code` plus status/endpoint so
+ * `sentryBeforeSend` maps and groups 200-wrapped errors like
+ * the `!response.ok` path. `details` carries the request
+ * status/url — `endpointPath` strips the query, which holds
+ * the raw search text.
  */
-const throwSearchError = (json: {
-  error?: unknown;
-  error_code?: unknown;
-  detail?: unknown;
-  message?: unknown;
-}): never => {
+const throwSearchError = (
+  json: {
+    error?: unknown;
+    error_code?: unknown;
+    detail?: unknown;
+    message?: unknown;
+  },
+  details: { status: number; url: string }
+): never => {
   const message = errorMessageFromBody(
     json,
     'Search failed'
@@ -43,18 +49,20 @@ const throwSearchError = (json: {
     typeof json.error_code === 'string'
       ? json.error_code
       : undefined;
+  const attach = <T extends Error>(err: T): T =>
+    trackError(err, {
+      code,
+      status: details.status,
+      url: details.url,
+    });
   if (json.error_code === 'search_disabled') {
-    throw attachErrorCode(
-      new SearchDisabledError(message),
-      code
-    );
+    throw attach(new SearchDisabledError(message));
   }
-  throw attachErrorCode(
+  throw attach(
     json.error_code === 'rate_limited' ||
       isRateLimitMessage(message)
       ? new RateLimitError(message)
-      : new ProviderError(message),
-    code
+      : new ProviderError(message)
   );
 };
 
@@ -150,7 +158,10 @@ export const searchBibleGrouped = async (
     // surface the error/error_code/message contract instead
     // of reporting an empty result set.
     if (json.error || json.error_code) {
-      throwSearchError(json);
+      throwSearchError(json, {
+        status: response.status,
+        url,
+      });
     }
     const data = (json.data ?? {}) as GroupedSearchWindow;
     const groups = data.groups;
@@ -158,9 +169,12 @@ export const searchBibleGrouped = async (
       typeof json.message === 'string' &&
       (!Array.isArray(groups) || groups.length === 0)
     ) {
-      throw isRateLimitMessage(json.message)
-        ? new RateLimitError(json.message)
-        : new ProviderError(json.message);
+      throw trackError(
+        isRateLimitMessage(json.message)
+          ? new RateLimitError(json.message)
+          : new ProviderError(json.message),
+        { status: response.status, url }
+      );
     }
     mergeWindowGroups(merged, groups ?? []);
     const meta = data.meta ?? {};

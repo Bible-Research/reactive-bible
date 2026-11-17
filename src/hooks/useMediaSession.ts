@@ -14,6 +14,7 @@ import {
   type MediaSessionMetadata,
   type MediaSessionPosition,
 } from '../utils/mediaSession';
+import { captureHandledWarning } from '../utils/errorReporter';
 import i18n from '../i18n';
 
 export type {
@@ -68,8 +69,24 @@ const isNative = (): boolean => {
   }
 };
 
-// Native plugin calls are best-effort — ignore rejections.
-const ignoreRejection = (): undefined => undefined;
+// Native plugin calls are best-effort — a rejected call is
+// reported once per call as a warning-level native-bridge
+// event. Deduping matters: position-state ticks fire every
+// second, so an always-failing call on an old WebView would
+// otherwise spam an event per tick; keying on the call alone
+// also bounds the set if error messages vary.
+const reportedNativeCalls = new Set<string>();
+const reportNativeCall =
+  (call: string) =>
+  (err: unknown): void => {
+    if (reportedNativeCalls.has(call)) return;
+    reportedNativeCalls.add(call);
+    captureHandledWarning(
+      `Native media session call failed: ${call}`,
+      'native-bridge',
+      { call, error: String(err) },
+    );
+  };
 
 const safeSetHandler = (
   action: MediaSessionAction,
@@ -134,7 +151,7 @@ export const useMediaSession = ({
         duration,
         playbackRate,
         position,
-      }).catch(ignoreRejection);
+      }).catch(reportNativeCall('setPositionState'));
     }
   }, []);
 
@@ -183,7 +200,7 @@ export const useMediaSession = ({
         void NativeMediaSession.setActionHandler(
           { action: action as NativeAction },
           (details) => dispatch(action, details),
-        ).catch(ignoreRejection);
+        ).catch(reportNativeCall('setActionHandler'));
       });
     }
 
@@ -196,7 +213,7 @@ export const useMediaSession = ({
           void NativeMediaSession.setActionHandler(
             { action: action as NativeAction },
             null,
-          ).catch(ignoreRejection);
+          ).catch(reportNativeCall('setActionHandler'));
         });
       }
     };
@@ -220,7 +237,7 @@ export const useMediaSession = ({
           artist: '',
           album: '',
           artwork: [],
-        }).catch(ignoreRejection);
+        }).catch(reportNativeCall('setMetadata'));
       }
       return;
     }
@@ -242,7 +259,7 @@ export const useMediaSession = ({
         artist: metadata.artist,
         album: metadata.album ?? i18n.t('app.audioAlbum'),
         artwork: metadata.artwork,
-      }).catch(ignoreRejection);
+      }).catch(reportNativeCall('setMetadata'));
     }
     // Intentionally key on primitive fields, not the `metadata` object
     // identity, so a new object with identical values does not re-run this.
@@ -267,7 +284,7 @@ export const useMediaSession = ({
     if (isNative()) {
       void NativeMediaSession.setPlaybackState({
         playbackState: state,
-      }).catch(ignoreRejection);
+      }).catch(reportNativeCall('setPlaybackState'));
     }
   }, [active, isPlaying]);
 

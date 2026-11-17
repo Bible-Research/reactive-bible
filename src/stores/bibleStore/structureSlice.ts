@@ -6,6 +6,7 @@ import {
   cacheStructure,
 } from '../../utils/cacheManager';
 import { setActiveStructure } from '../../utils/bookNameRegistry';
+import { captureHandledError } from '../../utils/errorReporter';
 import type { BibleStructure, Translation } from '../../types';
 import type { BibleState } from '../../store';
 import catalogEn from '../../assets/bookNames.en.json';
@@ -195,6 +196,11 @@ export const createStructureSlice: StateCreator<
         // Failure keeps the staged/previous structure — the
         // greyed-coverage UI self-corrects on the next load.
         console.warn('Bible structure fetch failed:', error);
+        captureHandledError(
+          error,
+          'Bible structure fetch',
+          { abbr }
+        );
       })
       .finally(() => {
         inflight.delete(activeTextFilesetId);

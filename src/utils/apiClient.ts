@@ -1,5 +1,6 @@
 import { useAuthStore } from '../stores/authStore';
 import { showNotification } from '@mantine/notifications';
+import { throwHttpError } from '../api/errors';
 import i18n from '../i18n';
 
 /**
@@ -270,9 +271,11 @@ type Fetcher = (
  * Shared fetch→JSON boilerplate for endpoints whose failure
  * handling is just "throw on !ok, log, rethrow": runs
  * `fetcher`, throws `Error(fallbackMessage)` on a non-OK
- * status, and returns the parsed body. Endpoints with richer
- * error contracts — typed provider errors, 409/error-body
- * reads, 204 no-content, swallowed failures — keep their own
+ * status — a `RateLimitError` carrying `rate_limited` on
+ * HTTP 429 so `sentryBeforeSend` drops throttling noise —
+ * and returns the parsed body. Endpoints with richer error
+ * contracts — typed provider errors, 409/error-body reads,
+ * 204 no-content, swallowed failures — keep their own
  * handling and should not use this helper.
  */
 export const fetchJson = async <T>(
@@ -284,7 +287,10 @@ export const fetchJson = async <T>(
   try {
     const response = await fetcher(url, options);
     if (!response.ok) {
-      throw new Error(fallbackMessage);
+      // Stamps status/endpoint — plus `rate_limited` on a
+      // 429 — so `sentryBeforeSend` drops throttling noise
+      // and can group the rest like a coded API error.
+      throwHttpError(response, fallbackMessage, url);
     }
     return (await response.json()) as T;
   } catch (error) {

@@ -21,6 +21,7 @@ import { buildBiblePath } from '../utils/bibleUtils';
 import { shareOrCopyLink } from '../utils/share';
 import { useBibleStore } from '../store';
 import { useTranslation } from 'react-i18next';
+import { captureHandledError } from '../utils/errorReporter';
 
 /**
  * Public single-note page reachable via `/notes/:noteId`. Works for any
@@ -64,6 +65,12 @@ export default function NoteDetailRoute() {
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading note:', err);
+        // A 404 is the expected "not found or private" path —
+        // only transport failures and real server errors are
+        // worth a Sentry event.
+        if ((err as { status?: number }).status !== 404) {
+          captureHandledError(err, 'Note fetch', { noteId });
+        }
         setError(t('notes.notFoundOrPrivate'));
         setLoading(false);
       }

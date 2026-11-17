@@ -198,12 +198,27 @@ whose head SHA was never merged into `staging`, and the
 
 ## Sentry event-stream contract
 
-`reactive-bible-web` routes every event into one of four
-streams; **`is:unresolved level:error environment:production`
+`reactive-bible-web` routes every event into tagged streams;
+**`is:unresolved level:error environment:production`
 is the agent-fixable bug queue** — anything else is deliberate:
 
 - (no `reportType`) — exception events, level error. Real bugs;
   agents may fix and resolve.
+- `reportType: handled-api` — level error, `context` tag set.
+  `captureHandledError` events from catch sites that already
+  degrade gracefully (chapter/audio fetches, notes, comments,
+  tags, reading positions). Expected conditions still filtered
+  by `beforeSend`; surviving events mean the graceful path
+  itself is worth alerting on.
+- `reportType: media-failure` — warning `captureMessage` from
+  the audio hooks' terminal failure paths (fileset + passage in
+  extras). Warning-level: fallback chains make a single failure
+  routine; a spike means a provider outage.
+- `reportType: native-bridge` — warning `captureMessage` from
+  Capacitor bridge calls (`nativeAudio.ts`, `useMediaSession`,
+  `appUpdate.ts`). Expected on web (no bridge) — the plugins
+  exist only inside the APK — so these stay out of the error
+  queue.
 - `reportType: resource-load` — warning `captureMessage` from
   `errorReporter.tsx` (missing hashed assets, dead signed
   URLs). Low-priority; usually self-healing noise — a failed
@@ -213,8 +228,6 @@ is the agent-fixable bug queue** — anything else is deliberate:
   `captureFeedback` from "Report a problem" (`userReport.ts`).
   Not an error queue item; investigated separately via the
   fix-sentry-issue skill.
-- `reportType: media-debug` — info snapshot from the
-  media-debug APK flow. Diagnostics only, read-only.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
@@ -224,6 +237,24 @@ is the agent-fixable bug queue** — anything else is deliberate:
   `sentryBeforeSend` on `TypeError` network failures
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
   reportable but routable.
+
+Three reporting paths, all non-duplicating:
+
+- `reportError(error, context?)` — fatal notification +
+  Sentry exception. Reserved for global catch-alls
+  (`initGlobalErrorHandlers`, ErrorBoundary, stale-chunk
+  recovery) — never call it from an ordinary catch.
+- `captureHandledError(error, context, extra?)` —
+  Sentry exception tagged `reportType: handled-api`, NO
+  notification. The standard call for handled catch sites.
+- `captureHandledWarning(msg, reportType, extra?)` —
+  warning-level `captureMessage` for `media-failure` /
+  `native-bridge` streams.
+
+Global window handlers are notify-only — Sentry's own
+GlobalHandlers integration transports each uncaught error
+exactly once; `beforeSend` re-adds the `context` tag on
+surviving `onerror`/`onunhandledrejection` events.
 
 APK builds report too: `android-release.yml` passes the
 `VITE_SENTRY_DSN` Actions secret to `npm run build` with
@@ -235,15 +266,29 @@ therefore excludes the APK — use `environment:android` for it.
 
 `sentryBeforeSend` (`src/utils/sentry.ts`) drops expected
 noise before it reaches Sentry: `RateLimitError`,
-`BookNotInFilesetError`, `AbortError`, 'Session expired',
+`BookNotInFilesetError`, `SearchDisabledError` (including
+untyped errors carrying those `error_code`s), `AbortError`,
+'Session expired',
 `ChunkLoadError` / `Loading chunk N failed` / `Loading CSS
 chunk` (stale tabs after a deploy — self-healed by the
 guarded reload in `chunkLoadError.ts`, wired through
 `lazyWithReload`, `kjvDataLoader`, and `errorReporter`'s
 `vite:preloadError` / hashed-asset resource-error handlers),
-and `ResizeObserver loop`.
-`ClientInputError` is deliberately kept — a malformed request
-is a bug.
+and `ResizeObserver loop`. `ConflictError` downgrades to
+warning; `ProviderError` fingerprints by
+`error_code`+endpoint. `ClientInputError` is deliberately
+kept — a malformed request is a bug. Typed API errors
+(`src/api/errors.ts`, `apiClient.ts`) carry `errorCode`,
+`status`, and `endpoint` on the error object — preserve them
+when wrapping errors.
+
+`@sentry/capacitor` is deliberately NOT adopted: it adds
+~50KB gz + a native-side init/proguard config step for
+coverage we already get — every JS failure inside the APK's
+WebView flows through the web SDK, and the app's only native
+surface (bridge calls, updater, media session) already emits
+`native-bridge`/`app-update` warnings. Revisit only if a gap
+shows up in real `environment:android` events.
 
 ## Commands
 
@@ -368,9 +413,10 @@ Code conventions:
   promise is a bug, `await` it instead.
 - `fetchJson` (`src/utils/apiClient.ts`) is the shared
   fetch→JSON helper for endpoints whose error handling is
-  just "throw on !ok". Keep custom `try/catch` only where the
-  endpoint has a richer contract (typed provider errors, 409
-  bodies, 204s, swallowed failures).
+  just "throw on !ok" — a 429 throws `RateLimitError` so
+  `sentryBeforeSend` drops it. Keep custom `try/catch` only
+  where the endpoint has a richer contract (typed provider
+  errors, 409 bodies, 204s, swallowed failures).
 - UI strings: no hardcoded English in components — every
   user-facing string (labels, aria-labels, notifications,
   placeholders, titles) goes through `t('section.key')` from

@@ -30,6 +30,8 @@ import i18n, {
   type UiLanguage,
 } from './i18n';
 import { showNotification } from '@mantine/notifications';
+import * as Sentry from '@sentry/react';
+import { captureHandledError } from './utils/errorReporter';
 
 export { migratePersistedState, partializeState };
 
@@ -394,10 +396,15 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             }));
             return stage(entry);
           })
-          .catch(() => {
+          .catch((error) => {
             // A failed lookup stays `undefined` — never cached
             // as "no position", so the next book click retries
             // instead of permanently landing on chapter 1.
+            captureHandledError(
+              error,
+              'Reading position fetch',
+              { book: bookId }
+            );
             return stage(undefined);
           });
       },
@@ -446,6 +453,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             'Error prefetching reading positions:',
             error
           );
+          captureHandledError(
+            error,
+            'Reading positions prefetch'
+          );
         }
       },
     }),
@@ -479,6 +490,32 @@ useBibleStore.subscribe((state, prev) => {
     void state.loadStructure();
   }
 });
+
+/**
+ * Attach the active passage/fileset selection to the Sentry
+ * scope — every subsequent event carries where in the Bible
+ * the user was. The subscription covers navigation; the seed
+ * call covers the persisted selection at startup.
+ */
+const syncSentryBibleContext = (state: BibleState): void => {
+  Sentry.setContext('bible', {
+    book: state.activeBookId,
+    chapter: state.activeChapter,
+    textFilesetId: state.activeTextFilesetId,
+    audioFilesetId: state.activeAudioFilesetId,
+  });
+};
+useBibleStore.subscribe((state, prev) => {
+  if (
+    state.activeBookId !== prev.activeBookId ||
+    state.activeChapter !== prev.activeChapter ||
+    state.activeTextFilesetId !== prev.activeTextFilesetId ||
+    state.activeAudioFilesetId !== prev.activeAudioFilesetId
+  ) {
+    syncSentryBibleContext(state);
+  }
+});
+syncSentryBibleContext(useBibleStore.getState());
 
 /** Localized display name for the active book. */
 export const selectActiveBookName = (state: BibleState): string =>

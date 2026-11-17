@@ -56,6 +56,8 @@ import { verseDomId } from '../utils/verseRefs';
 import { useChapterSwipe } from '../hooks/useChapterSwipe';
 import { getCachedVerses } from '../utils/cacheManager';
 import { localizedErrorText } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
+import * as Sentry from '@sentry/react';
 import i18n from '../i18n';
 
 /**
@@ -354,8 +356,19 @@ const PassageView = () => {
     setIsRateLimitError(false);
     setIsProviderError(false);
     const fetchChapter = () => {
-      getVersesInChapter(
-        activeBookId, activeChapter, textFilesetId
+      // Route-perf span — nests under the active route
+      // transaction when tracing is on; a no-op wrapper when
+      // Sentry was never initialized.
+      Sentry.startSpan(
+        {
+          name: `chapter ${activeBookId} ${activeChapter}`,
+          op: 'bible.chapter.load',
+          attributes: { filesetId: textFilesetId },
+        },
+        () =>
+          getVersesInChapter(
+            activeBookId, activeChapter, textFilesetId
+          ),
       )
       .then((result) => {
         if (cancelled) return;
@@ -448,6 +461,13 @@ const PassageView = () => {
       .catch((error) => {
         if (cancelled) return;
         console.error(error);
+        captureHandledError(error, 'Chapter fetch', {
+          book: activeBookId,
+          chapter: activeChapter,
+          textFilesetId,
+          audioFilesetId:
+            useBibleStore.getState().activeAudioFilesetId,
+        });
         const isRateLimit = error instanceof RateLimitError;
         setIsRateLimitError(isRateLimit);
         // BookNotInFilesetError is a ProviderError subclass but

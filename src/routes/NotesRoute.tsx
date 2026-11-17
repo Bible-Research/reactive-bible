@@ -13,7 +13,6 @@ import { useAuthStore } from '../stores/authStore';
 import { defaultTagId } from '../utils/defaultTag';
 import { shallow } from 'zustand/shallow';
 import { useTranslation } from 'react-i18next';
-
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {
@@ -77,6 +76,8 @@ export default function NotesRoute() {
         void navigate(`/notes/tag/${targetTagId}`, { replace: true });
       } catch (error) {
         if (cancelled) return;
+        // getTags already reports to Sentry before rethrowing
+        // — capturing here too would double-count the event.
         console.error('Error loading tags:', error);
         // A failed getTags used to be caught-and-logged, leaving
         // the loader spinning forever — offer a retry instead.

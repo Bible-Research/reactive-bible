@@ -7,6 +7,8 @@ import {
   copyErrorDetails,
 } from './errorReportDetails';
 import {
+  captureHandledError,
+  captureHandledWarning,
   initGlobalErrorHandlers,
   reportError,
 } from './errorReporter';
@@ -82,6 +84,69 @@ describe('errorReporter', () => {
     });
   });
 
+  describe('captureHandledError', () => {
+    it('emits a tagged Sentry event and no notification', () => {
+      const err = new Error('chapter fetch failed');
+
+      captureHandledError(err, 'Chapter fetch', {
+        book: 'JHN',
+        chapter: 3,
+        filesetId: 'ENGESV_API',
+      });
+
+      expect(mockShowNotification).not.toHaveBeenCalled();
+      expect(mockCaptureException).toHaveBeenCalledWith(err, {
+        tags: {
+          context: 'Chapter fetch',
+          reportType: 'handled-api',
+        },
+        extra: {
+          book: 'JHN',
+          chapter: 3,
+          filesetId: 'ENGESV_API',
+        },
+      });
+    });
+
+    it('omits the extra field when none is given', () => {
+      captureHandledError('plain failure', 'Notes save');
+
+      expect(mockCaptureException).toHaveBeenCalledWith(
+        expect.any(Error),
+        {
+          tags: {
+            context: 'Notes save',
+            reportType: 'handled-api',
+          },
+        }
+      );
+    });
+  });
+
+  describe('captureHandledWarning', () => {
+    it('emits a warning-level message tagged by stream', () => {
+      captureHandledWarning(
+        'Audio load failed',
+        'media-failure',
+        { filesetId: 'LVSGLU8C1DA', book: 'JHN', chapter: 3 }
+      );
+
+      expect(mockShowNotification).not.toHaveBeenCalled();
+      expect(mockCaptureMessage).toHaveBeenCalledWith(
+        'Audio load failed',
+        {
+          level: 'warning',
+          tags: { reportType: 'media-failure' },
+          extra: {
+            filesetId: 'LVSGLU8C1DA',
+            book: 'JHN',
+            chapter: 3,
+          },
+        }
+      );
+    });
+  });
+
   describe('buildErrorDetails', () => {
     it('includes message, url, and stack in markdown', () => {
       const details = buildErrorDetails(
@@ -138,6 +203,10 @@ describe('errorReporter', () => {
 
       expect(mockShowNotification).toHaveBeenCalledTimes(1);
       expect(notificationContent().error).toBe(error);
+      // Notify-only: Sentry's GlobalHandlers integration owns
+      // the exception event — capturing here too would send a
+      // duplicate for the same uncaught error.
+      expect(mockCaptureException).not.toHaveBeenCalled();
     });
 
     it('reports unhandled promise rejections', () => {
@@ -153,6 +222,7 @@ describe('errorReporter', () => {
       expect(notificationContent().context).toBe(
         'Unhandled promise rejection'
       );
+      expect(mockCaptureException).not.toHaveBeenCalled();
     });
 
     it('reports resource load failures', () => {
@@ -274,49 +344,6 @@ describe('errorReporter', () => {
         'Script error.'
       );
     });
-
-    it('suppresses AbortError rejections', () => {
-      cleanup = initGlobalErrorHandlers();
-      const reason = new Error('aborted');
-      reason.name = 'AbortError';
-      const event = new Event('unhandledrejection');
-      Object.defineProperty(event, 'reason', { value: reason });
-
-      window.dispatchEvent(event);
-
-      // Routine fetch cancellations must not notify.
-      expect(mockShowNotification).not.toHaveBeenCalled();
-    });
-
-    it('ignores audio/video element load failures', () => {
-      cleanup = initGlobalErrorHandlers();
-      for (const tag of ['audio', 'video']) {
-        const el = document.createElement(tag);
-        const event = new Event('error');
-        Object.defineProperty(event, 'target', { value: el });
-        window.dispatchEvent(event);
-      }
-
-      // Media failures are handled by the app's own fallback
-      // chains — never surfaced as fatal errors.
-      expect(mockShowNotification).not.toHaveBeenCalled();
-    });
-
-    it('reports an ErrorEvent message with no error object', () => {
-      cleanup = initGlobalErrorHandlers();
-
-      window.dispatchEvent(
-        new ErrorEvent('error', {
-          message: 'Script error.',
-        })
-      );
-
-      expect(mockShowNotification).toHaveBeenCalledTimes(1);
-      expect(notificationContent().error.message).toBe(
-        'Script error.'
-      );
-    });
-
 
     it('ignores blob: resource load failures', () => {
       cleanup = initGlobalErrorHandlers();

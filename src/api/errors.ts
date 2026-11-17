@@ -11,14 +11,53 @@
 /**
  * The backend's `error_code` when one was reported — kept on
  * the thrown error so UI layers can map it to a localized
- * catalog key instead of rendering raw provider text.
+ * catalog key instead of rendering raw provider text —
+ * plus the HTTP status and endpoint path the error was
+ * raised against (`sentryBeforeSend` fingerprints provider
+ * failures on the pair). Fields are attached by
+ * `throwFromErrorBody`/`fetchJson`, never constructed.
  */
-interface CodedError extends Error {
+export interface TrackedError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
 }
+
+/** URL path portion used for `endpoint` — grouping must
+ *  never carry query strings (signed URLs embed auth). */
+export const endpointPath = (url: string): string => {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    // Relative URL — still strip the query so signed-URL
+    // credentials and per-request params never group.
+    return url.split(/[?#]/)[0];
+  }
+};
+
+type CodedError = TrackedError;
+
+/**
+ * Attaches `errorCode`/`status`/`endpoint` to an error thrown
+ * outside `throwFromErrorBody` — the 200-wrapped error bodies
+ * that never reach its `!response.ok` path. `url` is the raw
+ * `response.url` (query is stripped by `endpointPath`).
+ */
+export const trackError = <T extends Error>(
+  err: T,
+  details: { code?: string; status: number; url: string }
+): T => {
+  const coded = err as CodedError;
+  coded.errorCode = details.code;
+  coded.status = details.status;
+  coded.endpoint = endpointPath(details.url);
+  return err;
+};
 
 export class ConflictError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ConflictError';
@@ -27,6 +66,8 @@ export class ConflictError extends Error {
 
 export class RateLimitError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'RateLimitError';
@@ -45,6 +86,8 @@ export class RateLimitError extends Error {
  */
 export class ClientInputError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ClientInputError';
@@ -53,6 +96,8 @@ export class ClientInputError extends Error {
 
 export class ProviderError extends Error {
   errorCode?: string;
+  status?: number;
+  endpoint?: string;
   constructor(message: string) {
     super(message);
     this.name = 'ProviderError';
@@ -99,18 +144,23 @@ export const errorCodeOf = (
     : undefined;
 
 /**
- * Attach the backend's `error_code` to a thrown error so
- * `errorCodeOf` consumers keep it — used by
- * `throwFromErrorBody` and the 200-body error paths that
- * build their own typed errors (e.g. search's
- * `throwSearchError`).
+ * `code`/`status`/`endpoint` details attached to a thrown
+ * error — all optional, read once by `sentryBeforeSend`.
  */
-export const attachErrorCode = <T extends Error>(
-  err: T,
-  code: string | undefined
-): T => {
-  (err as CodedError).errorCode = code;
-  return err;
+export const errorDetailsOf = (
+  err: unknown
+): {
+  code?: string;
+  status?: number;
+  endpoint?: string;
+} => {
+  const coded =
+    err instanceof Error ? (err as CodedError) : undefined;
+  return {
+    code: coded?.errorCode,
+    status: coded?.status,
+    endpoint: coded?.endpoint,
+  };
 };
 
 /** Error fields a backend/provider response body can carry. */
@@ -194,7 +244,11 @@ export const throwFromErrorBody = async (
       ? body.error_code
       : undefined;
   const attach = <T extends Error>(err: T): T =>
-    attachErrorCode(err, code);
+    trackError(err, {
+      code,
+      status: response.status,
+      url: response.url,
+    });
   if (isBookNotInFilesetBody(body)) {
     throw attach(
       new BookNotInFilesetError(
@@ -222,5 +276,36 @@ export const throwFromErrorBody = async (
   if (body.error_code) {
     throw attach(new ProviderError(message));
   }
-  throw new Error(message);
+  throw attach(new Error(message));
+};
+
+/**
+ * `!response.ok` path for endpoints that keep their own
+ * body/message handling — the same contract `fetchJson`
+ * applies: HTTP 429 throws `RateLimitError` and any other
+ * status a plain `Error`, both stamped with
+ * `status`/`endpoint` (and `rate_limited` on a 429) so
+ * `sentryBeforeSend` can drop throttling noise and group the
+ * rest. The status — not the body — is authoritative for
+ * throttling: a bare DRF throttle response carries only
+ * `detail: 'Request was throttled…'`, which never reaches
+ * `isRateLimitMessage`. `url` defaults to `response.url`;
+ * callers holding the request URL (e.g. `fetchJson`) pass it.
+ */
+export const throwHttpError = (
+  response: Response,
+  message: string,
+  url = response.url
+): never => {
+  throw trackError(
+    response.status === 429
+      ? new RateLimitError(message)
+      : new Error(message),
+    {
+      code:
+        response.status === 429 ? 'rate_limited' : undefined,
+      status: response.status,
+      url,
+    }
+  );
 };

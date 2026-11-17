@@ -14,6 +14,7 @@ import {
 import { publicFetch } from '../utils/apiClient';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
+import { captureHandledError } from '../utils/errorReporter';
 import { getBooks } from './structure';
 import {
   BookNotInFilesetError,
@@ -23,6 +24,7 @@ import {
   isBookNotInFilesetBody,
   isRateLimitMessage,
   throwFromErrorBody,
+  trackError,
 } from './errors';
 
 interface AudioApiResponse {
@@ -78,15 +80,20 @@ export const getBibleAudioUrl = async (
     const data = (await response.json()) as AudioApiResponse;
 
     if (isBookNotInFilesetBody(data)) {
-      const err = new BookNotInFilesetError(
-        errorMessageFromBody(
-          data,
-          `Audio not available for ${translation} ` +
-            `${bookId} ${chapter}`
-        )
+      throw trackError(
+        new BookNotInFilesetError(
+          errorMessageFromBody(
+            data,
+            `Audio not available for ${translation} ` +
+              `${bookId} ${chapter}`
+          )
+        ),
+        {
+          code: 'book_not_in_fileset',
+          status: response.status,
+          url: response.url,
+        }
       );
-      err.errorCode = 'book_not_in_fileset';
-      throw err;
     }
 
     // Provider failures carry `error`/`error_code` fields.
@@ -96,15 +103,20 @@ export const getBibleAudioUrl = async (
       const fullMsg =
         `Audio not available for ${translation} ${bookId} ` +
         `${chapter}: ${errorMsg}`;
-      const err =
+      throw trackError(
         data.error_code === 'rate_limited' ||
-        isRateLimitMessage(errorMsg)
+          isRateLimitMessage(errorMsg)
           ? new RateLimitError(fullMsg)
-          : new ProviderError(fullMsg);
-      if (typeof data.error_code === 'string') {
-        err.errorCode = data.error_code;
-      }
-      throw err;
+          : new ProviderError(fullMsg),
+        {
+          code:
+            typeof data.error_code === 'string'
+              ? data.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
     }
     // A missing audio_url means the book is outside the
     // fileset's coverage (backwards compat: older backends
@@ -228,9 +240,14 @@ export const getAudioTimestamps = async (
       `&chapter=${chapter}`;
     const response = await publicFetch(url);
     if (!response.ok) {
-      throw new Error(
-        `Timestamps fetch failed: ${response.statusText}`
-      );
+      // A `book_not_in_fileset` coverage gap must stay a typed
+      // error — the Sentry drop rules key off it, and a plain
+      // Error would land as an error-level handled-api event.
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Timestamps not in this fileset',
+        failure:
+          `Timestamps fetch failed (HTTP ${response.status})`,
+      });
     }
     const data = await response.json();
     const timestamps: VerseTimestamp[] = (data.data || []).map(
@@ -246,6 +263,11 @@ export const getAudioTimestamps = async (
     return timestamps;
   } catch (error) {
     console.warn('Failed to fetch audio timestamps:', error);
+    captureHandledError(error, 'Audio timestamps fetch', {
+      book: bookId,
+      chapter,
+      filesetId,
+    });
     return []; // Graceful degradation: no highlighting
   }
 };
