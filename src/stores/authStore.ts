@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { showNotification } from '@mantine/notifications';
+import * as Sentry from '@sentry/react';
 import { API_BASE_URL } from '../config';
 import { clearNotesCache } from '../utils/cacheManager';
+import { captureHandledError } from '../utils/errorReporter';
 import i18n from '../i18n';
 
 // The bible store registers itself here from ../store's module
@@ -107,7 +109,12 @@ const createAuthStore = () => create<AuthState>()(
                 'auth.loginFailed';
             }
 
-            throw new Error(errorMessage);
+            const httpError =
+              new Error(errorMessage) as Error & {
+                status?: number;
+              };
+            httpError.status = response.status;
+            throw httpError;
           }
 
           const data = await response.json();
@@ -129,10 +136,20 @@ const createAuthStore = () => create<AuthState>()(
             error: null,
           });
         } catch (error) {
-          const errorMessage = error instanceof Error 
-            ? error.message 
+          // A classified 4xx is a credential outcome, not a
+          // bug — report everything else: unclassified
+          // transport/parse failures (no status) and 5xx+.
+          const loginStatus =
+            (error as { status?: number }).status;
+          if (loginStatus === undefined || loginStatus >= 500) {
+            captureHandledError(error, 'Login', {
+              status: loginStatus,
+            });
+          }
+          const errorMessage = error instanceof Error
+            ? error.message
             : 'auth.loginFailed';
-          
+
           set({
             error: errorMessage,
             isLoading: false,
@@ -227,8 +244,13 @@ const createAuthStore = () => create<AuthState>()(
             } else {
               errorMessage = errorData.detail || errorMessage;
             }
-            
-            throw new Error(errorMessage);
+
+            const httpError =
+              new Error(errorMessage) as Error & {
+                status?: number;
+              };
+            httpError.status = response.status;
+            throw httpError;
           }
           
           const data = await response.json();
@@ -249,10 +271,22 @@ const createAuthStore = () => create<AuthState>()(
             error: null,
           });
         } catch (error) {
+          // Same rule as login: everything but a classified
+          // 4xx reaches Sentry.
+          const registerStatus =
+            (error as { status?: number }).status;
+          if (
+            registerStatus === undefined ||
+            registerStatus >= 500
+          ) {
+            captureHandledError(error, 'Register', {
+              status: registerStatus,
+            });
+          }
           const errorMessage = error instanceof Error
             ? error.message
             : 'auth.registrationFailed';
-          
+
           set({
             error: errorMessage,
             isLoading: false,
@@ -405,6 +439,29 @@ useAuthStore.subscribe((auth, prevAuth) => {
     tagPagination: {},
   });
 });
+
+/**
+ * Mirror the session identity onto the Sentry scope so every
+ * event (handled or crash) carries `user.username`/`user.id`.
+ * Rehydrated sessions never fire a subscription — seed the
+ * scope from the persisted blob at module load too.
+ */
+const syncSentryUser = (user: User | null): void => {
+  Sentry.setUser(
+    user
+      ? {
+          username: user.username,
+          ...(typeof user.id === 'number'
+            ? { id: String(user.id) }
+            : {}),
+        }
+      : null
+  );
+};
+useAuthStore.subscribe((auth, prevAuth) => {
+  if (auth.user !== prevAuth.user) syncSentryUser(auth.user);
+});
+syncSentryUser(useAuthStore.getState().user);
 
 // Export the factory function for testing purposes
 export { createAuthStore as createTestAuthStore };

@@ -57,10 +57,18 @@ jobs:
             echo "VITE_APP_ENV=android-debug" >> "$GITHUB_ENV"
           fi
 
+      # The SENTRY_* secrets enable the vite plugin's sourcemap
+      # upload — events symbolicate under release
+      # `android-<run_number>` (the VITE_APP_RELEASE below; the
+      # plugin's release.name falls back to it). Unset, the
+      # plugin and its .map output are skipped entirely.
       - run: npm run build
         env:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           VITE_APP_RELEASE: android-${{ github.run_number }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
       - run: npx cap sync android
 
       # Capacitor 8 targets Java 21 / compileSdk 36.

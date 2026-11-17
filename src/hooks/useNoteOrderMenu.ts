@@ -8,6 +8,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { getNoteOrderIndex } from '../api';
 import { useBibleStore } from '../store';
+import { captureHandledError } from '../utils/errorReporter';
 import type {
   NoteOrderIndexEntry,
   NoteOrderMenuData,
@@ -137,6 +138,9 @@ export const useNoteOrderMenu = ({
       // A missing/failed endpoint leaves the index null so the
       // badge stays hidden — the rest of the page still works.
       console.error('Error loading note order index:', err);
+      captureHandledError(err, 'Note order index fetch', {
+        tagId,
+      });
     }
   }, [tagId]);
 

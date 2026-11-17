@@ -33,6 +33,7 @@ import {
   searchLanguages,
 } from '../api';
 import { getCachedTranslationIsos } from '../utils/cacheManager';
+import { captureHandledError } from '../utils/errorReporter';
 import {
   findAudioOption,
   findTranslationByFilesetId,
@@ -505,6 +506,10 @@ const TranslationSelector = () => {
         }
       } catch (error) {
         console.warn('Failed to load translations:', error);
+        captureHandledError(error, 'Translations fetch', {
+          languageIso: iso,
+          source: 'cache',
+        });
         // Modal closed — no revalidation follows, so this
         // failure is terminal and must release the loader.
         if (!cancelled && !opened) setFailedIso(iso);
@@ -521,6 +526,10 @@ const TranslationSelector = () => {
         }
       } catch (error) {
         console.warn('Failed to refresh translations:', error);
+        captureHandledError(error, 'Translations fetch', {
+          languageIso: iso,
+          source: 'revalidate',
+        });
         // A stale failure (modal closed or language switched
         // mid-flight) must not toast over the new context.
         if (!cancelled) {
@@ -543,6 +552,9 @@ const TranslationSelector = () => {
     // list stays usable.
     fetchTranslations().catch((error) => {
       console.error('Error loading translations:', error);
+      captureHandledError(error, 'Translations fetch', {
+        languageIso,
+      });
     });
 
     return () => {
@@ -607,6 +619,11 @@ const TranslationSelector = () => {
             .catch((error) => {
               console.warn(
                 `Failed to load ${iso} translations:`, error
+              );
+              captureHandledError(
+                error,
+                'Translations fetch',
+                { languageIso: iso, source: 'seed-scan' }
               );
               return [] as Translation[];
             });
@@ -686,6 +703,7 @@ const TranslationSelector = () => {
       .catch((error) => {
         if (cancelled) return;
         console.warn('Failed to search languages:', error);
+        captureHandledError(error, 'Language search');
         setSearchingLanguages(false);
         setLanguageOptions([]);
       });

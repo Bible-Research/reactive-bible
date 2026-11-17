@@ -123,6 +123,14 @@ export default function App() {
       >
         <ModalsProvider>
         <Notifications position="top-right" zIndex={2077} />
+        {/* The boundary wraps the whole app shell — header,
+            nav, menus AND routed content — but stays inside
+            the Mantine providers so the fallback UI renders
+            styled. `resetKey` recovers a caught error on ANY
+            pathname change (e.g. /notes/tag/a -> /notes/tag/b)
+            and only fires in the error state, so healthy
+            children are never remounted on navigation. */}
+        <ErrorBoundary resetKey={location.pathname}>
         <AppShell
           padding={0}
           navbar={
@@ -182,22 +190,7 @@ export default function App() {
             },
           })}
         >
-          {/* `key` on the top-level route segment remounts the
-              boundary on section changes (/bible -> /notes)
-              without remounting the route tree on intra-page URL
-              updates like verse-selection refs (/bible/JHN.1 ->
-              /bible/JHN.1.3), which would unload PassageView and
-              swallow clicks mid-remount. `resetKey` recovers a
-              caught error on ANY pathname change — e.g.
-              /notes/tag/a -> /notes/tag/b stays under the same
-              segment key — but only fires in the error state,
-              so healthy children are never remounted. */}
-          <ErrorBoundary
-            key={location.pathname.split('/')[1]}
-            resetKey={location.pathname}
-          >
-            <AppRoutes />
-          </ErrorBoundary>
+          <AppRoutes />
           {showVerseToolbar && <VerseActionToolbar />}
           <MainMenu
             opened={mainMenuOpened}
@@ -206,6 +199,7 @@ export default function App() {
             toggleColorScheme={toggleColorScheme}
           />
         </AppShell>
+        </ErrorBoundary>
         {/* Vercel telemetry injects /_vercel/* scripts that only
             exist on the Vercel deployment; inside the Capacitor
             shell (origin https://localhost) they 404 and trip the

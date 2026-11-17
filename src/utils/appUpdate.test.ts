@@ -13,6 +13,11 @@ import {
 import { App } from '@capacitor/app';
 import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './platform';
+import { captureHandledWarning } from './errorReporter';
+
+vi.mock('./errorReporter', () => ({
+  captureHandledWarning: vi.fn(),
+}));
 
 vi.mock('@capacitor/app', () => ({
   App: { getInfo: vi.fn() },
@@ -172,6 +177,20 @@ describe('fetchUpdateManifest', () => {
     expect(await fetchUpdateManifest()).toBeNull();
   });
 
+  it('emits a native-bridge warning on fetch failure',
+    async () => {
+      vi.mocked(CapacitorHttp.get).mockRejectedValue(
+        new Error('offline'),
+      );
+      await fetchUpdateManifest();
+
+      expect(captureHandledWarning).toHaveBeenCalledWith(
+        'Update manifest fetch failed',
+        'native-bridge',
+        { error: 'Error: offline' },
+      );
+    });
+
   it('rejects a non-https apkUrl', async () => {
     // The sideloaded APK must come from a TLS URL — a
     // plaintext http:// link is trivially mitm-able.
@@ -242,6 +261,20 @@ describe('getInstalledVersion', () => {
     vi.mocked(App.getInfo).mockRejectedValue(new Error('nope'));
     expect(await getInstalledVersion()).toBeNull();
   });
+
+  it('emits a native-bridge warning when getInfo fails',
+    async () => {
+      vi.mocked(App.getInfo).mockRejectedValue(
+        new Error('nope'),
+      );
+      await getInstalledVersion();
+
+      expect(captureHandledWarning).toHaveBeenCalledWith(
+        'Get installed version failed',
+        'native-bridge',
+        { error: 'Error: nope' },
+      );
+    });
 });
 
 describe('checkForUpdates', () => {

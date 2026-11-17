@@ -1,4 +1,5 @@
 import { isNativeApp } from './platform';
+import { captureHandledWarning } from './errorReporter';
 import i18n from '../i18n';
 
 /**
@@ -68,6 +69,11 @@ export const enableAudioKeepAlive = async (): Promise<void> => {
     }
   } catch (err) {
     console.warn('Failed to enable audio keep-alive:', err);
+    captureHandledWarning(
+      'Audio keep-alive enable failed',
+      'native-bridge',
+      { error: String(err) },
+    );
   }
 };
 
@@ -81,5 +87,10 @@ export const disableAudioKeepAlive = async (): Promise<void> => {
     }
   } catch (err) {
     console.warn('Failed to disable audio keep-alive:', err);
+    captureHandledWarning(
+      'Audio keep-alive disable failed',
+      'native-bridge',
+      { error: String(err) },
+    );
   }
 };

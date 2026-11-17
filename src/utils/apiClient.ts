@@ -1,5 +1,7 @@
 import { useAuthStore } from '../stores/authStore';
 import { showNotification } from '@mantine/notifications';
+import { endpointPath } from '../api/errors';
+import type { TrackedError } from '../api/errors';
 import i18n from '../i18n';
 
 /**
@@ -284,7 +286,12 @@ export const fetchJson = async <T>(
   try {
     const response = await fetcher(url, options);
     if (!response.ok) {
-      throw new Error(fallbackMessage);
+      // Attach status/endpoint so `sentryBeforeSend` can map
+      // and group the failure like a coded API error.
+      const err = new Error(fallbackMessage) as TrackedError;
+      err.status = response.status;
+      err.endpoint = endpointPath(url);
+      throw err;
     }
     return (await response.json()) as T;
   } catch (error) {

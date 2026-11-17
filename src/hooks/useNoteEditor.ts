@@ -20,6 +20,7 @@ import { imageFileSignature } from './useStagedImages';
 import type { Note, NoteImage } from '../types';
 import i18n from '../i18n';
 import { textOrKey } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 /** The `verse_references` item shape the notes API expects. */
 export interface NoteVerseReference {
@@ -357,7 +358,12 @@ export const useNoteEditor = ({
                 // image or it lingers server-side with no
                 // UI trace.
                 void deleteImage(image.id)
-                  .catch(() => {
+                  .catch((deleteErr) => {
+                    captureHandledError(
+                      deleteErr,
+                      'Note image delete',
+                      { noteId, imageId: image.id },
+                    );
                     showNotification({
                       color: 'red',
                       title: i18n.t('common.error'),
@@ -377,6 +383,10 @@ export const useNoteEditor = ({
                 (f) => f !== file
               );
             } catch (err: unknown) {
+              captureHandledError(err, 'Note image upload', {
+                noteId,
+                fileName: file.name,
+              });
               // apiClient throws catalog keys
               // ('errors.forbidden', 'auth.sessionExpiredMsg')
               // — textOrKey translates those and passes raw
@@ -488,6 +498,7 @@ export const useNoteEditor = ({
         return true;
       } catch (error) {
         console.error(error);
+        captureHandledError(error, 'Note save', { tagId });
         showNotification({
           title: i18n.t('common.error'),
           message: i18n.t('notes.saveFailed'),
@@ -524,7 +535,12 @@ export const useNoteEditor = ({
         if (files.includes(entry.file)) continue;
         draft.uploadedFiles.delete(signature);
         void deleteImage(entry.image.id)
-          .catch(() => {
+          .catch((deleteErr) => {
+            captureHandledError(
+              deleteErr,
+              'Note image delete',
+              { imageId: entry.image.id },
+            );
             showNotification({
               color: 'red',
               title: i18n.t('common.error'),

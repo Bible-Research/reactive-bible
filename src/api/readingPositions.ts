@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { authenticatedFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { captureHandledError } from '../utils/errorReporter';
 
 /**
  * Get the saved reading position for a book. `bookId` is a USFM
@@ -71,6 +72,10 @@ export const updateReadingPosition = async (
     }
   } catch (error) {
     console.error('Error updating reading position:', error);
+    captureHandledError(error, 'Reading position update', {
+      book: bookId,
+      chapter,
+    });
   }
 };
 
@@ -108,6 +113,10 @@ export const getBulkReadingPositions = async (
     return byId;
   } catch (error) {
     console.error('Error fetching bulk reading positions:', error);
+    captureHandledError(
+      error,
+      'Reading positions bulk fetch'
+    );
     return {};
   }
 };

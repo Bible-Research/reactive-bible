@@ -31,6 +31,7 @@ import CommentNode from './CommentNode';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { textOrKey } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 const normalize = (
   nodes: Comment[] | undefined
@@ -63,6 +64,10 @@ const uploadImages = async (
       );
       uploaded.push(img);
     } catch (err: unknown) {
+      captureHandledError(err, 'Comment image upload', {
+        noteId,
+        commentId,
+      });
       // apiClient throws catalog keys ('errors.forbidden',
       // 'auth.sessionExpiredMsg') — textOrKey translates
       // those and passes raw server text through.
@@ -173,9 +178,13 @@ const CommentThread = ({
       .then((data) => {
         if (dataVersion.current === version) applyFetched(data);
       })
-      .catch(() => {
-        if (dataVersion.current === version)
+      .catch((err) => {
+        if (dataVersion.current === version) {
+          captureHandledError(err, 'Comments fetch', {
+            noteId,
+          });
           setError(i18n.t('comments.loadFailed'));
+        }
       })
       .finally(() => {
         if (loadingSeq.current === seq) setLoading(false);
@@ -201,6 +210,7 @@ const CommentThread = ({
   const imageRefreshAttempts = useRef(
     new Map<string, { sig: string; count: number }>()
   );
+  const imageRefreshReported = useRef(new Set<string>());
   const commentsRef = useRef<Comment[]>(comments);
   useEffect(() => {
     commentsRef.current = comments;
@@ -221,8 +231,25 @@ const CommentThread = ({
       if (
         count >= MAX_IMAGE_REFRESHES ||
         pendingImageRefresh.current.has(commentId)
-      )
+      ) {
+        // Parity with useNoteImages: a comment whose refresh
+        // budget is spent can never recover this session —
+        // report once per (comment, image-set).
+        if (count >= MAX_IMAGE_REFRESHES) {
+          const key = `${commentId}:${sig}`;
+          if (!imageRefreshReported.current.has(key)) {
+            imageRefreshReported.current.add(key);
+            captureHandledError(
+              new Error(
+                'Comment image refresh attempts exhausted'
+              ),
+              'Comment images refresh',
+              { noteId, commentId }
+            );
+          }
+        }
         return;
+      }
       pendingImageRefresh.current.add(commentId);
       imageRefreshAttempts.current.set(commentId, {
         sig,
@@ -237,8 +264,21 @@ const CommentThread = ({
             }))
           );
         })
-        .catch(() => {
-          // background refresh — don't surface errors
+        .catch((err: unknown) => {
+          // background refresh — don't surface errors, but a
+          // persistently failing endpoint still reports once
+          // per (comment, message).
+          const key =
+            `${commentId}:` +
+            (err instanceof Error ? err.message : String(err));
+          if (!imageRefreshReported.current.has(key)) {
+            imageRefreshReported.current.add(key);
+            captureHandledError(
+              err,
+              'Comment images fetch',
+              { noteId, commentId }
+            );
+          }
           refundAttempt(
             imageRefreshAttempts.current,
             commentId,
@@ -317,6 +357,7 @@ const CommentThread = ({
       onCountChange?.(1);
       silentLoad();
     } catch (err) {
+      captureHandledError(err, 'Comment create', { noteId });
       showNotification({
         color: 'red',
         title: t('common.error'),
@@ -351,6 +392,10 @@ const CommentThread = ({
       );
       silentLoad();
     } catch (err) {
+      captureHandledError(err, 'Comment update', {
+        noteId,
+        commentId: id,
+      });
       showNotification({
         color: 'red',
         title: t('common.error'),
@@ -374,7 +419,11 @@ const CommentThread = ({
           ),
         }))
       );
-    } catch {
+    } catch (err) {
+      captureHandledError(err, 'Comment image delete', {
+        noteId,
+        commentId,
+      });
       showNotification({
         color: 'red',
         title: t('common.error'),
@@ -396,7 +445,11 @@ const CommentThread = ({
       );
       onCountChange?.(-1);
       silentLoad();
-    } catch {
+    } catch (err) {
+      captureHandledError(err, 'Comment delete', {
+        noteId,
+        commentId: id,
+      });
       showNotification({
         color: 'red',
         title: t('common.error'),
