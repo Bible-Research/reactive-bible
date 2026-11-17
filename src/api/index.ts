@@ -38,6 +38,7 @@ export type {
   SearchPagination,
   SearchResponse,
   SearchVerseGroup,
+  SearchScanProgress,
   GroupedSearchResponse,
   ReadingPositionValue,
   StructureBook,

@@ -920,6 +920,249 @@ describe('API Functions', () => {
         api.searchBibleGrouped('love', 'ENGESV_API')
       ).rejects.toThrow(api.RateLimitError);
     });
+
+    it('follows next_cursor and merges split book groups ' +
+      'in canonical order', async () => {
+      const seen: (string | null)[] = [];
+      server.use(
+        http.get(`${API_URL}/bible/search/`, ({ request }) => {
+          const cursor =
+            new URL(request.url).searchParams.get('cursor');
+          seen.push(cursor);
+          if (!cursor) {
+            return HttpResponse.json({
+              data: {
+                groups: [
+                  {
+                    book_id: 'GEN',
+                    count: 1,
+                    verses: [
+                      {
+                        book_id: 'GEN',
+                        chapter: 1,
+                        verse_start: 1,
+                        verse_text: 'gen 1:1',
+                      },
+                    ],
+                  },
+                  {
+                    book_id: 'EXO',
+                    count: 1,
+                    verses: [
+                      {
+                        book_id: 'EXO',
+                        chapter: 2,
+                        verse_start: 5,
+                        verse_text: 'exo 2:5',
+                      },
+                    ],
+                  },
+                ],
+                meta: {
+                  total: 2,
+                  truncated: true,
+                  next_cursor: 'djE6MQ==',
+                  progress: {
+                    chapters_scanned: 10,
+                    chapters_total: 20,
+                  },
+                },
+              },
+            });
+          }
+          return HttpResponse.json({
+            data: {
+              groups: [
+                {
+                  book_id: 'GEN',
+                  count: 1,
+                  verses: [
+                    {
+                      book_id: 'GEN',
+                      chapter: 3,
+                      verse_start: 2,
+                      verse_text: 'gen 3:2',
+                    },
+                  ],
+                },
+                {
+                  book_id: 'LEV',
+                  count: 1,
+                  verses: [
+                    {
+                      book_id: 'LEV',
+                      chapter: 1,
+                      verse_start: 1,
+                      verse_text: 'lev 1:1',
+                    },
+                  ],
+                },
+              ],
+              meta: {
+                // Per-window match count, like the real
+                // SWORD provider emits — the client must
+                // accumulate across windows.
+                total: 2,
+                truncated: false,
+                progress: {
+                  chapters_scanned: 20,
+                  chapters_total: 20,
+                },
+              },
+            },
+          });
+        })
+      );
+
+      const progress: { scanned: number; total: number }[] = [];
+      const res = await api.searchBibleGrouped(
+        'love', 'LVSGLU8', undefined,
+        (p) =>
+          progress.push({
+            scanned: p.chapters_scanned,
+            total: p.chapters_total,
+          })
+      );
+
+      // Exactly two requests; the second carried the cursor.
+      expect(seen).toEqual([null, 'djE6MQ==']);
+      // Groups merged by book_id, first-seen canonical order,
+      // verses sorted by (chapter, verse_start).
+      expect(res.groups.map((g) => g.book_id)).toEqual([
+        'GEN', 'EXO', 'LEV']);
+      const gen = res.groups[0];
+      expect(gen.count).toBe(2);
+      expect(
+        gen.verses.map((v) => `${v.chapter}:${v.verse_start}`)
+      ).toEqual(['1:1', '3:2']);
+      // Final meta comes from the last window.
+      expect(res.meta.total).toBe(4);
+      expect(res.meta.truncated).toBe(false);
+      // Progress surfaced per window.
+      expect(progress).toEqual([
+        { scanned: 10, total: 20 },
+        { scanned: 20, total: 20 },
+      ]);
+    });
+
+    it('does not loop when meta.next_cursor is absent',
+      async () => {
+        let calls = 0;
+        server.use(
+          http.get(`${API_URL}/bible/search/`, () => {
+            calls += 1;
+            return HttpResponse.json({
+              data: {
+                groups: [],
+                meta: { total: 0, truncated: false },
+              },
+            });
+          })
+        );
+
+        const res = await api.searchBibleGrouped(
+          'zzz', 'LVSGLU8');
+
+        expect(calls).toBe(1);
+        expect(res.meta).toEqual({ total: 0, truncated: false });
+      });
+
+    it('stops when the server repeats the same next_cursor',
+      async () => {
+        let calls = 0;
+        server.use(
+          http.get(`${API_URL}/bible/search/`, () => {
+            calls += 1;
+            return HttpResponse.json({
+              data: {
+                groups: [],
+                meta: {
+                  total: 0,
+                  truncated: true,
+                  // Same token every window — a server that
+                  // cannot advance must not loop the client.
+                  next_cursor: 'djE6MQ==',
+                },
+              },
+            });
+          })
+        );
+
+        const res = await api.searchBibleGrouped(
+          'love', 'LVSGLU8');
+
+        expect(calls).toBe(2);
+        expect(res.meta.truncated).toBe(true);
+      });
+
+    it('aborts between windows when the signal fires',
+      async () => {
+        let calls = 0;
+        server.use(
+          http.get(`${API_URL}/bible/search/`, () => {
+            calls += 1;
+            return HttpResponse.json({
+              data: {
+                groups: [],
+                meta: {
+                  total: 0,
+                  truncated: true,
+                  next_cursor: 'djE6MQ==',
+                  progress: {
+                    chapters_scanned: 1,
+                    chapters_total: 2,
+                  },
+                },
+              },
+            });
+          })
+        );
+
+        const controller = new AbortController();
+        await expect(
+          api.searchBibleGrouped(
+            'love', 'LVSGLU8', controller.signal,
+            () => controller.abort())
+        ).rejects.toMatchObject({ name: 'AbortError' });
+        // The second window's request never fired — abort
+        // between windows short-circuits the loop.
+        expect(calls).toBe(1);
+      });
+
+    it('throws SearchDisabledError on a 403 ' +
+      'search_disabled body', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json(
+            {
+              error: 'Search is disabled',
+              error_code: 'search_disabled',
+            },
+            { status: 403 }
+          )
+        )
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'LVSGLU8')
+      ).rejects.toThrow(api.SearchDisabledError);
+    });
+
+    it('throws SearchDisabledError when a 200 body carries ' +
+      'search_disabled', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json({
+            error: 'Search is disabled',
+            error_code: 'search_disabled',
+          })
+        )
+      );
+
+      await expect(
+        api.searchBibleGrouped('love', 'LVSGLU8')
+      ).rejects.toThrow(api.SearchDisabledError);
+    });
   });
 
   describe('notes mutation cache invalidation', () => {

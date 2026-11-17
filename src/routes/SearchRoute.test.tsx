@@ -143,6 +143,7 @@ describe('SearchRoute', () => {
         'grace',
         'ENGESH',
         expect.any(AbortSignal),
+        expect.any(Function),
       );
     });
   });
@@ -189,6 +190,7 @@ describe('SearchRoute', () => {
         'grace',
         'ENGESV_API',
         expect.any(AbortSignal),
+        expect.any(Function),
       );
     });
   });
@@ -205,6 +207,7 @@ describe('SearchRoute', () => {
         'faith',
         'ENGESH',
         expect.any(AbortSignal),
+        expect.any(Function),
       );
     });
   });
@@ -425,5 +428,61 @@ describe('SearchRoute', () => {
 
     const items = useBibleStore.getState().audioPlaylistItems;
     expect(items).toBeNull();
+  });
+
+  it('shows scan progress while a resumable search runs ' +
+    'and hides it on completion', async () => {
+    type Result = Awaited<
+      ReturnType<typeof api.searchBibleGrouped>>;
+    let resolveSearch!: (v: Result) => void;
+    mockSearchBibleGrouped.mockImplementation(
+      (_q, _f, _s, onProgress) => {
+        onProgress?.({
+          chapters_scanned: 500,
+          chapters_total: 1189,
+        });
+        return new Promise<Result>((resolve) => {
+          resolveSearch = resolve;
+        });
+      },
+    );
+    renderSearch();
+    await waitFor(() => {
+      expect(
+        screen.getByText('Scanned 500 of 1189 chapters'),
+      ).toBeInTheDocument();
+    });
+    await act(async () => {
+      resolveSearch({
+        groups: MOCK_GROUPS,
+        meta: { total: 3, truncated: false },
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText('John')).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Scanned.*chapters/),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows a supportive translated message when search is ' +
+    'disabled for the translation', async () => {
+    mockSearchBibleGrouped.mockRejectedValue(
+      new api.SearchDisabledError('Search is disabled'),
+    );
+    renderSearch();
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Search is not supported for this translation.',
+        ),
+      ).toBeInTheDocument();
+    });
+    // Supportive empty-state, not a red provider error —
+    // and no stale "no results" text.
+    expect(
+      screen.queryByText(/No results found/),
+    ).not.toBeInTheDocument();
   });
 });

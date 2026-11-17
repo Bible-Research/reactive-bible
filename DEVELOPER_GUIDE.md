@@ -1770,12 +1770,20 @@ Full-text search across the Bible via the backend
 - Each book is an accordion group (open by default) showing
   up to 3 verse previews, expandable via "Show N more verses"
 - No pagination - the backend returns all matches
+- Long SWORD scans resume via `meta.next_cursor` —
+  `searchBibleGrouped` follows the cursor chain
+  transparently, merges windowed groups by `book_id`, and
+  reports `meta.progress` to the `onProgress` callback so
+  the route can render a determinate progress bar
 - Dimmed "Showing first N of M results" notice when the
   backend reports `meta.truncated`
 - Backend failures (`error`/`error_code`/`message`, including
   provider errors wrapped in a 200 body) surface as typed
   `RateLimitError`/`ClientInputError`/`ProviderError` and
-  render in red rather than showing "No results"
+  render in red rather than showing "No results";
+  `search_disabled` (403) maps to `SearchDisabledError` and
+  renders a supportive dimmed "search is not supported for
+  this translation" state
 - Per-verse play button feeds a flattened playlist of all
   results into the audio player
 
@@ -1785,9 +1793,14 @@ const res = await searchBibleGrouped(
   query,
   filesetId,
   signal,
+  onProgress,  // (p: SearchScanProgress) => void, optional
 );
 // res.groups: [{ book_id, count, verses: SearchVerse[] }]
 // res.meta:   { total: number, truncated: boolean }
+// Per-window meta also carries `next_cursor?` (opaque resume
+// token) and `progress? = {chapters_scanned, chapters_total}`;
+// the client loops until `next_cursor` is absent, so callers
+// only ever see the fully merged result.
 ```
 
 ### 4. Audio Bible Playback
@@ -2345,8 +2358,11 @@ On end → Auto-advance to next chapter
 ```
 User submits query on /search
     ↓
-searchBibleGrouped(query, filesetId) hits
-/api/v1/bible/search/?group_by=book
+searchBibleGrouped(query, filesetId, signal, onProgress)
+hits /api/v1/bible/search/?group_by=book
+    ↓
+While meta.next_cursor is present → re-request with cursor
+param, merge groups by book_id, report meta.progress
     ↓
 Render accordion: one group per book (canonical order),
 3-verse preview each, "Show N more verses" expands
