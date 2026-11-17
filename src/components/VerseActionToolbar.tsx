@@ -71,7 +71,8 @@ export interface PrimaryChapterRef {
  *  button. The favicon services fail routinely (rate limits,
  *  headless traffic, ad blockers), so a load error hides the
  *  image instead of showing a broken-image glyph — the
- *  button itself stays clickable. */
+ *  button itself stays clickable. The data-favicon marker
+ *  also opts the element out of resource-load reporting. */
 const FaviconImg = ({
   src,
   alt,
@@ -85,6 +86,7 @@ const FaviconImg = ({
     src={src}
     alt={alt}
     style={style}
+    data-favicon
     onError={(event) => {
       event.currentTarget.style.display = "none";
     }}

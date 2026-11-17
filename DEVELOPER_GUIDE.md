@@ -2257,6 +2257,10 @@ pasting into a GitHub issue.
   matched by hostname+path) are ignored too — the
   external-study link icons it backs are decorative and hide
   themselves on error, so its routine failures are pure noise.
+  Any element can opt out of resource-load reporting with the
+  `data-favicon` marker — `FaviconImg` sets it, covering
+  decorative icons on hosts the URL check doesn't (e.g.
+  YouVersion's direct `bible.com` apple-touch-icon).
 - **Unhandled promise rejections**: `unhandledrejection`
   listener; `AbortError` rejections are ignored (routine
   fetch cancellations on navigation races).
@@ -2286,7 +2290,14 @@ pasting into a GitHub issue.
   same-origin `/assets/*` file errors — Vite 8 attaches no
   error listener to the JS `modulepreload` links it injects,
   so a 404'd hashed dependency surfaces only as a resource
-  error, never as a rejection. While
+  error, never as a rejection. Once the reload is armed —
+  fired by that element-error call or by an earlier handler
+  in the page load — the resource failure is NOT reported:
+  the page is tearing down, so a `resource-load` warning
+  (or a notification nobody will read) is noise. Only a
+  failure the guard refuses — a still-broken chunk inside
+  the guard window after a real reload, or an offline tab —
+  emits the warning. While
   `navigator.onLine` reports the tab offline the reload is
   skipped — a reload would land on the browser's
   connection-error page — and the error propagates to the
