@@ -46,6 +46,40 @@ export const getHtml5AudioNode = (
 };
 
 /**
+ * The html5 <audio> node of a Howl whose Howler bookkeeping
+ * still claims a playing sound while the node itself is
+ * paused — the OS suspended playback behind Howler's back
+ * (Android audio-focus loss in a car, a Bluetooth handover).
+ * Returns null when there is no desync. `howl.play()` is the
+ * wrong recovery: it never resumes a sound, it stacks a new
+ * one — while replaying this node resumes at the position
+ * the OS paused.
+ */
+export const osPausedNode = (
+  audio: Howl | null,
+): HTMLAudioElement | null => {
+  if (!audio || !audio.playing()) return null;
+  const node = getHtml5AudioNode(audio);
+  return node && node.paused ? node : null;
+};
+
+/**
+ * True when a play for `audio` is already pending or audible —
+ * another play() would stack a second sound instance instead
+ * of resuming. Real Howler's play() on a still-'loading' Howl
+ * only queues the play: playing() stays false for the whole
+ * load window and the queue can still be undrained when the
+ * 'load' handlers run, so playing() alone cannot cover it.
+ * `requested` is the caller's marker for the Howl it already
+ * issued play() on (Howler's internal queue is not
+ * introspectable); clear it on pause/stop/'end'/error/dispose.
+ */
+export const playAlreadyRequested = (
+  audio: Howl,
+  requested: Howl | null,
+): boolean => requested === audio || audio.playing();
+
+/**
  * Binary search: the `verse_start` of the last timestamp row at
  * or before `currentTime` — i.e. the verse being read aloud.
  * A position before the first row (e.g. a chapter announcement)

@@ -105,8 +105,10 @@ describe('Audio stops instantly on chapter change (#62)', () => {
         expect(FakeHowl.instances.length).toBeGreaterThan(0);
       });
       const first = FakeHowl.instances[0];
+      // safePlay queued a play() while 'loading' — 'load'
+      // drains it into a real start.
       act(() => {
-        first.play();
+        first.emit('load');
       });
       expect(first.playing()).toBe(true);
 
