@@ -413,9 +413,10 @@ Code conventions:
   promise is a bug, `await` it instead.
 - `fetchJson` (`src/utils/apiClient.ts`) is the shared
   fetch→JSON helper for endpoints whose error handling is
-  just "throw on !ok". Keep custom `try/catch` only where the
-  endpoint has a richer contract (typed provider errors, 409
-  bodies, 204s, swallowed failures).
+  just "throw on !ok" — a 429 throws `RateLimitError` so
+  `sentryBeforeSend` drops it. Keep custom `try/catch` only
+  where the endpoint has a richer contract (typed provider
+  errors, 409 bodies, 204s, swallowed failures).
 - UI strings: no hardcoded English in components — every
   user-facing string (labels, aria-labels, notifications,
   placeholders, titles) goes through `t('section.key')` from

@@ -3166,7 +3166,9 @@ verse-count lookup; `bibleStructure.ts` is the
   image uploads (comment and note attachments).
 - `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
   shared fetch→JSON boilerplate for endpoints whose error
-  handling is just "throw on `!ok`, log, rethrow". Endpoints
+  handling is just "throw on `!ok`, log, rethrow" (a 429
+  throws `RateLimitError` carrying `rate_limited` so
+  `sentryBeforeSend` drops throttling noise). Endpoints
   with richer contracts (typed provider errors via
   `api/errors.ts`, 409 bodies, 204 no-content, swallowed
   failures) keep their own `try/catch`.

@@ -144,21 +144,6 @@ export const errorCodeOf = (
     : undefined;
 
 /**
- * Attach the backend's `error_code` to a thrown error so
- * `errorCodeOf` consumers keep it — used by the 200-body
- * error paths that build their own typed errors (e.g.
- * search's `throwSearchError`). `throwFromErrorBody`
- * attaches the code plus status/endpoint via `trackError`.
- */
-export const attachErrorCode = <T extends Error>(
-  err: T,
-  code: string | undefined
-): T => {
-  (err as CodedError).errorCode = code;
-  return err;
-};
-
-/**
  * `code`/`status`/`endpoint` details attached to a thrown
  * error — all optional, read once by `sentryBeforeSend`.
  */

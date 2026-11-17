@@ -904,6 +904,54 @@ describe('API Functions', () => {
       ).rejects.toThrow(api.ProviderError);
     });
 
+    it('attaches code, status and endpoint to a ' +
+      '200-wrapped error body', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json({
+            error: 'upstream exploded',
+            error_code: 'provider_error',
+          })
+        )
+      );
+
+      const err = await api
+        .searchBibleGrouped('love', 'ENGESV_API')
+        .catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(api.ProviderError);
+      // Query stays out of the endpoint — it carries the
+      // raw search text.
+      expect(api.errorDetailsOf(err)).toEqual({
+        code: 'provider_error',
+        status: 200,
+        endpoint: '/api/v1/bible/search/',
+      });
+    });
+
+    it('attaches status and endpoint to a 200 `message` ' +
+      'failure', async () => {
+      server.use(
+        http.get(`${API_URL}/bible/search/`, () =>
+          HttpResponse.json({
+            data: { groups: [] },
+            message: 'Search provider unavailable',
+          })
+        )
+      );
+
+      const err = await api
+        .searchBibleGrouped('love', 'ENGESV_API')
+        .catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(api.ProviderError);
+      expect(api.errorDetailsOf(err)).toEqual({
+        code: undefined,
+        status: 200,
+        endpoint: '/api/v1/bible/search/',
+      });
+    });
+
     it('throws RateLimitError when a 200 `message` body is ' +
       'rate-limit-shaped', async () => {
       server.use(
