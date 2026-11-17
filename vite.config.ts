@@ -132,5 +132,19 @@ export default defineConfig({
     // and die with ERR_WORKER_OUT_OF_MEMORY. Serial execution keeps
     // peak memory in bounds at the cost of wall-clock time.
     fileParallelism: false,
+    // Mantine v6 Transition timers can outlive a test file's
+    // happy-dom environment: the pending timeout fires
+    // setState -> getCurrentEventPriority after `window` is torn
+    // down, throwing a benign ReferenceError that vitest counts
+    // as an unhandled error and fails the whole (green) run on.
+    // Ignore only that exact error — everything else still fails.
+    onUnhandledError(error) {
+      if (
+        error instanceof ReferenceError &&
+        error.message === 'window is not defined'
+      ) {
+        return false;
+      }
+    },
   },
 });
