@@ -2252,7 +2252,11 @@ pasting into a GitHub issue.
   also ignored — ad blockers and non-Vercel hosts make them fail
   routinely. So are `blob:` URLs: staged comment-image previews
   are transient object URLs whose load failures are handled
-  locally (placeholder thumbnail), never fatal.
+  locally (placeholder thumbnail), never fatal. Requests to
+  Google's favicon service (`www.google.com/s2/favicons`,
+  matched by hostname+path) are ignored too — the
+  external-study link icons it backs are decorative and hide
+  themselves on error, so its routine failures are pure noise.
 - **Unhandled promise rejections**: `unhandledrejection`
   listener; `AbortError` rejections are ignored (routine
   fetch cancellations on navigation races).
