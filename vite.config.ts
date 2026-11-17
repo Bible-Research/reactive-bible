@@ -137,10 +137,14 @@ export default defineConfig({
     // setState -> getCurrentEventPriority after `window` is torn
     // down, throwing a benign ReferenceError that vitest counts
     // as an unhandled error and fails the whole (green) run on.
-    // Ignore only that exact error — everything else still fails.
+    // Errors arrive serialized (name/message/stack, no class), so
+    // match on `name` — `instanceof` never holds across the
+    // worker RPC boundary. Only this exact uncaught exception is
+    // ignored; everything else still fails the run.
     onUnhandledError(error) {
       if (
-        error instanceof ReferenceError &&
+        error.type === 'Uncaught Exception' &&
+        error.name === 'ReferenceError' &&
         error.message === 'window is not defined'
       ) {
         return false;
