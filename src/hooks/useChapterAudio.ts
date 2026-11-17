@@ -36,7 +36,11 @@ import {
   isCrossTranslationPlayback,
   notifyAudioSubstitution,
 } from "../utils/audioSubstitution";
-import { disposeHowl } from "../utils/audioUtils";
+import {
+  disposeHowl,
+  osPausedNode,
+  playAlreadyRequested,
+} from "../utils/audioUtils";
 import { createChapterHowl } from "../utils/chapterHowl";
 import { captureHandledWarning } from "../utils/errorReporter";
 import * as Sentry from "@sentry/react";
@@ -126,6 +130,13 @@ export const useChapterAudio = (
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
   const audioRef = useRef<Howl | null>(null);
+  // The Howl a play() was already issued for. A play() made
+  // while 'loading' sits in Howler's queue with playing()
+  // false the whole window, so only this marker keeps a
+  // second request (safePlay re-run, gap timer, stray media
+  // 'play') from stacking another sound instance on drain.
+  // Cleared on pause/'end'/error/dispose.
+  const playRequestedHowlRef = useRef<Howl | null>(null);
   const [audio, setAudio] = useState<Howl | null>(null);
   // Chapter key of the Howl currently in audioRef — lets the reset
   // effect tell "user navigated" (tear down) from "the ended
@@ -289,12 +300,29 @@ export const useChapterAudio = (
       // suppresses safePlay while a timer is pending).
       const current = audioRef.current;
       if (!current || current.state() === 'unloaded') return;
+      // An OS-paused node (audio-focus loss mid-gap) resumes
+      // in place — a Howl play() would stack a new sound.
+      const node = osPausedNode(current);
+      if (node) {
+        void node.play();
+        return;
+      }
       // A play() on an already-playing Howl never resumes — it
       // spawns a second sound instance (html5: another <audio>
       // node) and the same file plays twice. A stray
       // media-session 'play' (head unit, focus regain) can
-      // start the adopted chapter during the gap; leave it be.
-      if (current.playing()) return;
+      // start the adopted chapter during the gap, and a play
+      // still queued in Howler's load window is invisible to
+      // playing() — the request marker covers both.
+      if (
+        playAlreadyRequested(
+          current,
+          playRequestedHowlRef.current,
+        )
+      ) {
+        return;
+      }
+      playRequestedHowlRef.current = current;
       current.play();
     }, INTER_CHAPTER_GAP_MS);
   }, [clearAdvanceTimer]);
@@ -470,6 +498,7 @@ export const useChapterAudio = (
   }, [preloadNextChapter]);
 
   const handleChapterPause = useCallback(() => {
+    playRequestedHowlRef.current = null;
     isPlayingRef.current = false;
     setIsPlaying(false);
   }, []);
@@ -498,6 +527,7 @@ export const useChapterAudio = (
 
   const handleChapterLoadError = useCallback(
     (_id: number, err: unknown) => {
+      playRequestedHowlRef.current = null;
       console.error('Audio load error:', err);
       // A candidate that fetched but cannot be decoded (e.g.
       // opus16 on an old device) retries as its next alternate —
@@ -513,6 +543,7 @@ export const useChapterAudio = (
 
   const handleChapterPlayError = useCallback(
     (_id: number, err: unknown) => {
+      playRequestedHowlRef.current = null;
       console.error('Audio play error:', err);
       if (tryNextFallbackRef.current()) return;
       reportMediaFailure('Chapter audio play failed', err);
@@ -540,15 +571,21 @@ export const useChapterAudio = (
       if (finished.loop()) return;
 
       // A Howl emits 'end' once per sound instance, and Howler
-      // queues each listener call on a macrotask — a doubled
+      // schedules each listener call on a macrotask — a doubled
       // sound (a stray play() while already playing) makes the
-      // same Howl end twice, the second emit landing after the
-      // first already adopted/tore down. Re-advancing would
-      // orphan the Howl now owning audioRef — it keeps playing
-      // untracked on top of whatever loads next — or skip a
-      // chapter. A stale 'end' must also never invalidate an
-      // in-flight load.
+      // same Howl end twice, and the second emit can still land
+      // after the first already adopted/tore down. Re-advancing
+      // would orphan the Howl now owning audioRef — it keeps
+      // playing untracked on top of whatever loads next — or
+      // skip a chapter. A stale 'end' must also never
+      // invalidate an in-flight load.
       if (finished !== audioRef.current) return;
+
+      // The finished Howl's play request is spent — retire the
+      // marker so the adopted Howl can be requested next.
+      if (playRequestedHowlRef.current === finished) {
+        playRequestedHowlRef.current = null;
+      }
 
       // Invalidate any load still in flight — the advance below
       // supersedes whatever passage it was fetching.
@@ -832,6 +869,7 @@ export const useChapterAudio = (
       // would make the load effect fetch chapter audio next to
       // the playlist.
       isPlayingRef.current = false;
+      playRequestedHowlRef.current = null;
       setIsPlaying(false);
       clearAdvanceTimer();
       pendingGapRef.current = false;
@@ -1008,12 +1046,38 @@ export const useChapterAudio = (
   // immediately and never block the main thread (prevents Android ANR).
   const safePlay = useCallback(() => {
     const currentAudio = audioRef.current;
-    if (!currentAudio || currentAudio.playing()) return;
+    if (!currentAudio) return;
+    // The OS can pause the <audio> node behind Howler's back
+    // (Android audio-focus loss in a car): playing() still
+    // reports true while the node is silent — replaying the
+    // same node resumes in place; howl.play() would stack a
+    // second sound.
+    const node = osPausedNode(currentAudio);
+    if (node) {
+      void node.play();
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      return;
+    }
+    // A play already issued — still queued in Howler's load
+    // window (playing() stays false through the whole window)
+    // or sounding — must not be requested again: Howler's
+    // play() never resumes, it stacks another sound instance.
+    if (
+      playAlreadyRequested(
+        currentAudio,
+        playRequestedHowlRef.current,
+      )
+    ) {
+      return;
+    }
     try {
+      playRequestedHowlRef.current = currentAudio;
       currentAudio.play();
       isPlayingRef.current = true;
       setIsPlaying(true);
     } catch (err) {
+      playRequestedHowlRef.current = null;
       console.warn('Play operation failed:', err);
     }
   }, []);
@@ -1031,7 +1095,18 @@ export const useChapterAudio = (
     isPlayingRef.current = false;
     setIsPlaying(false);
     const currentAudio = audioRef.current;
-    if (!currentAudio || !currentAudio.playing()) return;
+    // A play still queued in Howler's load window needs a
+    // real pause() even though playing() is false — the
+    // queued pause lands right behind the queued play on
+    // drain. Without it the pending start still fires once
+    // loaded.
+    const requested =
+      currentAudio !== null &&
+      playRequestedHowlRef.current === currentAudio;
+    playRequestedHowlRef.current = null;
+    if (!currentAudio || (!currentAudio.playing() && !requested)) {
+      return;
+    }
     try {
       currentAudio.pause();
     } catch (err) {
@@ -1323,6 +1398,7 @@ export const useChapterAudio = (
   const handleClose = () => {
     setIsPlaying(false);
     isPlayingRef.current = false;
+    playRequestedHowlRef.current = null;
     setShowPlayer(false);
     // Invalidate any in-flight load/fallback fetch — without this
     // bump a pending resolve materializes a fresh Howl and

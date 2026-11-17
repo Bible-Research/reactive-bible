@@ -10,10 +10,19 @@ import type { HowlOptions } from 'howler';
  *   `'loading'`; `load()` or `emit('load')` transitions to
  *   `'loaded'`; `unload()` emits `'stop'`, then frees `_sounds`
  *   and lands in `'unloaded'`.
- * - `play()` is asynchronous like real Howler: it flips
- *   `playing()` synchronously but emits `'play'` on a microtask;
- *   `unload()` while the play is still pending emits
- *   `'playerror'` (mirrors the browser's AbortError).
+ * - `play()`/`pause()` on a still-'loading' Howl do not act
+ *   immediately — real Howler pushes them onto its load queue
+ *   and `playing()` stays false through the whole window. The
+ *   queue drains right AFTER the 'load' handlers run: in real
+ *   Howler 'load' listeners are scheduled on a macrotask and a
+ *   not-ready <audio> node defers a queued play further, so an
+ *   onload handler can observe `playing() === false` with a
+ *   play still in flight.
+ * - `play()` on a loaded Howl flips `playing()` synchronously
+ *   but emits `'play'` on a microtask (the real engine waits
+ *   for the element's play() promise); `unload()` while the
+ *   play is still pending emits `'playerror'` (mirrors the
+ *   browser's AbortError).
  * - `seek()` returns the Howl itself (not a number) while the
  *   sound is not `'loaded'` — the same quirk `audioUtils`
  *   `getPlayPosition` guards against.
@@ -36,10 +45,20 @@ import type { HowlOptions } from 'howler';
  *   alongside the event: `'load'` → `'loaded'`, `'end'` →
  *   `playing() === false` unless looping. `'loaderror'` fires
  *   the error handlers without changing state. `'end'` fires
- *   the handlers once per sound instance from a snapshot —
- *   real Howler emits `end` per sound and queues each listener
- *   call on a macrotask, so a doubled Howl's second `end` still
- *   reaches listeners the first emission detached.
+ *   once per ending sound instance: real Howler schedules each
+ *   listener call on a macrotask (setTimeout in `_emit`), so
+ *   whether a doubled Howl's second `end` still reaches
+ *   listeners the first emission detached (disposeHowl's
+ *   `off()`) is timing-dependent — the fake fires the captured
+ *   handlers once per sound, the hazardous ordering, so guards
+ *   are exercised.
+ * - `stop()` on a 'loading' Howl emits `'stop'` immediately
+ *   (real Howler queues it) so teardown listeners — the verse
+ *   bounds cleanup — still fire on disposeHowl.
+ * - The `_sounds[i]._node` element mirrors play/pause state so
+ *   `node.paused` reflects the fake sound — tests can simulate
+ *   an OS-level pause (audio-focus loss) by pausing the node
+ *   while `playing()` stays true.
  *
  * Usage:
  *
@@ -113,6 +132,8 @@ export class FakeHowl {
   _rate: number;
   _sounds: FakeSound[];
   _pendingPlay = false;
+  /** Actions deferred while 'loading' — Howler's `_queue`. */
+  private _queue: (() => void)[] = [];
 
   private _handlers: Record<string, Handler[]> = {};
 
@@ -161,7 +182,12 @@ export class FakeHowl {
   }
 
   /**
-   * Starts playback. Returns a sound id synchronously (like
+   * Starts playback — or queues it. While `'loading'`, real
+   * Howler never starts a sound: play() pushes a queue entry
+   * and `playing()` stays false until finishLoad() drains the
+   * queue after the 'load' handlers.
+   *
+   * On a loaded Howl it returns a sound id synchronously (like
    * Howler), marks `playing()` immediately, and emits `'play'`
    * on a microtask — matching the real HTMLAudioElement
    * `play()` promise resolution.
@@ -174,12 +200,21 @@ export class FakeHowl {
    */
   play(): number {
     if (this._state === 'unloaded') return 0;
+    if (this._state === 'loading') {
+      this._queue.push(() => {
+        this.play();
+      });
+      return 0;
+    }
     const id = 1;
     if (this._playing) {
       this._sounds.push({ _node: createAudioNode() });
     }
     this._playing = true;
     this._pendingPlay = true;
+    for (const sound of this._sounds) {
+      void sound._node?.play();
+    }
     void Promise.resolve().then(() => {
       if (!this._pendingPlay || this._state === 'unloaded') {
         return;
@@ -191,8 +226,19 @@ export class FakeHowl {
   }
 
   pause(): this {
+    if (this._state === 'loading') {
+      // Real Howler queues the pause behind any queued play —
+      // the sound starts, then pauses, on drain.
+      this._queue.push(() => {
+        this.pause();
+      });
+      return this;
+    }
     this._playing = false;
     this._pendingPlay = false;
+    for (const sound of this._sounds) {
+      sound._node?.pause();
+    }
     this.emit('pause', 0);
     return this;
   }
@@ -201,6 +247,9 @@ export class FakeHowl {
     this._playing = false;
     this._pendingPlay = false;
     this._pos = 0;
+    for (const sound of this._sounds) {
+      sound._node?.pause();
+    }
     this.emit('stop', 0);
     return this;
   }
@@ -212,11 +261,15 @@ export class FakeHowl {
    * `'playerror'` first, mirroring the browser's AbortError.
    */
   unload(): this {
+    this._queue = [];
     if (this._pendingPlay) {
       this._pendingPlay = false;
       this.emit('playerror', 0, new Error('play interrupted'));
     }
     this._playing = false;
+    for (const sound of this._sounds) {
+      sound._node?.pause();
+    }
     this.emit('stop', 0);
     this._state = 'unloaded';
     this._sounds = [];
@@ -322,10 +375,12 @@ export class FakeHowl {
         this._playing = false;
       }
       // Howler emits 'end' once per ending sound instance and
-      // queues each listener call on a macrotask — a doubled
-      // Howl's second 'end' still reaches handlers the first
-      // emission detached (e.g. disposeHowl's off()), so fire
-      // the snapshot once per sound.
+      // schedules each listener call on a macrotask — whether
+      // a doubled Howl's second 'end' reaches listeners the
+      // first emission detached (disposeHowl's off()) is
+      // timing-dependent. Firing the captured handlers once
+      // per sound models the hazardous ordering, so guards
+      // like `finished !== audioRef.current` get exercised.
       const ends = Math.max(1, this._sounds.length);
       for (let i = 0; i < ends; i++) {
         handlers.forEach((h) => h(...args));
@@ -341,7 +396,15 @@ export class FakeHowl {
     if (this._sounds.length === 0) {
       this._sounds = [{ _node: createAudioNode() }];
     }
+    // 'load' handlers run BEFORE the load queue drains —
+    // matching the real ordering where a play queued during
+    // 'loading' can still be in flight when onload runs (real
+    // Howler schedules 'load' listeners on a macrotask and a
+    // not-ready <audio> node defers a queued play further).
     [...(this._handlers.load ?? [])].forEach((h) => h(0));
+    const queued = this._queue;
+    this._queue = [];
+    queued.forEach((action) => action());
   }
 }
 

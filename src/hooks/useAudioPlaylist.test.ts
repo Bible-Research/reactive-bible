@@ -1025,9 +1025,12 @@ describe('useAudioPlaylist', () => {
   it('a resume() during the load window does not double-start ' +
     'the item', async () => {
       // resume() while the Howl is still loading queues a play
-      // inside Howler that drains BEFORE the async 'load'
-      // handlers run — onload's own play() must not stack a
-      // second sound on the already-playing Howl.
+      // inside Howler — the queued play can still be undrained
+      // when the 'load' handlers run (real Howler schedules
+      // 'load' listeners on a macrotask and a not-ready <audio>
+      // node defers the drain further), and playing() stays
+      // false the whole window. onload's own play() must not
+      // stack a second sound while the queued one is in flight.
       const { result } = renderHook(() => useAudioPlaylist());
       act(() => { result.current.start([makeItem()]); });
       // Wait for the Howl itself — currentIndex lands before
@@ -1041,6 +1044,37 @@ describe('useAudioPlaylist', () => {
       act(() => { howl.emit('load'); });
       expect(howl.playing()).toBe(true);
       expect(howl._sounds.length).toBe(1);
+    },
+  );
+
+  it('resume() revives an OS-paused node instead of stacking ' +
+    'a sound', async () => {
+      // Android audio-focus loss (a car head unit taking over)
+      // pauses the <audio> node behind Howler's back: playing()
+      // still reports true while the node is silent. The
+      // recovery path must re-play the same node — howl.play()
+      // would stack a second sound instance restarting at
+      // _seek.
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => { result.current.start([makeItem()]); });
+      await waitFor(() =>
+        expect(result.current.audio).not.toBeNull()
+      );
+      const howl = latestHowl();
+      act(() => { howl.emit('load'); });
+      expect(howl.playing()).toBe(true);
+      const node = howl._sounds[0]._node;
+      expect(node?.paused).toBe(false);
+
+      // The OS pauses the node — Howler's bookkeeping is now
+      // desynced: playing() true, node silent.
+      act(() => { node?.pause(); });
+      expect(howl.playing()).toBe(true);
+      expect(node?.paused).toBe(true);
+
+      act(() => { result.current.resume(); });
+      expect(howl._sounds.length).toBe(1);
+      expect(node?.paused).toBe(false);
     },
   );
 });

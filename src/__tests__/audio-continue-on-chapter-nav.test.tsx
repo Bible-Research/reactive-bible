@@ -59,10 +59,12 @@ const startPlaying = async () => {
     expect(FakeHowl.instances.length).toBeGreaterThan(0);
   });
   const first = FakeHowl.instances[0];
-  // play() emits 'play' on a microtask — await it inside act so
-  // the resulting setIsPlaying isn't an unwrapped update.
+  // The hook's safePlay queued a play() while 'loading' —
+  // 'load' drains it into a real start. The 'play' emit still
+  // lands on a microtask — await it inside act so the
+  // resulting setIsPlaying isn't an unwrapped update.
   await act(async () => {
-    first.play();
+    first.emit('load');
   });
   expect(first.playing()).toBe(true);
   return first;
@@ -129,6 +131,11 @@ describe('Audio continues on manual chapter navigation', () => {
       (h) => h !== first && h.state() !== 'unloaded'
     );
     expect(next).toBeDefined();
+    // safePlay queued a play() while 'loading' — the file
+    // finishing load drains it into a real start.
+    act(() => {
+      next?.emit('load');
+    });
     await waitFor(() => {
       expect(next?.playing()).toBe(true);
     });
