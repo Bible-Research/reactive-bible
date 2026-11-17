@@ -21,7 +21,13 @@ import {
 } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
 import { clearNotesCache } from '../utils/cacheManager';
-import { ConflictError } from './errors';
+import {
+  ConflictError,
+  RateLimitError,
+  errorDetailsOf,
+  throwHttpError,
+} from './errors';
+import type { TrackedError } from './errors';
 
 export const addTagNote = async (
   tagId: string,
@@ -91,7 +97,7 @@ export const deleteNote = async (noteId: string) => {
       }
     );
     if (!response.ok) {
-      throw new Error('Failed to delete note');
+      throwHttpError(response, 'Failed to delete note');
     }
     // The note's tag is unknown here — clear all cached pages.
     clearNotesCache();
@@ -99,7 +105,25 @@ export const deleteNote = async (noteId: string) => {
     return response.status === 204 ? '' : await response.text();
   } catch (err) {
     console.error('Error deleting note:', err);
-    throw new Error('Failed to delete your note, please try again');
+    // Re-wrap with a friendlier message without losing the
+    // failure kind: keep the RateLimitError class and copy the
+    // tracked code/status/endpoint so a 429 still drops in
+    // `sentryBeforeSend` instead of emitting a handled-api
+    // error event.
+    const details = errorDetailsOf(err);
+    const wrapped = (
+      err instanceof RateLimitError
+        ? new RateLimitError(
+            'Failed to delete your note, please try again'
+          )
+        : new Error(
+            'Failed to delete your note, please try again'
+          )
+    ) as TrackedError;
+    wrapped.errorCode = details.code;
+    wrapped.status = details.status;
+    wrapped.endpoint = details.endpoint;
+    throw wrapped;
   }
 }
 
@@ -128,7 +152,7 @@ export const reorderNotes = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || 'Reorder failed');
+    throwHttpError(response, error.detail || 'Reorder failed');
   }
 
   // Reordered pages must not keep serving the pre-reorder order.
@@ -151,7 +175,8 @@ export const getNoteOrderIndex = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(
+    throwHttpError(
+      response,
       error.message ||
         error.detail ||
         'Failed to fetch note order index'
@@ -201,7 +226,8 @@ export const moveNote = async (
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(
+    throwHttpError(
+      response,
       error.message || error.detail || 'Move failed'
     );
   }
@@ -326,7 +352,7 @@ export const uploadNoteImage = async (
       data.detail ||
       (Array.isArray(data.file) ? data.file[0] : data.file) ||
       'Failed to upload image.';
-    throw new Error(message);
+    throwHttpError(response, message);
   }
   return response.json();
 };

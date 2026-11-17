@@ -4,6 +4,7 @@ import type {
   PlaylistItem,
 } from '../types';
 import { localizedBookName, toUsfmCode } from './bibleUtils';
+import i18n from '../i18n';
 
 /** Notes that can actually produce playlist items — the same
  *  filtered set the playlist and play-from index are built
@@ -61,7 +62,8 @@ export const buildNotePlaylistItems = (
         localizedBookName(bookId) ??
         firstVerse.book;
       const label =
-        `Note ${noteIndex + 1}/${playable.length} ` +
+        `${i18n.t('notes.note')} ` +
+        `${noteIndex + 1}/${playable.length} ` +
         `– ${bookName} ` +
         `${firstVerse.chapter}:${startVerse}` +
         (startVerse !== endVerse ? `-${endVerse}` : '');

@@ -23,6 +23,15 @@ import {
   migratePersistedState,
   partializeState,
 } from './stores/bibleStore/persistence';
+import i18n, {
+  changeUiLanguage,
+  resolveInitialTextFileset,
+  resolveUiLanguage,
+  type UiLanguage,
+} from './i18n';
+import { showNotification } from '@mantine/notifications';
+import * as Sentry from '@sentry/react';
+import { captureHandledError } from './utils/errorReporter';
 
 export { migratePersistedState, partializeState };
 
@@ -54,6 +63,13 @@ export interface BibleState {
   activeChapter: number;
   verseSelection: VerseSelection | null;
   bibleVersion: string;
+  /**
+   * UI locale (BCP-47: 'en' | 'lv' | 'ru'). Persisted; the
+   * first-run value comes from `navigator.language` detection
+   * and is independent of the Bible translation choice.
+   */
+  uiLanguage: UiLanguage;
+  setUiLanguage: (lang: UiLanguage) => void;
   showAudioPlayer: boolean;
   translations: Translation[];
   activeTextFilesetId: string | null;
@@ -196,9 +212,10 @@ export const initialState = {
   activeChapter: 1,
   verseSelection: null as VerseSelection | null,
   bibleVersion: "KJV",
+  uiLanguage: resolveUiLanguage(),
   showAudioPlayer: false,
   translations: [],
-  activeTextFilesetId: "ENGESV_API",
+  activeTextFilesetId: resolveInitialTextFileset(),
   activeAudioFilesetId: "ENGESV_API",
   tags: [] as Tag[],
   notes: [] as Note[],
@@ -285,6 +302,27 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           return { verseSelection: { scope, refs: merged } };
         }),
       setBibleVersion: (bibleVersion) => set({ bibleVersion }),
+      // Persisted UI locale; rehydration bypasses this action
+      // but initI18n resolves the same stored value directly.
+      setUiLanguage: (uiLanguage) => {
+        const previous = get().uiLanguage;
+        set({ uiLanguage });
+        // A failed lazy-catalog import must not strand the
+        // persisted choice on a language the UI cannot
+        // render — roll back and tell the user.
+        void changeUiLanguage(uiLanguage).catch(() => {
+          // A later setUiLanguage may have already switched
+          // past this stale failure — reverting now would
+          // clobber the newer choice (and toast for nothing).
+          if (get().uiLanguage !== uiLanguage) return;
+          set({ uiLanguage: previous });
+          showNotification({
+            title: i18n.t('common.error'),
+            message: i18n.t('menu.languageLoadFailed'),
+            color: 'red',
+          });
+        });
+      },
       setShowAudioPlayer: (showAudioPlayer) => set({ showAudioPlayer }),
       setTranslations: (translations) => set({ translations }),
       setActiveTextFilesetId: (activeTextFilesetId) =>
@@ -358,10 +396,15 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             }));
             return stage(entry);
           })
-          .catch(() => {
+          .catch((error) => {
             // A failed lookup stays `undefined` — never cached
             // as "no position", so the next book click retries
             // instead of permanently landing on chapter 1.
+            captureHandledError(
+              error,
+              'Reading position fetch',
+              { book: bookId }
+            );
             return stage(undefined);
           });
       },
@@ -410,13 +453,17 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             'Error prefetching reading positions:',
             error
           );
+          captureHandledError(
+            error,
+            'Reading positions prefetch'
+          );
         }
       },
     }),
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 8,
+      version: 9,
       migrate: migratePersistedState,
       partialize: partializeState,
     }
@@ -443,6 +490,32 @@ useBibleStore.subscribe((state, prev) => {
     void state.loadStructure();
   }
 });
+
+/**
+ * Attach the active passage/fileset selection to the Sentry
+ * scope — every subsequent event carries where in the Bible
+ * the user was. The subscription covers navigation; the seed
+ * call covers the persisted selection at startup.
+ */
+const syncSentryBibleContext = (state: BibleState): void => {
+  Sentry.setContext('bible', {
+    book: state.activeBookId,
+    chapter: state.activeChapter,
+    textFilesetId: state.activeTextFilesetId,
+    audioFilesetId: state.activeAudioFilesetId,
+  });
+};
+useBibleStore.subscribe((state, prev) => {
+  if (
+    state.activeBookId !== prev.activeBookId ||
+    state.activeChapter !== prev.activeChapter ||
+    state.activeTextFilesetId !== prev.activeTextFilesetId ||
+    state.activeAudioFilesetId !== prev.activeAudioFilesetId
+  ) {
+    syncSentryBibleContext(state);
+  }
+});
+syncSentryBibleContext(useBibleStore.getState());
 
 /** Localized display name for the active book. */
 export const selectActiveBookName = (state: BibleState): string =>

@@ -37,6 +37,9 @@ import { useBibleStore } from '../store';
 import { clearNotesCache } from '../utils/cacheManager';
 import { buildTagTree, TagNode } from '../utils/tagTree';
 import { shallow } from 'zustand/shallow';
+import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 /**
  * Sums each node's own `note_count` with all of its
@@ -60,6 +63,7 @@ const computeSubtreeCounts = (
 };
 
 export default function TagManagementRoute() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { tags, getTags } = useBibleStore(
     (state) => ({
@@ -114,6 +118,8 @@ export default function TagManagementRoute() {
         await getTags(forceRefresh);
         setInitialError(false);
       } catch (error) {
+        // getTags reports to Sentry before rethrowing —
+        // capturing here too would double-count the event.
         console.error('Error loading tags:', error);
         // A failed first load must not fall through to the
         // "No tags yet" empty state — offer a retry instead.
@@ -121,8 +127,8 @@ export default function TagManagementRoute() {
           setInitialError(true);
         }
         showNotification({
-          title: 'Error',
-          message: 'Failed to load tags',
+          title: t('common.error'),
+          message: t('tags.loadFailed'),
           color: 'red',
         });
       } finally {
@@ -133,7 +139,7 @@ export default function TagManagementRoute() {
         }
       }
     },
-    [getTags]
+    [getTags, t]
   );
 
   useEffect(() => {
@@ -154,6 +160,7 @@ export default function TagManagementRoute() {
         }
       } catch (error) {
         console.error('Error loading notes count:', error);
+        captureHandledError(error, 'Notes count fetch');
       }
     };
     void loadNoteTotal();
@@ -167,8 +174,8 @@ export default function TagManagementRoute() {
       try {
         await deleteTagApi(tagId);
         showNotification({
-          title: 'Success',
-          message: 'Tag deleted successfully',
+          title: t('common.success'),
+          message: t('tags.deleted'),
           color: 'green',
         });
         // The deleted tag's own cached pages still answer
@@ -184,41 +191,48 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true }); // Force refresh
       } catch (error) {
         console.error('Error deleting tag:', error);
+        captureHandledError(error, 'Tag delete', { tagId });
         showNotification({
-          title: 'Error',
+          title: t('common.error'),
           message:
-            'Failed to delete tag. It may have associated notes.',
+            t('tags.deleteFailed'),
           color: 'red',
         });
       }
     },
-    [loadTags, removeTagPagination]
+    [loadTags, removeTagPagination, t]
   );
 
   const handleDeleteTag = useCallback(
     (tagId: string, tagName: string) => {
       const childCount = tags.filter(
-        (t) => t.parent_tag === tagId
+        (tag) => tag.parent_tag === tagId
       ).length;
       openConfirmModal({
-        title: 'Delete tag',
+        title: t('tags.deleteTitle'),
         children: (
           <Text size="sm">
-            {`Are you sure you want to delete "${tagName}"? ` +
-              'Notes assigned to it will lose this tag' +
-              (childCount > 0
-                ? `, and its ${childCount} child tag(s) may ` +
-                  'be affected'
-                : '') +
-              '. This action cannot be undone.'}
+            {t('tags.deleteConfirm', {
+                name: tagName,
+                body: t('tags.deleteBody'),
+                suffix:
+                  childCount > 0
+                    ? t('tags.deleteChildSuffix', {
+                        count: childCount,
+                      })
+                    : '',
+              })}
           </Text>
         ),
-        labels: { confirm: 'Delete', cancel: 'Cancel' },
+        labels: {
+          confirm: t('common.delete'),
+          cancel: t('common.cancel'),
+        },
         confirmProps: { color: 'red' },
         onConfirm: () => void deleteTag(tagId),
       });
     },
-    [deleteTag, tags]
+    [deleteTag, tags, t]
   );
 
   const handleEditTag = useCallback((tag: Tag) => {
@@ -241,10 +255,14 @@ export default function TagManagementRoute() {
       try {
         const result = await setTagPublic(tag.id, makingPublic);
         showNotification({
-          title: 'Success',
+          title: t('common.success'),
           message:
-            `Tag is now ${makingPublic ? 'public' : 'private'}` +
-            ` — ${result.notes_updated} note(s) updated`,
+            t('tags.publicityResult', {
+              state: makingPublic
+                ? t('tags.statePublic')
+                : t('tags.statePrivate'),
+              count: result.notes_updated,
+            }),
           color: 'green',
         });
         // The tag's own cached note pages reflect the old
@@ -257,17 +275,22 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error updating tag publicity:', error);
+        captureHandledError(error, 'Tag publicity update', {
+          tagId: tag.id,
+        });
+        // apiClient throws catalog keys — textOrKey
+        // translates those, passes server text through.
         showNotification({
-          title: 'Error',
+          title: t('common.error'),
           message:
             error instanceof Error
-              ? error.message
-              : 'Failed to update tag publicity',
+              ? textOrKey(error.message)
+              : t('tags.publicityFailed'),
           color: 'red',
         });
       }
     },
-    [loadTags]
+    [loadTags, t]
   );
 
   const handleTogglePublic = useCallback(
@@ -275,24 +298,20 @@ export default function TagManagementRoute() {
       const makingPublic = !tag.public;
       openConfirmModal({
         title: makingPublic
-          ? 'Make tag public'
-          : 'Make tag private',
+          ? t('tags.makePublic')
+          : t('tags.makePrivate'),
         children: (
           <Text size="sm">
             {makingPublic
-              ? `Make "${tag.name}" and all notes directly ` +
-                'under it public? Anyone with the link can ' +
-                'view them.'
-              : `Make "${tag.name}" private? All notes ` +
-                'directly under it will also become ' +
-                'private — anyone following a shared ' +
-                'link loses access. This cannot be ' +
-                'undone per-note.'}
+              ? t('tags.makePublicBody', { name: tag.name })
+              : t('tags.makePrivateBody', { name: tag.name })}
           </Text>
         ),
         labels: {
-          confirm: makingPublic ? 'Make public' : 'Make private',
-          cancel: 'Cancel',
+          confirm: makingPublic
+            ? t('tags.makePublicConfirm')
+            : t('tags.makePrivateConfirm'),
+          cancel: t('common.cancel'),
         },
         // Making private revokes every shared link under the
         // tag — it gets the same red treatment as Delete.
@@ -301,7 +320,7 @@ export default function TagManagementRoute() {
           void toggleTagPublic(tag, makingPublic),
       });
     },
-    [toggleTagPublic]
+    [toggleTagPublic, t]
   );
 
   const handleReparent = useCallback(
@@ -314,8 +333,8 @@ export default function TagManagementRoute() {
       try {
         await reparentTag(tagId, parentId);
         showNotification({
-          title: 'Success',
-          message: 'Tag moved',
+          title: t('common.success'),
+          message: t('tags.moved'),
           color: 'green',
         });
         // The moved tag's notes shift between merged views:
@@ -326,15 +345,21 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error reparenting tag:', error);
+        captureHandledError(error, 'Tag reparent', {
+          tagId,
+          parentId,
+        });
         // The API helper surfaces the server's message (e.g.
         // a same-named sibling already exists under the
-        // target parent).
+        // target parent). textOrKey passes that raw text
+        // through while translating apiClient's catalog-key
+        // errors ('errors.forbidden' etc.).
         showNotification({
-          title: 'Error',
+          title: t('common.error'),
           message:
             error instanceof Error
-              ? error.message
-              : 'Failed to move tag',
+              ? textOrKey(error.message)
+              : t('tags.moveFailed'),
           color: 'red',
         });
       } finally {
@@ -342,7 +367,7 @@ export default function TagManagementRoute() {
         setRefreshing(false);
       }
     },
-    [loadTags]
+    [loadTags, t]
   );
 
   const closeCreateModal = useCallback(() => {
@@ -361,7 +386,7 @@ export default function TagManagementRoute() {
   // otherwise the tree renders the match as a root and the
   // hierarchy (and the path to it) is lost.
   const tagById = useMemo(
-    () => new Map(tags.map((t) => [t.id, t])),
+    () => new Map(tags.map((tag) => [tag.id, tag])),
     [tags]
   );
   // Derived counts — memoized on `tags` so rows never redo the
@@ -392,14 +417,14 @@ export default function TagManagementRoute() {
           : undefined;
       }
     }
-    return tags.filter((t) => keep.has(t.id));
+    return tags.filter((tag) => keep.has(tag.id));
   }, [tags, searchQuery, tagById]);
   const searching = searchQuery.trim().length > 0;
 
   if (initialLoading && tags.length === 0) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="Loading tags" />
+        <Loader size="lg" aria-label={t('tags.loading')} />
       </Center>
     );
   }
@@ -409,13 +434,13 @@ export default function TagManagementRoute() {
       <Center style={{ height: '100vh' }}>
         <Stack align="center" spacing="sm">
           <Text color="red" size="lg">
-            Failed to load your tags.
+            {t('tags.loadFailed')}
           </Text>
           <Button
             variant="light"
             onClick={() => void loadTags(true)}
           >
-            Try again
+            {t('common.retry')}
           </Button>
         </Stack>
       </Center>
@@ -433,13 +458,15 @@ export default function TagManagementRoute() {
       }}
     >
       <Group position="apart" mb={compact ? 'sm' : 'lg'} noWrap>
-        <Title order={compact ? 3 : 2}>Tag Management</Title>
+        <Title order={compact ? 3 : 2}>
+          {t('menu.tagManagement')}
+        </Title>
         {compact ? (
           <ActionIcon
             variant="filled"
             size="lg"
             onClick={handleCreateTag}
-            title="New tag"
+            title={t('tags.new')}
           >
             <IconPlus size={20} />
           </ActionIcon>
@@ -448,14 +475,14 @@ export default function TagManagementRoute() {
             leftIcon={<IconPlus size={16} />}
             onClick={handleCreateTag}
           >
-            New Tag
+            {t('tags.new')}
           </Button>
         )}
       </Group>
 
       <Group spacing="xs" mb="md" noWrap>
         <TextInput
-          placeholder="Search tags..."
+          placeholder={t('tags.searchPlaceholder')}
           icon={<IconSearch size={16} />}
           value={searchQuery}
           onChange={(e) =>
@@ -474,11 +501,13 @@ export default function TagManagementRoute() {
               size="sm"
               sx={{ whiteSpace: 'nowrap' }}
             >
-              {filteredTags.length}{' '}
-              {filteredTags.length === 1 ? 'tag' : 'tags'}
+              {t('tags.tagCount', {
+                count: filteredTags.length,
+              })}
               {noteTotal !== null &&
-                ` · ${noteTotal} ` +
-                  `${noteTotal === 1 ? 'note' : 'notes'}`}
+                ` · ${t('tags.noteCount', {
+                  count: noteTotal,
+                })}`}
             </Text>
             {refreshing && <Loader size="xs" />}
           </>
@@ -490,8 +519,8 @@ export default function TagManagementRoute() {
           <Stack align="center" spacing="xs">
             <Text color="dimmed">
               {searchQuery
-                ? 'No tags found matching your search'
-                : 'No tags yet'}
+                ? t('tags.noTagsSearch')
+                : t('tags.noTags')}
             </Text>
             {!searchQuery && (
               <Button
@@ -499,7 +528,7 @@ export default function TagManagementRoute() {
                 leftIcon={<IconPlus size={16} />}
                 onClick={handleCreateTag}
               >
-                Create your first tag
+                {t('tags.createFirst')}
               </Button>
             )}
           </Stack>

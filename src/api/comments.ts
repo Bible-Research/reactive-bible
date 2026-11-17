@@ -14,6 +14,7 @@ import {
   publicFetch,
 } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { throwHttpError } from './errors';
 
 export const fetchComments = (noteId: string): Promise<Comment[]> =>
   fetchJson<Comment[]>(
@@ -67,7 +68,7 @@ export const deleteComment = async (
       { method: 'DELETE' }
     );
     if (!response.ok && response.status !== 204) {
-      throw new Error('Failed to delete comment');
+      throwHttpError(response, 'Failed to delete comment');
     }
   } catch (error) {
     console.error('Error deleting comment:', error);
@@ -92,7 +93,7 @@ export const uploadCommentImage = async (
       data.detail ||
       (Array.isArray(data.file) ? data.file[0] : data.file) ||
       'Failed to upload image.';
-    throw new Error(message);
+    throwHttpError(response, message);
   }
   return response.json();
 };
@@ -105,7 +106,7 @@ export const deleteImage = async (
     { method: 'DELETE' },
   );
   if (!response.ok) {
-    throw new Error('Failed to delete image.');
+    throwHttpError(response, 'Failed to delete image.');
   }
 };
 

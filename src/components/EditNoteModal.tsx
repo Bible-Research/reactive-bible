@@ -37,6 +37,8 @@ import VerseTextGroups from "./VerseTextGroups";
 import { Note, VerseRef } from "../types";
 import { visibleNoteVerses } from "../utils/noteVerses";
 import { shallow } from "zustand/shallow";
+import { useTranslation } from 'react-i18next';
+import { localizedErrorCode, textOrKey } from '../i18n/errorText';
 
 interface EditNoteModalProps {
   opened: boolean;
@@ -45,6 +47,7 @@ interface EditNoteModalProps {
 }
 
 const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
+  const { t } = useTranslation();
   const {
     tags,
     getTags,
@@ -221,13 +224,17 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
           mutateNoteImages(noteId, (imgs) => [...imgs, img]);
         } catch (err: unknown) {
           uploadedSigs.current.delete(signature);
+          // apiClient throws catalog keys
+          // ('errors.forbidden', 'auth.sessionExpiredMsg') —
+          // textOrKey translates those and passes raw
+          // server text through.
           const msg =
             err instanceof Error
-              ? err.message
-              : 'Failed to upload image.';
+              ? textOrKey(err.message)
+              : t('notes.failedToUpload');
           showNotification({
             color: 'red',
-            title: 'Upload failed',
+            title: t('notes.uploadFailed'),
             message: msg,
           });
         }
@@ -250,8 +257,8 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     } catch {
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to delete image.',
+        title: t('common.error'),
+        message: t('notes.deleteImageFailed'),
       });
     }
   };
@@ -278,8 +285,12 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   };
 
   // The notes API sets error/error_code when the upstream
-  // Bible provider fails to resolve verse text.
-  const verseError = note?.error;
+  // Bible provider fails to resolve verse text. A coded
+  // failure maps to the errors.* catalog like a thrown
+  // error; an uncoded one keeps its raw provider message.
+  const verseError = note?.error
+    ? localizedErrorCode(note.error_code) ?? note.error
+    : undefined;
   // Provider text is capped at 500 verses for copyright
   // reasons; render the truncated tail as a notice instead
   // of empty verse rows.
@@ -291,7 +302,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Edit note"
+      title={t('notes.editNote')}
       fullScreen
     >
       {note && (
@@ -302,7 +313,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             // Linked verses keep the note valid with no
             // text; the prop tracks the picker's live refs.
             allowEmptyText={refs.length > 0}
-            submitText="Submit changes"
+            submitText={t('notes.submitChanges')}
             onTagDropdownOpen={() => {
               void getTags().catch(() => {
                 /* notified by the store */
@@ -346,7 +357,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
                 <IconChevronRight size={16} />
               )}
               <Text size="sm" weight={600}>
-                Verse references
+                {t('notes.verseReferences')}
               </Text>
               {refs.length > 0 && (
                 <Badge size="sm" variant="light" color="blue">
@@ -376,17 +387,13 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
             {verseError ? (
               <Text color="red" size="sm" mt="sm">
                 {verseError}
-                {note.error_code === "rate_limited"
-                  ? " Try reloading in about 1 minute."
-                  : ""}
               </Text>
             ) : (
               <>
                 <VerseTextGroups groups={textGroups} />
                 {versesTruncated && (
                   <Text color="red" size="sm" mt="sm">
-                    Cannot display more than 500 verses of the
-                    Bible due to copyright restrictions.
+                    {t('notes.verseLimitNotice')}
                   </Text>
                 )}
               </>

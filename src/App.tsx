@@ -3,6 +3,7 @@ import {
   MantineProvider,
   ColorSchemeProvider,
   ColorScheme,
+  DEFAULT_THEME,
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { ModalsProvider } from "@mantine/modals";
@@ -25,6 +26,17 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
 import { AUDIO_PLAYER_HEIGHT } from "./utils/audioUtils";
 import { useSlashSearchShortcut } from "./hooks/useSlashSearchShortcut";
+
+// Mantine's lightest grays render dividers, borders and the
+// Slider track nearly invisible against the gray[0] light
+// page background. Shift gray[2..4] one step darker in
+// light mode only — dark mode keeps the stock ramp.
+const lightModeGray = [
+  ...DEFAULT_THEME.colors.gray,
+] as typeof DEFAULT_THEME.colors.gray;
+lightModeGray[2] = lightModeGray[3];
+lightModeGray[3] = lightModeGray[4];
+lightModeGray[4] = lightModeGray[5];
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -97,12 +109,28 @@ export default function App() {
       toggleColorScheme={toggleColorScheme}
     >
       <MantineProvider
-        theme={{ colorScheme }}
+        theme={{
+          colorScheme,
+          colors: {
+            gray:
+              colorScheme === "dark"
+                ? DEFAULT_THEME.colors.gray
+                : lightModeGray,
+          },
+        }}
         withGlobalStyles
         withNormalizeCSS
       >
         <ModalsProvider>
         <Notifications position="top-right" zIndex={2077} />
+        {/* The boundary wraps the whole app shell — header,
+            nav, menus AND routed content — but stays inside
+            the Mantine providers so the fallback UI renders
+            styled. `resetKey` recovers a caught error on ANY
+            pathname change (e.g. /notes/tag/a -> /notes/tag/b)
+            and only fires in the error state, so healthy
+            children are never remounted on navigation. */}
+        <ErrorBoundary resetKey={location.pathname}>
         <AppShell
           padding={0}
           navbar={
@@ -121,7 +149,10 @@ export default function App() {
           }
           footer={
             isBibleView ? (
-              <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
+              <BottomNav
+                bibleSelectorOpened={bibleSelectorOpened}
+                setBibleSelectorOpened={setBibleSelectorOpened}
+              />
             ) : undefined
           }
           styles={(theme) => ({
@@ -159,22 +190,7 @@ export default function App() {
             },
           })}
         >
-          {/* `key` on the top-level route segment remounts the
-              boundary on section changes (/bible -> /notes)
-              without remounting the route tree on intra-page URL
-              updates like verse-selection refs (/bible/JHN.1 ->
-              /bible/JHN.1.3), which would unload PassageView and
-              swallow clicks mid-remount. `resetKey` recovers a
-              caught error on ANY pathname change — e.g.
-              /notes/tag/a -> /notes/tag/b stays under the same
-              segment key — but only fires in the error state,
-              so healthy children are never remounted. */}
-          <ErrorBoundary
-            key={location.pathname.split('/')[1]}
-            resetKey={location.pathname}
-          >
-            <AppRoutes />
-          </ErrorBoundary>
+          <AppRoutes />
           {showVerseToolbar && <VerseActionToolbar />}
           <MainMenu
             opened={mainMenuOpened}
@@ -183,6 +199,7 @@ export default function App() {
             toggleColorScheme={toggleColorScheme}
           />
         </AppShell>
+        </ErrorBoundary>
         {/* Vercel telemetry injects /_vercel/* scripts that only
             exist on the Vercel deployment; inside the Capacitor
             shell (origin https://localhost) they 404 and trip the

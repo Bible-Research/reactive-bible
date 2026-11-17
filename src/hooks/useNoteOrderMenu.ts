@@ -5,19 +5,23 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getNoteOrderIndex } from '../api';
 import { useBibleStore } from '../store';
+import { captureHandledError } from '../utils/errorReporter';
 import type {
   NoteOrderIndexEntry,
   NoteOrderMenuData,
 } from '../types';
 import type { SortOrder } from '../utils/noteSorting';
 
-/** `#k — Book C:V[-V]`, or `#k — no passage` for verse-less
- *  notes. `k` is the canonical 1-based order ID. */
+/** `#k — Book C:V[-V]`, or `#k — <noPassage>` for verse-less
+ *  notes (`noPassage` is the caller's localized fallback
+ *  text). `k` is the canonical 1-based order ID. */
 const entryLabel = (
   entry: NoteOrderIndexEntry,
-  orderId: number
+  orderId: number,
+  noPassage: string
 ): string => {
   const idPart = `#${orderId}`;
   if (
@@ -25,7 +29,7 @@ const entryLabel = (
     entry.chapter === null ||
     entry.verse_start === null
   ) {
-    return `${idPart} — no passage`;
+    return `${idPart} — ${noPassage}`;
   }
   const range =
     entry.verse_end !== null &&
@@ -82,6 +86,10 @@ export const useNoteOrderMenu = ({
   isUntagged,
   includeDescendants = false,
 }: UseNoteOrderMenuOptions): UseNoteOrderMenuResult => {
+  // `t` (not the global i18n) so the precomputed labels
+  // retranslate on a language switch — it sits in the
+  // orderMenu memo's deps below.
+  const { t } = useTranslation();
   const moveNoteAfter = useBibleStore(
     (state) => state.moveNoteAfter
   );
@@ -130,6 +138,9 @@ export const useNoteOrderMenu = ({
       // A missing/failed endpoint leaves the index null so the
       // badge stays hidden — the rest of the page still works.
       console.error('Error loading note order index:', err);
+      captureHandledError(err, 'Note order index fetch', {
+        tagId,
+      });
     }
   }, [tagId]);
 
@@ -256,7 +267,8 @@ export const useNoteOrderMenu = ({
               // is guaranteed an order ID.
               label: entryLabel(
                 entry,
-                orderIdByNoteId.get(entry.id) as number
+                orderIdByNoteId.get(entry.id) as number,
+                t('notes.noPassage')
               ),
             })),
             orderIdByNoteId,
@@ -277,6 +289,7 @@ export const useNoteOrderMenu = ({
       sortOrder,
       handleMoveAfter,
       handleMoveToTop,
+      t,
     ]
   );
 

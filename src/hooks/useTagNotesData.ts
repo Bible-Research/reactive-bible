@@ -15,6 +15,7 @@ import {
 import { useBibleStore } from '../store';
 import type { CommentCounts, Note, Tag } from '../types';
 import { clearNotesCache } from '../utils/cacheManager';
+import { captureHandledError } from '../utils/errorReporter';
 import { getApiOrdering } from '../utils/noteSorting';
 import type { SortOrder } from '../utils/noteSorting';
 import {
@@ -22,6 +23,7 @@ import {
   NOTES_PAGE_SIZES,
   pageCount,
 } from '../utils/pagination';
+import i18n from '../i18n';
 
 interface UseTagNotesDataOptions {
   tagId: string | undefined;
@@ -188,7 +190,10 @@ export const useTagNotesData = ({
 
     const loadTagAndNotes = async () => {
       if (!tagId) {
-        setError('No tag ID provided');
+        // Translated once into state — a later language
+        // switch won't re-resolve it (accepted: the error
+        // state is transient).
+        setError(i18n.t('notes.noTagId'));
         setLoading(false);
         return;
       }
@@ -272,10 +277,12 @@ export const useTagNotesData = ({
         let resolvedTag: Tag | null;
         if (isUntagged) {
           // No Tag row exists for the untagged view — use a
-          // synthetic label object for display.
+          // synthetic label object for display. The name is
+          // translated once into state, so a language switch
+          // leaves the old label until reload (accepted).
           resolvedTag = {
             id: UNTAGGED_TAG_ID,
-            name: 'Untagged',
+            name: i18n.t('common.untagged'),
             parent_tag: null,
             public: false,
             created_at: '',
@@ -298,7 +305,12 @@ export const useTagNotesData = ({
           if (!resolvedTag) {
             try {
               resolvedTag = await getTag(tagId);
-            } catch {
+            } catch (err) {
+              // A network/5xx failure masquerades as
+              // "no notes for tag" — report it.
+              captureHandledError(err, 'Tag fetch', {
+                tagId,
+              });
               resolvedTag = null;
             }
           }
@@ -307,7 +319,9 @@ export const useTagNotesData = ({
         if (cancelled) return;
 
         if (!resolvedTag) {
-          setError('No public notes available for this tag.');
+          // Translated once into state — stale on language
+          // switch until the next load (accepted).
+          setError(i18n.t('notes.noNotesForTag'));
         } else {
           setTag(resolvedTag);
         }
@@ -318,7 +332,16 @@ export const useTagNotesData = ({
         if (!cancelled && tagId) {
           fetchCommentCounts({ tagId }).then((counts) => {
             if (!cancelled) setCommentCounts(counts);
-          }).catch(() => { /* ignore comment count errors */ });
+          }).catch((err: unknown) => {
+            // A persistent counts-endpoint failure would
+            // otherwise be invisible — badges just stay
+            // hidden.
+            captureHandledError(
+              err,
+              'Comment counts fetch',
+              { tagId }
+            );
+          });
         }
       } catch (err) {
         if (cancelled) return;
@@ -326,7 +349,9 @@ export const useTagNotesData = ({
         // A re-run failure (sort change, auth flip) keeps the
         // loaded list on screen — fetchNotes already toasted.
         if (!hasLoadedRef.current) {
-          setError('Failed to load notes');
+          // Translated once into state — stale on language
+          // switch until the next load (accepted).
+          setError(i18n.t('notes.loadNotesFailed'));
         }
         setLoading(false);
         setPageLoading(false);
@@ -383,6 +408,10 @@ export const useTagNotesData = ({
           append: false,
           includeDescendants,
         });
+      } catch {
+        // fetchNotes already reported to Sentry and toasted —
+        // swallow so the caller's discarded promise doesn't
+        // also hit the unhandledrejection path.
       } finally {
         setPageLoading(false);
       }
@@ -416,6 +445,9 @@ export const useTagNotesData = ({
           append: false,
           includeDescendants,
         });
+      } catch {
+        // Same as handlePageChange — fetchNotes already
+        // reported and toasted.
       } finally {
         setPageLoading(false);
       }
@@ -469,15 +501,15 @@ export const useTagNotesData = ({
       }
 
       showNotification({
-        title: 'Refreshed!',
-        message: 'Notes updated from server',
+        title: i18n.t('notes.refreshed'),
+        message: i18n.t('notes.updated'),
         color: 'green',
       });
     } catch (err) {
       console.error('Error refreshing notes:', err);
       showNotification({
-        title: 'Error',
-        message: 'Failed to refresh notes',
+        title: i18n.t('common.error'),
+        message: i18n.t('notes.refreshFailed'),
         color: 'red',
       });
     }
@@ -498,9 +530,7 @@ export const useTagNotesData = ({
       evt.preventDefault();
       if (!note.id || deletingRef.current) return;
       if (
-        !window.confirm(
-          'Are you sure you want to delete this note?'
-        )
+        !window.confirm(i18n.t('notes.deleteConfirm'))
       ) {
         return;
       }

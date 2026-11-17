@@ -137,7 +137,7 @@ describe('loadKjvData', () => {
       mockChunkHelpers(true, false);
       const { loadKjvData } = await importLoader();
       await expect(loadKjvData()).rejects.toThrow(
-        'Failed to load KJV Bible data'
+        'translations.kjvFailed'
       );
       expect(await mockedReloadForStaleChunk())
         .toHaveBeenCalledTimes(1);
@@ -149,7 +149,7 @@ describe('loadKjvData', () => {
       mockChunkHelpers(false, false);
       const { loadKjvData } = await importLoader();
       await expect(loadKjvData()).rejects.toThrow(
-        'Failed to load KJV Bible data'
+        'translations.kjvFailed'
       );
       expect(await mockedReloadForStaleChunk())
         .not.toHaveBeenCalled();

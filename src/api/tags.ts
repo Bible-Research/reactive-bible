@@ -10,6 +10,7 @@ import {
   publicFetch,
 } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { throwHttpError } from './errors';
 
 export const getTags = (): Promise<Tag[]> =>
   fetchJson<Tag[]>(
@@ -105,7 +106,8 @@ export const reparentTag = async (
       if (Array.isArray(field)) return field[0] as string;
       return typeof field === 'string' ? field : undefined;
     };
-    throw new Error(
+    throwHttpError(
+      response,
       fieldError(error.message) ||
         fieldError(error.detail) ||
         fieldError(error.parent_tag) ||
@@ -126,7 +128,7 @@ export const deleteTag = async (tagId: string): Promise<void> => {
       }
     );
     if (!response.ok) {
-      throw new Error('Failed to delete tag');
+      throwHttpError(response, 'Failed to delete tag');
     }
   } catch (error) {
     console.error('Error deleting tag:', error);

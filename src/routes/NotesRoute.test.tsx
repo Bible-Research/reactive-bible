@@ -229,13 +229,13 @@ describe('NotesRoute', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText('Failed to load your tags.')
+          screen.getByText('Failed to load tags. Please try again.')
         ).toBeInTheDocument();
       });
       expect(mockNavigate).not.toHaveBeenCalled();
 
       fireEvent.click(
-        screen.getByRole('button', { name: /try again/i })
+        screen.getByRole('button', { name: /retry/i })
       );
 
       await waitFor(() => {

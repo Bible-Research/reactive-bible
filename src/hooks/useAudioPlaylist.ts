@@ -23,6 +23,8 @@ import { notifyAudioSubstitution } from '../utils/audioSubstitution';
 import { useVerseHighlighter } from './useVerseHighlighter';
 import { disposeHowl } from '../utils/audioUtils';
 import { attachVerseBounds } from '../utils/verseBounds';
+import { captureHandledWarning } from '../utils/errorReporter';
+import i18n from '../i18n';
 
 export interface UseAudioPlaylistReturn {
   isActive: boolean;
@@ -189,8 +191,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
       if (candidates.length === 0) {
         showNotification({
-          title: 'No audio fileset selected',
-          message: 'Select an audio translation to use playlist.',
+          title: i18n.t('audio.noFileset'),
+          message: i18n.t('audio.selectTranslation'),
           color: 'orange',
           autoClose: 5000,
         });
@@ -258,11 +260,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               ) {
                 timestampsNoticeShownRef.current = true;
                 showNotification({
-                  title: 'No verse timestamps',
+                  title: i18n.t('audio.noTimestamps'),
                   message:
-                    "Verse-level playback isn't available " +
-                    'for this recording — whole chapters ' +
-                    'will play.',
+                    i18n.t('audio.noTimestampsMsg'),
                   color: 'orange',
                   autoClose: 8000,
                 });
@@ -370,11 +370,20 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     retryNextCandidate(i + 1);
                     return;
                   }
+                  captureHandledWarning(
+                    'Playlist audio load failed: ' + String(err),
+                    'media-failure',
+                    {
+                      filesetId: candidateId,
+                      book: item.bookId,
+                      chapter: item.chapter,
+                      item: item.label,
+                    },
+                  );
                   showNotification({
-                    title: 'Audio load failed',
+                    title: i18n.t('audio.loadFailed'),
                     message:
-                      `Could not load audio for ` +
-                      `${item.label}. Skipping.`,
+                      i18n.t('audio.couldNotLoad', { label: item.label }),
                     color: 'orange',
                     autoClose: 5000,
                   });
@@ -392,11 +401,20 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     retryNextCandidate(i + 1);
                     return;
                   }
+                  captureHandledWarning(
+                    'Playlist audio play failed: ' + String(err),
+                    'media-failure',
+                    {
+                      filesetId: candidateId,
+                      book: item.bookId,
+                      chapter: item.chapter,
+                      item: item.label,
+                    },
+                  );
                   showNotification({
-                    title: 'Audio play failed',
+                    title: i18n.t('audio.playFailed'),
                     message:
-                      `Could not play audio for ` +
-                      `${item.label}. Skipping.`,
+                      i18n.t('audio.couldNotPlay', { label: item.label }),
                     color: 'orange',
                     autoClose: 5000,
                   });
@@ -433,17 +451,40 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             } catch (err) {
               if (stale()) return;
               if (err instanceof BookNotInFilesetError) continue;
+              // Report sites name the fileset that actually
+              // failed — not the retry's startAt candidate.
+              // A primitive or frozen rejection can't carry
+              // the stamp — assigning to a frozen Error throws
+              // in strict mode and would replace the real
+              // rejection, so leave those unstamped.
+              if (err instanceof Error && !Object.isFrozen(err)) {
+                (err as { filesetId?: string }).filesetId =
+                  candidateId;
+              }
               throw err;
             }
           }
 
           // Every candidate was exhausted — report once.
           if (stale()) return;
+          captureHandledWarning(
+            'Playlist audio candidates exhausted',
+            'media-failure',
+            {
+              filesetId: activeAudioFilesetId,
+              candidates: candidates.join(','),
+              book: item.bookId,
+              chapter: item.chapter,
+              item: item.label,
+            },
+          );
           showNotification({
-            title: 'Audio not available',
+            title: i18n.t('audio.notAvailable'),
             message:
-              `No audio for ${itemBookName} in ` +
-              `${translationName}. Skipping to next item.`,
+              i18n.t('audio.noAudioForSkipping', {
+                book: itemBookName,
+                translation: translationName,
+              }),
             color: 'orange',
             autoClose: 5000,
           });
@@ -458,11 +499,23 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           void loadFromIndex(startAt).catch((err) => {
             if (stale()) return;
             console.error('Playlist retry failed:', err);
+            captureHandledWarning(
+              'Playlist audio retry failed: ' +
+                (err instanceof Error ? err.message : String(err)),
+              'media-failure',
+              {
+                filesetId:
+                  (err as { filesetId?: string }).filesetId ??
+                  candidates[startAt],
+                book: item.bookId,
+                chapter: item.chapter,
+                item: item.label,
+              },
+            );
             showNotification({
-              title: 'Audio unavailable',
+              title: i18n.t('audio.unavailable'),
               message:
-                `Could not load audio for ` +
-                `${item.label}. Skipping.`,
+                i18n.t('audio.couldNotLoad', { label: item.label }),
               color: 'orange',
               autoClose: 5000,
             });
@@ -474,9 +527,22 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       } catch (err) {
         if (stale()) return;
         console.error('Playlist error loading item:', err);
+        captureHandledWarning(
+          'Playlist audio error: ' +
+            (err instanceof Error ? err.message : String(err)),
+          'media-failure',
+          {
+            filesetId:
+              (err as { filesetId?: string }).filesetId ??
+              activeAudioFilesetId,
+            book: item.bookId,
+            chapter: item.chapter,
+            item: item.label,
+          },
+        );
         showNotification({
-          title: 'Audio unavailable',
-          message: `Could not load audio for ${item.label}. Skipping.`,
+          title: i18n.t('audio.unavailable'),
+          message: i18n.t('audio.couldNotLoad', { label: item.label }),
           color: 'orange',
           autoClose: 5000,
         });

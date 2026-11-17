@@ -13,6 +13,7 @@ import {
 } from '@tabler/icons-react';
 import { useRef } from 'react';
 import { pageNumberList } from '../utils/pagination';
+import { useTranslation } from 'react-i18next';
 
 interface PaginationProps {
   currentPage: number;
@@ -25,6 +26,7 @@ export default function Pagination({
   totalPages,
   onPageChange,
 }: PaginationProps) {
+  const { t } = useTranslation();
   const currentPageItemRef = useRef<HTMLButtonElement>(null);
 
   if (totalPages <= 1) return null;
@@ -36,14 +38,14 @@ export default function Pagination({
   );
 
   return (
-    <nav aria-label="Pagination">
+    <nav aria-label={t('pagination.label')}>
       <Group position="center" spacing="xs" mt="md" mb="xl">
       <ActionIcon
         variant="default"
         size="lg"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        aria-label="Previous page"
+        aria-label={t('pagination.previous')}
       >
         <IconChevronLeft size={18} />
       </ActionIcon>
@@ -61,8 +63,8 @@ export default function Pagination({
               <Menu.Target>
                 <UnstyledButton
                   px="xs"
-                  aria-label="Show all pages"
-                  title="Show all pages"
+                  aria-label={t('pagination.showAll')}
+                  title={t('pagination.showAll')}
                 >
                   <Text color="dimmed">...</Text>
                 </UnstyledButton>
@@ -116,7 +118,7 @@ export default function Pagination({
             variant={page === currentPage ? 'filled' : 'default'}
             size="sm"
             onClick={() => onPageChange(page)}
-            aria-label={`Page ${page}`}
+            aria-label={t('pagination.page', { page })}
             aria-current={
               page === currentPage ? 'page' : undefined
             }
@@ -131,7 +133,7 @@ export default function Pagination({
         size="lg"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        aria-label="Next page"
+        aria-label={t('pagination.next')}
       >
         <IconChevronRight size={18} />
       </ActionIcon>

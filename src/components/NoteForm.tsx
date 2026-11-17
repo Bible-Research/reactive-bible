@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { NoteImage, Tag } from "../types";
 import { commentImageName } from "../utils/commentTree";
 import { toPlainText } from "../utils/tiptapContent";
+import { captureHandledError } from "../utils/errorReporter";
 import {
   useStagedImages,
   ALLOWED_IMAGE_TYPES,
@@ -26,6 +27,7 @@ import {
 } from "./CommentImageGrid";
 import RichTextEditor from "./RichTextEditor";
 import { TagCombobox } from "./TagCombobox";
+import { useTranslation } from 'react-i18next';
 
 interface NoteFormProps {
   tags: Tag[];
@@ -146,6 +148,7 @@ const NoteForm = ({
   onFilesChange,
   initialFiles,
 }: NoteFormProps) => {
+  const { t } = useTranslation();
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
   const [noteText, setNoteText] = useState(note?.text || "");
   // "Public note" — seeded from `note.isPublic` (edit mode or a
@@ -154,7 +157,7 @@ const NoteForm = ({
   const [isPublic, setIsPublic] = useState<boolean>(
     () =>
       note?.isPublic ??
-      tags.find((t) => t.id === (note?.tagId ?? ""))?.public ??
+      tags.find((tag) => tag.id === (note?.tagId ?? ""))?.public ??
       false
   );
   // Once the user toggles the box their choice wins over the
@@ -240,7 +243,7 @@ const NoteForm = ({
   useEffect(() => {
     if (!publicTouchedRef.current) {
       setIsPublic(
-        tags.find((t) => t.id === selectedTagId)?.public ?? false
+        tags.find((tag) => tag.id === selectedTagId)?.public ?? false
       );
     }
   }, [selectedTagId, tags]);
@@ -327,7 +330,12 @@ const NoteForm = ({
           return save(tagId, text, isPublic);
         })
         .then(() => onUnmountedSaveRef.current?.())
-        .catch((error) => console.error(error));
+        .catch((error) => {
+          console.error(error);
+          captureHandledError(error, 'Note save (unmount)', {
+            tagId,
+          });
+        });
     },
     []
   );
@@ -374,7 +382,10 @@ const NoteForm = ({
             SAVED_FLASH_MS
           );
         })
-        .catch((error) => console.error(error));
+        .catch((error) => {
+          console.error(error);
+          captureHandledError(error, 'Note autosave', { tagId });
+        });
     };
     const interval = window.setInterval(tick, AUTOSAVE_INTERVAL_MS);
     return () => window.clearInterval(interval);
@@ -398,8 +409,8 @@ const NoteForm = ({
     // verses carries nothing.
     if (!selectedTagId) {
       showNotification({
-        title: 'Cannot save note',
-        message: 'Please choose a tag.',
+        title: t('notes.cannotSave'),
+        message: t('notes.chooseTag'),
         color: 'red',
       });
       return;
@@ -411,8 +422,8 @@ const NoteForm = ({
       !imagesLoading
     ) {
       showNotification({
-        title: 'Cannot save note',
-        message: 'Add note text or attach an image.',
+        title: t('notes.cannotSave'),
+        message: t('notes.addTextOrImage'),
         color: 'red',
       });
       return;
@@ -467,6 +478,7 @@ const NoteForm = ({
   return (
     <form onSubmit={handleSubmit}>
       <TagCombobox
+        label={t('notes.tag')}
         // Select by id — mapping by name silently picked the
         // first of two same-named tags.
         value={selectedTagId}
@@ -476,7 +488,7 @@ const NoteForm = ({
       />
       <RichTextEditor
         variant="note"
-        label="Note"
+        label={t('notes.note')}
         value={noteText}
         onChange={setNoteText}
       />
@@ -502,12 +514,12 @@ const NoteForm = ({
                   />
                 ) : (
                   <UnavailableThumb
-                    label={`${name} (unavailable)`}
+                    label={t('comments.imageUnavailable', { name })}
                   />
                 )}
                 {onDeleteImage && (
                   <RemoveImageButton
-                    label={`Remove image ${name}`}
+                    label={t('notes.removeImage', { name })}
                     offset={2}
                     onClick={() => onDeleteImage(img.id)}
                   />
@@ -525,7 +537,7 @@ const NoteForm = ({
             >
               {s.failed ? (
                 <UnavailableThumb
-                  label={`${s.file.name} (unavailable)`}
+                  label={t('comments.imageUnavailable', { name: s.file.name })}
                 />
               ) : (
                 <img
@@ -536,7 +548,7 @@ const NoteForm = ({
                 />
               )}
               <RemoveImageButton
-                label={`Remove staged image ${s.file.name}`}
+                label={t('notes.removeStagedImage', { name: s.file.name })}
                 offset={2}
                 onClick={() => removeStaged(s.id)}
               />
@@ -594,18 +606,18 @@ const NoteForm = ({
                   variant="transparent"
                   leftIcon={<IconPhoto size={14} />}
                   disabled={attachCapReached}
-                  aria-label="Attach images"
+                  aria-label={t('notes.attachImages')}
                 >
                   {totalAttached > 0
                     ? `${totalAttached}/${MAX_NOTE_IMAGES}`
-                    : 'Images'}
+                    : t('notes.images')}
                 </Button>
               )}
             </FileButton>
           )}
           {onAutoSave && (
             <Checkbox
-              label="Auto save"
+              label={t('notes.autoSave')}
               checked={autoSave}
               onChange={(event) =>
                 setAutoSave(event.currentTarget.checked)
@@ -613,11 +625,11 @@ const NoteForm = ({
             />
           )}
           <Tooltip
-            label="Anyone with the link can view this note"
+            label={t('notes.anyoneWithLink')}
             position="top"
           >
             <Checkbox
-              label="Public note"
+              label={t('notes.publicNote')}
               checked={isPublic}
               onChange={(event) => {
                 publicTouchedRef.current = true;

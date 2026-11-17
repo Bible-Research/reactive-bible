@@ -46,7 +46,7 @@ export const loadKjvData = async (): Promise<KjvBook[]> => {
         });
       }
       console.error('Failed to load KJV data:', error);
-      throw new Error('Failed to load KJV Bible data');
+      throw new Error('translations.kjvFailed');
     });
 
   return loadingPromise;

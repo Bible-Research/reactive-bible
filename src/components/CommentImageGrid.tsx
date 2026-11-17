@@ -8,6 +8,7 @@ import {
 import { IconX, IconPhoto } from '@tabler/icons-react';
 import { CommentImage } from '../types';
 import { commentImageName } from '../utils/commentTree';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Floating red "remove" button shared by the image grid and
@@ -97,6 +98,7 @@ const CommentImageGrid = ({
   onOpenImage,
   onImageError,
 }: CommentImageGridProps) => {
+  const { t } = useTranslation();
   if (images.length === 0) return null;
 
   return (
@@ -119,7 +121,7 @@ const CommentImageGrid = ({
             {src ? (
               <UnstyledButton
                 onClick={() => onOpenImage(img.id)}
-                aria-label={`View image ${name}`}
+                aria-label={t('comments.viewImage', { name })}
                 style={{
                   display: 'block',
                   width: '100%',
@@ -142,7 +144,7 @@ const CommentImageGrid = ({
             ) : (
               <Box
                 role="img"
-                aria-label={`${name} (unavailable)`}
+                aria-label={t('comments.imageUnavailable', { name })}
                 sx={(theme) => ({
                   display: 'flex',
                   alignItems: 'center',
@@ -165,7 +167,7 @@ const CommentImageGrid = ({
             )}
             {canDelete && onDeleteImage && (
               <RemoveImageButton
-                label={`Delete image ${img.id}`}
+                label={t('comments.deleteImage', { id: img.id })}
                 onClick={(e) => {
                   e.stopPropagation();
                   void onDeleteImage(parentId, img.id);

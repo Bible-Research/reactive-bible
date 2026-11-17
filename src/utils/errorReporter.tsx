@@ -8,6 +8,7 @@ import {
   isChunkLoadError,
   reloadForStaleChunk,
 } from './chunkLoadError';
+import i18n from '../i18n';
 
 // Media elements are excluded: audio/video sources routinely
 // fail and are retried by the app's own fallback chains, so
@@ -31,6 +32,7 @@ interface PendingReport {
   error: Error;
   context?: string;
   resource: boolean;
+  resourceSrc?: string;
 }
 
 let notificationSeq = 0;
@@ -84,8 +86,12 @@ function deliverReport(report: PendingReport): void {
   if (report.resource) {
     showNotification({
       id: `resource-error-${++notificationSeq}`,
-      title: 'Resource failed to load',
-      message: report.error.message,
+      title: i18n.t('share.resourceLoadFailed'),
+      message: report.resourceSrc
+        ? i18n.t('share.resourceLoadFailedMsg', {
+            src: report.resourceSrc,
+          })
+        : report.error.message,
       color: 'yellow',
       autoClose: RESOURCE_AUTO_CLOSE_MS,
     });
@@ -95,7 +101,7 @@ function deliverReport(report: PendingReport): void {
   // would silently replace the previous report.
   showNotification({
     id: `unhandled-error-${++notificationSeq}`,
-    title: 'Unexpected error',
+    title: i18n.t('share.unexpectedError'),
     message: (
       <ErrorNotificationContent
         error={report.error}
@@ -134,6 +140,56 @@ function scheduleFlush(): void {
 }
 
 /**
+ * Reports a HANDLED failure to Sentry without notifying the
+ * user — the call site already degraded gracefully (error
+ * state, toast, fallback data), so the fatal red notification
+ * would be noise. Events are tagged `reportType: 'handled-api'`
+ * and the caller's `context` so they group under a dedicated
+ * stream; `extra` carries passage/fileset detail. Expected
+ * taxonomy (RateLimitError, BookNotInFilesetError, AbortError)
+ * is still dropped by `sentryBeforeSend`, so call sites do not
+ * need their own instanceof pre-filters.
+ */
+export function captureHandledError(
+  error: unknown,
+  context: string,
+  extra?: Record<string, unknown>
+): void {
+  const err = toError(error);
+  try {
+    console.error(`[${context}]`, err);
+    Sentry.captureException(err, {
+      tags: { context, reportType: 'handled-api' },
+      ...(extra ? { extra } : {}),
+    });
+  } catch (reportingError) {
+    console.error('Failed to report error:', reportingError);
+  }
+}
+
+/**
+ * Warning-level Sentry message for failures that carry no
+ * useful stack — Howler/media errors and Capacitor bridge
+ * rejections. Matches the `resource-load` stream shape: a
+ * `reportType` tag routes the event out of the error queue.
+ */
+export function captureHandledWarning(
+  message: string,
+  reportType: 'media-failure' | 'native-bridge',
+  extra?: Record<string, unknown>
+): void {
+  try {
+    Sentry.captureMessage(message, {
+      level: 'warning',
+      tags: { reportType },
+      ...(extra ? { extra } : {}),
+    });
+  } catch (reportingError) {
+    console.error('Failed to report error:', reportingError);
+  }
+}
+
+/**
  * Surfaces an error to the user. Fatal errors get a
  * non-dismissible notification containing a "Copy error
  * details" button; transient resource-load failures get a
@@ -142,7 +198,20 @@ function scheduleFlush(): void {
 export function reportError(
   error: unknown,
   context?: string,
-  options: { resource?: boolean; sentryMessage?: string } = {}
+  options: {
+    resource?: boolean;
+    sentryMessage?: string;
+    resourceSrc?: string;
+    /**
+     * False = notify only, skip the Sentry transport. The
+     * global `error`/`unhandledrejection` handlers use this:
+     * Sentry's GlobalHandlers integration captures the same
+     * uncaught exception itself, so reporting here too would
+     * double-send. Direct callers (ErrorBoundary) keep the
+     * default true.
+     */
+    sentry?: boolean;
+  } = {}
 ): void {
   const err = toError(error);
   try {
@@ -165,7 +234,7 @@ export function reportError(
           reportType: 'resource-load',
         },
       });
-    } else {
+    } else if (options.sentry !== false) {
       Sentry.captureException(err, {
         tags: context ? { context } : undefined,
       });
@@ -174,6 +243,7 @@ export function reportError(
       error: err,
       context,
       resource: options.resource === true,
+      resourceSrc: options.resourceSrc,
     };
     if (isNotificationsReady() && pendingReports.length === 0) {
       deliverReport(report);
@@ -191,10 +261,19 @@ export function reportError(
 function handleGlobalError(event: Event): void {
   if ('error' in event || 'message' in event) {
     const errorEvent = event as ErrorEvent;
+    // Notify-only: Sentry's GlobalHandlers integration already
+    // captures the uncaught exception — reporting it here too
+    // would emit a second event for the same error.
     if (errorEvent.error) {
-      reportError(errorEvent.error);
+      reportError(errorEvent.error, undefined, {
+        sentry: false,
+      });
     } else if (errorEvent.message) {
-      reportError(new Error(errorEvent.message));
+      reportError(
+        new Error(errorEvent.message),
+        undefined,
+        { sentry: false }
+      );
     }
     return;
   }
@@ -255,6 +334,7 @@ function handleGlobalError(event: Event): void {
       'Resource load error',
       {
         resource: true,
+        resourceSrc: src,
         sentryMessage: `Failed to load resource: ${sentrySrc}`,
       }
     );
@@ -274,7 +354,11 @@ function handleUnhandledRejection(
   ) {
     return;
   }
-  reportError(event.reason, 'Unhandled promise rejection');
+  // Notify-only — same one-event-per-error rule as
+  // handleGlobalError: GlobalHandlers owns the Sentry event.
+  reportError(event.reason, 'Unhandled promise rejection', {
+    sentry: false,
+  });
 }
 
 // Vite's __vitePreload wrapper dispatches this cancelable event

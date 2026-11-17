@@ -20,6 +20,8 @@ import { toPlainText } from '../utils/tiptapContent';
 import { buildBiblePath } from '../utils/bibleUtils';
 import { shareOrCopyLink } from '../utils/share';
 import { useBibleStore } from '../store';
+import { useTranslation } from 'react-i18next';
+import { captureHandledError } from '../utils/errorReporter';
 
 /**
  * Public single-note page reachable via `/notes/:noteId`. Works for any
@@ -27,6 +29,7 @@ import { useBibleStore } from '../store';
  * from the backend and surfaces a friendly error.
  */
 export default function NoteDetailRoute() {
+  const { t } = useTranslation();
   const { noteId } = useParams<{ noteId: string }>();
   const navigate = useNavigate();
 
@@ -47,7 +50,7 @@ export default function NoteDetailRoute() {
     let cancelled = false;
     const load = async () => {
       if (!noteId) {
-        setError('No note ID provided');
+        setError(t('notes.noNoteId'));
         setLoading(false);
         return;
       }
@@ -62,7 +65,13 @@ export default function NoteDetailRoute() {
       } catch (err) {
         if (cancelled) return;
         console.error('Error loading note:', err);
-        setError('Note not found or is not public.');
+        // A 404 is the expected "not found or private" path —
+        // only transport failures and real server errors are
+        // worth a Sentry event.
+        if ((err as { status?: number }).status !== 404) {
+          captureHandledError(err, 'Note fetch', { noteId });
+        }
+        setError(t('notes.notFoundOrPrivate'));
         setLoading(false);
       }
     };
@@ -71,7 +80,7 @@ export default function NoteDetailRoute() {
       cancelled = true;
       setDetailNote(null);
     };
-  }, [noteId, setDetailNote]);
+  }, [noteId, setDetailNote, t]);
 
   const handleViewInBible = (
     book: string,
@@ -84,18 +93,18 @@ export default function NoteDetailRoute() {
 
   const handleShare = async () => {
     const title = note?.tag?.name
-      ? `Note: ${note.tag.name}`
-      : 'Shared note';
+      ? t('notes.noteTitle', { name: note.tag.name })
+      : t('notes.sharedNote');
     const text = note?.note_text
       ? toPlainText(note.note_text).slice(0, 140)
-      : 'Shared Bible note';
+      : t('notes.sharedBibleNote');
 
     await shareOrCopyLink(
       { title, text, url: window.location.href },
       {
         copySuccess: {
-          title: 'Link Copied!',
-          message: 'Note link copied to clipboard',
+          title: t('notes.linkCopied'),
+          message: t('notes.linkCopiedMsg'),
         },
       }
     );
@@ -104,7 +113,10 @@ export default function NoteDetailRoute() {
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
+        <Loader
+          size="lg"
+          aria-label={t('notes.loadingNotes')}
+        />
       </Center>
     );
   }
@@ -113,7 +125,7 @@ export default function NoteDetailRoute() {
     return (
       <Center style={{ height: '100vh' }}>
         <Text color="red" size="lg">
-          {error || 'Note not found.'}
+          {error || t('notes.notFound')}
         </Text>
       </Center>
     );
@@ -126,9 +138,9 @@ export default function NoteDetailRoute() {
       <Box p="md">
         <Group position="apart" mb="md">
           <Text fw={500} size="lg">
-            {note.tag?.name || 'Shared note'}
+            {note.tag?.name || t('notes.sharedNote')}
           </Text>
-          <Tooltip label="Share note link" position="left">
+          <Tooltip label={t('notes.shareNoteLink')} position="left">
             <ActionIcon
               onClick={handleShare}
               variant="subtle"

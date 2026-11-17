@@ -16,17 +16,18 @@
 5. [State Management](#state-management)
 6. [Types & Interfaces](#types--interfaces)
 7. [Testing Guidelines](#testing-guidelines)
-8. [Bible Utilities](#bible-utilities)
-9. [Core Functionalities](#core-functionalities)
-10. [Data Flow](#data-flow)
-11. [Component Structure](#component-structure)
-12. [API Integration](#api-integration)
-13. [Caching System](#caching-system)
-14. [Code Style Guidelines](#code-style-guidelines)
-15. [Keeping Documentation Updated](#keeping-documentation-updated)
-16. [Browser Compatibility](#browser-compatibility)
-17. [Performance Considerations](#performance-considerations)
-18. [Android App & Release Channels](#android-app--release-channels)
+8. [UI Localization (i18n)](#ui-localization-i18n)
+9. [Bible Utilities](#bible-utilities)
+10. [Core Functionalities](#core-functionalities)
+11. [Data Flow](#data-flow)
+12. [Component Structure](#component-structure)
+13. [API Integration](#api-integration)
+14. [Caching System](#caching-system)
+15. [Code Style Guidelines](#code-style-guidelines)
+16. [Keeping Documentation Updated](#keeping-documentation-updated)
+17. [Browser Compatibility](#browser-compatibility)
+18. [Performance Considerations](#performance-considerations)
+19. [Android App & Release Channels](#android-app--release-channels)
 
 ---
 
@@ -1399,6 +1400,83 @@ npm test -- --run --reporter=verbose **/*.performance.test.tsx
 
 ---
 
+## UI Localization (i18n)
+
+**Location**: `src/i18n/` — `index.ts`, `errorText.ts`,
+`i18next.d.ts`, `locales/{en,lv,ru}/{common,books}.json`
+
+The UI is localized with i18next + react-i18next in three
+languages: English (`en`), Latvian (`lv`), Russian (`ru`).
+
+### Architecture
+
+- `initI18n()` is awaited in `main.tsx` BEFORE the first
+  render so no untranslated flash paints. `en` is bundled in
+  the main chunk; `lv`/`ru` catalogs load on demand via one
+  dynamic import per locale inside `changeUiLanguage()`
+  (Vite splits each into its own chunk).
+- `en/common.json` is the source catalog: `i18next.d.ts`
+  augments the resource types from it, so `t()` rejects
+  unknown keys at compile time. A missing lv/ru key renders
+  English via `fallbackLng: 'en'`, but
+  `src/i18n/index.test.ts` enforces completeness — add all
+  three translations in the same change.
+- Namespaces: `common` (default, all UI strings) and
+  `books` (testament labels etc. — book NAMES themselves
+  come from the structure endpoint, see
+  `localizedBookName`).
+
+### Language selection
+
+- `uiLanguage: UiLanguage` is persisted in `bible-storage`
+  (store schema v7+; `setUiLanguage` writes it and calls
+  `changeUiLanguage`). The MainMenu selector lists autonyms
+  (English / Latviešu / Русский) which are intentionally
+  never translated.
+- `resolveUiLanguage()` precedence: persisted choice →
+  `navigator.language` prefix (`'lv-LV'` → `'lv'`) → `'en'`.
+  It reads `bible-storage` directly so i18n init stays free
+  of store imports (the store imports `changeUiLanguage`;
+  a back-edge would cycle through apiClient's `t()` calls).
+- `DEFAULT_TRANSLATION_BY_LOCALE` maps locale → first-run
+  TEXT fileset: en→`ENGESV_API`, lv→`LVSGLU8`,
+  ru→`RUSSYN` (1876 Synodal). `resolveInitialTextFileset()`
+  applies it ONLY on a genuine first run — a persisted
+  `activeTextFilesetId` always wins. UI language and
+  Bible translation selection are independent; changing the
+  UI language never re-picks the text/audio fileset.
+
+### Usage
+
+```tsx
+// Components: hook + typed keys
+const { t } = useTranslation();
+<Title>{t('menu.readBible')}</Title>
+
+// Plurals: pass count; i18next picks _one/_other
+// (lv also has _zero, ru has _few/_many — all translated)
+t('search.resultCount', { count: results.length })
+
+// Non-React code (stores, utils, api): module instance
+import i18n from '../i18n';
+i18n.t('errors.generic')
+```
+
+Backend `error_code` values map through
+`localizedErrorText()` (`src/i18n/errorText.ts`) to
+`errors.*` keys — raw provider messages are never shown for
+coded errors; uncoded `Error` messages pass through.
+`textOrKey()` renders stored values that may be either a
+catalog key or raw server text.
+
+What is NOT translated: server-provided content (book
+names, verse text, copyright strings), contract text
+(`passage=` params, stored note `book` fields, `@USFM`
+mention tokens), internal diagnostics/log lines, and DOM
+test hooks (`title="nav-book-*"` etc.).
+
+---
+
 ## Bible Utilities
 
 **Location**: `src/utils/bibleUtils.ts`
@@ -1692,12 +1770,20 @@ Full-text search across the Bible via the backend
 - Each book is an accordion group (open by default) showing
   up to 3 verse previews, expandable via "Show N more verses"
 - No pagination - the backend returns all matches
+- Long SWORD scans resume via `meta.next_cursor` —
+  `searchBibleGrouped` follows the cursor chain
+  transparently, merges windowed groups by `book_id`, and
+  reports `meta.progress` to the `onProgress` callback so
+  the route can render a determinate progress bar
 - Dimmed "Showing first N of M results" notice when the
   backend reports `meta.truncated`
 - Backend failures (`error`/`error_code`/`message`, including
   provider errors wrapped in a 200 body) surface as typed
   `RateLimitError`/`ClientInputError`/`ProviderError` and
-  render in red rather than showing "No results"
+  render in red rather than showing "No results";
+  `search_disabled` (403) maps to `SearchDisabledError` and
+  renders a supportive dimmed "search is not supported for
+  this translation" state
 - Per-verse play button feeds a flattened playlist of all
   results into the audio player
 
@@ -1707,9 +1793,14 @@ const res = await searchBibleGrouped(
   query,
   filesetId,
   signal,
+  onProgress,  // (p: SearchScanProgress) => void, optional
 );
 // res.groups: [{ book_id, count, verses: SearchVerse[] }]
 // res.meta:   { total: number, truncated: boolean }
+// Per-window meta also carries `next_cursor?` (opaque resume
+// token) and `progress? = {chapters_scanned, chapters_total}`;
+// the client loops until `next_cursor` is absent, so callers
+// only ever see the fully merged result.
 ```
 
 ### 4. Audio Bible Playback
@@ -1724,7 +1815,8 @@ Streams audio Bible chapters with full playback controls.
 **Features**:
 - Play/Pause controls
 - Progress bar with seek functionality
-- Skip forward/backward (±10 seconds)
+- Skip forward/backward (±5 seconds on-screen; ±10 via
+  Media Session controls)
 - Auto-advance to next chapter
 - Loop current chapter infinitely
 - Starts at the earliest selected verse's timestamp when verses
@@ -2098,6 +2190,12 @@ const toggleColorScheme = () =>
   );
 ```
 
+**Light-mode palette**: `lightModeGray` (built from
+`DEFAULT_THEME.colors.gray`) shifts `gray[2..4]` one step
+darker so dividers, borders and the Slider track stay
+visible against the `gray[0]` page background. Dark mode
+keeps the stock ramp.
+
 ### 8. Analytics
 
 **Location**: `src/App.tsx`
@@ -2260,8 +2358,11 @@ On end → Auto-advance to next chapter
 ```
 User submits query on /search
     ↓
-searchBibleGrouped(query, filesetId) hits
-/api/v1/bible/search/?group_by=book
+searchBibleGrouped(query, filesetId, signal, onProgress)
+hits /api/v1/bible/search/?group_by=book
+    ↓
+While meta.next_cursor is present → re-request with cursor
+param, merge groups by book_id, report meta.progress
     ↓
 Render accordion: one group per book (canonical order),
 3-verse preview each, "Show N more verses" expands
@@ -2399,7 +2500,9 @@ Drawer panel for Books → Chapters → Verses navigation.
 #### `BottomNav.tsx`
 Footer bar for prev/next chapter navigation plus the current
 book/chapter title (kept in sync with the route — regression
-test `bottomnav-title-sync-95.test.tsx`).
+test `bottomnav-title-sync-95.test.tsx`). Pressing the title
+toggles `BibleSelector`: it opens the panel when closed and
+closes it — without navigating — when already open.
 
 #### `MainMenu.tsx`
 App drawer menu (opened from the header burger): navigation,
@@ -2518,7 +2621,7 @@ Floating audio player UI at bottom of screen.
 - Skip backward 5s button
 - Play/Pause button (large, blue)
 - Skip forward 5s button
-- Loop toggle button
+- Loop toggle button (filled blue when enabled)
 - Progress slider
 - Time display
 
@@ -3076,7 +3179,9 @@ verse-count lookup; `bibleStructure.ts` is the
   image uploads (comment and note attachments).
 - `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
   shared fetch→JSON boilerplate for endpoints whose error
-  handling is just "throw on `!ok`, log, rethrow". Endpoints
+  handling is just "throw on `!ok`, log, rethrow" (a 429
+  throws `RateLimitError` carrying `rate_limited` so
+  `sentryBeforeSend` drops throttling noise). Endpoints
   with richer contracts (typed provider errors via
   `api/errors.ts`, 409 bodies, 204 no-content, swallowed
   failures) keep their own `try/catch`.
@@ -4192,36 +4297,62 @@ surface as the transport layer:
   `VITE_SENTRY_DSN` is set — dev, tests, and preview builds
   without it send nothing (`captureException`/`captureMessage`
   are safe no-ops uninitialised).
-- `src/utils/errorReporter.tsx` (`reportError`) forwards every
-  surfaced fatal error as an exception tagged with its context
-  string; resource-load failures go as `warning`-level messages
-  tagged `reportType: resource-load` with the query string
-  stripped — signed-URL credentials never reach Sentry.
+- `src/utils/errorReporter.tsx` exposes three reporters.
+  `reportError(error, context?)` shows the fatal notification
+  AND sends a Sentry exception — reserved for global
+  catch-alls (`initGlobalErrorHandlers`, `ErrorBoundary`,
+  stale-chunk recovery), never for ordinary catches.
+  `captureHandledError(error, context, extra?)` sends a
+  `reportType: handled-api` exception with no notification —
+  the standard call at handled catch sites (chapter/audio
+  fetches, notes/tags/comments, reading positions, auth
+  non-4xx failures). `captureHandledWarning(msg, reportType,
+  extra?)` sends a warning-level message for the
+  `media-failure` (audio hooks' terminal paths) and
+  `native-bridge` (Capacitor bridge calls) streams.
+  Resource-load failures stay `warning`-level messages tagged
+  `reportType: resource-load` with the query string stripped —
+  signed-URL credentials never reach Sentry.
   `src/components/ErrorBoundary.tsx` captures render errors
   with `extra.componentStack` and the `context` tag on the
-  first capture (the tagged re-capture is deduped).
+  first capture (the tagged re-capture is deduped). The global
+  window handlers themselves are notify-only — Sentry's
+  GlobalHandlers integration transports each uncaught error
+  exactly once, and `beforeSend` re-adds `context` to
+  surviving `onerror`/`onunhandledrejection` events.
 - `src/utils/sentry.ts` exports `sentryBeforeSend`, which drops
   the handled taxonomy (`RateLimitError`,
-  `BookNotInFilesetError`, `AbortError`, 'Session expired',
+  `BookNotInFilesetError`, `SearchDisabledError`,
+  `AbortError`, 'Session expired',
   `ChunkLoadError` / `Loading chunk N failed` / `Loading CSS
   chunk` — stale-chunk failures the app already self-heals via
   `lazyWithReload`'s guarded reload —, `ResizeObserver loop`)
   so expected conditions don't
-  burn quota. `ClientInputError` is deliberately NOT dropped —
+  burn quota — including untyped errors carrying the same
+  `error_code`s. `ClientInputError` is deliberately NOT dropped —
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',
   'Load failed', 'NetworkError…') are kept but tagged
   `errorKind: network` so Sentry-side rules can route them.
+  `ConflictError` is downgraded to warning level;
+  `ProviderError` gets a `['api-error', code, endpoint]
+  fingerprint so provider outages group per endpoint instead of
+  per message. Typed API errors (`src/api/errors.ts` +
+  `apiClient.ts`) carry `errorCode`/`status`/`endpoint` on the
+  error object — those become `errorCode`/`httpStatus` tags and
+  an `endpoint` extra, so keep them when wrapping errors.
 - **Event-stream contract:** `is:unresolved level:error
   environment:production` is the bug queue — everything else is
   deliberately routed by tag. Untagged exception events are
-  real bugs; `reportType` marks non-bug `captureMessage`
-  streams: `resource-load` (warning, missing assets),
-  `user-report` (info, "Report a problem"), `media-debug`
-  (info, APK diagnostics), `app-update` (info, sideload
-  updater: `updateStep` `download-opened` / `installed`).
-  `errorKind` refines which kind of failure an exception was
-  (`network` today).
+  real bugs; `reportType` marks routed streams: `handled-api`
+  (error, graceful catch sites), `media-failure` (warning,
+  audio terminal failures — extras carry fileset + passage),
+  `native-bridge` (warning, Capacitor bridge calls — expected
+  on web), `resource-load` (warning, missing assets),
+  `user-report` (info, "Report a problem"), `app-update`
+  (info, sideload updater: `updateStep` `download-opened` /
+  `installed`). `errorKind` refines which kind of failure an
+  exception was (`network` today).
 - **User reports:** the main menu's "Report a problem" row
   (always visible) opens `ReportProblemModal`, where the user
   describes the issue. `sendUserReport`
@@ -4246,8 +4377,25 @@ surface as the transport layer:
   `@sentry/vite-plugin` only when `SENTRY_AUTH_TOKEN` +
   `SENTRY_ORG` + `SENTRY_PROJECT` are all present (CI/Vercel env,
   never `VITE_`-prefixed); without them no `.map` files ship.
-  Release name comes from `VERCEL_GIT_COMMIT_SHA`, falling back
-  to git auto-detection.
+  Release name prefers `VITE_APP_RELEASE`, falls back to
+  `VERCEL_GIT_COMMIT_SHA`, then git auto-detection — so Android
+  builds get `android-<versionCode>` and Vercel deploys the
+  commit SHA.
+- Performance: `reactRouterBrowserTracingIntegration` (wired
+  in `main.tsx`) + `Sentry.wrapReactRouterRouting(Routes)`
+  (`routes/index.tsx`) name transactions after the matched
+  route patterns; `Sentry.startSpan` wraps the chapter-fetch
+  and audio-load paths. `tracesSampleRate` is 0.1.
+- Scope: an auth-store subscription calls
+  `Sentry.setUser`/`setUser(null)` as the logged-in user
+  changes (seeded at module load for the persisted session);
+  the bible store syncs `bible` context (active text/audio
+  filesets, book, chapter) so every event shows which
+  content failed.
+- `@sentry/capacitor` is deliberately not adopted — see
+  AGENTS.md ("Sentry event-stream contract") for the
+  rationale; native-side failures are covered by the
+  `native-bridge`/`app-update` streams.
 - Configure per-environment DSNs in the Vercel dashboard
   (Production + Preview); see `.env.example`. Backend-side
   init lives in `bible_research/bible_research/settings.py`;

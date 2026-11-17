@@ -23,6 +23,7 @@ import ScripturePassage from './ScripturePassage';
 import { buildBiblePath } from '../utils/bibleUtils';
 import type { ScriptureRefAnchor } from '../hooks/useScriptureRefPreview';
 import type { ScriptureRef } from '../utils/scriptureRef';
+import { useTranslation } from 'react-i18next';
 
 interface ScripturePassagePopoverProps {
   /** Parsed ref — null while `error` is showing. */
@@ -96,6 +97,7 @@ const ScripturePassagePopover = ({
   onSelectVerses,
   onClose,
 }: ScripturePassagePopoverProps) => {
+  const { t } = useTranslation();
   const panelRef = useRef<HTMLDivElement | null>(null);
   // Latest close callback for listeners subscribed once —
   // written in an effect, not during render (render purity).
@@ -363,11 +365,11 @@ const ScripturePassagePopover = ({
         {/* The ref label doubles as the passage heading —
             ScripturePassage renders no h1 of its own. */}
         <Title order={4}>
-          {error ? 'Scripture reference' : refLabel(reference)}
+          {error ? t('share.scriptureReference') : refLabel(reference)}
         </Title>
         <Group spacing={4}>
           {reference && (
-            <Tooltip label="View in Bible" position="top">
+            <Tooltip label={t('share.viewInBible')} position="top">
               <Box
                 component="span"
                 sx={{ display: 'inline-block' }}
@@ -420,12 +422,12 @@ const ScripturePassagePopover = ({
               size="xs"
               onClick={() => setExpanded((e) => !e)}
             >
-              {expanded ? 'Show less' : 'Read full chapter'}
+              {expanded ? t('share.showLess') : t('share.readFullChapter')}
             </Button>
           )}
           {expanded && onSelectVerses && (
             <Text size="xs" color="dimmed">
-              Tap a verse to select it
+              {t('share.tapToSelect')}
             </Text>
           )}
         </Group>

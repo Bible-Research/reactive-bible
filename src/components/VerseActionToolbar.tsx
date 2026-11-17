@@ -51,6 +51,7 @@ import {
 import { lazyWithReload } from "../utils/lazyWithReload";
 import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
 import { FOOTER_HEIGHT } from "../utils/layoutChrome";
+import { useTranslation } from 'react-i18next';
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
@@ -87,6 +88,7 @@ const formatChapterGroup = (
 };
 
 const VerseActionToolbar = () => {
+  const { t } = useTranslation();
   // Subscribe so group labels re-render when the localized
   // structure swaps in (formatChapterGroup reads the registry).
   useActiveStructure();
@@ -210,8 +212,8 @@ const VerseActionToolbar = () => {
           err.name !== "AbortError"
         ) {
           showNotification({
-            title: "Error",
-            message: "Failed to share",
+            title: t("common.error"),
+            message: t("share.shareFailed"),
             color: "red",
           });
         }
@@ -219,27 +221,34 @@ const VerseActionToolbar = () => {
     } else {
       if (await copyTextToClipboard(shareText)) {
         showNotification({
-          title: "Link copied",
-          message: `Link to ${passageRef} copied to clipboard`,
+          title: t("share.linkCopied"),
+          message: t("share.linkCopiedMsg", { ref: passageRef }),
           color: "blue",
         });
       } else {
         showNotification({
-          title: "Error",
-          message: "Failed to copy link",
+          title: t("common.error"),
+          message: t("share.copyLinkFailed"),
           color: "red",
         });
       }
     }
-  }, [primary, refs, scope, noteVerseText, passageRef]);
+  }, [
+    primary,
+    refs,
+    scope,
+    noteVerseText,
+    passageRef,
+    t,
+  ]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
     // Copy first — opening the viewer after a failed copy would
     // send the user to a page with nothing on the clipboard.
     if (!(await copyTextToClipboard(passageRefEnglish))) {
       showNotification({
-        title: "Error",
-        message: "Failed to copy to clipboard",
+        title: t("common.error"),
+        message: t("share.copyFailed"),
         color: "red",
       });
       return;
@@ -247,8 +256,8 @@ const VerseActionToolbar = () => {
     // Echo the English ref — that's what actually landed on
     // the clipboard, not the localized display ref.
     showNotification({
-      title: "Copied",
-      message: `${passageRefEnglish} copied to clipboard`,
+      title: t("share.copied"),
+      message: t("share.copiedMsg", { ref: passageRefEnglish }),
       color: "green",
     });
     window.open(
@@ -256,7 +265,7 @@ const VerseActionToolbar = () => {
       "_blank",
       "noopener,noreferrer"
     );
-  }, [passageRefEnglish]);
+  }, [passageRefEnglish, t]);
 
   const youVersionUrl = useMemo(
     () =>
@@ -361,13 +370,12 @@ const VerseActionToolbar = () => {
           <ActionIcon
             variant="transparent"
             onClick={() => setVerseSelection(null)}
-            title="Clear selection"
+            title={t("share.clearSelection")}
           >
             <IconX size={rem(18)} />
           </ActionIcon>
           <Text size="sm">
-            {refCount} verse
-            {refCount !== 1 ? "s" : ""} selected
+            {t("share.versesSelected", { count: refCount })}
           </Text>
         </Group>
         <Group
@@ -380,7 +388,7 @@ const VerseActionToolbar = () => {
               color="indigo"
               size="lg"
               onClick={handleViewInBible}
-              title="View in Bible"
+              title={t("share.viewInBible")}
             >
               <IconBook size={rem(20)} />
             </ActionIcon>
@@ -389,7 +397,7 @@ const VerseActionToolbar = () => {
             variant="transparent"
             size="lg"
             onClick={handleCopyAndOpenWebViewer}
-            title="Copy passage & open WebViewer"
+            title={t("share.copyPassageWebviewer")}
           >
             <img
               src={faviconUrl("biblemapper.com")}
@@ -402,7 +410,7 @@ const VerseActionToolbar = () => {
             color="teal"
             size="lg"
             onClick={() => setMapModalOpened(true)}
-            title="View on map"
+            title={t("share.viewOnMap")}
           >
             <IconMap2 size={rem(20)} />
           </ActionIcon>
@@ -417,7 +425,7 @@ const VerseActionToolbar = () => {
                   "noopener,noreferrer"
                 )
               }
-              title="Open in YouVersion (Bible.com)"
+              title={t("share.openYouversion")}
             >
               <img
                 src="https://www.bible.com/apple-touch-icon.png"
@@ -437,7 +445,7 @@ const VerseActionToolbar = () => {
                   "noopener,noreferrer"
                 )
               }
-              title="Commentary on BibleHub"
+              title={t("share.commentaryBiblehub")}
             >
               <img
                 src={faviconUrl("biblehub.com")}
@@ -453,7 +461,7 @@ const VerseActionToolbar = () => {
               onClick={() =>
                 window.open(blbUrl, "_blank", "noopener,noreferrer")
               }
-              title="Look up in Blue Letter Bible"
+              title={t("share.lookupBlb")}
             >
               <img
                 src={faviconUrl("blueletterbible.org")}
@@ -467,7 +475,7 @@ const VerseActionToolbar = () => {
             color="cyan"
             size="lg"
             onClick={handleShare}
-            title="Share this passage"
+            title={t("share.sharePassage")}
           >
             <IconShare size={rem(20)} />
           </ActionIcon>
@@ -477,7 +485,7 @@ const VerseActionToolbar = () => {
               color="blue"
               size="lg"
               onClick={() => setNoteModalOpened(true)}
-              title="Add note"
+              title={t("share.addNote")}
             >
               <IconBookmark size={rem(20)} />
             </ActionIcon>
@@ -495,7 +503,7 @@ const VerseActionToolbar = () => {
       <Modal
         opened={mapModalOpened}
         onClose={() => setMapModalOpened(false)}
-        title="Bible Maps"
+        title={t("share.bibleMaps")}
         size="xl"
         fullScreen={isMobile}
         styles={{
@@ -516,7 +524,7 @@ const VerseActionToolbar = () => {
       >
         <iframe
           src={mapUrl}
-          title="BibleMapper PassageBrowser"
+          title={t("share.biblemapperTitle")}
           width="100%"
           height={isMobile ? undefined : "600px"}
           sandbox={
@@ -538,7 +546,7 @@ const VerseActionToolbar = () => {
             rel="noopener noreferrer"
             size="sm"
           >
-            Open in new tab
+            {t('share.openInNewTab')}
           </Anchor>
         </Box>
       </Modal>

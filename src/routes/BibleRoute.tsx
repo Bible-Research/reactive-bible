@@ -40,7 +40,10 @@ export default function BibleRoute() {
   // Always refresh tags when navigating to this route
   useEffect(() => {
     if (isAuthenticated) {
-      void getTags(true); // Force refresh to get latest tags
+      // getTags reports to Sentry and rethrows — swallow the
+      // rejection so the fire-and-forget refresh doesn't also
+      // hit the global unhandledrejection path.
+      void getTags(true).catch(() => undefined);
     }
   }, [getTags, isAuthenticated]);
 

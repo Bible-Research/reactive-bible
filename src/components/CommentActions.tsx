@@ -1,4 +1,5 @@
 import { Group, Button } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 
 interface CommentActionsProps {
   isAuthor: boolean;
@@ -17,6 +18,7 @@ const CommentActions = ({
   onEditClick,
   onDeleteClick,
 }: CommentActionsProps) => {
+  const { t } = useTranslation();
   if (isDeleted) return null;
 
   return (
@@ -28,7 +30,7 @@ const CommentActions = ({
           compact
           onClick={onReplyClick}
         >
-          Reply
+          {t('comments.reply')}
         </Button>
       )}
       {isAuthor && (
@@ -38,7 +40,7 @@ const CommentActions = ({
           compact
           onClick={onEditClick}
         >
-          Edit
+          {t('notes.edit')}
         </Button>
       )}
       {isAuthor && (
@@ -49,7 +51,7 @@ const CommentActions = ({
           color="red"
           onClick={onDeleteClick}
         >
-          Delete
+          {t('common.delete')}
         </Button>
       )}
     </Group>

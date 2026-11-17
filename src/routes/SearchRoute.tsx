@@ -13,6 +13,7 @@ import {
   Center,
   Group,
   Loader,
+  Progress,
   Stack,
   Text,
   TextInput,
@@ -25,18 +26,22 @@ import {
 import { useBibleStore } from '../store';
 import {
   searchBibleGrouped,
+  SearchDisabledError,
+  SearchScanProgress,
   SearchVerse,
   SearchVerseGroup,
 } from '../api';
-import {
-  type PlaylistItem,
-} from '../types';
+import { type PlaylistItem } from '../types';
 import {
   localizedBookName,
   buildBiblePath,
 } from '../utils/bibleUtils';
 import { resolveTextFileset } from '../utils/filesetGroups';
 import { useActiveStructure } from '../hooks/useBookName';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
+import { localizedErrorText } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 const VERSE_PREVIEW_LIMIT = 3;
 
@@ -53,12 +58,16 @@ function toPlaylistItem(
     startVerse: v.verse_start,
     endVerse: v.verse_start,
     label:
-      `Result ${i + 1}/${total} \u2013 ${bookName} ` +
-      `${v.chapter}:${v.verse_start}`,
+      i18n.t('search.resultLabel', {
+        index: i + 1,
+        total,
+        ref: `${bookName} ${v.chapter}:${v.verse_start}`,
+      }),
   };
 }
 
 export default function SearchRoute() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -76,7 +85,12 @@ export default function SearchRoute() {
   const [total, setTotal] = useState(0);
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] =
+    useState<SearchScanProgress | null>(null);
+  // The thrown error itself is stored (not a display
+  // string) so `searchDisabled` and the localized text can
+  // both be derived in render — no second state to sync.
+  const [error, setError] = useState<Error | null>(null);
   const [searched, setSearched] = useState(false);
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [expandedBooks, setExpandedBooks] =
@@ -136,6 +150,7 @@ export default function SearchRoute() {
       setTotal(0);
       setTruncated(false);
       setError(null);
+      setProgress(null);
       setSearched(false);
       // A cleared query aborts the in-flight search (swallowed
       // above) — reset loading or the spinner never clears.
@@ -145,7 +160,13 @@ export default function SearchRoute() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    searchBibleGrouped(q, filesetId, controller.signal)
+    setProgress(null);
+    searchBibleGrouped(
+      q,
+      filesetId,
+      controller.signal,
+      setProgress,
+    )
       .then((res) => {
         setGroups(res.groups);
         setTotal(res.meta.total);
@@ -155,10 +176,14 @@ export default function SearchRoute() {
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return;
+        captureHandledError(err, 'Search', {
+          query: q,
+          filesetId,
+        });
         setGroups([]);
         setTotal(0);
         setTruncated(false);
-        setError(err.message);
+        setError(err);
         setLoading(false);
       });
     return () => controller.abort();
@@ -232,10 +257,16 @@ export default function SearchRoute() {
     );
   };
 
+  // Derived in render from the stored error (not synced
+  // state): a SearchDisabledError renders the supportive
+  // dimmed hint, any other failure the red error text.
+  const searchDisabled = error instanceof SearchDisabledError;
+  const errorText = error ? localizedErrorText(error) : null;
+
   return (
     <Box p="md" maw={800} mx="auto">
       <Title order={2} mb="md">
-        Search Bible
+        {t('search.title')}
       </Title>
       <Box
         mb="md"
@@ -248,7 +279,7 @@ export default function SearchRoute() {
         <Group noWrap>
           <TextInput
             icon={<IconSearch size={16} />}
-            placeholder="Search for words or phrases..."
+            placeholder={t('search.placeholder')}
             value={inputValue}
             onChange={(e) => setInputValue(e.currentTarget.value)}
             size="md"
@@ -256,45 +287,78 @@ export default function SearchRoute() {
             sx={{ flex: 1 }}
           />
           <Button type="submit" size="md" aria-label="search-button">
-            Search
+            {t('search.submit')}
           </Button>
         </Group>
       </Box>
 
       {loading && (
         <Center mt="xl">
-          <Loader aria-label="loading" />
+          <Stack align="center" spacing="xs" w="100%">
+            <Loader aria-label={t('search.loading')} />
+            {progress && progress.chapters_total > 0 && (
+              <>
+                <Progress
+                  // A progress report ahead of the window's
+                  // chapter count would overflow the bar.
+                  value={Math.min(
+                    100,
+                    (progress.chapters_scanned /
+                      progress.chapters_total) *
+                      100,
+                  )}
+                  size="sm"
+                  w="60%"
+                  aria-label={t('search.progress')}
+                />
+                <Text size="xs" color="dimmed">
+                  {t('search.progressDetail', {
+                    scanned: progress.chapters_scanned,
+                    total: progress.chapters_total,
+                  })}
+                </Text>
+              </>
+            )}
+          </Stack>
         </Center>
       )}
 
       {!loading && filesetMissing && !error && (
         <Text color="dimmed" mt="md">
-          Search is unavailable — select a Bible translation
-          first.
+          {t('search.unavailable')}
         </Text>
       )}
 
-      {!loading && error && (
+      {!loading && error && searchDisabled && (
+        <Text color="dimmed" mt="md">
+          {errorText}
+        </Text>
+      )}
+
+      {!loading && error && !searchDisabled && (
         <Text color="red" mt="md">
-          {error}
+          {errorText}
         </Text>
       )}
 
       {!loading && searched && groups.length === 0 && !error && (
         <Text color="dimmed" mt="md">
-          No results found for &ldquo;{q}&rdquo;.
+          {t('search.noResults', { query: q })}
         </Text>
       )}
 
       {!loading && groups.length > 0 && (
         <>
           <Text size="sm" color="dimmed" mb="sm">
-            {verses.length} result{verses.length !== 1 ? 's' : ''}
+            {t('search.resultCount', { count: verses.length })}
           </Text>
 
           {truncated && (
             <Text size="sm" color="dimmed" mb="sm">
-              Showing first {verses.length} of {total} results
+              {t('search.showingFirst', {
+                shown: verses.length,
+                total,
+              })}
             </Text>
           )}
 
@@ -384,8 +448,7 @@ export default function SearchRoute() {
                             )
                           }
                         >
-                          Show {hiddenCount} more verse
-                          {hiddenCount !== 1 ? 's' : ''}
+                          {t('search.showMore', { count: hiddenCount })}
                         </Button>
                       )}
                     </Stack>

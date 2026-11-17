@@ -19,9 +19,14 @@ const sentryPlugins = sentryUploadEnabled
         project: process.env.SENTRY_PROJECT,
         authToken: process.env.SENTRY_AUTH_TOKEN,
         release: {
-          // Vercel exposes the deployed commit; without it the
-          // plugin falls back to git auto-detection.
-          name: process.env.VERCEL_GIT_COMMIT_SHA,
+          // Mirrors the VITE_APP_RELEASE define below: a
+          // manually set release name (e.g. the Android
+          // workflow's `android-<run>`) wins over Vercel's
+          // deployed-commit sha; without either the plugin
+          // falls back to git auto-detection.
+          name:
+            process.env.VITE_APP_RELEASE ??
+            process.env.VERCEL_GIT_COMMIT_SHA,
         },
         sourcemaps: {
           filesToDeleteAfterUpload: ['./dist/**/*.map'],

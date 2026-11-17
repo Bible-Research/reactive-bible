@@ -18,6 +18,7 @@ import {
   IconFocus2,
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
+import { useTranslation } from 'react-i18next';
 import { useBibleStore } from '../store';
 import {
   AUDIO_PLAYER_HEIGHT,
@@ -48,6 +49,7 @@ const AudioPlayer = ({
   subtitle,
   onFocus,
 }: AudioPlayerProps) => {
+  const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seeking, setSeeking] = useState(false);
@@ -156,7 +158,7 @@ const AudioPlayer = ({
               size="sm"
               variant="subtle"
               onClick={onFocus}
-              title="Go to passage"
+              title={t('audio.goToPassage')}
             >
               <IconFocus2 size={16} />
             </ActionIcon>
@@ -165,7 +167,10 @@ const AudioPlayer = ({
             {subtitle ?? `${activeBookId} ${activeChapter}`}
           </Text>
         </Group>
-        <CloseButton onClick={onClose} title="Close player" />
+        <CloseButton
+          onClick={onClose}
+          title={t('audio.closePlayer')}
+        />
       </Group>
 
       <Group spacing="xs" noWrap>
@@ -187,6 +192,20 @@ const AudioPlayer = ({
           label={null}
           size="lg"
           thumbSize={20}
+          color="blue"
+          styles={(theme) => ({
+            // Mantine v6 paints the rail on track::before —
+            // default gray[2] is invisible on the gray[0]
+            // player background in light mode.
+            track: {
+              '&::before': {
+                backgroundColor:
+                  theme.colorScheme === 'dark'
+                    ? theme.colors.dark[4]
+                    : theme.colors.gray[4],
+              },
+            },
+          })}
           sx={{ flex: 1 }}
         />
         <Text
@@ -204,7 +223,7 @@ const AudioPlayer = ({
             size="lg"
             variant="subtle"
             onClick={handleSkipBackward}
-            title="Skip backward 5s"
+            title={t('audio.skipBackward')}
           >
             <IconPlayerSkipBack size={22} />
           </ActionIcon>
@@ -215,7 +234,7 @@ const AudioPlayer = ({
             color="blue"
             radius="xl"
             onClick={onPlayPause}
-            title={isPlaying ? 'Pause' : 'Play'}
+            title={isPlaying ? t('audio.pause') : t('audio.play')}
           >
             {isPlaying ? (
               <IconPlayerPause size={30} />
@@ -228,7 +247,7 @@ const AudioPlayer = ({
             size="lg"
             variant="subtle"
             onClick={handleSkipForward}
-            title="Skip forward 5s"
+            title={t('audio.skipForward')}
           >
             <IconPlayerSkipForward size={22} />
           </ActionIcon>
@@ -236,10 +255,15 @@ const AudioPlayer = ({
 
         <ActionIcon
           size="lg"
-          variant={isLooping ? 'filled' : 'subtle'}
+          variant={isLooping ? 'filled' : 'outline'}
           color={isLooping ? 'blue' : 'gray'}
+          aria-pressed={isLooping}
           onClick={onLoopToggle}
-          title={isLooping ? 'Loop enabled' : 'Loop disabled'}
+          title={
+            isLooping
+              ? t('audio.loopEnabled')
+              : t('audio.loopDisabled')
+          }
           sx={{
             position: 'absolute',
             right: 0,
