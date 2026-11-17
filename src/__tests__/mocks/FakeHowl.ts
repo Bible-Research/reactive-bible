@@ -12,12 +12,13 @@ import type { HowlOptions } from 'howler';
  *   and lands in `'unloaded'`.
  * - `play()`/`pause()` on a still-'loading' Howl do not act
  *   immediately — real Howler pushes them onto its load queue
- *   and `playing()` stays false through the whole window. The
- *   queue drains right AFTER the 'load' handlers run: in real
- *   Howler 'load' listeners are scheduled on a macrotask and a
- *   not-ready <audio> node defers a queued play further, so an
- *   onload handler can observe `playing() === false` with a
- *   play still in flight.
+ *   and `playing()` stays false through the whole window (the
+ *   queued play action runs synchronously inside `_emit`, but
+ *   `_paused = false` waits on the <audio> node's ready event,
+ *   so an `onload` handler can still observe
+ *   `playing() === false` with a play in flight). The fake
+ *   drains after firing 'load' handlers — a stand-in for that
+ *   unmodeled play-lock deferral producing the same window.
  * - `play()` on a loaded Howl flips `playing()` synchronously
  *   but emits `'play'` on a microtask (the real engine waits
  *   for the element's play() promise); `unload()` while the
@@ -396,11 +397,12 @@ export class FakeHowl {
     if (this._sounds.length === 0) {
       this._sounds = [{ _node: createAudioNode() }];
     }
-    // 'load' handlers run BEFORE the load queue drains —
-    // matching the real ordering where a play queued during
-    // 'loading' can still be in flight when onload runs (real
-    // Howler schedules 'load' listeners on a macrotask and a
-    // not-ready <audio> node defers a queued play further).
+    // 'load' handlers run before the queue drains — a
+    // stand-in for real Howler's play-lock deferral: the
+    // queued play action runs synchronously inside `_emit`,
+    // but `_paused = false` waits on the <audio> node's ready
+    // event, so onload can still observe `playing() === false`
+    // with a play in flight.
     [...(this._handlers.load ?? [])].forEach((h) => h(0));
     const queued = this._queue;
     this._queue = [];
