@@ -998,4 +998,49 @@ describe('useAudioPlaylist', () => {
       expect(result.current.currentIndex).toBe(0);
     },
   );
+
+  it('resume() while already playing does not stack a second ' +
+    'sound', async () => {
+      // Howler's play() on a playing Howl does not resume — it
+      // spawns a NEW sound instance with its own <audio> node,
+      // layering the same file over itself. A redundant 'play'
+      // (Bluetooth/car head-unit re-dispatching play while
+      // already playing, media-session 'play' on focus regain)
+      // must be ignored.
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => { result.current.start([makeItem()]); });
+      await waitFor(() =>
+        expect(result.current.currentIndex).toBe(0)
+      );
+      const howl = latestHowl();
+      act(() => { howl.emit('load'); });
+      expect(howl.playing()).toBe(true);
+      expect(howl._sounds.length).toBe(1);
+
+      act(() => { result.current.resume(); });
+      expect(howl._sounds.length).toBe(1);
+    },
+  );
+
+  it('a resume() during the load window does not double-start ' +
+    'the item', async () => {
+      // resume() while the Howl is still loading queues a play
+      // inside Howler that drains BEFORE the async 'load'
+      // handlers run — onload's own play() must not stack a
+      // second sound on the already-playing Howl.
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => { result.current.start([makeItem()]); });
+      // Wait for the Howl itself — currentIndex lands before
+      // the fetch resolves and materializes it.
+      await waitFor(() =>
+        expect(result.current.audio).not.toBeNull()
+      );
+      const howl = latestHowl();
+      expect(howl.state()).toBe('loading');
+      act(() => { result.current.resume(); });
+      act(() => { howl.emit('load'); });
+      expect(howl.playing()).toBe(true);
+      expect(howl._sounds.length).toBe(1);
+    },
+  );
 });

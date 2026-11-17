@@ -24,12 +24,22 @@ import type { HowlOptions } from 'howler';
  *   (`off()` clears all, `off(evt)` clears one event,
  *   `off(evt, fn)` filters a single handler). `once` handlers
  *   auto-remove after firing.
+ * - `play()` on an already-playing Howl spawns a NEW sound
+ *   instance (an extra `_sounds` entry with its own node) —
+ *   real Howler's `play()` never resumes a playing sound; it
+ *   recycles an `_ended` one or creates another, which is how
+ *   an unguarded second `play()` layers the same file over
+ *   itself (the overlap bug this suite guards).
  * - `emit(event, ...args)` is a TEST-ONLY helper (not part of
  *   the Howl API) that fires the registered handlers. It also
  *   applies the state transitions the real engine would perform
  *   alongside the event: `'load'` → `'loaded'`, `'end'` →
  *   `playing() === false` unless looping. `'loaderror'` fires
- *   the error handlers without changing state.
+ *   the error handlers without changing state. `'end'` fires
+ *   the handlers once per sound instance from a snapshot —
+ *   real Howler emits `end` per sound and queues each listener
+ *   call on a macrotask, so a doubled Howl's second `end` still
+ *   reaches listeners the first emission detached.
  *
  * Usage:
  *
@@ -155,10 +165,19 @@ export class FakeHowl {
    * Howler), marks `playing()` immediately, and emits `'play'`
    * on a microtask — matching the real HTMLAudioElement
    * `play()` promise resolution.
+   *
+   * Howler parity: a `play()` while a sound is already playing
+   * does NOT resume it — `_inactiveSound()` creates a new
+   * sound instance (for `html5` a second <audio> node playing
+   * the same file). The extra `_sounds` entry is how tests
+   * observe the overlap.
    */
   play(): number {
     if (this._state === 'unloaded') return 0;
     const id = 1;
+    if (this._playing) {
+      this._sounds.push({ _node: createAudioNode() });
+    }
     this._playing = true;
     this._pendingPlay = true;
     void Promise.resolve().then(() => {
@@ -297,13 +316,23 @@ export class FakeHowl {
       this.finishLoad();
       return;
     }
-    if (event === 'end' && !this._loop) {
-      this._playing = false;
+    const handlers = [...(this._handlers[event] ?? [])];
+    if (event === 'end') {
+      if (!this._loop) {
+        this._playing = false;
+      }
+      // Howler emits 'end' once per ending sound instance and
+      // queues each listener call on a macrotask — a doubled
+      // Howl's second 'end' still reaches handlers the first
+      // emission detached (e.g. disposeHowl's off()), so fire
+      // the snapshot once per sound.
+      const ends = Math.max(1, this._sounds.length);
+      for (let i = 0; i < ends; i++) {
+        handlers.forEach((h) => h(...args));
+      }
+      return;
     }
-    const handlers = this._handlers[event];
-    if (handlers) {
-      [...handlers].forEach((h) => h(...args));
-    }
+    handlers.forEach((h) => h(...args));
   }
 
   private finishLoad(): void {
