@@ -6,6 +6,7 @@ import {
   ConflictError,
   ProviderError,
   RateLimitError,
+  SearchDisabledError,
 } from '../api/errors';
 import type { TrackedError } from '../api/errors';
 import { sentryBeforeSend } from './sentry';
@@ -43,6 +44,16 @@ describe('sentryBeforeSend', () => {
       sentryBeforeSend(
         event,
         hintOf(new BookNotInFilesetError('no audio'))
+      )
+    ).toBeNull();
+  });
+
+  it('drops SearchDisabledError (feature-flag-off ' +
+    'supportive message)', () => {
+    expect(
+      sentryBeforeSend(
+        event,
+        hintOf(new SearchDisabledError('Search is disabled'))
       )
     ).toBeNull();
   });
@@ -309,6 +320,7 @@ describe('sentryBeforeSend', () => {
   it.each([
     'book_not_in_fileset',
     'rate_limited',
+    'search_disabled',
   ])('drops error_code "%s" on untyped errors', (code) => {
     // The instanceof drops only catch typed errors — a plain
     // Error rethrown through another layer still follows the
