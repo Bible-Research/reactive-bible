@@ -461,11 +461,88 @@ describe('errorReporter', () => {
           expect(reloadMock).toHaveBeenCalledTimes(1);
 
           // A second failure in the same page load must not
-          // reload again — and the resource-load warning is
-          // still reported once.
+          // reload again — and since a reload is already
+          // armed, neither failure is reported: the page is
+          // tearing down, so the warning would be noise.
           fireResourceError(link);
           expect(reloadMock).toHaveBeenCalledTimes(1);
+          expect(freshCaptureMessage).not.toHaveBeenCalled();
+          expect(freshShowNotification).not.toHaveBeenCalled();
+        });
+
+      it('does not report the resource-load warning when ' +
+        'the stale-chunk reload fires', async () => {
+          await freshHandlers();
+          const script = document.createElement('script');
+          script.src =
+            window.location.origin +
+            '/assets/RegisterPage-Bu7tMXpG.js';
+
+          fireResourceError(script);
+
+          // The self-heal reload makes this failure
+          // self-evident — a Sentry warning and a notification
+          // on a page that is already reloading are pure noise
+          // (the resource-load stream this test pins down).
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+          expect(freshCaptureMessage).not.toHaveBeenCalled();
+          expect(freshShowNotification).not.toHaveBeenCalled();
+        });
+
+      it('does not report when another handler already ' +
+        'armed the reload', async () => {
+          await freshHandlers();
+          // vite:preloadError beats the element error to the
+          // reload — the second handler sees the armed guard
+          // and must stay silent too.
+          firePreloadError(chunkError());
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+
+          const link = document.createElement('link');
+          link.rel = 'modulepreload';
+          link.href =
+            window.location.origin + '/assets/dep-abc123.js';
+          fireResourceError(link);
+
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+          expect(freshCaptureMessage).not.toHaveBeenCalled();
+          expect(freshShowNotification).not.toHaveBeenCalled();
+        });
+
+      it('still reports the failure when the reload ' +
+        'guard is spent', async () => {
+          await freshHandlers();
+          firePreloadError(chunkError());
+          expect(reloadMock).toHaveBeenCalledTimes(1);
+
+          // A real reload wipes module state; sessionStorage
+          // keeps the guard timestamp, so a still-broken
+          // chunk on the next page load gets no second reload
+          // — that failure is a real problem and must still
+          // reach the resource-load warning stream.
+          await freshHandlers();
+          const script = document.createElement('script');
+          script.src =
+            window.location.origin +
+            '/assets/RegisterPage-Bu7tMXpG.js';
+          fireResourceError(script);
+
+          expect(reloadMock).toHaveBeenCalledTimes(1);
           expect(freshCaptureMessage).toHaveBeenCalledTimes(1);
+          expect(freshCaptureMessage).toHaveBeenCalledWith(
+            'Failed to load resource: ' +
+              window.location.origin +
+              '/assets/RegisterPage-Bu7tMXpG.js',
+            {
+              level: 'warning',
+              tags: {
+                context: 'Resource load error',
+                reportType: 'resource-load',
+              },
+            }
+          );
+          expect(freshShowNotification)
+            .toHaveBeenCalledTimes(1);
         });
 
       it('reloads once on vite:preloadError without ' +

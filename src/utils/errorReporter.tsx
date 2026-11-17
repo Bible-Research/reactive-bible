@@ -6,6 +6,7 @@ import {
 import {
   CHUNK_LOAD_PATTERN,
   isChunkLoadError,
+  isStaleChunkReloadPending,
   reloadForStaleChunk,
 } from './chunkLoadError';
 import i18n from '../i18n';
@@ -306,19 +307,27 @@ function handleGlobalError(event: Event): void {
     // rel="modulepreload"> it creates for a lazy chunk's JS
     // dependencies, so a 404'd hashed asset surfaces only as
     // this element error event — no promise rejection reaches
-    // lazyWithReload (this is the 'Failed to load resource:
-    // …/assets/<chunk>.js' warning stream). A missing own-build
-    // script or stylesheet means a stale index.html: trigger
-    // the same guarded reload lazyWithReload uses, before the
-    // dedup early-return so a failure retried after coming back
-    // online can still self-heal. The guard makes this safe to
-    // attempt on every failure.
+    // lazyWithReload. A missing own-build script or stylesheet
+    // means a stale index.html: trigger the same guarded
+    // reload lazyWithReload uses, before the dedup
+    // early-return so a failure retried after coming back
+    // online can still self-heal. Once the reload is armed —
+    // fired by this call or by an earlier handler in this
+    // page load — the page is already tearing down, so the
+    // failure is never reported: the reload is the fix and a
+    // resource-load warning (or a notification nobody will
+    // read) is pure noise. Only a failure the guard refuses —
+    // a still-broken chunk inside the guard window after a
+    // real reload, or an offline tab — falls through to the
+    // report path; that case is a real problem worth a
+    // warning.
     if (
       (target.tagName === 'SCRIPT' ||
         target.tagName === 'LINK') &&
-      isOwnBuildAsset(src)
+      isOwnBuildAsset(src) &&
+      (reloadForStaleChunk() || isStaleChunkReloadPending())
     ) {
-      reloadForStaleChunk();
+      return;
     }
     // Report each failing resource once — a persistent 404 would
     // otherwise flood notifications on every retry/mount.
