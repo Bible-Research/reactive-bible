@@ -222,8 +222,10 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `reportType: resource-load` — warning `captureMessage` from
   `errorReporter.tsx` (missing hashed assets, dead signed
   URLs). Low-priority; usually self-healing noise — a failed
-  same-origin `/assets/*` script/link also triggers the
-  guarded stale-chunk reload in the same handler.
+  same-origin `/assets/*` script/link triggers the guarded
+  stale-chunk reload and is NOT reported while a reload is
+  armed (the page is tearing down); it warns only when the
+  guard refuses — guard spent or the tab is offline.
 - `reportType: user-report` — info `captureMessage` +
   `captureFeedback` from "Report a problem" (`userReport.ts`).
   Not an error queue item; investigated separately via the
