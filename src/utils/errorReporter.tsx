@@ -325,8 +325,10 @@ function handleGlobalError(event: Event): void {
     // data-favicon marker: they hide themselves on error and
     // their hosts fail routinely. The element-level marker
     // covers icon hosts the URL check below doesn't — e.g.
-    // YouVersion's direct bible.com apple-touch-icon.
-    if ('favicon' in target.dataset) {
+    // YouVersion's direct bible.com apple-touch-icon. IMG-scoped
+    // so a marked SCRIPT/LINK could never suppress the
+    // stale-chunk reload below.
+    if (target.tagName === 'IMG' && 'favicon' in target.dataset) {
       return;
     }
     if (isGoogleFavicons(src)) {
