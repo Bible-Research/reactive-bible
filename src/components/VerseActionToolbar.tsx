@@ -67,6 +67,30 @@ export interface PrimaryChapterRef {
   verses: number[];
 }
 
+/** Decorative third-party icon inside an external-link
+ *  button. The favicon services fail routinely (rate limits,
+ *  headless traffic, ad blockers), so a load error hides the
+ *  image instead of showing a broken-image glyph — the
+ *  button itself stays clickable. */
+const FaviconImg = ({
+  src,
+  alt,
+  style,
+}: {
+  src: string;
+  alt: string;
+  style: React.CSSProperties;
+}) => (
+  <img
+    src={src}
+    alt={alt}
+    style={style}
+    onError={(event) => {
+      event.currentTarget.style.display = "none";
+    }}
+  />
+);
+
 const formatChapterGroup = (
   group: PrimaryChapterRef,
   bookName: (code: string) => string | null,
@@ -399,7 +423,7 @@ const VerseActionToolbar = () => {
             onClick={handleCopyAndOpenWebViewer}
             title={t("share.copyPassageWebviewer")}
           >
-            <img
+            <FaviconImg
               src={faviconUrl("biblemapper.com")}
               alt="BibleMapper"
               style={faviconStyle}
@@ -427,7 +451,7 @@ const VerseActionToolbar = () => {
               }
               title={t("share.openYouversion")}
             >
-              <img
+              <FaviconImg
                 src="https://www.bible.com/apple-touch-icon.png"
                 alt="YouVersion"
                 style={faviconStyle}
@@ -447,7 +471,7 @@ const VerseActionToolbar = () => {
               }
               title={t("share.commentaryBiblehub")}
             >
-              <img
+              <FaviconImg
                 src={faviconUrl("biblehub.com")}
                 alt="BibleHub"
                 style={faviconStyle}
@@ -463,7 +487,7 @@ const VerseActionToolbar = () => {
               }
               title={t("share.lookupBlb")}
             >
-              <img
+              <FaviconImg
                 src={faviconUrl("blueletterbible.org")}
                 alt="Blue Letter Bible"
                 style={faviconStyle}

@@ -367,6 +367,37 @@ describe('errorReporter', () => {
       window.dispatchEvent(event);
       expect(mockShowNotification).not.toHaveBeenCalled();
     });
+
+    it('ignores Google favicon service load failures', () => {
+      cleanup = initGlobalErrorHandlers();
+      const img = document.createElement('img');
+      img.src =
+        'https://www.google.com/s2/favicons' +
+        '?sz=64&domain=biblemapper.com';
+      const event = new Event('error');
+      Object.defineProperty(event, 'target', { value: img });
+      window.dispatchEvent(event);
+
+      // Decorative external-link icons degrade silently.
+      expect(mockShowNotification).not.toHaveBeenCalled();
+      expect(mockCaptureMessage).not.toHaveBeenCalled();
+    });
+
+    it('still reports a /s2/favicons path on another host',
+      () => {
+        cleanup = initGlobalErrorHandlers();
+        const img = document.createElement('img');
+        img.src = 'https://evil.example.com/s2/favicons';
+        const event = new Event('error');
+        Object.defineProperty(event, 'target', { value: img });
+        window.dispatchEvent(event);
+
+        // The exclusion matches hostname+path, not a bare
+        // substring — only Google's own service is skipped.
+        expect(mockShowNotification).toHaveBeenCalledTimes(1);
+        expect(mockCaptureMessage).toHaveBeenCalledTimes(1);
+      });
+
     it('stops reporting after cleanup', () => {
       cleanup = initGlobalErrorHandlers();
       cleanup();

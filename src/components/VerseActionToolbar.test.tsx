@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { showNotification } from '@mantine/notifications';
 import VerseActionToolbar from './VerseActionToolbar';
@@ -52,6 +52,34 @@ describe('buildShareText', () => {
       ).toBe(
         'John 3:16-18\n\nhttps://app.test/bible/JHN.3.16-18'
       );
+    });
+});
+
+describe('external-link favicons', () => {
+  const selectedBibleState = {
+    verseSelection: {
+      scope: 'bible',
+      refs: [{ bookId: 'JHN', chapter: 3, verse: 16 }],
+    },
+  };
+
+  it('hides the icon instead of showing a broken image ' +
+    'when the favicon fails to load', () => {
+      renderWithProviders(<VerseActionToolbar />, {
+        stores: { bible: selectedBibleState },
+      });
+
+      const img = screen.getByAltText('BibleMapper');
+      expect(img).toBeVisible();
+
+      fireEvent.error(img);
+
+      expect(img).not.toBeVisible();
+      // The button itself stays clickable — only the
+      // decorative icon is dropped.
+      expect(
+        screen.getByTitle('Copy passage & open WebViewer')
+      ).toBeInTheDocument();
     });
 });
 

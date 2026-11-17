@@ -77,6 +77,24 @@ function isOwnBuildAsset(src: string): boolean {
   }
 }
 
+// The external-study link icons in VerseActionToolbar load via
+// Google's favicon service. That third-party endpoint fails
+// routinely (rate limits, headless traffic, ad blockers) and
+// the icon is decorative — the button hides it on error — so
+// a failure is never worth a report. Matched by hostname+path,
+// not a substring, so lookalike URLs still report.
+function isGoogleFavicons(src: string): boolean {
+  try {
+    const url = new URL(src);
+    return (
+      url.hostname === 'www.google.com' &&
+      url.pathname === '/s2/favicons'
+    );
+  } catch {
+    return false;
+  }
+}
+
 function isNotificationsReady(): boolean {
   const root = document.getElementById('root');
   return !root || root.childElementCount > 0;
@@ -300,6 +318,9 @@ function handleGlobalError(event: Event): void {
     // hosts (e.g. the Capacitor shell's https://localhost origin)
     // make these requests fail routinely.
     if (src.includes('/_vercel/')) {
+      return;
+    }
+    if (isGoogleFavicons(src)) {
       return;
     }
     // Vite 8 attaches no error listener to the <link
