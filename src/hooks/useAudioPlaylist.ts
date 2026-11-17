@@ -316,7 +316,14 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     return;
                   }
                   howl.seek(startTs);
-                  howl.play();
+                  // resume() during the load window queues a
+                  // play inside Howler that drains before this
+                  // handler — a second play() on the
+                  // already-playing Howl would stack another
+                  // sound instance (its own <audio> node).
+                  if (!howl.playing()) {
+                    howl.play();
+                  }
                   prefetchNext(index);
                 },
                 onplay: () => {
@@ -574,7 +581,13 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   }, []);
 
   const resume = useCallback(() => {
-    audioRef.current?.play();
+    const current = audioRef.current;
+    // play() on an already-playing Howl spawns a second sound
+    // instance — a redundant media-session 'play' (Bluetooth
+    // reconnect, head-unit re-dispatch, focus regain) must not
+    // restart the file on top of the running stream.
+    if (!current || current.playing()) return;
+    current.play();
   }, []);
 
   const next = useCallback(() => {
