@@ -158,9 +158,9 @@ jobs:
           # appeared — the file may not be on main yet);
           # pending = non-gate checks still running (a
           # "Vercel" status context can stick at pending
-          # for hours on quota flaps — the dependabot
-          # automerge excludes it too; a CONCLUDED Vercel
-          # failure still counts in red); red = non-gate
+          # for hours on quota flaps — tolerated pending
+          # here; a CONCLUDED Vercel failure still counts
+          # in red); red = non-gate
           # checks concluded as failures. `__api_error__`
           # in any field = fail closed at the caller.
           rollup_wait() {
