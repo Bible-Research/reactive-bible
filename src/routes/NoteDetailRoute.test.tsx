@@ -12,6 +12,7 @@ import {
 import { server } from '../mocks/server';
 import { API_BASE_URL } from '../config';
 import NoteDetailRoute from './NoteDetailRoute';
+import { useAuthStore } from '../stores/authStore';
 import {
   mockDomApis,
   resetStore,
@@ -137,6 +138,38 @@ describe('NoteDetailRoute author attribution', () => {
       renderRoute();
 
       // Wait for the note itself before asserting absence.
+      await screen.findByText(
+        `Verse ${VERSE_COUNT} text.`
+      );
+      expect(
+        screen.queryByText('by me')
+      ).not.toBeInTheDocument();
+    });
+
+  it('hides the author line when author.id matches the ' +
+    'viewer and is_owner is absent', async () => {
+      // Payloads serialized before `is_owner` shipped (or any
+      // response that omits it) fall back to matching the
+      // author id against the logged-in user.
+      useAuthStore.setState({
+        token: 'token',
+        user: { id: 9, username: 'me' },
+        isAuthenticated: true,
+      });
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/`,
+          ({ params }) =>
+            HttpResponse.json({
+              ...makeNote(),
+              id: params.noteId,
+              is_owner: undefined,
+              author: { id: 9, username: 'me' },
+            })
+        )
+      );
+      renderRoute();
+
       await screen.findByText(
         `Verse ${VERSE_COUNT} text.`
       );

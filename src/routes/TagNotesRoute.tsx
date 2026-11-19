@@ -136,6 +136,8 @@ export default function TagNotesRoute() {
     pageLoading,
     error,
     commentCounts,
+    settledQueryKey,
+    notesQueryKey,
     handleSortChange,
     handlePageChange,
     handlePageSizeChange,
@@ -200,11 +202,24 @@ export default function TagNotesRoute() {
   // has descendants. The observation latches for the session —
   // toggling the subtree switch off refetches tag-only notes,
   // and losing the switch then would trap the user out of the
-  // merged view.
+  // merged view. Both gates matter: `notes` keeps the previous
+  // tag's rows while a fetch is in flight (and across sessions
+  // via persistence), so `includeDescendants` alone isn't
+  // enough — `settledQueryKey` is the request-scoped half,
+  // proving the rows belong to THIS tag's merged fetch rather
+  // than stale leftovers that would latch a childless tag on
+  // every navigation.
   const [foreignSubtreeIds, setForeignSubtreeIds] =
     useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
-    if (!tagId || foreignSubtreeIds.has(tagId)) return;
+    if (
+      !tagId ||
+      !includeDescendants ||
+      settledQueryKey !== notesQueryKey ||
+      foreignSubtreeIds.has(tagId)
+    ) {
+      return;
+    }
     if (
       notes.some((n) => n.tag != null && n.tag.id !== tagId)
     ) {
@@ -212,7 +227,14 @@ export default function TagNotesRoute() {
         (prev) => new Set(prev).add(tagId)
       );
     }
-  }, [notes, tagId, foreignSubtreeIds]);
+  }, [
+    notes,
+    tagId,
+    includeDescendants,
+    settledQueryKey,
+    notesQueryKey,
+    foreignSubtreeIds,
+  ]);
 
   const tagHasChildren = useMemo(
     () =>

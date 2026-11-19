@@ -52,8 +52,9 @@ interface NoteCardActionsProps {
   orderMenuNode?: ReactNode;
   /**
    * True when the viewed tag is in the caller's own tag list.
-   * Production notes do not send `is_owner` yet — without this,
-   * owners could not edit/delete notes on their own tags.
+   * Note pages cached before `is_owner` shipped lack the
+   * field — without this fallback, owners could not
+   * edit/delete notes on their own tags.
    */
   isTagOwner?: boolean;
   /** Layout hook for the folded vs unfolded call sites. */

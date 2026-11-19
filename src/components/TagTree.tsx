@@ -380,13 +380,17 @@ const TagTreeNode = ({
                         : t('tags.makePublic')}
                     </Menu.Item>
                   )}
+                  {/* Like the public item above and the
+                      desktop ActionIcon, the icon shows the
+                      current STATE (eye = published), not
+                      the action the click performs. */}
                   {onTogglePublished && (
                     <Menu.Item
                       icon={
                         node.tag.published ? (
-                          <IconEyeOff size={16} />
-                        ) : (
                           <IconEye size={16} />
+                        ) : (
+                          <IconEyeOff size={16} />
                         )
                       }
                       title={

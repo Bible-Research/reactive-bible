@@ -58,6 +58,7 @@ export function ShareModal({
 
   useEffect(() => {
     if (!opened) return;
+    let cancelled = false;
     // Reopening for a different note/tag must not inherit the
     // previous draft — the username and descendants choice
     // are per-resource state.
@@ -68,16 +69,27 @@ export function ShareModal({
     const list = kind === 'note'
       ? getNoteShares(resourceId)
       : getTagShares(resourceId);
+    // A resource switch re-runs the effect while the previous
+    // fetch is still in flight — `cancelled` keeps its stale
+    // response from overwriting the new resource's grants.
     list
-      .then(setGrants)
+      .then((shareGrants) => {
+        if (!cancelled) setGrants(shareGrants);
+      })
       .catch((error) => {
+        if (cancelled) return;
         captureHandledError(error, 'Shares fetch', {
           kind,
           resourceId,
         });
         setGrants([]);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [opened, kind, resourceId]);
 
   const handleShare = async () => {

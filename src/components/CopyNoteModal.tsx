@@ -58,8 +58,15 @@ export function CopyNoteModal({
         /* getTags already notified */
       });
     }
-    if (opened) setTargetTagId(UNTAGGED_COPY_TARGET);
   }, [opened, isAuthenticated, tags.length, getTagsAction]);
+
+  // Reset the target only on the closed→open transition.
+  // Depending on `tags`/`isAuthenticated` would silently drop
+  // a just-picked tag: creating one via the inline "+ Create"
+  // row bumps `tags.length` while the dialog is still open.
+  useEffect(() => {
+    if (opened) setTargetTagId(UNTAGGED_COPY_TARGET);
+  }, [opened]);
 
   const handleCopy = async () => {
     if (!note) return;
