@@ -1,12 +1,35 @@
-import { screen, fireEvent } from '@testing-library/react';
+import {
+  screen,
+  fireEvent,
+  render,
+  waitFor,
+} from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
+import { http, HttpResponse } from 'msw';
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
+import { showNotification } from '@mantine/notifications';
 import NoteCardActions from './NoteCardActions';
+import { server } from '../mocks/server';
+import { API_BASE_URL } from '../config';
+import { useAuthStore } from '../stores/authStore';
 import {
   renderWithProviders,
+  mockDomApis,
   createMockNote,
   createMockVerse,
   createMockTag,
 } from '../__tests__/helpers';
+
+// showNotification is asserted on directly — the Mantine
+// notifications portal is not mounted in tests.
+vi.mock('@mantine/notifications', () => ({
+  showNotification: vi.fn(),
+}));
 
 const singleVerseNote = createMockNote({
   id: 'n1',
@@ -176,5 +199,111 @@ describe('NoteCardActions', () => {
     expect(
       screen.queryByLabelText('Add a comment')
     ).not.toBeInTheDocument();
+  });
+
+  it('bookmarks a non-owned accessible note', async () => {
+    const note = createMockNote({
+      id: 'shared-n1',
+      is_owner: false,
+      public: true,
+      verses: singleVerseNote.verses,
+    });
+    let bookmarkedId: string | null = null;
+    server.use(
+      http.post(
+        `${API_BASE_URL}/api/v1/notes/:noteId/bookmark/`,
+        ({ params }) => {
+          bookmarkedId = String(params.noteId);
+          return HttpResponse.json(
+            { saved: true },
+            { status: 201 }
+          );
+        }
+      )
+    );
+    renderActions({ note });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'bookmark-note' })
+    );
+
+    await waitFor(() => {
+      expect(bookmarkedId).toBe('shared-n1');
+    });
+    await waitFor(() => {
+      expect(showNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Note saved to bookmarks',
+        })
+      );
+    });
+  });
+
+  it('hides bookmark/copy on the reader\'s own note', () => {
+    renderActions();
+
+    expect(
+      screen.queryByRole('button', { name: 'bookmark-note' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'copy-note' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers anonymous readers a login CTA with a return ' +
+    'path', () => {
+    mockDomApis();
+    useAuthStore.setState({ isAuthenticated: false });
+    // Reports where the router actually landed plus the
+    // `from` the CTA handed to /login.
+    const LoginProbe = () => {
+      const location = useLocation();
+      const from = (
+        location.state as { from?: { pathname?: string } } | null
+      )?.from;
+      return (
+        <div data-testid="login-landing">
+          {`${location.pathname}|${from?.pathname ?? ''}`}
+        </div>
+      );
+    };
+    const note = createMockNote({
+      id: 'pub-n1',
+      is_owner: false,
+      public: true,
+      verses: singleVerseNote.verses,
+    });
+    render(
+      <MemoryRouter initialEntries={['/notes/pub-n1']}>
+        <Routes>
+          <Route
+            path="/notes/:noteId"
+            element={
+              <NoteCardActions
+                note={note}
+                onViewInBible={vi.fn()}
+                threadOpen={false}
+                onToggleThread={vi.fn()}
+              />
+            }
+          />
+          <Route path="/login" element={<LoginProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    // Save/copy stay hidden — the CTA is the only entry.
+    expect(
+      screen.queryByRole('button', { name: 'bookmark-note' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'copy-note' })
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'login-to-save' })
+    );
+
+    expect(screen.getByTestId('login-landing'))
+      .toHaveTextContent('/login|/notes/pub-n1');
   });
 });

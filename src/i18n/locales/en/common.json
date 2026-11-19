@@ -312,7 +312,18 @@
     "noteCount_one": "{{count}} note",
     "noteCount_other": "{{count}} notes",
     "publishedTag": "Published tag",
-    "publishedTagLong": "New notes under this tag default to published — listed in the Explore directory."
+    "publishedTagLong": "New notes under this tag default to published — listed in the Explore directory.",
+    "makePublished": "Publish tag",
+    "makeUnpublished": "Unpublish tag",
+    "makePublishedBody": "Publish \"{{name}}\" and all notes directly under it? They will be listed in the Explore directory.",
+    "makeUnpublishedBody": "Unpublish \"{{name}}\"? All notes directly under it leave the Explore directory — shared links keep working.",
+    "makePublishedConfirm": "Publish",
+    "makeUnpublishedConfirm": "Unpublish",
+    "publishedResult_one": "Tag is now {{state}} — {{count}} note updated",
+    "publishedResult_other": "Tag is now {{state}} — {{count}} notes updated",
+    "statePublished": "published",
+    "stateUnpublished": "unpublished",
+    "publishedFailed": "Failed to update tag publication"
   },
   "comments": {
     "post": "Post",
@@ -674,6 +685,7 @@
     "usernameLabel": "Username",
     "usernamePlaceholder": "Enter username",
     "includeDescendants": "Include notes in sub-tags",
+    "includeDescendantsHint": "Notes added to this tag or its sub-tags later are shared too.",
     "shareAction": "Share",
     "shareSaved": "Share saved — access applies if the username exists.",
     "shareFailed": "Could not save the share",

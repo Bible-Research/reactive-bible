@@ -505,7 +505,7 @@ npm test -- src/routes/BibleRoute.test.tsx
 
 **TagManagementRoute** (`src/routes/TagManagementRoute.tsx`):
 - Hierarchical `TagTree` + `CreateTagModal`/`EditTagModal`;
-  deletes and publicity flips confirm through
+  deletes and publicity/publish flips confirm through
   `openConfirmModal` (`@mantine/modals`, provider in
   `App.tsx`) — never `window.confirm`, which renders as an
   unstyled system dialog on Android. Reparent drops PATCH
@@ -516,7 +516,8 @@ npm test -- src/routes/BibleRoute.test.tsx
   full width with the "N tags" count inline. Each tree
   row collapses its icon cluster into a single
   `IconDotsVertical` `Menu` (View notes / publicity /
-  Edit, divider, red Delete) under the same width query
+  publish — publishers only / share / Edit, divider, red
+  Delete) under the same width query
   OR `(pointer: coarse)` — only TagTree reacts to the
   coarse pointer, the route chrome and modals are
   width-only — so tap targets stop overlapping. Desktop
@@ -2125,7 +2126,12 @@ Create and organize notes with tags for Bible verses.
   offers a matching `setTagPublished` switch — both render
   only when `can_publish` is true; without the flag the
   form leaves `published` undefined so the server inherits
-  the tag's value.
+  the tag's value. The public lock itself is also gated on
+  `can_publish`: a non-publisher whose permission was
+  revoked while their note/tag was still published keeps
+  the public toggle usable — clearing `public` is their
+  only way to unlist, and the server drops `published`
+  with it.
 - Targeted sharing grants a username read access to a note
   or a tag (optionally its subtree). Username resolution is
   silent server-side, so `ShareModal`'s copy is honest:

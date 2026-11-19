@@ -84,18 +84,6 @@ export function ShareModal({
       } else {
         await shareTag(resourceId, name, includeDescendants);
       }
-      setUsername('');
-      // The endpoint is silent about username existence —
-      // the honest copy describes the conditional grant.
-      showNotification({
-        title: t('common.success'),
-        message: t('sharing.shareSaved'),
-        color: 'green',
-      });
-      const list = kind === 'note'
-        ? await getNoteShares(resourceId)
-        : await getTagShares(resourceId);
-      setGrants(list);
     } catch (error) {
       captureHandledError(error, 'Share', {
         kind,
@@ -109,8 +97,31 @@ export function ShareModal({
             : t('sharing.shareFailed'),
         color: 'red',
       });
-    } finally {
       setSharing(false);
+      return;
+    }
+    setSharing(false);
+    setUsername('');
+    // The endpoint is silent about username existence —
+    // the honest copy describes the conditional grant.
+    showNotification({
+      title: t('common.success'),
+      message: t('sharing.shareSaved'),
+      color: 'green',
+    });
+    // The share persisted — a failed list refresh is a
+    // display problem, not a share failure, so it reports
+    // separately instead of toasting shareFailed.
+    try {
+      const list = kind === 'note'
+        ? await getNoteShares(resourceId)
+        : await getTagShares(resourceId);
+      setGrants(list);
+    } catch (error) {
+      captureHandledError(error, 'Shares refresh', {
+        kind,
+        resourceId,
+      });
     }
   };
 
@@ -161,6 +172,7 @@ export function ShareModal({
         {kind === 'tag' && (
           <Checkbox
             label={t('sharing.includeDescendants')}
+            description={t('sharing.includeDescendantsHint')}
             checked={includeDescendants}
             onChange={(e) =>
               setIncludeDescendants(e.currentTarget.checked)

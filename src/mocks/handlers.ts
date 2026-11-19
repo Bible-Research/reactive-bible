@@ -102,6 +102,16 @@ const mockNote = {
   headings: [],
 };
 
+// Shared-with-me and bookmark rows always arrive
+// `is_owner: false` with the author populated — the owned
+// mockNote would wrongly suppress the non-owner
+// affordances (bookmark/copy) those surfaces exercise.
+const mockSharedNote = {
+  ...mockNote,
+  is_owner: false,
+  author: { id: 7, username: 'sharedauthor' },
+};
+
 interface NoteWriteBody {
   tag?: string;
   note_text?: string;
@@ -481,7 +491,7 @@ export const handlers = [
   // MSW-driven tests.
   http.get(`${API_URL}/notes/shared-with-me/`, () =>
     HttpResponse.json({
-      notes: [mockNote],
+      notes: [mockSharedNote],
       tag_shares: [
         {
           id: mockTag.id,
@@ -499,7 +509,7 @@ export const handlers = [
         note_id: mockNote.id,
         available: true,
         created_at: new Date().toISOString(),
-        note: mockNote,
+        note: mockSharedNote,
       },
       {
         note_id: 'note-gone',

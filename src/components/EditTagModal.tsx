@@ -266,7 +266,11 @@ export function EditTagModal({
             }
             // Published implies public — mirroring the
             // note form, the pair can't desync in one save.
-            disabled={isPublished}
+            // Publishers can unpublish first, so only they
+            // get the lock; a non-publisher whose permission
+            // was revoked keeps the switch usable — clearing
+            // public cascades published off server-side.
+            disabled={canPublish && isPublished}
           />
 
           {canPublish && (
