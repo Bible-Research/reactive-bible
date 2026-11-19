@@ -188,10 +188,9 @@ The app is configured for deployment on **Vercel**:
   no-cache. Preview deploys resolve `API_BASE_URL` to `''`
   and call `/api` same-origin on whatever alias is browsed;
   the Android APK still calls the appspot host directly —
-  `index.html` carries preconnect/dns-prefetch hints for
-  it. No
-  `CDN-Cache-Control` anywhere: licensed Bible content must
-  not be CDN-cached.
+  `index.html` carries preconnect/dns-prefetch hints for it.
+  No `CDN-Cache-Control` anywhere: licensed Bible content
+  must not be CDN-cached.
 
 ---
 
