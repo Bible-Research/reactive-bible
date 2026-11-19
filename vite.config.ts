@@ -132,5 +132,23 @@ export default defineConfig({
     // and die with ERR_WORKER_OUT_OF_MEMORY. Serial execution keeps
     // peak memory in bounds at the cost of wall-clock time.
     fileParallelism: false,
+    // Mantine v6 Transition timers can outlive a test file's
+    // happy-dom environment: the pending timeout fires
+    // setState -> getCurrentEventPriority after `window` is torn
+    // down, throwing a benign ReferenceError that vitest counts
+    // as an unhandled error and fails the whole (green) run on.
+    // Errors arrive serialized (name/message/stack, no class), so
+    // match on `name` — `instanceof` never holds across the
+    // worker RPC boundary. Only this exact uncaught exception is
+    // ignored; everything else still fails the run.
+    onUnhandledError(error) {
+      if (
+        error.type === 'Uncaught Exception' &&
+        error.name === 'ReferenceError' &&
+        error.message === 'window is not defined'
+      ) {
+        return false;
+      }
+    },
   },
 });

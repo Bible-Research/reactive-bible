@@ -108,6 +108,33 @@ describe('options view', () => {
     ).toBeInTheDocument();
   });
 
+  it('caps the scroll viewport so long lists stay ' +
+    'scrollable', async () => {
+    renderCombobox();
+    fireEvent.mouseDown(input());
+    await screen.findByRole('listbox');
+    // The height cap must land on Radix's viewport — a
+    // max-height on the ScrollArea root never reaches it
+    // (height:100% of an auto-height parent is `auto`), so
+    // the viewport never overflows and can't scroll.
+    // Emotion injects the rule into <style> tags (non-speedy
+    // dev insertion under vitest); match it against one of
+    // the viewport's classes.
+    const viewport = document.querySelector(
+      '[data-radix-scroll-area-viewport]'
+    );
+    expect(viewport).not.toBeNull();
+    const css = Array.from(document.querySelectorAll('style'))
+      .map((el) => el.textContent ?? '')
+      .join('');
+    const capped = [
+      ...(viewport?.classList ?? []),
+    ].some((cls) =>
+      new RegExp(`\\.${cls}{[^}]*max-height:70vh`).test(css)
+    );
+    expect(capped).toBe(true);
+  });
+
   it('shows both create rows for a new name', async () => {
     renderCombobox();
     fireEvent.mouseDown(input());
