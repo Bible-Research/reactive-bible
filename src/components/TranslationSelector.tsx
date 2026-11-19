@@ -176,10 +176,49 @@ const VersionItem = forwardRef<HTMLDivElement, VersionItemProps>(
 );
 VersionItem.displayName = 'VersionItem';
 
-const TranslationSelector = () => {
+interface TranslationSelectorProps {
+  /**
+   * Controlled open state — pass with `onClose` to drive the
+   * modal from a host that renders no trigger button (the
+   * /settings pin picker). Leave undefined for the header
+   * usage, which keeps its own "Change Translation" button.
+   */
+  opened?: boolean;
+  /** Fires when the modal wants to close in controlled mode. */
+  onClose?: () => void;
+  /**
+   * Pick-only mode: hides BOTH audio surfaces (the radio
+   * group and the Advanced raw-fileset radios) and makes Save
+   * report the chosen text fileset via `onPickText` instead
+   * of writing `activeTextFilesetId`/`activeAudioFilesetId`.
+   */
+  pickTextOnly?: boolean;
+  /**
+   * Pick-mode seed — the current pin. Every site that reads
+   * the active filesets swaps to it so a text-only pin is
+   * never seeded from the reader's audio owner.
+   */
+  seedFilesetId?: string | null;
+  /** Pick-mode Save callback — gets the chosen text id. */
+  onPickText?: (filesetId: string | null) => void;
+}
+
+const TranslationSelector = ({
+  opened: controlledOpened,
+  onClose,
+  pickTextOnly = false,
+  seedFilesetId = null,
+  onPickText,
+}: TranslationSelectorProps = {}) => {
   const { t } = useTranslation();
   const { classes } = useStyles();
-  const [opened, setOpened] = useState(false);
+  const [internalOpened, setInternalOpened] = useState(false);
+  const isControlled = controlledOpened !== undefined;
+  const opened = isControlled ? controlledOpened : internalOpened;
+  const closeModal = () => {
+    setInternalOpened(false);
+    onClose?.();
+  };
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   const {
@@ -297,6 +336,12 @@ const TranslationSelector = () => {
       return;
     }
     const grouped = groupFilesets(translation);
+    // A text-less version falls back on this seed id: the
+    // reader's text selection normally, the pin in pick mode —
+    // a pin must not silently inherit the reader's translation.
+    const textSeedId = pickTextOnly
+      ? seedFilesetId ?? activeTextFilesetId
+      : activeTextFilesetId;
     if (grouped.text) {
       void handleTextChange(grouped.text.id);
     } else {
@@ -305,7 +350,7 @@ const TranslationSelector = () => {
       // same-language text version (preferring full coverage) so
       // the reader never spins on a stale foreign-language id.
       const owner = findTranslationByFilesetId(
-        activeTextFilesetId,
+        textSeedId,
         translations,
       );
       if (
@@ -318,10 +363,10 @@ const TranslationSelector = () => {
         const ownerText = groupFilesets(owner).text;
         const keepStored =
           !ownerText ||
-          (activeTextFilesetId !== null &&
-            ownerText.members.includes(activeTextFilesetId));
+          (textSeedId !== null &&
+            ownerText.members.includes(textSeedId));
         void handleTextChange(
-          keepStored ? activeTextFilesetId : ownerText.id,
+          keepStored ? textSeedId : ownerText.id,
         );
         setTextNote(
           t('translations.textNote', { name: owner.name }),
@@ -342,10 +387,16 @@ const TranslationSelector = () => {
             }),
           );
         } else {
-          void handleTextChange(activeTextFilesetId);
+          void handleTextChange(textSeedId);
           setTextNote(t('translations.noTextInLanguage'));
         }
       }
+    }
+    if (pickTextOnly) {
+      // Pick mode is text-only — no audio is ever staged, so
+      // the restore/auto-pick below stays inert.
+      setSelectedAudioId(null);
+      return;
     }
     // Normalize a stored member id (or a drifted product id via
     // the `{abbr}:{kind}` prefix fallback) to the product id —
@@ -389,7 +440,13 @@ const TranslationSelector = () => {
     pickedLanguageLabelRef.current = label;
   };
 
-  const openModal = () => {
+  /**
+   * Wipes the picker's transient selections/Other-tab state
+   * so a (re)open starts clean — shared by the trigger's
+   * `openModal` and the `[opened]` effect so a controlled
+   * open resets exactly like an uncontrolled one.
+   */
+  const resetPickerState = () => {
     setSelectedTranslationAbbr(null);
     setSelectedTextId(null);
     setSelectedAudioId(null);
@@ -408,6 +465,38 @@ const TranslationSelector = () => {
     pickedLanguageLabelRef.current = null;
     userInteractedRef.current = false;
     versionPickedIsosRef.current.clear();
+  };
+
+  /**
+   * Seeds the language tab from the stored selection — the
+   * pin (`seedFilesetId`) in pick mode, else the audio-then-
+   * text owner. A text-only pin must never seed from the
+   * reader's AUDIO owner: pin=NIV with audio=ESV would land
+   * on 'eng' while the pin lives in another language.
+   */
+  const seedTabFromSelection = () => {
+    const owner = pickTextOnly
+      ? findTranslationByFilesetId(
+          seedFilesetId ?? activeTextFilesetId,
+          translations,
+        )
+      : findTranslationByFilesetId(
+          activeAudioFilesetId,
+          translations,
+        ) ??
+        findTranslationByFilesetId(
+          activeTextFilesetId,
+          translations,
+        );
+    if (owner) {
+      seedLanguage(owner.language_iso, owner.language);
+    } else {
+      setTab('eng');
+    }
+  };
+
+  const openModal = () => {
+    resetPickerState();
     // Seed the tab synchronously from the stored selection so
     // a modal last closed on 'other' doesn't flash the empty
     // Other picker before `seedLanguageTab` corrects it — and
@@ -415,22 +504,20 @@ const TranslationSelector = () => {
     // the fetch effect never fires for a stale language. The
     // async effect stays as the fallback for owners missing
     // from the persisted `translations` list.
-    const owner =
-      findTranslationByFilesetId(
-        activeAudioFilesetId,
-        translations,
-      ) ??
-      findTranslationByFilesetId(
-        activeTextFilesetId,
-        translations,
-      );
-    if (owner) {
-      seedLanguage(owner.language_iso, owner.language);
-    } else {
-      setTab('eng');
-    }
-    setOpened(true);
+    seedTabFromSelection();
+    setInternalOpened(true);
   };
+
+  // A controlled open gets the same clean slate + seed as the
+  // trigger path — reopening on the same language must not
+  // show stale selections. Idempotent on uncontrolled opens
+  // (openModal already ran both helpers in the same commit).
+  useEffect(() => {
+    if (!opened) return;
+    resetPickerState();
+    seedTabFromSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]);
 
   const handleTextChange = async (filesetId: string | null) => {
     if (filesetId === null) {
@@ -597,9 +684,16 @@ const TranslationSelector = () => {
         activeTextFilesetId: textId,
         translations: persisted,
       } = useBibleStore.getState();
+      // Pick mode skips the audio-owner preference entirely —
+      // a text-only pin seeds from the pin (else the reader's
+      // text fileset), never the audio owner.
+      const primaryId = pickTextOnly
+        ? seedFilesetId ?? textId
+        : audioId;
+      const secondaryId = pickTextOnly ? null : textId;
       const persistedOwner =
-        findTranslationByFilesetId(audioId, persisted) ??
-        findTranslationByFilesetId(textId, persisted);
+        findTranslationByFilesetId(primaryId, persisted) ??
+        findTranslationByFilesetId(secondaryId, persisted);
       if (persistedOwner) {
         if (!cancelled && !userInteractedRef.current) {
           // Fixed-tab isos select their tab; anything else
@@ -648,7 +742,8 @@ const TranslationSelector = () => {
         return null;
       };
       const owner =
-        (await findOwner(audioId)) ?? (await findOwner(textId));
+        (await findOwner(primaryId)) ??
+        (await findOwner(secondaryId));
       if (!cancelled && !userInteractedRef.current && owner) {
         seedLanguage(owner.language_iso, owner.language);
       }
@@ -657,6 +752,9 @@ const TranslationSelector = () => {
     return () => {
       cancelled = true;
     };
+    // Seeding runs on open only — a mid-session prop change
+    // must not re-seed over the user's picks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]);
 
   useEffect(() => {
@@ -761,15 +859,21 @@ const TranslationSelector = () => {
     const inLanguage = translations.filter(
       (t) => t.language_iso === languageIso,
     );
-    const owner =
-      findTranslationByFilesetId(
-        activeAudioFilesetId,
-        inLanguage,
-      ) ??
-      findTranslationByFilesetId(
-        activeTextFilesetId,
-        inLanguage,
-      );
+    // Pick mode mirrors the pin seed only — the reader's audio
+    // owner is irrelevant to a text-only pick.
+    const owner = pickTextOnly
+      ? findTranslationByFilesetId(
+          seedFilesetId ?? activeTextFilesetId,
+          inLanguage,
+        )
+      : findTranslationByFilesetId(
+          activeAudioFilesetId,
+          inLanguage,
+        ) ??
+        findTranslationByFilesetId(
+          activeTextFilesetId,
+          inLanguage,
+        );
     if (owner) {
       applyVersionSelection(owner.abbr, true);
       return;
@@ -826,6 +930,13 @@ const TranslationSelector = () => {
   };
 
   const handleSave = () => {
+    if (pickTextOnly) {
+      // Pick mode reports the text id — the reader's active
+      // filesets and per-language memory are untouched.
+      onPickText?.(selectedTextId);
+      closeModal();
+      return;
+    }
     // Never write `null` over a valid stored selection — a null
     // text id leaves the reader blank. `null` audio is the
     // legitimate "None" choice, so it is stored verbatim.
@@ -847,7 +958,7 @@ const TranslationSelector = () => {
         },
       );
     }
-    setOpened(false);
+    closeModal();
   };
 
   const selectedTranslation =
@@ -975,7 +1086,7 @@ const TranslationSelector = () => {
     <>
       <Modal
         opened={opened}
-        onClose={() => setOpened(false)}
+        onClose={closeModal}
         title={t('translations.select')}
         size="lg"
         fullScreen={isMobile}
@@ -1098,7 +1209,7 @@ const TranslationSelector = () => {
                 )}
               </div>
 
-              {grouped.audio.length > 0 && (
+              {!pickTextOnly && grouped.audio.length > 0 && (
                 <div className={classes.groupWrapper}>
                   <Radio.Group
                     value={audioGroupValue}
@@ -1152,7 +1263,8 @@ const TranslationSelector = () => {
                             </Stack>
                           </Radio.Group>
                         )}
-                        {rawAudioFilesets.length > 0 && (
+                        {!pickTextOnly &&
+                          rawAudioFilesets.length > 0 && (
                           <Radio.Group
                             value={rawAudioValue}
                             onChange={setSelectedAudioId}
@@ -1184,7 +1296,7 @@ const TranslationSelector = () => {
           )}
 
           <Group position="right" mt="md">
-            <Button variant="default" onClick={() => setOpened(false)}>
+            <Button variant="default" onClick={closeModal}>
               {t('common.cancel')}
             </Button>
             {/* Disabled until a version resolves — saving with
@@ -1201,13 +1313,17 @@ const TranslationSelector = () => {
         </Stack>
       </Modal>
 
-      <Button
-        variant="subtle"
-        onClick={openModal}
-        color="gray"
-      >
-        {t('translations.change')}
-      </Button>
+      {/* Controlled mode (the settings pick flow) renders no
+          trigger — the host owns `opened`. */}
+      {!isControlled && (
+        <Button
+          variant="subtle"
+          onClick={openModal}
+          color="gray"
+        >
+          {t('translations.change')}
+        </Button>
+      )}
     </>
   );
 };
