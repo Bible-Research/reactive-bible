@@ -49,6 +49,9 @@ const SWIPE_WHEEL_QUIET_MS = 300;
  * every render branch — without it the browser claims
  * horizontal drags on non-Verse surfaces (loader, error,
  * outline) as scrolls and the swipe dies at pointercancel.
+ * Presses landing on the ScrollArea's Radix scrollbar
+ * (data-orientation) are ignored so a thumb drag never has
+ * its pointer capture stolen.
  */
 export const useChapterSwipe = (
   viewportRef: RefObject<HTMLElement>,
@@ -119,12 +122,28 @@ export const useChapterSwipe = (
       if (event.pointerType === 'mouse' && event.button !== 0) {
         return;
       }
-      // A second, different pointer mid-gesture is ignored —
-      // but a repeat of the same id means the previous
-      // release never produced an event (a mouse drag can
-      // end over the browser chrome before capture), so the
-      // stale start is safe to replace.
-      if (start !== null && start.pointerId !== event.pointerId) {
+      // Radix renders the ScrollArea's scrollbars inside this
+      // element, tagged data-orientation. A press there is a
+      // scrollbar drag — tracking it would steal the thumb's
+      // own pointer capture once it passed the slop.
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[data-orientation]')
+      ) {
+        return;
+      }
+      // A second pointer is ignored only while a gesture is
+      // captured. An uncaptured start is safe to replace: a
+      // repeat of the same id means the previous release
+      // never produced an event (a mouse drag can end over
+      // the browser chrome before capture), and a different
+      // id is another pointer aborting a gesture that never
+      // committed to a drag.
+      if (
+        start !== null &&
+        start.pointerId !== event.pointerId &&
+        start.captured
+      ) {
         return;
       }
       start = {
@@ -181,8 +200,21 @@ export const useChapterSwipe = (
       if (start?.pointerId === event.pointerId) start = null;
     };
 
+    // A press released outside the browser window delivers
+    // no pointerup/cancel — the window blur that firing
+    // sequence produces is the only signal `start` went
+    // stale, so drop it unconditionally.
+    const onWindowBlur = () => {
+      start = null;
+    };
+
     const onPointerUp = (event: PointerEvent) => {
       if (start === null || start.pointerId !== event.pointerId) {
+        return;
+      }
+      // Chorded mouse buttons share the drag's pointerId — a
+      // non-primary release mid-drag must not resolve it.
+      if (event.pointerType === 'mouse' && event.button !== 0) {
         return;
       }
       const dx = event.clientX - start.x;
@@ -267,7 +299,10 @@ export const useChapterSwipe = (
     window.addEventListener('pointerup', onPointerUp);
     // pointercancel: the browser claimed the gesture for
     // scrolling (or it ended abnormally) — reset either way.
-    viewport.addEventListener('pointercancel', onPointerEnd);
+    // Window-level so a cancel retargeted by another
+    // element's capture still clears `start`.
+    window.addEventListener('pointercancel', onPointerEnd);
+    window.addEventListener('blur', onWindowBlur);
     viewport.addEventListener(
       'lostpointercapture', onPointerEnd
     );
@@ -283,9 +318,10 @@ export const useChapterSwipe = (
       viewport.removeEventListener('pointerdown', onPointerDown);
       viewport.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      viewport.removeEventListener(
+      window.removeEventListener(
         'pointercancel', onPointerEnd
       );
+      window.removeEventListener('blur', onWindowBlur);
       viewport.removeEventListener(
         'lostpointercapture', onPointerEnd
       );
