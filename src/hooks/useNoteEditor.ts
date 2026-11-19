@@ -449,6 +449,13 @@ export const useNoteEditor = ({
       {
         ordering: notesOrdering ?? undefined,
         page: notesPage,
+        // Preserve a merged `?descendants=1` view — refetching
+        // the tag-only page would silently collapse the
+        // subtree sections while the URL still claims merged.
+        includeDescendants:
+          new URLSearchParams(window.location.search).get(
+            'descendants'
+          ) === '1',
       }
     );
   }, []);

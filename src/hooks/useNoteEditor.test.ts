@@ -435,6 +435,7 @@ describe('useNoteEditor', () => {
       expect(fetchNotes).toHaveBeenCalledWith('t1', {
         ordering: 'created_at',
         page: 3,
+        includeDescendants: false,
       });
       expect(onSubmitted).toHaveBeenCalledWith('t2');
     });
@@ -455,6 +456,7 @@ describe('useNoteEditor', () => {
     expect(fetchNotes).toHaveBeenCalledWith('untagged', {
       ordering: undefined,
       page: 1,
+      includeDescendants: false,
     });
   });
 
