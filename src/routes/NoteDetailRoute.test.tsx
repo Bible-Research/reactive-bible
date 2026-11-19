@@ -94,6 +94,58 @@ describe('NoteDetailRoute scrolling (#39)', () => {
   });
 });
 
+describe('NoteDetailRoute author attribution', () => {
+  beforeEach(() => {
+    resetStore();
+    mockDomApis();
+  });
+
+  it('renders the author line for a note the viewer ' +
+    'does not own', async () => {
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/`,
+          ({ params }) =>
+            HttpResponse.json({
+              ...makeNote(),
+              id: params.noteId,
+              author: { id: 9, username: 'scholar' },
+            })
+        )
+      );
+      renderRoute();
+
+      expect(
+        await screen.findByText('by scholar')
+      ).toBeInTheDocument();
+    });
+
+  it('hides the author line on the viewer\'s own note',
+    async () => {
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/`,
+          ({ params }) =>
+            HttpResponse.json({
+              ...makeNote(),
+              id: params.noteId,
+              is_owner: true,
+              author: { id: 1, username: 'me' },
+            })
+        )
+      );
+      renderRoute();
+
+      // Wait for the note itself before asserting absence.
+      await screen.findByText(
+        `Verse ${VERSE_COUNT} text.`
+      );
+      expect(
+        screen.queryByText('by me')
+      ).not.toBeInTheDocument();
+    });
+});
+
 describe('NoteDetailRoute error paths', () => {
   beforeEach(() => {
     resetStore();

@@ -51,6 +51,7 @@ const mockTag = {
   name: 'Test Tag',
   parent_tag: null,
   public: false,
+  published: false,
   note_count: 1,
   created_at: '',
   updated_at: '',
@@ -65,6 +66,10 @@ const mockNote = {
   note_text: 'This is a test note.',
   tag: mockTag,
   public: false,
+  published: false,
+  // Every payload carries author attribution; owned rows
+  // still serialize it — consumers gate on is_owner/id.
+  author: { id: 1, username: 'testuser' },
   is_owner: true,
   tag_position: null,
   // Translation contract: the note was detected as English;
@@ -116,6 +121,7 @@ interface NoteWriteBody {
   tag?: string;
   note_text?: string;
   public?: boolean;
+  published?: boolean;
   verse_references?: {
     book: string;
     chapter: number;
@@ -451,6 +457,7 @@ export const handlers = [
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -468,6 +475,7 @@ export const handlers = [
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -676,6 +684,7 @@ export const handlers = [
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined
@@ -695,6 +704,7 @@ export const handlers = [
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined

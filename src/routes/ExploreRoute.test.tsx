@@ -3,6 +3,7 @@ import {
   screen,
   fireEvent,
   waitFor,
+  act,
 } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
@@ -109,4 +110,59 @@ describe('ExploreRoute', () => {
       expect(capturedQ).toBe('grace');
     });
   });
+
+  it('drops a stale response that resolves after a newer ' +
+    'query', async () => {
+      // The initial feed request hangs behind a gate; the
+      // debounced search resolves first and wins the feed.
+      let releaseInitial: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        releaseInitial = resolve;
+      });
+      server.use(
+        http.get(`${API_URL}/notes/`, async ({ request }) => {
+          const url = new URL(request.url);
+          if (url.searchParams.get('q') === 'grace') {
+            return HttpResponse.json({
+              count: 1,
+              next: null,
+              previous: null,
+              results: [
+                {
+                  ...publishedNote,
+                  id: 'hit-1',
+                  note_text: 'Search hit.',
+                },
+              ],
+            });
+          }
+          await gate;
+          return HttpResponse.json({
+            count: 1,
+            next: null,
+            previous: null,
+            results: [publishedNote],
+          });
+        })
+      );
+      renderRoute();
+
+      // Search before the initial load resolves.
+      fireEvent.change(
+        screen.getByLabelText('Search published notes…'),
+        { target: { value: 'grace' } }
+      );
+      await screen.findByText('Search hit.');
+
+      // The stale initial response resolves now — it must be
+      // dropped whole, not overwrite the search results.
+      releaseInitial();
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      expect(
+        screen.queryByText('Published study note.')
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('Search hit.')).toBeInTheDocument();
+    });
 });

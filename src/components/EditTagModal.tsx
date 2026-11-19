@@ -21,6 +21,7 @@ import {
   updateTag,
 } from '../api';
 import { useAuthStore } from '../stores/authStore';
+import { clearNotesCache } from '../utils/cacheManager';
 import {
   isTagDescendant,
   validateTagName,
@@ -116,6 +117,12 @@ export function EditTagModal({
     // if the publicity cascade then fails, the applied half
     // still needs a list refresh.
     let updateApplied = false;
+    // Set when a publicity/publish cascade landed — the
+    // never-expiring notes cache keeps serving the old
+    // public/published flags otherwise, and autosave seeds
+    // the next note edit from them, silently undoing the
+    // cascade (the tree-row toggles drop it the same way).
+    let cascadeApplied = false;
     try {
       // A publicity-only edit skips the PATCH entirely —
       // sending an unchanged name/parent is a no-op write.
@@ -132,6 +139,7 @@ export function EditTagModal({
       // stale" state.
       if (isPublic !== (tag.public ?? false)) {
         await setTagPublic(tag.id, isPublic);
+        cascadeApplied = true;
       }
       // Published goes through its own cascade (set-published)
       // — same rule as publicity: never a raw PATCH flag.
@@ -140,6 +148,14 @@ export function EditTagModal({
         isPublished !== (tag.published ?? false)
       ) {
         await setTagPublished(tag.id, isPublished);
+        cascadeApplied = true;
+      }
+      if (cascadeApplied) {
+        // Every cached note page under the tag — and every
+        // ancestor's merged `sub:true` page — still holds the
+        // pre-cascade flags; the cache never expires, so drop
+        // it whole (same as the tree-row toggles).
+        clearNotesCache();
       }
       showNotification({
         title: t('common.success'),
@@ -160,10 +176,14 @@ export function EditTagModal({
             : t('tags.updateFailed'),
         color: 'red',
       });
-      // Partial success: the PATCH landed but the cascade
-      // failed — refresh so the list shows what the server
-      // actually stored.
-      if (updateApplied) {
+      // Partial success: the PATCH or a cascade landed before
+      // a later call failed — drop the stale note pages and
+      // refresh so the list shows what the server actually
+      // stored.
+      if (cascadeApplied) {
+        clearNotesCache();
+      }
+      if (updateApplied || cascadeApplied) {
         onSuccess();
       }
     }

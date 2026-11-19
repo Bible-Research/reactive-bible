@@ -1,5 +1,6 @@
 import {
   Suspense,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
@@ -90,11 +91,11 @@ export default function TagNotesRoute() {
     searchParams.get('descendants') === '1';
 
   // Ownership: the caller's own tag list is the primary signal —
-  // production notes do not send `is_owner` yet, so without the
-  // tags check an owner would lose drag/order/edit/delete on
-  // their own tag. For foreign public tags keep the strict
-  // every-note `is_owner === true` fallback so write affordances
-  // stay hidden once the backend ships the field. An explicit
+  // note pages cached before `is_owner` shipped lack the field,
+  // so without the tags check an owner would lose
+  // drag/order/edit/delete on their own tag. For foreign public
+  // tags the strict every-note `is_owner === true` fallback
+  // keeps write affordances hidden. An explicit
   // `is_owner === false` on ANY loaded note fails closed even
   // when the tag sits in the caller's list — the backend
   // move/reorder endpoints only touch the requester's rows.
@@ -192,9 +193,32 @@ export default function TagNotesRoute() {
     }));
   }, [includeDescendants, sortedNotes, tagNameById, t]);
 
+  // A foreign tag (shared-with-me grant or public link) never
+  // sits in the caller's own tag list, so `storedTags` can't
+  // reveal its subtree. The merged page is the only signal: a
+  // note attached to a different tag id proves the viewed tag
+  // has descendants. The observation latches for the session —
+  // toggling the subtree switch off refetches tag-only notes,
+  // and losing the switch then would trap the user out of the
+  // merged view.
+  const [foreignSubtreeIds, setForeignSubtreeIds] =
+    useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    if (!tagId || foreignSubtreeIds.has(tagId)) return;
+    if (
+      notes.some((n) => n.tag != null && n.tag.id !== tagId)
+    ) {
+      setForeignSubtreeIds(
+        (prev) => new Set(prev).add(tagId)
+      );
+    }
+  }, [notes, tagId, foreignSubtreeIds]);
+
   const tagHasChildren = useMemo(
-    () => storedTags.some((tag) => tag.parent_tag === tagId),
-    [storedTags, tagId]
+    () =>
+      storedTags.some((tag) => tag.parent_tag === tagId) ||
+      (tagId !== undefined && foreignSubtreeIds.has(tagId)),
+    [storedTags, tagId, foreignSubtreeIds]
   );
 
   const { playFromNote } = useNotePlaylist(

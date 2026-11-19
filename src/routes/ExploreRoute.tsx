@@ -43,15 +43,25 @@ export default function ExploreRoute() {
   const [error, setError] = useState(false);
   const debounceRef = useRef<number | undefined>(undefined);
   const activeQueryRef = useRef('');
+  // Monotonic request token — only the latest issued query
+  // may write state. A slower earlier request (search while
+  // a load-more is in flight, or vice versa) resolving last
+  // would otherwise overwrite the newer feed.
+  const requestSeqRef = useRef(0);
 
   const load = useCallback(
     async (q: string, pageNum: number, append: boolean) => {
+      const seq = ++requestSeqRef.current;
       setLoading(true);
       try {
         const result = await getPublishedNotes({
           q: q || undefined,
           page: pageNum,
         });
+        // A newer query was issued while this one was in
+        // flight — its response wins; drop this one whole
+        // (appending stale rows would corrupt the list).
+        if (seq !== requestSeqRef.current) return;
         setNotes((current) =>
           append ? [...current, ...result.results] : result.results
         );
@@ -59,10 +69,13 @@ export default function ExploreRoute() {
         setPage(pageNum);
         setError(false);
       } catch (err) {
+        if (seq !== requestSeqRef.current) return;
         captureHandledError(err, 'Published feed', { q });
         setError(true);
       } finally {
-        setLoading(false);
+        if (seq === requestSeqRef.current) {
+          setLoading(false);
+        }
       }
     },
     []
@@ -90,6 +103,9 @@ export default function ExploreRoute() {
       if (debounceRef.current) {
         window.clearTimeout(debounceRef.current);
       }
+      // Invalidate any in-flight load so a late response
+      // can't write state after unmount.
+      requestSeqRef.current += 1;
     },
     []
   );

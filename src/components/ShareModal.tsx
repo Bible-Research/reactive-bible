@@ -58,6 +58,12 @@ export function ShareModal({
 
   useEffect(() => {
     if (!opened) return;
+    // Reopening for a different note/tag must not inherit the
+    // previous draft — the username and descendants choice
+    // are per-resource state.
+    setUsername('');
+    setIncludeDescendants(true);
+    setGrants([]);
     setLoading(true);
     const list = kind === 'note'
       ? getNoteShares(resourceId)
