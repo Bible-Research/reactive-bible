@@ -219,7 +219,10 @@ whose head SHA was never merged into `staging`, and the
   user-owned resources (notes, tags, comments), `publicFetch` for
   bible content. Login/register/checkAuth then fetch
   `users/me/` for `id` + `can_publish` — publish UI only
-  renders when that flag is true.
+  renders when that flag is true. The published-state lock
+  on the public toggle is gated on it too: a non-publisher
+  keeps the public control usable so clearing `public`
+  still unlists (the server drops `published` with it).
 - Sharing: `public` stays link visibility; `published` is
   the `/explore` directory flag (implies `public`, needs
   `can_publish`); `ShareModal` handles targeted username

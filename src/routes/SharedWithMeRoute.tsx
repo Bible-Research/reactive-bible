@@ -87,7 +87,16 @@ export default function SharedWithMeRoute() {
                 <UnstyledButton
                   key={grant.id}
                   onClick={() => {
-                    void navigate(`/notes/tag/${grant.id}`);
+                    // include_descendants grants open the
+                    // merged subtree view — without
+                    // `?descendants=1` the tag page hides
+                    // the sub-tag notes the grant covers.
+                    void navigate(
+                      `/notes/tag/${grant.id}` +
+                        (grant.include_descendants
+                          ? '?descendants=1'
+                          : '')
+                    );
                   }}
                 >
                   <Box

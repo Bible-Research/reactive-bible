@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Modal,
+  Radio,
   Stack,
   Text,
 } from '@mantine/core';
@@ -57,8 +58,15 @@ export function CopyNoteModal({
         /* getTags already notified */
       });
     }
-    if (opened) setTargetTagId(UNTAGGED_COPY_TARGET);
   }, [opened, isAuthenticated, tags.length, getTagsAction]);
+
+  // Reset the target only on the closed→open transition.
+  // Depending on `tags`/`isAuthenticated` would silently drop
+  // a just-picked tag: creating one via the inline "+ Create"
+  // row bumps `tags.length` while the dialog is still open.
+  useEffect(() => {
+    if (opened) setTargetTagId(UNTAGGED_COPY_TARGET);
+  }, [opened]);
 
   const handleCopy = async () => {
     if (!note) return;
@@ -94,7 +102,9 @@ export function CopyNoteModal({
   };
 
   // Untagged is a virtual entry — TagCombobox only lists
-  // real tags, so it is offered as a separate option.
+  // real tags, so it is offered as a separate option:
+  // picking a tag unselects it, re-selecting it clears the
+  // tag pick back to the 'untagged' sentinel.
   const tagOptions: Tag[] = tags;
 
   return (
@@ -107,6 +117,13 @@ export function CopyNoteModal({
         <Text size="sm" color="dimmed">
           {t('copyNote.hint')}
         </Text>
+        <Radio
+          label={t('common.untagged')}
+          checked={targetTagId === UNTAGGED_COPY_TARGET}
+          onChange={() =>
+            setTargetTagId(UNTAGGED_COPY_TARGET)
+          }
+        />
         <TagCombobox
           label={t('copyNote.targetTag')}
           value={

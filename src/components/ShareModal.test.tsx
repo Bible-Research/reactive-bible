@@ -126,4 +126,46 @@ describe('ShareModal', () => {
       );
     });
   });
+
+  it('resets draft state when reopened for another ' +
+    'resource', async () => {
+      const { rerender } = renderModal({
+        kind: 'tag',
+        resourceId: 't1',
+      });
+      await waitFor(() => {
+        expect(screen.getByText('friend')).toBeInTheDocument();
+      });
+
+      fireEvent.change(
+        screen.getByLabelText('Username'),
+        { target: { value: 'draft' } }
+      );
+      fireEvent.click(
+        screen.getByLabelText('Include notes in sub-tags')
+      );
+      expect(
+        screen.getByLabelText('Include notes in sub-tags')
+      ).not.toBeChecked();
+
+      // Same modal instance, new resource — the previous
+      // tag's draft must not leak through.
+      rerender(
+        <ShareModal
+          opened
+          onClose={vi.fn()}
+          kind="tag"
+          resourceId="t2"
+        />
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByLabelText('Username')
+        ).toHaveValue('');
+        expect(
+          screen.getByLabelText('Include notes in sub-tags')
+        ).toBeChecked();
+      });
+    });
 });

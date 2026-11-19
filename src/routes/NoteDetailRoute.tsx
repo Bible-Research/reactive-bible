@@ -20,6 +20,7 @@ import { toPlainText } from '../utils/tiptapContent';
 import { buildBiblePath } from '../utils/bibleUtils';
 import { shareOrCopyLink } from '../utils/share';
 import { useBibleStore } from '../store';
+import { useAuthStore } from '../stores/authStore';
 import { useTranslation } from 'react-i18next';
 import { captureHandledError } from '../utils/errorReporter';
 
@@ -41,6 +42,7 @@ export default function NoteDetailRoute() {
   const setDetailNote = useBibleStore(
     (state) => state.setDetailNote
   );
+  const ownUserId = useAuthStore((state) => state.user?.id);
 
   const [note, setNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,10 +155,25 @@ export default function NoteDetailRoute() {
         </Group>
 
         <Stack spacing="md">
-          <NoteCard
-            note={note}
-            onViewInBible={handleViewInBible}
-          />
+          <Box>
+            {/* Author attribution on the primary shared-link
+                surface — the same "by <name>" line the feed
+                cards show, only when the viewer isn't the
+                note's owner. */}
+            {note.author &&
+              note.is_owner !== true &&
+              note.author.id !== ownUserId && (
+                <Text size="xs" color="dimmed" mb={4}>
+                  {t('explore.byAuthor', {
+                    name: note.author.username,
+                  })}
+                </Text>
+              )}
+            <NoteCard
+              note={note}
+              onViewInBible={handleViewInBible}
+            />
+          </Box>
           <CommentThread noteId={note.id} />
         </Stack>
       </Box>
