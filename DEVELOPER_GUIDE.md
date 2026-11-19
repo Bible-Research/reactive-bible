@@ -543,7 +543,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v8 with a
+management. The main store (`bible-storage`, schema v10 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -567,6 +567,10 @@ auth lives in a separate persisted `authStore`.
   or member; resolve via `resolveTextFileset` before use)
 - `activeAudioFilesetId: string | null` - Stored audio id
   (`{abbr}:{kind}:{n}` product or member)
+- `lastSelectionByLanguage: Record<string,
+  LastLanguageSelection>` - Last saved translation pick per
+  `language_iso` (`{ abbr, textId, audioId }`); the selector
+  re-stages it when the language is revisited
 
 **Structure State** (SWR slice in
 `src/stores/bibleStore/structureSlice.ts`, TRANSIENT — not in
@@ -698,7 +702,7 @@ persist(
   (set, get) => ({ /* state and actions */ }),
   {
     name: 'bible-storage',
-    version: 7,
+    version: 10,
     storage: createJSONStorage(() => localStorage),
     partialize: /* in stores/bibleStore/persistence.ts */,
     migrate: migratePersistedState,
@@ -1429,7 +1433,7 @@ languages: English (`en`), Latvian (`lv`), Russian (`ru`).
 ### Language selection
 
 - `uiLanguage: UiLanguage` is persisted in `bible-storage`
-  (store schema v7+; `setUiLanguage` writes it and calls
+  (store schema v9+; `setUiLanguage` writes it and calls
   `changeUiLanguage`). The MainMenu selector lists autonyms
   (English / Latviešu / Русский) which are intentionally
   never translated.
@@ -1634,6 +1638,15 @@ different text and audio formats for each.
 - The tab bar is wrapped in a `ScrollArea` (`min-width:
   max-content`, `white-space: nowrap` labels) so the four tabs
   scroll horizontally on narrow screens; a no-op on desktop.
+- **Per-language memory**: Save records the pick under
+  `lastSelectionByLanguage[language_iso]` (persisted,
+  `bible-storage` v10). Switching back to a language re-stages
+  the remembered version — verbatim text/audio ids — once its
+  translation list merges, but only when no active-owner
+  mirror applied and the user has not picked a version in
+  that language this session. A remembered version missing
+  from the fetched list falls back to the no-memory behavior;
+  Cancel never touches the record.
 - All data fetching is now driven by a `filesetId` instead of a simple version
   string.
 
@@ -2931,7 +2944,9 @@ Modal for selecting Bible translations.
 - Audio product selection (radio buttons, including "None")
 - Collapsed Advanced section with raw fileset radios
   (debugging; opus16 variants hidden)
-- Save selections to Zustand store (product ids)
+- Save selections to Zustand store (product ids) — also
+  records `lastSelectionByLanguage` so the language's last
+  saved pick is re-staged on revisit
 
 **Features**:
 - Segmented control for language switching

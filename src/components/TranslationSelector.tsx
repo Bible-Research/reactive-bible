@@ -189,6 +189,8 @@ const TranslationSelector = () => {
     setActiveTextFilesetId,
     activeAudioFilesetId,
     setActiveAudioFilesetId,
+    lastSelectionByLanguage,
+    setLastSelectionByLanguage,
   } = useBibleStore(
     (state) => ({
       translations: state.translations,
@@ -197,6 +199,9 @@ const TranslationSelector = () => {
       setActiveTextFilesetId: state.setActiveTextFilesetId,
       activeAudioFilesetId: state.activeAudioFilesetId,
       setActiveAudioFilesetId: state.setActiveAudioFilesetId,
+      lastSelectionByLanguage: state.lastSelectionByLanguage,
+      setLastSelectionByLanguage:
+        state.setLastSelectionByLanguage,
     }),
     shallow
   );
@@ -251,6 +256,14 @@ const TranslationSelector = () => {
   // Tracks manual interaction so async language seeding never
   // stomps a pick the user just made.
   const userInteractedRef = useRef(false);
+  // Languages in which the user touched the version picker
+  // this session. The restore effect can't reuse
+  // `userInteractedRef` — switching tabs (the very gesture
+  // that triggers a restore) sets it — so it guards on this
+  // per-language record instead: once the user picks a
+  // version while viewing a language, the remembered entry
+  // for that language stops applying.
+  const versionPickedIsosRef = useRef(new Set<string>());
 
   // Debounced Other-tab language search — DBT's `language_name`
   // is a substring match, so ≥2 chars is enough to be useful.
@@ -394,6 +407,7 @@ const TranslationSelector = () => {
     setFailedIso(null);
     pickedLanguageLabelRef.current = null;
     userInteractedRef.current = false;
+    versionPickedIsosRef.current.clear();
     // Seed the tab synchronously from the stored selection so
     // a modal last closed on 'other' doesn't flash the empty
     // Other picker before `seedLanguageTab` corrects it — and
@@ -756,9 +770,55 @@ const TranslationSelector = () => {
         activeTextFilesetId,
         inLanguage,
       );
-    if (owner) applyVersionSelection(owner.abbr, true);
+    if (owner) {
+      applyVersionSelection(owner.abbr, true);
+      return;
+    }
+    // No active owner in this language — fall back to the
+    // remembered per-language pick, staged verbatim (the
+    // resolve-on-save paths normalize the ids). Only a `abbr`
+    // still present in this language's fetched list is
+    // staged; a stale entry keeps the no-memory behavior.
+    // Guarded by the per-language pick record so a fresh
+    // user pick wins.
+    const remembered = lastSelectionByLanguage[languageIso];
+    if (
+      !remembered ||
+      versionPickedIsosRef.current.has(languageIso)
+    ) {
+      return;
+    }
+    const rememberedTranslation = inLanguage.find(
+      (tr) => tr.abbr === remembered.abbr,
+    );
+    if (!rememberedTranslation) return;
+    setSelectedTranslationAbbr(remembered.abbr);
+    setSelectedTextId(remembered.textId);
+    setSelectedAudioId(remembered.audioId);
+    // A remembered audio-only version may carry a borrowed
+    // same-language text — surface its owner like a fresh
+    // pick does.
+    const rememberedTextOwner = remembered.textId
+      ? findTranslationByFilesetId(
+          remembered.textId,
+          translations,
+        )
+      : null;
+    setTextNote(
+      rememberedTextOwner &&
+        rememberedTextOwner.abbr !== remembered.abbr
+        ? t('translations.textNote', {
+            name: rememberedTextOwner.name,
+          })
+        : null,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened, translations, selectedTranslationAbbr]);
+  }, [
+    opened,
+    translations,
+    selectedTranslationAbbr,
+    lastSelectionByLanguage,
+  ]);
 
   const handleAudioChange = (value: string) => {
     setSelectedAudioId(value === 'none' ? null : value);
@@ -768,8 +828,24 @@ const TranslationSelector = () => {
     // Never write `null` over a valid stored selection — a null
     // text id leaves the reader blank. `null` audio is the
     // legitimate "None" choice, so it is stored verbatim.
-    setActiveTextFilesetId(selectedTextId ?? activeTextFilesetId);
+    const savedTextId = selectedTextId ?? activeTextFilesetId;
+    setActiveTextFilesetId(savedTextId);
     setActiveAudioFilesetId(selectedAudioId);
+    // Remember the saved pick under its language so a later
+    // visit to that language tab re-stages it. Recording the
+    // exact ids Save wrote keeps an explicit audio "None"
+    // (`null`) intact. Cancel skips this — browsing must not
+    // touch the record.
+    if (selectedTranslation) {
+      setLastSelectionByLanguage(
+        selectedTranslation.language_iso,
+        {
+          abbr: selectedTranslation.abbr,
+          textId: savedTextId,
+          audioId: selectedAudioId,
+        },
+      );
+    }
     setOpened(false);
   };
 
@@ -973,6 +1049,9 @@ const TranslationSelector = () => {
             value={selectedTranslationAbbr}
             onChange={(abbr) => {
               userInteractedRef.current = true;
+              if (languageIso !== null) {
+                versionPickedIsosRef.current.add(languageIso);
+              }
               applyVersionSelection(abbr);
             }}
             rightSection={
