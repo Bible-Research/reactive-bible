@@ -2,6 +2,7 @@ import { toUsfmCode } from '../../utils/bibleUtils';
 import { DEFAULT_NOTES_PAGE_SIZE } from '../../utils/pagination';
 import { isUiLanguage } from '../../i18n';
 import type {
+  LastLanguageSelection,
   ReadingPositionValue,
   VerseRef,
 } from '../../types';
@@ -28,6 +29,7 @@ export const partializeState = (state: BibleState) => ({
   translations: state.translations,
   activeTextFilesetId: state.activeTextFilesetId,
   activeAudioFilesetId: state.activeAudioFilesetId,
+  lastSelectionByLanguage: state.lastSelectionByLanguage,
   lastSelectedTagId: state.lastSelectedTagId,
   audioActiveVerse: state.audioActiveVerse,
   notes: state.notes,
@@ -93,6 +95,9 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   the detected locale from initial state (detection is
  *   first-run only by construction); an unrecognized value is
  *   dropped rather than persisted forward.
+ * - pre-v10: `lastSelectionByLanguage` is introduced; entries
+ *   are sanitized so only `{ abbr, textId, audioId }` shapes
+ *   with a non-empty `abbr` and string-or-null ids survive.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -235,6 +240,41 @@ export const migratePersistedState = (
       migrated = { ...migrated };
       delete migrated.uiLanguage;
     }
+  }
+
+  if (version < 10) {
+    // Sanitize the new per-language memory: an entry must be
+    // an object with a non-empty string `abbr`; `textId`/
+    // `audioId` must be strings or absent (normalized to
+    // null — a missing id means "none recorded", not
+    // corruption). Anything else drops the whole entry so a
+    // stale blob cannot stage a bogus selection.
+    const toIdOrNull = (
+      value: unknown,
+    ): string | null | undefined =>
+      value === undefined || value === null
+        ? null
+        : typeof value === 'string'
+          ? value
+          : undefined;
+    const raw = migrated.lastSelectionByLanguage;
+    const map: Record<string, LastLanguageSelection> = {};
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      for (const [iso, value] of Object.entries(raw)) {
+        if (!value || typeof value !== 'object') continue;
+        const entry = value as Record<string, unknown>;
+        if (typeof entry.abbr !== 'string' || !entry.abbr) {
+          continue;
+        }
+        const textId = toIdOrNull(entry.textId);
+        const audioId = toIdOrNull(entry.audioId);
+        if (textId === undefined || audioId === undefined) {
+          continue;
+        }
+        map[iso] = { abbr: entry.abbr, textId, audioId };
+      }
+    }
+    migrated = { ...migrated, lastSelectionByLanguage: map };
   }
 
   return migrated as PersistedBibleState;

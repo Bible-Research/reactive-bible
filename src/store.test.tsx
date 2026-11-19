@@ -457,6 +457,60 @@ describe('useBibleStore', () => {
     expect('uiLanguage' in migrated).toBe(false);
   });
 
+  it('migratePersistedState seeds an empty per-language map ' +
+    'across the v10 bump', () => {
+    const migrated = migratePersistedState(
+      { activeBookId: 'JHN' },
+      9
+    );
+    expect(migrated.lastSelectionByLanguage).toEqual({});
+  });
+
+  it('migratePersistedState keeps well-formed per-language ' +
+    'entries and normalizes missing ids to null', () => {
+    const migrated = migratePersistedState(
+      {
+        lastSelectionByLanguage: {
+          eng: {
+            abbr: 'ENGESV',
+            textId: 'ENGESV:text:1',
+            audioId: null,
+          },
+          spa: { abbr: 'SPNBDA' },
+        },
+      },
+      9
+    );
+    expect(migrated.lastSelectionByLanguage).toEqual({
+      eng: {
+        abbr: 'ENGESV',
+        textId: 'ENGESV:text:1',
+        audioId: null,
+      },
+      spa: { abbr: 'SPNBDA', textId: null, audioId: null },
+    });
+  });
+
+  it('migratePersistedState drops malformed per-language ' +
+    'entries', () => {
+    const migrated = migratePersistedState(
+      {
+        lastSelectionByLanguage: {
+          eng: { abbr: 'ENGESV', textId: 'T', audioId: 'A' },
+          scalar: 'oops',
+          empty: null,
+          noAbbr: { textId: 'X' },
+          emptyAbbr: { abbr: '', textId: null, audioId: null },
+          numId: { abbr: 'E', textId: 5, audioId: null },
+        },
+      },
+      9
+    );
+    expect(migrated.lastSelectionByLanguage).toEqual({
+      eng: { abbr: 'ENGESV', textId: 'T', audioId: 'A' },
+    });
+  });
+
   it('defaults bookTitleMarquee to true', () => {
     expect(useBibleStore.getState().bookTitleMarquee)
       .toBe(true);
@@ -584,6 +638,7 @@ describe('useBibleStore', () => {
         'bibleVersion',
         'bookTitleMarquee',
         'lastSelectedTagId',
+        'lastSelectionByLanguage',
         'notes',
         'notesPage',
         'notesPageSize',
