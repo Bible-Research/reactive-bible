@@ -255,6 +255,13 @@ export const getNotes = async (
     pageSize?: number;
     filesetId?: string;
     /**
+     * Serve `note_text` in this language when a ready
+     * translation row exists; the server falls back to the
+     * original on any miss (never a 404) and reports what it
+     * served via `served_language`.
+     */
+    lang?: string;
+    /**
      * Expands the `tag_id` filter to the tag's whole subtree —
      * the merged "include sub-tags" view. Ignored by the
      * server for `untagged` and reorder stays per-tag.
@@ -286,6 +293,10 @@ export const getNotes = async (
 
   if (options?.filesetId) {
     params.append('fileset_id', options.filesetId);
+  }
+
+  if (options?.lang) {
+    params.append('lang', options.lang);
   }
 
   const url = `${API_BASE_URL}/api/v1/notes/?${params.toString()}`;
@@ -323,12 +334,57 @@ export const getLinkedNotes = async (
   );
 };
 
-export const getNote = (noteId: string): Promise<Note> =>
+export const getNote = (
+  noteId: string,
+  lang?: string
+): Promise<Note> =>
   fetchJson<Note>(
     publicFetch,
-    `${API_BASE_URL}/api/v1/notes/${noteId}/`,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/` +
+      (lang ? `?lang=${encodeURIComponent(lang)}` : ''),
     'Failed to fetch note'
   );
+
+/**
+ * Owner-only author verification of a machine translation:
+ * POST sets it, DELETE clears it. Both idempotent — a
+ * `ready` row is required; the server answers
+ * `pending`/`failed`/`source` rows with 409
+ * `translation_not_ready`.
+ */
+export const setNoteTranslationVerified = async (
+  noteId: string,
+  lang: string,
+  verified: boolean
+): Promise<void> => {
+  const response = await authenticatedFetch(
+    `${API_BASE_URL}/api/v1/notes/${noteId}` +
+      `/translations/${encodeURIComponent(lang)}/verify/`,
+    { method: verified ? 'POST' : 'DELETE' }
+  );
+  if (!response.ok) {
+    throwHttpError(
+      response,
+      'Failed to update translation verification'
+    );
+  }
+};
+
+/**
+ * Owner-only retry of `failed` translation rows — re-marks
+ * them `pending` and enqueues a fresh run; returns the
+ * number of rows requeued.
+ */
+export const retranslateNote = async (
+  noteId: string
+): Promise<{ requeued: number }> => {
+  return fetchJson<{ requeued: number }>(
+    authenticatedFetch,
+    `${API_BASE_URL}/api/v1/notes/${noteId}/retranslate/`,
+    'Failed to retranslate note',
+    { method: 'POST' }
+  );
+};
 
 /**
  * Upload one image to a note. The note must already exist —

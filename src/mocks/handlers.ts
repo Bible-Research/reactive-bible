@@ -67,6 +67,28 @@ const mockNote = {
   public: false,
   is_owner: true,
   tag_position: null,
+  // Translation contract: the note was detected as English;
+  // a ready Latvian machine translation exists. `?lang=lv`
+  // swaps `note_text`; every other lang falls back to the
+  // original with served_language='en'.
+  source_language: 'en',
+  served_language: 'en',
+  translations: [
+    {
+      language: 'en',
+      status: 'source',
+      verified: false,
+      engine: null,
+      error: null,
+    },
+    {
+      language: 'lv',
+      status: 'ready',
+      verified: false,
+      engine: 'google-nmt',
+      error: null,
+    },
+  ],
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   verses: [
@@ -452,11 +474,65 @@ export const handlers = [
   }),
 
   // --- Single note (GET/PATCH/DELETE) ---
-  http.get(`${API_URL}/notes/:id`, ({ params }) => {
-    return HttpResponse.json({ ...mockNote, id: params.id });
+  // `?lang=lv` swaps note_text to the ready translation and
+  // reports it via served_language; any other lang falls
+  // back to the original (mirrors the backend contract).
+  http.get(`${API_URL}/notes/:id`, ({ params, request }) => {
+    const lang = new URL(request.url).searchParams.get('lang');
+    return HttpResponse.json({
+      ...mockNote,
+      id: params.id,
+      ...(lang === 'lv'
+        ? {
+            note_text: 'Šī ir testa piezīme.',
+            served_language: 'lv',
+          }
+        : { served_language: 'en' }),
+    });
   }),
-  http.get(`${API_URL}/notes/:id/`, ({ params }) => {
-    return HttpResponse.json({ ...mockNote, id: params.id });
+  http.get(`${API_URL}/notes/:id/`, ({ params, request }) => {
+    const lang = new URL(request.url).searchParams.get('lang');
+    return HttpResponse.json({
+      ...mockNote,
+      id: params.id,
+      ...(lang === 'lv'
+        ? {
+            note_text: 'Šī ir testa piezīme.',
+            served_language: 'lv',
+          }
+        : { served_language: 'en' }),
+    });
+  }),
+
+  // Owner verify/unverify — POST|DELETE
+  // /notes/:id/translations/:lang/verify/
+  http.post(
+    `${API_URL}/notes/:id/translations/:lang/verify/`,
+    ({ params }) => {
+      return HttpResponse.json({
+        language: params.lang,
+        status: 'ready',
+        verified: true,
+        verified_at: new Date().toISOString(),
+        engine: 'google-nmt',
+      });
+    }
+  ),
+  http.delete(
+    `${API_URL}/notes/:id/translations/:lang/verify/`,
+    ({ params }) => {
+      return HttpResponse.json({
+        language: params.lang,
+        status: 'ready',
+        verified: false,
+        verified_at: null,
+        engine: 'google-nmt',
+      });
+    }
+  ),
+  // Owner re-enqueue of failed rows.
+  http.post(`${API_URL}/notes/:id/retranslate/`, () => {
+    return HttpResponse.json({ requeued: 1 });
   }),
 
   http.patch(`${API_URL}/notes/:id`, async ({ params, request }) => {
