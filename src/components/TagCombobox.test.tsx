@@ -116,9 +116,10 @@ describe('options view', () => {
     // The height cap must land on Radix's viewport — a
     // max-height on the ScrollArea root never reaches it
     // (height:100% of an auto-height parent is `auto`), so
-    // overflow is undetected and overflow-y stays hidden.
-    // Emotion injects the rule into <style> tags; match it
-    // against one of the viewport's classes.
+    // the viewport never overflows and can't scroll.
+    // Emotion injects the rule into <style> tags (non-speedy
+    // dev insertion under vitest); match it against one of
+    // the viewport's classes.
     const viewport = document.querySelector(
       '[data-radix-scroll-area-viewport]'
     );
@@ -129,7 +130,7 @@ describe('options view', () => {
     const capped = [
       ...(viewport?.classList ?? []),
     ].some((cls) =>
-      new RegExp(`\\.${cls}{[^}]*max-height:`).test(css)
+      new RegExp(`\\.${cls}{[^}]*max-height:70vh`).test(css)
     );
     expect(capped).toBe(true);
   });

@@ -645,18 +645,16 @@ export function TagCombobox({
             {/* `mah` on the ScrollArea root leaves Radix's
                 inner viewport unconstrained: its height is
                 100% of an auto-height parent, so it resolves
-                to the content height, overflow is never
-                detected and `overflow-y` stays `hidden` —
-                the list is clipped, not scrollable. The cap
-                must land on the viewport, which then becomes
-                the scroll container (the same job Select's
+                to the content height — nothing overflows the
+                viewport, and the root's `overflow:hidden`
+                just clips the rest of the list. The cap must
+                land on the viewport, which then becomes the
+                scroll container (the same job Select's
                 flex+maxHeight dropdown wrapper did). */}
             <ScrollArea
               type="auto"
               styles={{
-                viewport: {
-                  maxHeight: window.innerHeight * 0.7,
-                },
+                viewport: { maxHeight: '70vh' },
               }}
             >
               <div
