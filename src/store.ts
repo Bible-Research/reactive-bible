@@ -91,6 +91,14 @@ export interface BibleState {
   activeTextFilesetId: string | null;
   activeAudioFilesetId: string | null;
   /**
+   * Pinned translation for note-reference surfaces (the
+   * '@…' scripture preview and note-linked verse text).
+   * `null` = follow `activeTextFilesetId`. Persisted; set on
+   * /settings via TranslationSelector's pick-only mode.
+   */
+  noteRefFilesetId: string | null;
+  setNoteRefFilesetId: (id: string | null) => void;
+  /**
    * Last saved translation pick per `language_iso`
    * (persisted). TranslationSelector re-stages the
    * remembered version when its language is revisited;
@@ -254,6 +262,7 @@ export const initialState = {
   translations: [],
   activeTextFilesetId: resolveInitialTextFileset(),
   activeAudioFilesetId: "ENGESV_API",
+  noteRefFilesetId: null as string | null,
   lastSelectionByLanguage: {} as Record<
     string,
     LastLanguageSelection
@@ -370,6 +379,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ activeTextFilesetId }),
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
+      setNoteRefFilesetId: (noteRefFilesetId) =>
+        set({ noteRefFilesetId }),
       setLastSelectionByLanguage: (languageIso, selection) =>
         set((state) => ({
           lastSelectionByLanguage: {
@@ -515,7 +526,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 10,
+      version: 11,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

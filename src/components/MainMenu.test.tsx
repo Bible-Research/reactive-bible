@@ -335,4 +335,36 @@ describe('MainMenu Component', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/tags');
       expect(mockOnClose).toHaveBeenCalled();
     });
+
+  it('shows Settings to anonymous visitors', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: { isAuthenticated: false },
+    });
+
+    expect(
+      screen.getByTitle('Settings')
+    ).toBeInTheDocument();
+  });
+
+  it('shows Settings to authenticated users', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: authed,
+    });
+
+    expect(
+      screen.getByTitle('Settings')
+    ).toBeInTheDocument();
+  });
+
+  it('navigates to /settings and closes the menu', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: { isAuthenticated: false },
+    });
+
+    await user.click(screen.getByTitle('Settings'));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/settings');
+    expect(mockOnClose).toHaveBeenCalled();
+  });
 });
