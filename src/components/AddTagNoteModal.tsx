@@ -11,7 +11,9 @@ import {
 import {
   IconChevronDown,
   IconChevronRight,
+  IconChevronUp,
 } from "@tabler/icons-react";
+import { useMediaQuery } from "@mantine/hooks";
 import { getLinkedNotes } from "../api";
 import { useBibleStore } from "../store";
 import { useEffect, useMemo, useState } from "react";
@@ -51,6 +53,10 @@ const AddTagNoteModal = ({
   onClose,
 }: AddTagNoteModalProps) => {
   const { t } = useTranslation();
+  const isMobile = useMediaQuery("(max-width: 768px)");
+  // Collapsed = the editor hides completely, leaving a thin
+  // header bar (expand chevron + close) over the Bible.
+  const [collapsed, setCollapsed] = useState(false);
   const {
     tags,
     getTags,
@@ -197,12 +203,158 @@ const AddTagNoteModal = ({
     [verseTexts]
   );
 
+  // Notes already on the selected verses — below the form on
+  // desktop, inside the form's collapsible tray on mobile so
+  // the modal body never grows past the viewport.
+  const linkedNotesList = linkedNotes &&
+    linkedNotes.length > 0 && (
+      <>
+        <Divider
+          my="sm"
+          label={t('notes.linkedNotes')}
+          labelPosition="center"
+        />
+        {linkedNotes.map((note) => {
+          const isExpanded = expandedNotes.has(note.id);
+          const ref = linkedNoteRef(note);
+          return (
+            <Box
+              key={note.id}
+              py={4}
+              px={8}
+              title={`linked-note-${note.id}`}
+            >
+              <Group spacing="xs" noWrap>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  title={`linked-note-toggle-${note.id}`}
+                  aria-label={
+                    ref
+                      ? t('notes.toggleDetailsFor', { ref })
+                      : t('notes.toggleNoteDetails')
+                  }
+                  aria-expanded={isExpanded}
+                  aria-controls={`linked-note-details-${note.id}`}
+                  onClick={() => toggleLinkedNote(note.id)}
+                >
+                  {isExpanded ? (
+                    <IconChevronDown size={16} />
+                  ) : (
+                    <IconChevronRight size={16} />
+                  )}
+                </ActionIcon>
+                <Text size="sm" weight={700}>
+                  {ref}
+                </Text>
+              </Group>
+              <Collapse
+                in={isExpanded}
+                id={`linked-note-details-${note.id}`}
+              >
+                {note.tag?.name && (
+                  <Badge
+                    size="sm"
+                    variant="light"
+                    color="blue"
+                    mt={4}
+                  >
+                    {note.tag.name}
+                  </Badge>
+                )}
+                <Text size="sm" mt={4}>
+                  {toPlainText(note.note_text)}
+                </Text>
+              </Collapse>
+            </Box>
+          );
+        })}
+      </>
+    );
+
+  const collapsedMobile = isMobile && collapsed;
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
-      title={t('notes.addNote')}
+      // No heading on mobile (redundant chrome) — the title
+      // slot instead carries the collapse toggle, right-
+      // aligned next to the close button via `styles.title`.
+      title={
+        isMobile ? (
+          <ActionIcon
+            variant="subtle"
+            size="lg"
+            title={
+              collapsed
+                ? t('notes.expandEditor')
+                : t('notes.collapseEditor')
+            }
+            aria-label={
+              collapsed
+                ? t('notes.expandEditor')
+                : t('notes.collapseEditor')
+            }
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((c) => !c)}
+          >
+            {collapsed ? (
+              <IconChevronDown size={18} />
+            ) : (
+              <IconChevronUp size={18} />
+            )}
+          </ActionIcon>
+        ) : (
+          t('notes.addNote')
+        )
+      }
       fullScreen
+      // Collapsed unlocks scroll/focus so the Bible behind
+      // stays readable and scrollable.
+      lockScroll={!collapsedMobile}
+      trapFocus={!collapsedMobile}
+      styles={{
+        // Mobile: let the form's editing surface fill the
+        // viewport — body is a bounded flex column so the
+        // form's flex:1 resolves and the modal content never
+        // scrolls (a scrolled content slides the sticky
+        // toolbar under the sticky header). Collapsed shrinks
+        // the modal to a thin header bar. The height must be
+        // 100dvh, not the default 100vh: on Android the vh
+        // unit ignores browser/system chrome, so the modal
+        // bottom (and the action bar with it) ends up under
+        // the navigation buttons. The safe-area-inset
+        // padding lifts the scrollport above a system bar
+        // in edge-to-edge WebViews.
+        content: isMobile
+          ? {
+              display: "flex",
+              flexDirection: "column",
+              height: "100dvh",
+              paddingBottom:
+                "env(safe-area-inset-bottom, 0px)",
+              ...(collapsed && { height: "auto" }),
+            }
+          : {},
+        body: isMobile
+          ? {
+              flex: 1,
+              display: collapsed ? "none" : "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }
+          : {},
+        title: isMobile
+          ? {
+              display: "flex",
+              flex: 1,
+              justifyContent: "flex-end",
+              alignItems: "center",
+            }
+          : {},
+        overlay: collapsedMobile ? { display: "none" } : {},
+      }}
     >
       {linkedNotes && (
         <Text size="sm" color="dimmed" mb="sm">
@@ -211,6 +363,19 @@ const AddTagNoteModal = ({
       )}
       <NoteForm
         tags={tags}
+        fillHeight={isMobile}
+        trayLabel={
+          isMobile ? t('notes.linkedVerses') : undefined
+        }
+        trayCount={isMobile ? refs.length : undefined}
+        trayContent={
+          isMobile ? (
+            <>
+              <VerseTextGroups groups={textGroups} />
+              {linkedNotesList}
+            </>
+          ) : undefined
+        }
         onSubmit={editor.submit}
         // The selection links verses — the note stays valid
         // with no text (a plain verse bookmark under a tag).
@@ -251,70 +416,9 @@ const AddTagNoteModal = ({
               : undefined
         }
       />
-      <VerseTextGroups groups={textGroups} />
-      {linkedNotes && linkedNotes.length > 0 && (
-        <Box mt="xl">
-          <Divider
-            my="sm"
-            label={t('notes.linkedNotes')}
-            labelPosition="center"
-          />
-          {linkedNotes.map((note) => {
-            const isExpanded = expandedNotes.has(note.id);
-            const ref = linkedNoteRef(note);
-            return (
-              <Box
-                key={note.id}
-                py={4}
-                px={8}
-                title={`linked-note-${note.id}`}
-              >
-                <Group spacing="xs" noWrap>
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    title={`linked-note-toggle-${note.id}`}
-                    aria-label={
-                      ref
-                        ? t('notes.toggleDetailsFor', { ref })
-                        : t('notes.toggleNoteDetails')
-                    }
-                    aria-expanded={isExpanded}
-                    aria-controls={`linked-note-details-${note.id}`}
-                    onClick={() => toggleLinkedNote(note.id)}
-                  >
-                    {isExpanded ? (
-                      <IconChevronDown size={16} />
-                    ) : (
-                      <IconChevronRight size={16} />
-                    )}
-                  </ActionIcon>
-                  <Text size="sm" weight={700}>
-                    {ref}
-                  </Text>
-                </Group>
-                <Collapse
-                  in={isExpanded}
-                  id={`linked-note-details-${note.id}`}
-                >
-                  {note.tag?.name && (
-                    <Badge
-                      size="sm"
-                      variant="light"
-                      color="blue"
-                      mt={4}
-                    >
-                      {note.tag.name}
-                    </Badge>
-                  )}
-                  <Text size="sm" mt={4}>
-                    {toPlainText(note.note_text)}
-                  </Text>
-                </Collapse>
-              </Box>
-            );
-          })}
-        </Box>
+      {!isMobile && <VerseTextGroups groups={textGroups} />}
+      {!isMobile && linkedNotesList && (
+        <Box mt="xl">{linkedNotesList}</Box>
       )}
     </Modal>
   );

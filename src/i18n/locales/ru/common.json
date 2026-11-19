@@ -122,6 +122,13 @@
     "linkedCount_few": "{{count}} связанные заметки",
     "linkedCount_many": "{{count}} связанных заметок",
     "linkedCount_other": "{{count}} связанные заметки",
+    "linkedVerses": "Связанные стихи",
+    "collapseEditor": "Свернуть редактор",
+    "expandEditor": "Развернуть редактор",
+    "autoSaveOn": "Автосохранение включено",
+    "autoSaveOff": "Автосохранение выключено",
+    "privateOnlyYou": "Личная — видите только вы",
+    "tryReloading": "Попробуйте перезагрузить через несколько минут.",
     "toggleNoteDetails": "Показать/скрыть детали заметки",
     "submitChanges": "Сохранить изменения",
     "saveFailed": "Не удалось сохранить заметку. Пожалуйста, попробуйте ещё раз.",
@@ -399,7 +406,9 @@
     "blockquote": "Цитата",
     "linkUrlLabel": "Введите URL",
     "linkOpenNewTab": "Открыть ссылку в новой вкладке",
-    "linkOpenSameTab": "Открыть ссылку в той же вкладке"
+    "linkOpenSameTab": "Открыть ссылку в той же вкладке",
+    "increaseIndent": "Увеличить отступ",
+    "decreaseIndent": "Уменьшить отступ"
   },
   "pagination": {
     "label": "Навигация по страницам",
