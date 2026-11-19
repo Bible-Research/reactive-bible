@@ -17,7 +17,9 @@ Talks to the `bible_research` Django API.
 
 `main` is production (`bibleresearch.vercel.app`); `staging`
 is the integration branch — every push auto-deploys as a
-Vercel preview (`bible-research-git-staging-<team>.vercel.app`).
+Vercel preview (`bible-research-git-staging-<team>.vercel.app`
+— unless the dashboard Ignored Build Step cancels it; see
+"Deployment / Vercel").
 The invariant is **`main` ⊆ `staging`**: production only
 receives code that has already soaked on staging. The
 `staging-first` required check
@@ -87,7 +89,8 @@ whose head SHA was never merged into `staging`, and the
 - `src/api/` — every backend call lives here, split by domain
   (`errors`, `structure`, `bibleStructure`, `verses`, `audio`,
   `translations`, `notes`, `tags`, `comments`, `search`,
-  `readingPositions`); `index.ts` is the barrel — always
+  `readingPositions`, `sharing`, `bookmarks`); `index.ts`
+  is the barrel — always
   import from `'../api'`, never a leaf, so
   `vi.mock('../api')` keeps intercepting.
   Note `structure.ts` is the bundled KJV verse-count lookup
@@ -146,7 +149,9 @@ whose head SHA was never merged into `staging`, and the
   pinned-or-active fileset for note-reference surfaces).
 - `src/routes/` — React Router routes; canonical Bible URL is
   `/bible/JHN.3.16-18` (USFM refs, also legacy `/bible/:book/...`
-  redirect). `/getting-started` and `/settings` are public
+  redirect). `/explore` is the anonymous-safe published
+  directory; `/shared` + `/bookmarks` are ProtectedRoutes.
+  `/getting-started` and `/settings` are public
   document-style pages — their pathnames are whitelisted for
   `overflow: auto` in `App.tsx`. Settings holds device-local
   preferences (persisted store fields, no auth), reachable
@@ -212,7 +217,14 @@ whose head SHA was never merged into `staging`, and the
   a future settings toggle only writes that one field.
 - Auth: token persisted via authStore; `authenticatedFetch` is for
   user-owned resources (notes, tags, comments), `publicFetch` for
-  bible content.
+  bible content. Login/register/checkAuth then fetch
+  `users/me/` for `id` + `can_publish` — publish UI only
+  renders when that flag is true.
+- Sharing: `public` stays link visibility; `published` is
+  the `/explore` directory flag (implies `public`, needs
+  `can_publish`); `ShareModal` handles targeted username
+  grants (silent resolution — never enumerate users);
+  `/shared` and `/bookmarks` are ProtectedRoutes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract
@@ -246,9 +258,14 @@ is the agent-fixable bug queue** — anything else is deliberate:
   armed (the page is tearing down); it warns only when the
   guard refuses — guard spent or the tab is offline.
 - `reportType: user-report` — info `captureMessage` +
-  `captureFeedback` from "Report a problem" (`userReport.ts`).
-  Not an error queue item; investigated separately via the
-  fix-sentry-issue skill.
+  `captureFeedback` from "Contact developer" (`userReport.ts`,
+  `ContactModal.tsx`). Every submission also carries
+  `reportCategory: bug|feature|general`; only `bug` (plus
+  legacy untagged reports) feeds the triage queue — feature
+  and general messages are read via the user-feedback stream.
+  Anonymous senders may attach a reply `email` on the feedback
+  entry. Not an error queue item; investigated separately via
+  the fix-sentry-issue skill.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
@@ -475,20 +492,38 @@ Code conventions:
   from external rewrites" in project settings (the project
   predates the default-on rollout).
 - The `staging` branch deploys as a Vercel preview
-  automatically (`bible-research-git-staging-<team>
-  .vercel.app`). `git.deploymentEnabled` in `vercel.json`
-  whitelists `main` + `staging` — every other branch
-  matches `"**": false` and the matching `true` rule wins
-  for the two named branches, so feature branches and PRs
-  get NO deployment (no preview URL, no Vercel check).
-  The config is read from the pushed commit's
-  `vercel.json`: a branch cut before this landed still
-  deploys until rebased onto a commit that has it.
-  Preview builds self-configure
-  `VITE_API_BASE_URL` to their own deployment domain via
-  `VERCEL_URL` (see `vite.config.ts`), so `/api` rewrites
-  work with zero dashboard config, and Sentry reports
-  `environment: 'preview'` — no env-var changes needed.
+  automatically (`bible-research-git-staging-<team>.vercel.app`).
+  `git.deploymentEnabled` in `vercel.json`
+  whitelists `main` + `staging` — `"**": false` matches
+  EVERY other branch name (minimatch `**` covers
+  slash-less names too — verified on v3 + v10), and any
+  matching `true` rule enables the deploy per Vercel's
+  docs (verified live: `staging` pushes pass this gate).
+  It is read
+  from the pushed commit's `vercel.json` (probed
+  2026-11-19) and is a GIT-LEVEL gate: a blocked branch
+  gets NO deployment and NO Vercel commit status.
+  Separately, the project's dashboard-level Ignored
+  Build Step can cancel an ALLOWED push later — those
+  commits show a `success — Canceled by Ignored Build
+  Step` Vercel status. That step — not this file —
+  froze staging previews 2026-11-16→19 (configured
+  after a "Deployment rate limited" episode; `staging`
+  had passed `deploymentEnabled` the whole time). If
+  previews go missing again, read the commit's Vercel
+  status description BEFORE editing this file: no
+  status = blocked here, "Canceled by Ignored Build
+  Step" = the dashboard setting.
+  Preview builds carry no `VITE_API_BASE_URL`, so
+  `src/config.ts` resolves `API_BASE_URL` to `''` on
+  `*.vercel.app` hosts — same-origin `/api` fetches hit
+  the vercel.json rewrites on whichever alias is browsed
+  (deployment URL, branch alias, custom domain). Never
+  bake `VERCEL_URL` in: it is the immutable per-deployment
+  URL and forced cross-origin calls that fail CORS
+  preflight (#274). Sentry reports `environment:
+  'preview'` via the baked `VERCEL_ENV` — no env-var
+  changes needed.
 - Requests carrying `Authorization` bypass the edge cache by
   design — authenticated traffic only gains preflight
   elimination.

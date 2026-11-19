@@ -75,8 +75,10 @@ describe('useNoteEditor', () => {
         't1',
         'hello',
         refs,
-        undefined // `public` omitted — server inherits tag.public
-      );
+        undefined, // `public` omitted — server inherits tag.public
+        // `published` stays undefined the same way.
+        undefined
+        );
 
       await act(async () => {
         await result.current.save('t1', 'hello again');
@@ -86,8 +88,9 @@ describe('useNoteEditor', () => {
         't1',
         'hello again',
         refs,
+        undefined,
         undefined
-      );
+        );
       // Never a second POST for the same draft.
       expect(api.addTagNote).toHaveBeenCalledTimes(1);
       expect(result.current.hasSaved()).toBe(true);
@@ -135,8 +138,9 @@ describe('useNoteEditor', () => {
       't1',
       '',
       refs,
+      undefined,
       undefined
-    );
+      );
 
     let ok: boolean | undefined;
     await act(async () => {
@@ -149,8 +153,9 @@ describe('useNoteEditor', () => {
       't1',
       '   ',
       refs,
+      undefined,
       undefined
-    );
+      );
     expect(onSubmitted).toHaveBeenCalledWith('t1');
   });
 
@@ -196,8 +201,9 @@ describe('useNoteEditor', () => {
         't1',
         'b',
         refs,
+        undefined,
         undefined
-      );
+        );
     });
 
   it('resumes the autosaved draft across a remount', async () => {
@@ -234,8 +240,9 @@ describe('useNoteEditor', () => {
       't1',
       'more',
       refs,
+      undefined,
       undefined
-    );
+      );
   });
 
   it('keeps drafts separate per draftKey and per user',
@@ -315,8 +322,9 @@ describe('useNoteEditor', () => {
         't1',
         'final',
         refs,
+        undefined,
         undefined
-      );
+        );
       expect(onSubmitted).toHaveBeenCalledWith('t1');
 
       // The draft is finished — a remount starts fresh.
@@ -392,8 +400,9 @@ describe('useNoteEditor', () => {
         't1',
         'edited',
         refs,
+        undefined,
         undefined
-      );
+        );
       expect(api.addTagNote).not.toHaveBeenCalled();
       expect(result.current.hasSaved()).toBe(true);
     });
@@ -544,8 +553,9 @@ describe('useNoteEditor', () => {
         't1',
         'hello',
         refs,
-        true
-      );
+        true,
+        undefined
+        );
 
       await act(async () => {
         await result.current.save('t1', 'v2', false);
@@ -555,8 +565,9 @@ describe('useNoteEditor', () => {
         't1',
         'v2',
         refs,
-        false
-      );
+        false,
+        undefined
+        );
     });
 
   it('omits `public` when the caller never supplies it',
@@ -576,8 +587,9 @@ describe('useNoteEditor', () => {
         't1',
         'hello',
         refs,
+        undefined,
         undefined
-      );
+        );
     });
 
   it('stores isPublic in the draft and restores it on ' +
@@ -798,8 +810,11 @@ describe('useNoteEditor', () => {
 
       expect(saved).toBe(true);
       expect(api.addTagNote).toHaveBeenCalledWith(
-        't1', '', [], undefined
-      );
+        't1', '', [], undefined,
+
+        undefined
+
+        );
       expect(api.uploadNoteImage).toHaveBeenCalledWith(
         'n1',
         file
@@ -1014,8 +1029,9 @@ describe('useNoteEditor', () => {
         't1',
         '',
         [],
+        undefined,
         undefined
-      );
+        );
     });
 
   it('edit mode saves an image-only note via ' +
@@ -1045,8 +1061,9 @@ describe('useNoteEditor', () => {
         't1',
         '',
         [],
+        undefined,
         undefined
-      );
+        );
 
       let ok: boolean | undefined;
       await act(async () => {

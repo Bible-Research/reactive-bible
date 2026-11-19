@@ -16,7 +16,7 @@ import {
   IconMoonStars,
   IconBrandAndroid,
   IconRefresh,
-  IconBug,
+  IconMail,
   IconRocket,
   IconSettings,
 } from "@tabler/icons-react";
@@ -42,8 +42,8 @@ import { UserMenu } from "./UserMenu";
 const AddStandaloneNoteModal = lazyWithReload(
   () => import("./AddStandaloneNoteModal")
 );
-const ReportProblemModal = lazyWithReload(
-  () => import("./ReportProblemModal")
+const ContactModal = lazyWithReload(
+  () => import("./ContactModal")
 );
 
 // Fallback while the newest versioned asset URL is resolved
@@ -71,7 +71,7 @@ const MainMenu = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
-  const [reportOpened, setReportOpened] = useState(false);
+  const [contactOpened, setContactOpened] = useState(false);
   // The stable-name continuous asset is deleted + re-uploaded on
   // every publish — resolve the freshest versioned APK instead
   // so the link can never hand out a truncated file.
@@ -94,6 +94,12 @@ const MainMenu = ({
   const uiLanguage = useBibleStore((state) => state.uiLanguage);
   const setUiLanguage = useBibleStore(
     (state) => state.setUiLanguage
+  );
+  const autoTranslateNotes = useBibleStore(
+    (state) => state.autoTranslateNotes
+  );
+  const setAutoTranslateNotes = useBibleStore(
+    (state) => state.setAutoTranslateNotes
   );
 
   // Offer the APK only on Android browsers — useless on iOS,
@@ -153,6 +159,22 @@ const MainMenu = ({
           </Text>
         </Group>
 
+        {/* The published directory is public — everyone can
+            browse /explore. */}
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => {
+              void navigate('/explore');
+              onClose();
+            }}
+            sx={{ cursor: "pointer" }}
+          >
+            {t('menu.explore')}
+          </Text>
+        </Group>
+
         {/* /notes bounces anonymous visitors to /bible
             (NotesRoute), so the link is a dead end for
             them — hide it like the write affordances. */}
@@ -168,6 +190,38 @@ const MainMenu = ({
               sx={{ cursor: "pointer" }}
             >
               {t('menu.viewNotes')}
+            </Text>
+          </Group>
+        )}
+
+        {isAuthenticated && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/shared');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.sharedWithMe')}
+            </Text>
+          </Group>
+        )}
+
+        {isAuthenticated && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/bookmarks');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.bookmarks')}
             </Text>
           </Group>
         )}
@@ -277,7 +331,7 @@ const MainMenu = ({
         </Group>
 
         <Group spacing="xs" align="flex-start" noWrap>
-          <IconBug
+          <IconMail
             size={22}
             style={{ marginTop: 4, flexShrink: 0 }}
           />
@@ -285,14 +339,14 @@ const MainMenu = ({
             <Text
               weight={500}
               size="lg"
-              onClick={() => setReportOpened(true)}
+              onClick={() => setContactOpened(true)}
               sx={{ cursor: "pointer" }}
-              title={t('menu.reportProblem')}
+              title={t('menu.contactDeveloper')}
             >
-              {t('menu.reportProblem')}
+              {t('menu.contactDeveloper')}
             </Text>
             <Text size="xs" color="dimmed">
-              {t('menu.reportProblemHint')}
+              {t('menu.contactDeveloperHint')}
             </Text>
           </div>
         </Group>
@@ -355,6 +409,27 @@ const MainMenu = ({
             }))}
           />
         </Group>
+
+        <Divider />
+
+        <Group position="apart" spacing="xs">
+          <div>
+            <Text weight={500} size="lg">
+              {t('menu.autoTranslateNotes')}
+            </Text>
+            <Text size="xs" color="dimmed">
+              {t('menu.autoTranslateNotesHint')}
+            </Text>
+          </div>
+          <Switch
+            checked={autoTranslateNotes}
+            onChange={(event) =>
+              setAutoTranslateNotes(event.currentTarget.checked)
+            }
+            size="lg"
+            aria-label={t('menu.autoTranslateNotes')}
+          />
+        </Group>
       </Stack>
     </Drawer>
       {isAuthenticated && newNoteOpened && (
@@ -365,11 +440,11 @@ const MainMenu = ({
           />
         </Suspense>
       )}
-      {reportOpened && (
+      {contactOpened && (
         <Suspense fallback={null}>
-          <ReportProblemModal
-            opened={reportOpened}
-            onClose={() => setReportOpened(false)}
+          <ContactModal
+            opened={contactOpened}
+            onClose={() => setContactOpened(false)}
           />
         </Suspense>
       )}

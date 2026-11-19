@@ -172,7 +172,18 @@ describe('MainMenu Component', () => {
     const user = userEvent.setup();
     renderWithProviders(<MainMenu {...defaultProps} />);
 
-    await user.click(screen.getByRole('switch'));
+    // Two switches exist (theme + auto-translate); the theme
+    // one carries the sun/moon icon labels, so select it by
+    // exclusion of the labelled translation toggle.
+    const themeSwitch = screen
+      .getAllByRole('switch')
+      .find(
+        (el) =>
+          el.getAttribute('aria-label') !==
+          'Auto-translate notes'
+      );
+    expect(themeSwitch).toBeDefined();
+    await user.click(themeSwitch as HTMLElement);
 
     expect(mockToggleColorScheme).toHaveBeenCalled();
   });
@@ -199,13 +210,13 @@ describe('MainMenu Component', () => {
     ).toBeInTheDocument();
   });
 
-  it('places Getting started above Report a problem', () => {
+  it('places Getting started above Contact developer', () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
 
     const gettingStarted = screen.getByTitle('Getting started');
-    const report = screen.getByText('Report a problem');
+    const contact = screen.getByText('Contact developer');
     expect(
-      gettingStarted.compareDocumentPosition(report),
+      gettingStarted.compareDocumentPosition(contact),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
@@ -224,11 +235,11 @@ describe('MainMenu Component', () => {
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-  it('always shows the Report a problem row', () => {
+  it('always shows the Contact developer row', () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
 
     expect(
-      screen.getByText('Report a problem')
+      screen.getByText('Contact developer')
     ).toBeInTheDocument();
   });
 
@@ -236,10 +247,10 @@ describe('MainMenu Component', () => {
     const user = userEvent.setup();
     renderWithProviders(<MainMenu {...defaultProps} />);
 
-    await user.click(screen.getByText('Report a problem'));
+    await user.click(screen.getByText('Contact developer'));
 
     expect(
-      await screen.findByRole('button', { name: 'Send report' })
+      await screen.findByRole('button', { name: 'Send' })
     ).toBeDisabled();
   });
 
@@ -253,18 +264,20 @@ describe('MainMenu Component', () => {
         authStoreState: authed,
       });
 
-      await user.click(screen.getByText('Report a problem'));
+      await user.click(screen.getByText('Contact developer'));
       await user.type(
         await screen.findByLabelText('What went wrong?'),
         'the button does nothing'
       );
       await user.click(
-        screen.getByRole('button', { name: 'Send report' })
+        screen.getByRole('button', { name: 'Send' })
       );
 
       expect(send).toHaveBeenCalledWith({
         message: 'the button does nothing',
         username: 'testuser',
+        category: 'bug',
+        email: undefined,
         context: {
           bookId: 'JHN',
           chapter: 1,

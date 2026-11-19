@@ -26,6 +26,10 @@ export const partializeState = (state: BibleState) => ({
       : null,
   bibleVersion: state.bibleVersion,
   uiLanguage: state.uiLanguage,
+  // null seeds the note-language preference from uiLanguage
+  // at read time — see BibleState.
+  preferredNoteLanguage: state.preferredNoteLanguage,
+  autoTranslateNotes: state.autoTranslateNotes,
   translations: state.translations,
   activeTextFilesetId: state.activeTextFilesetId,
   activeAudioFilesetId: state.activeAudioFilesetId,
@@ -101,6 +105,10 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  * - pre-v10: `lastSelectionByLanguage` is introduced; entries
  *   are sanitized so only `{ abbr, textId, audioId }` shapes
  *   with a non-empty `abbr` and string-or-null ids survive.
+ *   `preferredNoteLanguage` (string | null — null seeds from
+ *   uiLanguage) and `autoTranslateNotes` (default true) are
+ *   introduced; absent values fall back to the defaults, a
+ *   non-string preferred language is dropped.
  * - pre-v11: `noteRefFilesetId` is introduced; a non-string
  *   persisted value is sanitized to `null` (follow the
  *   selected translation).
@@ -281,6 +289,19 @@ export const migratePersistedState = (
       }
     }
     migrated = { ...migrated, lastSelectionByLanguage: map };
+    migrated = {
+      ...migrated,
+      autoTranslateNotes:
+        typeof migrated.autoTranslateNotes === 'boolean'
+          ? migrated.autoTranslateNotes
+          : true,
+    };
+    const pref = migrated.preferredNoteLanguage;
+    if (pref !== undefined && pref !== null &&
+        typeof pref !== 'string') {
+      migrated = { ...migrated };
+      delete migrated.preferredNoteLanguage;
+    }
   }
 
   if (version < 11) {

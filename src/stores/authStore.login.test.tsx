@@ -40,7 +40,13 @@ describe('authStore - Login', () => {
 
       const state = store.getState();
       expect(state.token).toBe(mockToken);
-      expect(state.user).toEqual({ username: mockUsername });
+      // users/me/ (fetched right after the token lands)
+      // supplies the canonical profile incl. can_publish.
+      expect(state.user).toEqual({
+        id: 1,
+        username: mockUsername,
+        can_publish: true,
+      });
       expect(state.isAuthenticated).toBe(true);
       expect(state.isLoading).toBe(false);
       expect(state.error).toBeNull();

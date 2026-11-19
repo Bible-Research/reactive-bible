@@ -1,15 +1,29 @@
 import {
+  ActionIcon,
   Affix,
+  Badge,
   Box,
   Button,
   Checkbox,
+  Collapse,
   FileButton,
   Group,
   Text,
   ThemeIcon,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
-import { IconCheck, IconPhoto } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconChevronDown,
+  IconChevronRight,
+  IconEye,
+  IconEyeOff,
+  IconLock,
+  IconPhoto,
+  IconRefresh,
+  IconWorld,
+} from "@tabler/icons-react";
 import { showNotification } from "@mantine/notifications";
 import { useEffect, useRef, useState } from "react";
 import { NoteImage, Tag } from "../types";
@@ -27,11 +41,17 @@ import {
 } from "./CommentImageGrid";
 import RichTextEditor from "./RichTextEditor";
 import { TagCombobox } from "./TagCombobox";
+import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from 'react-i18next';
 
 interface NoteFormProps {
   tags: Tag[];
-  note?: { tagId: string; text: string; isPublic?: boolean };
+  note?: {
+    tagId: string;
+    text: string;
+    isPublic?: boolean;
+    isPublished?: boolean;
+  };
   /**
    * May resolve `false` to signal a rejected submit (failed
    * validation or save) — the content then stays eligible for
@@ -41,7 +61,8 @@ interface NoteFormProps {
   onSubmit: (
     tagId: string,
     text: string,
-    isPublic: boolean
+    isPublic: boolean,
+    isPublished?: boolean
   ) => void | Promise<unknown>;
   /**
    * Permits saves and submits with no note text — the caller
@@ -55,7 +76,8 @@ interface NoteFormProps {
   onAutoSave?: (
     tagId: string,
     text: string,
-    isPublic: boolean
+    isPublic: boolean,
+    isPublished?: boolean
   ) => Promise<unknown>;
   /**
    * Called after a save triggered by the unmount flush
@@ -71,7 +93,8 @@ interface NoteFormProps {
   onDraftChange?: (
     tagId: string,
     text: string,
-    isPublic: boolean
+    isPublic: boolean,
+    isPublished?: boolean
   ) => void;
   /** Images already attached to the note (edit mode). */
   existingImages?: NoteImage[];
@@ -102,6 +125,20 @@ interface NoteFormProps {
   onFilesChange?: (files: File[]) => void;
   /** Re-staged files from a restored editor draft. */
   initialFiles?: File[];
+  /**
+   * Fill the modal body with the editing surface (mobile
+   * fullscreen mode): the form becomes a flex column and the
+   * editor's writing area stretches to occupy it.
+   */
+  fillHeight?: boolean;
+  /**
+   * Collapsible tray above the action bar (fillHeight mode):
+   * the note's linked verses — a tap on the header expands a
+   * scrollable panel, a second tap collapses it.
+   */
+  trayLabel?: string;
+  trayCount?: number;
+  trayContent?: React.ReactNode;
 }
 
 const AUTOSAVE_INTERVAL_MS = 5000;
@@ -147,6 +184,10 @@ const NoteForm = ({
   onAttachFiles,
   onFilesChange,
   initialFiles,
+  fillHeight = false,
+  trayLabel,
+  trayCount,
+  trayContent,
 }: NoteFormProps) => {
   const { t } = useTranslation();
   const [selectedTagId, setSelectedTagId] = useState(note?.tagId || "");
@@ -165,12 +206,37 @@ const NoteForm = ({
   // touched — a tag switch in edit mode must NOT silently flip
   // an existing note's publicity. Reset when the draft re-seeds.
   const publicTouchedRef = useRef(note?.isPublic !== undefined);
+  // "Published note" — same seeding/follow rules as isPublic.
+  // Only users with can_publish see the box or emit a value;
+  // others leave the flag undefined so the server inherits
+  // the tag's `published` default.
+  const canPublish = useAuthStore(
+    (state) => state.user?.can_publish === true
+  );
+  const [isPublished, setIsPublished] = useState<boolean>(
+    () =>
+      note?.isPublished ??
+      tags.find((tag) => tag.id === (note?.tagId ?? ""))
+        ?.published ??
+      false
+  );
+  const publishedTouchedRef = useRef(
+    note?.isPublished !== undefined
+  );
   const [autoSave, setAutoSave] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  // Mobile chrome state: the tag row collapses while the user
+  // scrolls the document down and returns on scroll-up (or at
+  // the top); the linked-verses tray opens on tap.
+  const [tagRowHidden, setTagRowHidden] = useState(false);
+  const [trayOpen, setTrayOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const selectOpenRef = useRef(false);
   const latest = useRef({
     tagId: "",
     text: "",
     isPublic: false,
+    isPublished: undefined as boolean | undefined,
     attachedCount: 0,
   });
   // Staged image attachments — create mode reports them so
@@ -215,6 +281,7 @@ const NoteForm = ({
       tagId: selectedTagId,
       text: noteText,
       isPublic,
+      isPublished: canPublish ? isPublished : undefined,
       // Attached + staged — an image-only note in edit
       // mode (all images already uploaded, none staged)
       // still counts as content. While the fetch is in
@@ -230,21 +297,32 @@ const NoteForm = ({
     autoSaveRef.current = autoSave;
     allowEmptyTextRef.current = allowEmptyText;
   });
+  // canPublish arrives after users/me resolves — a session
+  // that gains it mid-edit must start forwarding the flag.
+  const canPublishRef = useRef(canPublish);
+  canPublishRef.current = canPublish;
 
   // Keep the outer draft store in sync — a reopened modal
   // restores `note` from it.
   useEffect(() => {
-    onDraftChangeRef.current?.(selectedTagId, noteText, isPublic);
-  }, [selectedTagId, noteText, isPublic]);
+    onDraftChangeRef.current?.(
+      selectedTagId,
+      noteText,
+      isPublic,
+      canPublish ? isPublished : undefined
+    );
+  }, [selectedTagId, noteText, isPublic, isPublished, canPublish]);
 
   // Until the user touches the box it follows the selected
   // tag's publicity — and a public tag arriving via a late
   // getTags resolves updates it too.
   useEffect(() => {
+    const selected = tags.find((tag) => tag.id === selectedTagId);
     if (!publicTouchedRef.current) {
-      setIsPublic(
-        tags.find((tag) => tag.id === selectedTagId)?.public ?? false
-      );
+      setIsPublic(selected?.public ?? false);
+    }
+    if (!publishedTouchedRef.current) {
+      setIsPublished(selected?.published ?? false);
     }
   }, [selectedTagId, tags]);
 
@@ -255,6 +333,7 @@ const NoteForm = ({
   const noteTagId = note?.tagId;
   const noteTextProp = note?.text;
   const noteIsPublic = note?.isPublic;
+  const noteIsPublished = note?.isPublished;
   useEffect(() => {
     if (noteTagId !== undefined && noteTextProp !== undefined) {
       setSelectedTagId(noteTagId);
@@ -268,8 +347,14 @@ const NoteForm = ({
       } else {
         publicTouchedRef.current = false;
       }
+      if (noteIsPublished !== undefined) {
+        setIsPublished(noteIsPublished);
+        publishedTouchedRef.current = true;
+      } else {
+        publishedTouchedRef.current = false;
+      }
     }
-  }, [noteTagId, noteTextProp, noteIsPublic]);
+  }, [noteTagId, noteTextProp, noteIsPublic, noteIsPublished]);
 
   // The last content autosave persisted — ticks that would write
   // the same payload again are skipped.
@@ -277,6 +362,7 @@ const NoteForm = ({
     tagId: string;
     text: string;
     isPublic: boolean;
+    isPublished: boolean | undefined;
   } | null>(null);
   // Set once a submit persisted the form: the hook deletes the
   // draft, so the unmount flush must not run — a late save
@@ -292,8 +378,13 @@ const NoteForm = ({
     () => () => {
       const save = onAutoSaveRef.current;
       if (!save || !autoSaveRef.current) return;
-      const { tagId, text, isPublic, attachedCount } =
-        latest.current;
+      const {
+        tagId,
+        text,
+        isPublic,
+        isPublished,
+        attachedCount,
+      } = latest.current;
       // A verse-linked note may flush with empty text, and a
       // note with only images (staged or already attached)
       // is content too; a truly empty note (no text, no
@@ -323,11 +414,12 @@ const NoteForm = ({
             last &&
             last.tagId === tagId &&
             last.text === text &&
-            last.isPublic === isPublic
+            last.isPublic === isPublic &&
+            last.isPublished === isPublished
           ) {
             return undefined;
           }
-          return save(tagId, text, isPublic);
+          return save(tagId, text, isPublic, isPublished);
         })
         .then(() => onUnmountedSaveRef.current?.())
         .catch((error) => {
@@ -345,8 +437,13 @@ const NoteForm = ({
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
-      const { tagId, text, isPublic, attachedCount } =
-        latest.current;
+      const {
+        tagId,
+        text,
+        isPublic,
+        isPublished,
+        attachedCount,
+      } = latest.current;
       // Skip contentless notes AND empty tag — the latter
       // used to POST `tag: ''` every 5s, a stream of silent
       // 400s. Verse-linked and image-only notes (staged or
@@ -364,18 +461,27 @@ const NoteForm = ({
         last &&
         last.tagId === tagId &&
         last.text === text &&
-        last.isPublic === isPublic
+        last.isPublic === isPublic &&
+        last.isPublished === isPublished
       ) {
         return;
       }
-      trackInFlight(inFlightRef, save(tagId, text, isPublic))
+      trackInFlight(
+        inFlightRef,
+        save(tagId, text, isPublic, isPublished)
+      )
         .then((result) => {
           // A resolved-false save was declined — the content
           // stays dirty so the next tick or the unmount
           // flush retries, and the saved check must not
           // flash for a write that never happened.
           if (result === false) return;
-          lastSavedRef.current = { tagId, text, isPublic };
+          lastSavedRef.current = {
+            tagId,
+            text,
+            isPublic,
+            isPublished,
+          };
           setSavedFlash(true);
           flashTimeout.current = window.setTimeout(
             () => setSavedFlash(false),
@@ -399,6 +505,36 @@ const NoteForm = ({
     },
     []
   );
+
+  // Scroll-direction show/hide for the tag row (fill mode):
+  // scrolling the document down collapses it for more writing
+  // room, scrolling up (or reaching the top) brings it back —
+  // the Google Docs mobile pattern. Scroll events don't
+  // bubble, so a capture-phase listener catches the editor's
+  // internal ProseMirror scroller and the modal's own.
+  useEffect(() => {
+    if (!fillHeight) return undefined;
+    const lastTops = new WeakMap<Element, number>();
+    const onScroll = (event: Event) => {
+      const form = formRef.current;
+      const el = event.target;
+      if (!(el instanceof HTMLElement) || !form) return;
+      // Ignore scrolls outside this form (other modals) and
+      // inside static trays/areas that must not move chrome.
+      if (!form.contains(el) && !el.contains(form)) return;
+      if (el.closest("[data-note-form-static]")) return;
+      // A scrolling tag dropdown must not hide its own anchor.
+      if (selectOpenRef.current) return;
+      const top = el.scrollTop;
+      const last = lastTops.get(el) ?? top;
+      lastTops.set(el, top);
+      if (Math.abs(top - last) < 4) return; // jitter
+      setTagRowHidden(top > 8 && top > last);
+    };
+    document.addEventListener("scroll", onScroll, true);
+    return () =>
+      document.removeEventListener("scroll", onScroll, true);
+  }, [fillHeight]);
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>
@@ -437,7 +573,12 @@ const NoteForm = ({
       const result = await trackInFlight(
         inFlightRef,
         Promise.resolve(
-          onSubmit(selectedTagId, noteText, isPublic)
+          onSubmit(
+            selectedTagId,
+            noteText,
+            isPublic,
+            canPublishRef.current ? isPublished : undefined
+          )
         )
       );
       // `false` signals a rejected submit — leave the content
@@ -452,6 +593,9 @@ const NoteForm = ({
           tagId: selectedTagId,
           text: noteText,
           isPublic,
+          isPublished: canPublishRef.current
+            ? isPublished
+            : undefined,
         };
         // Staged thumbs are NOT cleared here: a successful
         // submit closes the modal (the hook's unmount cleanup
@@ -476,21 +620,62 @@ const NoteForm = ({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <TagCombobox
-        label={t('notes.tag')}
-        // Select by id — mapping by name silently picked the
-        // first of two same-named tags.
-        value={selectedTagId}
-        onChange={setSelectedTagId}
-        onDropdownOpen={onTagDropdownOpen}
-        tags={tags}
-      />
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      style={
+        fillHeight
+          ? {
+              display: 'flex',
+              flexDirection: 'column',
+              // flex:1 inside the flex-column modal body —
+              // bounded by it, never pushing the modal's own
+              // content into scroll (a scrolled modal content
+              // slides the sticky toolbar under the sticky
+              // header). On tiny screens the form scrolls
+              // internally instead.
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+            }
+          : undefined
+      }
+    >
+      <Box
+        sx={
+          fillHeight
+            ? {
+                overflow: 'hidden',
+                maxHeight: tagRowHidden ? 0 : 90,
+                opacity: tagRowHidden ? 0 : 1,
+                transition:
+                  'max-height 180ms ease, opacity 180ms ease',
+              }
+            : undefined
+        }
+      >
+        <TagCombobox
+          label={t('notes.tag')}
+          // Select by id — mapping by name silently picked the
+          // first of two same-named tags.
+          value={selectedTagId}
+          onChange={setSelectedTagId}
+          onDropdownOpen={() => {
+            selectOpenRef.current = true;
+            onTagDropdownOpen();
+          }}
+          onDropdownClose={() => {
+            selectOpenRef.current = false;
+          }}
+          tags={tags}
+        />
+      </Box>
       <RichTextEditor
         variant="note"
         label={t('notes.note')}
         value={noteText}
         onChange={setNoteText}
+        fillHeight={fillHeight}
       />
       {(existingImages.length > 0 || staged.length > 0) && (
         <Group spacing={6} mt={6} align="flex-start">
@@ -561,6 +746,53 @@ const NoteForm = ({
           {fileError}
         </Text>
       )}
+      {trayContent !== undefined && (
+        <Box
+          data-note-form-static
+          sx={(theme) => ({
+            borderTop: `1px solid ${
+              theme.colorScheme === "dark"
+                ? theme.colors.dark[4]
+                : theme.colors.gray[3]
+            }`,
+          })}
+        >
+          <UnstyledButton
+            w="100%"
+            px="xs"
+            py={6}
+            title="toggle-note-tray"
+            aria-expanded={trayOpen}
+            onClick={() => setTrayOpen((open) => !open)}
+          >
+            <Group spacing={6} noWrap>
+              {trayOpen ? (
+                <IconChevronDown size={14} />
+              ) : (
+                <IconChevronRight size={14} />
+              )}
+              <Text size="xs" weight={600}>
+                {trayLabel}
+              </Text>
+              {trayCount !== undefined && trayCount > 0 && (
+                <Badge size="sm" variant="light" color="blue">
+                  {trayCount}
+                </Badge>
+              )}
+            </Group>
+          </UnstyledButton>
+          <Collapse in={trayOpen}>
+            <Box
+              mah="45vh"
+              px="xs"
+              pb="xs"
+              sx={{ overflowY: "auto" }}
+            >
+              {trayContent}
+            </Box>
+          </Collapse>
+        </Box>
+      )}
       <Box
         data-testid="note-submit-bar"
         sx={(theme) => ({
@@ -579,65 +811,272 @@ const NoteForm = ({
           }`,
         })}
       >
-        <Group spacing="xs">
-          <Button variant="transparent" type="submit" fullWidth>
-            {submitText}
-          </Button>
-          {(onAttachFiles || onFilesChange) && (
-            <FileButton
-              onChange={handleFileSelect}
-              accept={ALLOWED_IMAGE_TYPES.join(',')}
-              multiple
-              disabled={attachCapReached}
-              // Mantine v6 never clears the input's value, so
-              // deleting a thumb and re-picking the SAME file
-              // dispatches no `change` event — attach looks
-              // dead. Clearing on click resets it before the
-              // picker opens (safe with `multiple`).
-              inputProps={{
-                onClick: (event) => {
-                  event.currentTarget.value = '';
-                },
-              }}
+        {fillHeight ? (
+          // Mobile: one compact icon row — submit, attach,
+          // autosave toggle, publicity toggle. touch-enabled
+          // tooltips label each icon on tap or hold.
+          <Group spacing="md" noWrap position="apart">
+            <Tooltip
+              label={submitText}
+              position="top"
+              events={{ hover: true, focus: true, touch: true }}
             >
-              {(props) => (
-                <Button
-                  {...props}
-                  variant="transparent"
-                  leftIcon={<IconPhoto size={14} />}
-                  disabled={attachCapReached}
-                  aria-label={t('notes.attachImages')}
+              <ActionIcon
+                type="submit"
+                variant="filled"
+                color="blue"
+                size="lg"
+                title={submitText}
+                aria-label={submitText}
+              >
+                <IconCheck size={18} />
+              </ActionIcon>
+            </Tooltip>
+            {(onAttachFiles || onFilesChange) && (
+              <FileButton
+                onChange={handleFileSelect}
+                accept={ALLOWED_IMAGE_TYPES.join(',')}
+                multiple
+                disabled={attachCapReached}
+                // Mantine v6 never clears the input's value, so
+                // deleting a thumb and re-picking the SAME file
+                // dispatches no `change` event — attach looks
+                // dead. Clearing on click resets it before the
+                // picker opens (safe with `multiple`).
+                inputProps={{
+                  onClick: (event) => {
+                    event.currentTarget.value = '';
+                  },
+                }}
+              >
+                {(props) => (
+                  <Tooltip
+                    label={
+                      totalAttached > 0
+                        ? `${t('notes.attachImages')} ` +
+                          `(${totalAttached}/${MAX_NOTE_IMAGES})`
+                        : t('notes.attachImages')
+                    }
+                    position="top"
+                    events={{
+                      hover: true,
+                      focus: true,
+                      touch: true,
+                    }}
+                  >
+                    <Box sx={{ position: "relative" }}>
+                      <ActionIcon
+                        {...props}
+                        variant="subtle"
+                        size="lg"
+                        disabled={attachCapReached}
+                        aria-label={t('notes.attachImages')}
+                        title={t('notes.attachImages')}
+                      >
+                        <IconPhoto size={18} />
+                      </ActionIcon>
+                      {totalAttached > 0 && (
+                        <Badge
+                          size="xs"
+                          variant="filled"
+                          color="blue"
+                          sx={{
+                            position: "absolute",
+                            top: -4,
+                            right: -4,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          {totalAttached}
+                        </Badge>
+                      )}
+                    </Box>
+                  </Tooltip>
+                )}
+              </FileButton>
+            )}
+            {onAutoSave && (
+              <Tooltip
+                label={
+                  autoSave
+                    ? t('notes.autoSaveOn')
+                    : t('notes.autoSaveOff')
+                }
+                position="top"
+                events={{
+                  hover: true,
+                  focus: true,
+                  touch: true,
+                }}
+              >
+                <ActionIcon
+                  variant={autoSave ? "filled" : "subtle"}
+                  color={autoSave ? "blue" : "gray"}
+                  size="lg"
+                  onClick={() => setAutoSave((v) => !v)}
+                  aria-label={t('notes.autoSave')}
+                  aria-pressed={autoSave}
+                  title={t('notes.autoSave')}
                 >
-                  {totalAttached > 0
-                    ? `${totalAttached}/${MAX_NOTE_IMAGES}`
-                    : t('notes.images')}
-                </Button>
-              )}
-            </FileButton>
-          )}
-          {onAutoSave && (
-            <Checkbox
-              label={t('notes.autoSave')}
-              checked={autoSave}
-              onChange={(event) =>
-                setAutoSave(event.currentTarget.checked)
+                  <IconRefresh size={18} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            <Tooltip
+              label={
+                isPublic
+                  ? t('notes.anyoneWithLink')
+                  : t('notes.privateOnlyYou')
               }
-            />
-          )}
-          <Tooltip
-            label={t('notes.anyoneWithLink')}
-            position="top"
-          >
-            <Checkbox
-              label={t('notes.publicNote')}
-              checked={isPublic}
-              onChange={(event) => {
-                publicTouchedRef.current = true;
-                setIsPublic(event.currentTarget.checked);
-              }}
-            />
-          </Tooltip>
-        </Group>
+              position="top"
+              events={{ hover: true, focus: true, touch: true }}
+            >
+              <ActionIcon
+                variant={isPublic ? "filled" : "subtle"}
+                color={isPublic ? "blue" : "gray"}
+                size="lg"
+                disabled={isPublished}
+                // Published implies public — the server forces
+                // it, so the toggle locks while published is
+                // on instead of allowing a state the API
+                // would reject anyway.
+                onClick={() => {
+                  publicTouchedRef.current = true;
+                  setIsPublic((v) => !v);
+                }}
+                aria-label={t('notes.publicNote')}
+                aria-pressed={isPublic}
+                title={t('notes.publicNote')}
+              >
+                {isPublic ? (
+                  <IconWorld size={18} />
+                ) : (
+                  <IconLock size={18} />
+                )}
+              </ActionIcon>
+            </Tooltip>
+            {canPublish && (
+              <Tooltip
+                label={t('notes.listedInExplore')}
+                position="top"
+                events={{ hover: true, focus: true, touch: true }}
+              >
+                <ActionIcon
+                  variant={isPublished ? "filled" : "subtle"}
+                  color={isPublished ? "blue" : "gray"}
+                  size="lg"
+                  onClick={() => {
+                    publishedTouchedRef.current = true;
+                    const next = !isPublished;
+                    setIsPublished(next);
+                    if (next && !isPublic) {
+                      // Publishing implies public — keep the
+                      // pair consistent in the same write.
+                      publicTouchedRef.current = true;
+                      setIsPublic(true);
+                    }
+                  }}
+                  aria-label={t('notes.publishedNote')}
+                  aria-pressed={isPublished}
+                  title={t('notes.publishedNote')}
+                >
+                  {isPublished ? (
+                    <IconEye size={18} />
+                  ) : (
+                    <IconEyeOff size={18} />
+                  )}
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
+        ) : (
+          <Group spacing="xs">
+            <Button variant="transparent" type="submit" fullWidth>
+              {submitText}
+            </Button>
+            {(onAttachFiles || onFilesChange) && (
+              <FileButton
+                onChange={handleFileSelect}
+                accept={ALLOWED_IMAGE_TYPES.join(',')}
+                multiple
+                disabled={attachCapReached}
+                // Mantine v6 never clears the input's value, so
+                // deleting a thumb and re-picking the SAME file
+                // dispatches no `change` event — attach looks
+                // dead. Clearing on click resets it before the
+                // picker opens (safe with `multiple`).
+                inputProps={{
+                  onClick: (event) => {
+                    event.currentTarget.value = '';
+                  },
+                }}
+              >
+                {(props) => (
+                  <Button
+                    {...props}
+                    variant="transparent"
+                    leftIcon={<IconPhoto size={14} />}
+                    disabled={attachCapReached}
+                    aria-label={t('notes.attachImages')}
+                  >
+                    {totalAttached > 0
+                      ? `${totalAttached}/${MAX_NOTE_IMAGES}`
+                      : t('notes.images')}
+                  </Button>
+                )}
+              </FileButton>
+            )}
+            {onAutoSave && (
+              <Checkbox
+                label={t('notes.autoSave')}
+                checked={autoSave}
+                onChange={(event) =>
+                  setAutoSave(event.currentTarget.checked)
+                }
+              />
+            )}
+            <Tooltip
+              label={t('notes.anyoneWithLink')}
+              position="top"
+            >
+              <Checkbox
+                label={t('notes.publicNote')}
+                checked={isPublic}
+                disabled={isPublished}
+                // Published implies public — the server forces
+                // it, so the box shows checked and locked while
+                // published is on instead of allowing a state
+                // the API would reject anyway.
+                onChange={(event) => {
+                  publicTouchedRef.current = true;
+                  setIsPublic(event.currentTarget.checked);
+                }}
+              />
+            </Tooltip>
+            {canPublish && (
+              <Tooltip
+                label={t('notes.listedInExplore')}
+                position="top"
+              >
+                <Checkbox
+                  label={t('notes.publishedNote')}
+                  checked={isPublished}
+                  onChange={(event) => {
+                    publishedTouchedRef.current = true;
+                    const checked = event.currentTarget.checked;
+                    setIsPublished(checked);
+                    if (checked && !isPublic) {
+                      // Publishing implies public — keep the
+                      // pair consistent in the same write.
+                      publicTouchedRef.current = true;
+                      setIsPublic(true);
+                    }
+                  }}
+                />
+              </Tooltip>
+            )}
+          </Group>
+        )}
       </Box>
       {savedFlash && (
         <Affix position={{ top: 20, right: 20 }}>

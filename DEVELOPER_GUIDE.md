@@ -134,8 +134,9 @@ reactive-bible/
 
 Optional: `VITE_API_BASE_URL` in a local `.env` overrides the
 default backend host — `src/config.ts` exports `API_BASE_URL`
-and falls back to the production App Engine host; always use
-it, never hardcode the URL. `VITE_SENTRY_DSN` (also optional)
+(`''` on `*.vercel.app` hosts, so calls stay same-origin;
+otherwise the production App Engine host); always use it,
+never hardcode the URL. `VITE_SENTRY_DSN` (also optional)
 enables Sentry error monitoring — see "Error Reporting &
 Monitoring". The app uses:
 - **Local KJV data**: `src/assets/kjv.json`, lazy-loaded on demand
@@ -153,7 +154,10 @@ The app is configured for deployment on **Vercel**:
 2. **Build settings** (auto-detected):
    - Build Command: `npm run build`
    - Output Directory: `dist`
-3. **Deploy** - Vercel will automatically deploy on push to main branch
+3. **Deploy** - Vercel automatically deploys on push to
+   `main` (production) and `staging` (preview); every other
+   branch is blocked by `git.deploymentEnabled` in
+   `vercel.json`
 
 **Analytics & Monitoring**:
 - Vercel Analytics and Speed Insights are automatically enabled in production
@@ -181,11 +185,12 @@ The app is configured for deployment on **Vercel**:
   elimination.
 - Hashed `/assets/*` are served `Cache-Control: public,
   max-age=31536000, immutable`; `index.html` keeps default
-  no-cache. Preview deploys and the Android APK still call
-  the appspot host directly — `index.html` carries
-  preconnect/dns-prefetch hints for it. No
-  `CDN-Cache-Control` anywhere: licensed Bible content must
-  not be CDN-cached.
+  no-cache. Preview deploys resolve `API_BASE_URL` to `''`
+  and call `/api` same-origin on whatever alias is browsed;
+  the Android APK still calls the appspot host directly —
+  `index.html` carries preconnect/dns-prefetch hints for it.
+  No `CDN-Cache-Control` anywhere: licensed Bible content
+  must not be CDN-cached.
 
 ---
 
@@ -401,6 +406,16 @@ npm test -- src/routes/BibleRoute.test.tsx
   sharing — write affordances are `isAuthenticated`-gated
 - `/notes/:noteId` - Single note detail view; public for sharing
 
+**Sharing Routes** (✅ Implemented):
+- `/explore` - The published directory: `published=true`
+  notes feed + debounced `q` search; anonymous-safe like
+  `/notes` (published notes are public)
+- `/shared` - "Shared with me": direct note grants plus
+  `tag_shares` rows linking into the shared tag's note page;
+  `ProtectedRoute`
+- `/bookmarks` - Saved notes; `available=false` rows render
+  as removable stale pointers; `ProtectedRoute`
+
 **Tag Routes** (✅ Implemented):
 - `/tags` - Tag management; wrapped in `ProtectedRoute`
   (anonymous visitors redirect to `/login`)
@@ -419,6 +434,14 @@ npm test -- src/routes/BibleRoute.test.tsx
 - `NoteDetailRoute` - Single note detail view
 - `TagManagementRoute` - Tag CRUD behind `ProtectedRoute`
 - `SearchRoute` - Book-grouped search results accordion
+- `ExploreRoute` - Published feed + directory search
+- `SharedWithMeRoute` - Notes/tags other users granted
+- `BookmarksRoute` - Saved-note list with stale-row cleanup
+- `ShareModal` - Targeted username sharing (silent
+  resolution — "if that username exists" copy; tag shares
+  carry an include-descendants checkbox)
+- `CopyNoteModal` - Copy-to-my-account with a target-tag
+  picker reusing `TagCombobox`
 
 ### Route Implementation Details
 
@@ -751,6 +774,9 @@ export interface Tag {
   public: boolean;            // notes under it are shareable;
                               // also the default publicity for
                               // new notes under the tag
+  published?: boolean;        // new notes default to the
+                              // Explore directory; requires
+                              // publish_note to write
   note_count?: number;        // direct notes only; absent on
                               // older backends
   created_at: string;
@@ -775,6 +801,10 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  published?: boolean;        // listed in the Explore
+                              // directory; implies public
+  author?: CommentAuthor;     // {id, username} attribution
+  copied_from?: string | null;// provenance — owner-only
   is_owner: boolean;
   created_at: string;
   updated_at: string;
@@ -2098,6 +2128,35 @@ Create and organize notes with tags for Bible verses.
   `note.is_owner === true`; clipboard share falls back to
   `execCommand` on non-secure contexts
   (`src/utils/clipboard.ts`)
+- Sharing/bookmark controls on note cards: the bookmark
+  icon saves any readable note (a "Log in to save" CTA
+  replaces it for anonymous readers, carrying the return
+  path), the copy icon opens `CopyNoteModal`, and an
+  owner-only user icon opens `ShareModal`
+
+**Sharing model** (add-note-sharing):
+- `public` is link visibility — unchanged: anyone with the
+  URL can read a public note.
+- `published` is directory visibility — published notes
+  appear on `/explore` (feed + `q` search) for everyone.
+  Publishing requires the `publish_note` permission
+  (`user.can_publish`, populated by `users/me/` after
+  login/register/checkAuth) and implies `public`; clearing
+  `public` clears `published`. In NoteForm the published
+  checkbox forces + locks the public one, and tag editing
+  offers a matching `setTagPublished` switch — both render
+  only when `can_publish` is true; without the flag the
+  form leaves `published` undefined so the server inherits
+  the tag's value.
+- Targeted sharing grants a username read access to a note
+  or a tag (optionally its subtree). Username resolution is
+  silent server-side, so `ShareModal`'s copy is honest:
+  "if that username exists, they'll get access".
+- Bookmarks (`/bookmarks`) persist read access pointers —
+  a note that later goes private/deleted renders as a
+  removable stale row.
+- Copy (`CopyNoteModal`) forks a readable note into the
+  caller's account as a private copy (no sync back).
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -2203,6 +2262,45 @@ const load = async () => {
   });
 };
 ```
+
+#### Note Translations (per-card language UX)
+
+Notes are mixed-language; the backend detects each note's
+`source_language` and machine-translates into the configured
+targets. The frontend contract:
+
+- **Payload**: every note carries `source_language`,
+  `served_language` (what `note_text` actually is), and a
+  `translations` metadata list (`language`, `status` =
+  pending/ready/failed/source, `verified`, `engine`, `error`).
+- **`?lang=`**: `GET /notes/` and `GET /notes/<id>/` accept a
+  `lang` param; a `ready` row's text swaps into `note_text`,
+  misses fall back to the original (never 404).
+- **`useNoteTranslation`** (`src/hooks/useNoteTranslation.ts`)
+  drives the card UX: a `SegmentedControl` per card offers
+  source + ready/pending languages; switching issues ONE
+  `?lang=` refetch cached in a session `Map` keyed by
+  note id + `updated_at` + lang; a failed fetch keeps the
+  last-good text and raises a localized notification — the
+  original is never silently substituted. A `pending` row
+  schedules exactly one delayed refetch; `failed` rows offer
+  an owner-only retry (`POST /notes/<id>/retranslate/`).
+- **Verification**: owners can mark a `ready` translation
+  verified (`POST|DELETE /notes/<id>/translations/<lang>/
+  verify/`); readers see a "Verified by author" chip. Fresh
+  machine output always resets verification server-side.
+- **Peek**: "Show original" toggles the source-language text
+  inline without changing the language selection.
+- **Preferences**: `preferredNoteLanguage` (persisted, null =
+  follow `uiLanguage`) seeds the per-card default;
+  `autoTranslateNotes` (persisted, default ON, the MainMenu
+  "Auto-translate notes" switch) gates the whole feature —
+  OFF means no `?lang=` request is ever issued and no
+  translation controls render.
+- **Types/API**: `NoteTranslationMeta` in `src/types.ts`;
+  `getNote(id, lang)`, `getNotes(..., {lang})`,
+  `setNoteTranslationVerified`, `retranslateNote` in
+  `src/api/notes.ts`.
 
 ### 7. Theme System
 
@@ -2767,6 +2865,61 @@ Form for creating/editing notes.
 - `onDraftChange` reports live contents so the editor hook's
   draft store can restore an in-progress note after reopen
 
+On mobile (`max-width: 768px`) the three host modals
+(`AddStandaloneNoteModal`, `AddTagNoteModal`, `EditNoteModal`)
+pass `fillHeight`: their `styles` make the fullscreen modal's
+`content`/`body` a bounded flex column, the form fills it via
+`min-height: 100%`, and `RichTextEditor`'s `fillHeight` prop
+turns the TipTap content chain (`root` →
+`typographyStylesProvider` → `content` → `.ProseMirror`) into a
+`flex: 1` column that scrolls internally — a document-editor
+surface occupying the whole viewport between the tag picker
+and the sticky submit bar. Sections after the form (verse
+texts, linked notes, the verse picker) scroll below the fold.
+Mobile chrome in that mode follows the Google Docs pattern:
+the formatting toolbar stays pinned (`position: sticky` on
+`.mantine-RichTextEditor-toolbar`, applied on desktop too so
+it survives the modal's own scroll), the tag row collapses on
+scroll-down and returns on scroll-up (a capture-phase
+`scroll` listener in `NoteForm` — scroll events don't bubble,
+so capture is required to see the ProseMirror's internal
+scroller; elements marked `data-note-form-static` and an open
+tag dropdown are ignored), and the action bar becomes a
+single icon row (submit ✓, attach-image with count badge,
+autosave toggle, public/lock toggle) whose icons carry
+touch-enabled tooltips (`events.touch`) so a tap or hold
+labels each one; the desktop bar with text buttons and
+checkboxes is unchanged. Modals may also
+pass `trayLabel`/`trayCount`/`trayContent` to render a
+collapsible tray above the action bar — the linked verses:
+`AddTagNoteModal` passes `VerseTextGroups` (plus the
+`linkedNotesList` section), `EditNoteModal` passes the
+`PassagePicker` + verse texts (its desktop collapsible
+section is `!isMobile`-gated, and the shared JSX lives in
+`versesSection`). The tray panel scrolls internally
+(`max-height: 45vh`). The mobile modal's `body` is a bounded
+flex column and the form `flex: 1` with its own
+`overflowY: auto`, so `.content` NEVER scrolls — critical
+because Mantine's sticky modal header (`z-index: 1000`)
+would otherwise cover the sticky formatting toolbar's first
+row; the toolbar itself is `nowrap` + `overflowX: auto` (a
+single scrollable line). The header carries no heading — the
+`title` slot holds a collapse `ActionIcon` right-aligned via
+`styles.title`; collapsing sets `body: display:none`,
+`content: height:auto`, `overlay: display:none` and releases
+`lockScroll`/`trapFocus`, leaving a thin bar (expand chevron
++ X) over the still-interactive Bible. The fullscreen modal
+content is sized with `height: 100dvh` — not the Mantine
+default `100vh`: on Android the `vh` unit ignores the
+browser/system chrome, so the modal's bottom edge (the
+sticky action bar and the ProseMirror's scroll boundary)
+could sit under the navigation buttons and hide the caret.
+`100dvh` tracks the dynamically visible height, and
+`padding-bottom: env(safe-area-inset-bottom)` lifts the
+scrollport above a system bar in edge-to-edge WebViews —
+`index.html` therefore carries `viewport-fit=cover`, without
+which `env(safe-area-inset-*)` is always 0.
+
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token; a book+chapter with no verse
 is also a complete ref — `@PSA.18` is a valid whole-chapter
@@ -2943,7 +3096,11 @@ Modal for selecting Bible translations.
   last-resort fallback); its expanded mode lists the whole
   chapter with selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
-  read-only rendering (lazy chunk)
+  read-only rendering (lazy chunk); block indentation comes
+  from `src/extensions/indent.ts` (a `data-indent` attr →
+  `margin-left` on paragraphs/headings, sink/lift inside
+  lists) with toolbar buttons in the note variant and the
+  same margin applied in `RichTextView`'s renderer
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
   `CommentActions.tsx` + `CommentImageGrid.tsx` +
   `Lightbox.tsx` - threaded comments with image upload
@@ -3001,8 +3158,8 @@ needed for navigation lives in `src/assets/bibleStructure.json`
 
 #### Bible Research API
 **Base URL**: `${API_BASE_URL}/api/v1` — `API_BASE_URL` comes
-from `src/config.ts` (`VITE_API_BASE_URL`, defaulting to the
-production App Engine host)
+from `src/config.ts` (`VITE_API_BASE_URL`, `''` on
+`*.vercel.app` hosts, else the production App Engine host)
 
 **Endpoints**:
 
@@ -4407,20 +4564,25 @@ surface as the transport layer:
   audio terminal failures — extras carry fileset + passage),
   `native-bridge` (warning, Capacitor bridge calls — expected
   on web), `resource-load` (warning, missing assets),
-  `user-report` (info, "Report a problem"), `app-update`
+  `user-report` (info, "Contact developer"), `app-update`
   (info, sideload updater: `updateStep` `download-opened` /
   `installed`). `errorKind` refines which kind of failure an
   exception was (`network` today).
-- **User reports:** the main menu's "Report a problem" row
-  (always visible) opens `ReportProblemModal`, where the user
-  describes the issue. `sendUserReport`
+- **User reports:** the main menu's "Contact developer" row
+  (always visible) opens `ContactModal`, where the user picks
+  a category — Bug report (default), Feature request, or
+  General message — and writes the note; anonymous users also
+  get an optional reply-email field. `sendUserReport`
   (`src/utils/userReport.ts`) captures a `user report` message
-  tagged `reportType: user-report` — the note, reporter's
-  username (when logged in) and current passage
+  tagged `reportType: user-report` +
+  `reportCategory: bug|feature|general` — the note, category,
+  reporter's username (when logged in) and current passage
   (book/chapter/filesets) sit in the `userReport` context —
-  plus a user-feedback event linked via `associatedEventId`,
-  which also lists each report in Sentry's User Feedback view.
-  Query: `message:"user report"` or `reportType:user-report`.
+  plus a user-feedback event with the same tags (and the email
+  when given) linked via `associatedEventId`, which also lists
+  each report in Sentry's User Feedback view. Query:
+  `message:"user report"` or `reportType:user-report`; triage
+  narrows to `reportCategory:bug` + legacy untagged events.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
   (replays only for errored sessions, `maskAllText` +
