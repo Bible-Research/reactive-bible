@@ -158,8 +158,9 @@ const ScripturePassagePopover = ({
     onSelectVerses?.(next);
   };
 
-  // Jumps to the passage in the Bible reader — the preview is
-  // only ever ESV, so "read the full passage" means opening
+  // Jumps to the passage in the Bible reader — the preview
+  // follows the note-reference translation (pinned override
+  // or the selected one), so "read the full passage" opens
   // the real route where the user's own translation applies.
   const openInBible = () => {
     if (!reference) return;

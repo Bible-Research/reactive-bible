@@ -18,6 +18,7 @@ import {
   IconRefresh,
   IconMail,
   IconRocket,
+  IconSettings,
 } from "@tabler/icons-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -346,6 +347,28 @@ const MainMenu = ({
             </Text>
             <Text size="xs" color="dimmed">
               {t('menu.contactDeveloperHint')}
+            </Text>
+          </div>
+        </Group>
+
+        {/* Ungated: settings are device-local preferences. */}
+        <Group spacing="xs" align="flex-start" noWrap>
+          <IconSettings
+            size={22}
+            style={{ marginTop: 4, flexShrink: 0 }}
+          />
+          <div>
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/settings');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+              title={t('menu.settings')}
+            >
+              {t('menu.settings')}
             </Text>
           </div>
         </Group>

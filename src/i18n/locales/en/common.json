@@ -26,7 +26,8 @@
     "sharedWithMe": "Shared with me",
     "bookmarks": "Bookmarks",
     "autoTranslateNotes": "Auto-translate notes",
-    "autoTranslateNotesHint": "Show machine translations when a note is in another language."
+    "autoTranslateNotesHint": "Show machine translations when a note is in another language.",
+    "settings": "Settings"
   },
   "audio": {
     "play": "Play",
@@ -735,5 +736,14 @@
     "saveFailed": "Could not save the bookmark",
     "loginToSave": "Log in to save this note",
     "removeFailed": "Could not remove the bookmark"
+  },
+  "settings": {
+    "title": "Settings",
+    "noteRefTranslation": "Note reference translation",
+    "noteRefHint": "Scripture previews in notes use this translation.",
+    "followSelected": "Selected translation",
+    "pinSpecific": "Specific translation",
+    "change": "Change",
+    "reset": "Reset"
   }
 }

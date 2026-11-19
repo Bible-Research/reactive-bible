@@ -26,7 +26,8 @@
     "sharedWithMe": "Kopīgots ar mani",
     "bookmarks": "Grāmatzīmes",
     "autoTranslateNotes": "Automātiski tulkot piezīmes",
-    "autoTranslateNotesHint": "Rādīt mašīntulkojumus, ja piezīme ir citā valodā."
+    "autoTranslateNotesHint": "Rādīt mašīntulkojumus, ja piezīme ir citā valodā.",
+    "settings": "Iestatījumi"
   },
   "audio": {
     "play": "Atskaņot",
@@ -748,5 +749,14 @@
     "saveFailed": "Neizdevās saglabāt grāmatzīmi",
     "loginToSave": "Pieslēgties, lai saglabātu piezīmi",
     "removeFailed": "Neizdevās noņemt grāmatzīmi"
+  },
+  "settings": {
+    "title": "Iestatījumi",
+    "noteRefTranslation": "Bībeles atsauču tulkojums",
+    "noteRefHint": "Atsauču priekšskatījumi izmanto šo tulkojumu.",
+    "followSelected": "Izvēlētais tulkojums",
+    "pinSpecific": "Konkrēts tulkojums",
+    "change": "Mainīt",
+    "reset": "Atiestatīt"
   }
 }

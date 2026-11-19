@@ -1545,5 +1545,169 @@ describe('TranslationSelector Component', () => {
         });
       });
     });
+
+    describe('pick mode', () => {
+      it('renders no trigger button and reports the pick via ' +
+        'onPickText without touching the active filesets',
+        async () => {
+          useRealStore({
+            translations: [esv],
+            activeTextFilesetId: 'ENGESV_API',
+            activeAudioFilesetId: 'ENGESV_API',
+          });
+          (api.getAvailableTranslations as Mock).mockResolvedValue(
+            [esv],
+          );
+          const onPickText = vi.fn();
+          const onClose = vi.fn();
+          render(
+            <TranslationSelector
+              opened
+              onClose={onClose}
+              pickTextOnly
+              seedFilesetId={null}
+              onPickText={onPickText}
+            />,
+          );
+
+          // Controlled mode — the host owns `opened`, so the
+          // component renders no trigger of its own.
+          expect(
+            screen.queryByRole('button', {
+              name: 'Change Translation',
+            }),
+          ).not.toBeInTheDocument();
+
+          // The stored ESV selection mirrors as usual — but
+          // no audio surface renders in pick mode.
+          await screen.findByText(/Auto-resolved per testament/);
+          expect(
+            screen.queryByRole('radio', {
+              name: 'Read aloud — Full Bible',
+            }),
+          ).not.toBeInTheDocument();
+
+          save();
+          expect(onPickText).toHaveBeenCalledWith('ENGESV:text:1');
+          expect(onClose).toHaveBeenCalled();
+          // The reader's selections are untouched — no active
+          // fileset and no per-language memory writes.
+          expect(useBibleStore.getState().activeTextFilesetId)
+            .toBe('ENGESV_API');
+          expect(useBibleStore.getState().activeAudioFilesetId)
+            .toBe('ENGESV_API');
+          expect(
+            useBibleStore.getState().lastSelectionByLanguage,
+          ).toEqual({});
+        },
+      );
+
+      it('hides the Advanced raw-audio radios but keeps ' +
+        'the text ones', async () => {
+          useRealStore({
+            translations: [esv],
+            activeTextFilesetId: 'ENGESV_API',
+            activeAudioFilesetId: 'ENGESV_API',
+          });
+          (api.getAvailableTranslations as Mock).mockResolvedValue(
+            [esv],
+          );
+          render(
+            <TranslationSelector
+              opened
+              onClose={vi.fn()}
+              pickTextOnly
+              seedFilesetId={null}
+              onPickText={vi.fn()}
+            />,
+          );
+          await screen.findByText(/Auto-resolved per testament/);
+
+          const advanced = screen.getByRole('button', {
+            name: /Advanced/,
+          });
+          await userEvent.click(advanced);
+
+          expect(
+            screen.getByRole('radio', { name: 'ENGESVN_ET' }),
+          ).toBeInTheDocument();
+          expect(
+            screen.queryByRole('radio', {
+              name: 'Drama NT (ENGESVN2DA)',
+            }),
+          ).not.toBeInTheDocument();
+        },
+      );
+
+      it('seeds the pinned language even when the reader ' +
+        'audio owner differs', async () => {
+          const gluk = {
+            abbr: 'LVSGLU8',
+            name: 'Latvian Glück Bible',
+            language: 'Latvian',
+            language_iso: 'lvs',
+            filesets: [
+              textFs('LVSGLU8C_ET', 'C'),
+              audioFs('LATGLUN1DA', 'C'),
+            ],
+          };
+          // Reader: eng audio + lvs text; pin: the lvs text —
+          // the audio owner must not seed the language tab.
+          useRealStore({
+            translations: [esv, gluk],
+            activeTextFilesetId: 'LVSGLU8C_ET',
+            activeAudioFilesetId: 'ENGESV:audio:1',
+          });
+          (api.getAvailableTranslations as Mock).mockImplementation(
+            (iso: string) =>
+              Promise.resolve(iso === 'lvs' ? [gluk] : [esv]),
+          );
+          render(
+            <TranslationSelector
+              opened
+              onClose={vi.fn()}
+              pickTextOnly
+              seedFilesetId="LVSGLU8:text:0"
+              onPickText={vi.fn()}
+            />,
+          );
+
+          await waitFor(() => {
+            expect(
+              screen.getByRole('radio', { name: 'Latvian' }),
+            ).toBeChecked();
+          });
+        },
+      );
+
+      it('calls onClose on Cancel without reporting a pick',
+        async () => {
+          useRealStore({
+            translations: [esv],
+            activeTextFilesetId: 'ENGESV_API',
+            activeAudioFilesetId: 'ENGESV_API',
+          });
+          const onPickText = vi.fn();
+          const onClose = vi.fn();
+          render(
+            <TranslationSelector
+              opened
+              onClose={onClose}
+              pickTextOnly
+              seedFilesetId={null}
+              onPickText={onPickText}
+            />,
+          );
+          await screen.findByText(/Auto-resolved per testament/);
+
+          fireEvent.click(
+            screen.getByRole('button', { name: 'Cancel' }),
+          );
+
+          expect(onClose).toHaveBeenCalled();
+          expect(onPickText).not.toHaveBeenCalled();
+        },
+      );
+    });
   });
 });

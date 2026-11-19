@@ -31,6 +31,7 @@ import {
   verseNumbersFor,
 } from "../utils/verseRefs";
 import { groupVerseTexts, useVerseTexts } from "../hooks/useVerseTexts";
+import { useNoteRefFilesetId } from "../hooks/useNoteRefFilesetId";
 import { useNoteEditor } from "../hooks/useNoteEditor";
 import {
   mutateNoteImages,
@@ -61,18 +62,19 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
   const {
     tags,
     getTags,
-    activeTextFilesetId,
     activeBookId,
     activeChapter,
     translations,
   } = useBibleStore((state) => ({
     tags: state.tags,
     getTags: state.getTags,
-    activeTextFilesetId: state.activeTextFilesetId,
     activeBookId: state.activeBookId,
     activeChapter: state.activeChapter,
     translations: state.translations,
   }), shallow);
+  // Linked-verse text honors the pinned note-reference
+  // translation when one is set (the reader's otherwise).
+  const noteRefFilesetId = useNoteRefFilesetId();
 
   // The note's verse links, editable via the picker below.
   const [refs, setRefs] = useState<VerseRef[]>([]);
@@ -139,7 +141,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
 
   const verseTexts = useVerseTexts(
     refs,
-    activeTextFilesetId,
+    noteRefFilesetId,
     translations,
     opened
   );
