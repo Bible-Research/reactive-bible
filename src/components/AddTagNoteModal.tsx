@@ -23,6 +23,7 @@ import {
   groupVerseTexts,
   useVerseTexts,
 } from "../hooks/useVerseTexts";
+import { useNoteRefFilesetId } from "../hooks/useNoteRefFilesetId";
 import { useNoteEditor } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
 import VerseTextGroups from "./VerseTextGroups";
@@ -79,10 +80,12 @@ const AddTagNoteModal = ({
   );
 
   // Selections may span chapters/books — the hook fetches each
-  // book/chapter group independently.
+  // book/chapter group independently. Linked-verse text honors
+  // the pinned note-reference translation when one is set.
+  const noteRefFilesetId = useNoteRefFilesetId();
   const verseTexts = useVerseTexts(
     refs,
-    activeTextFilesetId,
+    noteRefFilesetId,
     translations,
     opened
   );

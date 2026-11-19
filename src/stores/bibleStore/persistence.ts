@@ -31,6 +31,9 @@ export const partializeState = (state: BibleState) => ({
   activeAudioFilesetId: state.activeAudioFilesetId,
   lastSelectionByLanguage: state.lastSelectionByLanguage,
   lastSelectedTagId: state.lastSelectedTagId,
+  // Pinned note-reference translation; null = follow the
+  // selected translation.
+  noteRefFilesetId: state.noteRefFilesetId,
   audioActiveVerse: state.audioActiveVerse,
   notes: state.notes,
   tags: state.tags,
@@ -98,6 +101,9 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  * - pre-v10: `lastSelectionByLanguage` is introduced; entries
  *   are sanitized so only `{ abbr, textId, audioId }` shapes
  *   with a non-empty `abbr` and string-or-null ids survive.
+ * - pre-v11: `noteRefFilesetId` is introduced; a non-string
+ *   persisted value is sanitized to `null` (follow the
+ *   selected translation).
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -275,6 +281,17 @@ export const migratePersistedState = (
       }
     }
     migrated = { ...migrated, lastSelectionByLanguage: map };
+  }
+
+  if (version < 11) {
+    // The pinned note-reference translation: only a real id
+    // persists — anything else means "no pin" (null follows
+    // the selected translation).
+    const pin = migrated.noteRefFilesetId;
+    migrated = {
+      ...migrated,
+      noteRefFilesetId: typeof pin === 'string' ? pin : null,
+    };
   }
 
   return migrated as PersistedBibleState;

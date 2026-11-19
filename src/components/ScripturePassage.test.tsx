@@ -6,7 +6,55 @@ import { API_BASE_URL } from '../config';
 import ScripturePassage from './ScripturePassage';
 import { renderWithProviders } from '../__tests__/helpers';
 
+/** Captures the fileset_id of every /bible request. */
+const captureFilesetIds = (): string[] => {
+  const seen: string[] = [];
+  server.use(
+    http.get(`${API_BASE_URL}/api/v1/bible`, ({ request }) => {
+      seen.push(
+        new URL(request.url).searchParams.get('fileset_id') ?? ''
+      );
+      return HttpResponse.json({ verses: [], headings: [] });
+    })
+  );
+  return seen;
+};
+
+const jhn316 = {
+  book: 'John',
+  chapter: 3,
+  verses: [16],
+};
+
 describe('ScripturePassage', () => {
+  it('fetches the preview in the selected translation', async () => {
+    const seen = captureFilesetIds();
+    renderWithProviders(
+      <ScripturePassage reference={jhn316} />,
+      { storeOverrides: { activeTextFilesetId: 'LVSGLU8' } }
+    );
+
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    expect(seen[0]).toBe('LVSGLU8');
+  });
+
+  it('fetches the preview in the pinned translation when ' +
+    'an override is set', async () => {
+      const seen = captureFilesetIds();
+      renderWithProviders(
+        <ScripturePassage reference={jhn316} />,
+        {
+          storeOverrides: {
+            activeTextFilesetId: 'LVSGLU8',
+            noteRefFilesetId: 'RUSSYN',
+          },
+        }
+      );
+
+      await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+      expect(seen[0]).toBe('RUSSYN');
+    });
+
   it('renders every heading anchored before the same verse',
     async () => {
       // Sentry 158512450: ESV Psalm 18 returns both the
