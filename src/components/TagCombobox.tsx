@@ -642,9 +642,20 @@ export function TagCombobox({
             </div>
           </Popover.Target>
           <Popover.Dropdown p={4}>
+            {/* `mah` on the ScrollArea root leaves Radix's
+                inner viewport unconstrained: its height is
+                100% of an auto-height parent, so it resolves
+                to the content height — nothing overflows the
+                viewport, and the root's `overflow:hidden`
+                just clips the rest of the list. The cap must
+                land on the viewport, which then becomes the
+                scroll container (the same job Select's
+                flex+maxHeight dropdown wrapper did). */}
             <ScrollArea
-              mah={window.innerHeight * 0.7}
               type="auto"
+              styles={{
+                viewport: { maxHeight: '70vh' },
+              }}
             >
               <div
                 role="listbox"
