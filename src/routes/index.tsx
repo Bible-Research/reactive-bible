@@ -25,6 +25,9 @@ const SearchRoute = lazyWithReload(() => import('./SearchRoute'));
 const GettingStartedRoute = lazyWithReload(
   () => import('./GettingStartedRoute')
 );
+const SettingsRoute = lazyWithReload(
+  () => import('./SettingsRoute')
+);
 const LoginPage = lazyWithReload(() =>
   import('../components/LoginPage').then((m) => ({
     default: m.LoginPage,
@@ -66,6 +69,10 @@ export function AppRoutes() {
           path="/getting-started"
           element={<GettingStartedRoute />}
         />
+
+        {/* Settings - public: preferences are device-local
+            (localStorage), so anonymous users keep them too. */}
+        <Route path="/settings" element={<SettingsRoute />} />
 
         {/* Bible routes - public (can view Bible without auth) */}
         <Route path="/bible" element={<BibleRoute />} />

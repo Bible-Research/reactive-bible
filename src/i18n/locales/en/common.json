@@ -21,7 +21,8 @@
     "languageLoadFailed": "Could not load the selected language — keeping the current one.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "gettingStartedHint": "Watch short video tutorials on the app's features."
+    "gettingStartedHint": "Watch short video tutorials on the app's features.",
+    "settings": "Settings"
   },
   "audio": {
     "play": "Play",
@@ -608,5 +609,14 @@
   },
   "copyright": {
     "prefix": "Copyright: {{text}}"
+  },
+  "settings": {
+    "title": "Settings",
+    "noteRefTranslation": "Note reference translation",
+    "noteRefHint": "Scripture previews in notes use this translation.",
+    "followSelected": "Selected translation",
+    "pinSpecific": "Specific translation",
+    "change": "Change",
+    "reset": "Reset"
   }
 }

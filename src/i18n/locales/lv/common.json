@@ -21,7 +21,8 @@
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
     "openMenu": "Atvērt izvēlni",
     "closeMenu": "Aizvērt izvēlni",
-    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām."
+    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām.",
+    "settings": "Iestatījumi"
   },
   "audio": {
     "play": "Atskaņot",
@@ -620,5 +621,14 @@
       "title": "Papildu: tumšais režīms, problēmu ziņojumi, Android lietotne",
       "description": "Atlikušās izvēlnes izvēles: tēmas slēdzis, problēmas ziņošana un Android lietotne."
     }
+  },
+  "settings": {
+    "title": "Iestatījumi",
+    "noteRefTranslation": "Bībeles atsauču tulkojums",
+    "noteRefHint": "Atsauču priekšskatījumi izmanto šo tulkojumu.",
+    "followSelected": "Izvēlētais tulkojums",
+    "pinSpecific": "Konkrēts tulkojums",
+    "change": "Mainīt",
+    "reset": "Atiestatīt"
   }
 }
