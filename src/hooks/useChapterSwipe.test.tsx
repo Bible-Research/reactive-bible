@@ -173,6 +173,79 @@ describe('useChapterSwipe', () => {
     }
   });
 
+  it('does not capture a plain click, so the verse under ' +
+    'the cursor still gets it', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    swipe(el, {
+      fromX: 300,
+      toX: 295,
+      pointerType: 'mouse',
+    });
+    expect(capture).not.toHaveBeenCalled();
+    expect(currentPath()).toBe('/');
+  });
+
+  it('captures once a drag passes the slop, and the swipe ' +
+    'still turns the chapter', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerType: 'mouse',
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 289,
+      clientY: 102,
+      pointerType: 'mouse',
+    });
+    expect(capture).toHaveBeenCalledWith(1);
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerType: 'mouse',
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('captures a vertical mouse drag past the slop so a ' +
+    'drag ending on its own verse cannot toggle it', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerType: 'mouse',
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 301,
+      clientY: 115,
+      pointerType: 'mouse',
+    });
+    expect(capture).toHaveBeenCalledWith(1);
+  });
+
+  it('resolves a swipe released outside the viewport', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+    });
+    firePointer(document.body, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
   it('does nothing while disabled', () => {
     renderWithProviders(<SwipeHarness enabled={false} />);
     swipe(screen.getByTestId('swipe-viewport'), {

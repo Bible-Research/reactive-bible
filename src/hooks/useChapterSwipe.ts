@@ -11,6 +11,10 @@ import { buildBiblePath } from "../utils/bibleUtils";
 // from the scroll takeover anyway).
 const SWIPE_MIN_DISTANCE = 75;
 const SWIPE_AXIS_RATIO = 1.5;
+// How far (px) a press must travel before it counts as a
+// drag and the pointer is captured — shorter gestures stay
+// plain clicks so desktop verse selection still works.
+const SWIPE_CAPTURE_SLOP = 10;
 // Trackpad/Magic-Mouse swipes arrive as wheel events — one
 // stream per gesture, with a long inertial tail after the
 // fingers lift. A gesture turns ONE chapter once it has
@@ -36,7 +40,9 @@ const SWIPE_WHEEL_QUIET_MS = 300;
  * mouse drags; wheel events cover trackpad/Magic-Mouse
  * swipes, which never produce pointer contact. A mouse drag
  * that ends with text selected was meant as a text
- * selection, not a swipe. The book/chapter is read from the
+ * selection, not a swipe. Capture is taken only once a drag
+ * passes a small slop, so plain clicks still dispatch on the
+ * verse under the cursor. The book/chapter is read from the
  * store at swipe time so a gesture can't act on a chapter
  * that was already navigated away from. The viewport gets
  * `touch-action: pan-y` so touch drags reach pointerup on
@@ -89,6 +95,7 @@ export const useChapterSwipe = (
       pointerId: number;
       x: number;
       y: number;
+      captured: boolean;
     } | null = null;
     const gesture = wheelGesture.current;
 
@@ -109,18 +116,65 @@ export const useChapterSwipe = (
 
     const onPointerDown = (event: PointerEvent) => {
       // Track a single pointer; primary button only for mice.
-      if (start !== null) return;
       if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+      // A second, different pointer mid-gesture is ignored —
+      // but a repeat of the same id means the previous
+      // release never produced an event (a mouse drag can
+      // end over the browser chrome before capture), so the
+      // stale start is safe to replace.
+      if (start !== null && start.pointerId !== event.pointerId) {
         return;
       }
       start = {
         pointerId: event.pointerId,
         x: event.clientX,
         y: event.clientY,
+        captured: false,
       };
-      // Retarget move/up to the viewport so drags ending
-      // outside it still resolve.
-      viewport.setPointerCapture?.(event.pointerId);
+      // No capture here: it would retarget the trailing
+      // mouseup/click to the viewport and a plain click on a
+      // verse would never reach it — desktop verse
+      // selection lives in that click handler.
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (
+        start === null ||
+        start.pointerId !== event.pointerId ||
+        start.captured
+      ) {
+        return;
+      }
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      const moved =
+        Math.abs(dx) >= SWIPE_CAPTURE_SLOP ||
+        Math.abs(dy) >= SWIPE_CAPTURE_SLOP;
+      // Touch and pen get implicit capture anyway, and their
+      // mostly-vertical drags are claimed for scrolling
+      // (pointercancel resets `start`), so they capture only
+      // a horizontal swipe. A mouse has no implicit capture,
+      // so any drag past the slop captures — the retargeted
+      // mouseup/click both lets a release outside the
+      // viewport resolve and keeps a drag ending on the
+      // verse it started on from toggling its selection.
+      if (
+        !moved ||
+        (event.pointerType !== 'mouse' &&
+          Math.abs(dx) <= Math.abs(dy))
+      ) {
+        return;
+      }
+      try {
+        // Throws for inactive pointers — such a gesture just
+        // resolves uncaptured.
+        viewport.setPointerCapture?.(event.pointerId);
+        start.captured = true;
+      } catch {
+        /* inactive pointer — resolve without capture */
+      }
     };
 
     const onPointerEnd = (event: PointerEvent) => {
@@ -202,7 +256,15 @@ export const useChapterSwipe = (
     };
 
     viewport.addEventListener('pointerdown', onPointerDown);
-    viewport.addEventListener('pointerup', onPointerUp);
+    viewport.addEventListener('pointermove', onPointerMove);
+    // pointerup lives on window: a release inside a viewport
+    // descendant bubbles up to it anyway, and an uncaptured
+    // sub-slop release elsewhere in the document still
+    // clears `start`. Captured drags retarget the event to
+    // the viewport, which bubbles to window the same way.
+    // `start` is nulled on first handling, so this can never
+    // double-fire.
+    window.addEventListener('pointerup', onPointerUp);
     // pointercancel: the browser claimed the gesture for
     // scrolling (or it ended abnormally) — reset either way.
     viewport.addEventListener('pointercancel', onPointerEnd);
@@ -219,7 +281,8 @@ export const useChapterSwipe = (
       // `armed` at false if the stream went quiet just before
       // the viewport remounted.
       viewport.removeEventListener('pointerdown', onPointerDown);
-      viewport.removeEventListener('pointerup', onPointerUp);
+      viewport.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
       viewport.removeEventListener(
         'pointercancel', onPointerEnd
       );
