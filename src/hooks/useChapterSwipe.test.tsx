@@ -353,6 +353,7 @@ describe('useChapterSwipe', () => {
     renderWithProviders(<SwipeHarness />);
     const el = screen.getByTestId('swipe-viewport');
     // Pointer 1 captures, then the browser claims it.
+    el.setPointerCapture = vi.fn();
     firePointer(el, 'pointerdown', {
       clientX: 300,
       clientY: 100,
@@ -381,6 +382,7 @@ describe('useChapterSwipe', () => {
     'released outside the window sends no pointerup', () => {
     renderWithProviders(<SwipeHarness />);
     const el = screen.getByTestId('swipe-viewport');
+    el.setPointerCapture = vi.fn();
     firePointer(el, 'pointerdown', {
       clientX: 300,
       clientY: 100,

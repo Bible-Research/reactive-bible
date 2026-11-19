@@ -58,9 +58,9 @@ export const useChapterSwipe = (
   enabled: boolean,
 ) => {
   const navigate = useNavigate();
-  // The passage ScrollArea remounts its viewport per chapter;
-  // re-attaching on these deps keeps the listeners on the live
-  // element even when `enabled` never flickers.
+  // The swipe Box is stable across PassageView's render
+  // branches, but these deps still re-attach on every chapter
+  // change so listener closures see fresh book/chapter state.
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore(
     (state) => state.activeChapter
