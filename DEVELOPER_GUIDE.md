@@ -154,7 +154,10 @@ The app is configured for deployment on **Vercel**:
 2. **Build settings** (auto-detected):
    - Build Command: `npm run build`
    - Output Directory: `dist`
-3. **Deploy** - Vercel will automatically deploy on push to main branch
+3. **Deploy** - Vercel automatically deploys on push to
+   `main` (production) and `staging` (preview); every other
+   branch is blocked by `git.deploymentEnabled` in
+   `vercel.json`
 
 **Analytics & Monitoring**:
 - Vercel Analytics and Speed Insights are automatically enabled in production
