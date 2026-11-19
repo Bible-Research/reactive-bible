@@ -224,6 +224,21 @@ export interface Translation {
   text_options?: unknown[];
 }
 
+/**
+ * The last saved translation pick for one language —
+ * recorded by the translation selector on Save and
+ * re-staged as a staged selection when the language is
+ * revisited (applied only on Save, like any staged pick).
+ * `textId`/`audioId` hold the exact ids Save wrote
+ * (product or member), so an explicit audio "None"
+ * (`null`) survives the round-trip.
+ */
+export interface LastLanguageSelection {
+  abbr: string;
+  textId: string | null;
+  audioId: string | null;
+}
+
 export interface KjvBook {
   chapter: number;
   verse: number;
