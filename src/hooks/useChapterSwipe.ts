@@ -186,13 +186,16 @@ export const useChapterSwipe = (
       ) {
         return;
       }
-      try {
-        // Throws for inactive pointers — such a gesture just
-        // resolves uncaptured.
-        viewport.setPointerCapture?.(event.pointerId);
-        start.captured = true;
-      } catch {
-        /* inactive pointer — resolve without capture */
+      // Browsers without the method (and jsdom) resolve the
+      // gesture uncaptured; when it exists it throws for
+      // inactive pointers — same resolution.
+      if (viewport.setPointerCapture) {
+        try {
+          viewport.setPointerCapture(event.pointerId);
+          start.captured = true;
+        } catch {
+          /* inactive pointer — resolve without capture */
+        }
       }
     };
 

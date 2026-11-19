@@ -279,6 +279,75 @@ describe('useChapterSwipe', () => {
     expect(capture).not.toHaveBeenCalled();
   });
 
+  it('lets a second pointer replace an uncaptured ' +
+    'in-progress gesture', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    // Pointer 1 presses and drifts under the slop — the
+    // gesture never committed to a drag.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 1,
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 295,
+      clientY: 102,
+      pointerId: 1,
+    });
+    // Pointer 2's press takes over; its swipe resolves.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 2,
+    });
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 2,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('blocks a second pointer while a gesture is captured', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    // Pointer 1 drags past the slop and captures.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 1,
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 290,
+      clientY: 100,
+      pointerId: 1,
+    });
+    expect(capture).toHaveBeenCalledWith(1);
+    // Pointer 2's whole swipe is ignored — the captured
+    // gesture owns the viewport.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 2,
+    });
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 2,
+    });
+    expect(currentPath()).toBe('/');
+    // Pointer 1 finishing its drag still turns the chapter.
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 1,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
   it('clears the gesture on pointercancel so the next ' +
     'swipe still works', () => {
     renderWithProviders(<SwipeHarness />);
