@@ -8,6 +8,7 @@ import {
   useMantineTheme,
   ColorScheme,
   Divider,
+  SegmentedControl,
 } from "@mantine/core";
 import {
   IconX,
@@ -15,13 +16,20 @@ import {
   IconMoonStars,
   IconBrandAndroid,
   IconRefresh,
-  IconBug,
+  IconMail,
+  IconRocket,
 } from "@tabler/icons-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { buildBiblePath } from "../utils/bibleUtils";
+import {
+  SUPPORTED_UI_LANGUAGES,
+  UI_LANGUAGE_AUTONYMS,
+  isUiLanguage,
+} from "../i18n";
 import { isNativeApp } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
@@ -33,8 +41,8 @@ import { UserMenu } from "./UserMenu";
 const AddStandaloneNoteModal = lazyWithReload(
   () => import("./AddStandaloneNoteModal")
 );
-const ReportProblemModal = lazyWithReload(
-  () => import("./ReportProblemModal")
+const ContactModal = lazyWithReload(
+  () => import("./ContactModal")
 );
 
 // Fallback while the newest versioned asset URL is resolved
@@ -59,9 +67,10 @@ const MainMenu = ({
   toggleColorScheme,
 }: MainMenuProps) => {
   const theme = useMantineTheme();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
-  const [reportOpened, setReportOpened] = useState(false);
+  const [contactOpened, setContactOpened] = useState(false);
   // The stable-name continuous asset is deleted + re-uploaded on
   // every publish — resolve the freshest versioned APK instead
   // so the link can never hand out a truncated file.
@@ -81,6 +90,10 @@ const MainMenu = ({
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
+  const uiLanguage = useBibleStore((state) => state.uiLanguage);
+  const setUiLanguage = useBibleStore(
+    (state) => state.setUiLanguage
+  );
 
   // Offer the APK only on Android browsers — useless on iOS,
   // desktop, and inside the native shell itself.
@@ -99,12 +112,19 @@ const MainMenu = ({
         withCloseButton={false}
         padding="xl"
       >
+      {/* Close X on the right: the drawer body is not a flex
+          container, so use an auto inline-start margin (the
+          block-level ActionIcon keeps a fixed width) — inert
+          align-self did nothing here. */}
       <ActionIcon
         onClick={onClose}
         size="lg"
         variant="transparent"
-        style={{ alignSelf: "flex-start", marginBottom: "2rem" }}
-        title="Close menu"
+        style={{
+          marginInlineStart: "auto",
+          marginBottom: "2rem",
+        }}
+        title={t('menu.closeMenu')}
       >
         <IconX size={24} />
       </ActionIcon>
@@ -112,10 +132,10 @@ const MainMenu = ({
       <Stack spacing="xl">
         {/* User Account Section */}
         <Group position="apart" spacing="xs">
-          <Text weight={500} size="lg">Account</Text>
+          <Text weight={500} size="lg">{t('menu.account')}</Text>
           <UserMenu onNavigate={onClose} />
         </Group>
-        
+
         <Divider />
 
         <Group position="apart" spacing="xs">
@@ -128,7 +148,7 @@ const MainMenu = ({
             }}
             sx={{ cursor: "pointer" }}
           >
-            Read Bible
+            {t('menu.readBible')}
           </Text>
         </Group>
 
@@ -146,7 +166,7 @@ const MainMenu = ({
               }}
               sx={{ cursor: "pointer" }}
             >
-              View Notes
+              {t('menu.viewNotes')}
             </Text>
           </Group>
         )}
@@ -160,7 +180,7 @@ const MainMenu = ({
                 onClick={() => setNewNoteOpened(true)}
                 sx={{ cursor: "pointer" }}
               >
-                New Note
+                {t('menu.newNote')}
               </Text>
             </Group>
 
@@ -174,7 +194,7 @@ const MainMenu = ({
                 }}
                 sx={{ cursor: "pointer" }}
               >
-                Tag Management
+                {t('menu.tagManagement')}
               </Text>
             </Group>
           </>
@@ -192,12 +212,12 @@ const MainMenu = ({
                 size="lg"
                 onClick={() => void checkForUpdatesManually()}
                 sx={{ cursor: "pointer" }}
-                title="Check for updates"
+                title={t('menu.checkUpdates')}
               >
-                Check for updates
+                {t('menu.checkUpdates')}
               </Text>
               <Text size="xs" color="dimmed">
-                Look for a newer build on GitHub Releases.
+                {t('menu.checkUpdatesHint')}
               </Text>
             </div>
           </Group>
@@ -218,21 +238,21 @@ const MainMenu = ({
                   component="a"
                   href={apkUrl}
                   sx={{ cursor: "pointer", color: "inherit" }}
-                  title="Download Android app"
+                  title={t('menu.downloadAndroidApp')}
                 >
-                  Download Android App
+                  {t('menu.downloadAndroidApp')}
                 </Text>
                 <Text size="xs" color="dimmed">
-                  For lock-screen audio playback. You may need to
-                  allow "install unknown apps" for your browser.
+                  {t('menu.downloadAndroidHint')}
                 </Text>
               </div>
             </Group>
           </>
         )}
 
+        {/* Ungated: new anonymous users are the audience. */}
         <Group spacing="xs" align="flex-start" noWrap>
-          <IconBug
+          <IconRocket
             size={22}
             style={{ marginTop: 4, flexShrink: 0 }}
           />
@@ -240,15 +260,38 @@ const MainMenu = ({
             <Text
               weight={500}
               size="lg"
-              onClick={() => setReportOpened(true)}
+              onClick={() => {
+                void navigate('/getting-started');
+                onClose();
+              }}
               sx={{ cursor: "pointer" }}
-              title="Report a problem"
+              title={t('menu.gettingStarted')}
             >
-              Report a problem
+              {t('menu.gettingStarted')}
             </Text>
             <Text size="xs" color="dimmed">
-              Tell us what went wrong — it goes to the team
-              with your current passage.
+              {t('menu.gettingStartedHint')}
+            </Text>
+          </div>
+        </Group>
+
+        <Group spacing="xs" align="flex-start" noWrap>
+          <IconMail
+            size={22}
+            style={{ marginTop: 4, flexShrink: 0 }}
+          />
+          <div>
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => setContactOpened(true)}
+              sx={{ cursor: "pointer" }}
+              title={t('menu.contactDeveloper')}
+            >
+              {t('menu.contactDeveloper')}
+            </Text>
+            <Text size="xs" color="dimmed">
+              {t('menu.contactDeveloperHint')}
             </Text>
           </div>
         </Group>
@@ -256,7 +299,7 @@ const MainMenu = ({
         <Divider />
 
         <Group position="apart" spacing="xs">
-          <Text weight={500} size="lg">Theme</Text>
+          <Text weight={500} size="lg">{t('menu.theme')}</Text>
           <Switch
             checked={colorScheme === "dark"}
             onChange={toggleColorScheme}
@@ -273,6 +316,22 @@ const MainMenu = ({
             }
           />
         </Group>
+
+        <Group position="apart" spacing="xs">
+          <Text weight={500} size="lg">{t('menu.language')}</Text>
+          {/* Autonyms are intentional — a user who can't read
+              the current UI language must still find theirs. */}
+          <SegmentedControl
+            value={uiLanguage}
+            onChange={(value) => {
+              if (isUiLanguage(value)) setUiLanguage(value);
+            }}
+            data={SUPPORTED_UI_LANGUAGES.map((lang) => ({
+              value: lang,
+              label: UI_LANGUAGE_AUTONYMS[lang],
+            }))}
+          />
+        </Group>
       </Stack>
     </Drawer>
       {isAuthenticated && newNoteOpened && (
@@ -283,11 +342,11 @@ const MainMenu = ({
           />
         </Suspense>
       )}
-      {reportOpened && (
+      {contactOpened && (
         <Suspense fallback={null}>
-          <ReportProblemModal
-            opened={reportOpened}
-            onClose={() => setReportOpened(false)}
+          <ContactModal
+            opened={contactOpened}
+            onClose={() => setContactOpened(false)}
           />
         </Suspense>
       )}

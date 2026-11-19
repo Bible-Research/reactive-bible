@@ -11,6 +11,8 @@ import { IconAlertTriangle } from '@tabler/icons-react';
 import * as Sentry from '@sentry/react';
 import { copyErrorDetails } from '../utils/errorReportDetails';
 import { reportError } from '../utils/errorReporter';
+import { textOrKey } from '../i18n/errorText';
+import i18n from '../i18n';
 
 interface Props {
   children: ReactNode;
@@ -33,6 +35,21 @@ export class ErrorBoundary extends Component<Props, State> {
     super(props);
     this.state = { hasError: false, error: null, copied: false };
   }
+
+  componentDidMount(): void {
+    i18n.on('languageChanged', this.handleLanguageChange);
+  }
+
+  componentWillUnmount(): void {
+    i18n.off('languageChanged', this.handleLanguageChange);
+  }
+
+  // The fallback renders outside the React tree's translation
+  // context — re-render so its i18n.t calls resolve in the new
+  // language when the user switches from MainMenu.
+  private handleLanguageChange = (): void => {
+    this.forceUpdate();
+  };
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error, copied: false };
@@ -67,10 +84,12 @@ export class ErrorBoundary extends Component<Props, State> {
         <Container size="sm" mt={100}>
           <Stack align="center" spacing="lg">
             <IconAlertTriangle size={64} color="red" />
-            <Title order={2}>Something went wrong</Title>
+            <Title order={2}>{i18n.t('errorBoundary.title')}</Title>
             <Text color="dimmed" align="center">
-              {this.state.error?.message ||
-                'An unexpected error occurred. Please try again.'}
+              {textOrKey(
+                this.state.error?.message ||
+                  'errorBoundary.unexpected'
+              )}
             </Text>
             <Group>
               <Button
@@ -79,7 +98,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   window.location.href = '/';
                 }}
               >
-                Go to Home
+                {i18n.t('errorBoundary.goHome')}
               </Button>
               <Button
                 variant="light"
@@ -94,13 +113,12 @@ export class ErrorBoundary extends Component<Props, State> {
                 }}
               >
                 {this.state.copied
-                  ? 'Copied!'
-                  : 'Copy error details'}
+                  ? i18n.t('errorBoundary.copied')
+                  : i18n.t('errorBoundary.copyDetails')}
               </Button>
             </Group>
             <Text size="xs" color="dimmed" align="center">
-              Please report this bug by pasting the details into a
-              GitHub issue.
+              {i18n.t('errorBoundary.reportHint')}
             </Text>
           </Stack>
         </Container>

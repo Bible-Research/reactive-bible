@@ -1,6 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { buildNotePlaylistItems } from './notePlaylist';
-import type { Note, Verse } from '../types';
+import {
+  resetActiveStructure,
+  setActiveStructure,
+} from './bookNameRegistry';
+import type {
+  BibleStructure,
+  Note,
+  Verse,
+} from '../types';
+import catalogLv from '../assets/bookNames.lv.json';
+
+const LV = catalogLv as unknown as BibleStructure;
+
+beforeEach(() => {
+  resetActiveStructure();
+});
 
 const verse = (
   book: string,
@@ -135,4 +150,23 @@ describe('buildNotePlaylistItems', () => {
     expect(items[0].bookId).toBe('Notabook');
     expect(items[0].itemId).toBe('n1:Notabook:1');
   });
+
+  it('labels items with the localized book name', () => {
+    const items = buildNotePlaylistItems(
+      [note('n1', [verse('John', 3, 16)])],
+      LV,
+    );
+    expect(items[0].label)
+      .toBe('Note 1/1 – Jāņa evaņģēlijs 3:16');
+  });
+
+  it('reads localized names off the active-structure ' +
+    'registry when no structure is passed', () => {
+      setActiveStructure(LV);
+      const items = buildNotePlaylistItems([
+        note('n1', [verse('John', 3, 16)]),
+      ]);
+      expect(items[0].label)
+        .toBe('Note 1/1 – Jāņa evaņģēlijs 3:16');
+    });
 });

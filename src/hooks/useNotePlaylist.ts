@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { showNotification } from '@mantine/notifications';
 import { useBibleStore } from '../store';
+import { useActiveStructure } from './useBookName';
 import type { Note } from '../types';
 import {
   buildNotePlaylistItems,
   playableNotes,
 } from '../utils/notePlaylist';
+import i18n from '../i18n';
 
 /**
  * Audio-playlist assembly for TagNotesRoute: keeps
@@ -37,9 +39,16 @@ export const useNotePlaylist = (
     [sortedNotes]
   );
 
+  // Subscribing to the resolved structure re-derives the
+  // localized labels when a fresher structure swaps in
+  // mid-playlist (same pattern as VerseActionToolbar).
+  const structure = useActiveStructure();
+  // Item labels are translated once at build time — a
+  // language switch mid-playlist leaves stale labels until
+  // the items rebuild (accepted: playlists are short-lived).
   const playlistItems = useMemo(
-    () => buildNotePlaylistItems(sortedNotes),
-    [sortedNotes]
+    () => buildNotePlaylistItems(sortedNotes, structure),
+    [sortedNotes, structure]
   );
 
   useEffect(() => {
@@ -72,10 +81,12 @@ export const useNotePlaylist = (
         (n) => n.id === noteId
       );
       showNotification({
-        title: 'Playlist Started',
+        title: i18n.t('audio.playlistStarted'),
         message:
-          `Playing from note ${noteIndex + 1} ` +
-          `of ${playable.length}`,
+          i18n.t('audio.playlistStartedMsg', {
+            index: noteIndex + 1,
+            total: playable.length,
+          }),
         color: 'blue',
         autoClose: 3000,
       });

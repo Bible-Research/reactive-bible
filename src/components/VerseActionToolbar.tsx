@@ -24,10 +24,12 @@ import {
 import { useMediaQuery } from "@mantine/hooks";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBibleStore } from "../store";
+import { useActiveStructure } from "../hooks/useBookName";
 import { useAuthStore } from "../stores/authStore";
 import { showNotification } from "@mantine/notifications";
 import {
   buildBiblePath,
+  localizedBookName,
   toBookName,
   toUsfmCode,
 } from "../utils/bibleUtils";
@@ -47,6 +49,9 @@ import {
   faviconUrl,
 } from "../utils/externalLinks";
 import { lazyWithReload } from "../utils/lazyWithReload";
+import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
+import { FOOTER_HEIGHT } from "../utils/layoutChrome";
+import { useTranslation } from 'react-i18next';
 
 // Lazy + gated below on noteModalOpened so TipTap stays out of
 // the entry chunk until a note is actually authored.
@@ -62,10 +67,39 @@ export interface PrimaryChapterRef {
   verses: number[];
 }
 
-const formatChapterGroup = (group: PrimaryChapterRef): string => {
+/** Decorative third-party icon inside an external-link
+ *  button. The favicon services fail routinely (rate limits,
+ *  headless traffic, ad blockers), so a load error hides the
+ *  image instead of showing a broken-image glyph — the
+ *  button itself stays clickable. The data-favicon marker
+ *  also opts the element out of resource-load reporting. */
+const FaviconImg = ({
+  src,
+  alt,
+  style,
+}: {
+  src: string;
+  alt: string;
+  style: React.CSSProperties;
+}) => (
+  <img
+    src={src}
+    alt={alt}
+    style={style}
+    data-favicon
+    onError={(event) => {
+      event.currentTarget.style.display = "none";
+    }}
+  />
+);
+
+const formatChapterGroup = (
+  group: PrimaryChapterRef,
+  bookName: (code: string) => string | null,
+): string => {
   const sorted = group.verses;
   const label =
-    `${toBookName(group.bookId) ?? group.bookId} ` +
+    `${bookName(group.bookId) ?? group.bookId} ` +
     `${group.chapter}`;
   if (sorted.length === 0) return label;
   const isConsecutive = sorted.every(
@@ -80,6 +114,10 @@ const formatChapterGroup = (group: PrimaryChapterRef): string => {
 };
 
 const VerseActionToolbar = () => {
+  const { t } = useTranslation();
+  // Subscribe so group labels re-render when the localized
+  // structure swaps in (formatChapterGroup reads the registry).
+  useActiveStructure();
   const verseSelection = useBibleStore((state) => state.verseSelection);
   const setVerseSelection = useBibleStore(
     (state) => state.setVerseSelection
@@ -123,7 +161,20 @@ const VerseActionToolbar = () => {
   }, [refs]);
   const passageRef = useMemo(() => {
     if (refs.length === 0) return "";
-    return groupRefsByChapter(refs).map(formatChapterGroup).join("; ");
+    return groupRefsByChapter(refs)
+      .map((g) => formatChapterGroup(g, localizedBookName))
+      .join("; ");
+  }, [refs]);
+
+  // The BibleMapper clipboard copy is pasted into an
+  // English-language tool — like every other external-link
+  // surface it stays English (`toBookName`), never the
+  // active structure's localized names.
+  const passageRefEnglish = useMemo(() => {
+    if (refs.length === 0) return "";
+    return groupRefsByChapter(refs)
+      .map((g) => formatChapterGroup(g, toBookName))
+      .join("; ");
   }, [refs]);
 
   // Selected verse text from the note's own data when the
@@ -187,8 +238,8 @@ const VerseActionToolbar = () => {
           err.name !== "AbortError"
         ) {
           showNotification({
-            title: "Error",
-            message: "Failed to share",
+            title: t("common.error"),
+            message: t("share.shareFailed"),
             color: "red",
           });
         }
@@ -196,34 +247,43 @@ const VerseActionToolbar = () => {
     } else {
       if (await copyTextToClipboard(shareText)) {
         showNotification({
-          title: "Link copied",
-          message: `Link to ${passageRef} copied to clipboard`,
+          title: t("share.linkCopied"),
+          message: t("share.linkCopiedMsg", { ref: passageRef }),
           color: "blue",
         });
       } else {
         showNotification({
-          title: "Error",
-          message: "Failed to copy link",
+          title: t("common.error"),
+          message: t("share.copyLinkFailed"),
           color: "red",
         });
       }
     }
-  }, [primary, refs, scope, noteVerseText, passageRef]);
+  }, [
+    primary,
+    refs,
+    scope,
+    noteVerseText,
+    passageRef,
+    t,
+  ]);
 
   const handleCopyAndOpenWebViewer = useCallback(async () => {
     // Copy first — opening the viewer after a failed copy would
     // send the user to a page with nothing on the clipboard.
-    if (!(await copyTextToClipboard(passageRef))) {
+    if (!(await copyTextToClipboard(passageRefEnglish))) {
       showNotification({
-        title: "Error",
-        message: "Failed to copy to clipboard",
+        title: t("common.error"),
+        message: t("share.copyFailed"),
         color: "red",
       });
       return;
     }
+    // Echo the English ref — that's what actually landed on
+    // the clipboard, not the localized display ref.
     showNotification({
-      title: "Copied",
-      message: `${passageRef} copied to clipboard`,
+      title: t("share.copied"),
+      message: t("share.copiedMsg", { ref: passageRefEnglish }),
       color: "green",
     });
     window.open(
@@ -231,7 +291,7 @@ const VerseActionToolbar = () => {
       "_blank",
       "noopener,noreferrer"
     );
-  }, [passageRef]);
+  }, [passageRefEnglish, t]);
 
   const youVersionUrl = useMemo(
     () =>
@@ -279,14 +339,15 @@ const VerseActionToolbar = () => {
   // BottomNav (56px) only renders on /bible routes and slides
   // away with MyHeader on downward scroll (headerVisible); on
   // /notes the toolbar would otherwise float mid-screen. The
-  // audio player bar (~120px) sits at the bottom on every route.
+  // audio player bar (AUDIO_PLAYER_HEIGHT) sits at the bottom
+  // on every route.
   const onBibleRoute = location.pathname.startsWith('/bible');
   const bottomOffset = showAudioPlayer
     ? onBibleRoute && headerVisible
-      ? 176
-      : 120
+      ? AUDIO_PLAYER_HEIGHT + FOOTER_HEIGHT
+      : AUDIO_PLAYER_HEIGHT
     : onBibleRoute && headerVisible
-      ? 56
+      ? FOOTER_HEIGHT
       : 0;
 
   const handleViewInBible = useCallback(() => {
@@ -335,13 +396,12 @@ const VerseActionToolbar = () => {
           <ActionIcon
             variant="transparent"
             onClick={() => setVerseSelection(null)}
-            title="Clear selection"
+            title={t("share.clearSelection")}
           >
             <IconX size={rem(18)} />
           </ActionIcon>
           <Text size="sm">
-            {refCount} verse
-            {refCount !== 1 ? "s" : ""} selected
+            {t("share.versesSelected", { count: refCount })}
           </Text>
         </Group>
         <Group
@@ -354,7 +414,7 @@ const VerseActionToolbar = () => {
               color="indigo"
               size="lg"
               onClick={handleViewInBible}
-              title="View in Bible"
+              title={t("share.viewInBible")}
             >
               <IconBook size={rem(20)} />
             </ActionIcon>
@@ -363,9 +423,9 @@ const VerseActionToolbar = () => {
             variant="transparent"
             size="lg"
             onClick={handleCopyAndOpenWebViewer}
-            title="Copy passage & open WebViewer"
+            title={t("share.copyPassageWebviewer")}
           >
-            <img
+            <FaviconImg
               src={faviconUrl("biblemapper.com")}
               alt="BibleMapper"
               style={faviconStyle}
@@ -376,7 +436,7 @@ const VerseActionToolbar = () => {
             color="teal"
             size="lg"
             onClick={() => setMapModalOpened(true)}
-            title="View on map"
+            title={t("share.viewOnMap")}
           >
             <IconMap2 size={rem(20)} />
           </ActionIcon>
@@ -391,9 +451,9 @@ const VerseActionToolbar = () => {
                   "noopener,noreferrer"
                 )
               }
-              title="Open in YouVersion (Bible.com)"
+              title={t("share.openYouversion")}
             >
-              <img
+              <FaviconImg
                 src="https://www.bible.com/apple-touch-icon.png"
                 alt="YouVersion"
                 style={faviconStyle}
@@ -411,9 +471,9 @@ const VerseActionToolbar = () => {
                   "noopener,noreferrer"
                 )
               }
-              title="Commentary on BibleHub"
+              title={t("share.commentaryBiblehub")}
             >
-              <img
+              <FaviconImg
                 src={faviconUrl("biblehub.com")}
                 alt="BibleHub"
                 style={faviconStyle}
@@ -427,9 +487,9 @@ const VerseActionToolbar = () => {
               onClick={() =>
                 window.open(blbUrl, "_blank", "noopener,noreferrer")
               }
-              title="Look up in Blue Letter Bible"
+              title={t("share.lookupBlb")}
             >
-              <img
+              <FaviconImg
                 src={faviconUrl("blueletterbible.org")}
                 alt="Blue Letter Bible"
                 style={faviconStyle}
@@ -441,7 +501,7 @@ const VerseActionToolbar = () => {
             color="cyan"
             size="lg"
             onClick={handleShare}
-            title="Share this passage"
+            title={t("share.sharePassage")}
           >
             <IconShare size={rem(20)} />
           </ActionIcon>
@@ -451,7 +511,7 @@ const VerseActionToolbar = () => {
               color="blue"
               size="lg"
               onClick={() => setNoteModalOpened(true)}
-              title="Add note"
+              title={t("share.addNote")}
             >
               <IconBookmark size={rem(20)} />
             </ActionIcon>
@@ -469,7 +529,7 @@ const VerseActionToolbar = () => {
       <Modal
         opened={mapModalOpened}
         onClose={() => setMapModalOpened(false)}
-        title="Bible Maps"
+        title={t("share.bibleMaps")}
         size="xl"
         fullScreen={isMobile}
         styles={{
@@ -490,7 +550,7 @@ const VerseActionToolbar = () => {
       >
         <iframe
           src={mapUrl}
-          title="BibleMapper PassageBrowser"
+          title={t("share.biblemapperTitle")}
           width="100%"
           height={isMobile ? undefined : "600px"}
           sandbox={
@@ -512,7 +572,7 @@ const VerseActionToolbar = () => {
             rel="noopener noreferrer"
             size="sm"
           >
-            Open in new tab
+            {t('share.openInNewTab')}
           </Anchor>
         </Box>
       </Modal>

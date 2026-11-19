@@ -60,6 +60,27 @@ describe('useAppUpdate', () => {
     });
   });
 
+  it('renders semver build metadata as "(build N)"', async () => {
+    vi.mocked(checkForUpdates).mockResolvedValue({
+      kind: 'update',
+      manifest: {
+        versionCode: 113,
+        versionName: '1.0.1+113',
+        apkUrl:
+          'https://github.com/x/y/releases/download/a.apk',
+      },
+      installed: { build: 97, version: '1.0.0+97' },
+    });
+    renderHook(() => useAppUpdate());
+    await waitFor(() => {
+      expect(openConfirmModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Update available · v1.0.1 (build 113)',
+        }),
+      );
+    });
+  });
+
   it('does not notify when up to date', async () => {
     vi.mocked(checkForUpdates).mockResolvedValue({
       kind: 'current',

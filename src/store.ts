@@ -4,6 +4,7 @@ import * as api from './api';
 import {
   Note,
   Tag,
+  TagPagination,
   PlaylistItem,
   AudioActiveVerse,
   VerseRef,
@@ -11,16 +12,26 @@ import {
   VerseSelection,
 } from './types';
 import { refsInclude, sameRef } from './utils/verseRefs';
-import { toBookName } from './utils/bibleUtils';
+import { localizedBookName } from './utils/bibleUtils';
 import {
   useAuthStore,
   registerBibleStore,
 } from './stores/authStore';
 import { createNotesSlice } from './stores/bibleStore/notesSlice';
+import { createStructureSlice } from './stores/bibleStore/structureSlice';
 import {
   migratePersistedState,
   partializeState,
 } from './stores/bibleStore/persistence';
+import i18n, {
+  changeUiLanguage,
+  resolveInitialTextFileset,
+  resolveUiLanguage,
+  type UiLanguage,
+} from './i18n';
+import { showNotification } from '@mantine/notifications';
+import * as Sentry from '@sentry/react';
+import { captureHandledError } from './utils/errorReporter';
 
 export { migratePersistedState, partializeState };
 
@@ -30,11 +41,35 @@ export type Fileset = import('./types').Fileset;
 export type Translation = import('./types').Translation;
 
 export interface BibleState {
+  /**
+   * Resolved `/bible/structure/` data keyed by bible abbr
+   * (transient — persistence lives in the cacheManager tier;
+   * SWR resolution in stores/bibleStore/structureSlice.ts).
+   */
+  structureByBible: Record<string, api.BibleStructure>;
+  /**
+   * The abbr whose structure currently drives localized
+   * names + picker coverage.
+   */
+  activeStructureKey: string | null;
+  /**
+   * SWR resolve of the structure for `activeTextFilesetId` —
+   * localStorage -> bundled catalog -> previous -> fetch.
+   * Idempotent + in-flight deduped.
+   */
+  loadStructure: () => void;
   /** USFM book code (e.g. "JHN") — canonical passage identity. */
   activeBookId: string;
   activeChapter: number;
   verseSelection: VerseSelection | null;
   bibleVersion: string;
+  /**
+   * UI locale (BCP-47: 'en' | 'lv' | 'ru'). Persisted; the
+   * first-run value comes from `navigator.language` detection
+   * and is independent of the Bible translation choice.
+   */
+  uiLanguage: UiLanguage;
+  setUiLanguage: (lang: UiLanguage) => void;
   showAudioPlayer: boolean;
   translations: Translation[];
   activeTextFilesetId: string | null;
@@ -57,6 +92,14 @@ export interface BibleState {
   notesPageSize: number;
   notesHasMore: boolean;
   notesOrdering: string | null;
+  /**
+   * Persisted per-tag pagination prefs keyed by tag id (the
+   * UNTAGGED sentinel included): the page and page size the
+   * user last viewed that tag at. `fetchNotes` writes it on
+   * every successful tag fetch; `useTagNotesData` restores
+   * it when a tag is revisited.
+   */
+  tagPagination: Record<string, TagPagination>;
   audioActiveVerse: AudioActiveVerse | null;
   setAudioActiveVerse: (verse: AudioActiveVerse | null) => void;
   audioPlaylistItems: PlaylistItem[] | null;
@@ -88,6 +131,14 @@ export interface BibleState {
    */
   headerVisible: boolean;
   setHeaderVisible: (visible: boolean) => void;
+  /**
+   * Persisted opt-out for the bottom-bar book-name marquee
+   * (default on; `prefers-reduced-motion` also disables it
+   * regardless of this flag). The settings toggle UI is
+   * deferred — it will only need to write this field.
+   */
+  bookTitleMarquee: boolean;
+  setBookTitleMarquee: (enabled: boolean) => void;
   setActiveBookAndChapter: (
     activeBookId: string,
     activeChapter: number
@@ -132,6 +183,8 @@ export interface BibleState {
   setLastSelectedTagId: (tagId: string | null) => void;
   setNotesPage: (page: number) => void;
   setNotesPageSize: (pageSize: number) => void;
+  /** Drops a deleted tag's remembered pagination position. */
+  removeTagPagination: (tagId: string) => void;
   /**
    * Resolves the saved reading position for `bookId` and stages
    * the book-switch side effects (pendingScrollVerse,
@@ -159,9 +212,10 @@ export const initialState = {
   activeChapter: 1,
   verseSelection: null as VerseSelection | null,
   bibleVersion: "KJV",
+  uiLanguage: resolveUiLanguage(),
   showAudioPlayer: false,
   translations: [],
-  activeTextFilesetId: "ENGESV_API",
+  activeTextFilesetId: resolveInitialTextFileset(),
   activeAudioFilesetId: "ENGESV_API",
   tags: [] as Tag[],
   notes: [] as Note[],
@@ -174,6 +228,7 @@ export const initialState = {
   notesPageSize: 25,
   notesHasMore: false,
   notesOrdering: null,
+  tagPagination: {} as Record<string, TagPagination>,
   audioActiveVerse: null as AudioActiveVerse | null,
   audioPlaylistItems: null as PlaylistItem[] | null,
   audioPlaylistStartIndex: null as number | null,
@@ -184,6 +239,9 @@ export const initialState = {
   >,
   pendingScrollVerse: null as VerseRef | null,
   headerVisible: true,
+  bookTitleMarquee: true,
+  structureByBible: {} as Record<string, api.BibleStructure>,
+  activeStructureKey: null as string | null,
 };
 
 export const useBibleStore = createWithEqualityFn<BibleState>()(
@@ -244,6 +302,27 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
           return { verseSelection: { scope, refs: merged } };
         }),
       setBibleVersion: (bibleVersion) => set({ bibleVersion }),
+      // Persisted UI locale; rehydration bypasses this action
+      // but initI18n resolves the same stored value directly.
+      setUiLanguage: (uiLanguage) => {
+        const previous = get().uiLanguage;
+        set({ uiLanguage });
+        // A failed lazy-catalog import must not strand the
+        // persisted choice on a language the UI cannot
+        // render — roll back and tell the user.
+        void changeUiLanguage(uiLanguage).catch(() => {
+          // A later setUiLanguage may have already switched
+          // past this stale failure — reverting now would
+          // clobber the newer choice (and toast for nothing).
+          if (get().uiLanguage !== uiLanguage) return;
+          set({ uiLanguage: previous });
+          showNotification({
+            title: i18n.t('common.error'),
+            message: i18n.t('menu.languageLoadFailed'),
+            color: 'red',
+          });
+        });
+      },
       setShowAudioPlayer: (showAudioPlayer) => set({ showAudioPlayer }),
       setTranslations: (translations) => set({ translations }),
       setActiveTextFilesetId: (activeTextFilesetId) =>
@@ -254,6 +333,9 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       // with conflict refresh) lives in
       // stores/bibleStore/notesSlice.ts — one store, same state.
       ...createNotesSlice(set, get, store),
+      // Per-bible structure (localized names + coverage) with
+      // stale-while-revalidate loading — structureSlice.ts.
+      ...createStructureSlice(set, get, store),
       setAudioActiveVerse: (audioActiveVerse) =>
         set({ audioActiveVerse }),
       setAudioPlaylistItems: (audioPlaylistItems) =>
@@ -265,6 +347,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setPendingScrollVerse: (pendingScrollVerse) =>
         set({ pendingScrollVerse }),
       setHeaderVisible: (headerVisible) => set({ headerVisible }),
+      setBookTitleMarquee: (bookTitleMarquee) =>
+        set({ bookTitleMarquee }),
       prepareBookSwitch: (bookId) => {
         // pendingScrollVerse carries the verse > 1 restore —
         // PassageView consumes it once the chapter loads.
@@ -312,10 +396,15 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             }));
             return stage(entry);
           })
-          .catch(() => {
+          .catch((error) => {
             // A failed lookup stays `undefined` — never cached
             // as "no position", so the next book click retries
             // instead of permanently landing on chapter 1.
+            captureHandledError(
+              error,
+              'Reading position fetch',
+              { book: bookId }
+            );
             return stage(undefined);
           });
       },
@@ -364,13 +453,17 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
             'Error prefetching reading positions:',
             error
           );
+          captureHandledError(
+            error,
+            'Reading positions prefetch'
+          );
         }
       },
     }),
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 6,
+      version: 9,
       migrate: migratePersistedState,
       partialize: partializeState,
     }
@@ -383,6 +476,47 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
 // and bind the real api, breaking vi.mock('../api').
 registerBibleStore(useBibleStore);
 
-/** Display name for the active book (e.g. "John"). */
+// Re-resolve the bible structure whenever the active text
+// fileset changes or the translation list first populates
+// (the list arriving is also the first moment a fileset id
+// can be mapped to its owning bible abbr). A same-shape list
+// reset ([] -> []) must NOT kick a redundant SWR load.
+useBibleStore.subscribe((state, prev) => {
+  if (
+    state.activeTextFilesetId !== prev.activeTextFilesetId ||
+    (prev.translations.length === 0 &&
+      state.translations.length > 0)
+  ) {
+    void state.loadStructure();
+  }
+});
+
+/**
+ * Attach the active passage/fileset selection to the Sentry
+ * scope — every subsequent event carries where in the Bible
+ * the user was. The subscription covers navigation; the seed
+ * call covers the persisted selection at startup.
+ */
+const syncSentryBibleContext = (state: BibleState): void => {
+  Sentry.setContext('bible', {
+    book: state.activeBookId,
+    chapter: state.activeChapter,
+    textFilesetId: state.activeTextFilesetId,
+    audioFilesetId: state.activeAudioFilesetId,
+  });
+};
+useBibleStore.subscribe((state, prev) => {
+  if (
+    state.activeBookId !== prev.activeBookId ||
+    state.activeChapter !== prev.activeChapter ||
+    state.activeTextFilesetId !== prev.activeTextFilesetId ||
+    state.activeAudioFilesetId !== prev.activeAudioFilesetId
+  ) {
+    syncSentryBibleContext(state);
+  }
+});
+syncSentryBibleContext(useBibleStore.getState());
+
+/** Localized display name for the active book. */
 export const selectActiveBookName = (state: BibleState): string =>
-  toBookName(state.activeBookId) ?? state.activeBookId;
+  localizedBookName(state.activeBookId) ?? state.activeBookId;

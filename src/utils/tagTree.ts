@@ -1,4 +1,5 @@
 import type { Tag } from '../types';
+import i18n from '../i18n';
 
 /** A node in the tag hierarchy rendered by TagTree. */
 export interface TagNode {
@@ -72,13 +73,101 @@ export const isTagDescendant = (
   return false;
 };
 
+/** Display separator between ancestor names in a tag path. */
+export const TAG_PATH_SEPARATOR = ' › ';
+
+/**
+ * Root→leaf ancestor names for `tag`, e.g. `['Work',
+ * 'design']`. A tag whose `parent_tag` is missing from `tags`
+ * is treated as a root (mirroring `buildTagTree`); the visited
+ * set guards against cycles already present in the data.
+ */
+export const tagPathSegments = (tags: Tag[], tag: Tag): string[] => {
+  const byId = new Map(tags.map((t) => [t.id, t]));
+  const segments = [tag.name];
+  const visited = new Set<string>([tag.id]);
+  let current = tag;
+  while (current.parent_tag) {
+    const parent = byId.get(current.parent_tag);
+    if (!parent || visited.has(parent.id)) break;
+    visited.add(parent.id);
+    segments.unshift(parent.name);
+    current = parent;
+  }
+  return segments;
+};
+
+/** Full ancestor path label, e.g. `Work › design`. */
+export const tagPath = (tags: Tag[], tag: Tag): string =>
+  tagPathSegments(tags, tag).join(TAG_PATH_SEPARATOR);
+
+/**
+ * Canonical form for query↔path comparison: lowercase, trimmed,
+ * and every separator (`/`, ` › `, with optional surrounding
+ * whitespace) folded to a single `/`. `Work/design` and
+ * `Work › design` normalize identically, and a bare `design`
+ * substring-matches the tail of `work/design`.
+ */
+export const normalizeTagPath = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s*(?:›|\/)\s*/g, '/')
+    .replace(/\/+/g, '/');
+
+/**
+ * Tags whose full path contains `query` (normalized — a
+ * slash-typed query matches ` › ` labels and vice versa).
+ * Empty query returns all tags.
+ */
+export const matchTagQuery = (tags: Tag[], query: string): Tag[] => {
+  const q = normalizeTagPath(query);
+  if (!q) return tags;
+  return tags.filter((tag) =>
+    normalizeTagPath(tagPath(tags, tag)).includes(q)
+  );
+};
+
+/**
+ * True when `query` exactly equals some tag's normalized full
+ * path — used to suppress the create rows for paths that
+ * already exist.
+ */
+export const isExactPathMatch = (
+  tags: Tag[],
+  query: string
+): boolean => {
+  const q = normalizeTagPath(query);
+  return tags.some(
+    (tag) => normalizeTagPath(tagPath(tags, tag)) === q
+  );
+};
+
+/**
+ * True when a top-level tag already carries `name`
+ * (case-insensitive) — the backend rejects duplicate
+ * top-level names, so the direct create row hides then.
+ */
+export const isTopLevelNameTaken = (
+  tags: Tag[],
+  name: string
+): boolean => {
+  const n = name.trim().toLowerCase();
+  return tags.some(
+    (tag) => !tag.parent_tag && tag.name.toLowerCase() === n
+  );
+};
+
 export const TAG_NAME_MAX_LENGTH = 100;
 
 /**
  * Validates a tag name for create/edit. `excludeTagId` lets
  * the editor keep its own current name without tripping the
  * duplicate check. Returns the error message, or null when
- * the name is valid.
+ * the name is valid. The message is translated at call time
+ * and stored in form state — it stays in the old language if
+ * the UI language changes while the error is on screen
+ * (accepted: cleared on the next validation pass).
  */
 export const validateTagName = (
   name: string,
@@ -86,11 +175,11 @@ export const validateTagName = (
   excludeTagId?: string
 ): string | null => {
   if (!name.trim()) {
-    return 'Tag name is required';
+    return i18n.t('tags.nameRequired');
   }
 
   if (name.length > TAG_NAME_MAX_LENGTH) {
-    return 'Tag name must be 100 characters or less';
+    return i18n.t('tags.nameTooLong');
   }
 
   const isDuplicate = existingTags.some(
@@ -99,7 +188,7 @@ export const validateTagName = (
       tag.name.toLowerCase() === name.trim().toLowerCase()
   );
   if (isDuplicate) {
-    return 'A tag with this name already exists';
+    return i18n.t('tags.nameTaken');
   }
 
   return null;

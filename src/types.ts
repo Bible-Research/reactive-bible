@@ -284,12 +284,73 @@ export interface SearchVerseGroup {
   verses: SearchVerse[];
 }
 
+/**
+ * SWORD grouped-search scan progress reported per window —
+ * `chapters_scanned` grows monotonically across windows and
+ * reaches `chapters_total` when the scan completes.
+ */
+export interface SearchScanProgress {
+  chapters_scanned: number;
+  chapters_total: number;
+}
+
+/**
+ * What `searchBibleGrouped` resolves to: every fetched
+ * window's groups merged by `book_id`, with `meta`
+ * accumulated across windows. The wire-level
+ * `next_cursor`/`progress` fields are consumed inside the
+ * fetch loop and never surface here.
+ */
 export interface GroupedSearchResponse {
   groups: SearchVerseGroup[];
-  meta: { total: number; truncated: boolean };
+  meta: {
+    /** Matches across all fetched windows. */
+    total: number;
+    /**
+     * True when the merged result is incomplete — a
+     * result cap or a scan the client could not finish.
+     */
+    truncated: boolean;
+  };
 }
 
 export type ReadingPositionValue = {
   chapter: number;
   verse: number;
 };
+
+/**
+ * A tag's remembered pagination position — restored by
+ * `useTagNotesData` when `/notes/tag/:tagId` is revisited.
+ */
+export interface TagPagination {
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * One book row from `GET /api/v1/bible/structure/` — `chapters`
+ * is the covered chapter-number list (not verse counts) and
+ * `name`/`name_short` are localized to the fileset's language.
+ */
+export interface StructureBook {
+  book_id: string;
+  name: string;
+  name_short: string;
+  testament: 'OT' | 'NT';
+  chapters: number[];
+}
+
+/** `/api/v1/bible/structure/` response body. */
+export interface BibleStructure {
+  books: StructureBook[];
+  /**
+   * Present on bodies whose provider names failed to
+   * resolve (the SWORD canonical-name overlay fell back to
+   * English module names). The backend ships these with
+   * `Cache-Control: no-store` and never caches them itself;
+   * the client mirrors that — applied in memory, never
+   * persisted to the 24h localStorage tier.
+   */
+  degraded?: boolean;
+}

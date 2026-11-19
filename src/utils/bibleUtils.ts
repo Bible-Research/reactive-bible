@@ -1,5 +1,9 @@
 // src/utils/bibleUtils.ts
 import bibleStructure from '../assets/bibleStructure.json';
+import {
+  localizedCodeFor,
+  localizedName,
+} from './bookNameRegistry';
 
 interface BibleStructureEntry {
   book_id: string;
@@ -251,22 +255,44 @@ export const BOOK_CODE_TO_TESTAMENT = BIBLE_BOOKS.reduce(
 
 /**
  * Resolves a book name or USFM code to its canonical USFM code.
- * Accepts "1 Corinthians", "1 corinthians", or "1CO" -> "1CO".
- * Returns null when the input matches no known book.
+ * Accepts "1 Corinthians", "1 corinthians", "1CO" -> "1CO", and
+ * — additively — localized names from the active structure
+ * ("Jāņa" -> "JHN" while a Latvian bible is active). English
+ * names and USFM codes always win ties. Returns null when the
+ * input matches no known book.
  */
 export const toUsfmCode = (book: string): string | null => {
   const upper = book.toUpperCase();
   if (BOOK_CODE_TO_NAME[upper]) return upper;
-  return BOOK_NAME_TO_CODE[book.toLowerCase()] ?? null;
+  return (
+    BOOK_NAME_TO_CODE[book.toLowerCase()] ??
+    localizedCodeFor(book) ??
+    null
+  );
 };
 
 /**
  * Resolves a USFM code to its title-cased display name.
  * "JHN" -> "John". Returns null for unknown codes.
+ *
+ * CONTRACT identity — keep this English: `passage=` params,
+ * stored `book` fields and external links must never carry
+ * localized names. For display use `localizedBookName`.
  */
 export const toBookName = (code: string): string | null => {
   return BOOK_CODE_TO_NAME[code.toUpperCase()] ?? null;
 };
+
+/**
+ * DISPLAY name for a USFM code in the active structure's
+ * language ("JHN" -> "Jāņa evaņģēlijs" under a Latvian bible),
+ * falling back to the English `toBookName` when no structure
+ * is loaded or the book isn't covered.
+ */
+export const localizedBookName = (
+  code: string,
+): string | null =>
+  localizedName(code) ?? toBookName(code);
 
 export interface ParsedBibleRef {
   bookId: string;

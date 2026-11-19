@@ -14,6 +14,10 @@ import {
 } from '../stores/authStore';
 import { mockDomApis } from '../__tests__/helpers';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
+import {
+  stubMediaSession,
+  type MediaSessionStub,
+} from '../__tests__/mocks/mediaSession';
 
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
@@ -27,6 +31,7 @@ vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>(
     '../api',
   );
+  const { mockStructure } = await import('../mocks/handlers');
   return {
     ...actual,
     getKjvAudioUrl: vi.fn(
@@ -37,6 +42,11 @@ vi.mock('../api', async () => {
       .fn()
       .mockResolvedValue('http://audio.test/file.mp3'),
     getAudioTimestamps: vi.fn().mockResolvedValue([]),
+    // The suite stubs global fetch (audio host has no CORS),
+    // so the real client would reject every loadStructure
+    // kick — resolve the shared fixture instead.
+    fetchBibleStructure:
+      vi.fn().mockResolvedValue(mockStructure),
   };
 });
 
@@ -227,6 +237,12 @@ describe('Audio chapter auto-advance', () => {
       );
       const replacement = FakeHowl.instances[2];
 
+      // The replacement's bytes finish loading — the play()
+      // safePlay queued while 'loading' drains on 'load'.
+      act(() => {
+        replacement.emit('load');
+      });
+
       // When the gap elapses the replacement must start playing.
       // Without the fix the timer checked `audioRef === howl`
       // (the dead Howl), returned early, and nothing ever called
@@ -285,12 +301,252 @@ describe('Audio chapter auto-advance', () => {
       expect(useBibleStore.getState().activeChapter).toBe(4);
       expect(screen.getByText('search page')).toBeInTheDocument();
 
+      // The adopted Howl's bytes finish loading — the play()
+      // the gap timer queues (or already queued) drains into a
+      // real start.
+      act(() => {
+        preloaded.emit('load');
+      });
+
       // The adopted Howl still plays after the inter-chapter
       // gap.
       await waitFor(
         () => expect(preloaded._playing).toBe(true),
         { timeout: 4000 },
       );
+    },
+  );
+
+  it('a stray media-session play during the inter-chapter ' +
+    'gap does not layer a second sound', async () => {
+      // Howler's play() on an already-playing Howl spawns a NEW
+      // sound instance with its own <audio> node — the same
+      // file then plays twice, offset by the gap. Head units /
+      // Bluetooth re-dispatch 'play' on metadata updates and
+      // audio-focus regains, so the adopted chapter can already
+      // be playing when the gap timer fires.
+      const session: MediaSessionStub = stubMediaSession();
+      vi.stubGlobal(
+        'MediaMetadata',
+        class {
+          init: unknown;
+          constructor(init: unknown) {
+            this.init = init;
+          }
+        },
+      );
+      try {
+        renderPlayer();
+        await act(async () => {
+          screen.getByTitle('Play audio').click();
+        });
+        await waitFor(() =>
+          expect(FakeHowl.instances.length).toBeGreaterThan(0),
+        );
+        const first = FakeHowl.instances[0];
+        act(() => {
+          first.emit('load');
+        });
+        await waitFor(() => expect(first._playing).toBe(true));
+        await waitFor(() =>
+          expect(FakeHowl.instances.length).toBe(2),
+        );
+        const preloaded = FakeHowl.instances[1];
+        act(() => {
+          preloaded.emit('load');
+        });
+
+        // Chapter 3 ends — the player adopts JHN 4 and arms
+        // the inter-chapter gap timer.
+        await act(async () => {
+          first.emit('end', 0);
+          await Promise.resolve();
+        });
+        await waitFor(() =>
+          expect(
+            useBibleStore.getState().activeChapter,
+          ).toBe(4),
+        );
+
+        // A stray 'play' arrives mid-gap and starts the adopted
+        // Howl early.
+        act(() => {
+          session.handlers.get('play')?.({ action: 'play' });
+        });
+        expect(preloaded._playing).toBe(true);
+
+        // When the gap elapses the timer must see the Howl is
+        // already playing — a second play() would stack another
+        // sound instance on top.
+        await act(async () => {
+          await new Promise((r) => setTimeout(r, 2300));
+        });
+        expect(preloaded._playing).toBe(true);
+        expect(preloaded._sounds.length).toBe(1);
+      } finally {
+        session.restore();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
+  it('a doubled end event on the finished Howl does not ' +
+    're-advance and orphan the adopted chapter', async () => {
+      // A Howl carrying two sounds (e.g. after an overlapping
+      // second play()) emits 'end' once per sound, and Howler
+      // schedules each listener call on a macrotask — when the
+      // second emit precedes the detach, its 'end' still
+      // reaches onChapterEnd after the first already disposed
+      // the Howl (FakeHowl models that hazardous ordering).
+      // Re-advancing would orphan the adopted Howl: it keeps
+      // playing untracked while the next chapter loads on top
+      // of it.
+      renderPlayer();
+      await act(async () => {
+        screen.getByTitle('Play audio').click();
+      });
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBeGreaterThan(0),
+      );
+      const first = FakeHowl.instances[0];
+      act(() => {
+        first.emit('load');
+      });
+      await waitFor(() => expect(first._playing).toBe(true));
+      await waitFor(() =>
+        expect(FakeHowl.instances.length).toBe(2),
+      );
+      const preloaded = FakeHowl.instances[1];
+      act(() => {
+        preloaded.emit('load');
+      });
+
+      // Simulate the overlap seed: a second sound instance on
+      // the finished Howl.
+      act(() => {
+        first.play();
+      });
+      expect(first._sounds.length).toBe(2);
+
+      await act(async () => {
+        first.emit('end', 0);
+        await Promise.resolve();
+      });
+
+      // Advance once, to JHN 4 — a second advance would land
+      // on JHN 5 while the adopted Howl plays untracked.
+      await waitFor(() =>
+        expect(useBibleStore.getState().activeChapter).toBe(4),
+      );
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 2300));
+      });
+      expect(useBibleStore.getState().activeChapter).toBe(4);
+      expect(preloaded._playing).toBe(true);
+      expect(
+        FakeHowl.instances.filter((h) => h._playing).length,
+      ).toBe(1);
+    },
+  );
+
+  it('a stray media-session play during the load window ' +
+    'does not stack a second sound', async () => {
+      // safePlay() while the chapter Howl is still 'loading'
+      // only queues a play inside Howler — playing() stays
+      // false the whole window and the queue can still be
+      // undrained when 'load' lands. A head unit re-dispatching
+      // 'play' in that window must join the pending request,
+      // not queue a second sound that drains into overlap.
+      const session: MediaSessionStub = stubMediaSession();
+      vi.stubGlobal(
+        'MediaMetadata',
+        class {
+          init: unknown;
+          constructor(init: unknown) {
+            this.init = init;
+          }
+        },
+      );
+      try {
+        renderPlayer();
+        await act(async () => {
+          screen.getByTitle('Play audio').click();
+        });
+        await waitFor(() =>
+          expect(FakeHowl.instances.length).toBe(1),
+        );
+        const first = FakeHowl.instances[0];
+        expect(first.state()).toBe('loading');
+        await waitFor(() =>
+          expect(session.handlers.has('play')).toBe(true),
+        );
+
+        act(() => {
+          session.handlers.get('play')?.({ action: 'play' });
+        });
+
+        act(() => {
+          first.emit('load');
+        });
+        await waitFor(() => expect(first._playing).toBe(true));
+        expect(first._sounds.length).toBe(1);
+      } finally {
+        session.restore();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
+  it('a media-session play after an OS-level pause revives ' +
+    'the node instead of stacking a sound', async () => {
+      // Android audio-focus loss pauses the <audio> node
+      // behind Howler's back: playing() still reports true
+      // while the node is silent. The recovery 'play' must
+      // re-play the same node — howl.play() would stack a
+      // second sound instance on a corpse.
+      const session: MediaSessionStub = stubMediaSession();
+      vi.stubGlobal(
+        'MediaMetadata',
+        class {
+          init: unknown;
+          constructor(init: unknown) {
+            this.init = init;
+          }
+        },
+      );
+      try {
+        renderPlayer();
+        await act(async () => {
+          screen.getByTitle('Play audio').click();
+        });
+        await waitFor(() =>
+          expect(FakeHowl.instances.length).toBe(1),
+        );
+        const first = FakeHowl.instances[0];
+        act(() => {
+          first.emit('load');
+        });
+        await waitFor(() => expect(first._playing).toBe(true));
+        const node = first._sounds[0]._node;
+        expect(node?.paused).toBe(false);
+
+        // The OS pauses the node — Howler bookkeeping is now
+        // desynced: playing() true, node silent.
+        act(() => {
+          node?.pause();
+        });
+        expect(first.playing()).toBe(true);
+        expect(node?.paused).toBe(true);
+
+        act(() => {
+          session.handlers.get('play')?.({ action: 'play' });
+        });
+        expect(first._sounds.length).toBe(1);
+        expect(node?.paused).toBe(false);
+      } finally {
+        session.restore();
+        vi.unstubAllGlobals();
+      }
     },
   );
 });

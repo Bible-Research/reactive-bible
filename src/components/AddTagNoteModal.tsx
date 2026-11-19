@@ -29,6 +29,7 @@ import { useNoteEditor } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
 import VerseTextGroups from "./VerseTextGroups";
 import { shallow } from "zustand/shallow";
+import { useTranslation } from 'react-i18next';
 
 interface AddTagNoteModalProps {
   opened: boolean;
@@ -51,6 +52,7 @@ const AddTagNoteModal = ({
   opened,
   onClose,
 }: AddTagNoteModalProps) => {
+  const { t } = useTranslation();
   const isMobile = useMediaQuery("(max-width: 768px)");
   // Collapsed = the editor hides completely, leaving a thin
   // header bar (expand chevron + close) over the Bible.
@@ -209,7 +211,7 @@ const AddTagNoteModal = ({
       <>
         <Divider
           my="sm"
-          label="Linked notes"
+          label={t('notes.linkedNotes')}
           labelPosition="center"
         />
         {linkedNotes.map((note) => {
@@ -229,8 +231,8 @@ const AddTagNoteModal = ({
                   title={`linked-note-toggle-${note.id}`}
                   aria-label={
                     ref
-                      ? `Toggle note details for ${ref}`
-                      : "Toggle note details"
+                      ? t('notes.toggleDetailsFor', { ref })
+                      : t('notes.toggleNoteDetails')
                   }
                   aria-expanded={isExpanded}
                   aria-controls={`linked-note-details-${note.id}`}
@@ -285,10 +287,14 @@ const AddTagNoteModal = ({
             variant="subtle"
             size="lg"
             title={
-              collapsed ? "Expand editor" : "Collapse editor"
+              collapsed
+                ? t('notes.expandEditor')
+                : t('notes.collapseEditor')
             }
             aria-label={
-              collapsed ? "Expand editor" : "Collapse editor"
+              collapsed
+                ? t('notes.expandEditor')
+                : t('notes.collapseEditor')
             }
             aria-expanded={!collapsed}
             onClick={() => setCollapsed((c) => !c)}
@@ -300,7 +306,7 @@ const AddTagNoteModal = ({
             )}
           </ActionIcon>
         ) : (
-          "Add note"
+          t('notes.addNote')
         )
       }
       fullScreen
@@ -352,16 +358,15 @@ const AddTagNoteModal = ({
     >
       {linkedNotes && (
         <Text size="sm" color="dimmed" mb="sm">
-          {linkedNotes.length}{" "}
-          {linkedNotes.length === 1
-            ? "linked note"
-            : "linked notes"}
+          {t('notes.linkedCount', { count: linkedNotes.length })}
         </Text>
       )}
       <NoteForm
         tags={tags}
         fillHeight={isMobile}
-        trayLabel={isMobile ? "Linked verses" : undefined}
+        trayLabel={
+          isMobile ? t('notes.linkedVerses') : undefined
+        }
         trayCount={isMobile ? refs.length : undefined}
         trayContent={
           isMobile ? (
@@ -375,7 +380,7 @@ const AddTagNoteModal = ({
         // The selection links verses — the note stays valid
         // with no text (a plain verse bookmark under a tag).
         allowEmptyText={refs.length > 0}
-        submitText="Submit"
+        submitText={t('common.submit')}
         onTagDropdownOpen={() => {
           void getTags().catch(() => {
             /* notified by the store */

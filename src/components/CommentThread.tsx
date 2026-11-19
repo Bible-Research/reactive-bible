@@ -28,6 +28,10 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import CommentForm from './CommentForm';
 import CommentNode from './CommentNode';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
+import { textOrKey } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 const normalize = (
   nodes: Comment[] | undefined
@@ -60,13 +64,20 @@ const uploadImages = async (
       );
       uploaded.push(img);
     } catch (err: unknown) {
+      captureHandledError(err, 'Comment image upload', {
+        noteId,
+        commentId,
+      });
+      // apiClient throws catalog keys ('errors.forbidden',
+      // 'auth.sessionExpiredMsg') — textOrKey translates
+      // those and passes raw server text through.
       const msg =
         err instanceof Error
-          ? err.message
-          : 'Failed to upload image.';
+          ? textOrKey(err.message)
+          : i18n.t('comments.failedToUpload');
       showNotification({
         color: 'red',
-        title: 'Upload failed',
+        title: i18n.t('comments.uploadFailed'),
         message: msg,
       });
     }
@@ -99,6 +110,7 @@ const CommentThread = ({
   noteId,
   onCountChange,
 }: CommentThreadProps) => {
+  const { t } = useTranslation();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,9 +178,13 @@ const CommentThread = ({
       .then((data) => {
         if (dataVersion.current === version) applyFetched(data);
       })
-      .catch(() => {
-        if (dataVersion.current === version)
-          setError('Failed to load comments.');
+      .catch((err) => {
+        if (dataVersion.current === version) {
+          captureHandledError(err, 'Comments fetch', {
+            noteId,
+          });
+          setError(i18n.t('comments.loadFailed'));
+        }
       })
       .finally(() => {
         if (loadingSeq.current === seq) setLoading(false);
@@ -194,6 +210,7 @@ const CommentThread = ({
   const imageRefreshAttempts = useRef(
     new Map<string, { sig: string; count: number }>()
   );
+  const imageRefreshReported = useRef(new Set<string>());
   const commentsRef = useRef<Comment[]>(comments);
   useEffect(() => {
     commentsRef.current = comments;
@@ -214,8 +231,25 @@ const CommentThread = ({
       if (
         count >= MAX_IMAGE_REFRESHES ||
         pendingImageRefresh.current.has(commentId)
-      )
+      ) {
+        // Parity with useNoteImages: a comment whose refresh
+        // budget is spent can never recover this session —
+        // report once per (comment, image-set).
+        if (count >= MAX_IMAGE_REFRESHES) {
+          const key = `${commentId}:${sig}`;
+          if (!imageRefreshReported.current.has(key)) {
+            imageRefreshReported.current.add(key);
+            captureHandledError(
+              new Error(
+                'Comment image refresh attempts exhausted'
+              ),
+              'Comment images refresh',
+              { noteId, commentId }
+            );
+          }
+        }
         return;
+      }
       pendingImageRefresh.current.add(commentId);
       imageRefreshAttempts.current.set(commentId, {
         sig,
@@ -230,8 +264,21 @@ const CommentThread = ({
             }))
           );
         })
-        .catch(() => {
-          // background refresh — don't surface errors
+        .catch((err: unknown) => {
+          // background refresh — don't surface errors, but a
+          // persistently failing endpoint still reports once
+          // per (comment, message).
+          const key =
+            `${commentId}:` +
+            (err instanceof Error ? err.message : String(err));
+          if (!imageRefreshReported.current.has(key)) {
+            imageRefreshReported.current.add(key);
+            captureHandledError(
+              err,
+              'Comment images fetch',
+              { noteId, commentId }
+            );
+          }
           refundAttempt(
             imageRefreshAttempts.current,
             commentId,
@@ -310,10 +357,11 @@ const CommentThread = ({
       onCountChange?.(1);
       silentLoad();
     } catch (err) {
+      captureHandledError(err, 'Comment create', { noteId });
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to post comment.',
+        title: t('common.error'),
+        message: t('comments.postFailed'),
       });
       throw err;
     } finally {
@@ -344,10 +392,14 @@ const CommentThread = ({
       );
       silentLoad();
     } catch (err) {
+      captureHandledError(err, 'Comment update', {
+        noteId,
+        commentId: id,
+      });
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to update comment.',
+        title: t('common.error'),
+        message: t('comments.updateFailed'),
       });
       throw err;
     }
@@ -367,11 +419,15 @@ const CommentThread = ({
           ),
         }))
       );
-    } catch {
+    } catch (err) {
+      captureHandledError(err, 'Comment image delete', {
+        noteId,
+        commentId,
+      });
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to delete image.',
+        title: t('common.error'),
+        message: t('comments.deleteImageFailed'),
       });
     }
   };
@@ -389,11 +445,15 @@ const CommentThread = ({
       );
       onCountChange?.(-1);
       silentLoad();
-    } catch {
+    } catch (err) {
+      captureHandledError(err, 'Comment delete', {
+        noteId,
+        commentId: id,
+      });
       showNotification({
         color: 'red',
-        title: 'Error',
-        message: 'Failed to delete comment.',
+        title: t('common.error'),
+        message: t('comments.deleteFailed'),
       });
     }
   };
@@ -418,9 +478,9 @@ const CommentThread = ({
           size="xs"
           variant="subtle"
           onClick={load}
-          aria-label="Retry loading comments"
+          aria-label={t('comments.retryLoading')}
         >
-          Retry
+          {t('common.retry')}
         </Button>
       </Stack>
     );
@@ -433,12 +493,12 @@ const CommentThread = ({
       {visible.length === 0 ? (
         isAuthenticated ? (
           <Text size="sm" color="dimmed">
-            No comments yet.
+            {t('comments.noComments')}
           </Text>
         ) : (
           <Text size="sm" color="dimmed">
-            No comments yet.{' '}
-            <Link to="/login">Log in to comment</Link>.
+            {t('comments.noComments')}{' '}
+            <Link to="/login">{t('comments.logInToComment')}</Link>.
           </Text>
         )
       ) : (
@@ -464,8 +524,8 @@ const CommentThread = ({
 
       {isAuthenticated && (
         <CommentForm
-          placeholder="Add a comment…"
-          submitLabel="Post"
+          placeholder={t('comments.addComment')}
+          submitLabel={t('comments.post')}
           submitting={submitting}
           onSubmit={(content, files) =>
             handleCreate(null, content, files)

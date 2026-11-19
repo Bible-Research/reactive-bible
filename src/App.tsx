@@ -3,6 +3,7 @@ import {
   MantineProvider,
   ColorSchemeProvider,
   ColorScheme,
+  DEFAULT_THEME,
 } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { ModalsProvider } from "@mantine/modals";
@@ -23,7 +24,19 @@ import { useAppUpdate } from "./hooks/useAppUpdate";
 import { useBibleStore } from "./store";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import VerseActionToolbar from "./components/VerseActionToolbar";
+import { AUDIO_PLAYER_HEIGHT } from "./utils/audioUtils";
 import { useSlashSearchShortcut } from "./hooks/useSlashSearchShortcut";
+
+// Mantine's lightest grays render dividers, borders and the
+// Slider track nearly invisible against the gray[0] light
+// page background. Shift gray[2..4] one step darker in
+// light mode only — dark mode keeps the stock ramp.
+const lightModeGray = [
+  ...DEFAULT_THEME.colors.gray,
+] as typeof DEFAULT_THEME.colors.gray;
+lightModeGray[2] = lightModeGray[3];
+lightModeGray[3] = lightModeGray[4];
+lightModeGray[4] = lightModeGray[5];
 
 export default function App() {
   const [colorScheme, setColorScheme] = useLocalStorage<ColorScheme>({
@@ -69,6 +82,8 @@ export default function App() {
   const isAuthPage = location.pathname === '/login' ||
                      location.pathname === '/register';
   const isSearchPage = location.pathname === '/search';
+  const isGettingStartedPage =
+    location.pathname.startsWith('/getting-started');
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
@@ -78,9 +93,10 @@ export default function App() {
   const headerVisible = useBibleStore(
     (state) => state.headerVisible
   );
-  // The audio player is fixed to the viewport bottom (~120px)
-  // and never hides on scroll — keep clearing it even once
-  // the header/footer chrome has slid away.
+  // The audio player is fixed to the viewport bottom
+  // (AUDIO_PLAYER_HEIGHT) and never hides on scroll — keep
+  // clearing it even once the header/footer chrome has slid
+  // away.
   const showAudioPlayer = useBibleStore(
     (state) => state.showAudioPlayer
   );
@@ -93,12 +109,28 @@ export default function App() {
       toggleColorScheme={toggleColorScheme}
     >
       <MantineProvider
-        theme={{ colorScheme }}
+        theme={{
+          colorScheme,
+          colors: {
+            gray:
+              colorScheme === "dark"
+                ? DEFAULT_THEME.colors.gray
+                : lightModeGray,
+          },
+        }}
         withGlobalStyles
         withNormalizeCSS
       >
         <ModalsProvider>
         <Notifications position="top-right" zIndex={2077} />
+        {/* The boundary wraps the whole app shell — header,
+            nav, menus AND routed content — but stays inside
+            the Mantine providers so the fallback UI renders
+            styled. `resetKey` recovers a caught error on ANY
+            pathname change (e.g. /notes/tag/a -> /notes/tag/b)
+            and only fires in the error state, so healthy
+            children are never remounted on navigation. */}
+        <ErrorBoundary resetKey={location.pathname}>
         <AppShell
           padding={0}
           navbar={
@@ -117,7 +149,10 @@ export default function App() {
           }
           footer={
             isBibleView ? (
-              <BottomNav setBibleSelectorOpened={setBibleSelectorOpened} />
+              <BottomNav
+                bibleSelectorOpened={bibleSelectorOpened}
+                setBibleSelectorOpened={setBibleSelectorOpened}
+              />
             ) : undefined
           }
           styles={(theme) => ({
@@ -127,38 +162,35 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
-              paddingTop: headerVisible
-                ? "var(--mantine-header-height, 0px)"
-                : 0,
-              paddingBottom: headerVisible
-                ? "var(--mantine-footer-height, 0px)"
+              // On /bible the header/footer overlay the scroll
+              // viewport instead of pushing it: PassageView puts
+              // the clearance INSIDE the scrolled content, so
+              // sliding the bars away never reflows the text
+              // (verses just scroll under the freed space).
+              // Other routes keep reclaiming the reserved
+              // padding when the chrome hides.
+              paddingTop:
+                isBibleView || !headerVisible
+                  ? 0
+                  : "var(--mantine-header-height, 0px)",
+              paddingBottom: isBibleView
+                ? 0
                 : showAudioPlayer
-                  ? "120px"
+                  ? `${AUDIO_PLAYER_HEIGHT}px`
                   : 0,
+              // Inert on /bible (paddings are constant 0);
+              // still animates the reclaim on other routes.
               transition:
                 "padding-top 0.3s ease-in-out, " +
                 "padding-bottom 0.3s ease-in-out",
-              // Allow scrolling on auth and search pages
-              overflow: (isAuthPage || isSearchPage) ? "auto" : "hidden",
+              // Allow scrolling on auth, search, and
+              // getting-started pages
+              overflow: (isAuthPage || isSearchPage ||
+                isGettingStartedPage) ? "auto" : "hidden",
             },
           })}
         >
-          {/* `key` on the top-level route segment remounts the
-              boundary on section changes (/bible -> /notes)
-              without remounting the route tree on intra-page URL
-              updates like verse-selection refs (/bible/JHN.1 ->
-              /bible/JHN.1.3), which would unload PassageView and
-              swallow clicks mid-remount. `resetKey` recovers a
-              caught error on ANY pathname change — e.g.
-              /notes/tag/a -> /notes/tag/b stays under the same
-              segment key — but only fires in the error state,
-              so healthy children are never remounted. */}
-          <ErrorBoundary
-            key={location.pathname.split('/')[1]}
-            resetKey={location.pathname}
-          >
-            <AppRoutes />
-          </ErrorBoundary>
+          <AppRoutes />
           {showVerseToolbar && <VerseActionToolbar />}
           <MainMenu
             opened={mainMenuOpened}
@@ -167,6 +199,7 @@ export default function App() {
             toggleColorScheme={toggleColorScheme}
           />
         </AppShell>
+        </ErrorBoundary>
         {/* Vercel telemetry injects /_vercel/* scripts that only
             exist on the Vercel deployment; inside the Capacitor
             shell (origin https://localhost) they 404 and trip the

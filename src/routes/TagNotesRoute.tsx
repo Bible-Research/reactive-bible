@@ -32,6 +32,7 @@ import { useNoteOrderMenu } from '../hooks/useNoteOrderMenu';
 import { useTagNotesData } from '../hooks/useTagNotesData';
 import { useNotePlaylist } from '../hooks/useNotePlaylist';
 import { lazyWithReload } from '../utils/lazyWithReload';
+import { useTranslation } from 'react-i18next';
 
 // Lazy + gated below on isEditModalOpen — the modal pulls in
 // TipTap, which should not ship with the route chunk.
@@ -45,6 +46,7 @@ const EditNoteModal = lazyWithReload(
 const NO_NOTES: Note[] = [];
 
 export default function TagNotesRoute() {
+  const { t } = useTranslation();
   const { tagId } = useParams<{ tagId: string }>();
   // `/notes/tag/untagged` is the virtual "no tag" view: the
   // API translates the sentinel into a tag__isnull filter.
@@ -104,7 +106,7 @@ export default function TagNotesRoute() {
   ) =>
     isAuthenticated &&
     sectionNotes.every((n) => n.is_owner !== false) &&
-    (storedTags.some((t) => t.id === sectionTagId) ||
+    (storedTags.some((tag) => tag.id === sectionTagId) ||
       (sectionNotes.length > 0 &&
         sectionNotes.every((n) => n.is_owner === true)));
 
@@ -159,7 +161,7 @@ export default function TagNotesRoute() {
   // array scan (perf rule: build an index for repeated
   // lookups).
   const tagNameById = useMemo(
-    () => new Map(storedTags.map((t) => [t.id, t.name])),
+    () => new Map(storedTags.map((tag) => [tag.id, tag.name])),
     [storedTags]
   );
 
@@ -177,7 +179,7 @@ export default function TagNotesRoute() {
           tagName:
             tagNameById.get(id) ??
             note.tag?.name ??
-            'Untagged',
+            t('common.untagged'),
           notes: [],
         };
         byTag.set(id, group);
@@ -188,10 +190,10 @@ export default function TagNotesRoute() {
       tagId: sectionTagId,
       ...group,
     }));
-  }, [includeDescendants, sortedNotes, tagNameById]);
+  }, [includeDescendants, sortedNotes, tagNameById, t]);
 
   const tagHasChildren = useMemo(
-    () => storedTags.some((t) => t.parent_tag === tagId),
+    () => storedTags.some((tag) => tag.parent_tag === tagId),
     [storedTags, tagId]
   );
 
@@ -262,7 +264,10 @@ export default function TagNotesRoute() {
   if (loading) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="loading" />
+        <Loader
+          size="lg"
+          aria-label={t('notes.loadingNotes')}
+        />
       </Center>
     );
   }
@@ -271,7 +276,7 @@ export default function TagNotesRoute() {
     return (
       <Center style={{ height: '100vh' }}>
         <Text color="red" size="lg">
-          {error || 'Tag not found'}
+          {error || t('tags.notFound')}
         </Text>
       </Center>
     );
@@ -336,7 +341,7 @@ export default function TagNotesRoute() {
       <ScrollArea style={{ flex: 1, minHeight: 0 }}>
         {pageLoading ? (
           <Center style={{ height: 200 }}>
-            <Loader aria-label="loading" />
+            <Loader aria-label={t('notes.loadingNotes')} />
           </Center>
         ) : notes.length > 0 ? (
           <Stack spacing="md" pb="xl" px="md">
@@ -407,10 +412,10 @@ export default function TagNotesRoute() {
           <Center style={{ height: 200 }}>
             <Text>
               {isUntagged
-                ? 'No untagged notes.'
+                ? t('notes.noUntagged')
                 : includeDescendants
-                  ? 'No notes in this tag or its sub-tags.'
-                  : 'No notes found for this tag.'}
+                  ? t('notes.noNotesWithSubtags')
+                  : t('notes.noNotesForTag')}
             </Text>
           </Center>
         )}

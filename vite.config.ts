@@ -1,6 +1,5 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vitest/config';
-import { loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 
@@ -13,30 +12,6 @@ const sentryUploadEnabled = Boolean(
     process.env.SENTRY_PROJECT
 );
 
-// TEMPORARY diagnostic: print which Sentry env vars this build
-// environment provides — presence only, never values. import.
-// meta.env.VITE_* is populated from process.env AND .env files,
-// so both sources are checked. Remove once the Vercel env
-// wiring is verified end-to-end.
-const fileEnv = {
-  ...loadEnv('production', process.cwd(), 'VITE_'),
-  ...loadEnv('development', process.cwd(), 'VITE_'),
-};
-console.log('[sentry-env-debug]', {
-  'process.env.VITE_SENTRY_DSN': Boolean(
-    process.env.VITE_SENTRY_DSN
-  ),
-  'env-file VITE_SENTRY_DSN': Boolean(fileEnv.VITE_SENTRY_DSN),
-  VERCEL_ENV: process.env.VERCEL_ENV ?? '(unset)',
-  VERCEL_GIT_COMMIT_SHA: Boolean(
-    process.env.VERCEL_GIT_COMMIT_SHA
-  ),
-  SENTRY_AUTH_TOKEN: Boolean(process.env.SENTRY_AUTH_TOKEN),
-  SENTRY_ORG: process.env.SENTRY_ORG ?? '(unset)',
-  SENTRY_PROJECT: process.env.SENTRY_PROJECT ?? '(unset)',
-  sentryUploadEnabled,
-});
-
 const sentryPlugins = sentryUploadEnabled
   ? [
       sentryVitePlugin({
@@ -44,9 +19,14 @@ const sentryPlugins = sentryUploadEnabled
         project: process.env.SENTRY_PROJECT,
         authToken: process.env.SENTRY_AUTH_TOKEN,
         release: {
-          // Vercel exposes the deployed commit; without it the
-          // plugin falls back to git auto-detection.
-          name: process.env.VERCEL_GIT_COMMIT_SHA,
+          // Mirrors the VITE_APP_RELEASE define below: a
+          // manually set release name (e.g. the Android
+          // workflow's `android-<run>`) wins over Vercel's
+          // deployed-commit sha; without either the plugin
+          // falls back to git auto-detection.
+          name:
+            process.env.VITE_APP_RELEASE ??
+            process.env.VERCEL_GIT_COMMIT_SHA,
         },
         sourcemaps: {
           filesToDeleteAfterUpload: ['./dist/**/*.map'],
@@ -152,5 +132,23 @@ export default defineConfig({
     // and die with ERR_WORKER_OUT_OF_MEMORY. Serial execution keeps
     // peak memory in bounds at the cost of wall-clock time.
     fileParallelism: false,
+    // Mantine v6 Transition timers can outlive a test file's
+    // happy-dom environment: the pending timeout fires
+    // setState -> getCurrentEventPriority after `window` is torn
+    // down, throwing a benign ReferenceError that vitest counts
+    // as an unhandled error and fails the whole (green) run on.
+    // Errors arrive serialized (name/message/stack, no class), so
+    // match on `name` — `instanceof` never holds across the
+    // worker RPC boundary. Only this exact uncaught exception is
+    // ignored; everything else still fails the run.
+    onUnhandledError(error) {
+      if (
+        error.type === 'Uncaught Exception' &&
+        error.name === 'ReferenceError' &&
+        error.message === 'window is not defined'
+      ) {
+        return false;
+      }
+    },
   },
 });

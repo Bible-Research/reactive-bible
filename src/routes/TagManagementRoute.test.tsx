@@ -18,6 +18,7 @@ import {
 } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { showNotification } from '@mantine/notifications';
+import { openConfirmModal } from '@mantine/modals';
 import TagManagementRoute from './TagManagementRoute';
 import { Tag } from '../types';
 import { useBibleStore } from '../store';
@@ -58,6 +59,8 @@ const storeStub = vi.hoisted(() => {
     getTags: vi.fn((_forceRefresh?: boolean) =>
       Promise.resolve(),
     ),
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    removeTagPagination: vi.fn((_tagId: string) => undefined),
   };
   const useBibleStore = Object.assign(
     (selector: (s: typeof state) => unknown) => selector(state),
@@ -134,6 +137,18 @@ const mockClearNotesCache = vi.mocked(clearNotesCache);
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
 }));
+
+// The route confirms deletes and publicity flips through
+// Mantine's openConfirmModal, not window.confirm. The mock
+// auto-runs onConfirm by default — tests that exercise the
+// cancel path override it with mockImplementationOnce.
+vi.mock('@mantine/modals', () => ({
+  openConfirmModal: vi.fn(
+    ({ onConfirm }: { onConfirm?: () => void }) =>
+      onConfirm?.()
+  ),
+}));
+const mockConfirmModal = vi.mocked(openConfirmModal);
 
 const mockTags: Tag[] = [
   {
@@ -228,7 +243,6 @@ describe('TagManagementRoute refresh behavior', () => {
               resolveRefresh = res;
             })
         );
-      window.confirm = vi.fn(() => true);
 
       renderRoute();
       await waitFor(() => {
@@ -311,8 +325,6 @@ describe('TagManagementRoute tag UX wiring', () => {
 
   it('confirms then POSTs set-public and refreshes tags',
     async () => {
-      window.confirm = vi.fn(() => true);
-
       await act(async () => {
         await capturedTreeProps.current?.onTogglePublic?.(
           mockTags[0]
@@ -333,14 +345,17 @@ describe('TagManagementRoute tag UX wiring', () => {
       expect(showNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           color: 'green',
-          message: expect.stringContaining('3 note(s)'),
+          message: expect.stringContaining(
+            '3 notes updated'
+          ),
         })
       );
     });
 
   it('skips the set-public POST when the confirm is declined',
     async () => {
-      window.confirm = vi.fn(() => false);
+      // A dismissed confirm modal never runs onConfirm.
+      mockConfirmModal.mockImplementationOnce(() => undefined);
 
       await act(async () => {
         await capturedTreeProps.current?.onTogglePublic?.(
@@ -349,6 +364,53 @@ describe('TagManagementRoute tag UX wiring', () => {
       });
 
       expect(mockApi.setTagPublic).not.toHaveBeenCalled();
+    });
+
+  it('frames the publicity modal as "Make public" with a ' +
+    'teal confirm for a private tag', async () => {
+      await act(async () => {
+        await capturedTreeProps.current?.onTogglePublic?.(
+          mockTags[0]
+        );
+      });
+
+      expect(mockConfirmModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Make tag public',
+          labels: {
+            confirm: 'Make public',
+            cancel: 'Cancel',
+          },
+          confirmProps: { color: 'teal' },
+        })
+      );
+    });
+
+  it('frames the publicity modal as "Make private" with ' +
+    'the same red treatment as Delete for a public tag',
+    async () => {
+      const publicTag: Tag = { ...mockTags[0], public: true };
+
+      await act(async () => {
+        await capturedTreeProps.current?.onTogglePublic?.(
+          publicTag
+        );
+      });
+
+      expect(mockConfirmModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Make tag private',
+          labels: {
+            confirm: 'Make private',
+            cancel: 'Cancel',
+          },
+          confirmProps: { color: 'red' },
+        })
+      );
+      expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+        'tag-1',
+        false
+      );
     });
 
   it('calls reparentTag on a valid drop and toasts the ' +
@@ -408,7 +470,6 @@ describe('TagManagementRoute tag UX wiring', () => {
   it('clears the whole notes cache on delete — the ' +
     'deleted tag\'s pages and ancestors\' merged pages ' +
     'go stale', async () => {
-      window.confirm = vi.fn(() => true);
       mockApi.deleteTag.mockResolvedValue(undefined);
 
       fireEvent.click(screen.getByTestId('delete-tag-1'));
@@ -427,6 +488,52 @@ describe('TagManagementRoute tag UX wiring', () => {
       expect(mockClearNotesCache).not.toHaveBeenCalledWith(
         'tag-1'
       );
+    });
+
+  it('prunes the deleted tag\'s stored pagination entry',
+    async () => {
+      mockApi.deleteTag.mockResolvedValue(undefined);
+
+      fireEvent.click(screen.getByTestId('delete-tag-1'));
+
+      await waitFor(() => {
+        expect(mockApi.deleteTag).toHaveBeenCalledWith(
+          'tag-1'
+        );
+      });
+      // The stored tag id can never be reused — its
+      // remembered page/pageSize is dead weight.
+      expect(
+        storeStub.state.removeTagPagination
+      ).toHaveBeenCalledWith('tag-1');
+    });
+
+  it('deletes through a red-button confirm modal, not ' +
+    'window.confirm', async () => {
+      fireEvent.click(screen.getByTestId('delete-tag-1'));
+
+      await waitFor(() => {
+        expect(mockApi.deleteTag).toHaveBeenCalledWith(
+          'tag-1'
+        );
+      });
+
+      expect(mockConfirmModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          labels: { confirm: 'Delete', cancel: 'Cancel' },
+          confirmProps: { color: 'red' },
+        })
+      );
+    });
+
+  it('does not delete when the confirm modal is dismissed',
+    async () => {
+      mockConfirmModal.mockImplementationOnce(() => undefined);
+
+      fireEvent.click(screen.getByTestId('delete-tag-1'));
+
+      expect(mockConfirmModal).toHaveBeenCalled();
+      expect(mockApi.deleteTag).not.toHaveBeenCalled();
     });
 
   it('disables drag reparent while a search filter is ' +

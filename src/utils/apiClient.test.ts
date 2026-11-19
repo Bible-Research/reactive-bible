@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { ErrorEvent, EventHint } from '@sentry/react';
 import {
   authenticatedFetch,
   authenticatedUpload,
+  fetchJson,
   publicFetch,
   isAuthenticated,
   getAuthToken,
 } from './apiClient';
+import {
+  RateLimitError,
+  errorDetailsOf,
+} from '../api/errors';
+import { sentryBeforeSend } from './sentry';
 import { useAuthStore } from '../stores/authStore';
 import { showNotification } from '@mantine/notifications';
 
@@ -126,7 +133,7 @@ describe('apiClient', () => {
       vi.stubGlobal('fetch', mockFetch);
 
       await expect(authenticatedFetch(mockUrl)).rejects.toThrow(
-        'Session expired'
+        'auth.sessionExpiredMsg'
       );
 
       // Should have logged out
@@ -164,7 +171,7 @@ describe('apiClient', () => {
         );
 
         await expect(authenticatedFetch(mockUrl))
-          .rejects.toThrow('Session expired');
+          .rejects.toThrow('auth.sessionExpiredMsg');
         expect(showNotification).not.toHaveBeenCalled();
       });
 
@@ -182,7 +189,7 @@ describe('apiClient', () => {
       });
 
       await expect(authenticatedFetch(mockUrl))
-        .rejects.toThrow('Authentication required');
+        .rejects.toThrow('auth.required');
       expect(showNotification).not.toHaveBeenCalled();
       expect(
         useAuthStore.getState().isAuthenticated
@@ -215,7 +222,7 @@ describe('apiClient', () => {
 
         const request = authenticatedFetch(mockUrl);
         const assertion = expect(request).rejects.toThrow(
-          'Session expired'
+          'auth.sessionExpiredMsg'
         );
 
         // Rotate the token while the stale request is held.
@@ -247,7 +254,7 @@ describe('apiClient', () => {
         });
 
         await expect(authenticatedFetch(mockUrl))
-          .rejects.toThrow('Session expired');
+          .rejects.toThrow('auth.sessionExpiredMsg');
 
         expect(useAuthStore.getState().token).toBeNull();
         expect(useAuthStore.getState().isAuthenticated)
@@ -265,7 +272,7 @@ describe('apiClient', () => {
       );
 
       await expect(authenticatedFetch(mockUrl)).rejects.toThrow(
-        'You do not have permission'
+        'errors.forbidden'
       );
     });
 
@@ -399,7 +406,7 @@ describe('apiClient', () => {
 
       await expect(
         authenticatedUpload(mockUrl, new FormData())
-      ).rejects.toThrow('Session expired');
+      ).rejects.toThrow('auth.sessionExpiredMsg');
 
       expect(useAuthStore.getState().token).toBeNull();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
@@ -521,6 +528,78 @@ describe('apiClient', () => {
         ).rejects.toThrow('Network error');
 
         expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+  });
+
+  describe('fetchJson', () => {
+    const fallback = 'Failed to save note';
+    const notesUrl = 'https://api.example.com/api/v1/notes/';
+
+    it('returns the parsed body on OK', async () => {
+      const fetcher = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'NOTE_1' }),
+      });
+
+      await expect(
+        fetchJson(fetcher, notesUrl, fallback)
+      ).resolves.toEqual({ id: 'NOTE_1' });
+    });
+
+    it('throws a tracked plain Error on a non-OK ' +
+      'response', async () => {
+        const fetcher = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+        });
+        vi.spyOn(console, 'error')
+          .mockImplementation(() => undefined);
+
+        const err = await fetchJson(
+          fetcher, notesUrl, fallback
+        ).catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(Error);
+        expect(err).not.toBeInstanceOf(RateLimitError);
+        expect((err as Error).message).toBe(fallback);
+        expect(errorDetailsOf(err)).toEqual({
+          code: undefined,
+          status: 500,
+          endpoint: '/api/v1/notes/',
+        });
+      });
+
+    it('maps HTTP 429 to a RateLimitError that ' +
+      'sentryBeforeSend drops', async () => {
+        const fetcher = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+        });
+        vi.spyOn(console, 'error')
+          .mockImplementation(() => undefined);
+
+        const err = await fetchJson(
+          fetcher, notesUrl, fallback
+        ).catch((e: unknown) => e);
+
+        // Throttling on a fetchJson endpoint (notes, tags,
+        // comments) must not emit a level-error handled-api
+        // event — the error is typed and coded so
+        // `sentryBeforeSend` drops it.
+        expect(err).toBeInstanceOf(RateLimitError);
+        expect((err as Error).message).toBe(fallback);
+        expect(errorDetailsOf(err)).toEqual({
+          code: 'rate_limited',
+          status: 429,
+          endpoint: '/api/v1/notes/',
+        });
+        expect(
+          sentryBeforeSend(
+            { event_id: 'fetchjson-429' } as ErrorEvent,
+            { originalException: err } as EventHint
+          )
+        ).toBeNull();
       });
   });
 

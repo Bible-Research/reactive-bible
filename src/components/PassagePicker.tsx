@@ -1,8 +1,17 @@
 import { Box, ScrollArea, createStyles, rem } from "@mantine/core";
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { showNotification } from "@mantine/notifications";
 import { getChapters, getVerses } from "../api/structure";
 import { getAllBooks } from "../utils/scriptureMention";
+import { useActiveStructure } from "../hooks/useBookName";
+import { useBibleStore } from "../store";
+import { findTranslationByFilesetId } from "../utils/filesetGroups";
+import {
+  chaptersFor,
+  isBookCovered,
+} from "../utils/bookNameRegistry";
 
 const useStyles = createStyles((theme) => ({
   border: {
@@ -45,6 +54,20 @@ const useStyles = createStyles((theme) => ({
     },
   },
 
+  // Book rows only: localized names ("Pāvila 2. vēstule
+  // korintiešiem") exceed the 185px column — wrap across
+  // lines with content-driven height instead of clipping.
+  // Composed AFTER `link` (cx order) so these win.
+  linkBook: {
+    height: "auto",
+    minHeight: rem(30),
+    lineHeight: 1.25,
+    whiteSpace: "normal",
+    overflowWrap: "break-word",
+    paddingTop: rem(4),
+    paddingBottom: rem(4),
+  },
+
   linkActive: {
     "&, &:hover": {
       backgroundColor:
@@ -53,6 +76,13 @@ const useStyles = createStyles((theme) => ({
           : theme.colors.gray[1],
       color: theme.colorScheme === "dark" ? theme.white : theme.black,
     },
+  },
+
+  // Uncovered books: dimmed but still a real <button> — the
+  // `disabled` attribute would swallow the click that shows
+  // the "not included" notification.
+  linkDimmed: {
+    opacity: 0.4,
   },
 }));
 
@@ -83,6 +113,17 @@ interface PassagePickerProps {
   /** 'nav-' for BibleSelector, 'mention-' for the picker popup. */
   titlePrefix?: string;
   /**
+   * Restrict books/chapters to the active structure's
+   * coverage. True for navigation pickers — the reader
+   * cannot open a book the bible lacks, so uncovered
+   * entries dim and refuse with a notification. Citation
+   * pickers (mention-, edit-note-) pass false: refs are
+   * stored as USFM and stay valid under any translation,
+   * so an uncovered book is a legitimate citation target
+   * (typed input already parses it).
+   */
+  restrictToCoverage?: boolean;
+  /**
    * Toggling this re-runs the scroll-to-active effects — e.g. when
    * the picker becomes visible again after display:none hid it.
    */
@@ -99,24 +140,115 @@ const PassagePicker = ({
   bookFilter,
   height = "100%",
   titlePrefix = "nav-",
+  restrictToCoverage = true,
   scrollSignal,
   onSelectBook,
   onSelectChapter,
   onSelectVerse,
 }: PassagePickerProps) => {
   const { classes, cx } = useStyles();
+  const { t } = useTranslation();
 
+  // Bootstrap the active structure — idempotent + in-flight
+  // deduped, so all three picker mount points can kick it.
+  // Deferred past the commit: a synchronous store write inside
+  // a passive effect crashes React's work loop.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void useBibleStore.getState().loadStructure();
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const structure = useActiveStructure();
+
+  /**
+   * Books column = canonical 66 order with localized names
+   * overlaid. `covered` marks books the active structure
+   * actually contains; uncovered books stay rendered but
+   * dimmed+clickable (spec: notification, no navigation).
+   * `isBookCovered` reads the registry — it still holds the
+   * previous structure while a bible-switch fetch is in
+   * flight (`structure` === null), so the greying never
+   * resets to all-covered mid-swap.
+   */
   const books = useMemo(() => {
-    const all = getAllBooks();
+    const names = new Map(
+      (structure?.books ?? []).map((b) => [
+        b.book_id,
+        b.name,
+      ])
+    );
+    const all = getAllBooks().map((b) => ({
+      book_id: b.book_id,
+      book_name: names.get(b.book_id) ?? b.book_name,
+      covered:
+        !restrictToCoverage || isBookCovered(b.book_id),
+    }));
     if (!bookFilter) return all;
     const allowed = new Set(bookFilter);
-    return all.filter((b) => allowed.has(b.book_name));
-  }, [bookFilter]);
+    return all.filter(
+      (b) =>
+        allowed.has(b.book_name) || allowed.has(b.book_id)
+    );
+  }, [bookFilter, structure, restrictToCoverage]);
 
-  const chapters = useMemo(
-    () => (bookId ? getChapters(bookId) : []),
-    [bookId]
-  );
+  /**
+   * Chapters column = the structure's real coverage when
+   * loaded; bundled canon otherwise. Coverage only applies
+   * to navigation pickers — a citation picker can reference
+   * any canonical chapter. The registry's `chaptersFor`
+   * still answers from the previous structure while the
+   * switched-to structure is in flight, so the column
+   * doesn't flash the bundled canon mid-swap.
+   */
+  const chapters = useMemo(() => {
+    if (!bookId) return [];
+    const covered = restrictToCoverage
+      ? structure?.books.find(
+          (b) => b.book_id === bookId
+        )?.chapters ?? chaptersFor(bookId)
+      : null;
+    if (covered && covered.length > 0) {
+      return covered;
+    }
+    return getChapters(bookId);
+  }, [bookId, structure, restrictToCoverage]);
+
+  /**
+   * Uncovered-book click: notification, no navigation. Uses
+   * the owning translation's display name.
+   */
+  const notifyNotIncluded = (bookId: string) => {
+    const { translations, activeTextFilesetId } =
+      useBibleStore.getState();
+    const owner = findTranslationByFilesetId(
+      activeTextFilesetId,
+      translations,
+    );
+    const translationName =
+      owner?.name ?? owner?.abbr ?? t('picker.thisTranslation');
+    const bookName =
+      books.find((b) => b.book_id === bookId)?.book_name ??
+      bookId;
+    showNotification({
+      title: t('picker.bookNotIncluded'),
+      message: t('picker.notIncludedMsg', {
+        translation: translationName,
+        book: bookName,
+      }),
+      color: 'yellow',
+    });
+  };
+
+  const selectBook = (id: string) => {
+    const entry = books.find((b) => b.book_id === id);
+    if (entry && !entry.covered) {
+      notifyNotIncluded(id);
+      return;
+    }
+    onSelectBook(id);
+  };
 
   const verseList = useMemo(
     () =>
@@ -167,21 +299,23 @@ const PassagePicker = ({
           {books.map((b) => (
             <button
               type="button"
-              className={cx(classes.link, {
+              className={cx(classes.link, classes.linkBook, {
                 [classes.linkActive]: bookId === b.book_id,
+                [classes.linkDimmed]: !b.covered,
               })}
               data-active={bookId === b.book_id || undefined}
               aria-current={bookId === b.book_id || undefined}
               role="button"
               tabIndex={0}
-              onClick={() => onSelectBook(b.book_id)}
+              onClick={() => selectBook(b.book_id)}
               onKeyDown={(event) =>
                 activateOnKeyDown(event, () =>
-                  onSelectBook(b.book_id)
+                  selectBook(b.book_id)
                 )
               }
               key={b.book_id}
               title={`${titlePrefix}book-${b.book_id}`}
+              data-covered={b.covered || undefined}
             >
               {b.book_name}
             </button>

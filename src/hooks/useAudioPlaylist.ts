@@ -11,7 +11,7 @@ import {
 import { PlaylistItem, VerseTimestamp } from '../types';
 import {
   resolveTimestampsFilesetId,
-  toBookName,
+  localizedBookName,
   adjustTimestampsForENGESV,
 } from '../utils/bibleUtils';
 import {
@@ -21,8 +21,14 @@ import {
 import { orderedAudioCandidates } from '../utils/audioCandidates';
 import { notifyAudioSubstitution } from '../utils/audioSubstitution';
 import { useVerseHighlighter } from './useVerseHighlighter';
-import { disposeHowl } from '../utils/audioUtils';
+import {
+  disposeHowl,
+  osPausedNode,
+  playAlreadyRequested,
+} from '../utils/audioUtils';
 import { attachVerseBounds } from '../utils/verseBounds';
+import { captureHandledWarning } from '../utils/errorReporter';
+import i18n from '../i18n';
 
 export interface UseAudioPlaylistReturn {
   isActive: boolean;
@@ -54,6 +60,13 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   // materializes a Howl for the wrong item, overwriting
   // audioRef while the orphaned Howl keeps loading/playing.
   const playSeqRef = useRef(0);
+  // The Howl a play() was already issued for. Howler queues
+  // such a call while 'loading' and playing() stays false
+  // through the whole load window — the queue can still be
+  // undrained inside the 'load' handlers — so only this
+  // marker keeps resume()/onload from stacking a second
+  // sound instance. Cleared on pause/'end'/error/dispose.
+  const playRequestedHowlRef = useRef<Howl | null>(null);
   // Guards the "no verse timestamps" notification so a playlist
   // of timestampless recordings warns once, not per item.
   const timestampsNoticeShownRef = useRef(false);
@@ -91,6 +104,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
     // handler can observe a half-torn-down Howl.
     const current = audioRef.current;
     audioRef.current = null;
+    playRequestedHowlRef.current = null;
     disposeHowl(current);
     setAudio(null);
     setTimestamps([]);
@@ -130,7 +144,7 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         return;
       }
 
-      const itemBookName = toBookName(item.bookId) ?? item.bookId;
+      const itemBookName = localizedBookName(item.bookId) ?? item.bookId;
       // Ordered candidates: timestamp-backed sibling recording,
       // then resolved primary, codec sibling, other-testament
       // member, and the translation's remaining audio options —
@@ -189,8 +203,8 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
 
       if (candidates.length === 0) {
         showNotification({
-          title: 'No audio fileset selected',
-          message: 'Select an audio translation to use playlist.',
+          title: i18n.t('audio.noFileset'),
+          message: i18n.t('audio.selectTranslation'),
           color: 'orange',
           autoClose: 5000,
         });
@@ -258,11 +272,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
               ) {
                 timestampsNoticeShownRef.current = true;
                 showNotification({
-                  title: 'No verse timestamps',
+                  title: i18n.t('audio.noTimestamps'),
                   message:
-                    "Verse-level playback isn't available " +
-                    'for this recording — whole chapters ' +
-                    'will play.',
+                    i18n.t('audio.noTimestampsMsg'),
                   color: 'orange',
                   autoClose: 8000,
                 });
@@ -316,7 +328,33 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     return;
                   }
                   howl.seek(startTs);
-                  howl.play();
+                  // A play requested while 'loading' (resume()
+                  // during the load window) sits in Howler's
+                  // queue and can still be undrained here —
+                  // playing() stays false through the whole
+                  // window, so only the request marker keeps a
+                  // second play() from stacking another sound
+                  // instance (its own <audio> node).
+                  if (
+                    !playAlreadyRequested(
+                      howl,
+                      playRequestedHowlRef.current,
+                    )
+                  ) {
+                    playRequestedHowlRef.current = howl;
+                    try {
+                      howl.play();
+                    } catch (err) {
+                      // A synchronous throw must not leave the
+                      // marker set — it would swallow every
+                      // later resume for this Howl.
+                      playRequestedHowlRef.current = null;
+                      console.warn(
+                        'Play operation failed:',
+                        err,
+                      );
+                    }
+                  }
                   prefetchNext(index);
                 },
                 onplay: () => {
@@ -342,10 +380,16 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   );
                 },
                 onpause: () => {
+                  if (playRequestedHowlRef.current === howl) {
+                    playRequestedHowlRef.current = null;
+                  }
                   if (stale()) return;
                   setIsPlaying(false);
                 },
                 onend: () => {
+                  if (playRequestedHowlRef.current === howl) {
+                    playRequestedHowlRef.current = null;
+                  }
                   // Always advance on the media `end` event.
                   // When the page is frozen the 100 ms poll
                   // never fires; reaching the real file end
@@ -354,6 +398,9 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                   advanceNext();
                 },
                 onloaderror: (_id, err) => {
+                  if (playRequestedHowlRef.current === howl) {
+                    playRequestedHowlRef.current = null;
+                  }
                   // A superseded run must stay inert — unloading
                   // during a pending play can surface a playerror,
                   // which must not spawn a detached retry.
@@ -370,17 +417,29 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     retryNextCandidate(i + 1);
                     return;
                   }
+                  captureHandledWarning(
+                    'Playlist audio load failed: ' + String(err),
+                    'media-failure',
+                    {
+                      filesetId: candidateId,
+                      book: item.bookId,
+                      chapter: item.chapter,
+                      item: item.label,
+                    },
+                  );
                   showNotification({
-                    title: 'Audio load failed',
+                    title: i18n.t('audio.loadFailed'),
                     message:
-                      `Could not load audio for ` +
-                      `${item.label}. Skipping.`,
+                      i18n.t('audio.couldNotLoad', { label: item.label }),
                     color: 'orange',
                     autoClose: 5000,
                   });
                   advanceNext();
                 },
                 onplayerror: (_id, err) => {
+                  if (playRequestedHowlRef.current === howl) {
+                    playRequestedHowlRef.current = null;
+                  }
                   if (stale()) return;
                   console.error(
                     'Playlist audio play error:',
@@ -392,11 +451,20 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
                     retryNextCandidate(i + 1);
                     return;
                   }
+                  captureHandledWarning(
+                    'Playlist audio play failed: ' + String(err),
+                    'media-failure',
+                    {
+                      filesetId: candidateId,
+                      book: item.bookId,
+                      chapter: item.chapter,
+                      item: item.label,
+                    },
+                  );
                   showNotification({
-                    title: 'Audio play failed',
+                    title: i18n.t('audio.playFailed'),
                     message:
-                      `Could not play audio for ` +
-                      `${item.label}. Skipping.`,
+                      i18n.t('audio.couldNotPlay', { label: item.label }),
                     color: 'orange',
                     autoClose: 5000,
                   });
@@ -433,17 +501,40 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             } catch (err) {
               if (stale()) return;
               if (err instanceof BookNotInFilesetError) continue;
+              // Report sites name the fileset that actually
+              // failed — not the retry's startAt candidate.
+              // A primitive or frozen rejection can't carry
+              // the stamp — assigning to a frozen Error throws
+              // in strict mode and would replace the real
+              // rejection, so leave those unstamped.
+              if (err instanceof Error && !Object.isFrozen(err)) {
+                (err as { filesetId?: string }).filesetId =
+                  candidateId;
+              }
               throw err;
             }
           }
 
           // Every candidate was exhausted — report once.
           if (stale()) return;
+          captureHandledWarning(
+            'Playlist audio candidates exhausted',
+            'media-failure',
+            {
+              filesetId: activeAudioFilesetId,
+              candidates: candidates.join(','),
+              book: item.bookId,
+              chapter: item.chapter,
+              item: item.label,
+            },
+          );
           showNotification({
-            title: 'Audio not available',
+            title: i18n.t('audio.notAvailable'),
             message:
-              `No audio for ${itemBookName} in ` +
-              `${translationName}. Skipping to next item.`,
+              i18n.t('audio.noAudioForSkipping', {
+                book: itemBookName,
+                translation: translationName,
+              }),
             color: 'orange',
             autoClose: 5000,
           });
@@ -458,11 +549,23 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           void loadFromIndex(startAt).catch((err) => {
             if (stale()) return;
             console.error('Playlist retry failed:', err);
+            captureHandledWarning(
+              'Playlist audio retry failed: ' +
+                (err instanceof Error ? err.message : String(err)),
+              'media-failure',
+              {
+                filesetId:
+                  (err as { filesetId?: string }).filesetId ??
+                  candidates[startAt],
+                book: item.bookId,
+                chapter: item.chapter,
+                item: item.label,
+              },
+            );
             showNotification({
-              title: 'Audio unavailable',
+              title: i18n.t('audio.unavailable'),
               message:
-                `Could not load audio for ` +
-                `${item.label}. Skipping.`,
+                i18n.t('audio.couldNotLoad', { label: item.label }),
               color: 'orange',
               autoClose: 5000,
             });
@@ -474,9 +577,22 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       } catch (err) {
         if (stale()) return;
         console.error('Playlist error loading item:', err);
+        captureHandledWarning(
+          'Playlist audio error: ' +
+            (err instanceof Error ? err.message : String(err)),
+          'media-failure',
+          {
+            filesetId:
+              (err as { filesetId?: string }).filesetId ??
+              activeAudioFilesetId,
+            book: item.bookId,
+            chapter: item.chapter,
+            item: item.label,
+          },
+        );
         showNotification({
-          title: 'Audio unavailable',
-          message: `Could not load audio for ${item.label}. Skipping.`,
+          title: i18n.t('audio.unavailable'),
+          message: i18n.t('audio.couldNotLoad', { label: item.label }),
           color: 'orange',
           autoClose: 5000,
         });
@@ -504,11 +620,45 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
   );
 
   const pause = useCallback(() => {
+    // Clear the request marker eagerly — a pause inside the
+    // load window must retire the queued play's marker or a
+    // later resume() would be swallowed by the stale flag.
+    playRequestedHowlRef.current = null;
     audioRef.current?.pause();
   }, []);
 
   const resume = useCallback(() => {
-    audioRef.current?.play();
+    const current = audioRef.current;
+    if (!current) return;
+    // The OS can pause the <audio> node behind Howler's back
+    // (Android audio-focus loss in a car): playing() still
+    // reports true while the node is silent — replay the node
+    // to resume in place; howl.play() would stack a second
+    // sound instead of reviving this one.
+    const node = osPausedNode(current);
+    if (node) {
+      void node.play();
+      return;
+    }
+    // play() on an already-playing Howl — or on one whose
+    // play is still queued in Howler's load window — spawns a
+    // second sound instance. A redundant media-session 'play'
+    // (Bluetooth reconnect, head-unit re-dispatch, focus
+    // regain) must not layer the file over itself.
+    if (
+      playAlreadyRequested(current, playRequestedHowlRef.current)
+    ) {
+      return;
+    }
+    playRequestedHowlRef.current = current;
+    try {
+      current.play();
+    } catch (err) {
+      // A synchronous throw must not leave the marker set —
+      // it would swallow every later resume for this Howl.
+      playRequestedHowlRef.current = null;
+      console.warn('Play operation failed:', err);
+    }
   }, []);
 
   const next = useCallback(() => {

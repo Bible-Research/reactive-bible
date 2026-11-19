@@ -1,6 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import {
+  describe, it, expect, beforeEach, afterEach,
+} from 'vitest';
 import { noteHeading } from './noteHeading';
 import { Note } from '../types';
+import type { BibleStructure } from '../types';
+import {
+  resetActiveStructure,
+  setActiveStructure,
+} from './bookNameRegistry';
+import catalogLv from '../assets/bookNames.lv.json';
 import {
   createMockNote,
   createMockVerse,
@@ -67,5 +75,30 @@ describe('noteHeading', () => {
   it('returns an empty string for a verse-less untagged note', () => {
     const note = createMockNote({ verses: [], tag: null });
     expect(noteHeading(note)).toBe('');
+  });
+});
+
+describe('noteHeading localization (task 3.3)', () => {
+  const LV = catalogLv as unknown as BibleStructure;
+  beforeEach(() => {
+    setActiveStructure(LV);
+  });
+  afterEach(() => {
+    resetActiveStructure();
+  });
+
+  it('maps stored English book -> USFM -> localized name', () => {
+    const note = noteWithVerses([
+      { book: 'John', chapter: 3, verse: 16 },
+    ]);
+    expect(noteHeading(note)).toBe('Jāņa evaņģēlijs 3:16');
+  });
+
+  it('localizes multi-verse ranges too', () => {
+    const note = noteWithVerses([
+      { book: 'Genesis', chapter: 1, verse: 1 },
+      { book: 'Genesis', chapter: 1, verse: 3 },
+    ]);
+    expect(noteHeading(note)).toBe('1. Mozus grāmata 1:1-3');
   });
 });

@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import * as Sentry from '@sentry/react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Center, Loader } from '@mantine/core';
 // Eager: the bible reader is the landing route, so splitting it
@@ -21,6 +22,9 @@ const TagManagementRoute = lazyWithReload(
   () => import('./TagManagementRoute')
 );
 const SearchRoute = lazyWithReload(() => import('./SearchRoute'));
+const GettingStartedRoute = lazyWithReload(
+  () => import('./GettingStartedRoute')
+);
 const LoginPage = lazyWithReload(() =>
   import('../components/LoginPage').then((m) => ({
     default: m.LoginPage,
@@ -38,10 +42,17 @@ const routeFallback = (
   </Center>
 );
 
+// Pairs with reactRouterBrowserTracingIntegration in
+// main.tsx: navigation events update the route transaction so
+// Sentry performance entries aggregate under the route
+// patterns (/bible/:ref), not raw verse URLs. A no-op wrapper
+// when the SDK was never initialized.
+const SentryRoutes = Sentry.wrapReactRouterRouting(Routes);
+
 export function AppRoutes() {
   return (
     <Suspense fallback={routeFallback}>
-      <Routes>
+      <SentryRoutes>
         {/* Public routes */}
         <Route path="/" element={<Navigate to="/bible" replace />} />
         <Route path="/login" element={<LoginPage />} />
@@ -49,6 +60,12 @@ export function AppRoutes() {
 
         {/* Search route */}
         <Route path="/search" element={<SearchRoute />} />
+
+        {/* Getting started - public onboarding tutorials */}
+        <Route
+          path="/getting-started"
+          element={<GettingStartedRoute />}
+        />
 
         {/* Bible routes - public (can view Bible without auth) */}
         <Route path="/bible" element={<BibleRoute />} />
@@ -78,7 +95,7 @@ export function AppRoutes() {
         />
         {/* Catch-all: redirect to bible */}
         <Route path="*" element={<Navigate to="/bible" replace />} />
-      </Routes>
+      </SentryRoutes>
     </Suspense>
   );
 }

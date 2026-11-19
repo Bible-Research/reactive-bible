@@ -19,7 +19,18 @@ import {
 import { UNTAGGED_TAG_ID } from '../api';
 import type { Tag } from '../types';
 import type { SortOrder } from '../utils/noteSorting';
+import { NOTES_PAGE_SIZES } from '../utils/pagination';
 import { shareOrCopyLink } from '../utils/share';
+import { useTranslation } from 'react-i18next';
+
+// Mantine keeps the readonly input focused while the
+// dropdown is open, which shows a blinking text caret —
+// hide it on non-searchable selects; they are not editable.
+// Kept scoped (not a theme override) so searchable selects
+// keep their caret.
+const READONLY_SELECT_STYLES = {
+  input: { caretColor: 'transparent' },
+};
 
 interface TagNotesToolbarProps {
   /** The caller's own tags — powers the switcher Select. */
@@ -77,6 +88,7 @@ const TagNotesToolbar = ({
   onToggleFolded,
   onRefresh,
 }: TagNotesToolbarProps) => {
+  const { t } = useTranslation();
   const sortedTags = useMemo(
     () => [...tags].sort((a, b) => a.name.localeCompare(b.name)),
     [tags]
@@ -85,26 +97,27 @@ const TagNotesToolbar = ({
   const handleShare = async () => {
     await shareOrCopyLink(
       {
-        title: `Notes: ${tagName || 'Tag'}`,
+        title: t('tags.notesTitle', { tag: tagName || t('common.tag') }),
         // totalCount is the tag total; shownCount is only
         // the currently loaded page.
-        text:
-          `Check out these ${totalCount} note(s) ` +
-          `tagged with "${tagName}"`,
+        text: t('tags.shareText', {
+          count: totalCount,
+          tag: tagName,
+        }),
         url: window.location.href,
       },
       {
         shareSuccess: {
-          title: 'Shared!',
-          message: 'Link shared successfully',
+          title: t('notes.shared'),
+          message: t('tags.linkShared'),
         },
         copySuccess: {
-          title: 'Link Copied!',
-          message: 'Tag link copied to clipboard',
+          title: t('notes.linkCopied'),
+          message: t('tags.linkCopiedMsg'),
         },
         copyFailure: {
-          title: 'Error',
-          message: 'Failed to copy link',
+          title: t('common.error'),
+          message: t('tags.copyFailed'),
         },
       }
     );
@@ -115,20 +128,23 @@ const TagNotesToolbar = ({
       <Group spacing="xs" noWrap>
         {isAuthenticated && sortedTags.length > 0 ? (
           <Select
-            label="Filter by tag"
-            placeholder="Select a tag"
+            label={t('tags.filterByTag')}
+            placeholder={t('notes.selectTag')}
             value={tagId}
             onChange={onTagChange}
             // Grouped items render above a divider; the
             // ungrouped "Untagged" entry lands in its own
             // bottom section (Mantine v6 SelectItems).
             data={[
-              ...sortedTags.map((t) => ({
-                value: t.id,
-                label: t.name,
-                group: 'Tags',
+              ...sortedTags.map((tag) => ({
+                value: tag.id,
+                label: tag.name,
+                group: t('tags.tagsGroup'),
               })),
-              { value: UNTAGGED_TAG_ID, label: 'Untagged' },
+              {
+                value: UNTAGGED_TAG_ID,
+                label: t('common.untagged'),
+              },
             ]}
             searchable
             style={{ maxWidth: 400 }}
@@ -138,7 +154,7 @@ const TagNotesToolbar = ({
         )}
         {tagPublic && (
           <Tooltip
-            label="Public tag — notes are viewable by link"
+            label={t('tags.publicTagLink')}
             position="right"
           >
             <ThemeIcon size="sm" color="teal" variant="light">
@@ -151,6 +167,7 @@ const TagNotesToolbar = ({
         <Group spacing="xs" noWrap>
           <Select
             size="xs"
+            aria-label={t('tags.sortOrder')}
             value={sortOrder}
             onChange={(v) => {
               if (v) {
@@ -160,47 +177,48 @@ const TagNotesToolbar = ({
             data={[
               {
                 value: 'custom_asc',
-                label: 'Custom: Ascending',
+                label: t('tags.sortCustomAsc'),
               },
               {
                 value: 'custom_desc',
-                label: 'Custom: Descending',
+                label: t('tags.sortCustomDesc'),
               },
               {
                 value: 'created_desc',
-                label: 'Date: Newest first',
+                label: t('tags.sortDateNewest'),
               },
               {
                 value: 'created_asc',
-                label: 'Date: Oldest first',
+                label: t('tags.sortDateOldest'),
               },
               {
                 value: 'verse_asc',
-                label: 'Verse: Ascending',
+                label: t('tags.sortVerseAsc'),
               },
               {
                 value: 'verse_desc',
-                label: 'Verse: Descending',
+                label: t('tags.sortVerseDesc'),
               },
             ]}
+            styles={READONLY_SELECT_STYLES}
             style={{ width: 170, flexShrink: 0 }}
           />
           <Select
             size="xs"
+            aria-label={t('tags.notesPerPage')}
             value={String(pageSize)}
             onChange={onPageSizeChange}
-            data={[
-              { value: '5', label: '5' },
-              { value: '25', label: '25' },
-              { value: '50', label: '50' },
-              { value: '100', label: '100' },
-            ]}
-            style={{ width: 60, flexShrink: 0 }}
+            data={NOTES_PAGE_SIZES.map((size) => ({
+              value: String(size),
+              label: String(size),
+            }))}
+            styles={READONLY_SELECT_STYLES}
+            style={{ width: 72, flexShrink: 0 }}
           />
           {hasChildren && onToggleDescendants && (
             <Switch
               size="sm"
-              label="Include sub-tags"
+              label={t('tags.includeSubTags')}
               checked={includeDescendants}
               onChange={(e) =>
                 onToggleDescendants(e.currentTarget.checked)
@@ -218,13 +236,26 @@ const TagNotesToolbar = ({
               },
             })}
           >
-            {shownCount}
-            {totalCount > shownCount && ` of ${totalCount}`}
-            {' '}
-            {shownCount === 1 ? 'note' : 'notes'}
+            {totalCount > shownCount
+              ? // "3 of 20 notes" — the noun follows the
+                // total, which also fixes the former
+                // "1 of 20 note" edge.
+                t('tags.notesShownOfTotal', {
+                  count: totalCount,
+                  shown: shownCount,
+                  total: totalCount,
+                })
+              : t('tags.notesShown', {
+                  count: shownCount,
+                  shown: shownCount,
+                })}
           </Text>
           <Tooltip
-            label={versesFolded ? "Unfold verses" : "Fold verses"}
+            label={
+              versesFolded
+                ? t('tags.unfoldVerses')
+                : t('tags.foldVerses')
+            }
             position="left"
           >
             <ActionIcon
@@ -233,7 +264,7 @@ const TagNotesToolbar = ({
               color={versesFolded ? "blue" : "gray"}
               size="lg"
               aria-label={
-                versesFolded ? 'Unfold verses' : 'Fold verses'
+                versesFolded ? t('tags.unfoldVerses') : t('tags.foldVerses')
               }
             >
               {versesFolded
@@ -241,24 +272,24 @@ const TagNotesToolbar = ({
                 : <IconArrowsMinimize size={20} />}
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Refresh notes" position="left">
+          <Tooltip label={t('tags.refreshNotes')} position="left">
             <ActionIcon
               onClick={onRefresh}
               variant="subtle"
               color="gray"
               size="lg"
-              aria-label="Refresh notes"
+              aria-label={t('tags.refreshNotes')}
             >
               <IconRefresh size={20} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Share tag link" position="left">
+          <Tooltip label={t('tags.shareTagLink')} position="left">
             <ActionIcon
               onClick={handleShare}
               variant="subtle"
               color="blue"
               size="lg"
-              aria-label="Share tag link"
+              aria-label={t('tags.shareTagLink')}
             >
               <IconShare size={20} />
             </ActionIcon>

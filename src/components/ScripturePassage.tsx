@@ -5,6 +5,8 @@ import { ScriptureRef } from '../utils/scriptureRef';
 import { toUsfmCode } from '../utils/bibleUtils';
 import { SectionHeading } from '../types';
 import SectionHeadingComponent from './SectionHeading';
+import { useTranslation } from 'react-i18next';
+import { localizedErrorText } from '../i18n/errorText';
 
 // Passage lookups from notes/comments always use ESV
 const FILESET_ID = 'ENGESV_API';
@@ -31,6 +33,7 @@ const ScripturePassage = ({
   fullChapter = false,
   onToggleVerse,
 }: ScripturePassageProps) => {
+  useTranslation();
   const { book, chapter, verses } = reference;
   const [passages, setPassages] = useState<PassageVerse[]>([]);
   const [headings, setHeadings] = useState<SectionHeading[]>([]);
@@ -61,11 +64,11 @@ const ScripturePassage = ({
       } catch (err) {
         console.error('Failed to load passage', err);
         if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Failed to load passage'
-          );
+          // Typed API errors (rate limit, provider,
+          // book-not-in-fileset) resolve to catalog text;
+          // anything else falls back to its own message or
+          // the generic error.
+          setError(localizedErrorText(err));
         }
       }
     };

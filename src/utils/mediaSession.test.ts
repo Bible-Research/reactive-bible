@@ -85,7 +85,9 @@ describe('dispatchMediaAction', () => {
     expect(controls.nextTrack).toHaveBeenCalledOnce();
     expect(controls.previousTrack).toHaveBeenCalledOnce();
     expect(controls.seekBy).not.toHaveBeenCalled();
-    expect(updatePosition).not.toHaveBeenCalled();
+    // A verse/chapter jump also moves the playhead — push the
+    // position so the lock-screen scrubber keeps up.
+    expect(updatePosition).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to a 10s seek when track navigation is ' +

@@ -20,7 +20,7 @@ import {
 import { shallow } from "zustand/shallow";
 import { showNotification } from "@mantine/notifications";
 import {
-  toBookName,
+  localizedBookName,
   buildBiblePath,
   resolveTimestampsFilesetId,
   adjustTimestampsForENGESV,
@@ -36,8 +36,14 @@ import {
   isCrossTranslationPlayback,
   notifyAudioSubstitution,
 } from "../utils/audioSubstitution";
-import { disposeHowl } from "../utils/audioUtils";
+import {
+  disposeHowl,
+  osPausedNode,
+  playAlreadyRequested,
+} from "../utils/audioUtils";
 import { createChapterHowl } from "../utils/chapterHowl";
+import { captureHandledWarning } from "../utils/errorReporter";
+import * as Sentry from "@sentry/react";
 import {
   selectedStartVerse,
   verseStartTimestamp,
@@ -45,6 +51,8 @@ import {
 } from "../utils/verseSeek";
 import { useVerseHighlighter } from "./useVerseHighlighter";
 import { Translation, VerseTimestamp } from "../types";
+import i18n from '../i18n';
+import { localizedErrorText } from '../i18n/errorText';
 
 const chapterKey = (
   filesetId: string | null,
@@ -62,6 +70,23 @@ const parseChapterKey = (
   const bookId = parts[parts.length - 2];
   return bookId && Number.isInteger(chapter)
     ? { bookId, chapter }
+    : null;
+};
+
+// Full inverse of chapterKey, including the fileset id — the
+// timestamps effect needs the recording actually playing, not
+// just the passage.
+const parsePlayingKey = (
+  key: string | null,
+): { filesetId: string; bookId: string; chapter: number } | null => {
+  if (!key) return null;
+  const parts = key.split(':');
+  const chapter = Number(parts[parts.length - 1]);
+  const bookId = parts[parts.length - 2];
+  const filesetId = parts.slice(0, -2).join(':');
+  return bookId && Number.isInteger(chapter) &&
+    filesetId && filesetId !== 'none'
+    ? { filesetId, bookId, chapter }
     : null;
 };
 
@@ -105,6 +130,13 @@ export const useChapterAudio = (
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
   const audioRef = useRef<Howl | null>(null);
+  // The Howl a play() was already issued for. A play() made
+  // while 'loading' sits in Howler's queue with playing()
+  // false the whole window, so only this marker keeps a
+  // second request (safePlay re-run, gap timer, stray media
+  // 'play') from stacking another sound instance on drain.
+  // Cleared on pause/'end'/error/dispose.
+  const playRequestedHowlRef = useRef<Howl | null>(null);
   const [audio, setAudio] = useState<Howl | null>(null);
   // Chapter key of the Howl currently in audioRef — lets the reset
   // effect tell "user navigated" (tear down) from "the ended
@@ -162,6 +194,10 @@ export const useChapterAudio = (
   const [isLooping, setIsLooping] = useState(false);
   const isLoopingRef = useRef(false);
   const [timestamps, setTimestamps] = useState<VerseTimestamp[]>([]);
+  // `fileset:book:chapter` key the rows in `timestamps` describe
+  // — verse navigation and highlighting are only valid while
+  // this matches what is actually playing.
+  const timestampsKeyRef = useRef<string | null>(null);
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore((state) => state.activeChapter);
   const setAudioActiveVerse = useBibleStore(
@@ -264,7 +300,37 @@ export const useChapterAudio = (
       // suppresses safePlay while a timer is pending).
       const current = audioRef.current;
       if (!current || current.state() === 'unloaded') return;
-      current.play();
+      // An OS-paused node (audio-focus loss mid-gap) resumes
+      // in place — a Howl play() would stack a new sound.
+      const node = osPausedNode(current);
+      if (node) {
+        void node.play();
+        return;
+      }
+      // A play() on an already-playing Howl never resumes — it
+      // spawns a second sound instance (html5: another <audio>
+      // node) and the same file plays twice. A stray
+      // media-session 'play' (head unit, focus regain) can
+      // start the adopted chapter during the gap, and a play
+      // still queued in Howler's load window is invisible to
+      // playing() — the request marker covers both.
+      if (
+        playAlreadyRequested(
+          current,
+          playRequestedHowlRef.current,
+        )
+      ) {
+        return;
+      }
+      playRequestedHowlRef.current = current;
+      try {
+        current.play();
+      } catch (err) {
+        // A synchronous throw must not leave the marker set —
+        // it would swallow every later play for this Howl.
+        playRequestedHowlRef.current = null;
+        console.warn('Play operation failed:', err);
+      }
     }, INTER_CHAPTER_GAP_MS);
   }, [clearAdvanceTimer]);
 
@@ -407,9 +473,9 @@ export const useChapterAudio = (
     // silent version swap).
     const state = useBibleStore.getState();
     const selection = state.activeAudioFilesetId;
-    const playingKey = audioChapterKeyRef.current;
-    const playingId = playingKey?.split(':')[0];
-    if (selection && playingId && playingId !== 'none') {
+    const playing = parsePlayingKey(audioChapterKeyRef.current);
+    const playingId = playing?.filesetId;
+    if (selection && playingId) {
       if (
         !isCrossTranslationPlayback(
           selection,
@@ -426,9 +492,7 @@ export const useChapterAudio = (
       // recording — announce it once per (pair, book);
       // within-translation codec/option alternates stay
       // silent.
-      const bookId =
-        (playingKey ? parseChapterKey(playingKey) : null)
-          ?.bookId ?? state.activeBookId;
+      const bookId = playing?.bookId ?? state.activeBookId;
       notifyAudioSubstitution(
         selection,
         playingId,
@@ -440,33 +504,75 @@ export const useChapterAudio = (
     preloadNextChapter();
   }, [preloadNextChapter]);
 
-  const handleChapterPause = useCallback(() => {
+  const handleChapterPause = useCallback((howl: Howl) => {
+    // Only retire the marker when the marked Howl itself
+    // paused — a stale Howl's pause must not clear a play
+    // queued against the current one.
+    if (playRequestedHowlRef.current === howl) {
+      playRequestedHowlRef.current = null;
+    }
+    // A stale Howl's deferred 'pause' must not flip playback
+    // state off under the current one.
+    if (howl !== audioRef.current) return;
+    isPlayingRef.current = false;
     setIsPlaying(false);
   }, []);
 
+  // Terminal Howler failures (every candidate exhausted) emit
+  // a warning-level media-failure event — Howler errors carry
+  // no useful stack, so a captureMessage with fileset +
+  // passage extras carries the signal.
+  const reportMediaFailure = useCallback(
+    (what: string, err: unknown) => {
+      const playing = parsePlayingKey(audioChapterKeyRef.current);
+      captureHandledWarning(
+        `${what}: ${err instanceof Error ? err.message : String(err)}`,
+        'media-failure',
+        {
+          filesetId:
+            playing?.filesetId ??
+            useBibleStore.getState().activeAudioFilesetId,
+          book: playing?.bookId ?? activeBookId,
+          chapter: playing?.chapter ?? activeChapter,
+        },
+      );
+    },
+    [activeBookId, activeChapter],
+  );
+
   const handleChapterLoadError = useCallback(
-    (_id: number, err: unknown) => {
+    (howl: Howl, _id: number, err: unknown) => {
+      // A stale/disposed Howl's deferred error must not clear
+      // a marker the current Howl earned.
+      if (playRequestedHowlRef.current === howl) {
+        playRequestedHowlRef.current = null;
+      }
       console.error('Audio load error:', err);
       // A candidate that fetched but cannot be decoded (e.g.
       // opus16 on an old device) retries as its next alternate —
       // typically the mp3 sibling — before surfacing an error.
       if (tryNextFallbackRef.current()) return;
-      setError('Failed to load audio');
+      reportMediaFailure('Chapter audio load failed', err);
+      setError(i18n.t('audio.failedToLoad'));
       setIsPlaying(false);
       setLoading(false);
     },
-    [],
+    [reportMediaFailure],
   );
 
   const handleChapterPlayError = useCallback(
-    (_id: number, err: unknown) => {
+    (howl: Howl, _id: number, err: unknown) => {
+      if (playRequestedHowlRef.current === howl) {
+        playRequestedHowlRef.current = null;
+      }
       console.error('Audio play error:', err);
       if (tryNextFallbackRef.current()) return;
-      setError('Failed to play audio');
+      reportMediaFailure('Chapter audio play failed', err);
+      setError(i18n.t('audio.failedToPlay'));
       setIsPlaying(false);
       setLoading(false);
     },
-    [],
+    [reportMediaFailure],
   );
 
   // Kept in a ref so `onChapterEnd` can wire the adopted Howl
@@ -484,6 +590,23 @@ export const useChapterAudio = (
     (finished: Howl) => {
       // Defensive: onend shouldn't fire when looping.
       if (finished.loop()) return;
+
+      // A Howl emits 'end' once per sound instance, and Howler
+      // schedules each listener call on a macrotask — a doubled
+      // sound (a stray play() while already playing) makes the
+      // same Howl end twice, and the second emit can still land
+      // after the first already adopted/tore down. Re-advancing
+      // would orphan the Howl now owning audioRef — it keeps
+      // playing untracked on top of whatever loads next — or
+      // skip a chapter. A stale 'end' must also never
+      // invalidate an in-flight load.
+      if (finished !== audioRef.current) return;
+
+      // The finished Howl's play request is spent — retire the
+      // marker so the adopted Howl can be requested next.
+      if (playRequestedHowlRef.current === finished) {
+        playRequestedHowlRef.current = null;
+      }
 
       // Invalidate any load still in flight — the advance below
       // supersedes whatever passage it was fetching.
@@ -547,21 +670,27 @@ export const useChapterAudio = (
       if (next) {
         goToChapter(next);
       } else {
-        // No next chapter — stop playing.
+        // No next chapter — stop playing and close the player;
+        // with no Howl left its reserved space is dead space.
         pendingGapRef.current = false;
         setIsPlaying(false);
+        setShowPlayer(false);
       }
     },
-    [goToChapter, resolveFilesetFor],
+    [goToChapter, resolveFilesetFor, setShowPlayer],
   );
 
   useEffect(() => {
     wireChapterHowlRef.current = (howl: Howl) => {
       howl.on('play', handleChapterPlay);
-      howl.on('pause', handleChapterPause);
+      howl.on('pause', () => handleChapterPause(howl));
       howl.on('end', () => onChapterEnd(howl));
-      howl.once('loaderror', handleChapterLoadError);
-      howl.once('playerror', handleChapterPlayError);
+      howl.once('loaderror', (id, err) =>
+        handleChapterLoadError(howl, id, err),
+      );
+      howl.once('playerror', (id, err) =>
+        handleChapterPlayError(howl, id, err),
+      );
     };
   }, [
     handleChapterPlay,
@@ -578,32 +707,45 @@ export const useChapterAudio = (
   // own message instead of a generic 'Audio unavailable'.
   const reportChapterAudioFailure = useCallback(
     (err: unknown, bookId: string) => {
-      let errorMsg = 'Audio unavailable';
+      const reportState = useBibleStore.getState();
+      captureHandledWarning(
+        'Chapter audio fetch failed: ' +
+          (err instanceof Error ? err.message : String(err)),
+        'media-failure',
+        {
+          filesetId:
+            (err as { filesetId?: string }).filesetId ??
+            reportState.activeAudioFilesetId,
+          book: bookId,
+          chapter: reportState.activeChapter,
+        },
+      );
+      let errorMsg = i18n.t('audio.unavailable');
       if (err instanceof Error) {
         // Extract just the key part of the error
         if (err.message.includes('not available')) {
-          errorMsg = 'Audio not available';
+          errorMsg = i18n.t('audio.notAvailable');
         } else if (err.message.includes('No Fileset')) {
-          errorMsg = 'Audio not available for this chapter';
+          errorMsg = i18n.t('audio.notAvailableForChapter');
         } else {
-          errorMsg = err.message.split(':')[0]; // Get first part
+          errorMsg = localizedErrorText(err);
         }
       }
 
       const state = useBibleStore.getState();
       const filesetId = state.activeAudioFilesetId;
-      let hint =
-        'Try selecting a different audio version in the ' +
-        'Translation Settings ("Change Translation" button).';
+      let hint = i18n.t('audio.differentVersionHint');
       if (err instanceof BookNotInFilesetError) {
-        const bookLabel = toBookName(bookId) ?? bookId;
+        const bookLabel = localizedBookName(bookId) ?? bookId;
         const owner = findTranslationByFilesetId(
           filesetId,
           state.translations,
         );
         hint =
-          `No audio for ${bookLabel} in ` +
-          `${owner?.name ?? filesetId}.`;
+          i18n.t('audio.noAudioFor', {
+            book: bookLabel,
+            name: owner?.name ?? filesetId,
+          });
       }
 
       showNotification({
@@ -637,11 +779,12 @@ export const useChapterAudio = (
         // error from starting a fallback for a passage the user
         // already navigated away from.
         const keyNow = audioChapterKeyRef.current;
-        if (!keyNow) return false;
-        const [playingId, bookId, chapter] = keyNow.split(':');
+        const parsed = parsePlayingKey(keyNow);
+        if (!parsed) return false;
+        const { filesetId: playingId, bookId, chapter } = parsed;
         if (
           bookId !== state.activeBookId ||
-          Number(chapter) !== state.activeChapter
+          chapter !== state.activeChapter
         ) {
           return false;
         }
@@ -683,14 +826,17 @@ export const useChapterAudio = (
           // reschedule) the replacement.
           clearAdvanceTimer();
           disposeHowl(audioRef.current, activeBlobUrlRef.current);
+          playRequestedHowlRef.current = null;
           activeBlobUrlRef.current = null;
           const howl = createChapterHowl(url, {
             loop: isLoopingRef.current,
             onplay: handleChapterPlay,
-            onpause: handleChapterPause,
+            onpause: () => handleChapterPause(howl),
             onend: () => onChapterEnd(howl),
-            onloaderror: handleChapterLoadError,
-            onplayerror: handleChapterPlayError,
+            onloaderror: (id, err) =>
+              handleChapterLoadError(howl, id, err),
+            onplayerror: (id, err) =>
+              handleChapterPlayError(howl, id, err),
           });
           audioChapterKeyRef.current = chapterKey(
             nextId,
@@ -711,6 +857,15 @@ export const useChapterAudio = (
             tryNextFallbackRef.current()
           ) {
             return;
+          }
+          // The report must name the candidate that failed —
+          // on an alternates walk that is `nextId`, not the
+          // active fileset. A primitive or frozen rejection
+          // can't carry the stamp — assigning to a frozen
+          // Error throws in strict mode and would replace the
+          // real rejection, so leave those unstamped.
+          if (err instanceof Error && !Object.isFrozen(err)) {
+            (err as { filesetId?: string }).filesetId = nextId;
           }
           reportChapterAudioFailure(err, activeBookId);
         }
@@ -742,10 +897,12 @@ export const useChapterAudio = (
       // would make the load effect fetch chapter audio next to
       // the playlist.
       isPlayingRef.current = false;
+      playRequestedHowlRef.current = null;
       setIsPlaying(false);
       clearAdvanceTimer();
       pendingGapRef.current = false;
       discardPreloaded();
+      timestampsKeyRef.current = null;
       setTimestamps([]);
       setAudioActiveVerse(null);
       return;
@@ -761,10 +918,16 @@ export const useChapterAudio = (
     // preloaded Howl and it must keep playing.
     if (current && audioChapterKeyRef.current !== key) {
       disposeHowl(current, activeBlobUrlRef.current);
+      playRequestedHowlRef.current = null;
       activeBlobUrlRef.current = null;
       audioRef.current = null;
       audioChapterKeyRef.current = null;
-      isPlayingRef.current = false;
+      // Do NOT clear isPlayingRef here — a still-true intent must
+      // survive so the load effect fetches and plays the new
+      // chapter (same as auto-advance). Clearing it makes the
+      // in-flight "paused mid-fetch" check bail, which wedges the
+      // player: no Howl ever materializes, isPlaying stays stuck
+      // true, and showAudioPlayer keeps reserving dead space.
       // User navigated mid-gap — cancel the scheduled play so the
       // new chapter starts promptly.
       clearAdvanceTimer();
@@ -776,13 +939,26 @@ export const useChapterAudio = (
     // still-live Howl — the ended handler adopted this chapter's
     // preloaded one — may skip the discard and keep playing.
     if (audioRef.current) {
+      timestampsKeyRef.current = null;
       setTimestamps([]);
       setAudioActiveVerse(null);
       return;
     }
     discardPreloaded();
+    timestampsKeyRef.current = null;
     setTimestamps([]);
     setAudioActiveVerse(null);
+    // Landed with no Howl and no play intent — nothing will ever
+    // load, so close the player instead of leaving its height as
+    // dead space at the bottom. The ref alone can lag a batched
+    // intent flip (React 18 can merge a setIsPlaying and a
+    // navigation into one commit — the sync effect runs after
+    // this one), so the render-captured isPlaying guards too.
+    if (!isPlayingRef.current && !isPlaying) setShowPlayer(false);
+    // isPlaying intentionally read from the render closure, not
+    // a dep — adding it would re-run the teardown on every
+    // play/pause toggle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isPlaylistMode,
     activeBookId,
@@ -792,40 +968,72 @@ export const useChapterAudio = (
     discardPreloaded,
     clearAdvanceTimer,
     setAudioActiveVerse,
+    setShowPlayer,
   ]);
 
-  // Fetch timestamps when audio or text fileset changes
+  // Fetch verse timestamps for the recording actually playing —
+  // the fileset the candidate walk landed on (audioChapterKey),
+  // not merely the selected one: a coverage/codec fallback that
+  // substituted a different recording must use THAT recording's
+  // timestamps (timestamps are only valid for the recording
+  // they were generated from) or degrade to the ±10s seek
+  // fallback rather than mis-seek against a foreign verse map.
   useEffect(() => {
-    if (!activeAudioFilesetId) return;
+    // `audio` in the deps re-runs this at publish/adopt/swap —
+    // audioChapterKeyRef is already updated by then.
+    const playing = audio
+      ? parsePlayingKey(audioChapterKeyRef.current)
+      : null;
+    const bookId = playing?.bookId ?? activeBookId;
+    const chapter = playing?.chapter ?? activeChapter;
     // Stored ids may be grouped product ids — resolve to the
     // concrete members so the ENGESV_API timestamp special cases
     // keep matching.
-    const resolvedAudioId = resolveFilesetFor(
-      activeBookId,
-      activeAudioFilesetId,
-    );
-    const tsFilesetId = resolveTimestampsFilesetId(
-      resolvedAudioId,
-      resolveTextFileset(
-        activeTextFilesetId,
-        activeBookId,
-        translations,
-      ),
-      activeBookId,
-    );
+    const audioId =
+      playing?.filesetId ??
+      resolveFilesetFor(activeBookId, activeAudioFilesetId);
+    const tsFilesetId = audioId
+      ? resolveTimestampsFilesetId(
+          audioId,
+          resolveTextFileset(
+            activeTextFilesetId,
+            bookId,
+            translations,
+          ),
+          bookId,
+        )
+      : null;
+    // The key names the recording the rows were fetched+adjusted
+    // for (audioId), not the timestamp source — ENGESV_API and
+    // ENGESVN1DA share the ENGESVN1DA source rows but receive
+    // differently-adjusted output.
+    const tsKey = tsFilesetId
+      ? `${audioId}:${bookId}:${chapter}`
+      : null;
+    // Rows in state describe the last resolved key — clear them
+    // when they no longer match what is about to play so verse
+    // navigation/highlight never runs on another recording's
+    // verse map.
+    if (timestampsKeyRef.current !== tsKey) {
+      timestampsKeyRef.current = null;
+      setTimestamps([]);
+    }
     if (!tsFilesetId) return;
-    void getAudioTimestamps(
-      activeBookId,
-      activeChapter,
-      tsFilesetId,
-    ).then((ts) => {
-      const adjusted = adjustTimestampsForENGESV(
-        ts,
-        resolvedAudioId,
-      );
-      setTimestamps(adjusted);
-    });
+    let cancelled = false;
+    void getAudioTimestamps(bookId, chapter, tsFilesetId).then(
+      (ts) => {
+        // A superseded fetch resolving late must not overwrite
+        // a newer chapter's rows with stale ones.
+        if (cancelled) return;
+        timestampsKeyRef.current = tsKey;
+        setTimestamps(adjustTimestampsForENGESV(ts, audioId));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [
+    audio,
     activeBookId,
     activeChapter,
     activeAudioFilesetId,
@@ -867,12 +1075,38 @@ export const useChapterAudio = (
   // immediately and never block the main thread (prevents Android ANR).
   const safePlay = useCallback(() => {
     const currentAudio = audioRef.current;
-    if (!currentAudio || currentAudio.playing()) return;
+    if (!currentAudio) return;
+    // The OS can pause the <audio> node behind Howler's back
+    // (Android audio-focus loss in a car): playing() still
+    // reports true while the node is silent — replaying the
+    // same node resumes in place; howl.play() would stack a
+    // second sound.
+    const node = osPausedNode(currentAudio);
+    if (node) {
+      void node.play();
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      return;
+    }
+    // A play already issued — still queued in Howler's load
+    // window (playing() stays false through the whole window)
+    // or sounding — must not be requested again: Howler's
+    // play() never resumes, it stacks another sound instance.
+    if (
+      playAlreadyRequested(
+        currentAudio,
+        playRequestedHowlRef.current,
+      )
+    ) {
+      return;
+    }
     try {
+      playRequestedHowlRef.current = currentAudio;
       currentAudio.play();
       isPlayingRef.current = true;
       setIsPlaying(true);
     } catch (err) {
+      playRequestedHowlRef.current = null;
       console.warn('Play operation failed:', err);
     }
   }, []);
@@ -883,12 +1117,27 @@ export const useChapterAudio = (
     // the pause.
     clearAdvanceTimer();
     pendingGapRef.current = false;
+    // Record the stop intent even when nothing is playing yet —
+    // a media-session pause during the gap or mid-fetch must
+    // stick; otherwise the intent stays true and the next load
+    // resumes playback the user tried to stop.
+    isPlayingRef.current = false;
+    setIsPlaying(false);
     const currentAudio = audioRef.current;
-    if (!currentAudio || !currentAudio.playing()) return;
+    // A play still queued in Howler's load window needs a
+    // real pause() even though playing() is false — the
+    // queued pause lands right behind the queued play on
+    // drain. Without it the pending start still fires once
+    // loaded.
+    const requested =
+      currentAudio !== null &&
+      playRequestedHowlRef.current === currentAudio;
+    playRequestedHowlRef.current = null;
+    if (!currentAudio || (!currentAudio.playing() && !requested)) {
+      return;
+    }
     try {
       currentAudio.pause();
-      isPlayingRef.current = false;
-      setIsPlaying(false);
     } catch (err) {
       console.warn('Pause operation failed:', err);
     }
@@ -968,6 +1217,9 @@ export const useChapterAudio = (
           if (!resolved) {
             setIsPlaying(false);
             setLoading(false);
+            // No chrome will ever materialize — close the player
+            // so it doesn't reserve dead space at the bottom.
+            setShowPlayer(false);
             return;
           }
           const candidates = resolved.candidates;
@@ -1037,10 +1289,19 @@ export const useChapterAudio = (
               const candidate = candidates[nextIndex];
               nextIndex += 1;
               try {
-                audioUrl = await resolveAudioUrl(
-                  activeBookId,
-                  activeChapter,
-                  candidate,
+                audioUrl = await Sentry.startSpan(
+                  {
+                    name:
+                      `audio ${activeBookId} ${activeChapter}`,
+                    op: 'bible.audio.load',
+                    attributes: { filesetId: candidate },
+                  },
+                  () =>
+                    resolveAudioUrl(
+                      activeBookId,
+                      activeChapter,
+                      candidate,
+                    ),
                 );
                 if (audioUrl && typeof audioUrl === 'string') {
                   key = chapterKey(
@@ -1066,9 +1327,12 @@ export const useChapterAudio = (
             // A pause or player close that landed while the fetch
             // was in flight wins — never materialize a Howl that
             // would immediately start playing, and clear the
-            // spinner.
+            // spinner. With no Howl coming the player chrome has
+            // nothing to show — close it too, or it reserves dead
+            // space at the bottom.
             if (!isPlayingRef.current) {
               setLoading(false);
+              setShowPlayer(false);
               return;
             }
 
@@ -1086,10 +1350,12 @@ export const useChapterAudio = (
             audioHowl = createChapterHowl(audioUrl, {
               loop: isLoopingRef.current,
               onplay: handleChapterPlay,
-              onpause: handleChapterPause,
+              onpause: () => handleChapterPause(audioHowl),
               onend: () => onChapterEnd(audioHowl),
-              onloaderror: handleChapterLoadError,
-              onplayerror: handleChapterPlayError,
+              onloaderror: (id, err) =>
+                handleChapterLoadError(audioHowl, id, err),
+              onplayerror: (id, err) =>
+                handleChapterPlayError(audioHowl, id, err),
             });
             activeBlobUrlRef.current = null;
           }
@@ -1103,6 +1369,7 @@ export const useChapterAudio = (
             disposeHowl(audioHowl, activeBlobUrlRef.current);
             activeBlobUrlRef.current = null;
             setLoading(false);
+            setShowPlayer(false);
             return;
           }
           audioChapterKeyRef.current = key;
@@ -1162,6 +1429,7 @@ export const useChapterAudio = (
   const handleClose = () => {
     setIsPlaying(false);
     isPlayingRef.current = false;
+    playRequestedHowlRef.current = null;
     setShowPlayer(false);
     // Invalidate any in-flight load/fallback fetch — without this
     // bump a pending resolve materializes a fresh Howl and

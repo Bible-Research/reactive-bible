@@ -1,0 +1,71 @@
+---
+name: create-pr
+description: >
+  Open a pull request for the current feature branch the
+  repo-approved way — body via a temp file and
+  `gh pr create --body-file`, mandatory UI verification section,
+  ready for review (never a draft). Use when asked to
+  create/open a PR or push changes for review.
+---
+
+# Create a PR
+
+1. Prereqs: on a feature branch (never `main` — if commits
+   landed on `main`, recover in a worktree: `git branch
+   <type>/<slug>`, stash any uncommitted work
+   (`git stash -u`; pop it inside the new worktree if it
+   was yours), `git fetch origin`,
+   `git reset --hard origin/main`, then `git worktree add
+   worktrees/<slug> <type>/<slug>`). `gh` installed
+   and authed; if missing, tell the user
+   `brew install gh && gh auth login`. All `gh` calls target
+   `Bible-Research/reactive-bible` (remote `origin`) — never
+   the upstream `emmanz1995` remote. PRs target `staging`
+   (`--base staging`) — never `main`; `main` only receives
+   promotion PRs per AGENTS.md "Git workflow —
+   staging-first".
+2. `git status` — stage only this session's files, by path. Never
+   `git add -A` / `git add .` / `git commit -a`; leave the user's
+   dirty files and untracked secrets alone.
+3. Commit with `Type: Capitalized message` (Feat/Fix/Docs/
+   Refactor/Test/Chore). Check nothing over 79 chars was
+   committed:
+   `awk 'length > 79 {print FILENAME":"NR}' <changed files>`.
+4. `git push -u origin <branch>`.
+5. Write the PR body to a temp file at the repo root
+   (`pr-body.md`), then `gh pr create --repo
+   Bible-Research/reactive-bible --base staging --title
+   "Feat: …" --body-file pr-body.md`. NEVER pass the body
+   inline via `--body`. Delete the temp file afterwards.
+6. Body template:
+
+   ```markdown
+   ## Summary
+   <what + why, 2-4 bullets>
+
+   ## UI verification / QC
+   1. `npm run dev`, open http://localhost:5173/…
+   2. <click X, submit Y>
+   3. Expected: <observable result>
+
+   ## Test plan
+   - [ ] `npm run lint` (must stay 0 errors, 0 warnings)
+   - [ ] `npm test -- --run` (or the touched test file)
+   ```
+
+   The UI verification section is mandatory — concrete pages,
+   clicks and expected results that exercise the change
+   end-to-end. Omit it ONLY when genuinely unreachable from
+   the UI, and then document an equivalent (curl command,
+   log line to watch) under the same heading. Test login:
+   `Tester5` / `password123`.
+7. `gh pr checks --watch --repo Bible-Research/reactive-bible`
+   until green; fix failures on the
+   branch, push again.
+8. Report the PR URL. The PR is created ready for review —
+   never a draft unless the user explicitly asks. Then run
+   the review loop (workspace AGENTS.md): fresh reviewer
+   subagent on the diff → fix useful findings, push, and
+   re-run `gh pr checks --watch --repo
+   Bible-Research/reactive-bible` → repeat until a round
+   finds nothing meaningful and checks are green.

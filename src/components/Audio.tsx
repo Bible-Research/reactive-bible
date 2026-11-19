@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useBibleStore } from "../store";
 import { ActionIcon, rem, Loader } from "@mantine/core";
@@ -8,13 +8,19 @@ import {
   IconPlayerPause,
 } from "@tabler/icons-react";
 import AudioPlayer from "./AudioPlayer";
-import { toBookName, buildBiblePath } from "../utils/bibleUtils";
+import { localizedBookName, buildBiblePath } from "../utils/bibleUtils";
 import { findTranslationByFilesetId } from "../utils/filesetGroups";
 import { getPlayPosition } from "../utils/audioUtils";
+import {
+  verseNavTarget,
+  type VerseNavState,
+} from "../utils/verseNav";
 import { verseDomId } from "../utils/verseRefs";
 import { useAudioPlaylist } from "../hooks/useAudioPlaylist";
 import { useAudioKeepAlive } from "../hooks/useAudioKeepAlive";
 import { useChapterAudio } from "../hooks/useChapterAudio";
+import { useActiveStructure } from "../hooks/useBookName";
+import { useTranslation } from "react-i18next";
 import {
   useMediaSession,
   MediaSessionControls,
@@ -27,6 +33,7 @@ const MEDIA_ARTWORK: MediaImage[] = [
 ];
 
 const Audio = () => {
+  const { t } = useTranslation();
   const playlist = useAudioPlaylist();
   const audioPlaylistItems = useBibleStore(
     (s) => s.audioPlaylistItems
@@ -128,14 +135,23 @@ const Audio = () => {
     handleClose,
   } = useChapterAudio(isPlaylistMode);
 
+  // Last applied verse-nav step — lets repeat same-direction
+  // presses chain off the last target (see verseNavTarget).
+  const lastNavRef = useRef<VerseNavState | null>(null);
+  // A new Howl means a chapter/recording change — the chain
+  // must not step a fresh recording from an old target.
+  useEffect(() => {
+    lastNavRef.current = null;
+  }, [audio]);
+
   // ----- Unified Media Session wiring (single global owner) -----
   const translationName = useMemo(
     () =>
       findTranslationByFilesetId(
         activeAudioFilesetId,
         translations,
-      )?.name || 'Bible Audio',
-    [translations, activeAudioFilesetId],
+      )?.name || t('app.audioAlbum'),
+    [translations, activeAudioFilesetId, t],
   );
 
   const mediaActive = isPlaylistMode ? playlist.isActive : audio !== null;
@@ -145,22 +161,33 @@ const Audio = () => {
   // Capacitor shell (no-op in the browser).
   useAudioKeepAlive(mediaActive, mediaIsPlaying);
 
+  // Structure swap must rebuild the media title's book name.
+  const activeStructure = useActiveStructure();
+
   const mediaMetadata = useMemo<MediaSessionMetadata | null>(() => {
     if (isPlaylistMode) {
       if (!playlist.currentItem) return null;
       return {
         title: playlist.currentItem.label,
         artist: translationName,
-        album: 'Bible Audio',
+        album: t('app.audioAlbum'),
         artwork: MEDIA_ARTWORK,
       };
     }
     if (!audio) return null;
+    // Read the name off the subscribed structure — its
+    // identity change is also this memo's invalidation
+    // signal when a fresher structure swaps in.
+    const bookRow = activeStructure?.books.find(
+      (b) => b.book_id === activeBookId.toUpperCase(),
+    );
+    const bookLabel =
+      bookRow?.name ?? localizedBookName(activeBookId);
     return {
-      title: `${toBookName(activeBookId) ?? activeBookId} ` +
+      title: `${bookLabel ?? activeBookId} ` +
         `${activeChapter}`,
       artist: translationName,
-      album: 'Bible Audio',
+      album: t('app.audioAlbum'),
       artwork: MEDIA_ARTWORK,
     };
   }, [
@@ -168,8 +195,10 @@ const Audio = () => {
     playlist.currentItem,
     audio,
     activeBookId,
+    activeStructure,
     activeChapter,
     translationName,
+    t,
   ]);
 
   const mediaControls = useMemo<MediaSessionControls>(() => {
@@ -201,6 +230,34 @@ const Audio = () => {
         seekTo: seekAbsolute,
       };
     }
+    // Repeat presses in one direction chain off the last seek
+    // target (see verseNavTarget) — needed because the audio
+    // element applies seeks asynchronously and a follow-up press
+    // would otherwise compute from a stale position.
+    const trackNav = (direction: 1 | -1) => {
+      const pos = getPlayPosition(audioRef.current);
+      if (pos === null) return;
+      const now = Date.now();
+      const result = verseNavTarget(
+        timestamps,
+        pos,
+        direction,
+        lastNavRef.current,
+        now,
+      );
+      if (result.kind === 'chapter') {
+        lastNavRef.current = null;
+        advanceChapter(result.direction);
+        return;
+      }
+      lastNavRef.current = {
+        direction,
+        before: pos,
+        target: result.time,
+        at: now,
+      };
+      safeSeek(result.time);
+    };
     return {
       play: () => {
         void safePlay();
@@ -211,63 +268,19 @@ const Audio = () => {
       stop: () => {
         void safePause();
       },
-      nextTrack: () => {
-        const pos = getPlayPosition(audioRef.current);
-        if (pos === null) return;
-        if (timestamps.length === 0) {
-          // No verse timestamps (e.g. KJV) — seek forward 10s.
-          safeSeek(pos + 10);
-          return;
-        }
-        // Jump to the next verse's start. The 0.5s epsilon means
-        // a press right on a verse boundary still lands on the
-        // following verse.
-        const nextVerse = timestamps.find(
-          (t) => t.timestamp > pos + 0.5,
-        );
-        if (nextVerse) {
-          safeSeek(nextVerse.timestamp);
-          return;
-        }
-        // Already in the last verse — next chapter.
-        advanceChapter(1);
-      },
-      previousTrack: () => {
-        const pos = getPlayPosition(audioRef.current);
-        if (pos === null) return;
-        if (timestamps.length === 0) {
-          // No verse timestamps (e.g. KJV) — seek backward 10s.
-          safeSeek(pos - 10);
-          return;
-        }
-        // Index of the verse currently playing; -1 when the
-        // position precedes verse 1 (e.g. a chapter
-        // announcement).
-        const idx = timestamps.reduce(
-          (acc, t, i) => (t.timestamp <= pos ? i : acc),
-          -1,
-        );
-        // Media-player convention: restart the verse when we are
-        // more than 2s into it.
-        if (idx >= 0 && pos - timestamps[idx].timestamp > 2) {
-          safeSeek(timestamps[idx].timestamp);
-          return;
-        }
-        // Near a verse boundary — jump to the previous verse.
-        if (idx > 0) {
-          safeSeek(timestamps[idx - 1].timestamp);
-          return;
-        }
-        // At (or before) verse 1 — previous chapter.
-        advanceChapter(-1);
-      },
+      nextTrack: () => trackNav(1),
+      previousTrack: () => trackNav(-1),
       seekBy: (offset) => {
         const pos = getPlayPosition(audioRef.current);
         if (pos === null) return;
+        // An outside seek breaks the nav chain.
+        lastNavRef.current = null;
         safeSeek(pos + offset);
       },
       seekTo: (time) => {
-        if (Number.isFinite(time)) safeSeek(time);
+        if (!Number.isFinite(time)) return;
+        lastNavRef.current = null;
+        safeSeek(time);
       },
     };
   }, [
@@ -324,6 +337,10 @@ const Audio = () => {
     if (loading) {
       setIsPlaying(false);
       setLoading(false);
+      // No Howl will ever arrive for a cancelled load — release
+      // the player's reserved space (a hung fetch would never
+      // reach the mid-flight bail that closes it).
+      setShowPlayer(false);
       return;
     }
     setIsPlaying((value) => !value);
@@ -341,14 +358,14 @@ const Audio = () => {
         title={
           isPlaylistMode
             ? playlistPlaying
-              ? "Pause playlist"
-              : "Play all notes"
+              ? t('audio.pausePlaylist')
+              : t('audio.playAllNotes')
             : error ||
               (loading
-                ? "Cancel loading"
+                ? t('audio.cancelLoading')
                 : isPlaying
-                  ? "Pause audio"
-                  : "Play audio")
+                  ? t('audio.pauseAudio')
+                  : t('audio.playAudio'))
         }
       >
         {!isPlaylistMode && loading ? (

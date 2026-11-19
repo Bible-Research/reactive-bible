@@ -27,6 +27,12 @@ vi.mock('./api', async (importOriginal) => {
       mocked[key] = vi.fn();
     }
   }
+  // loadStructure's SWR calls this on fileset changes — the
+  // loop's bare vi.fn() resolves undefined, which the slice
+  // rejects as malformed. Resolve the shared MSW fixture.
+  const { mockStructure } = await import('./mocks/handlers');
+  mocked.fetchBibleStructure =
+    vi.fn().mockResolvedValue(mockStructure);
   return mocked;
 });
 vi.mock('./utils/cacheManager');
@@ -354,6 +360,117 @@ describe('useBibleStore', () => {
     expect(migrated.verseSelection).toEqual(selection);
   });
 
+  it('migratePersistedState seeds tagPagination from the ' +
+    'v6 last-viewed fields', () => {
+      // Pre-v7 blobs only remember the last tag's page — the
+      // migration folds it into the per-tag map so the new
+      // restore keeps working for that tag.
+      const migrated = migratePersistedState(
+        {
+          lastSelectedTagId: 'TAG1',
+          notesPage: 3,
+          notesPageSize: 50,
+        },
+        6
+      );
+      expect(migrated.tagPagination).toEqual({
+        TAG1: { page: 3, pageSize: 50 },
+      });
+    });
+
+  it('migratePersistedState leaves tagPagination empty ' +
+    'without a last-viewed tag', () => {
+      const migrated = migratePersistedState(
+        { notesPage: 1, notesPageSize: 25 },
+        6
+      );
+      expect(migrated.tagPagination).toEqual({});
+    });
+
+  it('migratePersistedState folds with defaults when the ' +
+    'v4 page fields are absent', () => {
+      // `notesPage`/`notesPageSize` were only persisted from
+      // v4 — an older blob carrying just lastSelectedTagId
+      // still folds into the map with default values.
+      const migrated = migratePersistedState(
+        { lastSelectedTagId: 'TAG1' },
+        6
+      );
+      expect(migrated.tagPagination).toEqual({
+        TAG1: { page: 1, pageSize: 25 },
+      });
+    });
+
+  it('migratePersistedState defaults bookTitleMarquee on ' +
+    'across the v8 bump', () => {
+    const migrated = migratePersistedState(
+      { activeBookId: 'JHN', activeChapter: 3 },
+      6
+    );
+    expect(migrated.bookTitleMarquee).toBe(true);
+  });
+
+  it('migratePersistedState preserves an explicit ' +
+    'bookTitleMarquee value', () => {
+    // A record that already carries the field keeps it —
+    // the migration only fills the gap, never rewrites a
+    // stored choice.
+    const migrated = migratePersistedState(
+      {
+        activeBookId: 'JHN',
+        activeChapter: 3,
+        bookTitleMarquee: false,
+      },
+      6
+    );
+    expect(migrated.bookTitleMarquee).toBe(false);
+  });
+
+  it('migratePersistedState drops an unrecognized ' +
+    'uiLanguage across the v9 bump', () => {
+    // Only shipped BCP-47 codes persist — anything else
+    // falls back to detection rather than migrating forward.
+    const migrated = migratePersistedState(
+      { uiLanguage: 'de' },
+      8
+    );
+    expect('uiLanguage' in migrated).toBe(false);
+  });
+
+  it('migratePersistedState keeps a valid uiLanguage ' +
+    'across the v9 bump', () => {
+    const migrated = migratePersistedState(
+      { uiLanguage: 'lv' },
+      8
+    );
+    expect(migrated.uiLanguage).toBe('lv');
+  });
+
+  it('migratePersistedState leaves an absent uiLanguage ' +
+    'absent so detection runs', () => {
+    // A pre-v9 blob has no stored choice; the migration must
+    // not invent one — initial state resolves the locale.
+    const migrated = migratePersistedState(
+      { activeBookId: 'JHN' },
+      8
+    );
+    expect('uiLanguage' in migrated).toBe(false);
+  });
+
+  it('defaults bookTitleMarquee to true', () => {
+    expect(useBibleStore.getState().bookTitleMarquee)
+      .toBe(true);
+  });
+
+  it('setBookTitleMarquee toggles the pref', () => {
+    useBibleStore.getState().setBookTitleMarquee(false);
+    expect(useBibleStore.getState().bookTitleMarquee)
+      .toBe(false);
+    useBibleStore.getState().setBookTitleMarquee(true);
+    expect(useBibleStore.getState().bookTitleMarquee)
+      .toBe(true);
+  });
+
   describe('fetchNotes', () => {
     it('should fetch all notes and update state', async () => {
       const mockResponse = {
@@ -433,7 +550,13 @@ describe('useBibleStore', () => {
         tags: [tag],
         notesPage: 3,
         notesPageSize: 50,
+        tagPagination: {
+          TAG1: { page: 3, pageSize: 50 },
+        },
         readingPositions: { MRK: { chapter: 4, verse: 2 } },
+        // Pinned so the snapshot can't wobble with the test
+        // environment's navigator.language detection.
+        uiLanguage: 'lv',
         // Non-persisted fields — set to non-defaults so the
         // snapshot proves they are excluded.
         detailNote: note,
@@ -459,13 +582,16 @@ describe('useBibleStore', () => {
         'activeTextFilesetId',
         'audioActiveVerse',
         'bibleVersion',
+        'bookTitleMarquee',
         'lastSelectedTagId',
         'notes',
         'notesPage',
         'notesPageSize',
         'readingPositions',
+        'tagPagination',
         'tags',
         'translations',
+        'uiLanguage',
         'verseSelection',
       ]);
       expect(JSON.stringify(persisted)).toMatchSnapshot();
@@ -691,6 +817,83 @@ describe('useBibleStore', () => {
       expect(useBibleStore.getState().lastSelectedTagId)
         .toBe('TAG1');
     });
+
+    it('records the viewed page and page size per tag ' +
+      'in tagPagination', async () => {
+        mockCacheManager.getCachedNotes.mockReturnValue(null);
+        mockApi.getNotes.mockResolvedValue(
+          notePageOf(sampleNotes)
+        );
+        useBibleStore.setState({ notesPageSize: 50 });
+
+        await useBibleStore.getState().fetchNotes('TAG1', {
+          page: 3,
+        });
+
+        expect(useBibleStore.getState().tagPagination.TAG1)
+          .toEqual({ page: 3, pageSize: 50 });
+      });
+
+    it('records tagPagination on a localStorage cache hit',
+      async () => {
+        mockCacheManager.getCachedNotes.mockReturnValue({
+          notes: sampleNotes,
+          timestamp: Date.now(),
+          count: 1,
+          hasMore: false,
+        });
+
+        await useBibleStore.getState().fetchNotes('TAG1', {
+          page: 2,
+        });
+
+        expect(useBibleStore.getState().tagPagination.TAG1)
+          .toEqual({ page: 2, pageSize: 25 });
+      });
+
+    it('does not record tagPagination for tagless fetches',
+      async () => {
+        mockApi.getNotes.mockResolvedValue(
+          notePageOf(sampleNotes)
+        );
+
+        await useBibleStore.getState().fetchNotes();
+
+        expect(useBibleStore.getState().tagPagination)
+          .toEqual({});
+      });
+
+    it('removeTagPagination prunes only the deleted tag\'s ' +
+      'entry', () => {
+        useBibleStore.setState({
+          tagPagination: {
+            TAG1: { page: 3, pageSize: 50 },
+            TAG2: { page: 1, pageSize: 25 },
+          },
+        });
+
+        useBibleStore.getState().removeTagPagination('TAG1');
+
+        expect(useBibleStore.getState().tagPagination)
+          .toEqual({
+            TAG2: { page: 1, pageSize: 25 },
+          });
+      });
+
+    it('removeTagPagination self-heals a corrupted map',
+      () => {
+        // A hand-corrupted persisted blob (e.g. null) must
+        // not throw on the `in` check — and the bad value
+        // is replaced with an empty map, not left in place.
+        useBibleStore.setState({
+          tagPagination: null as never,
+        });
+
+        useBibleStore.getState().removeTagPagination('TAG1');
+
+        expect(useBibleStore.getState().tagPagination)
+          .toEqual({});
+      });
 
     it('resolves a stored product id before sending fileset_id',
       async () => {

@@ -15,6 +15,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconAlertCircle } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 import { useBibleStore, type Translation } from "../store";
 import {
   getVersesInChapter,
@@ -31,32 +32,47 @@ import {
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
 import CopyrightNotice from "./CopyrightNotice";
+import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
+import {
+  HEADER_HEIGHT,
+  FOOTER_HEIGHT,
+} from "../utils/layoutChrome";
 import { shallow } from 'zustand/shallow';
 import { useNavigate } from 'react-router-dom';
 import {
   getTestament,
-  toBookName,
+  localizedBookName,
   buildBiblePath,
   sizeToCoverage,
   type Testament,
 } from '../utils/bibleUtils';
+import { useActiveStructure } from '../hooks/useBookName';
 import {
   groupFilesets,
   resolveAudioFileset,
   resolveTextFileset,
 } from '../utils/filesetGroups';
 import { verseDomId } from '../utils/verseRefs';
+import { useChapterSwipe } from '../hooks/useChapterSwipe';
+import { getCachedVerses } from '../utils/cacheManager';
+import { localizedErrorText } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
+import * as Sentry from '@sentry/react';
+import i18n from '../i18n';
 
 /**
  * First 'bible'-scoped verse whose element is at least partially
  * visible below the top edge of the scroll viewport. Verse ids
  * look like `verse-bible-jhn-3-16` — the last segment is the
- * verse number.
+ * verse number. `topInset` shifts the measurement line down so a
+ * verse still hidden behind the overlaying header is not
+ * reported while it cannot actually be read.
  */
 const firstVisibleVerse = (
   viewport: HTMLElement,
+  topInset = 0,
 ): number | null => {
-  const top = viewport.getBoundingClientRect().top;
+  const top = viewport.getBoundingClientRect().top + topInset;
   const elements = viewport.querySelectorAll(
     '[id^="verse-bible-"]'
   );
@@ -83,7 +99,17 @@ const scrollToIdDeferred = (id: string, smooth = false): void => {
   }, 50);
 };
 
+// Settle delay before a network-bound chapter fetch fires.
+// Rapid chapter hopping (e.g. swipe navigation) must not fire
+// a request for every chapter passed through — the user is
+// scanning for a target, and burning the provider's rate
+// limit on intermediate chapters can block the one they land
+// on. Cached or bundled (KJV) chapters are free and skip the
+// wait entirely.
+const CHAPTER_SETTLE_MS = 300;
+
 const PassageView = () => {
+  const { t } = useTranslation();
   const {
     activeBookId,
     activeChapter,
@@ -102,7 +128,10 @@ const PassageView = () => {
     }),
     shallow
   );
-  const activeBookName = toBookName(activeBookId) ?? activeBookId;
+  // Subscribe to the active structure so the localized header
+  // name swaps atomically when a fresher structure lands.
+  useActiveStructure();
+  const activeBookName = localizedBookName(activeBookId) ?? activeBookId;
   const [verses, setVerses] = useState<
     { verse: number; text: string }[]
   >([]);
@@ -118,11 +147,20 @@ const PassageView = () => {
   const initialLoadRef = useRef(true);
   const tocAbortRef = useRef(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Swipe target, separate from the scroll viewport: it wraps
+  // EVERY render branch (loader, error, outline, verses) so a
+  // swipe during a chapter load still turns the chapter —
+  // the fetch's settle delay drops intermediate hops anyway.
+  const swipeRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isRateLimitError, setIsRateLimitError] = useState(false);
   const [isProviderError, setIsProviderError] = useState(false);
+
+  // Swipe left/right on the passage turns to the next/previous
+  // chapter — always armed, including while a chapter loads.
+  useChapterSwipe(swipeRef, true);
 
   const getTestamentMismatchHint = (
     filesetId: string | null,
@@ -164,15 +202,17 @@ const PassageView = () => {
       return null;
     }
     const covered = coveredTestaments.includes('NT')
-      ? 'New Testament'
-      : 'Old Testament';
+      ? i18n.t('books:testament.nt')
+      : i18n.t('books:testament.ot');
     const needed =
-      testament === 'OT' ? 'Old Testament' : 'New Testament';
-    return (
-      `The selected text version (${selectionLabel}) only ` +
-      `covers the ${covered}. Try selecting a ${needed} text ` +
-      `version in the Translation Settings.`
-    );
+      testament === 'OT'
+        ? i18n.t('books:testament.ot')
+        : i18n.t('books:testament.nt');
+    return t('passage.mismatchHint', {
+      label: selectionLabel,
+      covered,
+      needed,
+    });
   };
 
   const enterHeadingsOnlyMode = async (
@@ -315,9 +355,21 @@ const PassageView = () => {
     setFetchError(null);
     setIsRateLimitError(false);
     setIsProviderError(false);
-    getVersesInChapter(
-      activeBookId, activeChapter, textFilesetId
-    )
+    const fetchChapter = () => {
+      // Route-perf span — nests under the active route
+      // transaction when tracing is on; a no-op wrapper when
+      // Sentry was never initialized.
+      Sentry.startSpan(
+        {
+          name: `chapter ${activeBookId} ${activeChapter}`,
+          op: 'bible.chapter.load',
+          attributes: { filesetId: textFilesetId },
+        },
+        () =>
+          getVersesInChapter(
+            activeBookId, activeChapter, textFilesetId
+          ),
+      )
       .then((result) => {
         if (cancelled) return;
         setVerses(result.verses);
@@ -409,6 +461,13 @@ const PassageView = () => {
       .catch((error) => {
         if (cancelled) return;
         console.error(error);
+        captureHandledError(error, 'Chapter fetch', {
+          book: activeBookId,
+          chapter: activeChapter,
+          textFilesetId,
+          audioFilesetId:
+            useBibleStore.getState().activeAudioFilesetId,
+        });
         const isRateLimit = error instanceof RateLimitError;
         setIsRateLimitError(isRateLimit);
         // BookNotInFilesetError is a ProviderError subclass but
@@ -419,14 +478,25 @@ const PassageView = () => {
             !(error instanceof BookNotInFilesetError),
         );
         setFetchError(
-          error instanceof Error ? error.message : 'Failed to load text'
+          localizedErrorText(error)
         );
         setVerses([]);
         setHeadings([]);
         setLoading(false);
       });
+    };
+    const settled =
+      textFilesetId === 'ENGKJV' ||
+      getCachedVerses(
+        activeBookId, activeChapter, textFilesetId
+      ) !== null;
+    const timer = settled
+      ? undefined
+      : setTimeout(fetchChapter, CHAPTER_SETTLE_MS);
+    if (settled) fetchChapter();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [
     activeBookId,
@@ -439,34 +509,41 @@ const PassageView = () => {
   // would flash the loader, reset the scroll, and overwrite the
   // saved reading position).
   useEffect(() => {
-    // Prefetch current chapter audio.
-    void prefetchAudioUrl(
-      activeBookId, activeChapter, resolvedAudioFilesetId
-    );
-
-    // Prefetch the next chapter's audio — via
-    // getAdjacentChapters so a book boundary (REV.22 → MAT.1)
-    // doesn't produce a bogus `REV.23` request. The audio
-    // fileset is re-resolved for the neighbor book since
-    // testament-split products need the member for THAT book.
-    const { next } = getAdjacentChapters(activeBookId, activeChapter);
-    if (next) {
-      const {
-        activeAudioFilesetId: storedAudioId,
-        activeTextFilesetId: storedTextId,
-        translations: tls,
-      } = useBibleStore.getState();
+    // Same settle gate as the text fetch above: audio URLs
+    // must not be requested for every chapter hopped through.
+    const timer = setTimeout(() => {
+      // Prefetch current chapter audio.
       void prefetchAudioUrl(
-        next.bookId,
-        next.chapter,
-        resolveAudioFileset(
-          storedAudioId,
-          next.bookId,
-          tls,
-          storedTextId,
-        )?.filesetId ?? null,
+        activeBookId, activeChapter, resolvedAudioFilesetId
       );
-    }
+
+      // Prefetch the next chapter's audio — via
+      // getAdjacentChapters so a book boundary (REV.22 →
+      // MAT.1) doesn't produce a bogus `REV.23` request. The
+      // audio fileset is re-resolved for the neighbor book
+      // since testament-split products need the member for
+      // THAT book.
+      const { next } =
+        getAdjacentChapters(activeBookId, activeChapter);
+      if (next) {
+        const {
+          activeAudioFilesetId: storedAudioId,
+          activeTextFilesetId: storedTextId,
+          translations: tls,
+        } = useBibleStore.getState();
+        void prefetchAudioUrl(
+          next.bookId,
+          next.chapter,
+          resolveAudioFileset(
+            storedAudioId,
+            next.bookId,
+            tls,
+            storedTextId,
+          )?.filesetId ?? null,
+        );
+      }
+    }, CHAPTER_SETTLE_MS);
+    return () => clearTimeout(timer);
   }, [activeBookId, activeChapter, resolvedAudioFilesetId]);
 
   // Debounced first-verse-in-view tracking: keeps the saved
@@ -481,7 +558,16 @@ const PassageView = () => {
     const handleScroll = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        const verse = firstVisibleVerse(viewport);
+        // The header overlays the viewport — verses scrolling
+        // behind it are not readable, so measure below it.
+        // getState() keeps this non-reactive (no re-render on
+        // every bar toggle).
+        const verse = firstVisibleVerse(
+          viewport,
+          useBibleStore.getState().headerVisible
+            ? HEADER_HEIGHT
+            : 0,
+        );
         if (verse === null) return;
         const {
           activeBookId: bookId,
@@ -504,9 +590,11 @@ const PassageView = () => {
 
   if (loading) {
     return (
-      <Center h="80vh">
-        <Loader size="lg" />
-      </Center>
+      <Box ref={swipeRef} h="100%">
+        <Center h="80vh">
+          <Loader size="lg" />
+        </Center>
+      </Box>
     );
   }
 
@@ -520,32 +608,33 @@ const PassageView = () => {
       resolvedTextFilesetId,
       translations,
     );
-    const rateLimitHint =
-      'The translation provider has temporarily rate-limited ' +
-      'requests. Please wait a few moments and try again, or ' +
-      'switch to KJV which is always available offline.';
-    const providerHint =
-      'The translation provider could not deliver this ' +
-      'text. Its resources are likely exhausted (rate ' +
-      'limited). Try again in a few moments, or switch ' +
-      'to KJV which is always available offline.';
-    const genericHint =
-      'Try selecting a different text version in the ' +
-      'Translation Settings ("Change Translation" button).';
+    const rateLimitHint = t('passage.rateLimitHint');
+    const providerHint = t('passage.providerHint');
+    const genericHint = t('passage.genericHint');
     return (
-      <ScrollArea h="100%">
-        <Box p="md">
-          <Alert
-            icon={<IconAlertCircle size={16} />}
+      <Box ref={swipeRef} h="100%">
+        <ScrollArea h="100%">
+          <Box
+            p="md"
+            pt={HEADER_HEIGHT + 16}
+            pb={
+              FOOTER_HEIGHT +
+              (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0)
+            }
+          >
+            <Alert
+              icon={<IconAlertCircle size={16} />}
             title={
               isRateLimitError
-                ? 'Rate Limit Reached'
+                ? t('passage.rateLimitTitle')
                 : isProviderError
-                ? 'Provider Unavailable'
+                ? t('passage.providerTitle')
                 : fetchError
-                ? 'Failed to load text'
-                : `No content for ` +
-                  `${activeBookName} ${activeChapter}`
+                ? t('passage.loadFailed')
+                : t('passage.noContent', {
+                    book: activeBookName,
+                    chapter: activeChapter,
+                  })
             }
             color={
               isRateLimitError || isProviderError
@@ -566,18 +655,27 @@ const PassageView = () => {
                         : genericHint))}
               </Text>
             </Stack>
-          </Alert>
-        </Box>
-      </ScrollArea>
+            </Alert>
+          </Box>
+        </ScrollArea>
+      </Box>
     );
   }
 
   if (headingsOnlyMode) {
     return (
-      <ScrollArea h="100%">
-        <Box pb={showAudioPlayer ? 120 : 0} px={10} pt="md">
+      <Box ref={swipeRef} h="100%">
+        <ScrollArea h="100%">
+        <Box
+          px={10}
+          pt={HEADER_HEIGHT + 16}
+          pb={
+            FOOTER_HEIGHT +
+            (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0)
+          }
+        >
           <Title order={5} color="dimmed" mb="xs">
-            {activeBookName} — Section Outline
+            {t('passage.sectionOutline', { book: activeBookName })}
           </Title>
           {[...tocEntries]
             .sort((a, b) => a.chapter - b.chapter)
@@ -591,7 +689,7 @@ const PassageView = () => {
                 px={0}
                 sx={{ opacity: 0.7, fontWeight: 600 }}
               >
-                Chapter {chapter}
+                {t('passage.chapterN', { chapter })}
               </Text>
               {chHeadings.map((h, index) => (
                 <SectionHeadingComponent
@@ -606,23 +704,48 @@ const PassageView = () => {
               ))}
             </React.Fragment>
           ))}
-          {tocLoading && (
-            <Center py="md">
-              <Loader size="sm" />
-            </Center>
-          )}
-        </Box>
-      </ScrollArea>
+            {tocLoading && (
+              <Center py="md">
+                <Loader size="sm" />
+              </Center>
+            )}
+          </Box>
+        </ScrollArea>
+      </Box>
     );
   }
 
   return (
-    <ScrollArea
-      key={`${activeBookId}:${activeChapter}`}
-      h="100%"
-      viewportRef={viewportRef}
-    >
-      <Box pb={showAudioPlayer ? 120 : 0} data-verse-scope="bible">
+    <Box ref={swipeRef} h="100%">
+      <ScrollArea
+        key={`${activeBookId}:${activeChapter}`}
+        h="100%"
+        viewportRef={viewportRef}
+      >
+      {/* Header/footer/player clearance lives INSIDE the
+          scrolled content: the bars overlay the viewport and
+          slide away without resizing it, so the text never
+          reflows (jumps) when they toggle. scrollMarginTop
+          keeps scrollIntoView targets below the header. */}
+      <Box
+        pt={HEADER_HEIGHT}
+        pb={
+          FOOTER_HEIGHT +
+          (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0)
+        }
+        sx={{
+          // Margins mirror the pt/pb above so center/nearest
+          // scrollIntoView targets also clear the chrome on
+          // short viewports (mobile landscape).
+          '& [id^="verse-bible-"], & [id^="section-heading-"]': {
+            scrollMarginTop: HEADER_HEIGHT,
+            scrollMarginBottom:
+              FOOTER_HEIGHT +
+              (showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0),
+          },
+        }}
+        data-verse-scope="bible"
+      >
         {verses.map((verse) => {
           // Several headings may share one anchor — e.g. the
           // ESV Psalm 18 superscription sits at before_verse 1
@@ -662,7 +785,8 @@ const PassageView = () => {
         })}
         <CopyrightNotice />
       </Box>
-    </ScrollArea>
+      </ScrollArea>
+    </Box>
   );
 };
 

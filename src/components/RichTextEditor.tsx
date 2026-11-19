@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { Global, Input, rem } from '@mantine/core';
 import { RichTextEditor as MantineRichTextEditor } from '@mantine/tiptap';
+import { useTranslation } from 'react-i18next';
 import { useEditor } from '@tiptap/react';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -88,6 +89,7 @@ const RichTextEditor = forwardRef<
   },
   ref
 ) {
+  const { t } = useTranslation();
   // Last string this editor emitted — distinguishes external
   // value changes (reload/reset) from the editor's own edits.
   const lastEmitted = useRef<string | null>(null);
@@ -328,6 +330,27 @@ const RichTextEditor = forwardRef<
       />
       <MantineRichTextEditor
         editor={editor}
+        labels={{
+          boldControlLabel: t('editor.bold'),
+          italicControlLabel: t('editor.italic'),
+          underlineControlLabel: t('editor.underline'),
+          strikeControlLabel: t('editor.strikethrough'),
+          clearFormattingControlLabel: t(
+            'editor.clearFormatting'
+          ),
+          linkControlLabel: t('editor.link'),
+          unlinkControlLabel: t('editor.unlink'),
+          bulletListControlLabel: t('editor.bulletList'),
+          orderedListControlLabel: t('editor.orderedList'),
+          h1ControlLabel: t('editor.heading1'),
+          h2ControlLabel: t('editor.heading2'),
+          h3ControlLabel: t('editor.heading3'),
+          blockquoteControlLabel: t('editor.blockquote'),
+          linkEditorInputLabel: t('editor.linkUrlLabel'),
+          linkEditorExternalLink: t('editor.linkOpenNewTab'),
+          linkEditorInternalLink: t('editor.linkOpenSameTab'),
+          linkEditorSave: t('common.save'),
+        }}
         sx={(theme) => ({
           // Note editors: the formatting toolbar stays pinned
           // while the document scrolls (the modal's content
@@ -412,8 +435,8 @@ const RichTextEditor = forwardRef<
                 onClick={() =>
                   editor?.chain().focus().outdent().run()
                 }
-                aria-label="Decrease indent"
-                title="Decrease indent"
+                aria-label={t('editor.decreaseIndent')}
+                title={t('editor.decreaseIndent')}
               >
                 <IconIndentDecrease size={16} stroke={1.5} />
               </MantineRichTextEditor.Control>
@@ -421,8 +444,8 @@ const RichTextEditor = forwardRef<
                 onClick={() =>
                   editor?.chain().focus().indent().run()
                 }
-                aria-label="Increase indent"
-                title="Increase indent"
+                aria-label={t('editor.increaseIndent')}
+                title={t('editor.increaseIndent')}
               >
                 <IconIndentIncrease size={16} stroke={1.5} />
               </MantineRichTextEditor.Control>

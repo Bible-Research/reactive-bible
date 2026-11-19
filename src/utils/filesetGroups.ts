@@ -15,6 +15,7 @@ import {
   type Testament,
 } from './bibleUtils';
 import type { Fileset, Translation } from '../store';
+import i18n from '../i18n';
 
 export type OptionKind =
   'audio' | 'audio_drama' | 'generated' | 'text';
@@ -171,11 +172,13 @@ const coverageLabel = (
 ): string => {
   const hasOT = Boolean(byTestament.OT);
   const hasNT = Boolean(byTestament.NT);
-  let base = 'Unknown coverage';
-  if (hasOT && hasNT) base = 'Full Bible';
-  else if (hasNT) base = 'New Testament only';
-  else if (hasOT) base = 'Old Testament only';
-  return partial.OT || partial.NT ? `${base} (partial)` : base;
+  let base = i18n.t('translations.coverageUnknown');
+  if (hasOT && hasNT) base = i18n.t('translations.coverageFull');
+  else if (hasNT) base = i18n.t('translations.coverageNt');
+  else if (hasOT) base = i18n.t('translations.coverageOt');
+  return partial.OT || partial.NT
+    ? i18n.t('translations.coveragePartial', { base })
+    : base;
 };
 
 const buildOption = (

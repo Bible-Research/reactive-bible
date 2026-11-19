@@ -98,6 +98,17 @@ describe('MainMenu Component', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
+  it('pins the close button to the right side of the menu', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />);
+
+    // The drawer body is a plain block container — the X is
+    // pushed right by an auto inline-start margin, not flex
+    // alignment.
+    expect(screen.getByTitle('Close menu')).toHaveStyle(
+      'margin-inline-start: auto'
+    );
+  });
+
   it('should navigate to the active passage on Read Bible', async () => {
     const user = userEvent.setup();
     renderWithProviders(<MainMenu {...defaultProps} />);
@@ -178,11 +189,46 @@ describe('MainMenu Component', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('always shows the Report a problem row', () => {
+  it('shows Getting started to anonymous visitors', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />, {
+      authStoreState: { isAuthenticated: false },
+    });
+
+    expect(
+      screen.getByTitle('Getting started')
+    ).toBeInTheDocument();
+  });
+
+  it('places Getting started above Contact developer', () => {
+    renderWithProviders(<MainMenu {...defaultProps} />);
+
+    const gettingStarted = screen.getByTitle('Getting started');
+    const contact = screen.getByText('Contact developer');
+    expect(
+      gettingStarted.compareDocumentPosition(contact),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('navigates to /getting-started and closes the menu',
+    async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<MainMenu {...defaultProps} />, {
+        authStoreState: { isAuthenticated: false },
+      });
+
+      await user.click(screen.getByTitle('Getting started'));
+
+      expect(mockNavigate).toHaveBeenCalledWith(
+        '/getting-started'
+      );
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+
+  it('always shows the Contact developer row', () => {
     renderWithProviders(<MainMenu {...defaultProps} />);
 
     expect(
-      screen.getByText('Report a problem')
+      screen.getByText('Contact developer')
     ).toBeInTheDocument();
   });
 
@@ -190,10 +236,10 @@ describe('MainMenu Component', () => {
     const user = userEvent.setup();
     renderWithProviders(<MainMenu {...defaultProps} />);
 
-    await user.click(screen.getByText('Report a problem'));
+    await user.click(screen.getByText('Contact developer'));
 
     expect(
-      await screen.findByRole('button', { name: 'Send report' })
+      await screen.findByRole('button', { name: 'Send' })
     ).toBeDisabled();
   });
 
@@ -207,18 +253,20 @@ describe('MainMenu Component', () => {
         authStoreState: authed,
       });
 
-      await user.click(screen.getByText('Report a problem'));
+      await user.click(screen.getByText('Contact developer'));
       await user.type(
         await screen.findByLabelText('What went wrong?'),
         'the button does nothing'
       );
       await user.click(
-        screen.getByRole('button', { name: 'Send report' })
+        screen.getByRole('button', { name: 'Send' })
       );
 
       expect(send).toHaveBeenCalledWith({
         message: 'the button does nothing',
         username: 'testuser',
+        category: 'bug',
+        email: undefined,
         context: {
           bookId: 'JHN',
           chapter: 1,

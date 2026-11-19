@@ -1,8 +1,9 @@
-import { screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { useNavigate } from 'react-router-dom';
 import BibleSelector from './BibleSelector';
+import { useBibleStore } from '../store';
 import { renderWithProviders } from '../__tests__/helpers';
 
 // Mock useNavigate
@@ -79,6 +80,20 @@ describe('BibleSelector Component', () => {
     rerender(<BibleSelector opened={true} setOpened={noop} />);
     expect(bookScroll).toHaveBeenCalledWith({ block: 'nearest' });
     expect(chapterScroll).toHaveBeenCalledWith({ block: 'nearest' });
+  });
+
+  it('expands to fill the freed space when scroll hides the ' +
+    'header and footer', () => {
+    renderWithProviders(
+      <BibleSelector opened={true} setOpened={noop} />
+    );
+    const navbar = screen.getByRole('navigation');
+    expect(navbar.getAttribute('data-expanded')).toBe('false');
+
+    act(() => {
+      useBibleStore.setState({ headerVisible: false });
+    });
+    expect(navbar.getAttribute('data-expanded')).toBe('true');
   });
 
   const mockLandscapeMatchMedia = () => {

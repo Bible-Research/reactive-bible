@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom';
 import { vi, beforeAll, afterEach, afterAll, beforeEach } from 'vitest';
 import { server } from './mocks/server';
+import { initI18n } from './i18n';
+
+// Default `en` catalog for every test — components render real
+// translated strings, so text queries keep matching.
+void initI18n();
 
 // Mock localStorage for tests. Includes `length`/`key()` so code
 // paths that enumerate keys behave like the real Storage object.
@@ -78,6 +83,15 @@ beforeEach(async () => {
     // mocked without the export — nothing to reset
   }
 
+  // The bookNameRegistry sync view is module state outside the
+  // store — without a reset it leaks structures across tests.
+  try {
+    const registry = await import('./utils/bookNameRegistry');
+    registry.resetActiveStructure?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+
   // structuredClone gives each test fresh nested objects —
   // sharing initialState's arrays/objects would let one test's
   // in-place mutation leak into later tests. Both initialState
@@ -102,6 +116,17 @@ beforeEach(async () => {
     }
   } catch {
     // mocked without the store — nothing to reset
+  }
+
+  // UI language resets to the `en` catalog so text queries keep
+  // matching the English strings tests assert on.
+  try {
+    const i18n = (await import('./i18n')).default;
+    if (i18n.language !== 'en') {
+      await i18n.changeLanguage('en');
+    }
+  } catch {
+    // i18n unavailable — nothing to reset
   }
 });
 

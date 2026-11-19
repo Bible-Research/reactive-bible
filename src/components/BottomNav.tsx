@@ -10,16 +10,21 @@ import { IconArrowLeft, IconArrowRight } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBibleStore, selectActiveBookName } from "../store";
+import { AUDIO_PLAYER_HEIGHT } from "../utils/audioUtils";
+import Marquee from "./Marquee";
 import { getAdjacentChapters } from "../api/structure";
 import { buildBiblePath } from "../utils/bibleUtils";
+import { FOOTER_HEIGHT } from "../utils/layoutChrome";
 
 interface BottomNavProps {
+  bibleSelectorOpened: boolean;
   setBibleSelectorOpened: (opened: boolean) => void;
 }
 
-const FOOTER_HEIGHT = 56;
-
-const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
+const BottomNav = ({
+  bibleSelectorOpened,
+  setBibleSelectorOpened,
+}: BottomNavProps) => {
   const navigate = useNavigate();
   const showAudioPlayer = useBibleStore(
     (state) => state.showAudioPlayer
@@ -60,7 +65,7 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
       sx={{
         bottom: headerVisible
           ? showAudioPlayer
-            ? '120px'
+            ? `${AUDIO_PLAYER_HEIGHT}px`
             : '0'
           : `-${FOOTER_HEIGHT}px`,
         transition: 'bottom 0.3s ease-in-out',
@@ -85,10 +90,20 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
         </ActionIcon>
         <Title order={4} title="nav-current-passage">
           <UnstyledButton
-            onClick={() => setBibleSelectorOpened(true)}
+            aria-expanded={bibleSelectorOpened}
+            onClick={() =>
+              setBibleSelectorOpened(!bibleSelectorOpened)
+            }
             sx={{
               minWidth: "120px",
-              textAlign: "center",
+              // Caps the title zone so an overflowing
+              // localized name triggers the marquee instead
+              // of pushing the chapter/arrows outward.
+              maxWidth: "min(340px, 58vw)",
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "center",
+              columnGap: "0.3em",
               font: "inherit",
               color: "inherit",
               "&:hover": {
@@ -96,7 +111,14 @@ const BottomNav = ({ setBibleSelectorOpened }: BottomNavProps) => {
               },
             }}
           >
-            {activeBookName} {activeChapter}
+            <Marquee text={activeBookName} />
+            {" "}
+            {/* flex: none pins the chapter at the title's
+                right edge — always visible, never scrolling.
+                Inline so tests can assert the pin directly. */}
+            <Box component="span" style={{ flex: "none" }}>
+              {activeChapter}
+            </Box>
           </UnstyledButton>
         </Title>
         <ActionIcon

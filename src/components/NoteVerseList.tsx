@@ -3,6 +3,8 @@ import { Note, SectionHeading, Verse as NoteVerse } from "../types";
 import Verse from "./Verse";
 import SectionHeadingComponent from "./SectionHeading";
 import { visibleNoteVerses } from "../utils/noteVerses";
+import { useTranslation } from 'react-i18next';
+import { localizedErrorCode } from '../i18n/errorText';
 
 interface NoteVerseListProps {
   note: Note;
@@ -18,12 +20,17 @@ const NoteVerseList = ({
   scope,
   folded,
 }: NoteVerseListProps) => {
+  const { t } = useTranslation();
   // Use headings from the note (provided by backend)
   const noteHeadings = note.headings || [];
 
   // The notes API sets error/error_code when the upstream
-  // Bible provider fails to resolve verse text.
-  const verseError = note.error;
+  // Bible provider fails to resolve verse text. A coded
+  // failure maps to the errors.* catalog like a thrown
+  // error; an uncoded one keeps its raw provider message.
+  const verseError = note.error
+    ? localizedErrorCode(note.error_code) ?? note.error
+    : undefined;
 
   // Provider text is capped at 500 verses for copyright
   // reasons; render the truncated tail as a notice instead
@@ -104,9 +111,6 @@ const NoteVerseList = ({
       {verseError ? (
         <Text color="red" size="sm" mt={8}>
           {verseError}
-          {note.error_code === 'rate_limited'
-            ? ' Try reloading in a few moments.'
-            : ''}
         </Text>
       ) : folded ? (
         note?.verses?.slice(0, 1).map((v) => renderVerse(v, true))
@@ -115,8 +119,7 @@ const NoteVerseList = ({
           {displayedVerses.map((v) => renderVerse(v))}
           {versesTruncated && (
             <Text color="red" size="sm" mt={8}>
-              Cannot display more than 500 verses of the
-              Bible due to copyright restrictions.
+              {t('notes.verseLimitNotice')}
             </Text>
           )}
         </>

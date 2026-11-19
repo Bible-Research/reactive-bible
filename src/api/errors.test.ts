@@ -4,10 +4,14 @@ import {
   ClientInputError,
   ProviderError,
   RateLimitError,
+  SearchDisabledError,
+  errorCodeOf,
+  errorDetailsOf,
   errorMessageFromBody,
   isBookNotInFilesetBody,
   isRateLimitMessage,
   throwFromErrorBody,
+  trackError,
 } from './errors';
 
 /**
@@ -147,6 +151,27 @@ describe('throwFromErrorBody', () => {
       expect(err).toBeInstanceOf(BookNotInFilesetError);
       expect(err.message)
         .toBe('Book not available in this fileset');
+    }
+  );
+
+  // The search_disabled check sits before the rate-limit
+  // branch — a rate-limit-shaped message must not reclassify
+  // the feature-flag rejection.
+  it('throws SearchDisabledError for a search_disabled ' +
+    '403 body', async () => {
+      const err = await thrownFrom(
+        {
+          error_code: 'search_disabled',
+          error: 'HTTP 429 from upstream',
+        },
+        403
+      );
+      expect(err).toBeInstanceOf(SearchDisabledError);
+      // SearchDisabledError extends ProviderError; the pin
+      // that matters is it did NOT classify as rate-limited.
+      expect(err).not.toBeInstanceOf(RateLimitError);
+      expect(errorCodeOf(err)).toBe('search_disabled');
+      expect(err.message).toBe('HTTP 429 from upstream');
     }
   );
 
@@ -333,5 +358,47 @@ describe('throwFromErrorBody', () => {
     expectPlainError(notJson);
     expect(notJson.message)
       .toBe('Failed to fetch verses (HTTP 500)');
+  });
+});
+
+describe('trackError / errorDetailsOf', () => {
+  it('attaches code, status and a query-stripped endpoint',
+    () => {
+      const err = trackError(
+        new ProviderError('upstream broke'),
+        {
+          code: 'provider_unavailable',
+          status: 502,
+          url: 'https://api.example.com/api/v1/bible?x=1',
+        }
+      );
+
+      expect(errorDetailsOf(err)).toEqual({
+        code: 'provider_unavailable',
+        status: 502,
+        endpoint: '/api/v1/bible',
+      });
+    });
+
+  it('strips the query from relative endpoints too', () => {
+    const err = trackError(new Error('x'), {
+      status: 500,
+      url: '/api/v1/notes/?tag_id=5&page=2',
+    });
+
+    expect(errorDetailsOf(err).endpoint).toBe('/api/v1/notes/');
+  });
+
+  it('returns undefined fields for untracked errors', () => {
+    expect(errorDetailsOf(new Error('x'))).toEqual({
+      code: undefined,
+      status: undefined,
+      endpoint: undefined,
+    });
+    expect(errorDetailsOf('not an error')).toEqual({
+      code: undefined,
+      status: undefined,
+      endpoint: undefined,
+    });
   });
 });

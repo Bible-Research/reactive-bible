@@ -10,6 +10,7 @@ import { useNoteEditor } from "../hooks/useNoteEditor";
 import type { NoteVerseReference } from "../hooks/useNoteEditor";
 import NoteForm from "./NoteForm";
 import { shallow } from "zustand/shallow";
+import { useTranslation } from 'react-i18next';
 
 interface AddStandaloneNoteModalProps {
   opened: boolean;
@@ -24,6 +25,7 @@ const AddStandaloneNoteModal = ({
   opened,
   onClose,
 }: AddStandaloneNoteModalProps) => {
+  const { t } = useTranslation();
   const isMobile = useMediaQuery("(max-width: 768px)");
   // Collapsed = the editor hides completely, leaving a thin
   // header bar (expand chevron + close) over the Bible.
@@ -76,10 +78,14 @@ const AddStandaloneNoteModal = ({
             variant="subtle"
             size="lg"
             title={
-              collapsed ? "Expand editor" : "Collapse editor"
+              collapsed
+                ? t('notes.expandEditor')
+                : t('notes.collapseEditor')
             }
             aria-label={
-              collapsed ? "Expand editor" : "Collapse editor"
+              collapsed
+                ? t('notes.expandEditor')
+                : t('notes.collapseEditor')
             }
             aria-expanded={!collapsed}
             onClick={() => setCollapsed((c) => !c)}
@@ -91,7 +97,7 @@ const AddStandaloneNoteModal = ({
             )}
           </ActionIcon>
         ) : (
-          "New note"
+          t('notes.newNote')
         )
       }
       fullScreen
@@ -145,7 +151,7 @@ const AddStandaloneNoteModal = ({
         tags={tags}
         fillHeight={isMobile}
         onSubmit={editor.submit}
-        submitText="Submit"
+        submitText={t('common.submit')}
         onTagDropdownOpen={() => {
           void getTags().catch(() => {
             /* notified by the store */

@@ -2,6 +2,7 @@ import { App } from '@capacitor/app';
 import { CapacitorHttp } from '@capacitor/core';
 import { isNativeApp } from './platform';
 import { updateBreadcrumb } from './updateTelemetry';
+import { captureHandledWarning } from './errorReporter';
 
 /**
  * Sideload update check for the Android APK build.
@@ -85,7 +86,14 @@ export const getInstalledVersion =
       const build = Number(info.build);
       if (!Number.isFinite(build)) return null;
       return { build, version: info.version };
-    } catch {
+    } catch (err) {
+      // A broken App bridge would otherwise leave every update
+      // check reporting kind:'error' with zero Sentry signal.
+      captureHandledWarning(
+        'Get installed version failed',
+        'native-bridge',
+        { error: String(err) },
+      );
       return null;
     }
   };
@@ -121,6 +129,11 @@ export const fetchUpdateManifest =
       updateBreadcrumb('manifest fetch failed', {
         error: err instanceof Error ? err.message : String(err),
       });
+      captureHandledWarning(
+        'Update manifest fetch failed',
+        'native-bridge',
+        { error: String(err) },
+      );
       return null;
     }
   };

@@ -1,4 +1,6 @@
 import { toUsfmCode } from '../../utils/bibleUtils';
+import { DEFAULT_NOTES_PAGE_SIZE } from '../../utils/pagination';
+import { isUiLanguage } from '../../i18n';
 import type {
   ReadingPositionValue,
   VerseRef,
@@ -22,6 +24,7 @@ export const partializeState = (state: BibleState) => ({
       ? state.verseSelection
       : null,
   bibleVersion: state.bibleVersion,
+  uiLanguage: state.uiLanguage,
   translations: state.translations,
   activeTextFilesetId: state.activeTextFilesetId,
   activeAudioFilesetId: state.activeAudioFilesetId,
@@ -31,11 +34,18 @@ export const partializeState = (state: BibleState) => ({
   tags: state.tags,
   notesPage: state.notesPage,
   notesPageSize: state.notesPageSize,
+  tagPagination: state.tagPagination,
   readingPositions: state.readingPositions,
+  // Bottom-bar name marquee opt-out — the deferred settings
+  // toggle will only need to write this one field.
+  bookTitleMarquee: state.bookTitleMarquee,
   // showAudioPlayer is NOT persisted
   // detailNote is NOT persisted (transient share context)
   // pendingScrollVerse is NOT persisted
   // headerVisible is NOT persisted
+  // structureByBible/activeStructureKey are NOT persisted —
+  // structures re-resolve via SWR; durable copies live in the
+  // cacheManager 'bible-structure' localStorage tier.
 });
 
 export type PersistedBibleState = ReturnType<typeof partializeState>;
@@ -72,6 +82,17 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  *   USFM codes.
  * - pre-v6: persisted `verseSelection` is dropped unless its
  *   scope is 'bible' — note scopes are transient UI state.
+ * - pre-v7: `tagPagination` (per-tag page/pageSize map) is
+ *   introduced; the last-viewed tag's single-slot
+ *   `notesPage`/`notesPageSize` seed its entry so that tag's
+ *   restore keeps working.
+ * - pre-v8: `bookTitleMarquee` is introduced; pinned to the
+ *   default (on) when absent so the migrated record carries
+ *   the new field.
+ * - pre-v9: `uiLanguage` is introduced. An absent field keeps
+ *   the detected locale from initial state (detection is
+ *   first-run only by construction); an unrecognized value is
+ *   dropped rather than persisted forward.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -164,6 +185,55 @@ export const migratePersistedState = (
       | null;
     if (sel && sel.scope !== 'bible') {
       migrated = { ...migrated, verseSelection: null };
+    }
+  }
+
+  if (version < 7) {
+    // v6 only remembered the last-viewed tag's page — fold it
+    // into the per-tag map so that tag's restore keeps
+    // working under the new keyed lookup. `notesPage` and
+    // `notesPageSize` were only persisted from v4 — absent
+    // values fall back to the defaults so pre-v4 blobs with
+    // just a lastSelectedTagId still fold.
+    const lastTagId = migrated.lastSelectedTagId;
+    const size = migrated.notesPageSize;
+    const page = migrated.notesPage;
+    const tagPagination: Record<
+      string,
+      { page: number; pageSize: number }
+    > = {};
+    if (typeof lastTagId === 'string' && lastTagId.length > 0) {
+      tagPagination[lastTagId] = {
+        page:
+          typeof page === 'number' && page >= 1
+            ? Math.floor(page)
+            : 1,
+        pageSize:
+          typeof size === 'number' && size >= 1
+            ? Math.floor(size)
+            : DEFAULT_NOTES_PAGE_SIZE,
+      };
+    }
+    migrated = { ...migrated, tagPagination };
+  }
+
+  if (version < 8) {
+    migrated = {
+      ...migrated,
+      bookTitleMarquee:
+        typeof migrated.bookTitleMarquee === 'boolean'
+          ? migrated.bookTitleMarquee
+          : true,
+    };
+  }
+
+  if (version < 9) {
+    // Sanitize the new field: only shipped BCP-47 codes
+    // persist; anything else drops back to detection.
+    const lang = migrated.uiLanguage;
+    if (lang !== undefined && !isUiLanguage(lang)) {
+      migrated = { ...migrated };
+      delete migrated.uiLanguage;
     }
   }
 

@@ -471,11 +471,17 @@ describe('NoteCard provider error display', () => {
       <NoteCard note={note} onViewInBible={vi.fn()} />
     );
 
+    // The rate_limited code maps to the localized errors.*
+    // text — the raw provider message stays off screen and
+    // the single message already carries the retry guidance.
     expect(
-      screen.getByText(/rate limit exceeded/i)
+      screen.getByText(/rate-limiting requests/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/reloading in a few moments/i)
+      screen.queryByText(/rate limit exceeded/i)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/wait about a minute/i)
     ).toBeInTheDocument();
   });
 

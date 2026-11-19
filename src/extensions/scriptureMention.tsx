@@ -10,6 +10,7 @@ import type {
   SuggestionProps,
 } from '@tiptap/suggestion';
 import { Paper, Text } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import PassagePicker from '../components/PassagePicker';
 import {
   buildScriptureToken,
@@ -24,7 +25,6 @@ import {
   VALID_REF_PREFIX,
 } from '../utils/scriptureLinkify';
 import { UNASCII_SPACES } from '../utils/clipboardSanitize';
-import { BOOK_NAME_TO_CODE } from '../utils/bibleUtils';
 import { findVersesInBetween } from '../utils/findVersesInBetween';
 
 const POPUP_HEIGHT = 280;
@@ -82,10 +82,13 @@ const ScriptureMentionPopup = ({
   rewriteQuery,
   insertToken,
 }: PopupProps) => {
+  const { t } = useTranslation();
   const parsed = parseMentionQuery(query);
-  const code = parsed.bookName
-    ? BOOK_NAME_TO_CODE[parsed.bookName.toLowerCase()]
-    : null;
+  // The parser's own USFM resolution — `bookName` is the
+  // localized display name once a non-English structure
+  // loads, so an English-only name lookup would leave the
+  // chapter/verse columns dead.
+  const code = parsed.bookId;
   const preview = formatMentionPreview(parsed);
   const selectedVerses =
     parsed.verseStart !== null
@@ -127,9 +130,9 @@ const ScriptureMentionPopup = ({
         {parsed.error ??
           (preview +
             (parsed.complete && parsed.verseStart === null
-              ? ' — Enter for whole chapter'
+              ? ` — ${t('picker.enterForChapter')}`
               : '') ||
-            'Type @ to cite a passage')}
+            t('picker.typeToCite'))}
       </Text>
       <PassagePicker
         bookId={code ?? null}
@@ -140,6 +143,10 @@ const ScriptureMentionPopup = ({
         }
         height={POPUP_HEIGHT}
         titlePrefix="mention-"
+        // Citations are stored as USFM refs — valid under
+        // any translation, so an uncovered book stays
+        // selectable (typed input already parses it).
+        restrictToCoverage={false}
         onSelectBook={(bookId) => {
           rewriteQuery(`@${bookId}.`);
         }}

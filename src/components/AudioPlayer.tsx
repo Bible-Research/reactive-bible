@@ -18,8 +18,12 @@ import {
   IconFocus2,
 } from '@tabler/icons-react';
 import { Howl } from 'howler';
+import { useTranslation } from 'react-i18next';
 import { useBibleStore } from '../store';
-import { getPlayPosition } from '../utils/audioUtils';
+import {
+  AUDIO_PLAYER_HEIGHT,
+  getPlayPosition,
+} from '../utils/audioUtils';
 
 interface AudioPlayerProps {
   audio: Howl | null;
@@ -32,6 +36,9 @@ interface AudioPlayerProps {
   onFocus?: () => void;
 }
 
+// Height of this fixed bottom bar is AUDIO_PLAYER_HEIGHT in
+// utils/audioUtils — keep the layout within that budget.
+
 const AudioPlayer = ({
   audio,
   isPlaying,
@@ -42,6 +49,7 @@ const AudioPlayer = ({
   subtitle,
   onFocus,
 }: AudioPlayerProps) => {
+  const { t } = useTranslation();
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seeking, setSeeking] = useState(false);
@@ -121,13 +129,17 @@ const AudioPlayer = ({
     <Portal>
       <Paper
       shadow="lg"
-      p="md"
+      p="sm"
       sx={(theme) => ({
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
         zIndex: 1000,
+        height: AUDIO_PLAYER_HEIGHT,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
         backgroundColor:
           theme.colorScheme === 'dark'
             ? theme.colors.dark[7]
@@ -139,14 +151,14 @@ const AudioPlayer = ({
         }`,
       })}
     >
-      <Group position="apart" mb="xs">
+      <Group position="apart">
         <Group spacing={4} sx={{ flex: 1, minWidth: 0 }}>
           {onFocus && (
             <ActionIcon
               size="sm"
               variant="subtle"
               onClick={onFocus}
-              title="Go to passage"
+              title={t('audio.goToPassage')}
             >
               <IconFocus2 size={16} />
             </ActionIcon>
@@ -155,78 +167,113 @@ const AudioPlayer = ({
             {subtitle ?? `${activeBookId} ${activeChapter}`}
           </Text>
         </Group>
-        <CloseButton onClick={onClose} title="Close player" />
+        <CloseButton
+          onClick={onClose}
+          title={t('audio.closePlayer')}
+        />
       </Group>
 
-      <Group spacing="xs" mb="xs">
-        <ActionIcon
+      <Group spacing="xs" noWrap>
+        <Text size="xs" color="dimmed" sx={{ minWidth: 34 }}>
+          {formatTime(currentTime)}
+        </Text>
+        <Slider
+          value={currentTime}
+          min={0}
+          max={duration || 100}
+          onChange={(value) => {
+            setSeeking(true);
+            setCurrentTime(value);
+          }}
+          onChangeEnd={(value) => {
+            seekTo(value);
+            setSeeking(false);
+          }}
+          label={null}
           size="lg"
-          variant="filled"
-          onClick={handleSkipBackward}
-          title="Skip backward 5s"
-        >
-          <IconPlayerSkipBack size={20} />
-        </ActionIcon>
-
-        <ActionIcon
-          size="xl"
-          variant="filled"
+          thumbSize={20}
           color="blue"
-          onClick={onPlayPause}
-          title={isPlaying ? 'Pause' : 'Play'}
+          styles={(theme) => ({
+            // Mantine v6 paints the rail on track::before —
+            // default gray[2] is invisible on the gray[0]
+            // player background in light mode.
+            track: {
+              '&::before': {
+                backgroundColor:
+                  theme.colorScheme === 'dark'
+                    ? theme.colors.dark[4]
+                    : theme.colors.gray[4],
+              },
+            },
+          })}
+          sx={{ flex: 1 }}
+        />
+        <Text
+          size="xs"
+          color="dimmed"
+          sx={{ minWidth: 34, textAlign: 'right' }}
         >
-          {isPlaying ? (
-            <IconPlayerPause size={24} />
-          ) : (
-            <IconPlayerPlay size={24} />
-          )}
-        </ActionIcon>
+          {formatTime(duration)}
+        </Text>
+      </Group>
 
-        <ActionIcon
-          size="lg"
-          variant="filled"
-          onClick={handleSkipForward}
-          title="Skip forward 5s"
-        >
-          <IconPlayerSkipForward size={20} />
-        </ActionIcon>
+      <Box px={40} sx={{ position: 'relative' }}>
+        <Group position="center" spacing="md">
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={handleSkipBackward}
+            title={t('audio.skipBackward')}
+          >
+            <IconPlayerSkipBack size={22} />
+          </ActionIcon>
+
+          <ActionIcon
+            size={60}
+            variant="filled"
+            color="blue"
+            radius="xl"
+            onClick={onPlayPause}
+            title={isPlaying ? t('audio.pause') : t('audio.play')}
+          >
+            {isPlaying ? (
+              <IconPlayerPause size={30} />
+            ) : (
+              <IconPlayerPlay size={30} />
+            )}
+          </ActionIcon>
+
+          <ActionIcon
+            size="lg"
+            variant="subtle"
+            onClick={handleSkipForward}
+            title={t('audio.skipForward')}
+          >
+            <IconPlayerSkipForward size={22} />
+          </ActionIcon>
+        </Group>
 
         <ActionIcon
           size="lg"
           variant={isLooping ? 'filled' : 'outline'}
           color={isLooping ? 'blue' : 'gray'}
+          aria-pressed={isLooping}
           onClick={onLoopToggle}
-          title={isLooping ? 'Loop enabled' : 'Loop disabled'}
+          title={
+            isLooping
+              ? t('audio.loopEnabled')
+              : t('audio.loopDisabled')
+          }
+          sx={{
+            position: 'absolute',
+            right: 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+          }}
         >
           <IconRepeat size={20} />
         </ActionIcon>
-
-        <Box sx={{ flex: 1, mx: 'md' }}>
-          <Slider
-            value={currentTime}
-            min={0}
-            max={duration || 100}
-            onChange={(value) => {
-              setSeeking(true);
-              setCurrentTime(value);
-            }}
-            onChangeEnd={(value) => {
-              seekTo(value);
-              setSeeking(false);
-            }}
-            label={null}
-            size="sm"
-          />
-        </Box>
-
-        <Text
-          size="xs"
-          color="dimmed"
-          sx={{ minWidth: 80, textAlign: 'right' }}
-        >
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </Text>
-      </Group>
+      </Box>
       </Paper>
     </Portal>
   );

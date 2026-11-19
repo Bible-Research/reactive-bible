@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import Pagination from './Pagination';
 import { pageNumberList as getPageNumbers } from
   '../utils/pagination';
@@ -11,19 +16,21 @@ describe('getPageNumbers', () => {
     expect(getPageNumbers(3, 5)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('windows around the first page without a leading ' +
-    'ellipsis', () => {
+  it('collapses to first/current/last beyond five pages',
+    () => {
       expect(getPageNumbers(1, 10)).toEqual([
+        1,
+        'ellipsis',
+        10,
+      ]);
+      expect(getPageNumbers(2, 10)).toEqual([
         1,
         2,
         'ellipsis',
         10,
       ]);
-      expect(getPageNumbers(3, 10)).toEqual([
+      expect(getPageNumbers(10, 10)).toEqual([
         1,
-        2,
-        3,
-        4,
         'ellipsis',
         10,
       ]);
@@ -33,31 +40,11 @@ describe('getPageNumbers', () => {
     expect(getPageNumbers(5, 10)).toEqual([
       1,
       'ellipsis',
-      4,
       5,
-      6,
       'ellipsis',
       10,
     ]);
   });
-
-  it('windows around the last page without a trailing ' +
-    'ellipsis', () => {
-      expect(getPageNumbers(10, 10)).toEqual([
-        1,
-        'ellipsis',
-        9,
-        10,
-      ]);
-      expect(getPageNumbers(8, 10)).toEqual([
-        1,
-        'ellipsis',
-        7,
-        8,
-        9,
-        10,
-      ]);
-    });
 
   it('never duplicates or skips the first/last page', () => {
     const pages = getPageNumbers(4, 6);
@@ -141,4 +128,74 @@ describe('Pagination component', () => {
       screen.getByRole('button', { name: 'Page 10' })
     ).toBeInTheDocument();
   });
+
+  it('lists every page when an ellipsis is clicked',
+    async () => {
+      mockDomApis();
+      render(
+        <Pagination
+          currentPage={5}
+          totalPages={10}
+          onPageChange={vi.fn()}
+        />
+      );
+
+      fireEvent.click(
+        screen.getAllByLabelText('Show all pages')[0]
+      );
+
+      const items = await screen.findAllByRole('menuitem');
+      expect(items).toHaveLength(10);
+      expect(items[0]).toHaveTextContent('Page 1');
+      expect(items[9]).toHaveTextContent('Page 10');
+    });
+
+  it('calls onPageChange when a dropdown page is picked',
+    async () => {
+      mockDomApis();
+      const onPageChange = vi.fn();
+      render(
+        <Pagination
+          currentPage={5}
+          totalPages={10}
+          onPageChange={onPageChange}
+        />
+      );
+
+      fireEvent.click(
+        screen.getAllByLabelText('Show all pages')[0]
+      );
+      fireEvent.click(
+        await screen.findByRole('menuitem', {
+          name: 'Page 7',
+        })
+      );
+
+      expect(onPageChange).toHaveBeenCalledWith(7);
+    });
+
+  it('focuses the current page when the dropdown opens',
+    async () => {
+      mockDomApis();
+      const onPageChange = vi.fn();
+      render(
+        <Pagination
+          currentPage={5}
+          totalPages={10}
+          onPageChange={onPageChange}
+        />
+      );
+
+      fireEvent.click(
+        screen.getAllByLabelText('Show all pages')[0]
+      );
+      const current = await screen.findByRole('menuitem', {
+        name: 'Page 5',
+      });
+
+      await waitFor(() => expect(current).toHaveFocus());
+      expect(current).toHaveAttribute('aria-current', 'page');
+      fireEvent.click(current);
+      expect(onPageChange).not.toHaveBeenCalled();
+    });
 });

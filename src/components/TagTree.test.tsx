@@ -86,6 +86,29 @@ const makeTag = (
   updated_at: '2026-01-01',
 });
 
+/**
+ * Replaces the mockDomApis matchMedia stub with one that
+ * answers `matches` via the given predicate — used to
+ * simulate narrow viewports and coarse pointers for the
+ * compact-layout tests. Must run AFTER mockDomApis (which
+ * installs the all-false stub).
+ */
+const stubMatchMedia = (predicate: (q: string) => boolean) => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: predicate(query),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+};
+
 const renderTree = ({
   tags = [
     makeTag('tag-a', 'Alpha'),
@@ -100,6 +123,7 @@ const renderTree = ({
   onTogglePublic,
   onReparent,
   reparentEnabled = false,
+  matchMedia,
 }: {
   tags?: Tag[];
   onEdit?: (tag: Tag) => void;
@@ -110,8 +134,12 @@ const renderTree = ({
   onTogglePublic?: (tag: Tag) => void;
   onReparent?: (id: string, parentId: string | null) => void;
   reparentEnabled?: boolean;
+  matchMedia?: (query: string) => boolean;
 } = {}) => {
   mockDomApis();
+  if (matchMedia) {
+    stubMatchMedia(matchMedia);
+  }
   render(
     <TagTree
       tags={tags}
@@ -226,6 +254,29 @@ describe('TagTree', () => {
 
       fireEvent.click(deleteBtn);
       expect(onDelete).toHaveBeenCalledWith('tag-a', 'Alpha');
+    });
+
+  it('opens the notes view when a leaf row is tapped', () => {
+    const { onViewNotes } = renderTree();
+
+    // Gamma has no children — a row tap is the same
+    // affordance as the eye icon.
+    fireEvent.click(screen.getByText('Gamma'));
+    expect(onViewNotes).toHaveBeenCalledWith('tag-c');
+    // One tap, one navigation — the handler must not
+    // double-fire through nested handlers.
+    expect(onViewNotes).toHaveBeenCalledTimes(1);
+  });
+
+  it('still toggles a parent row instead of navigating',
+    () => {
+      const { onViewNotes } = renderTree();
+
+      fireEvent.click(screen.getByText('Alpha'));
+      expect(onViewNotes).not.toHaveBeenCalled();
+      const beta = screen.getByText('Beta');
+      expect(beta.closest('[aria-hidden]'))
+        .toHaveAttribute('aria-hidden', 'false');
     });
 
   it('treats a tag whose parent is missing as a root', () => {
@@ -493,5 +544,118 @@ describe('TagTree auth gating (issue #68)', () => {
 
     expect(screen.getByTitle('Edit tag')).toBeInTheDocument();
     expect(screen.getByTitle('Delete tag')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Compact layout (narrow viewport or coarse pointer): the
+ * per-row icon cluster collapses into a single ⋮ menu so
+ * Delete can never sit a few px from Edit on a phone, and
+ * the indent drops to an 8px rail per level.
+ */
+describe('TagTree compact layout', () => {
+  // Either arm of the compact trigger — the component ORs
+  // a sub-`sm` viewport with a coarse primary pointer.
+  const compactQueries = (q: string) =>
+    q.includes('max-width') || q.includes('coarse');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.setState({
+      ...authInitialState,
+      token: 'test-token',
+      user: { username: 'testuser' },
+      isAuthenticated: true,
+    });
+  });
+
+  it('collapses the row actions into a single menu', () => {
+    renderTree({
+      tags: [makeTag('tag-a', 'Alpha')],
+      onTogglePublic: vi.fn(),
+      matchMedia: compactQueries,
+    });
+
+    // The inline cluster is gone behind one trigger.
+    expect(screen.queryByTitle('Edit tag'))
+      .not.toBeInTheDocument();
+    expect(screen.queryByTitle('Delete tag'))
+      .not.toBeInTheDocument();
+    expect(screen.queryByTitle('View notes'))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle('Tag actions'));
+
+    expect(screen.getByTitle('View notes'))
+      .toBeInTheDocument();
+    expect(screen.getByTitle('Make tag public'))
+      .toBeInTheDocument();
+    expect(screen.getByTitle('Edit tag')).toBeInTheDocument();
+    expect(screen.getByTitle('Delete tag'))
+      .toBeInTheDocument();
+  });
+
+  it('fires the row handlers from menu items', () => {
+    const onTogglePublic = vi.fn();
+    const { onEdit, onDelete, onViewNotes } = renderTree({
+      tags: [makeTag('tag-a', 'Alpha')],
+      onTogglePublic,
+      matchMedia: compactQueries,
+    });
+
+    fireEvent.click(screen.getByTitle('Tag actions'));
+    fireEvent.click(screen.getByTitle('Edit tag'));
+    expect(onEdit).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'tag-a' })
+    );
+
+    fireEvent.click(screen.getByTitle('Tag actions'));
+    fireEvent.click(screen.getByTitle('Delete tag'));
+    expect(onDelete).toHaveBeenCalledWith('tag-a', 'Alpha');
+
+    fireEvent.click(screen.getByTitle('Tag actions'));
+    fireEvent.click(screen.getByTitle('View notes'));
+    expect(onViewNotes).toHaveBeenCalledWith('tag-a');
+
+    fireEvent.click(screen.getByTitle('Tag actions'));
+    fireEvent.click(screen.getByTitle('Make tag public'));
+    expect(onTogglePublic).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'tag-a' })
+    );
+  });
+
+  it('keeps a single View notes button for anonymous ' +
+    'visitors instead of a one-item menu', () => {
+      useAuthStore.setState(authInitialState);
+
+      renderTree({
+        tags: [makeTag('tag-a', 'Alpha')],
+        matchMedia: compactQueries,
+      });
+
+      expect(screen.queryByTitle('Tag actions'))
+        .not.toBeInTheDocument();
+      expect(screen.getByTitle('View notes'))
+        .toBeInTheDocument();
+    });
+
+  it('indents nested rows by an 8px rail, not 24px margin',
+    () => {
+      renderTree({ matchMedia: compactQueries });
+
+      const betaPaper = screen
+        .getByText('Beta')
+        .closest('.mantine-Paper-root') as HTMLElement;
+      expect(betaPaper.style.marginLeft).toBe('8px');
+      expect(betaPaper.style.borderLeft).toContain('2px');
+    });
+
+  it('keeps the 24px margin indent on desktop', () => {
+    renderTree();
+
+    const betaPaper = screen
+      .getByText('Beta')
+      .closest('.mantine-Paper-root') as HTMLElement;
+    expect(betaPaper.style.marginLeft).toBe('24px');
   });
 });

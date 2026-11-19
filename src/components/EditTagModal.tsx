@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
+  Box,
   Button,
+  Collapse,
   Group,
   Modal,
   Select,
@@ -8,7 +10,9 @@ import {
   Switch,
   Text,
   TextInput,
+  UnstyledButton,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
 import { setTagPublic, updateTag } from '../api';
@@ -16,6 +20,8 @@ import {
   isTagDescendant,
   validateTagName,
 } from '../utils/tagTree';
+import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
 
 interface EditTagModalProps {
   opened: boolean;
@@ -32,11 +38,23 @@ export function EditTagModal({
   tag,
   existingTags,
 }: EditTagModalProps) {
+  const { t } = useTranslation();
+  // Full-screen at `sm` and narrower (768px is Mantine's
+  // `sm` — the query includes it), where the
+  // Created/Updated dates also collapse behind a "Details"
+  // toggle to keep the form above the fold. `undefined`
+  // initialValue lets matchMedia resolve during the first
+  // render — a boolean would flash the windowed layout for
+  // one frame.
+  const compact = useMediaQuery('(max-width: 768px)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (tag && opened) {
@@ -47,6 +65,7 @@ export function EditTagModal({
       // uncontrolled until the first click.
       setIsPublic(tag.public ?? false);
       setNameError(null);
+      setDetailsOpen(false);
     }
   }, [tag, opened]);
 
@@ -72,8 +91,8 @@ export function EditTagModal({
 
     if (parentTagId && !canSetParent(parentTagId)) {
       showNotification({
-        title: 'Invalid Parent',
-        message: 'Cannot create circular parent relationship',
+        title: t('tags.invalidParent'),
+        message: t('tags.circularParent'),
         color: 'red',
       });
       return;
@@ -102,20 +121,22 @@ export function EditTagModal({
         await setTagPublic(tag.id, isPublic);
       }
       showNotification({
-        title: 'Success',
-        message: 'Tag updated successfully',
+        title: t('common.success'),
+        message: t('tags.updated'),
         color: 'green',
       });
       onSuccess();
       onClose();
     } catch (error) {
       console.error('Error updating tag:', error);
+      // apiClient throws catalog keys — textOrKey translates
+      // those and passes raw server text through.
       showNotification({
-        title: 'Error',
+        title: t('common.error'),
         message:
           error instanceof Error
-            ? error.message
-            : 'Failed to update tag. Please try again.',
+            ? textOrKey(error.message)
+            : t('tags.updateFailed'),
         color: 'red',
       });
       // Partial success: the PATCH landed but the cascade
@@ -129,28 +150,51 @@ export function EditTagModal({
   };
 
   const sortedTags = [...existingTags]
-    .filter((t) => t.id !== tag?.id)
+    .filter((candidate) => candidate.id !== tag?.id)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const parentTagOptions = sortedTags.map((t) => ({
-    value: t.id,
-    label: t.name,
+  const parentTagOptions = sortedTags.map((candidate) => ({
+    value: candidate.id,
+    label: candidate.name,
   }));
 
-  const hasChildren = existingTags.some((t) => t.parent_tag === tag?.id);
+  const hasChildren = existingTags.some(
+    (candidate) => candidate.parent_tag === tag?.id
+  );
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void handleSubmit();
   };
 
+  const datesBlock = tag && (
+    <Stack spacing={4}>
+      <Text size="xs" color="dimmed">
+        {t('tags.createdAt', {
+          date: new Date(tag.created_at).toLocaleDateString(),
+        })}
+      </Text>
+      <Text size="xs" color="dimmed">
+        {t('tags.updatedAt', {
+          date: new Date(tag.updated_at).toLocaleDateString(),
+        })}
+      </Text>
+    </Stack>
+  );
+
   return (
-    <Modal opened={opened} onClose={onClose} title="Edit Tag" size="md">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={t('tags.edit')}
+      size="md"
+      fullScreen={compact}
+    >
       <form onSubmit={handleFormSubmit}>
         <Stack spacing="md">
           <TextInput
-            label="Tag Name"
-            placeholder="Enter tag name"
+            label={t('tags.name')}
+            placeholder={t('tags.enterName')}
             value={tagName}
             onChange={(e) => {
               setTagName(e.currentTarget.value);
@@ -166,57 +210,69 @@ export function EditTagModal({
           />
 
           <Select
-            label="Parent Tag (Optional)"
-            placeholder="Select a parent tag"
+            label={t('tags.parentOptional')}
+            placeholder={t('tags.selectParent')}
             value={parentTagId}
             onChange={setParentTagId}
             data={parentTagOptions}
             searchable
             clearable
-            description="Leave empty to make this a root-level tag"
+            // Bottom-anchored so the list can never flip up
+            // over the Tag Name field on short viewports;
+            // portal keeps it clear of the ScrollArea.
+            withinPortal
+            dropdownPosition="bottom"
+            maxDropdownHeight={280}
+            description={t('tags.rootHintEdit')}
           />
 
           {hasChildren && (
             <Text size="xs" color="orange">
-              ⚠️ This tag has child tags. Changing its parent
-              will affect the hierarchy.
+              {t('tags.hasChildrenWarning')}
             </Text>
           )}
 
           <Switch
-            label="Public tag"
+            label={t('tags.publicTag')}
             checked={isPublic}
             onChange={(e) =>
               setIsPublic(e.currentTarget.checked)
             }
             description={
               isPublic
-                ? 'Existing notes under this tag become ' +
-                  'public — anyone with the link can view ' +
-                  'them.'
-                : 'Existing notes directly under this tag ' +
-                  'become private — anyone following a ' +
-                  'shared link loses access.'
+                ? t('tags.publicityPublicLong')
+                : t('tags.publicityPrivateLong')
             }
           />
 
-          {tag && (
-            <Stack spacing={4}>
-              <Text size="xs" color="dimmed">
-                Created: {new Date(tag.created_at).toLocaleDateString()}
-              </Text>
-              <Text size="xs" color="dimmed">
-                Updated: {new Date(tag.updated_at).toLocaleDateString()}
-              </Text>
-            </Stack>
-          )}
+          {tag &&
+            (compact ? (
+              <Box>
+                <UnstyledButton
+                  onClick={() =>
+                    setDetailsOpen((open) => !open)
+                  }
+                >
+                  <Text size="xs" color="dimmed" underline>
+                    {detailsOpen
+                      ? t('tags.hideDetails')
+                      : t('tags.showDetails')}
+                  </Text>
+                </UnstyledButton>
+                <Collapse in={detailsOpen}>
+                  <Box mt={4}>{datesBlock}</Box>
+                </Collapse>
+              </Box>
+            ) : (
+              datesBlock
+            ))}
 
           <Group position="right" mt="md">
             <Button variant="subtle" onClick={onClose} disabled={loading}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" loading={loading}>
-              Save Changes
+              {t('tags.saveChanges')}
             </Button>
           </Group>
         </Stack>

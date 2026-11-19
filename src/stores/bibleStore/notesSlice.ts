@@ -13,6 +13,8 @@ import {
 } from '../../utils/cacheManager';
 import { useAuthStore } from '../authStore';
 import type { BibleState } from '../../store';
+import { captureHandledError } from '../../utils/errorReporter';
+import i18n from '../../i18n';
 
 /**
  * Notes-domain slice of the bible store: the paged tag/notes
@@ -33,6 +35,7 @@ type NotesActions = Pick<
   | 'setLastSelectedTagId'
   | 'setNotesPage'
   | 'setNotesPageSize'
+  | 'removeTagPagination'
 >;
 
 /**
@@ -178,6 +181,12 @@ export const createNotesSlice: StateCreator<
               notesPage: page,
               notesHasMore: cachedData.hasMore ?? false,
               notesOrdering: ordering || null,
+              // Record the viewed page/page size so revisiting
+              // this tag restores them.
+              tagPagination: {
+                ...state.tagPagination,
+                [tagId]: { page, pageSize: notesPageSize },
+              },
               // Remember the selection only for the user's own
               // tags — a foreign public tag must not hijack the
               // next /notes visit.
@@ -229,6 +238,14 @@ export const createNotesSlice: StateCreator<
           notesHasMore: response.next !== null,
           notesOrdering: ordering || null,
           allNotesFetched: !tagId && !response.next,
+          // Tagless fetches (the all-notes view) have no map
+          // key — leave every tag's record untouched.
+          tagPagination: tagId
+            ? {
+                ...state.tagPagination,
+                [tagId]: { page, pageSize: notesPageSize },
+              }
+            : state.tagPagination,
           // Browsing a foreign public tag must not rewrite the
           // remembered own-tag selection.
           lastSelectedTagId: tagId
@@ -253,9 +270,13 @@ export const createNotesSlice: StateCreator<
           return;
         }
         console.error('Error fetching notes:', error);
+        captureHandledError(error, 'Notes fetch', {
+          tagId,
+          page,
+        });
         showNotification({
-          title: 'Error',
-          message: 'Failed to load notes. Please try again.',
+          title: i18n.t('common.error'),
+          message: i18n.t('notes.loadFailed'),
           color: 'red',
         });
         throw error;
@@ -287,9 +308,10 @@ export const createNotesSlice: StateCreator<
         set({ tags });
       } catch (error) {
         console.error('Error fetching tags:', error);
+        captureHandledError(error, 'Tags fetch');
         showNotification({
-          title: 'Error',
-          message: 'Failed to load tags. Please try again.',
+          title: i18n.t('common.error'),
+          message: i18n.t('notes.loadTagsFailed'),
           color: 'red',
         });
         throw error;
@@ -308,15 +330,16 @@ export const createNotesSlice: StateCreator<
             : state.notesCount,
         }));
         showNotification({
-          title: 'Success',
-          message: 'Note deleted successfully',
+          title: i18n.t('common.success'),
+          message: i18n.t('notes.deleted'),
           color: 'green',
         });
       } catch (error) {
         console.error('Error deleting note:', error);
+        captureHandledError(error, 'Note delete', { noteId });
         showNotification({
-          title: 'Error',
-          message: 'Failed to delete note. Please try again.',
+          title: i18n.t('common.error'),
+          message: i18n.t('notes.deleteFailed'),
           color: 'red',
         });
         throw error;
@@ -368,17 +391,17 @@ export const createNotesSlice: StateCreator<
         });
 
         showNotification({
-          title: 'Success',
-          message: 'Notes reordered',
+          title: i18n.t('common.success'),
+          message: i18n.t('notes.reordered'),
           color: 'green',
         });
       } catch (error) {
+        captureHandledError(error, 'Notes reorder', { tagId });
         if (error instanceof api.ConflictError) {
           showNotification({
-            title: 'Conflict',
+            title: i18n.t('notes.conflict'),
             message: (
-              'Another user modified these notes. ' +
-              'Refreshing...'
+              i18n.t('notes.conflictRefresh')
             ),
             color: 'orange',
           });
@@ -392,8 +415,8 @@ export const createNotesSlice: StateCreator<
           });
         } else {
           showNotification({
-            title: 'Error',
-            message: 'Failed to reorder notes',
+            title: i18n.t('common.error'),
+            message: i18n.t('notes.reorderFailed'),
             color: 'red',
           });
         }
@@ -438,17 +461,17 @@ export const createNotesSlice: StateCreator<
         });
 
         showNotification({
-          title: 'Success',
-          message: 'Note moved',
+          title: i18n.t('common.success'),
+          message: i18n.t('notes.moved'),
           color: 'green',
         });
       } catch (error) {
+        captureHandledError(error, 'Note move', { tagId });
         if (error instanceof api.ConflictError) {
           showNotification({
-            title: 'Conflict',
+            title: i18n.t('notes.conflict'),
             message: (
-              'Another user modified these notes. ' +
-              'Refreshing...'
+              i18n.t('notes.conflictRefresh')
             ),
             color: 'orange',
           });
@@ -459,8 +482,8 @@ export const createNotesSlice: StateCreator<
           });
         } else {
           showNotification({
-            title: 'Error',
-            message: 'Failed to move note',
+            title: i18n.t('common.error'),
+            message: i18n.t('notes.moveFailed'),
             color: 'red',
           });
         }
@@ -472,5 +495,21 @@ export const createNotesSlice: StateCreator<
       set({ lastSelectedTagId }),
     setNotesPage: (page) => set({ notesPage: page }),
     setNotesPageSize: (pageSize) => set({ notesPageSize: pageSize }),
+    removeTagPagination: (tagId) =>
+      set((state) => {
+        // A corrupted persisted blob (non-object or null)
+        // self-heals to an empty map — returning {} would
+        // leave the corrupt value in place.
+        const map = state.tagPagination;
+        if (!map || typeof map !== 'object') {
+          return { tagPagination: {} };
+        }
+        if (!(tagId in map)) {
+          return {};
+        }
+        const next = { ...map };
+        delete next[tagId];
+        return { tagPagination: next };
+      }),
   };
 };

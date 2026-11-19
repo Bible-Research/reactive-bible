@@ -12,10 +12,11 @@ import { useBibleStore } from '../store';
 import { useAuthStore } from '../stores/authStore';
 import { defaultTagId } from '../utils/defaultTag';
 import { shallow } from 'zustand/shallow';
-
+import { useTranslation } from 'react-i18next';
 type NotesRouteStatus = 'loading' | 'empty' | 'error';
 
 export default function NotesRoute() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const hasNavigatedRef = useRef(false);
   const { lastSelectedTagId, getTags } = useBibleStore(
@@ -75,6 +76,8 @@ export default function NotesRoute() {
         void navigate(`/notes/tag/${targetTagId}`, { replace: true });
       } catch (error) {
         if (cancelled) return;
+        // getTags already reports to Sentry before rethrowing
+        // — capturing here too would double-count the event.
         console.error('Error loading tags:', error);
         // A failed getTags used to be caught-and-logged, leaving
         // the loader spinning forever — offer a retry instead.
@@ -92,16 +95,19 @@ export default function NotesRoute() {
 
   if (status === 'empty') {
     return (
-      <Center style={{ height: '100vh' }}>
+      // `px` keeps long translations of the empty-state text off
+      // the screen edges on narrow mobile viewports; `ta` centers
+      // the wrapped lines.
+      <Center style={{ height: '100vh' }} px="md">
         <Stack align="center" spacing="sm">
-          <Text color="dimmed" size="lg">
-            No tags yet — create a tag to start taking notes.
+          <Text color="dimmed" size="lg" ta="center">
+            {t('notes.noTagsYet')}
           </Text>
           <Button
             leftIcon={<IconPlus size={16} />}
             onClick={() => navigate('/tags')}
           >
-            Create your first tag
+            {t('tags.createFirst')}
           </Button>
         </Stack>
       </Center>
@@ -110,17 +116,17 @@ export default function NotesRoute() {
 
   if (status === 'error') {
     return (
-      <Center style={{ height: '100vh' }}>
+      <Center style={{ height: '100vh' }} px="md">
         <Stack align="center" spacing="sm">
-          <Text color="red" size="lg">
-            Failed to load your tags.
+          <Text color="red" size="lg" ta="center">
+            {t('notes.loadTagsFailed')}
           </Text>
           <Button
             variant="light"
             leftIcon={<IconRefresh size={16} />}
             onClick={() => setRetryCount((c) => c + 1)}
           >
-            Try again
+            {t('common.retry')}
           </Button>
         </Stack>
       </Center>
@@ -130,7 +136,7 @@ export default function NotesRoute() {
   // Show loading while redirecting
   return (
     <Center style={{ height: '100vh' }}>
-      <Loader size="lg" aria-label="Loading notes" />
+      <Loader size="lg" aria-label={t('notes.loadingNotes')} />
     </Center>
   );
 }

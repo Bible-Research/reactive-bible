@@ -14,13 +14,16 @@ import {
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { API_BASE_URL } from '../config';
+import { captureHandledError } from '../utils/errorReporter';
 import {
   ClientInputError,
   ProviderError,
   RateLimitError,
+  errorDetailsOf,
   errorMessageFromBody,
   isRateLimitMessage,
   throwFromErrorBody,
+  trackError,
 } from './errors';
 
 /**
@@ -107,11 +110,18 @@ export const getAvailableTranslations = async (
         ) {
           throw err;
         }
-        throw new ProviderError(
-          err instanceof Error
-            ? err.message
-            : `Failed to fetch translations ` +
-              `(HTTP ${response.status})`
+        throw trackError(
+          new ProviderError(
+            err instanceof Error
+              ? err.message
+              : `Failed to fetch translations ` +
+                `(HTTP ${response.status})`
+          ),
+          {
+            code: errorDetailsOf(err).code,
+            status: response.status,
+            url: response.url,
+          }
         );
       });
     }
@@ -123,17 +133,30 @@ export const getAvailableTranslations = async (
       const message = errorMessageFromBody(
         data, 'Failed to fetch translations'
       );
-      throw data.error_code === 'rate_limited' ||
-        isRateLimitMessage(message)
-        ? new RateLimitError(message)
-        : new ProviderError(message);
+      throw trackError(
+        data.error_code === 'rate_limited' ||
+          isRateLimitMessage(message)
+          ? new RateLimitError(message)
+          : new ProviderError(message),
+        {
+          code:
+            typeof data.error_code === 'string'
+              ? data.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
     }
 
     // Only cache real arrays — a malformed non-array body must
     // not poison the no-TTL translation cache (it also feeds
     // findOwnerIso).
     if (!Array.isArray(data.results)) {
-      throw new ProviderError('Malformed translations response');
+      throw trackError(
+        new ProviderError('Malformed translations response'),
+        { status: response.status, url: response.url }
+      );
     }
     // The actual translations are in the 'results' property
     const translations: Translation[] =
@@ -170,9 +193,11 @@ export const getCopyrightInfo = async (
       `?bible_id=${encodeURIComponent(bibleId)}`;
     const response = await publicFetch(url);
     if (!response.ok) {
-      throw new Error(
-        `Copyright fetch failed: ${response.statusText}`
-      );
+      await throwFromErrorBody(response, {
+        bookNotInFileset: 'Copyright not in this fileset',
+        failure:
+          `Copyright fetch failed (HTTP ${response.status})`,
+      });
     }
     const data = await response.json();
     const copyrights: FilesetCopyright[] =
@@ -183,6 +208,7 @@ export const getCopyrightInfo = async (
     console.warn(
       'Failed to fetch copyright info:', error
     );
+    captureHandledError(error, 'Copyright fetch', { bibleId });
     return [];
   }
 };
@@ -245,6 +271,28 @@ export const searchLanguages = async (
         `Language search failed (HTTP ${response.status}):`,
         data.error ?? data
       );
+      const message =
+        typeof data.error === 'string'
+          ? data.error
+          : `Language search failed (HTTP ${response.status})`;
+      const err = trackError(
+        data.error_code === 'rate_limited' ||
+          isRateLimitMessage(message)
+          ? new RateLimitError(message)
+          : new ProviderError(message),
+        {
+          code:
+            typeof data.error_code === 'string'
+              ? data.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
+      captureHandledError(err, 'Language search', {
+        search,
+        page,
+      });
       return [];
     }
     const rows = (data.results ?? []) as RawLanguage[];
@@ -263,6 +311,10 @@ export const searchLanguages = async (
     return results;
   } catch (error) {
     console.error('Failed to search languages:', error);
+    captureHandledError(error, 'Language search', {
+      search,
+      page,
+    });
     return [];
   }
 };

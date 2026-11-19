@@ -1,5 +1,7 @@
 import { useAuthStore } from '../stores/authStore';
 import { showNotification } from '@mantine/notifications';
+import { throwHttpError } from '../api/errors';
+import i18n from '../i18n';
 
 /**
  * Helper function to get authentication headers
@@ -75,7 +77,7 @@ const sendRequest = async (
  */
 const expireSession = (issuedToken: string | null): never => {
   if (useAuthStore.getState().token !== issuedToken) {
-    throw new Error('Session expired. Please log in again.');
+    throw new Error('auth.sessionExpiredMsg');
   }
   // Another in-flight request (or checkAuth's token
   // validation) may have already expired this session —
@@ -87,24 +89,24 @@ const expireSession = (issuedToken: string | null): never => {
 
   if (wasAuthenticated) {
     showNotification({
-      title: 'Session Expired',
+      title: i18n.t('auth.sessionExpired'),
       message:
-        'Your session has expired. Please log in again.',
+        i18n.t('auth.sessionExpiredMsg'),
       color: 'orange',
       autoClose: 5000,
     });
   }
 
-  throw new Error('Session expired. Please log in again.');
+  throw new Error('auth.sessionExpiredMsg');
 };
 
 /**
  * Shared 403 handling for the authenticated wrappers.
  */
 const throwForbidden = (): never => {
-  throw new Error(
-    'You do not have permission to access this resource.'
-  );
+  // Catalog key, not display text — surfaced to the user via
+  // localizedErrorText/textOrKey like 'auth.sessionExpiredMsg'.
+  throw new Error('errors.forbidden');
 };
 
 /**
@@ -197,9 +199,10 @@ export const authenticatedFetch = async (
   // session expired", and must not log anyone out.
   if (response.status === 401) {
     if (!issuedToken) {
-      throw new Error(
-        'Authentication required for this request.'
-      );
+      // Catalog key, not display text — surfaced to the
+      // user via localizedErrorText/textOrKey like
+      // 'errors.forbidden' (see throwForbidden).
+      throw new Error('auth.required');
     }
     expireSession(issuedToken);
   }
@@ -246,9 +249,7 @@ export const authenticatedUpload = async (
   // session.
   if (response.status === 401) {
     if (!issuedToken) {
-      throw new Error(
-        'Authentication required for this request.'
-      );
+      throw new Error('auth.required');
     }
     expireSession(issuedToken);
   }
@@ -270,9 +271,11 @@ type Fetcher = (
  * Shared fetch→JSON boilerplate for endpoints whose failure
  * handling is just "throw on !ok, log, rethrow": runs
  * `fetcher`, throws `Error(fallbackMessage)` on a non-OK
- * status, and returns the parsed body. Endpoints with richer
- * error contracts — typed provider errors, 409/error-body
- * reads, 204 no-content, swallowed failures — keep their own
+ * status — a `RateLimitError` carrying `rate_limited` on
+ * HTTP 429 so `sentryBeforeSend` drops throttling noise —
+ * and returns the parsed body. Endpoints with richer error
+ * contracts — typed provider errors, 409/error-body reads,
+ * 204 no-content, swallowed failures — keep their own
  * handling and should not use this helper.
  */
 export const fetchJson = async <T>(
@@ -284,7 +287,10 @@ export const fetchJson = async <T>(
   try {
     const response = await fetcher(url, options);
     if (!response.ok) {
-      throw new Error(fallbackMessage);
+      // Stamps status/endpoint — plus `rate_limited` on a
+      // 429 — so `sentryBeforeSend` drops throttling noise
+      // and can group the rest like a coded API error.
+      throwHttpError(response, fallbackMessage, url);
     }
     return (await response.json()) as T;
   } catch (error) {

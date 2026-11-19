@@ -11,7 +11,9 @@ import {
   Accordion,
   Badge,
   Button,
+  Center,
   Group,
+  Loader,
   Modal,
   Radio,
   ScrollArea,
@@ -22,6 +24,7 @@ import {
   createStyles,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useTranslation } from 'react-i18next';
 import { loadKjvData, isKjvDataLoaded } from '../utils/kjvDataLoader';
 import { useBibleStore, type Translation } from '../store';
 import { shallow } from 'zustand/shallow';
@@ -30,6 +33,7 @@ import {
   searchLanguages,
 } from '../api';
 import { getCachedTranslationIsos } from '../utils/cacheManager';
+import { captureHandledError } from '../utils/errorReporter';
 import {
   findAudioOption,
   findTranslationByFilesetId,
@@ -53,12 +57,15 @@ const useStyles = createStyles((theme) => ({
   },
 }));
 
-/** Language tabs offered by the selector. */
+/**
+ * Language tabs offered by the selector. `labelKey` resolves
+ * through the UI catalog at render time.
+ */
 const LANGUAGES = [
-  { label: 'English', value: 'eng' },
-  { label: 'Latvian', value: 'lvs' },
-  { label: 'Russian', value: 'rus' },
-];
+  { labelKey: 'translations.langEnglish', value: 'eng' },
+  { labelKey: 'translations.langLatvian', value: 'lvs' },
+  { labelKey: 'translations.langRussian', value: 'rus' },
+] as const;
 
 /** Tab ids: the fixed languages plus the "Other" picker. */
 type LanguageTab = 'eng' | 'lvs' | 'rus' | 'other';
@@ -84,18 +91,18 @@ type LanguageOption = {
 
 type Capability = 'both' | 'text' | 'audio';
 
-const CAPABILITY_LABEL: Record<Capability, string> = {
-  both: 'Audio',
-  text: 'Text only',
-  audio: 'Audio only',
-};
+const CAPABILITY_LABEL_KEY = {
+  both: 'translations.capabilityBoth',
+  text: 'translations.capabilityText',
+  audio: 'translations.capabilityAudio',
+} as const;
 
-const AUDIO_KIND_LABEL: Record<OptionKind, string> = {
-  audio: 'Read aloud',
-  audio_drama: 'Dramatized',
-  generated: 'Generated voice',
-  text: 'Text',
-};
+const AUDIO_KIND_LABEL_KEY = {
+  audio: 'translations.kindReadAloud',
+  audio_drama: 'translations.kindDramatized',
+  generated: 'translations.kindGenerated',
+  text: 'translations.kindText',
+} as const satisfies Record<OptionKind, string>;
 
 /** Capability chip shown next to each version in the picker. */
 const capabilityOf = (translation: Translation): Capability => {
@@ -147,22 +154,30 @@ interface VersionItemProps extends ComponentPropsWithoutRef<'div'> {
 }
 
 const VersionItem = forwardRef<HTMLDivElement, VersionItemProps>(
-  ({ label, capability, ...others }, ref) => (
-    <div ref={ref} {...others}>
-      <Group position="apart" noWrap>
-        <Text size="sm" truncate>
-          {label}
-        </Text>
-        <Badge size="xs" variant="light">
-          {CAPABILITY_LABEL[capability]}
-        </Badge>
-      </Group>
-    </div>
-  ),
+  ({ label, capability, ...others }, ref) => {
+    const { t } = useTranslation();
+    return (
+      <div ref={ref} {...others}>
+        <Group position="apart" align="flex-start" noWrap>
+          <Text size="sm" style={{ flex: 1, minWidth: 0 }}>
+            {label}
+          </Text>
+          <Badge
+            size="xs"
+            variant="light"
+            style={{ flexShrink: 0 }}
+          >
+            {t(CAPABILITY_LABEL_KEY[capability])}
+          </Badge>
+        </Group>
+      </div>
+    );
+  },
 );
 VersionItem.displayName = 'VersionItem';
 
 const TranslationSelector = () => {
+  const { t } = useTranslation();
   const { classes } = useStyles();
   const [opened, setOpened] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -200,12 +215,22 @@ const TranslationSelector = () => {
   const [languageOptions, setLanguageOptions] = useState<
     LanguageOption[]
   >([]);
+  // True while a `searchLanguages` request is in flight —
+  // the picker shows a loader instead of flashing "No
+  // languages found" before the first results arrive.
+  const [searchingLanguages, setSearchingLanguages] =
+    useState(false);
   // Iso of the last completed translations fetch — lets the
   // empty state distinguish "fetch finished, genuinely empty"
   // from "still loading" (DBT `bibles` counts are DBT-wide, not
   // scoped to our API key, so a listed language can return no
   // versions).
   const [fetchedIso, setFetchedIso] =
+    useState<string | null>(null);
+  // Iso whose translations fetch failed outright — releases the
+  // Version select from the loading state into a failure note
+  // instead of spinning forever.
+  const [failedIso, setFailedIso] =
     useState<string | null>(null);
   // Effective iso driving the fetch effect and the versionData
   // filter: the picked language on Other, else the tab itself.
@@ -285,7 +310,9 @@ const TranslationSelector = () => {
         void handleTextChange(
           keepStored ? activeTextFilesetId : ownerText.id,
         );
-        setTextNote(`Text: ${owner.name}`);
+        setTextNote(
+          t('translations.textNote', { name: owner.name }),
+        );
       } else {
         const candidate = pickTextTranslation(
           translations,
@@ -296,13 +323,14 @@ const TranslationSelector = () => {
           : null;
         if (candidate && candidateText) {
           void handleTextChange(candidateText.id);
-          setTextNote(`Text: ${candidate.name} — auto-selected`);
+          setTextNote(
+            t('translations.textAutoSelected', {
+              name: candidate.name,
+            }),
+          );
         } else {
           void handleTextChange(activeTextFilesetId);
-          setTextNote(
-            'Text: no text version in this language — ' +
-              'keeping current',
-          );
+          setTextNote(t('translations.noTextInLanguage'));
         }
       }
     }
@@ -359,9 +387,11 @@ const TranslationSelector = () => {
     // re-derives the pick from the active store selection.
     setLanguageQuery('');
     setLanguageOptions([]);
+    setSearchingLanguages(false);
     setOtherIso(null);
     setOtherLanguageName(null);
     setFetchedIso(null);
+    setFailedIso(null);
     pickedLanguageLabelRef.current = null;
     userInteractedRef.current = false;
     // Seed the tab synchronously from the stored selection so
@@ -403,8 +433,8 @@ const TranslationSelector = () => {
       notifications.show({
         id: 'kjv-loading',
         loading: true,
-        title: 'Loading KJV Bible',
-        message: 'Downloading King James Version data...',
+        title: t('translations.kjvLoading'),
+        message: t('translations.kjvDownloading'),
         autoClose: false,
         withCloseButton: false,
       });
@@ -415,8 +445,8 @@ const TranslationSelector = () => {
         notifications.update({
           id: 'kjv-loading',
           color: 'green',
-          title: 'KJV Bible Loaded',
-          message: 'King James Version is ready to use.',
+          title: t('translations.kjvLoaded'),
+          message: t('translations.kjvReady'),
           loading: false,
           autoClose: 3000,
         });
@@ -424,8 +454,8 @@ const TranslationSelector = () => {
         notifications.update({
           id: 'kjv-loading',
           color: 'red',
-          title: 'Failed to Load KJV Bible',
-          message: 'Please check your connection and try again.',
+          title: t('translations.kjvFailed'),
+          message: t('translations.kjvFailedMsg'),
           loading: false,
           autoClose: 5000,
         });
@@ -443,6 +473,9 @@ const TranslationSelector = () => {
     if (!languageIso) return;
     const iso = languageIso;
     let cancelled = false;
+    // A new attempt for this language clears any earlier
+    // failure — the loader shows again until it settles.
+    setFailedIso(null);
 
     const fetchTranslations = async () => {
       // Merge by abbr instead of replacing: the store's
@@ -461,15 +494,25 @@ const TranslationSelector = () => {
         setTranslations([...byAbbr.values()]);
       };
 
+      let succeeded = false;
+
       // Show cached list immediately for snappy UX (stale)…
       try {
         const cached = await getAvailableTranslations(iso);
         if (!cancelled) {
           merge(cached);
           setFetchedIso(iso);
+          succeeded = true;
         }
       } catch (error) {
         console.warn('Failed to load translations:', error);
+        captureHandledError(error, 'Translations fetch', {
+          languageIso: iso,
+          source: 'cache',
+        });
+        // Modal closed — no revalidation follows, so this
+        // failure is terminal and must release the loader.
+        if (!cancelled && !opened) setFailedIso(iso);
       }
 
       // …then revalidate against the API so newly published
@@ -483,14 +526,20 @@ const TranslationSelector = () => {
         }
       } catch (error) {
         console.warn('Failed to refresh translations:', error);
+        captureHandledError(error, 'Translations fetch', {
+          languageIso: iso,
+          source: 'revalidate',
+        });
         // A stale failure (modal closed or language switched
         // mid-flight) must not toast over the new context.
         if (!cancelled) {
+          // Nothing was ever loaded for this language — without
+          // this the Version select would spin forever now that
+          // the toast has auto-closed.
+          if (!succeeded) setFailedIso(iso);
           notifications.show({
-            title: 'Translations unavailable',
-            message:
-              'Could not refresh the translation list. ' +
-              'Please try again later.',
+            title: t('translations.unavailable'),
+            message: t('translations.refreshFailed'),
             color: 'red',
             autoClose: 5000,
           });
@@ -503,6 +552,9 @@ const TranslationSelector = () => {
     // list stays usable.
     fetchTranslations().catch((error) => {
       console.error('Error loading translations:', error);
+      captureHandledError(error, 'Translations fetch', {
+        languageIso,
+      });
     });
 
     return () => {
@@ -568,6 +620,11 @@ const TranslationSelector = () => {
               console.warn(
                 `Failed to load ${iso} translations:`, error
               );
+              captureHandledError(
+                error,
+                'Translations fetch',
+                { languageIso: iso, source: 'seed-scan' }
+              );
               return [] as Translation[];
             });
           if (cancelled || userInteractedRef.current) return null;
@@ -597,25 +654,34 @@ const TranslationSelector = () => {
   }, [languageIso]);
 
   useEffect(() => {
-    if (tab !== 'other') return;
+    if (tab !== 'other') {
+      // The Other tab is not visible — a stale in-flight flag
+      // must not linger for the next visit.
+      setSearchingLanguages(false);
+      return;
+    }
     const query = debouncedLanguageQuery.trim();
     if (query === pickedLanguageLabelRef.current) {
       // Consume the post-pick echo once — leaving the ref set
       // would silently skip a later real search that happens
       // to retype the same label.
       pickedLanguageLabelRef.current = null;
+      setSearchingLanguages(false);
       return;
     }
     if (query.length < 2) {
       setLanguageOptions([]);
+      setSearchingLanguages(false);
       return;
     }
     // A real user query — the pinned echo label is stale now.
     pickedLanguageLabelRef.current = null;
     let cancelled = false;
-    void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT).then(
-      (results) => {
+    setSearchingLanguages(true);
+    void searchLanguages(query, 1, LANGUAGE_SEARCH_LIMIT)
+      .then((results) => {
         if (cancelled) return;
+        setSearchingLanguages(false);
         setLanguageOptions(
           results
             // Backend rows can carry null fields — a `null`
@@ -630,8 +696,17 @@ const TranslationSelector = () => {
               name: r.name,
             })),
         );
-      },
-    );
+      })
+      // A failed search must not surface as an unhandled
+      // rejection (global errorReporter toast) — warn and
+      // land on an empty option list instead.
+      .catch((error) => {
+        if (cancelled) return;
+        console.warn('Failed to search languages:', error);
+        captureHandledError(error, 'Language search');
+        setSearchingLanguages(false);
+        setLanguageOptions([]);
+      });
     return () => {
       cancelled = true;
     };
@@ -734,6 +809,35 @@ const TranslationSelector = () => {
     [translations, languageIso],
   );
 
+  // Async retrieval still in flight — the pickers show a
+  // loader instead of flashing the empty/no-results message.
+  // `languageQuery !== debouncedLanguageQuery` counts too: the
+  // search only fires after the 300 ms debounce, so the gap
+  // would otherwise flash "No languages found" mid-type.
+  const languageSearchPending =
+    languageQuery.trim().length >= 2 &&
+    languageQuery.trim() !== pickedLanguageLabelRef.current &&
+    (searchingLanguages ||
+      languageQuery.trim() !== debouncedLanguageQuery.trim());
+  const versionsLoading =
+    languageIso !== null &&
+    fetchedIso !== languageIso &&
+    failedIso !== languageIso;
+
+  // Shared dropdown body for the in-flight state — a spinner
+  // plus dimmed label where the pickers would otherwise show
+  // their empty/no-results text.
+  const dropdownLoading = (
+    <Center>
+      <Group spacing="xs" noWrap>
+        <Loader size="sm" />
+        <Text size="sm" color="dimmed">
+          {t('translations.loading')}
+        </Text>
+      </Group>
+    </Center>
+  );
+
   // Language Select options: the latest search results, with
   // the picked iso pinned in so its label always renders even
   // after the result list is replaced by a new search.
@@ -753,11 +857,16 @@ const TranslationSelector = () => {
   }, [languageOptions, otherIso, otherLanguageName]);
 
   const languageTabs = [
-    ...LANGUAGES,
+    ...LANGUAGES.map((l) => ({
+      label: t(l.labelKey),
+      value: l.value,
+    })),
     {
       label: otherLanguageName
-        ? `Other: ${otherLanguageName}`
-        : 'Other',
+        ? t('translations.otherNamed', {
+            name: otherLanguageName,
+          })
+        : t('translations.other'),
       value: 'other',
     },
   ];
@@ -790,7 +899,7 @@ const TranslationSelector = () => {
       <Modal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="Select Translation"
+        title={t('translations.select')}
         size="lg"
         fullScreen={isMobile}
       >
@@ -815,8 +924,8 @@ const TranslationSelector = () => {
           </ScrollArea>
           {tab === 'other' && (
             <Select
-              label="Language"
-              placeholder="Search languages…"
+              label={t('translations.language')}
+              placeholder={t('translations.searchLanguages')}
               data={languageSelectData}
               value={otherIso}
               onChange={(iso) => {
@@ -838,19 +947,26 @@ const TranslationSelector = () => {
               onSearchChange={setLanguageQuery}
               nothingFound={
                 languageQuery.trim().length < 2
-                  ? 'Type at least 2 characters'
-                  : 'No languages found'
+                  ? t('translations.typeMinChars')
+                  : languageSearchPending
+                    ? dropdownLoading
+                    : t('translations.noLanguages')
+              }
+              rightSection={
+                languageSearchPending ? (
+                  <Loader size="xs" />
+                ) : undefined
               }
               searchable
               dropdownPosition="bottom"
             />
           )}
           <Select
-            label="Version"
+            label={t('translations.version')}
             placeholder={
               languageIso
-                ? 'Choose a version'
-                : 'Pick a language first'
+                ? t('translations.chooseVersion')
+                : t('translations.pickLanguageFirst')
             }
             data={versionData}
             itemComponent={VersionItem}
@@ -859,6 +975,12 @@ const TranslationSelector = () => {
               userInteractedRef.current = true;
               applyVersionSelection(abbr);
             }}
+            rightSection={
+              versionsLoading ? <Loader size="xs" /> : undefined
+            }
+            nothingFound={
+              versionsLoading ? dropdownLoading : undefined
+            }
             disabled={!languageIso}
             searchable
             dropdownPosition="bottom"
@@ -867,7 +989,13 @@ const TranslationSelector = () => {
             fetchedIso === languageIso &&
             versionData.length === 0 && (
               <Text size="sm" color="dimmed">
-                No versions available for this language
+                {t('translations.noVersions')}
+              </Text>
+            )}
+          {languageIso !== null &&
+            failedIso === languageIso && (
+              <Text size="sm" color="dimmed">
+                {t('translations.loadVersionsFailed')}
               </Text>
             )}
 
@@ -875,16 +1003,17 @@ const TranslationSelector = () => {
             <>
               <div className={classes.groupWrapper}>
                 <Text size="sm" weight={500} mb={4}>
-                  Text
+                  {t('translations.text')}
                 </Text>
                 {grouped.text ? (
                   <Text size="xs" color="dimmed">
-                    Auto-resolved per testament:{' '}
-                    {testamentSummary(grouped.text)}
+                    {t('translations.autoResolved', {
+                      summary: testamentSummary(grouped.text),
+                    })}
                   </Text>
                 ) : (
                   <Text size="xs" color="dimmed" italic>
-                    {textNote ?? 'No text version available'}
+                    {textNote ?? t('translations.noTextAvailable')}
                   </Text>
                 )}
               </div>
@@ -894,17 +1023,20 @@ const TranslationSelector = () => {
                   <Radio.Group
                     value={audioGroupValue}
                     onChange={handleAudioChange}
-                    label="Audio"
+                    label={t('translations.audio')}
                   >
                     <Stack spacing="xs" mt="xs">
-                      <Radio value="none" label="None" />
+                      <Radio
+                        value="none"
+                        label={t('translations.none')}
+                      />
                       {grouped.audio.map((option) => (
                         <Radio
                           key={option.id}
                           value={option.id}
                           label={
-                            `${AUDIO_KIND_LABEL[option.kind]} — ` +
-                            `${option.coverageLabel}`
+                            `${t(AUDIO_KIND_LABEL_KEY[option.kind])}` +
+                            ` — ${option.coverageLabel}`
                           }
                         />
                       ))}
@@ -917,7 +1049,7 @@ const TranslationSelector = () => {
                 <Accordion variant="contained">
                   <Accordion.Item value="advanced">
                     <Accordion.Control>
-                      Advanced — raw filesets
+                      {t('translations.advanced')}
                     </Accordion.Control>
                     <Accordion.Panel>
                       <Stack spacing="md">
@@ -927,7 +1059,7 @@ const TranslationSelector = () => {
                             onChange={(id) =>
                               void handleTextChange(id)
                             }
-                            label="Text filesets"
+                            label={t('translations.textFilesets')}
                           >
                             <Stack spacing="xs" mt="xs">
                               {rawTextFilesets.map((f) => (
@@ -944,7 +1076,7 @@ const TranslationSelector = () => {
                           <Radio.Group
                             value={rawAudioValue}
                             onChange={setSelectedAudioId}
-                            label="Audio filesets"
+                            label={t('translations.audioFilesets')}
                           >
                             <Stack spacing="xs" mt="xs">
                               {rawAudioFilesets.map((f) => (
@@ -954,8 +1086,8 @@ const TranslationSelector = () => {
                                   label={
                                     `${
                                       f.type === 'audio_drama'
-                                        ? 'Drama'
-                                        : 'Audio'
+                                        ? t('translations.drama')
+                                        : t('translations.audio')
                                     } ${f.size} (${f.id})`
                                   }
                                 />
@@ -973,7 +1105,7 @@ const TranslationSelector = () => {
 
           <Group position="right" mt="md">
             <Button variant="default" onClick={() => setOpened(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             {/* Disabled until a version resolves — saving with
                 none selected would wipe the stored ids — and
@@ -983,7 +1115,7 @@ const TranslationSelector = () => {
               onClick={handleSave}
               disabled={!selectedTranslationAbbr || textResolving}
             >
-              Save
+              {t('common.save')}
             </Button>
           </Group>
         </Stack>
@@ -994,7 +1126,7 @@ const TranslationSelector = () => {
         onClick={openModal}
         color="gray"
       >
-        Change Translation
+        {t('translations.change')}
       </Button>
     </>
   );

@@ -15,6 +15,7 @@ import {
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { publicFetch } from '../utils/apiClient';
+import { captureHandledError } from '../utils/errorReporter';
 import { getAdjacentChapters, getChapters } from './structure';
 import {
   BookNotInFilesetError,
@@ -22,7 +23,9 @@ import {
   RateLimitError,
   errorMessageFromBody,
   isBookNotInFilesetBody,
+  isRateLimitMessage,
   throwFromErrorBody,
+  trackError,
 } from './errors';
 
 type VerseResult = {
@@ -96,10 +99,22 @@ export const fetchHeadingsOnly = async (
     }
     const responseData = await response.json();
     if (responseData.error) {
-      throw new Error(
-        errorMessageFromBody(
-          responseData, 'Headings fetch failed'
-        )
+      const message = errorMessageFromBody(
+        responseData, 'Headings fetch failed'
+      );
+      throw trackError(
+        responseData.error_code === 'rate_limited' ||
+          isRateLimitMessage(message)
+          ? new RateLimitError(message)
+          : new ProviderError(message),
+        {
+          code:
+            typeof responseData.error_code === 'string'
+              ? responseData.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
       );
     }
     // The API may also wrap provider failures in a 200 response
@@ -110,7 +125,12 @@ export const fetchHeadingsOnly = async (
       (!Array.isArray(responseData.headings) ||
         responseData.headings.length === 0)
     ) {
-      throw new ProviderError(responseData.message);
+      throw trackError(
+        isRateLimitMessage(responseData.message)
+          ? new RateLimitError(responseData.message)
+          : new ProviderError(responseData.message),
+        { status: response.status, url: response.url }
+      );
     }
     // API.Bible responses carry a FUMS token in `meta` that must
     // be reported per their license terms (silent on failure).
@@ -124,6 +144,11 @@ export const fetchHeadingsOnly = async (
       `Failed to fetch headings for ${bookId} ${chapter}:`,
       error
     );
+    captureHandledError(error, 'Section headings fetch', {
+      book: bookId,
+      chapter,
+      filesetId,
+    });
     return [];
   }
 };
@@ -155,7 +180,7 @@ export const getVersesFromApi = async (
     if (response.status === 429) {
       throw new RateLimitError(
         'The translation provider is currently rate-limited. ' +
-        'Please try again in a few moments or switch to KJV.'
+        'Please try again in about 1 minute or switch to KJV.'
       );
     }
 
@@ -171,19 +196,37 @@ export const getVersesFromApi = async (
     const data = await response.json();
 
     if (isBookNotInFilesetBody(data)) {
-      throw new BookNotInFilesetError(
-        errorMessageFromBody(
-          data,
-          'Book not available in this fileset'
-        )
+      throw trackError(
+        new BookNotInFilesetError(
+          errorMessageFromBody(
+            data,
+            'Book not available in this fileset'
+          )
+        ),
+        {
+          code: 'book_not_in_fileset',
+          status: response.status,
+          url: response.url,
+        }
       );
     }
 
     // Provider failures carry `error`/`error_code` fields.
     if (typeof data.error === 'string' && data.error) {
-      throw data.error_code === 'rate_limited'
-        ? new RateLimitError(data.error)
-        : new ProviderError(data.error);
+      throw trackError(
+        data.error_code === 'rate_limited' ||
+          isRateLimitMessage(data.error)
+          ? new RateLimitError(data.error)
+          : new ProviderError(data.error),
+        {
+          code:
+            typeof data.error_code === 'string'
+              ? data.error_code
+              : undefined,
+          status: response.status,
+          url: response.url,
+        }
+      );
     }
     // The API may also wrap provider failures (including
     // upstream rate limits) in a 200 response with empty verses
@@ -193,7 +236,12 @@ export const getVersesFromApi = async (
       typeof data.message === 'string' &&
       (!Array.isArray(data.verses) || data.verses.length === 0)
     ) {
-      throw new ProviderError(data.message);
+      throw trackError(
+        isRateLimitMessage(data.message)
+          ? new RateLimitError(data.message)
+          : new ProviderError(data.message),
+        { status: response.status, url: response.url }
+      );
     }
     if (!Array.isArray(data.verses)) {
       throw new Error('Malformed response from verse API');

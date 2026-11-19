@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  ActionIcon,
   Box,
   Button,
   Center,
@@ -18,8 +19,10 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { showNotification } from '@mantine/notifications';
+import { openConfirmModal } from '@mantine/modals';
 import { Tag } from '../types';
 import {
   deleteTag as deleteTagApi,
@@ -34,6 +37,9 @@ import { useBibleStore } from '../store';
 import { clearNotesCache } from '../utils/cacheManager';
 import { buildTagTree, TagNode } from '../utils/tagTree';
 import { shallow } from 'zustand/shallow';
+import { useTranslation } from 'react-i18next';
+import { textOrKey } from '../i18n/errorText';
+import { captureHandledError } from '../utils/errorReporter';
 
 /**
  * Sums each node's own `note_count` with all of its
@@ -57,6 +63,7 @@ const computeSubtreeCounts = (
 };
 
 export default function TagManagementRoute() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { tags, getTags } = useBibleStore(
     (state) => ({
@@ -65,6 +72,19 @@ export default function TagManagementRoute() {
     }),
     shallow
   );
+  const removeTagPagination = useBibleStore(
+    (state) => state.removeTagPagination
+  );
+  // At `sm` and narrower (768px is Mantine's `sm` — the
+  // query includes it) the page chrome compresses: smaller
+  // title, icon-only New Tag button, full-width search
+  // with the tag count riding on the same row. `undefined`
+  // initialValue lets matchMedia resolve during the first
+  // render — a boolean would flash the desktop layout for
+  // one frame.
+  const compact = useMediaQuery('(max-width: 768px)', undefined, {
+    getInitialValueInEffect: false,
+  });
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,6 +118,8 @@ export default function TagManagementRoute() {
         await getTags(forceRefresh);
         setInitialError(false);
       } catch (error) {
+        // getTags reports to Sentry before rethrowing —
+        // capturing here too would double-count the event.
         console.error('Error loading tags:', error);
         // A failed first load must not fall through to the
         // "No tags yet" empty state — offer a retry instead.
@@ -105,8 +127,8 @@ export default function TagManagementRoute() {
           setInitialError(true);
         }
         showNotification({
-          title: 'Error',
-          message: 'Failed to load tags',
+          title: t('common.error'),
+          message: t('tags.loadFailed'),
           color: 'red',
         });
       } finally {
@@ -117,7 +139,7 @@ export default function TagManagementRoute() {
         }
       }
     },
-    [getTags]
+    [getTags, t]
   );
 
   useEffect(() => {
@@ -138,6 +160,7 @@ export default function TagManagementRoute() {
         }
       } catch (error) {
         console.error('Error loading notes count:', error);
+        captureHandledError(error, 'Notes count fetch');
       }
     };
     void loadNoteTotal();
@@ -146,49 +169,70 @@ export default function TagManagementRoute() {
     };
   }, []);
 
-  const handleDeleteTag = useCallback(
-    async (tagId: string, tagName: string) => {
-      const childCount = tags.filter(
-        (t) => t.parent_tag === tagId
-      ).length;
-      if (
-        window.confirm(
-          `Are you sure you want to delete "${tagName}"? ` +
-            'Notes assigned to it will lose this tag' +
-            (childCount > 0
-              ? `, and its ${childCount} child tag(s) may ` +
-                'be affected'
-              : '') +
-            '. This action cannot be undone.'
-        )
-      ) {
-        try {
-          await deleteTagApi(tagId);
-          showNotification({
-            title: 'Success',
-            message: 'Tag deleted successfully',
-            color: 'green',
-          });
-          // The deleted tag's own cached pages still answer
-          // `/notes/tag/<id>` before getTag can 404, and
-          // every ancestor's merged `sub:true` page keeps
-          // listing its notes under a ghost section. The
-          // notes cache never expires — drop it whole
-          // (same as deleteNote).
-          clearNotesCache();
-          await loadTags(true, { silent: true }); // Force refresh
-        } catch (error) {
-          console.error('Error deleting tag:', error);
-          showNotification({
-            title: 'Error',
-            message:
-              'Failed to delete tag. It may have associated notes.',
-            color: 'red',
-          });
-        }
+  const deleteTag = useCallback(
+    async (tagId: string) => {
+      try {
+        await deleteTagApi(tagId);
+        showNotification({
+          title: t('common.success'),
+          message: t('tags.deleted'),
+          color: 'green',
+        });
+        // The deleted tag's own cached pages still answer
+        // `/notes/tag/<id>` before getTag can 404, and
+        // every ancestor's merged `sub:true` page keeps
+        // listing its notes under a ghost section. The
+        // notes cache never expires — drop it whole
+        // (same as deleteNote).
+        clearNotesCache();
+        // The deleted tag's remembered page/pageSize is dead
+        // weight — tag ids are never reused.
+        removeTagPagination(tagId);
+        await loadTags(true, { silent: true }); // Force refresh
+      } catch (error) {
+        console.error('Error deleting tag:', error);
+        captureHandledError(error, 'Tag delete', { tagId });
+        showNotification({
+          title: t('common.error'),
+          message:
+            t('tags.deleteFailed'),
+          color: 'red',
+        });
       }
     },
-    [loadTags, tags]
+    [loadTags, removeTagPagination, t]
+  );
+
+  const handleDeleteTag = useCallback(
+    (tagId: string, tagName: string) => {
+      const childCount = tags.filter(
+        (tag) => tag.parent_tag === tagId
+      ).length;
+      openConfirmModal({
+        title: t('tags.deleteTitle'),
+        children: (
+          <Text size="sm">
+            {t('tags.deleteConfirm', {
+                name: tagName,
+                body: t('tags.deleteBody'),
+                suffix:
+                  childCount > 0
+                    ? t('tags.deleteChildSuffix', {
+                        count: childCount,
+                      })
+                    : '',
+              })}
+          </Text>
+        ),
+        labels: {
+          confirm: t('common.delete'),
+          cancel: t('common.cancel'),
+        },
+        confirmProps: { color: 'red' },
+        onConfirm: () => void deleteTag(tagId),
+      });
+    },
+    [deleteTag, tags, t]
   );
 
   const handleEditTag = useCallback((tag: Tag) => {
@@ -206,31 +250,19 @@ export default function TagManagementRoute() {
     [navigate]
   );
 
-  const handleTogglePublic = useCallback(
-    async (tag: Tag) => {
-      const makingPublic = !tag.public;
-      if (
-        !window.confirm(
-          makingPublic
-            ? `Make "${tag.name}" and all notes directly ` +
-                'under it public? Anyone with the link can ' +
-                'view them.'
-            : `Make "${tag.name}" private? All notes ` +
-                'directly under it will also become ' +
-                'private — anyone following a shared ' +
-                'link loses access. This cannot be ' +
-                'undone per-note.'
-        )
-      ) {
-        return;
-      }
+  const toggleTagPublic = useCallback(
+    async (tag: Tag, makingPublic: boolean) => {
       try {
         const result = await setTagPublic(tag.id, makingPublic);
         showNotification({
-          title: 'Success',
+          title: t('common.success'),
           message:
-            `Tag is now ${makingPublic ? 'public' : 'private'}` +
-            ` — ${result.notes_updated} note(s) updated`,
+            t('tags.publicityResult', {
+              state: makingPublic
+                ? t('tags.statePublic')
+                : t('tags.statePrivate'),
+              count: result.notes_updated,
+            }),
           color: 'green',
         });
         // The tag's own cached note pages reflect the old
@@ -243,17 +275,52 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error updating tag publicity:', error);
+        captureHandledError(error, 'Tag publicity update', {
+          tagId: tag.id,
+        });
+        // apiClient throws catalog keys — textOrKey
+        // translates those, passes server text through.
         showNotification({
-          title: 'Error',
+          title: t('common.error'),
           message:
             error instanceof Error
-              ? error.message
-              : 'Failed to update tag publicity',
+              ? textOrKey(error.message)
+              : t('tags.publicityFailed'),
           color: 'red',
         });
       }
     },
-    [loadTags]
+    [loadTags, t]
+  );
+
+  const handleTogglePublic = useCallback(
+    (tag: Tag) => {
+      const makingPublic = !tag.public;
+      openConfirmModal({
+        title: makingPublic
+          ? t('tags.makePublic')
+          : t('tags.makePrivate'),
+        children: (
+          <Text size="sm">
+            {makingPublic
+              ? t('tags.makePublicBody', { name: tag.name })
+              : t('tags.makePrivateBody', { name: tag.name })}
+          </Text>
+        ),
+        labels: {
+          confirm: makingPublic
+            ? t('tags.makePublicConfirm')
+            : t('tags.makePrivateConfirm'),
+          cancel: t('common.cancel'),
+        },
+        // Making private revokes every shared link under the
+        // tag — it gets the same red treatment as Delete.
+        confirmProps: { color: makingPublic ? 'teal' : 'red' },
+        onConfirm: () =>
+          void toggleTagPublic(tag, makingPublic),
+      });
+    },
+    [toggleTagPublic, t]
   );
 
   const handleReparent = useCallback(
@@ -266,8 +333,8 @@ export default function TagManagementRoute() {
       try {
         await reparentTag(tagId, parentId);
         showNotification({
-          title: 'Success',
-          message: 'Tag moved',
+          title: t('common.success'),
+          message: t('tags.moved'),
           color: 'green',
         });
         // The moved tag's notes shift between merged views:
@@ -278,15 +345,21 @@ export default function TagManagementRoute() {
         await loadTags(true, { silent: true });
       } catch (error) {
         console.error('Error reparenting tag:', error);
+        captureHandledError(error, 'Tag reparent', {
+          tagId,
+          parentId,
+        });
         // The API helper surfaces the server's message (e.g.
         // a same-named sibling already exists under the
-        // target parent).
+        // target parent). textOrKey passes that raw text
+        // through while translating apiClient's catalog-key
+        // errors ('errors.forbidden' etc.).
         showNotification({
-          title: 'Error',
+          title: t('common.error'),
           message:
             error instanceof Error
-              ? error.message
-              : 'Failed to move tag',
+              ? textOrKey(error.message)
+              : t('tags.moveFailed'),
           color: 'red',
         });
       } finally {
@@ -294,7 +367,7 @@ export default function TagManagementRoute() {
         setRefreshing(false);
       }
     },
-    [loadTags]
+    [loadTags, t]
   );
 
   const closeCreateModal = useCallback(() => {
@@ -313,7 +386,7 @@ export default function TagManagementRoute() {
   // otherwise the tree renders the match as a root and the
   // hierarchy (and the path to it) is lost.
   const tagById = useMemo(
-    () => new Map(tags.map((t) => [t.id, t])),
+    () => new Map(tags.map((tag) => [tag.id, tag])),
     [tags]
   );
   // Derived counts — memoized on `tags` so rows never redo the
@@ -344,14 +417,14 @@ export default function TagManagementRoute() {
           : undefined;
       }
     }
-    return tags.filter((t) => keep.has(t.id));
+    return tags.filter((tag) => keep.has(tag.id));
   }, [tags, searchQuery, tagById]);
   const searching = searchQuery.trim().length > 0;
 
   if (initialLoading && tags.length === 0) {
     return (
       <Center style={{ height: '100vh' }}>
-        <Loader size="lg" aria-label="Loading tags" />
+        <Loader size="lg" aria-label={t('tags.loading')} />
       </Center>
     );
   }
@@ -361,13 +434,13 @@ export default function TagManagementRoute() {
       <Center style={{ height: '100vh' }}>
         <Stack align="center" spacing="sm">
           <Text color="red" size="lg">
-            Failed to load your tags.
+            {t('tags.loadFailed')}
           </Text>
           <Button
             variant="light"
             onClick={() => void loadTags(true)}
           >
-            Try again
+            {t('common.retry')}
           </Button>
         </Stack>
       </Center>
@@ -376,7 +449,7 @@ export default function TagManagementRoute() {
 
   return (
     <Box
-      p="md"
+      p={compact ? 'sm' : 'md'}
       style={{
         height: '100%',
         display: 'flex',
@@ -384,32 +457,70 @@ export default function TagManagementRoute() {
         minHeight: 0,
       }}
     >
-      <Group position="apart" mb="lg">
-        <Title order={2}>Tag Management</Title>
-        <Button
-          leftIcon={<IconPlus size={16} />}
-          onClick={handleCreateTag}
-        >
-          New Tag
-        </Button>
+      <Group position="apart" mb={compact ? 'sm' : 'lg'} noWrap>
+        <Title order={compact ? 3 : 2}>
+          {t('menu.tagManagement')}
+        </Title>
+        {compact ? (
+          <ActionIcon
+            variant="filled"
+            size="lg"
+            onClick={handleCreateTag}
+            title={t('tags.new')}
+          >
+            <IconPlus size={20} />
+          </ActionIcon>
+        ) : (
+          <Button
+            leftIcon={<IconPlus size={16} />}
+            onClick={handleCreateTag}
+          >
+            {t('tags.new')}
+          </Button>
+        )}
       </Group>
 
-      <TextInput
-        placeholder="Search tags..."
-        icon={<IconSearch size={16} />}
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.currentTarget.value)}
-        mb="md"
-        style={{ maxWidth: 400 }}
-      />
+      <Group spacing="xs" mb="md" noWrap>
+        <TextInput
+          placeholder={t('tags.searchPlaceholder')}
+          icon={<IconSearch size={16} />}
+          value={searchQuery}
+          onChange={(e) =>
+            setSearchQuery(e.currentTarget.value)
+          }
+          style={{
+            flex: 1,
+            minWidth: 0,
+            maxWidth: compact ? undefined : 400,
+          }}
+        />
+        {filteredTags.length > 0 && (
+          <>
+            <Text
+              color="dimmed"
+              size="sm"
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              {t('tags.tagCount', {
+                count: filteredTags.length,
+              })}
+              {noteTotal !== null &&
+                ` · ${t('tags.noteCount', {
+                  count: noteTotal,
+                })}`}
+            </Text>
+            {refreshing && <Loader size="xs" />}
+          </>
+        )}
+      </Group>
 
       {filteredTags.length === 0 ? (
         <Center style={{ flex: 1, minHeight: 0 }}>
           <Stack align="center" spacing="xs">
             <Text color="dimmed">
               {searchQuery
-                ? 'No tags found matching your search'
-                : 'No tags yet'}
+                ? t('tags.noTagsSearch')
+                : t('tags.noTags')}
             </Text>
             {!searchQuery && (
               <Button
@@ -417,43 +528,31 @@ export default function TagManagementRoute() {
                 leftIcon={<IconPlus size={16} />}
                 onClick={handleCreateTag}
               >
-                Create your first tag
+                {t('tags.createFirst')}
               </Button>
             )}
           </Stack>
         </Center>
       ) : (
-        <>
-          <Group spacing="xs" mb="md">
-            <Text color="dimmed" size="sm">
-              {filteredTags.length}{' '}
-              {filteredTags.length === 1 ? 'tag' : 'tags'}
-              {noteTotal !== null &&
-                ` · ${noteTotal} ` +
-                  `${noteTotal === 1 ? 'note' : 'notes'}`}
-            </Text>
-            {refreshing && <Loader size="xs" />}
-          </Group>
-          <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto">
-            <TagTree
-              tags={filteredTags}
-              onEdit={handleEditTag}
-              onDelete={handleDeleteTag}
-              onViewNotes={handleViewNotes}
-              noteCounts={noteCounts}
-              subtreeCounts={subtreeCounts}
-              onTogglePublic={handleTogglePublic}
-              onReparent={handleReparent}
-              // Drag reparent is off while a search filter
-              // hides part of the hierarchy — the drop guards
-              // walk the FILTERED list, so a cycle through a
-              // hidden ancestor could slip past the
-              // client-side check and surface as a 400 toast.
-              reparentEnabled={!searching}
-              forceExpand={searching}
-            />
-          </ScrollArea>
-        </>
+        <ScrollArea style={{ flex: 1, minHeight: 0 }} type="auto">
+          <TagTree
+            tags={filteredTags}
+            onEdit={handleEditTag}
+            onDelete={handleDeleteTag}
+            onViewNotes={handleViewNotes}
+            noteCounts={noteCounts}
+            subtreeCounts={subtreeCounts}
+            onTogglePublic={handleTogglePublic}
+            onReparent={handleReparent}
+            // Drag reparent is off while a search filter
+            // hides part of the hierarchy — the drop guards
+            // walk the FILTERED list, so a cycle through a
+            // hidden ancestor could slip past the
+            // client-side check and surface as a 400 toast.
+            reparentEnabled={!searching}
+            forceExpand={searching}
+          />
+        </ScrollArea>
       )}
 
       <CreateTagModal

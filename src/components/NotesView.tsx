@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Select, Loader, Box } from "@mantine/core";
 import { useBibleStore } from "../store";
+import { useTranslation } from 'react-i18next';
 
 const NotesView = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const lastSelectedTagId = useBibleStore((state) => state.lastSelectedTagId);
@@ -86,8 +88,8 @@ const NotesView = () => {
   return (
     <Box p="md">
       <Select
-        label="Select a tag to view notes"
-        placeholder={loading ? "Loading tags..." : "Select a tag"}
+        label={t('notes.selectTagToView')}
+        placeholder={loading ? t('notes.loadingTags') : t('notes.selectTag')}
         value={lastSelectedTagId || undefined}
         onChange={handleTagChange}
         data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
