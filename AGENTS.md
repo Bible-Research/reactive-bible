@@ -227,9 +227,14 @@ is the agent-fixable bug queue** — anything else is deliberate:
   armed (the page is tearing down); it warns only when the
   guard refuses — guard spent or the tab is offline.
 - `reportType: user-report` — info `captureMessage` +
-  `captureFeedback` from "Report a problem" (`userReport.ts`).
-  Not an error queue item; investigated separately via the
-  fix-sentry-issue skill.
+  `captureFeedback` from "Contact developer" (`userReport.ts`,
+  `ContactModal.tsx`). Every submission also carries
+  `reportCategory: bug|feature|general`; only `bug` (plus
+  legacy untagged reports) feeds the triage queue — feature
+  and general messages are read via the user-feedback stream.
+  Anonymous senders may attach a reply `email` on the feedback
+  entry. Not an error queue item; investigated separately via
+  the fix-sentry-issue skill.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
