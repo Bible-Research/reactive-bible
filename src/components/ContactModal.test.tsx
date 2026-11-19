@@ -136,9 +136,10 @@ describe('ContactModal', () => {
       const send = vi
         .spyOn(userReport, 'sendUserReport')
         .mockReturnValue(true);
+      const onClose = vi.fn();
       const user = userEvent.setup();
       renderWithProviders(
-        <ContactModal opened onClose={noop} />
+        <ContactModal opened onClose={onClose} />
       );
 
       if (category !== 'bug') {
@@ -155,6 +156,7 @@ describe('ContactModal', () => {
       expect(send).toHaveBeenCalledWith(
         expect.objectContaining({ category })
       );
+      expect(onClose).toHaveBeenCalled();
     }
   );
 
@@ -188,9 +190,10 @@ describe('ContactModal', () => {
   it('keeps the typed note when sending fails', async () => {
     vi.spyOn(userReport, 'sendUserReport')
       .mockReturnValue(false);
+    const onClose = vi.fn();
     const user = userEvent.setup();
     renderWithProviders(
-      <ContactModal opened onClose={noop} />
+      <ContactModal opened onClose={onClose} />
     );
 
     const field = screen.getByLabelText('What went wrong?');
@@ -202,6 +205,7 @@ describe('ContactModal', () => {
     // The dialog stays open with the note intact so the user
     // can retry or copy it instead of retyping.
     expect(field).toHaveValue('do not lose this');
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('hides the email field for signed-in users', () => {

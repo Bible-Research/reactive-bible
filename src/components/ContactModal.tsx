@@ -14,10 +14,8 @@ import { useMediaQuery } from "@mantine/hooks";
 import { shallow } from "zustand/shallow";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
-import {
-  ReportCategory,
-  sendUserReport,
-} from "../utils/userReport";
+import { sendUserReport } from "../utils/userReport";
+import type { ReportCategory } from "../utils/userReport";
 import { useTranslation } from 'react-i18next';
 
 interface ContactModalProps {
