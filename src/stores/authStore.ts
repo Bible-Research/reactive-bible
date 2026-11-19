@@ -30,7 +30,51 @@ interface User {
    *  — author matching falls back to the username. */
   id?: number;
   username: string;
+  /**
+   * Publish capability (publish_note permission). Only
+   * present after `users/me/` resolved — publish UI hides
+   * when undefined rather than rendering a forbidden write.
+   */
+  can_publish?: boolean;
 }
+
+/**
+ * GET /api/v1/users/me/ — fills in `id` and `can_publish`
+ * (login/register only carry the token). Silent on failure:
+ * the user simply never sees publish UI this session.
+ * `getState`/`setState` come from the caller's own store so
+ * test store instances stay isolated; a token rotation
+ * mid-flight makes the response belong to another session,
+ * so it is dropped the way checkAuth drops stale pings.
+ */
+const fetchMe = (
+  token: string,
+  getState: () => { token: string | null },
+  setState: (partial: { user: User }) => void
+): Promise<void> => {
+  return fetch(`${API_BASE_URL}/api/v1/users/me/`, {
+    headers: { Authorization: `Token ${token}` },
+  })
+    .then(async (response) => {
+      if (!response.ok) return;
+      const data = await response.json();
+      if (getState().token !== token) return;
+      const user = data.user ?? data;
+      if (!user || typeof user.username !== 'string') return;
+      setState({
+        user: {
+          ...(typeof user.id === 'number'
+            ? { id: user.id }
+            : {}),
+          username: user.username,
+          can_publish: user.can_publish === true,
+        },
+      });
+    })
+    .catch(() => {
+      /* offline — capability UI just stays hidden */
+    });
+};
 
 export interface AuthState {
   // State
@@ -135,6 +179,12 @@ const createAuthStore = () => create<AuthState>()(
             isLoading: false,
             error: null,
           });
+          // users/me/ also supplies the canonical username
+          // + id the token response lacks — awaiting it keeps
+          // the post-login state settled for callers (and
+          // deterministic for tests); failure still resolves
+          // silently inside fetchMe.
+          await fetchMe(data.token, get, set);
         } catch (error) {
           // A classified 4xx is a credential outcome, not a
           // bug — report everything else: unclassified
@@ -270,6 +320,7 @@ const createAuthStore = () => create<AuthState>()(
             isLoading: false,
             error: null,
           });
+          await fetchMe(data.token, get, set);
         } catch (error) {
           // Same rule as login: everything but a classified
           // 4xx reaches Sentry.
@@ -384,6 +435,9 @@ const createAuthStore = () => create<AuthState>()(
             // Network failure (offline): keep the local session —
             // the next authenticated request re-validates anyway.
           });
+        // A rehydrated session also needs can_publish — the
+        // persisted blob may predate the field.
+        void fetchMe(token, get, set);
       },
     }),
     {

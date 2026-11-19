@@ -21,7 +21,10 @@
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
     "openMenu": "Atvērt izvēlni",
     "closeMenu": "Aizvērt izvēlni",
-    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām."
+    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām.",
+    "explore": "Atklāt",
+    "sharedWithMe": "Kopīgots ar mani",
+    "bookmarks": "Grāmatzīmes"
   },
   "audio": {
     "play": "Atskaņot",
@@ -184,7 +187,9 @@
     "moveToTop": "Pārvietot uz augšu",
     "noMatchingNotes": "Nav atbilstošu piezīmju",
     "verseReferences": "Pantu atsauces",
-    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem."
+    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem.",
+    "publishedNote": "Publicēta piezīme",
+    "listedInExplore": "Rādīta Explore katalogā visiem"
   },
   "tags": {
     "createNew": "Izveidot jaunu birku",
@@ -291,7 +296,9 @@
     "tagCount_other": "{{count}} birkas",
     "noteCount_zero": "{{count}} piezīmju",
     "noteCount_one": "{{count}} piezīme",
-    "noteCount_other": "{{count}} piezīmes"
+    "noteCount_other": "{{count}} piezīmes",
+    "publishedTag": "Publicēta atzīme",
+    "publishedTagLong": "Jaunas piezīmes zem šīs atzīmes pēc noklusējuma ir publicētas — redzamas Explore katalogā."
   },
   "comments": {
     "post": "Publicēt",
@@ -620,5 +627,63 @@
       "title": "Papildu: tumšais režīms, problēmu ziņojumi, Android lietotne",
       "description": "Atlikušās izvēlnes izvēles: tēmas slēdzis, problēmas ziņošana un Android lietotne."
     }
+  },
+  "sharing": {
+    "shareNote": "Kopīgot piezīmi",
+    "shareTag": "Kopīgot \"{{name}}\"",
+    "shareWith": "Kopīgot ar lietotāju",
+    "silentHint": "Ievadi lietotājvārdu. Ja šāds konts pastāv, lietotājs saņems lasīšanas piekļuvi.",
+    "usernameLabel": "Lietotājvārds",
+    "usernamePlaceholder": "Ievadi lietotājvārdu",
+    "includeDescendants": "Iekļaut piezīmes apakšatzīmēs",
+    "shareAction": "Kopīgot",
+    "shareSaved": "Kopīgošana saglabāta — piekļuve stājas spēkā, ja lietotājvārds pastāv.",
+    "shareFailed": "Neizdevās saglabāt kopīgošanu",
+    "revoke": "Atcelt",
+    "revokeFailed": "Neizdevās atcelt kopīgošanu",
+    "currentGrants": "Kopīgots ar",
+    "noGrants": "Vēl ne ar vienu nav kopīgots.",
+    "withDescendants": "ietver apakšatzīmes",
+    "tagOnly": "tikai šī atzīme",
+    "loading": "Ielādē…"
+  },
+  "copyNote": {
+    "title": "Kopēt uz manām piezīmēm",
+    "action": "Kopēt piezīmi",
+    "hint": "Nokopē šo piezīmi tavā kontā kā privātu piezīmi. Izmaiņas nesinhronizēsies atpakaļ.",
+    "targetTag": "Saglabāt zem atzīmes",
+    "copyAction": "Kopēt",
+    "copied": "Piezīme nokopēta tavā kontā",
+    "failed": "Neizdevās nokopēt piezīmi"
+  },
+  "explore": {
+    "title": "Atklāt",
+    "searchPlaceholder": "Meklēt publicētās piezīmēs…",
+    "loadFailed": "Neizdevās ielādēt publicētās piezīmes",
+    "noResults": "Meklējumam neatbilst neviena publicēta piezīme.",
+    "emptyFeed": "Vēl nekas nav publicēts.",
+    "loadMore": "Ielādēt vairāk",
+    "byAuthor": "no {{name}}"
+  },
+  "sharedWithMe": {
+    "title": "Kopīgots ar mani",
+    "loadFailed": "Neizdevās ielādēt kopīgoto saturu",
+    "tagShares": "Kopīgotās atzīmes",
+    "noteShares": "Kopīgotās piezīmes",
+    "withDescendants": "ietver apakšatzīmes",
+    "tagOnly": "tikai šī atzīme",
+    "empty": "Ar tevi vēl nekas nav kopīgots."
+  },
+  "bookmarks": {
+    "title": "Grāmatzīmes",
+    "loadFailed": "Neizdevās ielādēt grāmatzīmes",
+    "empty": "Vēl nav grāmatzīmju — saglabā piezīmi ar grāmatzīmes ikonu.",
+    "unavailable": "Šī piezīme vairs nav pieejama.",
+    "remove": "Noņemt grāmatzīmi",
+    "save": "Grāmatzīme",
+    "saved": "Piezīme saglabāta grāmatzīmēs",
+    "saveFailed": "Neizdevās saglabāt grāmatzīmi",
+    "loginToSave": "Pieslēgties, lai saglabātu piezīmi",
+    "removeFailed": "Neizdevās noņemt grāmatzīmi"
   }
 }

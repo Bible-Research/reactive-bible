@@ -245,6 +245,7 @@ const AddTagNoteModal = ({
                   editor.draft.tagId || lastSelectedTagId || "",
                 text: editor.draft.text,
                 isPublic: editor.draft.isPublic,
+                isPublished: editor.draft.isPublished,
               }
             : lastSelectedTagId
               ? { tagId: lastSelectedTagId, text: "" }

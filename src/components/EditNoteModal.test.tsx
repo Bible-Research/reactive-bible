@@ -921,7 +921,11 @@ describe('EditNoteModal Component', () => {
             '1',
             '',
             [],
-            false
+            false,
+            // can_publish may not have resolved yet — the
+            // published flag stays undefined so the server
+            // keeps the note's existing publication state.
+            undefined
           );
         });
       });

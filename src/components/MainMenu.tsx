@@ -152,6 +152,22 @@ const MainMenu = ({
           </Text>
         </Group>
 
+        {/* The published directory is public — everyone can
+            browse /explore. */}
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => {
+              void navigate('/explore');
+              onClose();
+            }}
+            sx={{ cursor: "pointer" }}
+          >
+            {t('menu.explore')}
+          </Text>
+        </Group>
+
         {/* /notes bounces anonymous visitors to /bible
             (NotesRoute), so the link is a dead end for
             them — hide it like the write affordances. */}
@@ -167,6 +183,38 @@ const MainMenu = ({
               sx={{ cursor: "pointer" }}
             >
               {t('menu.viewNotes')}
+            </Text>
+          </Group>
+        )}
+
+        {isAuthenticated && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/shared');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.sharedWithMe')}
+            </Text>
+          </Group>
+        )}
+
+        {isAuthenticated && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/bookmarks');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.bookmarks')}
             </Text>
           </Group>
         )}

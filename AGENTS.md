@@ -87,7 +87,8 @@ whose head SHA was never merged into `staging`, and the
 - `src/api/` — every backend call lives here, split by domain
   (`errors`, `structure`, `bibleStructure`, `verses`, `audio`,
   `translations`, `notes`, `tags`, `comments`, `search`,
-  `readingPositions`); `index.ts` is the barrel — always
+  `readingPositions`, `sharing`, `bookmarks`); `index.ts`
+  is the barrel — always
   import from `'../api'`, never a leaf, so
   `vi.mock('../api')` keeps intercepting.
   Note `structure.ts` is the bundled KJV verse-count lookup
@@ -145,7 +146,9 @@ whose head SHA was never merged into `staging`, and the
   verse highlighter.
 - `src/routes/` — React Router routes; canonical Bible URL is
   `/bible/JHN.3.16-18` (USFM refs, also legacy `/bible/:book/...`
-  redirect). `/getting-started` is a public document-style page —
+  redirect). `/explore` is the anonymous-safe published
+  directory; `/shared` + `/bookmarks` are ProtectedRoutes.
+  `/getting-started` is a public document-style page —
   its pathname is whitelisted for `overflow: auto` in `App.tsx`.
 - `src/data/` — static typed content catalogues, e.g.
   `gettingStartedVideos.ts` (the /getting-started video list —
@@ -193,7 +196,14 @@ whose head SHA was never merged into `staging`, and the
   a future settings toggle only writes that one field.
 - Auth: token persisted via authStore; `authenticatedFetch` is for
   user-owned resources (notes, tags, comments), `publicFetch` for
-  bible content.
+  bible content. Login/register/checkAuth then fetch
+  `users/me/` for `id` + `can_publish` — publish UI only
+  renders when that flag is true.
+- Sharing: `public` stays link visibility; `published` is
+  the `/explore` directory flag (implies `public`, needs
+  `can_publish`); `ShareModal` handles targeted username
+  grants (silent resolution — never enumerate users);
+  `/shared` and `/bookmarks` are ProtectedRoutes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract

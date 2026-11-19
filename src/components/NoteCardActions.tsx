@@ -1,4 +1,5 @@
 import type { MouseEvent, ReactNode } from "react";
+import { useState } from "react";
 import {
   ActionIcon,
   Box,
@@ -14,12 +15,22 @@ import {
   IconShare,
   IconEdit,
   IconTrash,
+  IconBookmark,
+  IconCopy,
+  IconUserPlus,
 } from "@tabler/icons-react";
 import { Note } from "../types";
 import { useAuthStore } from "../stores/authStore";
 import { toPlainText } from "../utils/tiptapContent";
 import { shareOrCopyLink } from "../utils/share";
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from "react-router-dom";
+import { showNotification } from "@mantine/notifications";
+import { bookmarkNote } from "../api";
+import { textOrKey } from "../i18n/errorText";
+import { captureHandledError } from "../utils/errorReporter";
+import ShareModal from "./ShareModal";
+import CopyNoteModal from "./CopyNoteModal";
 
 interface NoteCardActionsProps {
   note: Note;
@@ -66,6 +77,8 @@ const NoteCardActions = ({
   const isAuthenticated = useAuthStore(
     (state) => state.isAuthenticated
   );
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
 
   const firstVerse = note.verses?.[0]?.verse || 1;
   const book = note.verses?.[0]?.book || "";
@@ -81,6 +94,45 @@ const NoteCardActions = ({
   const canEdit = isAuthenticated && ownsNote && !!onEdit;
   const canDelete = isAuthenticated && ownsNote && !!onDelete;
   const canShare = note.public;
+  // Targeted sharing is owner-only; bookmark + copy apply to
+  // any note the caller can read (public link, published,
+  // shared-with-me, or their own).
+  const canShareTargeted = isAuthenticated && ownsNote;
+  // Bookmark/copy target OTHER users' accessible notes —
+  // the backend 400s own-note bookmarks and copies, so the
+  // affordances hide when ownership is known.
+  const canBookmark = isAuthenticated && !ownsNote;
+  const canCopy = isAuthenticated && !ownsNote;
+  // Anonymous readers get a login CTA in place of the
+  // save/copy controls, carrying the current URL so login
+  // lands them back on this note.
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleBookmark = async () => {
+    try {
+      await bookmarkNote(note.id);
+      // POST is idempotent — repeat clicks save nothing new,
+      // so the same toast is honest either way.
+      showNotification({
+        title: t('common.success'),
+        message: t('bookmarks.saved'),
+        color: 'green',
+      });
+    } catch (error) {
+      captureHandledError(error, 'Note bookmark', {
+        noteId: note.id,
+      });
+      showNotification({
+        title: t('common.error'),
+        message:
+          error instanceof Error
+            ? textOrKey(error.message)
+            : t('bookmarks.saveFailed'),
+        color: 'red',
+      });
+    }
+  };
   // Verse-less notes never enter the audio playlist
   // (buildNotePlaylistItems filters them out), so clicking
   // "play from here" would silently no-op — disable instead.
@@ -162,6 +214,66 @@ const NoteCardActions = ({
           </Box>
         </Tooltip>
       )}
+      {!isAuthenticated && (
+        <Tooltip label={t('bookmarks.loginToSave')} position="top">
+          <Box component="span" sx={{ display: 'inline-block' }}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={() =>
+                void navigate('/login', {
+                  state: { from: location },
+                })
+              }
+              aria-label="login-to-save"
+            >
+              <IconBookmark size={16} />
+            </ActionIcon>
+          </Box>
+        </Tooltip>
+      )}
+      {canBookmark && (
+        <Tooltip label={t('bookmarks.save')} position="top">
+          <Box component="span" sx={{ display: 'inline-block' }}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={() => void handleBookmark()}
+              aria-label="bookmark-note"
+            >
+              <IconBookmark size={16} />
+            </ActionIcon>
+          </Box>
+        </Tooltip>
+      )}
+      {canCopy && (
+        <Tooltip label={t('copyNote.action')} position="top">
+          <Box component="span" sx={{ display: 'inline-block' }}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={() => setCopyModalOpen(true)}
+              aria-label="copy-note"
+            >
+              <IconCopy size={16} />
+            </ActionIcon>
+          </Box>
+        </Tooltip>
+      )}
+      {canShareTargeted && (
+        <Tooltip label={t('sharing.shareWith')} position="top">
+          <Box component="span" sx={{ display: 'inline-block' }}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={() => setShareModalOpen(true)}
+              aria-label="share-note-targeted"
+            >
+              <IconUserPlus size={16} />
+            </ActionIcon>
+          </Box>
+        </Tooltip>
+      )}
       {canEdit && (
         <Tooltip label={t('notes.edit')} position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
@@ -226,6 +338,21 @@ const NoteCardActions = ({
             </Button>
           </Box>
         </Tooltip>
+      )}
+      {canShareTargeted && (
+        <ShareModal
+          opened={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          kind="note"
+          resourceId={note.id}
+        />
+      )}
+      {canCopy && (
+        <CopyNoteModal
+          opened={copyModalOpen}
+          onClose={() => setCopyModalOpen(false)}
+          note={note}
+        />
       )}
     </Group>
   );
