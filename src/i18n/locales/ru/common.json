@@ -637,7 +637,7 @@
   "settings": {
     "title": "Настройки",
     "noteRefTranslation": "Перевод ссылок в заметках",
-    "noteRefHint": "Перевод ссылок в заметках.",
+    "noteRefHint": "Превью ссылок — этот перевод.",
     "followSelected": "Выбранный перевод",
     "pinSpecific": "Определённый перевод",
     "change": "Изменить",

@@ -545,7 +545,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v10 with a
+management. The main store (`bible-storage`, schema v11 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -711,7 +711,7 @@ persist(
   (set, get) => ({ /* state and actions */ }),
   {
     name: 'bible-storage',
-    version: 10,
+    version: 11,
     storage: createJSONStorage(() => localStorage),
     partialize: /* in stores/bibleStore/persistence.ts */,
     migrate: migratePersistedState,
@@ -1649,7 +1649,7 @@ different text and audio formats for each.
   scroll horizontally on narrow screens; a no-op on desktop.
 - **Per-language memory**: Save records the pick under
   `lastSelectionByLanguage[language_iso]` (persisted,
-  `bible-storage` v10). Switching back to a language re-stages
+  `bible-storage` v10+). Switching back to a language re-stages
   the remembered version — verbatim text/audio ids — once its
   translation list merges, but only when no active-owner
   mirror applied and the user has not picked a version in

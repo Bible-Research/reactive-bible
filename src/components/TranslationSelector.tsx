@@ -245,16 +245,71 @@ const TranslationSelector = ({
     shallow
   );
 
+  /**
+   * Resolves the translation owning the seed selection — the
+   * pin (else the reader's text fileset) in pick mode, else
+   * the audio-then-text owner. A text-only pin must never
+   * seed from the reader's AUDIO owner: pin=NIV with
+   * audio=ESV would land on 'eng' while the pin lives in
+   * another language. Reads fileset ids straight from the
+   * store so it also works during the first render.
+   */
+  const resolveSeedOwner = (
+    persisted: Translation[],
+  ): Translation | null => {
+    const {
+      activeAudioFilesetId: audioId,
+      activeTextFilesetId: textId,
+    } = useBibleStore.getState();
+    const primaryId = pickTextOnly
+      ? seedFilesetId ?? textId
+      : audioId;
+    const secondaryId = pickTextOnly ? null : textId;
+    return (
+      findTranslationByFilesetId(primaryId, persisted) ??
+      findTranslationByFilesetId(secondaryId, persisted)
+    );
+  };
+
   // Local state for selections within the modal
   const [selectedTranslationAbbr, setSelectedTranslationAbbr] =
     useState<string | null>(null);
+  // Controlled mounts seed the language synchronously: the
+  // [opened]-keyed seeding effect runs only after first
+  // paint, so starting on the 'eng' default would fire a
+  // stray 'eng' translations request (plus paint the wrong
+  // tab for a frame) before the seed lands. Uncontrolled
+  // mounts keep 'eng' — the trigger's openModal seeds
+  // synchronously before opening.
+  const [seedOwner] = useState(() =>
+    isControlled
+      ? resolveSeedOwner(useBibleStore.getState().translations)
+      : null,
+  );
+  const seedIsFixedTab =
+    seedOwner !== null &&
+    LANGUAGES.some((l) => l.value === seedOwner.language_iso);
+  const seedOtherLabel =
+    seedOwner !== null && !seedIsFixedTab
+      ? seedOwner.language || seedOwner.language_iso
+      : null;
   // Language tab plus the Other-tab pick: `otherIso` is the
   // DBT iso the user chose in the language search Select and
   // `otherLanguageName` its display name (tab relabel).
-  const [tab, setTab] = useState<LanguageTab>('eng');
-  const [otherIso, setOtherIso] = useState<string | null>(null);
+  const [tab, setTab] = useState<LanguageTab>(() =>
+    seedOwner === null
+      ? 'eng'
+      : seedIsFixedTab
+        ? (seedOwner.language_iso as LanguageTab)
+        : 'other',
+  );
+  const [otherIso, setOtherIso] = useState<string | null>(
+    seedOwner !== null && !seedIsFixedTab
+      ? seedOwner.language_iso
+      : null,
+  );
   const [otherLanguageName, setOtherLanguageName] =
-    useState<string | null>(null);
+    useState<string | null>(seedOtherLabel);
   const [languageQuery, setLanguageQuery] = useState('');
   const [languageOptions, setLanguageOptions] = useState<
     LanguageOption[]
@@ -310,8 +365,10 @@ const TranslationSelector = ({
     useDebouncedValue(languageQuery, 300);
   // Label of the picked language — Mantine refills the search
   // input with it after a selection; the search effect skips
-  // that echo so it doesn't fire a redundant request.
-  const pickedLanguageLabelRef = useRef<string | null>(null);
+  // that echo so it doesn't fire a redundant request. A
+  // controlled mount seeds it like `seedLanguage` does.
+  const pickedLanguageLabelRef =
+    useRef<string | null>(seedOtherLabel);
 
   /**
    * Selects a version and derives the text/audio selections:
@@ -468,26 +525,12 @@ const TranslationSelector = ({
   };
 
   /**
-   * Seeds the language tab from the stored selection — the
-   * pin (`seedFilesetId`) in pick mode, else the audio-then-
-   * text owner. A text-only pin must never seed from the
-   * reader's AUDIO owner: pin=NIV with audio=ESV would land
-   * on 'eng' while the pin lives in another language.
+   * Seeds the language tab from the stored selection —
+   * `resolveSeedOwner` applies the pin-then-text /
+   * audio-then-text preference order.
    */
   const seedTabFromSelection = () => {
-    const owner = pickTextOnly
-      ? findTranslationByFilesetId(
-          seedFilesetId ?? activeTextFilesetId,
-          translations,
-        )
-      : findTranslationByFilesetId(
-          activeAudioFilesetId,
-          translations,
-        ) ??
-        findTranslationByFilesetId(
-          activeTextFilesetId,
-          translations,
-        );
+    const owner = resolveSeedOwner(translations);
     if (owner) {
       seedLanguage(owner.language_iso, owner.language);
     } else {
@@ -679,21 +722,19 @@ const TranslationSelector = ({
     // per-tab fetch loop stays as a fallback for the rare case
     // the owner isn't persisted yet.
     const seedLanguageTab = async () => {
-      const {
-        activeAudioFilesetId: audioId,
-        activeTextFilesetId: textId,
-        translations: persisted,
-      } = useBibleStore.getState();
+      const state = useBibleStore.getState();
       // Pick mode skips the audio-owner preference entirely —
       // a text-only pin seeds from the pin (else the reader's
       // text fileset), never the audio owner.
       const primaryId = pickTextOnly
-        ? seedFilesetId ?? textId
-        : audioId;
-      const secondaryId = pickTextOnly ? null : textId;
-      const persistedOwner =
-        findTranslationByFilesetId(primaryId, persisted) ??
-        findTranslationByFilesetId(secondaryId, persisted);
+        ? seedFilesetId ?? state.activeTextFilesetId
+        : state.activeAudioFilesetId;
+      const secondaryId = pickTextOnly
+        ? null
+        : state.activeTextFilesetId;
+      const persistedOwner = resolveSeedOwner(
+        state.translations,
+      );
       if (persistedOwner) {
         if (!cancelled && !userInteractedRef.current) {
           // Fixed-tab isos select their tab; anything else
@@ -898,7 +939,11 @@ const TranslationSelector = ({
     if (!rememberedTranslation) return;
     setSelectedTranslationAbbr(remembered.abbr);
     setSelectedTextId(remembered.textId);
-    setSelectedAudioId(remembered.audioId);
+    // Pick mode is text-only — staging the remembered
+    // audioId would be inert there anyway.
+    if (!pickTextOnly) {
+      setSelectedAudioId(remembered.audioId);
+    }
     // A remembered audio-only version may carry a borrowed
     // same-language text — surface its owner like a fresh
     // pick does.

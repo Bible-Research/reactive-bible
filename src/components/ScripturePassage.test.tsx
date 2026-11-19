@@ -55,6 +55,48 @@ describe('ScripturePassage', () => {
       expect(seen[0]).toBe('RUSSYN');
     });
 
+  it('resolves the display-name book to USFM before ' +
+    'picking a testament member', async () => {
+      // reference.book is a DISPLAY name ('John') — without
+      // the toUsfmCode hop, getTestament('John') is null and a
+      // testament-split product id collapses to its OT member.
+      const esv = {
+        abbr: 'ENGESV',
+        name: 'English Standard Version',
+        language: 'English',
+        language_iso: 'eng',
+        filesets: [
+          {
+            id: 'ENGESVO_ET',
+            type: 'text_plain' as const,
+            size: 'OT',
+            codec: null,
+            bitrate: null,
+          },
+          {
+            id: 'ENGESVN_ET',
+            type: 'text_plain' as const,
+            size: 'NT',
+            codec: null,
+            bitrate: null,
+          },
+        ],
+      };
+      const seen = captureFilesetIds();
+      renderWithProviders(
+        <ScripturePassage reference={jhn316} />,
+        {
+          storeOverrides: {
+            translations: [esv],
+            activeTextFilesetId: 'ENGESV:text:1',
+          },
+        }
+      );
+
+      await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+      expect(seen[0]).toBe('ENGESVN_ET');
+    });
+
   it('renders every heading anchored before the same verse',
     async () => {
       // Sentry 158512450: ESV Psalm 18 returns both the
