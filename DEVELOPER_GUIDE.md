@@ -2169,6 +2169,45 @@ const load = async () => {
 };
 ```
 
+#### Note Translations (per-card language UX)
+
+Notes are mixed-language; the backend detects each note's
+`source_language` and machine-translates into the configured
+targets. The frontend contract:
+
+- **Payload**: every note carries `source_language`,
+  `served_language` (what `note_text` actually is), and a
+  `translations` metadata list (`language`, `status` =
+  pending/ready/failed/source, `verified`, `engine`, `error`).
+- **`?lang=`**: `GET /notes/` and `GET /notes/<id>/` accept a
+  `lang` param; a `ready` row's text swaps into `note_text`,
+  misses fall back to the original (never 404).
+- **`useNoteTranslation`** (`src/hooks/useNoteTranslation.ts`)
+  drives the card UX: a `SegmentedControl` per card offers
+  source + ready/pending languages; switching issues ONE
+  `?lang=` refetch cached in a session `Map` keyed by
+  note id + `updated_at` + lang; a failed fetch keeps the
+  last-good text and raises a localized notification — the
+  original is never silently substituted. A `pending` row
+  schedules exactly one delayed refetch; `failed` rows offer
+  an owner-only retry (`POST /notes/<id>/retranslate/`).
+- **Verification**: owners can mark a `ready` translation
+  verified (`POST|DELETE /notes/<id>/translations/<lang>/
+  verify/`); readers see a "Verified by author" chip. Fresh
+  machine output always resets verification server-side.
+- **Peek**: "Show original" toggles the source-language text
+  inline without changing the language selection.
+- **Preferences**: `preferredNoteLanguage` (persisted, null =
+  follow `uiLanguage`) seeds the per-card default;
+  `autoTranslateNotes` (persisted, default ON, the MainMenu
+  "Auto-translate notes" switch) gates the whole feature —
+  OFF means no `?lang=` request is ever issued and no
+  translation controls render.
+- **Types/API**: `NoteTranslationMeta` in `src/types.ts`;
+  `getNote(id, lang)`, `getNotes(..., {lang})`,
+  `setNoteTranslationVerified`, `retranslateNote` in
+  `src/api/notes.ts`.
+
 ### 7. Theme System
 
 **Location**: `src/App.tsx`
