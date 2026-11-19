@@ -246,6 +246,7 @@ stay eager because they serve the landing path.
 | `/bible/:book/:chapterVerse` | `LegacyBibleRedirect` | → canonical ref |
 | `/search` | `SearchRoute` | Search (`?q=`) |
 | `/getting-started` | `GettingStartedRoute` | Video tutorials |
+| `/settings` | `SettingsRoute` | Device-local preferences |
 | `/notes` | `NotesRoute` | → default tag |
 | `/notes/tag/:tagId` | `TagNotesRoute` | Tag notes (`untagged`) |
 | `/notes/:noteId` | `NoteDetailRoute` | Note detail (public) |
@@ -262,6 +263,7 @@ src/routes/
 ├── index.tsx              # Route table + lazy boundaries
 ├── BibleRoute.tsx         # USFM ref parsing → store sync
 ├── GettingStartedRoute.tsx# Embedded video tutorials
+├── SettingsRoute.tsx      # Device-local preferences
 ├── LegacyBibleRedirect.tsx# /bible/:book/:chapterVerse → canonical
 ├── NotesRoute.tsx         # Tag load + redirect
 ├── TagNotesRoute.tsx      # Tag notes list (pagination, reorder)
@@ -571,6 +573,13 @@ auth lives in a separate persisted `authStore`.
   LastLanguageSelection>` - Last saved translation pick per
   `language_iso` (`{ abbr, textId, audioId }`); the selector
   re-stages it when the language is revisited
+- `noteRefFilesetId: string | null` - Optional pin for
+  note-reference surfaces (`@…` previews and linked-verse
+  text in note dialogs). `null` follows
+  `activeTextFilesetId`; consumers read it via
+  `useNoteRefFilesetId()`. Set from `/settings` through
+  `TranslationSelector`'s `pickTextOnly` mode — the reader's
+  own filesets are never written.
 
 **Structure State** (SWR slice in
 `src/stores/bibleStore/structureSlice.ts`, TRANSIENT — not in
@@ -1647,6 +1656,16 @@ different text and audio formats for each.
   that language this session. A remembered version missing
   from the fetched list falls back to the no-memory behavior;
   Cancel never touches the record.
+- **Pick-only mode**: the selector doubles as a controlled
+  text-fileset picker (`opened`, `onClose`, `seedFilesetId`,
+  `onPickText`, `pickTextOnly`) — used by `/settings` to pin
+  the note-reference translation. Every audio surface
+  (the audio radios and the Advanced raw-fileset audio
+  radios) is hidden, seeding follows `seedFilesetId`
+  (falling back to the active text fileset) rather than the
+  audio-owner preference, and Save reports the picked text
+  id through `onPickText` — it never writes
+  `activeTextFilesetId`/`activeAudioFilesetId`.
 - All data fetching is now driven by a `filesetId` instead of a simple version
   string.
 
@@ -2066,7 +2085,10 @@ Create and organize notes with tags for Bible verses.
 - `VerseTextGroups.tsx` renders the shared verse-preview
   grouping (book/chapter divider + numbered verses) used by
   the add/edit modals; grouping itself is `groupVerseTexts`
-  in `src/hooks/useVerseTexts.ts`.
+  in `src/hooks/useVerseTexts.ts`. Both modals feed the hook
+  the `useNoteRefFilesetId()` value, so linked-verse text
+  follows the `/settings` pin (or the active translation
+  when unpinned).
 - `NoteCard` headings (`src/utils/noteHeading.ts`): verse-less
   notes show the tag name; notes spanning chapters render a
   cross-chapter range (e.g. `John 3:16–5:1`) — never a
@@ -2538,6 +2560,8 @@ auth rows, "Check for updates" (native shell only), sharing.
 "View Notes", "New Note", and "Tag Management" only render for
 authenticated users — `/notes` redirects anonymous visitors to
 `/bible`, so the menu must not offer a dead-end link.
+"Settings" is ungated — it only writes device-local
+preferences — and navigates to the public `/settings` page.
 
 #### `MyHeader.tsx`
 Top header bar with controls.
@@ -2912,8 +2936,12 @@ Modal for selecting Bible translations.
 - `PassagePicker.tsx` - book/chapter/verse picker embedded in
   note modals (click toggles, shift-click ranges)
 - `ScripturePassage.tsx` - renders `@USFM.C[.V]` mention
-  previews; its expanded mode lists the whole chapter with
-  selectable verses
+  previews in the text fileset from `useNoteRefFilesetId()`
+  (the `/settings` pin, else the active reader translation,
+  resolved per testament via `resolveTextFileset` on the
+  reference's USFM code — `ENGESV_API` is only the
+  last-resort fallback); its expanded mode lists the whole
+  chapter with selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
   read-only rendering (lazy chunk)
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +

@@ -142,11 +142,15 @@ whose head SHA was never merged into `staging`, and the
 - `src/hooks/useBookName.ts` — `useBookName`/`useActiveStructure`
   store subscriptions for the display-name layer.
 - `src/hooks/` — audio playlist, media session, keep-alive,
-  verse highlighter.
+  verse highlighter, `useNoteRefFilesetId` (the shared
+  pinned-or-active fileset for note-reference surfaces).
 - `src/routes/` — React Router routes; canonical Bible URL is
   `/bible/JHN.3.16-18` (USFM refs, also legacy `/bible/:book/...`
-  redirect). `/getting-started` is a public document-style page —
-  its pathname is whitelisted for `overflow: auto` in `App.tsx`.
+  redirect). `/getting-started` and `/settings` are public
+  document-style pages — their pathnames are whitelisted for
+  `overflow: auto` in `App.tsx`. Settings holds device-local
+  preferences (persisted store fields, no auth), reachable
+  from the main menu for anonymous and signed-in users.
 - `src/data/` — static typed content catalogues, e.g.
   `gettingStartedVideos.ts` (the /getting-started video list —
   a card renders only when `youtubeIds` resolves an id for the
@@ -169,6 +173,21 @@ whose head SHA was never merged into `staging`, and the
 - `fileset_id` selects the provider server-side: `ENGKJV` (bundled
   `src/assets/kjv.json`, offline, audio from wordpocket.org),
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.
+- Note-reference surfaces — `@…` previews in
+  `ScripturePassage` and linked-verse text in the note
+  dialogs (`useVerseTexts`) — resolve their text fileset via
+  `useNoteRefFilesetId()`: the persisted `noteRefFilesetId`
+  pin when set, else `activeTextFilesetId`. `ScripturePassage`
+  then runs `resolveTextFileset(id, toUsfmCode(book) ?? book,
+  translations)` — `reference.book` is a display name, so the
+  USFM map keeps testament-split ids correct — with `ENGKJV`
+  a bundled fast-path and `ENGESV_API` the last-resort
+  fallback. `/settings` pins the override through
+  `TranslationSelector`'s controlled `pickTextOnly` mode
+  (`opened`/`onClose`/`seedFilesetId`/`onPickText`): it hides
+  every audio control, seeds from `seedFilesetId` (falling
+  back to the active text fileset), and never writes
+  `activeTextFilesetId`/`activeAudioFilesetId`.
 - Verse selection is scoped: `{ scope: 'bible' | 'note:<id>',
   refs: VerseRef[] }` — a `VerseRef` is `{ bookId, chapter, verse }`.
 - Backend errors carry `error`/`error_code`/`message`;
