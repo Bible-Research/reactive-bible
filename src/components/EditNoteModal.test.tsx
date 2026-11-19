@@ -345,6 +345,7 @@ describe('EditNoteModal Component', () => {
       expect(fetchNotes).toHaveBeenCalledWith('1', {
         ordering: '-created_at',
         page: 3,
+        includeDescendants: false,
       });
       expect(onClose).toHaveBeenCalled();
     });
@@ -405,6 +406,7 @@ describe('EditNoteModal Component', () => {
       expect(fetchNotes).toHaveBeenCalledWith('1', {
         ordering: 'verse',
         page: 2,
+        includeDescendants: false,
       });
     });
 
@@ -485,6 +487,7 @@ describe('EditNoteModal Component', () => {
       expect(fetchNotes).toHaveBeenCalledWith('1', {
         ordering: 'created_at',
         page: 2,
+        includeDescendants: false,
       });
     });
   });
@@ -543,6 +546,7 @@ describe('EditNoteModal Component', () => {
       expect(fetchNotes).toHaveBeenCalledWith('1', {
         ordering: '-created_at',
         page: 3,
+        includeDescendants: false,
       });
       expect(onClose).toHaveBeenCalled();
     });
@@ -603,6 +607,7 @@ describe('EditNoteModal Component', () => {
       expect(fetchNotes).toHaveBeenCalledWith('1', {
         ordering: 'verse',
         page: 2,
+        includeDescendants: false,
       });
     });
 
