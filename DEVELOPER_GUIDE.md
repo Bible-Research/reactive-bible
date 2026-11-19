@@ -404,6 +404,16 @@ npm test -- src/routes/BibleRoute.test.tsx
   sharing — write affordances are `isAuthenticated`-gated
 - `/notes/:noteId` - Single note detail view; public for sharing
 
+**Sharing Routes** (✅ Implemented):
+- `/explore` - The published directory: `published=true`
+  notes feed + debounced `q` search; anonymous-safe like
+  `/notes` (published notes are public)
+- `/shared` - "Shared with me": direct note grants plus
+  `tag_shares` rows linking into the shared tag's note page;
+  `ProtectedRoute`
+- `/bookmarks` - Saved notes; `available=false` rows render
+  as removable stale pointers; `ProtectedRoute`
+
 **Tag Routes** (✅ Implemented):
 - `/tags` - Tag management; wrapped in `ProtectedRoute`
   (anonymous visitors redirect to `/login`)
@@ -422,6 +432,14 @@ npm test -- src/routes/BibleRoute.test.tsx
 - `NoteDetailRoute` - Single note detail view
 - `TagManagementRoute` - Tag CRUD behind `ProtectedRoute`
 - `SearchRoute` - Book-grouped search results accordion
+- `ExploreRoute` - Published feed + directory search
+- `SharedWithMeRoute` - Notes/tags other users granted
+- `BookmarksRoute` - Saved-note list with stale-row cleanup
+- `ShareModal` - Targeted username sharing (silent
+  resolution — "if that username exists" copy; tag shares
+  carry an include-descendants checkbox)
+- `CopyNoteModal` - Copy-to-my-account with a target-tag
+  picker reusing `TagCombobox`
 
 ### Route Implementation Details
 
@@ -747,6 +765,9 @@ export interface Tag {
   public: boolean;            // notes under it are shareable;
                               // also the default publicity for
                               // new notes under the tag
+  published?: boolean;        // new notes default to the
+                              // Explore directory; requires
+                              // publish_note to write
   note_count?: number;        // direct notes only; absent on
                               // older backends
   created_at: string;
@@ -771,6 +792,10 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  published?: boolean;        // listed in the Explore
+                              // directory; implies public
+  author?: CommentAuthor;     // {id, username} attribution
+  copied_from?: string | null;// provenance — owner-only
   is_owner: boolean;
   created_at: string;
   updated_at: string;
@@ -2081,6 +2106,35 @@ Create and organize notes with tags for Bible verses.
   `note.is_owner === true`; clipboard share falls back to
   `execCommand` on non-secure contexts
   (`src/utils/clipboard.ts`)
+- Sharing/bookmark controls on note cards: the bookmark
+  icon saves any readable note (a "Log in to save" CTA
+  replaces it for anonymous readers, carrying the return
+  path), the copy icon opens `CopyNoteModal`, and an
+  owner-only user icon opens `ShareModal`
+
+**Sharing model** (add-note-sharing):
+- `public` is link visibility — unchanged: anyone with the
+  URL can read a public note.
+- `published` is directory visibility — published notes
+  appear on `/explore` (feed + `q` search) for everyone.
+  Publishing requires the `publish_note` permission
+  (`user.can_publish`, populated by `users/me/` after
+  login/register/checkAuth) and implies `public`; clearing
+  `public` clears `published`. In NoteForm the published
+  checkbox forces + locks the public one, and tag editing
+  offers a matching `setTagPublished` switch — both render
+  only when `can_publish` is true; without the flag the
+  form leaves `published` undefined so the server inherits
+  the tag's value.
+- Targeted sharing grants a username read access to a note
+  or a tag (optionally its subtree). Username resolution is
+  silent server-side, so `ShareModal`'s copy is honest:
+  "if that username exists, they'll get access".
+- Bookmarks (`/bookmarks`) persist read access pointers —
+  a note that later goes private/deleted renders as a
+  removable stale row.
+- Copy (`CopyNoteModal`) forks a readable note into the
+  caller's account as a private copy (no sync back).
 
 **Workflow**:
 1. User selects one or more verses by clicking them

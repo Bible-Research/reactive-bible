@@ -33,6 +33,7 @@ import {
 import { TagTree } from '../components/TagTree';
 import { CreateTagModal } from '../components/CreateTagModal';
 import { EditTagModal } from '../components/EditTagModal';
+import ShareModal from '../components/ShareModal';
 import { useBibleStore } from '../store';
 import { clearNotesCache } from '../utils/cacheManager';
 import { buildTagTree, TagNode } from '../utils/tagTree';
@@ -91,6 +92,7 @@ export default function TagManagementRoute() {
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [sharingTag, setSharingTag] = useState<Tag | null>(null);
   // Total note count shown next to the tag count — `null`
   // until fetched (and stays null if the fetch fails, in
   // which case the summary just omits it).
@@ -234,6 +236,10 @@ export default function TagManagementRoute() {
     },
     [deleteTag, tags, t]
   );
+
+  const handleShareTag = useCallback((tag: Tag) => {
+    setSharingTag(tag);
+  }, []);
 
   const handleEditTag = useCallback((tag: Tag) => {
     setEditingTag(tag);
@@ -538,6 +544,7 @@ export default function TagManagementRoute() {
           <TagTree
             tags={filteredTags}
             onEdit={handleEditTag}
+            onShare={handleShareTag}
             onDelete={handleDeleteTag}
             onViewNotes={handleViewNotes}
             noteCounts={noteCounts}
@@ -568,6 +575,14 @@ export default function TagManagementRoute() {
         onSuccess={refreshTagsSilently}
         tag={editingTag}
         existingTags={tags}
+      />
+
+      <ShareModal
+        opened={!!sharingTag}
+        onClose={() => setSharingTag(null)}
+        kind="tag"
+        resourceId={sharingTag?.id ?? ''}
+        resourceName={sharingTag?.name}
       />
     </Box>
   );

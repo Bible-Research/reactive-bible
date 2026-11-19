@@ -22,6 +22,13 @@ const TagManagementRoute = lazyWithReload(
   () => import('./TagManagementRoute')
 );
 const SearchRoute = lazyWithReload(() => import('./SearchRoute'));
+const ExploreRoute = lazyWithReload(() => import('./ExploreRoute'));
+const SharedWithMeRoute = lazyWithReload(
+  () => import('./SharedWithMeRoute')
+);
+const BookmarksRoute = lazyWithReload(
+  () => import('./BookmarksRoute')
+);
 const GettingStartedRoute = lazyWithReload(
   () => import('./GettingStartedRoute')
 );
@@ -74,6 +81,28 @@ export function AppRoutes() {
         <Route
           path="/bible/:book/:chapterVerse"
           element={<LegacyBibleRedirect />}
+        />
+
+        {/* Published directory - public like /notes */}
+        <Route path="/explore" element={<ExploreRoute />} />
+
+        {/* Sharing inbox + saved notes - account-owned data,
+            so anonymous visitors go to /login */}
+        <Route
+          path="/shared"
+          element={
+            <ProtectedRoute>
+              <SharedWithMeRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookmarks"
+          element={
+            <ProtectedRoute>
+              <BookmarksRoute />
+            </ProtectedRoute>
+          }
         />
 
         {/* Notes routes - public for viewing, protected for private notes */}

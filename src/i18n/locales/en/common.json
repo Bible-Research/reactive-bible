@@ -22,6 +22,9 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "gettingStartedHint": "Watch short video tutorials on the app's features.",
+    "explore": "Explore",
+    "sharedWithMe": "Shared with me",
+    "bookmarks": "Bookmarks",
     "autoTranslateNotes": "Auto-translate notes",
     "autoTranslateNotesHint": "Show machine translations when a note is in another language."
   },
@@ -192,6 +195,8 @@
     "noMatchingNotes": "No matching notes",
     "verseReferences": "Verse references",
     "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions.",
+    "publishedNote": "Published note",
+    "listedInExplore": "Listed in the Explore directory for everyone",
     "translation": {
       "language": "Note language",
       "autoTranslated": "Auto-translated",
@@ -305,7 +310,9 @@
     "tagCount_one": "{{count}} tag",
     "tagCount_other": "{{count}} tags",
     "noteCount_one": "{{count}} note",
-    "noteCount_other": "{{count}} notes"
+    "noteCount_other": "{{count}} notes",
+    "publishedTag": "Published tag",
+    "publishedTagLong": "New notes under this tag default to published — listed in the Explore directory."
   },
   "comments": {
     "post": "Post",
@@ -658,5 +665,63 @@
   },
   "copyright": {
     "prefix": "Copyright: {{text}}"
+  },
+  "sharing": {
+    "shareNote": "Share note",
+    "shareTag": "Share \"{{name}}\"",
+    "shareWith": "Share with a user",
+    "silentHint": "Enter a username. If that account exists, the user will get read access.",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "Enter username",
+    "includeDescendants": "Include notes in sub-tags",
+    "shareAction": "Share",
+    "shareSaved": "Share saved — access applies if the username exists.",
+    "shareFailed": "Could not save the share",
+    "revoke": "Revoke",
+    "revokeFailed": "Could not revoke the share",
+    "currentGrants": "Shared with",
+    "noGrants": "Not shared with anyone yet.",
+    "withDescendants": "includes sub-tags",
+    "tagOnly": "this tag only",
+    "loading": "Loading…"
+  },
+  "copyNote": {
+    "title": "Copy to my notes",
+    "action": "Copy note",
+    "hint": "Copies this note into your account as a private note. Edits won’t sync back.",
+    "targetTag": "Save under tag",
+    "copyAction": "Copy",
+    "copied": "Note copied to your account",
+    "failed": "Could not copy the note"
+  },
+  "explore": {
+    "title": "Explore",
+    "searchPlaceholder": "Search published notes…",
+    "loadFailed": "Could not load published notes",
+    "noResults": "No published notes match your search.",
+    "emptyFeed": "Nothing published yet.",
+    "loadMore": "Load more",
+    "byAuthor": "by {{name}}"
+  },
+  "sharedWithMe": {
+    "title": "Shared with me",
+    "loadFailed": "Could not load shared content",
+    "tagShares": "Shared tags",
+    "noteShares": "Shared notes",
+    "withDescendants": "includes sub-tags",
+    "tagOnly": "this tag only",
+    "empty": "Nothing has been shared with you yet."
+  },
+  "bookmarks": {
+    "title": "Bookmarks",
+    "loadFailed": "Could not load bookmarks",
+    "empty": "No bookmarks yet — save a note with the bookmark icon.",
+    "unavailable": "This note is no longer accessible.",
+    "remove": "Remove bookmark",
+    "save": "Bookmark",
+    "saved": "Note saved to bookmarks",
+    "saveFailed": "Could not save the bookmark",
+    "loginToSave": "Log in to save this note",
+    "removeFailed": "Could not remove the bookmark"
   }
 }

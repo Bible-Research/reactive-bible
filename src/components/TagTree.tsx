@@ -25,6 +25,7 @@ import {
   IconGripVertical,
   IconTag,
   IconTrash,
+  IconUserPlus,
   IconWorld,
   IconWorldOff,
 } from '@tabler/icons-react';
@@ -74,6 +75,9 @@ interface TagTreeProps {
   /** Cascade publicity toggle — the route confirms and POSTs
    *  set-public before this resolves. */
   onTogglePublic?: (tag: Tag) => void;
+  /** Targeted-share affordance — opens the route's
+   *  ShareModal for this tag. */
+  onShare?: (tag: Tag) => void;
   /**
    * Drag-onto-node reparent — fires only after the drop
    * guards (self / same-parent / descendant) pass. The
@@ -114,6 +118,7 @@ interface TagTreeNodeProps {
   onDelete: (tagId: string, tagName: string) => void;
   onViewNotes: (tagId: string) => void;
   onTogglePublic?: (tag: Tag) => void;
+  onShare?: (tag: Tag) => void;
 }
 
 /**
@@ -140,6 +145,7 @@ const TagTreeNode = ({
   onDelete,
   onViewNotes,
   onTogglePublic,
+  onShare,
 }: TagTreeNodeProps) => {
   const { t } = useTranslation();
   const theme = useMantineTheme();
@@ -367,6 +373,18 @@ const TagTreeNode = ({
                         : t('tags.makePublic')}
                     </Menu.Item>
                   )}
+                  {onShare && (
+                    <Menu.Item
+                      icon={<IconUserPlus size={16} />}
+                      title={t('sharing.shareWith')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onShare(node.tag);
+                      }}
+                    >
+                      {t('sharing.shareWith')}
+                    </Menu.Item>
+                  )}
                   <Menu.Item
                     icon={<IconEdit size={16} />}
                     title={t('tags.edit')}
@@ -461,6 +479,27 @@ const TagTreeNode = ({
                 </ActionIcon>
               </Tooltip>
 
+              {isAuthenticated && onShare && (
+                <Tooltip
+                  label={t('sharing.shareWith')}
+                  position="top"
+                  disabled={!tooltipsEnabled}
+                >
+                  <ActionIcon
+                    size="lg"
+                    variant="subtle"
+                    color="gray"
+                    title={t('sharing.shareWith')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShare(node.tag);
+                    }}
+                  >
+                    <IconUserPlus size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+
               {isAuthenticated && (
                 <>
                   <Tooltip
@@ -530,6 +569,7 @@ const TagTreeNode = ({
                 onDelete={onDelete}
                 onViewNotes={onViewNotes}
                 onTogglePublic={onTogglePublic}
+                onShare={onShare}
               />
             ))}
           </Stack>
@@ -617,6 +657,7 @@ export function TagTree({
   noteCounts = {},
   subtreeCounts = {},
   onTogglePublic,
+  onShare,
   onReparent,
   reparentEnabled = false,
   forceExpand = false,
@@ -765,6 +806,7 @@ export function TagTree({
             onDelete={onDelete}
             onViewNotes={onViewNotes}
             onTogglePublic={onTogglePublic}
+            onShare={onShare}
           />
         ))}
       </Stack>

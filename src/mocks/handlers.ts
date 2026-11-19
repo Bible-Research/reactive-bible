@@ -474,6 +474,126 @@ export const handlers = [
   }),
 
   // --- Single note (GET/PATCH/DELETE) ---
+  // --- Note sharing / bookmarks / published directory ---
+
+  // `?published=true` (optionally with `q`) returns the same
+  // paginated envelope — the in-memory list is enough for
+  // MSW-driven tests.
+  http.get(`${API_URL}/notes/shared-with-me/`, () =>
+    HttpResponse.json({
+      notes: [mockNote],
+      tag_shares: [
+        {
+          id: mockTag.id,
+          name: mockTag.name,
+          include_descendants: true,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    })
+  ),
+
+  http.get(`${API_URL}/notes/bookmarks/`, () =>
+    HttpResponse.json([
+      {
+        note_id: mockNote.id,
+        available: true,
+        created_at: new Date().toISOString(),
+        note: mockNote,
+      },
+      {
+        note_id: 'note-gone',
+        available: false,
+        created_at: new Date().toISOString(),
+      },
+    ])
+  ),
+
+  http.post(`${API_URL}/notes/:noteId/bookmark/`, () =>
+    HttpResponse.json({ saved: true }, { status: 201 })
+  ),
+
+  http.delete(
+    `${API_URL}/notes/:noteId/bookmark/`,
+    () => new HttpResponse(null, { status: 204 })
+  ),
+
+  http.post(`${API_URL}/notes/:noteId/share/`, () =>
+    HttpResponse.json({ shared: true })
+  ),
+
+  http.get(`${API_URL}/notes/:noteId/shares/`, () =>
+    HttpResponse.json([
+      {
+        shared_with: 'friend',
+        created_at: new Date().toISOString(),
+      },
+    ])
+  ),
+
+  http.delete(
+    `${API_URL}/notes/:noteId/share/:username/`,
+    () => new HttpResponse(null, { status: 204 })
+  ),
+
+  http.post(`${API_URL}/notes/:noteId/copy/`, ({ params }) =>
+    HttpResponse.json(
+      {
+        ...mockNote,
+        id: 'note-copy',
+        copied_from: String(params.noteId),
+        public: false,
+      },
+      { status: 201 }
+    )
+  ),
+
+  http.post(`${API_URL}/tags/:tagId/share/`, () =>
+    HttpResponse.json({ shared: true })
+  ),
+
+  http.get(`${API_URL}/tags/:tagId/shares/`, () =>
+    HttpResponse.json([
+      {
+        shared_with: 'friend',
+        include_descendants: true,
+        created_at: new Date().toISOString(),
+      },
+    ])
+  ),
+
+  http.delete(
+    `${API_URL}/tags/:tagId/share/:username/`,
+    () => new HttpResponse(null, { status: 204 })
+  ),
+
+  http.post(
+    `${API_URL}/tags/:tagId/set-published/`,
+    async ({ request }) => {
+      const body = (await request.json()) as {
+        published?: boolean;
+      };
+      return HttpResponse.json({
+        tag: { ...mockTag, published: body.published },
+        notes_updated: 1,
+      });
+    }
+  ),
+
+  http.post(`${API_URL}/tags/:tagId/copy/`, () =>
+    HttpResponse.json({ copied: 1, notes: [mockNote] })
+  ),
+
+  // Login/register/checkAuth all probe users/me/ for
+  // can_publish after the sharing feature shipped.
+  http.get(`${API_URL}/users/me/`, () =>
+    HttpResponse.json({
+      id: 1,
+      username: 'testuser',
+      can_publish: true,
+    })
+  ),
+
   // `?lang=lv` swaps note_text to the ready translation and
   // reports it via served_language; any other lang falls
   // back to the original (mirrors the backend contract).

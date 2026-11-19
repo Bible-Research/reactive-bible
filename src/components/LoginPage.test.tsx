@@ -130,7 +130,13 @@ describe('LoginPage', () => {
     const auth = useAuthStore.getState();
     expect(auth.token).toBe('test-token');
     expect(auth.isAuthenticated).toBe(true);
-    expect(auth.user).toEqual({ id: 1, username: 'testuser' });
+    expect(auth.user).toEqual({
+      // users/me/ resolves during login — its canonical
+      // profile adds the publish capability flag.
+      id: 1,
+      username: 'testuser',
+      can_publish: true,
+    });
   });
 
   it('should show a success notification after login', async () => {

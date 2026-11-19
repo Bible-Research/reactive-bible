@@ -476,6 +476,7 @@ const EditNoteModal = ({ opened, onClose, note }: EditNoteModalProps) => {
               // and counts as already-touched — switching tag
               // must not silently flip publicity.
               isPublic: note.public,
+              isPublished: note.published,
             }}
           />
           {!isMobile && (
