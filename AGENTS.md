@@ -461,17 +461,24 @@ Code conventions:
   blocks branches whose name contains a slash
   (`"*/**": false`) — every feature/fix branch and
   dependabot — while slash-less `main`/`staging` match no
-  rule and deploy by default. Catch-all pitfalls under
-  minimatch (verified v3 + v10): `"**"` and `"**/*"` both
-  match EVERY branch — `**/` collapses to zero segments —
-  and a matching `false` vetoed `staging` despite a named
-  `staging: true` (no staging deployments for 3 days; the
-  git-staging and staging-bibleresearch aliases stayed
-  pinned to a stale pre-CORS-fix bundle). `"*/**"` is the
-  only form requiring a literal `/` — never substitute the
-  look-alikes above. The config is read from the pushed
-  commit's `vercel.json`: a branch cut before this landed
-  still deploys until rebased onto a commit that has it.
+  rule and deploy by default. Glob pitfall (verified on
+  minimatch 3 + 10): `"**"`, `"*"` and `"**/*"` all match
+  slash-less names too — `**/` collapses to zero segments —
+  so `"*/**"` is the only form requiring a literal `/`.
+  The gate is read from the pushed commit's `vercel.json`
+  (probed 2026-11-19): a blocked branch gets NO deployment
+  AND NO Vercel commit status. Separately, the project's
+  dashboard-level Ignored Build Step can cancel an ALLOWED
+  push later in the pipeline — those commits show a
+  `success — Canceled by Ignored Build Step` Vercel
+  status. That step — not this file — froze staging
+  previews 2026-11-16→19 (configured after a "Deployment
+  rate limited" episode; `staging` had passed the
+  `deploymentEnabled` gate the whole time). If staging
+  previews stop again, read the merge commit's Vercel
+  status description before touching this file: no status
+  = blocked here, "Canceled by Ignored Build Step" =
+  dashboard.
   Preview builds carry no `VITE_API_BASE_URL`, so
   `src/config.ts` resolves `API_BASE_URL` to `''` on
   `*.vercel.app` hosts — same-origin `/api` fetches hit
