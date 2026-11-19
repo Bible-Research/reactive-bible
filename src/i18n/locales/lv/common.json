@@ -14,8 +14,8 @@
     "checkUpdatesHint": "Meklēt jaunāku versiju GitHub Releases.",
     "downloadAndroidApp": "Lejupielādēt Android lietotni",
     "downloadAndroidHint": "Audio atskaņošanai bloķētā ekrānā. Iespējams, pārlūkā būs jāatļauj „instalēt nezināmas lietotnes”.",
-    "reportProblem": "Ziņot par problēmu",
-    "reportProblemHint": "Pastāstiet, kas nogāja greizi — ziņojums komandai nonāk kopā ar pašreizējo pantsu.",
+    "contactDeveloper": "Sazināties ar izstrādātāju",
+    "contactDeveloperHint": "Ziņojiet par kļūdu, ieteiciet funkciju vai sūtiet komandai ziņu — pašreizējais pants tiek pievienots.",
     "theme": "Tēma",
     "language": "Valoda",
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
@@ -420,15 +420,40 @@
     "enterForChapter": "Nospiediet Enter, lai citētu visu nodaļu"
   },
   "report": {
-    "title": "Ziņot par problēmu",
-    "hint": "Pastāstiet, kas nogāja greizi — ziņojums tiek nosūtīts kopā ar pašreizējo tekstu konteksta dēļ.",
-    "label": "Kas nogāja greizi?",
-    "placeholder": "piem., nākamās nodaļas poga neko nedara, kad ekrāns ir bloķēts",
-    "submit": "Nosūtīt ziņojumu",
-    "sent": "Ziņojums nosūtīts",
-    "notSent": "Ziņojums netika nosūtīts",
-    "thanks": "Paldies — ziņojums ir ceļā.",
-    "failed": "Neizdevās nosūtīt ziņojumu. Lūdzu, mēģiniet vēlāk."
+    "categoryLabel": "Kategorija",
+    "category": {
+      "bug": "Kļūdas ziņojums",
+      "feature": "Funkcijas ieteikums",
+      "general": "Vispārīga ziņa"
+    },
+    "bug": {
+      "title": "Ziņot par problēmu",
+      "hint": "Pastāstiet, kas nogāja greizi — ziņojums tiek nosūtīts kopā ar pašreizējo tekstu konteksta dēļ.",
+      "label": "Kas nogāja greizi?",
+      "placeholder": "piem., nākamās nodaļas poga neko nedara, kad ekrāns ir bloķēts",
+      "sentTitle": "Ziņojums nosūtīts",
+      "sentMessage": "Paldies — ziņojums ir ceļā."
+    },
+    "feature": {
+      "title": "Ieteikt funkciju",
+      "hint": "Aprakstiet, ko vēlētos redzēt — pašreizējais pants tiek nosūtīts konteksta dēļ.",
+      "label": "Kas lietotnei būtu jāprot?",
+      "placeholder": "piem., ļaujiet saglabāt pantu vēlākai lasīšanai",
+      "sentTitle": "Ieteikums nosūtīts",
+      "sentMessage": "Paldies — ieteikums ir ceļā."
+    },
+    "general": {
+      "title": "Sūtīt ziņu izstrādātājam",
+      "hint": "Jautājumi, pateicības vai kas cits — pašreizējais pants tiek nosūtīts konteksta dēļ.",
+      "label": "Jūsu ziņa",
+      "placeholder": "piem., paldies par lietotni — lietoju to katru dienu",
+      "sentTitle": "Ziņa nosūtīta",
+      "sentMessage": "Paldies — jūsu ziņa ir ceļā."
+    },
+    "emailLabel": "E-pasts (nav obligāts — atbildei)",
+    "submit": "Nosūtīt",
+    "notSent": "Netika nosūtīts",
+    "failed": "Neizdevās nosūtīt ziņu. Lūdzu, mēģiniet vēlāk."
   },
   "search": {
     "title": "Meklēt Bībelē",
