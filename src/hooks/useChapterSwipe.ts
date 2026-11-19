@@ -59,8 +59,9 @@ export const useChapterSwipe = (
 ) => {
   const navigate = useNavigate();
   // The swipe Box is stable across PassageView's render
-  // branches, but these deps still re-attach on every chapter
-  // change so listener closures see fresh book/chapter state.
+  // branches, but these deps still re-attach on every
+  // chapter change — dropping an in-flight gesture so a
+  // press spanning a navigation can't fire a second swipe.
   const activeBookId = useBibleStore((state) => state.activeBookId);
   const activeChapter = useBibleStore(
     (state) => state.activeChapter
