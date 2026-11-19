@@ -34,6 +34,28 @@ export interface Verse {
   text: string;
 }
 
+/** Lifecycle of a per-language translation row. 'source' is
+ *  the metadata anchor for the note's own language — its text
+ *  stays empty; the original is served from `note_text`. */
+export type NoteTranslationStatus =
+  | 'pending'
+  | 'ready'
+  | 'failed'
+  | 'source';
+
+/**
+ * One row of the note payload's `translations` list — metadata
+ * only, never the translated text itself (that arrives via
+ * `note_text` when `?lang=` is requested).
+ */
+export interface NoteTranslationMeta {
+  language: string;
+  status: NoteTranslationStatus;
+  verified: boolean;
+  engine: string | null;
+  error: string | null;
+}
+
 export interface Note {
   id: string;
   note_text: string;
@@ -62,6 +84,19 @@ export interface Note {
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;
+  /**
+   * ISO 639-1 code detected from this note's own text. Empty/
+   * absent until the first translation run completes.
+   */
+  source_language?: string | null;
+  /**
+   * The language `note_text` actually contains in this payload
+   * — equals `source_language` unless a `?lang=` request was
+   * served a ready translation.
+   */
+  served_language?: string | null;
+  /** Per-language translation metadata (see above). */
+  translations?: NoteTranslationMeta[];
   /** Set when the provider failed to resolve verse text. */
   error?: string;
   /** 'rate_limited' | 'provider_error' — see `error`. */
