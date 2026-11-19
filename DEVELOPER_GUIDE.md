@@ -134,8 +134,9 @@ reactive-bible/
 
 Optional: `VITE_API_BASE_URL` in a local `.env` overrides the
 default backend host — `src/config.ts` exports `API_BASE_URL`
-and falls back to the production App Engine host; always use
-it, never hardcode the URL. `VITE_SENTRY_DSN` (also optional)
+(`''` on `*.vercel.app` hosts, so calls stay same-origin;
+otherwise the production App Engine host); always use it,
+never hardcode the URL. `VITE_SENTRY_DSN` (also optional)
 enables Sentry error monitoring — see "Error Reporting &
 Monitoring". The app uses:
 - **Local KJV data**: `src/assets/kjv.json`, lazy-loaded on demand
@@ -181,9 +182,11 @@ The app is configured for deployment on **Vercel**:
   elimination.
 - Hashed `/assets/*` are served `Cache-Control: public,
   max-age=31536000, immutable`; `index.html` keeps default
-  no-cache. Preview deploys and the Android APK still call
-  the appspot host directly — `index.html` carries
-  preconnect/dns-prefetch hints for it. No
+  no-cache. Preview deploys resolve `API_BASE_URL` to `''`
+  and call `/api` same-origin on whatever alias is browsed;
+  the Android APK still calls the appspot host directly —
+  `index.html` carries preconnect/dns-prefetch hints for
+  it. No
   `CDN-Cache-Control` anywhere: licensed Bible content must
   not be CDN-cached.
 
@@ -2958,8 +2961,8 @@ needed for navigation lives in `src/assets/bibleStructure.json`
 
 #### Bible Research API
 **Base URL**: `${API_BASE_URL}/api/v1` — `API_BASE_URL` comes
-from `src/config.ts` (`VITE_API_BASE_URL`, defaulting to the
-production App Engine host)
+from `src/config.ts` (`VITE_API_BASE_URL`, `''` on
+`*.vercel.app` hosts, else the production App Engine host)
 
 **Endpoints**:
 

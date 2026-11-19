@@ -459,17 +459,19 @@ Code conventions:
   automatically (`bible-research-git-staging-<team>
   .vercel.app`). `git.deploymentEnabled` in `vercel.json`
   blocks branches whose name contains a slash
-  (`"**/*": false`) — every feature/fix branch and
+  (`"*/**": false`) — every feature/fix branch and
   dependabot — while slash-less `main`/`staging` match no
-  rule and deploy by default. Do NOT use a bare `"**"` or
-  `"*"` catch-all with named `true` overrides: in practice
-  it vetoed `staging` too (no staging deployments for 3
-  days — the git-staging and staging-bibleresearch aliases
-  stayed pinned to a stale pre-CORS-fix bundle), despite
-  docs saying a matching `true` wins. The config is read
-  from the pushed commit's `vercel.json`: a branch cut
-  before this landed still deploys until rebased onto a
-  commit that has it.
+  rule and deploy by default. Catch-all pitfalls under
+  minimatch (verified v3 + v10): `"**"` and `"**/*"` both
+  match EVERY branch — `**/` collapses to zero segments —
+  and a matching `false` vetoed `staging` despite a named
+  `staging: true` (no staging deployments for 3 days; the
+  git-staging and staging-bibleresearch aliases stayed
+  pinned to a stale pre-CORS-fix bundle). `"*/**"` is the
+  only form requiring a literal `/` — never substitute the
+  look-alikes above. The config is read from the pushed
+  commit's `vercel.json`: a branch cut before this landed
+  still deploys until rebased onto a commit that has it.
   Preview builds carry no `VITE_API_BASE_URL`, so
   `src/config.ts` resolves `API_BASE_URL` to `''` on
   `*.vercel.app` hosts — same-origin `/api` fetches hit
