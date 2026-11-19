@@ -140,12 +140,9 @@ describe('sendUserReport', () => {
       'userReport',
       { note: 'crash', category: 'bug' },
     );
-    expect(mocked.captureFeedback).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        name: expect.anything(),
-        email: expect.anything(),
-      }),
-    );
+    const feedback = mocked.captureFeedback.mock.calls[0][0];
+    expect(feedback).not.toHaveProperty('name');
+    expect(feedback).not.toHaveProperty('email');
   });
 
   it('still reports when the feedback call throws', () => {

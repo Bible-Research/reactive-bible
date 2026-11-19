@@ -15,7 +15,7 @@
     "downloadAndroidApp": "Lejupielādēt Android lietotni",
     "downloadAndroidHint": "Audio atskaņošanai bloķētā ekrānā. Iespējams, pārlūkā būs jāatļauj „instalēt nezināmas lietotnes”.",
     "contactDeveloper": "Sazināties ar izstrādātāju",
-    "contactDeveloperHint": "Ziņojiet par kļūdu, ieteiciet funkciju vai sūtiet komandai ziņu — pašreizējais pants tiek pievienots.",
+    "contactDeveloperHint": "Ziņojiet par kļūdu, ieteiciet funkciju vai sūtiet komandai ziņu — pašreizējais teksts tiek pievienots.",
     "theme": "Tēma",
     "language": "Valoda",
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
@@ -436,7 +436,7 @@
     },
     "feature": {
       "title": "Ieteikt funkciju",
-      "hint": "Aprakstiet, ko vēlētos redzēt — pašreizējais pants tiek nosūtīts konteksta dēļ.",
+      "hint": "Aprakstiet, ko vēlētos redzēt — pašreizējais teksts tiek nosūtīts konteksta dēļ.",
       "label": "Kas lietotnei būtu jāprot?",
       "placeholder": "piem., ļaujiet saglabāt pantu vēlākai lasīšanai",
       "sentTitle": "Ieteikums nosūtīts",
@@ -444,7 +444,7 @@
     },
     "general": {
       "title": "Sūtīt ziņu izstrādātājam",
-      "hint": "Jautājumi, pateicības vai kas cits — pašreizējais pants tiek nosūtīts konteksta dēļ.",
+      "hint": "Jautājumi, pateicības vai kas cits — pašreizējais teksts tiek nosūtīts konteksta dēļ.",
       "label": "Jūsu ziņa",
       "placeholder": "piem., paldies par lietotni — lietoju to katru dienu",
       "sentTitle": "Ziņa nosūtīta",

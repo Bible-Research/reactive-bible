@@ -32,7 +32,7 @@ const modalContent = () =>
 const modalBody = () =>
   document.querySelector('.mantine-Modal-body') as HTMLElement;
 const textareaInput = () =>
-  document.querySelector('.mantine-Input-input') as HTMLElement;
+  document.querySelector('.mantine-Textarea-input') as HTMLElement;
 
 const renderOnMobile = () => {
   const { rerender } = renderWithProviders(
@@ -127,12 +127,12 @@ describe('ContactModal', () => {
     });
 
   it.each([
-    ['Bug report', 'What went wrong?', 'bug'],
-    ['Feature request', 'What should the app do?', 'feature'],
-    ['General message', 'Your message', 'general'],
+    ['Bug report', 'bug', 'What went wrong?'],
+    ['Feature request', 'feature', 'What should the app do?'],
+    ['General message', 'general', 'Your message'],
   ] as const)(
     'sends %s tagged %s',
-    async (segment, fieldLabel, category) => {
+    async (segment, category, fieldLabel) => {
       const send = vi
         .spyOn(userReport, 'sendUserReport')
         .mockReturnValue(true);
@@ -184,6 +184,25 @@ describe('ContactModal', () => {
         })
       );
     });
+
+  it('keeps the typed note when sending fails', async () => {
+    vi.spyOn(userReport, 'sendUserReport')
+      .mockReturnValue(false);
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ContactModal opened onClose={noop} />
+    );
+
+    const field = screen.getByLabelText('What went wrong?');
+    await user.type(field, 'do not lose this');
+    await user.click(
+      screen.getByRole('button', { name: 'Send' })
+    );
+
+    // The dialog stays open with the note intact so the user
+    // can retry or copy it instead of retyping.
+    expect(field).toHaveValue('do not lose this');
+  });
 
   it('hides the email field for signed-in users', () => {
     renderWithProviders(<ContactModal opened onClose={noop} />, {

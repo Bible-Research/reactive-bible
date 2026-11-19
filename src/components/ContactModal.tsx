@@ -89,8 +89,12 @@ const ContactModal = ({
         : t('report.failed'),
       color: sent ? 'green' : 'red',
     });
-    reset();
-    onClose();
+    // On failure keep the dialog open so the typed note (and
+    // reply email) survive — the user can retry or copy it.
+    if (sent) {
+      reset();
+      onClose();
+    }
   };
 
   return (
@@ -130,6 +134,7 @@ const ContactModal = ({
             label: t(`report.category.${value}`),
           }))}
           fullWidth
+          role="radiogroup"
           aria-label={t('report.categoryLabel')}
         />
         <Text size="sm" color="dimmed">
