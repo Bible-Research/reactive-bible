@@ -470,11 +470,16 @@ Code conventions:
   from the pushed commit's `vercel.json`: a branch cut
   before this landed still deploys until rebased onto a
   commit that has it.
-  Preview builds self-configure
-  `VITE_API_BASE_URL` to their own deployment domain via
-  `VERCEL_URL` (see `vite.config.ts`), so `/api` rewrites
-  work with zero dashboard config, and Sentry reports
-  `environment: 'preview'` — no env-var changes needed.
+  Preview builds carry no `VITE_API_BASE_URL`, so
+  `src/config.ts` resolves `API_BASE_URL` to `''` on
+  `*.vercel.app` hosts — same-origin `/api` fetches hit
+  the vercel.json rewrites on whichever alias is browsed
+  (deployment URL, branch alias, custom domain). Never
+  bake `VERCEL_URL` in: it is the immutable per-deployment
+  URL and forced cross-origin calls that fail CORS
+  preflight (#274). Sentry reports `environment:
+  'preview'` via the baked `VERCEL_ENV` — no env-var
+  changes needed.
 - Requests carrying `Authorization` bypass the edge cache by
   design — authenticated traffic only gains preflight
   elimination.
