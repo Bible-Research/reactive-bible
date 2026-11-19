@@ -7,6 +7,7 @@ import {
   TagPagination,
   PlaylistItem,
   AudioActiveVerse,
+  LastLanguageSelection,
   VerseRef,
   VerseScope,
   VerseSelection,
@@ -89,6 +90,17 @@ export interface BibleState {
   translations: Translation[];
   activeTextFilesetId: string | null;
   activeAudioFilesetId: string | null;
+  /**
+   * Last saved translation pick per `language_iso`
+   * (persisted). TranslationSelector re-stages the
+   * remembered version when its language is revisited;
+   * an entry whose `abbr` no longer appears in the
+   * fetched list is ignored.
+   */
+  lastSelectionByLanguage: Record<
+    string,
+    LastLanguageSelection
+  >;
   tags: Tag[];
   notes: Note[];
   /**
@@ -171,6 +183,11 @@ export interface BibleState {
   setTranslations: (translations: Translation[]) => void;
   setActiveTextFilesetId: (id: string | null) => void;
   setActiveAudioFilesetId: (id: string | null) => void;
+  /** Records the last saved translation pick for a language. */
+  setLastSelectionByLanguage: (
+    languageIso: string,
+    selection: LastLanguageSelection
+  ) => void;
   fetchNotes: (
     tagId?: string,
     options?: {
@@ -237,6 +254,10 @@ export const initialState = {
   translations: [],
   activeTextFilesetId: resolveInitialTextFileset(),
   activeAudioFilesetId: "ENGESV_API",
+  lastSelectionByLanguage: {} as Record<
+    string,
+    LastLanguageSelection
+  >,
   tags: [] as Tag[],
   notes: [] as Note[],
   detailNote: null as Note | null,
@@ -349,6 +370,13 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ activeTextFilesetId }),
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
+      setLastSelectionByLanguage: (languageIso, selection) =>
+        set((state) => ({
+          lastSelectionByLanguage: {
+            ...state.lastSelectionByLanguage,
+            [languageIso]: selection,
+          },
+        })),
       // Notes orchestration (paged fetch/cache, reorder/move
       // with conflict refresh) lives in
       // stores/bibleStore/notesSlice.ts — one store, same state.

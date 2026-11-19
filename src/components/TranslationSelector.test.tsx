@@ -1257,5 +1257,293 @@ describe('TranslationSelector Component', () => {
         useBibleStore.getState().activeAudioFilesetId,
       ).toBeNull();
     });
+
+    describe('per-language memory', () => {
+      const gluk = {
+        abbr: 'LVSGLU8',
+        name: 'Latvian Glück Bible',
+        language: 'Latvian',
+        language_iso: 'lvs',
+        filesets: [
+          textFs('LVSGLU8C_ET', 'C'),
+          // DBT-shaped id — an `LVSGLU8*` prefix would group
+          // as generated TTS, not studio audio.
+          audioFs('LATGLUN1DA', 'C'),
+        ],
+      };
+
+      it('records the saved pick under its language', async () => {
+        useRealStore({
+          translations: [esv],
+          activeTextFilesetId: 'ENGESV_API',
+          activeAudioFilesetId: 'ENGESV_API',
+        });
+        (api.getAvailableTranslations as Mock).mockResolvedValue([
+          esv,
+        ]);
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Change Translation',
+          }),
+        );
+        await screen.findByRole('radio', {
+          name: 'Read aloud — Full Bible',
+        });
+        save();
+
+        expect(
+          useBibleStore.getState().lastSelectionByLanguage,
+        ).toEqual({
+          eng: {
+            abbr: 'ENGESV',
+            textId: 'ENGESV:text:1',
+            audioId: 'ENGESV:audio:1',
+          },
+        });
+      });
+
+      it('restores the remembered selection when switching ' +
+        'to a language tab', async () => {
+        useRealStore({
+          activeTextFilesetId: 'ENGESV_API',
+          activeAudioFilesetId: 'ENGESV_API',
+          lastSelectionByLanguage: {
+            lvs: {
+              abbr: 'LVSGLU8',
+              textId: 'LVSGLU8C_ET',
+              audioId: 'LATGLUN1DA',
+            },
+          },
+        });
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(
+              iso === 'lvs' ? [gluk] : engTranslations,
+            ),
+        );
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Change Translation',
+          }),
+        );
+        await screen.findByRole('radio', {
+          name: 'Read aloud — Full Bible',
+        });
+
+        await userEvent.click(
+          screen.getByRole('radio', { name: 'Latvian' }),
+        );
+
+        // The remembered Glück pick is staged once the lvs
+        // list lands — verbatim member ids included.
+        await waitFor(() => {
+          expect(
+            screen.getByPlaceholderText('Choose a version'),
+          ).toHaveValue('Latvian Glück Bible (LVSGLU8)');
+        });
+        expect(
+          screen.getByRole('radio', {
+            name: 'Read aloud — Full Bible',
+          }),
+        ).toBeChecked();
+
+        // Staged only — the active selection still applies
+        // on Save, which then writes the remembered ids.
+        save();
+        expect(
+          useBibleStore.getState().activeTextFilesetId,
+        ).toBe('LVSGLU8C_ET');
+        expect(
+          useBibleStore.getState().activeAudioFilesetId,
+        ).toBe('LATGLUN1DA');
+      });
+
+      it('restores a remembered selection on the Other ' +
+        'tab', async () => {
+        const spanish = {
+          abbr: 'SPNBDA',
+          name: 'Biblia de las Américas',
+          language: 'Spanish',
+          language_iso: 'spa',
+          filesets: [
+            textFs('SPNBDAN_ET', 'NT'),
+            audioFs('SPNBDAN1DA', 'NT'),
+          ],
+        };
+        useRealStore({
+          activeTextFilesetId: 'ENGESV_API',
+          activeAudioFilesetId: 'ENGESV_API',
+          lastSelectionByLanguage: {
+            spa: {
+              abbr: 'SPNBDA',
+              textId: 'SPNBDAN_ET',
+              audioId: null,
+            },
+          },
+        });
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(
+              iso === 'spa' ? [spanish] : engTranslations,
+            ),
+        );
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Change Translation',
+          }),
+        );
+        await userEvent.click(
+          screen.getByRole('radio', { name: 'Other' }),
+        );
+        await userEvent.type(
+          screen.getByPlaceholderText('Search languages…'),
+          'spa',
+        );
+        await userEvent.click(
+          await screen.findByText('Spanish — español'),
+        );
+
+        await waitFor(() => {
+          expect(
+            screen.getByPlaceholderText('Choose a version'),
+          ).toHaveValue('Biblia de las Américas (SPNBDA)');
+        });
+      });
+
+      it('does not update the record on cancel', async () => {
+        useRealStore({
+          translations: [esv],
+          activeTextFilesetId: 'ENGESV_API',
+          activeAudioFilesetId: 'ENGESV_API',
+          lastSelectionByLanguage: {
+            eng: {
+              abbr: 'ENGCSB',
+              textId: null,
+              audioId: 'ENGCSB:audio:1',
+            },
+          },
+        });
+        (api.getAvailableTranslations as Mock).mockResolvedValue(
+          engTranslations,
+        );
+        render(<TranslationSelector />);
+        await openAndPickVersion(
+          'Christian Standard Bible (ENGCSB)',
+        );
+
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Cancel' }),
+        );
+
+        // Browsing and cancelling must leave the record
+        // untouched.
+        expect(
+          useBibleStore.getState().lastSelectionByLanguage.eng,
+        ).toEqual({
+          abbr: 'ENGCSB',
+          textId: null,
+          audioId: 'ENGCSB:audio:1',
+        });
+      });
+
+      it('ignores a remembered version missing from the ' +
+        'fetched list', async () => {
+        useRealStore({
+          activeTextFilesetId: 'ENGESV_API',
+          activeAudioFilesetId: 'ENGESV_API',
+          lastSelectionByLanguage: {
+            lvs: {
+              abbr: 'GONE',
+              textId: 'STALE',
+              audioId: null,
+            },
+          },
+        });
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(
+              iso === 'lvs' ? [gluk] : engTranslations,
+            ),
+        );
+        render(<TranslationSelector />);
+        fireEvent.click(
+          screen.getByRole('button', {
+            name: 'Change Translation',
+          }),
+        );
+        await screen.findByRole('radio', {
+          name: 'Read aloud — Full Bible',
+        });
+
+        await userEvent.click(
+          screen.getByRole('radio', { name: 'Latvian' }),
+        );
+
+        // The lvs fetch landed but 'GONE' is absent — the
+        // picker keeps the no-memory empty state.
+        await waitFor(() => {
+          expect(
+            useBibleStore.getState().translations,
+          ).toContainEqual(gluk);
+        });
+        expect(
+          screen.getByPlaceholderText('Choose a version'),
+        ).toHaveValue('');
+        expect(
+          screen.getByRole('button', { name: 'Save' }),
+        ).toBeDisabled();
+      });
+
+      it('lets a fresh user pick win over the remembered ' +
+        'entry', async () => {
+        // No owning translation for the stored ids — no
+        // active-owner mirror, so the remembered eng pick
+        // would be the only thing staged.
+        useRealStore({
+          activeTextFilesetId: 'STALE_ID',
+          activeAudioFilesetId: null,
+          lastSelectionByLanguage: {
+            eng: {
+              abbr: 'ENGWEB',
+              textId: 'ENGWEBN_ET',
+              audioId: null,
+            },
+          },
+        });
+        (api.getAvailableTranslations as Mock).mockImplementation(
+          (iso: string) =>
+            Promise.resolve(
+              iso === 'lvs' ? [gluk] : engTranslations,
+            ),
+        );
+        render(<TranslationSelector />);
+        await openAndPickVersion(
+          'Christian Standard Bible (ENGCSB)',
+        );
+
+        // The remembered ENGWEB entry never reasserts itself
+        // after the user picked — switching away and back
+        // leaves the picker empty rather than resurrecting it.
+        await userEvent.click(
+          screen.getByRole('radio', { name: 'Latvian' }),
+        );
+        await waitFor(() => {
+          expect(
+            useBibleStore.getState().translations,
+          ).toContainEqual(gluk);
+        });
+        await userEvent.click(
+          screen.getByRole('radio', { name: 'English' }),
+        );
+        await waitFor(() => {
+          expect(
+            screen.getByPlaceholderText('Choose a version'),
+          ).toHaveValue('');
+        });
+      });
+    });
   });
 });

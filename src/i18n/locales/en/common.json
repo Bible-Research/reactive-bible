@@ -14,8 +14,8 @@
     "checkUpdatesHint": "Look for a newer build on GitHub Releases.",
     "downloadAndroidApp": "Download Android App",
     "downloadAndroidHint": "For lock-screen audio playback. You may need to allow \"install unknown apps\" for your browser.",
-    "reportProblem": "Report a problem",
-    "reportProblemHint": "Tell us what went wrong — it goes to the team with your current passage.",
+    "contactDeveloper": "Contact developer",
+    "contactDeveloperHint": "Report a bug, request a feature, or send the team a message — your current passage goes along.",
     "theme": "Theme",
     "language": "Language",
     "languageLoadFailed": "Could not load the selected language — keeping the current one.",
@@ -122,6 +122,13 @@
     "linkedNotes": "Linked notes",
     "linkedCount_one": "{{count}} linked note",
     "linkedCount_other": "{{count}} linked notes",
+    "linkedVerses": "Linked verses",
+    "collapseEditor": "Collapse editor",
+    "expandEditor": "Expand editor",
+    "autoSaveOn": "Auto save on",
+    "autoSaveOff": "Auto save off",
+    "privateOnlyYou": "Private — only you can view",
+    "tryReloading": "Try reloading in a few moments.",
     "toggleNoteDetails": "Toggle note details",
     "submitChanges": "Submit changes",
     "saveFailed": "Failed to save note. Please try again.",
@@ -387,7 +394,9 @@
     "blockquote": "Blockquote",
     "linkUrlLabel": "Enter URL",
     "linkOpenNewTab": "Open link in a new tab",
-    "linkOpenSameTab": "Open link in the same tab"
+    "linkOpenSameTab": "Open link in the same tab",
+    "increaseIndent": "Increase indent",
+    "decreaseIndent": "Decrease indent"
   },
   "pagination": {
     "label": "Pagination",
@@ -479,15 +488,40 @@
     "tapToSelect": "Tap a verse to select it"
   },
   "report": {
-    "title": "Report a problem",
-    "hint": "Tell us what went wrong — the report is sent with your current passage for context.",
-    "label": "What went wrong?",
-    "placeholder": "e.g. The next-chapter button does nothing when the screen is locked",
-    "submit": "Send report",
-    "sent": "Report sent",
-    "notSent": "Report not sent",
-    "thanks": "Thanks — the report is on its way.",
-    "failed": "Could not send the report. Please try again later."
+    "categoryLabel": "Category",
+    "category": {
+      "bug": "Bug report",
+      "feature": "Feature request",
+      "general": "General message"
+    },
+    "bug": {
+      "title": "Report a problem",
+      "hint": "Tell us what went wrong — the report is sent with your current passage for context.",
+      "label": "What went wrong?",
+      "placeholder": "e.g. The next-chapter button does nothing when the screen is locked",
+      "sentTitle": "Report sent",
+      "sentMessage": "Thanks — the report is on its way."
+    },
+    "feature": {
+      "title": "Request a feature",
+      "hint": "Describe what you'd like to see — your current passage is sent for context.",
+      "label": "What should the app do?",
+      "placeholder": "e.g. Let me save a verse for later",
+      "sentTitle": "Request sent",
+      "sentMessage": "Thanks — the request is on its way."
+    },
+    "general": {
+      "title": "Message the developer",
+      "hint": "Questions, thanks, or anything else — your current passage is sent for context.",
+      "label": "Your message",
+      "placeholder": "e.g. Thanks for building this — I use it every day",
+      "sentTitle": "Message sent",
+      "sentMessage": "Thanks — your message is on its way."
+    },
+    "emailLabel": "Email (optional — for a reply)",
+    "submit": "Send",
+    "notSent": "Not sent",
+    "failed": "Could not send the message. Please try again later."
   },
   "errors": {
     "title": "Error",

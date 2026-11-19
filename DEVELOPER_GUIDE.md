@@ -134,8 +134,9 @@ reactive-bible/
 
 Optional: `VITE_API_BASE_URL` in a local `.env` overrides the
 default backend host — `src/config.ts` exports `API_BASE_URL`
-and falls back to the production App Engine host; always use
-it, never hardcode the URL. `VITE_SENTRY_DSN` (also optional)
+(`''` on `*.vercel.app` hosts, so calls stay same-origin;
+otherwise the production App Engine host); always use it,
+never hardcode the URL. `VITE_SENTRY_DSN` (also optional)
 enables Sentry error monitoring — see "Error Reporting &
 Monitoring". The app uses:
 - **Local KJV data**: `src/assets/kjv.json`, lazy-loaded on demand
@@ -153,7 +154,10 @@ The app is configured for deployment on **Vercel**:
 2. **Build settings** (auto-detected):
    - Build Command: `npm run build`
    - Output Directory: `dist`
-3. **Deploy** - Vercel will automatically deploy on push to main branch
+3. **Deploy** - Vercel automatically deploys on push to
+   `main` (production) and `staging` (preview); every other
+   branch is blocked by `git.deploymentEnabled` in
+   `vercel.json`
 
 **Analytics & Monitoring**:
 - Vercel Analytics and Speed Insights are automatically enabled in production
@@ -181,11 +185,12 @@ The app is configured for deployment on **Vercel**:
   elimination.
 - Hashed `/assets/*` are served `Cache-Control: public,
   max-age=31536000, immutable`; `index.html` keeps default
-  no-cache. Preview deploys and the Android APK still call
-  the appspot host directly — `index.html` carries
-  preconnect/dns-prefetch hints for it. No
-  `CDN-Cache-Control` anywhere: licensed Bible content must
-  not be CDN-cached.
+  no-cache. Preview deploys resolve `API_BASE_URL` to `''`
+  and call `/api` same-origin on whatever alias is browsed;
+  the Android APK still calls the appspot host directly —
+  `index.html` carries preconnect/dns-prefetch hints for it.
+  No `CDN-Cache-Control` anywhere: licensed Bible content
+  must not be CDN-cached.
 
 ---
 
@@ -543,7 +548,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v8 with a
+management. The main store (`bible-storage`, schema v10 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -567,6 +572,10 @@ auth lives in a separate persisted `authStore`.
   or member; resolve via `resolveTextFileset` before use)
 - `activeAudioFilesetId: string | null` - Stored audio id
   (`{abbr}:{kind}:{n}` product or member)
+- `lastSelectionByLanguage: Record<string,
+  LastLanguageSelection>` - Last saved translation pick per
+  `language_iso` (`{ abbr, textId, audioId }`); the selector
+  re-stages it when the language is revisited
 
 **Structure State** (SWR slice in
 `src/stores/bibleStore/structureSlice.ts`, TRANSIENT — not in
@@ -698,7 +707,7 @@ persist(
   (set, get) => ({ /* state and actions */ }),
   {
     name: 'bible-storage',
-    version: 7,
+    version: 10,
     storage: createJSONStorage(() => localStorage),
     partialize: /* in stores/bibleStore/persistence.ts */,
     migrate: migratePersistedState,
@@ -1429,7 +1438,7 @@ languages: English (`en`), Latvian (`lv`), Russian (`ru`).
 ### Language selection
 
 - `uiLanguage: UiLanguage` is persisted in `bible-storage`
-  (store schema v7+; `setUiLanguage` writes it and calls
+  (store schema v9+; `setUiLanguage` writes it and calls
   `changeUiLanguage`). The MainMenu selector lists autonyms
   (English / Latviešu / Русский) which are intentionally
   never translated.
@@ -1634,6 +1643,15 @@ different text and audio formats for each.
 - The tab bar is wrapped in a `ScrollArea` (`min-width:
   max-content`, `white-space: nowrap` labels) so the four tabs
   scroll horizontally on narrow screens; a no-op on desktop.
+- **Per-language memory**: Save records the pick under
+  `lastSelectionByLanguage[language_iso]` (persisted,
+  `bible-storage` v10). Switching back to a language re-stages
+  the remembered version — verbatim text/audio ids — once its
+  translation list merges, but only when no active-owner
+  mirror applied and the user has not picked a version in
+  that language this session. A remembered version missing
+  from the fetched list falls back to the no-memory behavior;
+  Cancel never touches the record.
 - All data fetching is now driven by a `filesetId` instead of a simple version
   string.
 
@@ -2769,6 +2787,61 @@ Form for creating/editing notes.
 - `onDraftChange` reports live contents so the editor hook's
   draft store can restore an in-progress note after reopen
 
+On mobile (`max-width: 768px`) the three host modals
+(`AddStandaloneNoteModal`, `AddTagNoteModal`, `EditNoteModal`)
+pass `fillHeight`: their `styles` make the fullscreen modal's
+`content`/`body` a bounded flex column, the form fills it via
+`min-height: 100%`, and `RichTextEditor`'s `fillHeight` prop
+turns the TipTap content chain (`root` →
+`typographyStylesProvider` → `content` → `.ProseMirror`) into a
+`flex: 1` column that scrolls internally — a document-editor
+surface occupying the whole viewport between the tag picker
+and the sticky submit bar. Sections after the form (verse
+texts, linked notes, the verse picker) scroll below the fold.
+Mobile chrome in that mode follows the Google Docs pattern:
+the formatting toolbar stays pinned (`position: sticky` on
+`.mantine-RichTextEditor-toolbar`, applied on desktop too so
+it survives the modal's own scroll), the tag row collapses on
+scroll-down and returns on scroll-up (a capture-phase
+`scroll` listener in `NoteForm` — scroll events don't bubble,
+so capture is required to see the ProseMirror's internal
+scroller; elements marked `data-note-form-static` and an open
+tag dropdown are ignored), and the action bar becomes a
+single icon row (submit ✓, attach-image with count badge,
+autosave toggle, public/lock toggle) whose icons carry
+touch-enabled tooltips (`events.touch`) so a tap or hold
+labels each one; the desktop bar with text buttons and
+checkboxes is unchanged. Modals may also
+pass `trayLabel`/`trayCount`/`trayContent` to render a
+collapsible tray above the action bar — the linked verses:
+`AddTagNoteModal` passes `VerseTextGroups` (plus the
+`linkedNotesList` section), `EditNoteModal` passes the
+`PassagePicker` + verse texts (its desktop collapsible
+section is `!isMobile`-gated, and the shared JSX lives in
+`versesSection`). The tray panel scrolls internally
+(`max-height: 45vh`). The mobile modal's `body` is a bounded
+flex column and the form `flex: 1` with its own
+`overflowY: auto`, so `.content` NEVER scrolls — critical
+because Mantine's sticky modal header (`z-index: 1000`)
+would otherwise cover the sticky formatting toolbar's first
+row; the toolbar itself is `nowrap` + `overflowX: auto` (a
+single scrollable line). The header carries no heading — the
+`title` slot holds a collapse `ActionIcon` right-aligned via
+`styles.title`; collapsing sets `body: display:none`,
+`content: height:auto`, `overlay: display:none` and releases
+`lockScroll`/`trapFocus`, leaving a thin bar (expand chevron
++ X) over the still-interactive Bible. The fullscreen modal
+content is sized with `height: 100dvh` — not the Mantine
+default `100vh`: on Android the `vh` unit ignores the
+browser/system chrome, so the modal's bottom edge (the
+sticky action bar and the ProseMirror's scroll boundary)
+could sit under the navigation buttons and hide the caret.
+`100dvh` tracks the dynamically visible height, and
+`padding-bottom: env(safe-area-inset-bottom)` lifts the
+scrollport above a system bar in edge-to-edge WebViews —
+`index.html` therefore carries `viewport-fit=cover`, without
+which `env(safe-area-inset-*)` is always 0.
+
 Typing `@` in the editor opens a passage picker that inserts a
 `@USFM.C.V[-E]` reference token; a book+chapter with no verse
 is also a complete ref — `@PSA.18` is a valid whole-chapter
@@ -2915,7 +2988,9 @@ Modal for selecting Bible translations.
 - Audio product selection (radio buttons, including "None")
 - Collapsed Advanced section with raw fileset radios
   (debugging; opus16 variants hidden)
-- Save selections to Zustand store (product ids)
+- Save selections to Zustand store (product ids) — also
+  records `lastSelectionByLanguage` so the language's last
+  saved pick is re-staged on revisit
 
 **Features**:
 - Segmented control for language switching
@@ -2939,7 +3014,11 @@ Modal for selecting Bible translations.
   previews; its expanded mode lists the whole chapter with
   selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
-  read-only rendering (lazy chunk)
+  read-only rendering (lazy chunk); block indentation comes
+  from `src/extensions/indent.ts` (a `data-indent` attr →
+  `margin-left` on paragraphs/headings, sink/lift inside
+  lists) with toolbar buttons in the note variant and the
+  same margin applied in `RichTextView`'s renderer
 - `CommentThread.tsx` + `CommentNode.tsx` + `CommentForm.tsx` +
   `CommentActions.tsx` + `CommentImageGrid.tsx` +
   `Lightbox.tsx` - threaded comments with image upload
@@ -2997,8 +3076,8 @@ needed for navigation lives in `src/assets/bibleStructure.json`
 
 #### Bible Research API
 **Base URL**: `${API_BASE_URL}/api/v1` — `API_BASE_URL` comes
-from `src/config.ts` (`VITE_API_BASE_URL`, defaulting to the
-production App Engine host)
+from `src/config.ts` (`VITE_API_BASE_URL`, `''` on
+`*.vercel.app` hosts, else the production App Engine host)
 
 **Endpoints**:
 
@@ -4403,20 +4482,25 @@ surface as the transport layer:
   audio terminal failures — extras carry fileset + passage),
   `native-bridge` (warning, Capacitor bridge calls — expected
   on web), `resource-load` (warning, missing assets),
-  `user-report` (info, "Report a problem"), `app-update`
+  `user-report` (info, "Contact developer"), `app-update`
   (info, sideload updater: `updateStep` `download-opened` /
   `installed`). `errorKind` refines which kind of failure an
   exception was (`network` today).
-- **User reports:** the main menu's "Report a problem" row
-  (always visible) opens `ReportProblemModal`, where the user
-  describes the issue. `sendUserReport`
+- **User reports:** the main menu's "Contact developer" row
+  (always visible) opens `ContactModal`, where the user picks
+  a category — Bug report (default), Feature request, or
+  General message — and writes the note; anonymous users also
+  get an optional reply-email field. `sendUserReport`
   (`src/utils/userReport.ts`) captures a `user report` message
-  tagged `reportType: user-report` — the note, reporter's
-  username (when logged in) and current passage
+  tagged `reportType: user-report` +
+  `reportCategory: bug|feature|general` — the note, category,
+  reporter's username (when logged in) and current passage
   (book/chapter/filesets) sit in the `userReport` context —
-  plus a user-feedback event linked via `associatedEventId`,
-  which also lists each report in Sentry's User Feedback view.
-  Query: `message:"user report"` or `reportType:user-report`.
+  plus a user-feedback event with the same tags (and the email
+  when given) linked via `associatedEventId`, which also lists
+  each report in Sentry's User Feedback view. Query:
+  `message:"user report"` or `reportType:user-report`; triage
+  narrows to `reportCategory:bug` + legacy untagged events.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
   (replays only for errored sessions, `maskAllText` +

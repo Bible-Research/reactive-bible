@@ -16,7 +16,7 @@ import {
   IconMoonStars,
   IconBrandAndroid,
   IconRefresh,
-  IconBug,
+  IconMail,
   IconRocket,
 } from "@tabler/icons-react";
 import { Suspense, useEffect, useState } from "react";
@@ -41,8 +41,8 @@ import { UserMenu } from "./UserMenu";
 const AddStandaloneNoteModal = lazyWithReload(
   () => import("./AddStandaloneNoteModal")
 );
-const ReportProblemModal = lazyWithReload(
-  () => import("./ReportProblemModal")
+const ContactModal = lazyWithReload(
+  () => import("./ContactModal")
 );
 
 // Fallback while the newest versioned asset URL is resolved
@@ -70,7 +70,7 @@ const MainMenu = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
-  const [reportOpened, setReportOpened] = useState(false);
+  const [contactOpened, setContactOpened] = useState(false);
   // The stable-name continuous asset is deleted + re-uploaded on
   // every publish — resolve the freshest versioned APK instead
   // so the link can never hand out a truncated file.
@@ -282,7 +282,7 @@ const MainMenu = ({
         </Group>
 
         <Group spacing="xs" align="flex-start" noWrap>
-          <IconBug
+          <IconMail
             size={22}
             style={{ marginTop: 4, flexShrink: 0 }}
           />
@@ -290,14 +290,14 @@ const MainMenu = ({
             <Text
               weight={500}
               size="lg"
-              onClick={() => setReportOpened(true)}
+              onClick={() => setContactOpened(true)}
               sx={{ cursor: "pointer" }}
-              title={t('menu.reportProblem')}
+              title={t('menu.contactDeveloper')}
             >
-              {t('menu.reportProblem')}
+              {t('menu.contactDeveloper')}
             </Text>
             <Text size="xs" color="dimmed">
-              {t('menu.reportProblemHint')}
+              {t('menu.contactDeveloperHint')}
             </Text>
           </div>
         </Group>
@@ -369,11 +369,11 @@ const MainMenu = ({
           />
         </Suspense>
       )}
-      {reportOpened && (
+      {contactOpened && (
         <Suspense fallback={null}>
-          <ReportProblemModal
-            opened={reportOpened}
-            onClose={() => setReportOpened(false)}
+          <ContactModal
+            opened={contactOpened}
+            onClose={() => setContactOpened(false)}
           />
         </Suspense>
       )}
