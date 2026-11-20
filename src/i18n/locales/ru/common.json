@@ -24,6 +24,13 @@
     "gettingStartedHint": "Посмотрите короткие видеоуроки о возможностях приложения.",
     "autoTranslateNotes": "Автоперевод заметок",
     "autoTranslateNotesHint": "Показывать машинный перевод, если заметка на другом языке."
+,    "stagingChecklist": "Что в staging",
+    "stagingChecklistHint": "PR в staging, ждут проверки.",
+    "stagingChecklistOpenPr": "Открыть на GitHub",
+    "stagingChecklistSeePr": "Шаги — см. описание PR",
+    "stagingChecklistEmpty": "Пусто — staging = продакшен.",
+    "stagingChecklistError": "Ошибка загрузки списка.",
+    "stagingChecklistCompare": "Сравнить main...staging на GitHub"
   },
   "audio": {
     "play": "Воспроизвести",

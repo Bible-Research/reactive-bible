@@ -24,6 +24,13 @@
     "gettingStartedHint": "Watch short video tutorials on the app's features.",
     "autoTranslateNotes": "Auto-translate notes",
     "autoTranslateNotesHint": "Show machine translations when a note is in another language."
+,    "stagingChecklist": "What's on staging",
+    "stagingChecklistHint": "PRs on staging that still need UI checks.",
+    "stagingChecklistOpenPr": "Open on GitHub",
+    "stagingChecklistSeePr": "See the PR body for verification steps",
+    "stagingChecklistEmpty": "Nothing pending — staging matches production.",
+    "stagingChecklistError": "Could not load the pending list from GitHub.",
+    "stagingChecklistCompare": "Open the main...staging compare on GitHub"
   },
   "audio": {
     "play": "Play",
