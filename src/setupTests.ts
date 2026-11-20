@@ -92,6 +92,15 @@ beforeEach(async () => {
     // mocked without the export — nothing to reset
   }
 
+  // prefetchAudioBlob's session-learned CORS-less origins are
+  // module state — drop them back to the known-host seed.
+  try {
+    const audioUtils = await import('./utils/audioUtils');
+    audioUtils.resetAudioPrefetchForTests?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+
   // structuredClone gives each test fresh nested objects —
   // sharing initialState's arrays/objects would let one test's
   // in-place mutation leak into later tests. Both initialState
