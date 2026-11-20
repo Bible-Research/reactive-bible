@@ -210,4 +210,52 @@ describe('TagNotesRoute merged-page tag resolution', () => {
         within(toolbar).queryByText('Child Tag')
       ).not.toBeInTheDocument();
     });
+
+  it('shows the subtree toggle on a shared tag once the ' +
+    'merged page reveals a descendant note', async () => {
+      const childTag: Tag = {
+        id: 'tag-child',
+        name: 'Child Tag',
+        parent_tag: 'tag-123',
+        public: true,
+        created_at: '',
+        updated_at: '',
+      };
+
+      // Foreign tag: the sharee's own tag list is empty, so
+      // `storedTags` can't reveal the subtree — the merged
+      // page's child-tag note must surface the toggle.
+      useBibleStore.setState({
+        ...initialState,
+        notes: [
+          { ...note, id: 'n-child', tag: childTag },
+          { ...note, id: 'n-own', tag },
+        ],
+        notesCount: 2,
+        notesPage: 1,
+        notesPageSize: 25,
+        lastSelectedTagId: 'tag-123',
+        tags: [],
+        fetchNotes: mockFetchNotes,
+        getTags: mockGetTags,
+      });
+      useAuthStore.setState({
+        ...authInitialState,
+        isAuthenticated: false,
+      });
+      mockDomApis();
+      render(
+        <MemoryRouter
+          initialEntries={['/notes/tag/tag-123?descendants=1']}
+        >
+          <TagNotesRoute />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByLabelText('Include sub-tags')
+        ).toBeInTheDocument();
+      });
+    });
 });
