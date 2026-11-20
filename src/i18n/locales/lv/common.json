@@ -21,7 +21,16 @@
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
     "openMenu": "Atvērt izvēlni",
     "closeMenu": "Aizvērt izvēlni",
-    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām."
+    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām.",
+    "autoTranslateNotes": "Automātiski tulkot piezīmes",
+    "autoTranslateNotesHint": "Rādīt mašīntulkojumus, ja piezīme ir citā valodā."
+,    "stagingChecklist": "Kas atrodas staging",
+    "stagingChecklistHint": "PR uz staging, kas gaida UI pārbaudi.",
+    "stagingChecklistOpenPr": "Atvērt GitHub",
+    "stagingChecklistSeePr": "Pārbaudes soļi — skatīt PR aprakstu",
+    "stagingChecklistEmpty": "Nekas — staging sakrīt ar produkciju.",
+    "stagingChecklistError": "Neizdevās ielādēt sarakstu.",
+    "stagingChecklistCompare": "Atvērt main...staging salīdzinājumu GitHub"
   },
   "audio": {
     "play": "Atskaņot",
@@ -191,7 +200,21 @@
     "moveToTop": "Pārvietot uz augšu",
     "noMatchingNotes": "Nav atbilstošu piezīmju",
     "verseReferences": "Pantu atsauces",
-    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem."
+    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem.",
+    "translation": {
+      "language": "Piezīmes valoda",
+      "autoTranslated": "Automātiski tulkots",
+      "verifiedByAuthor": "Autors pārbaudījis",
+      "translating": "Notiek tulkošana…",
+      "updating": "Tulkojumi atjauninās…",
+      "failed": "Tulkošana neizdevās",
+      "retry": "Mēģināt tulkot vēlreiz",
+      "verify": "Atzīmēt kā pārbaudītu",
+      "unverify": "Noņemt pārbaudījuma atzīmi",
+      "showOriginal": "Rādīt oriģinālu",
+      "hideOriginal": "Slēpt oriģinālu",
+      "loadFailed": "Neizdevās ielādēt tulkojumu. Mēģiniet vēlreiz."
+    }
   },
   "tags": {
     "createNew": "Izveidot jaunu birku",
@@ -497,7 +520,7 @@
     "sharePassage": "Kopīgot šo tekstu",
     "addNote": "Pievienot piezīmi",
     "bibleMaps": "Bībeles kartes",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Atvērt jaunā cilnē",
     "shareFailed": "Neizdevās kopīgot",
     "linkCopied": "Saite nokopēta",
@@ -601,6 +624,10 @@
     "select-and-share-verses": {
       "title": "Atlasiet pantus un kopīgojiet tos",
       "description": "Pieskarieties pantiem, lai tos atlasītu, pēc tam kopīgojiet tekstu vai atveriet to ārējās pētījumu vietnēs no darbību joslas."
+    },
+    "bible-maps": {
+      "title": "Skatiet tekstu kartē",
+      "description": "Divas pogas darbību joslā: Bībeles kartes, BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Mainiet Bībeles tulkojumu",

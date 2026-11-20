@@ -21,7 +21,16 @@
     "languageLoadFailed": "Could not load the selected language — keeping the current one.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "gettingStartedHint": "Watch short video tutorials on the app's features."
+    "gettingStartedHint": "Watch short video tutorials on the app's features.",
+    "autoTranslateNotes": "Auto-translate notes",
+    "autoTranslateNotesHint": "Show machine translations when a note is in another language."
+,    "stagingChecklist": "What's on staging",
+    "stagingChecklistHint": "PRs on staging that still need UI checks.",
+    "stagingChecklistOpenPr": "Open on GitHub",
+    "stagingChecklistSeePr": "See the PR body for verification steps",
+    "stagingChecklistEmpty": "Nothing pending — staging matches production.",
+    "stagingChecklistError": "Could not load the pending list from GitHub.",
+    "stagingChecklistCompare": "Open the main...staging compare on GitHub"
   },
   "audio": {
     "play": "Play",
@@ -189,7 +198,21 @@
     "moveToTop": "Move to top",
     "noMatchingNotes": "No matching notes",
     "verseReferences": "Verse references",
-    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions."
+    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions.",
+    "translation": {
+      "language": "Note language",
+      "autoTranslated": "Auto-translated",
+      "verifiedByAuthor": "Verified by author",
+      "translating": "Translating…",
+      "updating": "Translations updating…",
+      "failed": "Translation failed",
+      "retry": "Retry translation",
+      "verify": "Mark as verified",
+      "unverify": "Remove verification",
+      "showOriginal": "Show original",
+      "hideOriginal": "Hide original",
+      "loadFailed": "Could not load the translation. Please try again."
+    }
   },
   "tags": {
     "createNew": "Create New Tag",
@@ -453,7 +476,7 @@
     "sharePassage": "Share this passage",
     "addNote": "Add note",
     "bibleMaps": "Bible Maps",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Open in new tab",
     "shareFailed": "Failed to share",
     "linkCopied": "Link copied",
@@ -562,6 +585,10 @@
     "select-and-share-verses": {
       "title": "Select verses and share them",
       "description": "Tap verses to select them, then share the passage or open it on external study sites from the action toolbar."
+    },
+    "bible-maps": {
+      "title": "See the passage on a map",
+      "description": "Two toolbar map buttons: Bible Maps or BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Switch Bible translation",

@@ -71,6 +71,21 @@ export interface BibleState {
    */
   uiLanguage: UiLanguage;
   setUiLanguage: (lang: UiLanguage) => void;
+  /**
+   * Persisted preferred reading language for notes (BCP-47,
+   * e.g. 'en'/'lv'). `null` means "follow `uiLanguage`" — the
+   * initial seed — so a first-run Latvian user sees Latvian
+   * notes without configuring anything.
+   */
+  preferredNoteLanguage: string | null;
+  setPreferredNoteLanguage: (lang: string | null) => void;
+  /**
+   * Persisted "Auto-translate notes" toggle (MainMenu,
+   * default ON). When OFF, no `?lang=` is ever sent and all
+   * translation UI on note cards is hidden.
+   */
+  autoTranslateNotes: boolean;
+  setAutoTranslateNotes: (enabled: boolean) => void;
   showAudioPlayer: boolean;
   translations: Translation[];
   activeTextFilesetId: string | null;
@@ -230,6 +245,11 @@ export const initialState = {
   verseSelection: null as VerseSelection | null,
   bibleVersion: "KJV",
   uiLanguage: resolveUiLanguage(),
+  // null = seed from uiLanguage at read time (see the
+  // BibleState docs) — the persisted field itself stays
+  // untouched until the user picks a language explicitly.
+  preferredNoteLanguage: null as string | null,
+  autoTranslateNotes: true,
   showAudioPlayer: false,
   translations: [],
   activeTextFilesetId: resolveInitialTextFileset(),
@@ -377,6 +397,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setHeaderVisible: (headerVisible) => set({ headerVisible }),
       setBookTitleMarquee: (bookTitleMarquee) =>
         set({ bookTitleMarquee }),
+      setPreferredNoteLanguage: (preferredNoteLanguage) =>
+        set({ preferredNoteLanguage }),
+      setAutoTranslateNotes: (autoTranslateNotes) =>
+        set({ autoTranslateNotes }),
       prepareBookSwitch: (bookId) => {
         // pendingScrollVerse carries the verse > 1 restore —
         // PassageView consumes it once the chapter loads.

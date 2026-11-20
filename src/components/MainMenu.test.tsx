@@ -172,7 +172,18 @@ describe('MainMenu Component', () => {
     const user = userEvent.setup();
     renderWithProviders(<MainMenu {...defaultProps} />);
 
-    await user.click(screen.getByRole('switch'));
+    // Two switches exist (theme + auto-translate); the theme
+    // one carries the sun/moon icon labels, so select it by
+    // exclusion of the labelled translation toggle.
+    const themeSwitch = screen
+      .getAllByRole('switch')
+      .find(
+        (el) =>
+          el.getAttribute('aria-label') !==
+          'Auto-translate notes'
+      );
+    expect(themeSwitch).toBeDefined();
+    await user.click(themeSwitch as HTMLElement);
 
     expect(mockToggleColorScheme).toHaveBeenCalled();
   });

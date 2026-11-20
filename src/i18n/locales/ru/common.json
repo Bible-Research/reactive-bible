@@ -21,7 +21,16 @@
     "languageLoadFailed": "Не удалось загрузить выбранный язык — сохранён текущий.",
     "openMenu": "Открыть меню",
     "closeMenu": "Закрыть меню",
-    "gettingStartedHint": "Посмотрите короткие видеоуроки о возможностях приложения."
+    "gettingStartedHint": "Посмотрите короткие видеоуроки о возможностях приложения.",
+    "autoTranslateNotes": "Автоперевод заметок",
+    "autoTranslateNotesHint": "Показывать машинный перевод, если заметка на другом языке."
+,    "stagingChecklist": "Что в staging",
+    "stagingChecklistHint": "PR в staging, ждут проверки.",
+    "stagingChecklistOpenPr": "Открыть на GitHub",
+    "stagingChecklistSeePr": "Шаги — см. описание PR",
+    "stagingChecklistEmpty": "Пусто — staging = продакшен.",
+    "stagingChecklistError": "Ошибка загрузки списка.",
+    "stagingChecklistCompare": "Сравнить main...staging на GitHub"
   },
   "audio": {
     "play": "Воспроизвести",
@@ -193,7 +202,21 @@
     "moveToTop": "Переместить наверх",
     "noMatchingNotes": "Подходящих заметок нет",
     "verseReferences": "Ссылки на стихи",
-    "verseLimitNotice": "Из-за ограничений авторских прав невозможно отобразить более 500 стихов Библии."
+    "verseLimitNotice": "Из-за ограничений авторских прав невозможно отобразить более 500 стихов Библии.",
+    "translation": {
+      "language": "Язык заметки",
+      "autoTranslated": "Машинный перевод",
+      "verifiedByAuthor": "Проверено автором",
+      "translating": "Переводится…",
+      "updating": "Переводы обновляются…",
+      "failed": "Перевод не удался",
+      "retry": "Повторить перевод",
+      "verify": "Отметить как проверенный",
+      "unverify": "Снять проверку",
+      "showOriginal": "Показать оригинал",
+      "hideOriginal": "Скрыть оригинал",
+      "loadFailed": "Не удалось загрузить перевод. Попробуйте ещё раз."
+    }
   },
   "tags": {
     "createNew": "Создать новую метку",
@@ -509,7 +532,7 @@
     "sharePassage": "Поделиться этим отрывком",
     "addNote": "Добавить заметку",
     "bibleMaps": "Карты Библии",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Открыть в новой вкладке",
     "shareFailed": "Не удалось поделиться",
     "linkCopied": "Ссылка скопирована",
@@ -613,6 +636,10 @@
     "select-and-share-verses": {
       "title": "Выберите стихи и поделитесь ими",
       "description": "Касайтесь стихов, чтобы выбрать их, затем поделитесь отрывком или откройте его на внешних сайтах для изучения с панели действий."
+    },
+    "bible-maps": {
+      "title": "Отрывок на карте",
+      "description": "Кнопки на панели действий: «Карты Библии», BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Смените перевод Библии",
