@@ -21,7 +21,9 @@
     "languageLoadFailed": "Could not load the selected language — keeping the current one.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "gettingStartedHint": "Watch short video tutorials on the app's features."
+    "gettingStartedHint": "Watch short video tutorials on the app's features.",
+    "autoTranslateNotes": "Auto-translate notes",
+    "autoTranslateNotesHint": "Show machine translations when a note is in another language."
   },
   "audio": {
     "play": "Play",
@@ -189,7 +191,21 @@
     "moveToTop": "Move to top",
     "noMatchingNotes": "No matching notes",
     "verseReferences": "Verse references",
-    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions."
+    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions.",
+    "translation": {
+      "language": "Note language",
+      "autoTranslated": "Auto-translated",
+      "verifiedByAuthor": "Verified by author",
+      "translating": "Translating…",
+      "updating": "Translations updating…",
+      "failed": "Translation failed",
+      "retry": "Retry translation",
+      "verify": "Mark as verified",
+      "unverify": "Remove verification",
+      "showOriginal": "Show original",
+      "hideOriginal": "Hide original",
+      "loadFailed": "Could not load the translation. Please try again."
+    }
   },
   "tags": {
     "createNew": "Create New Tag",

@@ -21,7 +21,9 @@
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
     "openMenu": "Atvērt izvēlni",
     "closeMenu": "Aizvērt izvēlni",
-    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām."
+    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām.",
+    "autoTranslateNotes": "Automātiski tulkot piezīmes",
+    "autoTranslateNotesHint": "Rādīt mašīntulkojumus, ja piezīme ir citā valodā."
   },
   "audio": {
     "play": "Atskaņot",
@@ -191,7 +193,21 @@
     "moveToTop": "Pārvietot uz augšu",
     "noMatchingNotes": "Nav atbilstošu piezīmju",
     "verseReferences": "Pantu atsauces",
-    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem."
+    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem.",
+    "translation": {
+      "language": "Piezīmes valoda",
+      "autoTranslated": "Automātiski tulkots",
+      "verifiedByAuthor": "Autors pārbaudījis",
+      "translating": "Notiek tulkošana…",
+      "updating": "Tulkojumi atjauninās…",
+      "failed": "Tulkošana neizdevās",
+      "retry": "Mēģināt tulkot vēlreiz",
+      "verify": "Atzīmēt kā pārbaudītu",
+      "unverify": "Noņemt pārbaudījuma atzīmi",
+      "showOriginal": "Rādīt oriģinālu",
+      "hideOriginal": "Slēpt oriģinālu",
+      "loadFailed": "Neizdevās ielādēt tulkojumu. Mēģiniet vēlreiz."
+    }
   },
   "tags": {
     "createNew": "Izveidot jaunu birku",

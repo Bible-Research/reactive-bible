@@ -94,6 +94,12 @@ const MainMenu = ({
   const setUiLanguage = useBibleStore(
     (state) => state.setUiLanguage
   );
+  const autoTranslateNotes = useBibleStore(
+    (state) => state.autoTranslateNotes
+  );
+  const setAutoTranslateNotes = useBibleStore(
+    (state) => state.setAutoTranslateNotes
+  );
 
   // Offer the APK only on Android browsers — useless on iOS,
   // desktop, and inside the native shell itself.
@@ -330,6 +336,27 @@ const MainMenu = ({
               value: lang,
               label: UI_LANGUAGE_AUTONYMS[lang],
             }))}
+          />
+        </Group>
+
+        <Divider />
+
+        <Group position="apart" spacing="xs">
+          <div>
+            <Text weight={500} size="lg">
+              {t('menu.autoTranslateNotes')}
+            </Text>
+            <Text size="xs" color="dimmed">
+              {t('menu.autoTranslateNotesHint')}
+            </Text>
+          </div>
+          <Switch
+            checked={autoTranslateNotes}
+            onChange={(event) =>
+              setAutoTranslateNotes(event.currentTarget.checked)
+            }
+            size="lg"
+            aria-label={t('menu.autoTranslateNotes')}
           />
         </Group>
       </Stack>

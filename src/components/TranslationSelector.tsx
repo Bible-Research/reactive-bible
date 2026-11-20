@@ -815,7 +815,6 @@ const TranslationSelector = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     opened,
-    languageIso,
     translations,
     selectedTranslationAbbr,
     lastSelectionByLanguage,
