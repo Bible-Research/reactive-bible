@@ -40,6 +40,7 @@ import {
   disposeHowl,
   osPausedNode,
   playAlreadyRequested,
+  prefetchAudioBlob,
 } from "../utils/audioUtils";
 import { createChapterHowl } from "../utils/chapterHowl";
 import { captureHandledWarning } from "../utils/errorReporter";
@@ -420,25 +421,19 @@ export const useChapterAudio = (
           filesetId,
         );
         if (!url || token !== preloadTokenRef.current) return;
-        // Grab the actual mp3 bytes so the chapter transition needs
-        // no network at all. Hosts without CORS fall back to the
-        // media element streaming the URL directly.
-        let src = url;
-        let blobUrl: string | null = null;
-        try {
-          const resp = await fetch(url);
-          if (resp.ok) {
-            blobUrl = URL.createObjectURL(await resp.blob());
-            src = blobUrl;
-          }
-        } catch {
-          // CORS or network failure — stream the URL directly.
-        }
+        // Grab the actual mp3 bytes so the chapter transition
+        // needs no network at all. Hosts without CORS — known or
+        // learned per origin by prefetchAudioBlob — skip fetch()
+        // entirely (a blocked attempt logs a console error no
+        // catch can silence) and the Howl streams the URL through
+        // its html5 <audio> element instead.
+        const blobUrl = await prefetchAudioBlob(url);
         if (token !== preloadTokenRef.current) {
           if (blobUrl) URL.revokeObjectURL(blobUrl);
           return;
         }
         discardPreloaded();
+        const src = blobUrl ?? url;
         // A blob: URL carries no file extension, so Howler's
         // codec sniffing fails and the Howl stays 'unloaded'
         // forever. Pass the source URL's extension explicitly.

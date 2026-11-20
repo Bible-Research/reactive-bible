@@ -3843,6 +3843,10 @@ if (newTotal > MAX_VERSES) {
 - No size limit (URLs are small)
 - Expiration-based eviction
 - Parses CloudFront URL expiration
+- Plausibility check on read (`isPlausibleChapterAudioUrl`):
+  ESV CDN files must be `<Book> <chapter>.mp3`; a malformed
+  entry (e.g. a chapterless `Leviticus%20.mp3` minted by an
+  older backend) is evicted and refetched
 - Auto-cleanup on app load
 
 **Storage Key**: `bible_audio_cache`

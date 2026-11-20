@@ -1,10 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 import type { Howl } from 'howler';
 import type { VerseTimestamp } from '../types';
 import {
   activeVerseAtTime,
   getHtml5AudioNode,
   getPlayPosition,
+  prefetchAudioBlob,
+  resetAudioPrefetchForTests,
 } from './audioUtils';
 import { FakeHowl } from '../__tests__/mocks/FakeHowl';
 
@@ -124,4 +133,82 @@ describe('activeVerseAtTime', () => {
     // A chapter announcement plays before verse 1's timestamp.
     expect(activeVerseAtTime(timestamps, -3)).toBe(1);
   });
+});
+
+describe('prefetchAudioBlob', () => {
+  const okResponse = () =>
+    new Response(new Blob(['mp3-bytes']), { status: 200 });
+
+  beforeEach(() => {
+    resetAudioPrefetchForTests();
+    global.URL.createObjectURL = vi.fn(() => 'blob:test-url');
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns a blob: URL when the fetch succeeds', async () => {
+    vi.mocked(fetch).mockResolvedValue(okResponse());
+    await expect(
+      prefetchAudioBlob('https://cdn.test/JHN.4.mp3'),
+    ).resolves.toBe('blob:test-url');
+    expect(fetch).toHaveBeenCalledWith(
+      'https://cdn.test/JHN.4.mp3',
+    );
+  });
+
+  it('returns null on a failed (but CORS-readable) ' +
+    'response without marking the origin', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(null, { status: 404 }),
+      );
+      await expect(
+        prefetchAudioBlob('https://cdn.test/JHN.4.mp3'),
+      ).resolves.toBeNull();
+      // A readable 404 proves CORS is served — the next preload
+      // must still try fetch() for this origin.
+      vi.mocked(fetch).mockResolvedValue(okResponse());
+      await expect(
+        prefetchAudioBlob('https://cdn.test/JHN.5.mp3'),
+      ).resolves.toBe('blob:test-url');
+    },
+  );
+
+  it('never fetches the statically-known CORS-less ' +
+    'audio.esv.org host', async () => {
+      await expect(
+        prefetchAudioBlob(
+          'https://audio.esv.org/hw/John%204.mp3',
+        ),
+      ).resolves.toBeNull();
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('remembers a rejecting origin for the session — ' +
+    'later preloads skip fetch() entirely', async () => {
+      // A CORS-blocked fetch rejects AND logs a console error no
+      // catch can silence — the fix is to stop issuing it.
+      vi.mocked(fetch).mockRejectedValue(
+        new TypeError('Failed to fetch'),
+      );
+      await expect(
+        prefetchAudioBlob('https://nocdn.test/a.mp3'),
+      ).resolves.toBeNull();
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      await expect(
+        prefetchAudioBlob('https://nocdn.test/b.mp3'),
+      ).resolves.toBeNull();
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      // Other origins are unaffected by the learned mark.
+      vi.mocked(fetch).mockResolvedValue(okResponse());
+      await expect(
+        prefetchAudioBlob('https://cdn.test/c.mp3'),
+      ).resolves.toBe('blob:test-url');
+    },
+  );
 });
