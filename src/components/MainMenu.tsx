@@ -116,6 +116,17 @@ const MainMenu = ({
     typeof navigator !== 'undefined' &&
     /android/i.test(navigator.userAgent);
 
+  // A modal opened from the menu closes the menu like every
+  // other item does — two focus-trapped overlays must not
+  // stack (the top one's aria-hidden pass would hide the
+  // drawer while it still holds focus). While a modal is
+  // open the drawer also skips returnFocus: the +10ms
+  // refocus would land on the menu button inside the
+  // still-aria-hidden app root (the other half of Chrome's
+  // "Blocked aria-hidden" warning).
+  const modalOpened =
+    newNoteOpened || contactOpened || checklistOpened;
+
   return (
     <>
       <Drawer
@@ -125,6 +136,7 @@ const MainMenu = ({
         size="100%"
         withCloseButton={false}
         padding="xl"
+        returnFocus={!modalOpened}
       >
       {/* Close X on the right: the drawer body is not a flex
           container, so use an auto inline-start margin (the
@@ -239,7 +251,10 @@ const MainMenu = ({
               <Text
                 weight={500}
                 size="lg"
-                onClick={() => setNewNoteOpened(true)}
+                onClick={() => {
+                  setNewNoteOpened(true);
+                  onClose();
+                }}
                 sx={{ cursor: "pointer" }}
               >
                 {t('menu.newNote')}
@@ -346,7 +361,10 @@ const MainMenu = ({
             <Text
               weight={500}
               size="lg"
-              onClick={() => setContactOpened(true)}
+              onClick={() => {
+                setContactOpened(true);
+                onClose();
+              }}
               sx={{ cursor: "pointer" }}
               title={t('menu.contactDeveloper')}
             >
@@ -392,7 +410,10 @@ const MainMenu = ({
               <Text
                 weight={500}
                 size="lg"
-                onClick={() => setChecklistOpened(true)}
+                onClick={() => {
+                  setChecklistOpened(true);
+                  onClose();
+                }}
                 sx={{ cursor: "pointer" }}
                 title={t('menu.stagingChecklist')}
               >

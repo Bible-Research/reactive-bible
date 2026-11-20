@@ -467,6 +467,16 @@ Code conventions:
   `sentryBeforeSend` drops it. Keep custom `try/catch` only
   where the endpoint has a richer contract (typed provider
   errors, 409 bodies, 204s, swallowed failures).
+- Patched deps (`patches/`, applied by `postinstall`
+  patch-package — bumping one requires regenerating its
+  patch): `@anuradev/capacitor-background-mode` (Play Protect,
+  see "Android / Play Protect") and `@mantine/hooks`
+  (`createAriaHider` defers the sibling `aria-hidden` pass
+  until the focus trap's own `setTimeout(0)` focus move has
+  run, with a blur fallback — synchronous hiding landed the
+  attribute on ancestors of `document.activeElement`, which
+  is what Chrome's "Blocked aria-hidden on an element
+  because its descendant retained focus" warning means).
 - UI strings: no hardcoded English in components — every
   user-facing string (labels, aria-labels, notifications,
   placeholders, titles) goes through `t('section.key')` from
