@@ -157,8 +157,8 @@ Bible Maps modal and BibleMapper's WebViewer.
 1. On `/bible/JHN.3`, tap verse 16 — the action toolbar
    appears.
 2. Tap the teal map icon ("View on map") — a "Bible Maps"
-   modal opens inside the app with the passage already loaded
-   in BibleMapper PassageBrowser.
+   modal opens inside the app with the chapter already loaded
+   in BibleMapper MapFinder.
 3. Pan and zoom the map, then close the modal with ✕.
 4. Tap the BibleMapper icon (the biblemapper.com logo) — the
    English reference copies to the clipboard (a toast

@@ -166,8 +166,8 @@ iebūvēto Bībeles karšu logu un BibleMapper WebViewer.
 1. Atveriet `/bible/JHN.3` un pieskarieties 16. pantam —
    parādās darbību josla.
 2. Pieskarieties tirkīza kartes ikonai ("Skatīt kartē") —
-   lietotnē atveras "Bībeles kartes" logs ar tekstu jau
-   ielādētu BibleMapper PassageBrowser.
+   lietotnē atveras "Bībeles kartes" logs ar nodaļu jau
+   ielādētu BibleMapper MapFinder.
 3. Pārvietojiet un tuviniet karti, tad aizveriet logu ar ✕.
 4. Pieskarieties BibleMapper ikonai (biblemapper.com
    logotipam) — angļu valodas atsauce nokopējas starpliktuvē
