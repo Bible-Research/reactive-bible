@@ -123,7 +123,13 @@ const MainMenu = ({
   // open the drawer also skips returnFocus: the +10ms
   // refocus would land on the menu button inside the
   // still-aria-hidden app root (the other half of Chrome's
-  // "Blocked aria-hidden" warning).
+  // "Blocked aria-hidden" warning). When the modal closes,
+  // `modalOpened` flipping false re-arms `useFocusReturn`
+  // (shouldReturnFocus changes while `opened` stays false),
+  // so the drawer's refocus to the burger button still
+  // fires on modal close — the desired focus-back-to-
+  // invoker outcome, though a `useFocusReturn` side effect
+  // rather than an explicit contract.
   const modalOpened =
     newNoteOpened || contactOpened || checklistOpened;
 
