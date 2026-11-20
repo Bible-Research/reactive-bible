@@ -73,12 +73,38 @@ whose head SHA was never merged into `staging`, and the
   the same SHAs still satisfies the check). The workflow
   needs the `AUTOMERGE_TOKEN` admin PAT (the same secret
   the dependabot automerge uses).
-- **"Merge straight to main" requests**: merge the branch
-  into `staging` first anyway, then the `main` PR — the
+- **"Merge straight to main" / ad-hoc releases** — the
+  default response when the user asks to deploy a single
+  change to production (a hotfix, "deploy this to prod"):
+  merge the branch into `staging` first anyway — the
   check blocks anything else, keeping `main` ⊆ `staging`
-  even for urgent merges. If the `main` PR's check already
-  ran red before the staging merge, re-run the failed job
-  after it (`gh run rerun <run-id> --failed` or a push).
+  even for urgent merges — then open a `main` PR from
+  the SAME branch head (same title + body — keep
+  `Closes #<N>` links) and squash-merge it autonomously
+  once checks are green and the reviewer loop is clean
+  (`gh pr merge <N> --squash --admin`). The staging merge
+  auto-deletes the head branch — re-push it first
+  (`git push origin <headRefOid>:refs/heads/<branch>`,
+  same SHA is fine). `staging` is NOT reset — it keeps
+  holding the rest of the queue. This solo path requires
+  the `main` diff to carry the feature alone, which holds
+  while the head stays clean of `origin/staging` merges:
+  a staging PR whose conflicts forced
+  `git merge origin/staging` into the branch makes the
+  head carry the whole queue, so a `main` PR from it
+  would drag every staged feature along — that branch can
+  only reach `main` via the `Promote to main` train (or
+  a hand-made cherry-pick shipping a combination that
+  never soaked). Verify `git diff origin/main...<head>`
+  shows the feature alone before opening the `main` PR.
+  If the `main` PR's check already ran red before the
+  staging merge, re-run the failed job after it
+  (`gh run rerun <run-id> --failed` or a push). Never
+  direct-push a hotfix to `main`: it breaks
+  `main` ⊆ `staging` until the next train reset, and
+  promotion conflict resolution pulls staging trees that
+  lack the fix — it can silently revert it; if a manual
+  push ever happens, apply the fix on both branches.
 - **Dependabot** targets `staging` and auto-merges there;
   its branches promote to `main` like any feature branch.
 - **Backend is unaffected** — `bible_research` keeps its
