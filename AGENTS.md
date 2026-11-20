@@ -82,12 +82,16 @@ whose head SHA was never merged into `staging`, and the
   the SAME branch head (same title + body — keep
   `Closes #<N>` links) and squash-merge it autonomously
   once checks are green and the reviewer loop is clean
-  (`gh pr merge <N> --squash --admin`). `staging` is NOT
-  reset — it keeps holding the rest of the queue. This
-  solo path only works while the head stays clean of
-  `origin/staging` merges: a staging PR whose conflicts
-  forced `git merge origin/staging` into the branch makes
-  the head carry the whole queue, so a `main` PR from it
+  (`gh pr merge <N> --squash --admin`). The staging merge
+  auto-deletes the head branch — re-push it first
+  (`git push origin <headRefOid>:refs/heads/<branch>`,
+  same SHA is fine). `staging` is NOT reset — it keeps
+  holding the rest of the queue. This solo path requires
+  the `main` diff to carry the feature alone, which holds
+  while the head stays clean of `origin/staging` merges:
+  a staging PR whose conflicts forced
+  `git merge origin/staging` into the branch makes the
+  head carry the whole queue, so a `main` PR from it
   would drag every staged feature along — that branch can
   only reach `main` via the `Promote to main` train (or
   a hand-made cherry-pick shipping a combination that
