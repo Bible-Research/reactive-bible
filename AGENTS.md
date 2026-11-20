@@ -175,6 +175,10 @@ whose head SHA was never merged into `staging`, and the
   its language — PassagePicker greys uncovered books (still
   clickable → "… doesn't include {book}" notification, never
   the `disabled` attribute, which swallows the click).
+  `loadStructure` sends the owner's concrete text member id
+  (`ENGESV_API`), not the bare listing abbr (`ESV` 404s —
+  registry providers only route by fileset id), and never a
+  `:`-bearing product id.
 - `fileset_id` selects the provider server-side: `ENGKJV` (bundled
   `src/assets/kjv.json`, offline, audio from wordpocket.org),
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.
@@ -252,7 +256,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   degrade gracefully (chapter/audio fetches, notes, comments,
   tags, reading positions). Expected conditions still filtered
   by `beforeSend`; surviving events mean the graceful path
-  itself is worth alerting on.
+  itself is worth alerting on. Exception: `errorKind: network`
+  failures here downgrade to warning — a handled connectivity
+  failure is noise, not a defect in the graceful path.
 - `reportType: media-failure` — warning `captureMessage` from
   the audio hooks' terminal failure paths (fileset + passage in
   extras). Warning-level: fallback chains make a single failure
@@ -272,12 +278,14 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `reportType: user-report` — info `captureMessage` +
   `captureFeedback` from "Contact developer" (`userReport.ts`,
   `ContactModal.tsx`). Every submission also carries
-  `reportCategory: bug|feature|general`; only `bug` (plus
-  legacy untagged reports) feeds the triage queue — feature
-  and general messages are read via the user-feedback stream.
-  Anonymous senders may attach a reply `email` on the feedback
-  entry. Not an error queue item; investigated separately via
-  the fix-sentry-issue skill.
+  `reportCategory: bug|feature|general`, and ALL categories
+  feed the triage queue — bugs get fixed, feature requests
+  get implemented (a huge/unreasonable one may be logged
+  `declined` with reasoning), and general messages get
+  triaged and answered. Anonymous senders may attach a
+  reply `email` on the feedback entry. Not an error queue
+  item; investigated separately via the fix-sentry-issue
+  skill.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
@@ -286,7 +294,10 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
-  reportable but routable.
+  reportable but routable. On `handled-api` events the level
+  drops to warning (client connectivity noise); unhandled
+  network rejections stay error-level — reaching
+  GlobalHandlers means a missing catch, still a bug.
 
 Three reporting paths, all non-duplicating:
 
@@ -324,7 +335,8 @@ chunk` (stale tabs after a deploy — self-healed by the
 guarded reload in `chunkLoadError.ts`, wired through
 `lazyWithReload`, `kjvDataLoader`, and `errorReporter`'s
 `vite:preloadError` / hashed-asset resource-error handlers),
-and `ResizeObserver loop`. `ConflictError` downgrades to
+and `ResizeObserver loop`. `ConflictError` and handled-api
+network failures (`errorKind: network`) downgrade to
 warning; `ProviderError` fingerprints by
 `error_code`+endpoint. `ClientInputError` is deliberately
 kept — a malformed request is a bug. Typed API errors
