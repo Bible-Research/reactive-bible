@@ -2,14 +2,20 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import * as Sentry from '@sentry/react';
+import { dedupeIntegration } from '@sentry/core';
+import type {
+  Client, Event, EventHint,
+} from '@sentry/core';
 import { sendUserReport } from './userReport';
 
 interface FakeScope {
   setContext: ReturnType<typeof vi.fn>;
+  setFingerprint: ReturnType<typeof vi.fn>;
 }
 
 const scope: FakeScope = {
   setContext: vi.fn(),
+  setFingerprint: vi.fn(),
 };
 
 vi.mock('@sentry/react', () => ({
@@ -57,7 +63,7 @@ describe('sendUserReport', () => {
     });
     expect(sent).toBe(true);
     expect(mocked.captureMessage).toHaveBeenCalledWith(
-      'user report',
+      'user report (bug) JHN.3: next does nothing',
       {
         level: 'info',
         tags: {
@@ -65,6 +71,9 @@ describe('sendUserReport', () => {
           reportCategory: 'bug',
         },
       },
+    );
+    expect(scope.setFingerprint).toHaveBeenCalledWith(
+      ['user-report'],
     );
     expect(scope.setContext).toHaveBeenCalledWith(
       'userReport',
@@ -100,7 +109,7 @@ describe('sendUserReport', () => {
         }),
       ).toBe(true);
       expect(mocked.captureMessage).toHaveBeenCalledWith(
-        'user report',
+        'user report (feature): please add bookmarks',
         {
           level: 'info',
           tags: {
@@ -160,5 +169,71 @@ describe('sendUserReport', () => {
     expect(
       sendUserReport({ message: 'crash' }),
     ).toBe(false);
+  });
+
+  it('escapes Sentry dedupe for distinct back-to-back ' +
+    'reports', () => {
+    // The SDK's built-in Dedupe integration drops an untyped
+    // event identical (message + fingerprint + stack) to the
+    // previous one; user-report events share the synthetic
+    // stack from the sendUserReport call site, so only a
+    // per-report message keeps them distinct. Drive the real
+    // integration against the events this call produces.
+    // The previous spec leaves a throwing withScope
+    // implementation behind — clearAllMocks only resets call
+    // history, not implementations.
+    mocked.withScope.mockImplementation(
+      ((cb: (s: FakeScope) => void) =>
+        cb(scope)) as unknown as typeof Sentry.withScope,
+    );
+    const processEvent =
+      dedupeIntegration().processEvent;
+    if (!processEvent) {
+      throw new Error('dedupe integration has no ' +
+        'processEvent');
+    }
+    const hint = {} as EventHint;
+    const client = {} as Client;
+    // Every report shares this call site's stack — the shape
+    // Dedupe compares — so use identical frames on purpose.
+    const frames = [
+      {
+        filename: 'app.js',
+        function: 'sendUserReport',
+        lineno: 10,
+        colno: 5,
+      },
+    ];
+    const toEvent = (call: number): Event =>
+      ({
+        message:
+          mocked.captureMessage.mock.calls[call][0],
+        fingerprint:
+          scope.setFingerprint.mock.calls[call][0],
+        stacktrace: { frames },
+      }) as unknown as Event;
+
+    sendUserReport({
+      message: 'same text',
+      category: 'feature',
+    });
+    sendUserReport({
+      message: 'same text',
+      category: 'general',
+    });
+
+    expect(
+      processEvent(toEvent(0), hint, client),
+    ).not.toBeNull();
+    // A byte-identical resend still collapses — Dedupe's own
+    // job; the feedback entry still lands, so nothing is lost.
+    expect(
+      processEvent(toEvent(0), hint, client),
+    ).toBeNull();
+    // Pre-fix this second report was an identical 'user
+    // report' message and Dedupe returned null.
+    expect(
+      processEvent(toEvent(1), hint, client),
+    ).not.toBeNull();
   });
 });

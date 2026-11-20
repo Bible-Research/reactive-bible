@@ -276,8 +276,14 @@ is the agent-fixable bug queue** — anything else is deliberate:
   legacy untagged reports) feeds the triage queue — feature
   and general messages are read via the user-feedback stream.
   Anonymous senders may attach a reply `email` on the feedback
-  entry. Not an error queue item; investigated separately via
-  the fix-sentry-issue skill.
+  entry. The event message embeds the category, passage and
+  note so Sentry's built-in Dedupe integration cannot collapse
+  consecutive distinct reports (all still group under one
+  stream issue via the constant `user-report` fingerprint),
+  and each submission also opens a feedback issue —
+  `issue.category:feedback` finds feature/general mail the
+  legacy User Feedback list can miss. Not an error queue item;
+  investigated separately via the fix-sentry-issue skill.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
