@@ -279,8 +279,10 @@ is the agent-fixable bug queue** — anything else is deliberate:
   entry. The event message embeds the category, passage and
   note so Sentry's built-in Dedupe integration cannot collapse
   consecutive distinct reports (all still group under one
-  stream issue via the constant `user-report` fingerprint),
-  and each submission also opens a feedback issue —
+  stream issue via the constant `user-report` fingerprint).
+  `sentryBeforeSend` returns these early — the note text is
+  user-controlled and must never hit the message-based noise
+  filters — and each submission also opens a feedback issue —
   `issue.category:feedback` finds feature/general mail the
   legacy User Feedback list can miss. Not an error queue item;
   investigated separately via the fix-sentry-issue skill.

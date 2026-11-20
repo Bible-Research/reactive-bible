@@ -55,11 +55,20 @@ const isNetworkFailure = (err: TypeError): boolean =>
  * request is a bug worth reporting. TypeError network failures
  * ('Failed to fetch', 'Load failed', 'NetworkError…') are kept
  * but tagged `errorKind: network` for routing.
+ *
+ * `reportType: user-report` events (the "Contact developer"
+ * flow) return early: their note text lives in event.message
+ * and is user-controlled — a user quoting the very error they
+ * saw ('Loading chunk 3 failed', 'ResizeObserver loop') must
+ * not trip the noise filters.
  */
 export function sentryBeforeSend(
   event: ErrorEvent,
   hint: EventHint
 ): ErrorEvent | null {
+  if (event.tags?.reportType === 'user-report') {
+    return event;
+  }
   const err = hint.originalException;
   // GlobalHandlers' window.onerror path produces message-only
   // events: originalException is undefined and the error text

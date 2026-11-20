@@ -2,6 +2,8 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import * as Sentry from '@sentry/react';
+// Pinned to the exact version @sentry/react resolves — bump
+// it in lockstep or this drives a stale Dedupe copy.
 import { dedupeIntegration } from '@sentry/core';
 import type {
   Client, Event, EventHint,
@@ -33,6 +35,14 @@ beforeEach(() => {
   mocked.getClient.mockReturnValue(
     {} as ReturnType<typeof Sentry.getClient>,
   );
+  // Individual specs install throwing implementations —
+  // clearAllMocks resets call history only, so the defaults
+  // have to be re-registered every run.
+  mocked.withScope.mockImplementation(
+    ((cb: (s: FakeScope) => void) =>
+      cb(scope)) as unknown as typeof Sentry.withScope,
+  );
+  mocked.captureFeedback.mockImplementation(() => 'fb-id');
 });
 
 describe('sendUserReport', () => {
@@ -179,13 +189,6 @@ describe('sendUserReport', () => {
     // stack from the sendUserReport call site, so only a
     // per-report message keeps them distinct. Drive the real
     // integration against the events this call produces.
-    // The previous spec leaves a throwing withScope
-    // implementation behind — clearAllMocks only resets call
-    // history, not implementations.
-    mocked.withScope.mockImplementation(
-      ((cb: (s: FakeScope) => void) =>
-        cb(scope)) as unknown as typeof Sentry.withScope,
-    );
     const processEvent =
       dedupeIntegration().processEvent;
     if (!processEvent) {
@@ -194,8 +197,11 @@ describe('sendUserReport', () => {
     }
     const hint = {} as EventHint;
     const client = {} as Client;
-    // Every report shares this call site's stack — the shape
-    // Dedupe compares — so use identical frames on purpose.
+    // Real captureMessage events carry a synthetic exception
+    // whose value is the message text and whose stack is this
+    // call site's — identical frames on every report, so use
+    // the same frames here. Dedupe's getFramesFromEvent only
+    // reads exception.values[].stacktrace.frames.
     const frames = [
       {
         filename: 'app.js',
@@ -204,14 +210,28 @@ describe('sendUserReport', () => {
         colno: 5,
       },
     ];
-    const toEvent = (call: number): Event =>
-      ({
-        message:
-          mocked.captureMessage.mock.calls[call][0],
+    const toEvent = (call: number): Event => {
+      const message =
+        mocked.captureMessage.mock.calls[call][0];
+      return {
+        message,
         fingerprint:
           scope.setFingerprint.mock.calls[call][0],
-        stacktrace: { frames },
-      }) as unknown as Event;
+        exception: {
+          values: [
+            {
+              type: 'Error',
+              value: message,
+              mechanism: {
+                type: 'synthetic',
+                handled: true,
+              },
+              stacktrace: { frames },
+            },
+          ],
+        },
+      } as unknown as Event;
+    };
 
     sendUserReport({
       message: 'same text',

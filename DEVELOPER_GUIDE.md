@@ -4606,7 +4606,9 @@ surface as the transport layer:
   drops an untyped event identical to the previous one —
   identical 'user report' messages sent back-to-back were
   silently lost; the constant `user-report` fingerprint keeps
-  them grouped under one stream issue. Query:
+  them grouped under one stream issue, and `sentryBeforeSend`
+  exempts them from the message-based noise drops (a user
+  quoting 'Loading chunk N failed' still reports). Query:
   `message:"user report*"` or `reportType:user-report`; triage
   narrows to `reportCategory:bug` + legacy untagged events.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,

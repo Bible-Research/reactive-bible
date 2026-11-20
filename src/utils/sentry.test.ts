@@ -30,6 +30,29 @@ describe('sentryBeforeSend', () => {
       .toBe(event);
   });
 
+  it('never drops user reports whose note quotes noise ' +
+    'patterns', () => {
+    // sendUserReport embeds the typed note in event.message,
+    // which the string-based drops below scan whenever
+    // originalException is not an Error (captureMessage sets
+    // it to the message string). A user quoting the very
+    // error they saw must not lose their report event.
+    for (const note of [
+      'I keep seeing Loading chunk 42 failed',
+      'Unable to preload CSS then a white screen',
+      'ResizeObserver loop errors in the console',
+    ]) {
+      const report = {
+        event_id: 'r1',
+        message: `user report (bug): ${note}`,
+        tags: { reportType: 'user-report' },
+      } as unknown as ErrorEvent;
+      expect(
+        sentryBeforeSend(report, hintOf(report.message))
+      ).toBe(report);
+    }
+  });
+
   it('drops RateLimitError (handled throttling)', () => {
     expect(
       sentryBeforeSend(
