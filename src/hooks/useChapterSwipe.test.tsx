@@ -173,6 +173,290 @@ describe('useChapterSwipe', () => {
     }
   });
 
+  it('does not capture a plain click, so the verse under ' +
+    'the cursor still gets it', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    swipe(el, {
+      fromX: 300,
+      toX: 295,
+      pointerType: 'mouse',
+    });
+    expect(capture).not.toHaveBeenCalled();
+    expect(currentPath()).toBe('/');
+  });
+
+  it('captures once a drag passes the slop, and the swipe ' +
+    'still turns the chapter', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerType: 'mouse',
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 289,
+      clientY: 102,
+      pointerType: 'mouse',
+    });
+    expect(capture).toHaveBeenCalledWith(1);
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerType: 'mouse',
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('captures a vertical mouse drag past the slop so a ' +
+    'drag ending on its own verse cannot toggle it', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerType: 'mouse',
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 301,
+      clientY: 115,
+      pointerType: 'mouse',
+    });
+    expect(capture).toHaveBeenCalledWith(1);
+  });
+
+  it('ignores a drag that starts on the scrollbar so the ' +
+    'thumb keeps its own pointer capture', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    // Radix tags its scrollbar — the thumb lives inside it —
+    // with data-orientation.
+    const scrollbar = document.createElement('div');
+    scrollbar.setAttribute('data-orientation', 'vertical');
+    el.appendChild(scrollbar);
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    firePointer(scrollbar, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerType: 'mouse',
+    });
+    firePointer(scrollbar, 'pointermove', {
+      clientX: 200,
+      clientY: 140,
+      pointerType: 'mouse',
+    });
+    firePointer(scrollbar, 'pointerup', {
+      clientX: 100,
+      clientY: 160,
+      pointerType: 'mouse',
+    });
+    expect(capture).not.toHaveBeenCalled();
+    expect(currentPath()).toBe('/');
+  });
+
+  it('does not capture a vertical touch drag — the ' +
+    'browser claims it for scrolling', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 301,
+      clientY: 115,
+    });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('lets a second pointer replace an uncaptured ' +
+    'in-progress gesture', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    // Pointer 1 presses and drifts under the slop — the
+    // gesture never committed to a drag.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 1,
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 295,
+      clientY: 102,
+      pointerId: 1,
+    });
+    // Pointer 2's press takes over; its swipe resolves.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 2,
+    });
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 2,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('blocks a second pointer while a gesture is captured', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    // Pointer 1 drags past the slop and captures.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 1,
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 290,
+      clientY: 100,
+      pointerId: 1,
+    });
+    expect(capture).toHaveBeenCalledWith(1);
+    // Pointer 2's whole swipe is ignored — the captured
+    // gesture owns the viewport.
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 2,
+    });
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 2,
+    });
+    expect(currentPath()).toBe('/');
+    // Pointer 1 finishing its drag still turns the chapter.
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 1,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('clears the gesture on pointercancel so the next ' +
+    'swipe still works', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    // Pointer 1 captures, then the browser claims it.
+    el.setPointerCapture = vi.fn();
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 1,
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 290,
+      clientY: 100,
+      pointerId: 1,
+    });
+    firePointer(el, 'pointercancel', { pointerId: 1 });
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 2,
+    });
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 2,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('clears a stale gesture on window blur — a press ' +
+    'released outside the window sends no pointerup', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    el.setPointerCapture = vi.fn();
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 290,
+      clientY: 100,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+    // Released over the OS chrome: the gesture ends with a
+    // blur, never a pointerup.
+    act(() => {
+      window.dispatchEvent(new Event('blur'));
+    });
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerId: 2,
+    });
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerId: 2,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('does not resolve on a chorded non-primary mouse ' +
+    'button release', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+      pointerType: 'mouse',
+    });
+    firePointer(el, 'pointermove', {
+      clientX: 200,
+      clientY: 105,
+      pointerType: 'mouse',
+    });
+    // A right-button release mid-drag shares pointerId 1.
+    firePointer(el, 'pointerup', {
+      clientX: 150,
+      clientY: 105,
+      pointerType: 'mouse',
+      button: 2,
+    });
+    expect(currentPath()).toBe('/');
+    firePointer(el, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+      pointerType: 'mouse',
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
+  it('resolves a swipe released outside the viewport', () => {
+    renderWithProviders(<SwipeHarness />);
+    const el = screen.getByTestId('swipe-viewport');
+    firePointer(el, 'pointerdown', {
+      clientX: 300,
+      clientY: 100,
+    });
+    firePointer(document.body, 'pointerup', {
+      clientX: 100,
+      clientY: 110,
+    });
+    expect(currentPath()).toBe('/bible/JHN.2');
+  });
+
   it('does nothing while disabled', () => {
     renderWithProviders(<SwipeHarness enabled={false} />);
     swipe(screen.getByTestId('swipe-viewport'), {

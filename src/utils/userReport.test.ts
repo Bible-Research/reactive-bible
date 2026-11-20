@@ -58,12 +58,19 @@ describe('sendUserReport', () => {
     expect(sent).toBe(true);
     expect(mocked.captureMessage).toHaveBeenCalledWith(
       'user report',
-      { level: 'info', tags: { reportType: 'user-report' } },
+      {
+        level: 'info',
+        tags: {
+          reportType: 'user-report',
+          reportCategory: 'bug',
+        },
+      },
     );
     expect(scope.setContext).toHaveBeenCalledWith(
       'userReport',
       {
         note: 'next does nothing',
+        category: 'bug',
         reportedBy: 'tester',
         bookId: 'JHN',
         chapter: 3,
@@ -76,20 +83,66 @@ describe('sendUserReport', () => {
       name: 'tester',
       source: 'menu-report',
       associatedEventId: 'evt-1',
-      tags: { reportType: 'user-report' },
+      tags: {
+        reportType: 'user-report',
+        reportCategory: 'bug',
+      },
     });
     expect(mocked.flush).toHaveBeenCalled();
+  });
+
+  it('tags the chosen category on both event and feedback',
+    () => {
+      expect(
+        sendUserReport({
+          message: 'please add bookmarks',
+          category: 'feature',
+        }),
+      ).toBe(true);
+      expect(mocked.captureMessage).toHaveBeenCalledWith(
+        'user report',
+        {
+          level: 'info',
+          tags: {
+            reportType: 'user-report',
+            reportCategory: 'feature',
+          },
+        },
+      );
+      expect(mocked.captureFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tags: {
+            reportType: 'user-report',
+            reportCategory: 'feature',
+          },
+        }),
+      );
+    });
+
+  it('passes a reply email to the feedback entry', () => {
+    expect(
+      sendUserReport({
+        message: 'thanks!',
+        category: 'general',
+        email: 'reader@example.com',
+      }),
+    ).toBe(true);
+    expect(mocked.captureFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'reader@example.com',
+      }),
+    );
   });
 
   it('omits optional fields for anonymous reporters', () => {
     expect(sendUserReport({ message: 'crash' })).toBe(true);
     expect(scope.setContext).toHaveBeenCalledWith(
       'userReport',
-      { note: 'crash' },
+      { note: 'crash', category: 'bug' },
     );
-    expect(mocked.captureFeedback).toHaveBeenCalledWith(
-      expect.not.objectContaining({ name: expect.anything() }),
-    );
+    const feedback = mocked.captureFeedback.mock.calls[0][0];
+    expect(feedback).not.toHaveProperty('name');
+    expect(feedback).not.toHaveProperty('email');
   });
 
   it('still reports when the feedback call throws', () => {

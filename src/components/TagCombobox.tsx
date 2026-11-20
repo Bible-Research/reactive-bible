@@ -80,6 +80,7 @@ interface TagComboboxProps {
   value: string;
   onChange: (tagId: string) => void;
   onDropdownOpen?: () => void;
+  onDropdownClose?: () => void;
   label?: string;
 }
 
@@ -99,6 +100,7 @@ export function TagCombobox({
   value,
   onChange,
   onDropdownOpen,
+  onDropdownClose,
   label = 'Tag',
 }: TagComboboxProps) {
   const listboxId = useId();
@@ -222,6 +224,7 @@ export function TagCombobox({
     setView('options');
     setSearch('');
     setCreateQuery('');
+    onDropdownClose?.();
   };
 
   const openDrop = () => {

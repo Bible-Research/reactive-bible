@@ -14,15 +14,17 @@
     "checkUpdatesHint": "Look for a newer build on GitHub Releases.",
     "downloadAndroidApp": "Download Android App",
     "downloadAndroidHint": "For lock-screen audio playback. You may need to allow \"install unknown apps\" for your browser.",
-    "reportProblem": "Report a problem",
-    "reportProblemHint": "Tell us what went wrong — it goes to the team with your current passage.",
+    "contactDeveloper": "Contact developer",
+    "contactDeveloperHint": "Report a bug, request a feature, or send the team a message — your current passage goes along.",
     "theme": "Theme",
     "language": "Language",
     "languageLoadFailed": "Could not load the selected language — keeping the current one.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "gettingStartedHint": "Watch short video tutorials on the app's features.",
-    "stagingChecklist": "What's on staging",
+    "autoTranslateNotes": "Auto-translate notes",
+    "autoTranslateNotesHint": "Show machine translations when a note is in another language."
+,    "stagingChecklist": "What's on staging",
     "stagingChecklistHint": "PRs on staging that still need UI checks.",
     "stagingChecklistOpenPr": "Open on GitHub",
     "stagingChecklistSeePr": "See the PR body for verification steps",
@@ -127,6 +129,13 @@
     "linkedNotes": "Linked notes",
     "linkedCount_one": "{{count}} linked note",
     "linkedCount_other": "{{count}} linked notes",
+    "linkedVerses": "Linked verses",
+    "collapseEditor": "Collapse editor",
+    "expandEditor": "Expand editor",
+    "autoSaveOn": "Auto save on",
+    "autoSaveOff": "Auto save off",
+    "privateOnlyYou": "Private — only you can view",
+    "tryReloading": "Try reloading in a few moments.",
     "toggleNoteDetails": "Toggle note details",
     "submitChanges": "Submit changes",
     "saveFailed": "Failed to save note. Please try again.",
@@ -189,7 +198,21 @@
     "moveToTop": "Move to top",
     "noMatchingNotes": "No matching notes",
     "verseReferences": "Verse references",
-    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions."
+    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions.",
+    "translation": {
+      "language": "Note language",
+      "autoTranslated": "Auto-translated",
+      "verifiedByAuthor": "Verified by author",
+      "translating": "Translating…",
+      "updating": "Translations updating…",
+      "failed": "Translation failed",
+      "retry": "Retry translation",
+      "verify": "Mark as verified",
+      "unverify": "Remove verification",
+      "showOriginal": "Show original",
+      "hideOriginal": "Hide original",
+      "loadFailed": "Could not load the translation. Please try again."
+    }
   },
   "tags": {
     "createNew": "Create New Tag",
@@ -378,7 +401,9 @@
     "blockquote": "Blockquote",
     "linkUrlLabel": "Enter URL",
     "linkOpenNewTab": "Open link in a new tab",
-    "linkOpenSameTab": "Open link in the same tab"
+    "linkOpenSameTab": "Open link in the same tab",
+    "increaseIndent": "Increase indent",
+    "decreaseIndent": "Decrease indent"
   },
   "pagination": {
     "label": "Pagination",
@@ -451,7 +476,7 @@
     "sharePassage": "Share this passage",
     "addNote": "Add note",
     "bibleMaps": "Bible Maps",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Open in new tab",
     "shareFailed": "Failed to share",
     "linkCopied": "Link copied",
@@ -470,15 +495,40 @@
     "tapToSelect": "Tap a verse to select it"
   },
   "report": {
-    "title": "Report a problem",
-    "hint": "Tell us what went wrong — the report is sent with your current passage for context.",
-    "label": "What went wrong?",
-    "placeholder": "e.g. The next-chapter button does nothing when the screen is locked",
-    "submit": "Send report",
-    "sent": "Report sent",
-    "notSent": "Report not sent",
-    "thanks": "Thanks — the report is on its way.",
-    "failed": "Could not send the report. Please try again later."
+    "categoryLabel": "Category",
+    "category": {
+      "bug": "Bug report",
+      "feature": "Feature request",
+      "general": "General message"
+    },
+    "bug": {
+      "title": "Report a problem",
+      "hint": "Tell us what went wrong — the report is sent with your current passage for context.",
+      "label": "What went wrong?",
+      "placeholder": "e.g. The next-chapter button does nothing when the screen is locked",
+      "sentTitle": "Report sent",
+      "sentMessage": "Thanks — the report is on its way."
+    },
+    "feature": {
+      "title": "Request a feature",
+      "hint": "Describe what you'd like to see — your current passage is sent for context.",
+      "label": "What should the app do?",
+      "placeholder": "e.g. Let me save a verse for later",
+      "sentTitle": "Request sent",
+      "sentMessage": "Thanks — the request is on its way."
+    },
+    "general": {
+      "title": "Message the developer",
+      "hint": "Questions, thanks, or anything else — your current passage is sent for context.",
+      "label": "Your message",
+      "placeholder": "e.g. Thanks for building this — I use it every day",
+      "sentTitle": "Message sent",
+      "sentMessage": "Thanks — your message is on its way."
+    },
+    "emailLabel": "Email (optional — for a reply)",
+    "submit": "Send",
+    "notSent": "Not sent",
+    "failed": "Could not send the message. Please try again later."
   },
   "errors": {
     "title": "Error",
@@ -535,6 +585,10 @@
     "select-and-share-verses": {
       "title": "Select verses and share them",
       "description": "Tap verses to select them, then share the passage or open it on external study sites from the action toolbar."
+    },
+    "bible-maps": {
+      "title": "See the passage on a map",
+      "description": "Two toolbar map buttons: Bible Maps or BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Switch Bible translation",

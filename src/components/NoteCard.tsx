@@ -12,6 +12,8 @@ import Lightbox from "./Lightbox";
 import ScripturePassagePopover from "./ScripturePassagePopover";
 import useScriptureRefPreview from "../hooks/useScriptureRefPreview";
 import RichTextView from "./RichTextView";
+import NoteLanguageBar from "./NoteLanguageBar";
+import { useNoteTranslation } from "../hooks/useNoteTranslation";
 import NoteCardActions from "./NoteCardActions";
 import NoteVerseList from "./NoteVerseList";
 import { noteHeading } from "../utils/noteHeading";
@@ -122,6 +124,12 @@ const NoteCard = ({
   // structure lands — subscribing here re-renders the card.
   useActiveStructure();
   const heading = noteHeading(note);
+  // Language switching/peek/verify UX — disabled entirely
+  // when the Auto-translate setting is off or the note has
+  // no detected source language yet.
+  const translation = useNoteTranslation(note);
+  const isOwner = note.is_owner === true || isTagOwner === true;
+  const shownText = translation.displayText;
   const lightboxImage =
     images.find((img) => img.id === lightboxImageId) ?? null;
 
@@ -244,12 +252,24 @@ const NoteCard = ({
                 : theme.colors.gray[4],
           })}
         >
-          <Box sx={{ fontStyle: "italic" }}>
+          {/* lang= drives hyphenation/font shaping for the
+              served language (source or a translation). */}
+          <Box
+            sx={{ fontStyle: "italic" }}
+            lang={translation.servedLang ?? undefined}
+          >
             <RichTextView
-              content={note.note_text}
+              content={shownText}
               onScriptureRef={onGrabBiblePassage}
             />
           </Box>
+          {translation.enabled && (
+            <NoteLanguageBar
+              state={translation}
+              sourceLang={note.source_language ?? null}
+              isOwner={isOwner}
+            />
+          )}
         </Box>
       )}
       {images.length > 0 && (

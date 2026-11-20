@@ -50,7 +50,7 @@ the menu.
    distraction-free reading; scroll up to bring them back.
 5. Tap the burger — the menu drawer lists: Account / Sign In,
    Read Bible, Getting started (the very page these tutorials
-   live on), Report a problem, Theme switch. Use the toggle:
+   live on), Contact developer, Theme switch. Use the toggle:
    dark → light → dark.
 6. Close the menu with ✕ or Esc.
 
@@ -62,7 +62,7 @@ the menu.
 - The theme toggle only lives in the drawer — don't hunt for
   it in the top bar.
 - On Android the drawer also shows "Download Android App"
-  (§17 covers it).
+  (§18 covers it).
 - Point at each element as you name it so viewers map names to
   pixels.
 
@@ -147,7 +147,36 @@ external study sites.
 - Hover each external icon a beat; demo one (Bible Maps is the
   most visual), don't open all of them.
 
-## 5. Switch Bible translation (~2 min)
+## 5. See the passage on a map (~60 s)
+
+**Teaches:** the verse toolbar's two map buttons — the in-app
+Bible Maps modal and BibleMapper's WebViewer.
+
+### Steps
+
+1. On `/bible/JHN.3`, tap verse 16 — the action toolbar
+   appears.
+2. Tap the teal map icon ("View on map") — a "Bible Maps"
+   modal opens inside the app with the chapter already loaded
+   in BibleMapper MapFinder.
+3. Pan and zoom the map, then close the modal with ✕.
+4. Tap the BibleMapper icon (the biblemapper.com logo) — the
+   English reference copies to the clipboard (a toast
+   confirms) and biblemapper.com's WebViewer opens in a new
+   tab.
+5. Paste the reference into the WebViewer to load the passage
+   there.
+
+### Recording
+
+- Anonymous session — both map buttons work logged out.
+- Give the modal iframe a beat to load before pointing out
+  the passage marker.
+- The clipboard copy is the English reference even under an
+  lv/ru UI — say it out loud so nobody pastes a localized
+  book name the tool can't parse.
+
+## 6. Switch Bible translation (~2 min)
 
 **Teaches:** the translation picker; text and audio are chosen
 independently.
@@ -175,7 +204,7 @@ independently.
 - Some versions cover only one testament — a coverage hint is
   expected, not a bug.
 
-## 6. Listen to a chapter (~2 min)
+## 7. Listen to a chapter (~2 min)
 
 **Teaches:** play chapter audio and use the player bar.
 
@@ -203,7 +232,7 @@ independently.
 - An orange alert icon means no audio for that
   translation/book — switch first.
 
-## 7. Audio playlists (~90 s)
+## 8. Audio playlists (~90 s)
 
 **Teaches:** continuous listening beyond one chapter — from
 search hits or note passages.
@@ -227,7 +256,7 @@ search hits or note passages.
   can't be played.
 - Keep it short — a "did you know" video.
 
-## 8. Search the Bible (~90 s)
+## 9. Search the Bible (~90 s)
 
 **Teaches:** full-text search and the `/` shortcut.
 
@@ -249,7 +278,7 @@ search hits or note passages.
 - If no text translation is selected the page says "select a
   Bible translation first" — it's not a global search.
 
-## 9. Create an account and sign in (~2 min)
+## 10. Create an account and sign in (~2 min)
 
 **Teaches:** registration, login, logout — and what an account
 unlocks.
@@ -277,7 +306,7 @@ unlocks.
   the account stores notes, tags, comments, and syncs reading
   positions.
 
-## 10. Take a note on verses (~2.5 min)
+## 11. Take a note on verses (~2.5 min)
 
 **Teaches:** attach a note to selected verses.
 
@@ -304,7 +333,7 @@ unlocks.
 - The Add-note modal is fullscreen by design, desktop
   included.
 
-## 11. The note editor (~2.5 min)
+## 12. The note editor (~2.5 min)
 
 **Teaches:** the rich-text note editor — formatting, scripture
 refs, images, autosave.
@@ -328,7 +357,7 @@ refs, images, autosave.
 - Typing `@` without a resolvable book still shows the picker
   — keep typing the book name.
 
-## 12. Browse and organize your notes (~2 min)
+## 13. Browse and organize your notes (~2 min)
 
 **Teaches:** the notes page — filtering, sorting, reordering,
 folding verses.
@@ -354,7 +383,7 @@ folding verses.
   first tag" and the demo dies.
 - Edit/delete only show on your own tags.
 
-## 13. Tags: organize notes and share them publicly (~2.5 min)
+## 14. Tags: organize notes and share them publicly (~2.5 min)
 
 **Teaches:** the tag tree — create, reparent, publish tags.
 
@@ -379,7 +408,7 @@ folding verses.
   they go to Untagged.
 - Public is a cascade — read the confirm-modal warning aloud.
 
-## 14. Share a note or a tag (~90 s)
+## 15. Share a note or a tag (~90 s)
 
 **Teaches:** the public sharing model — links that work
 without login.
@@ -401,7 +430,7 @@ without login.
 - Anonymous viewers can read but can't comment ("Log in to
   comment") — show that line.
 
-## 15. Comments on notes (~2 min)
+## 16. Comments on notes (~2 min)
 
 **Teaches:** comment threads on notes.
 
@@ -423,7 +452,7 @@ without login.
   already exist.
 - Image cap is 5 (notes allow 10).
 
-## 16. Your reading position follows you (~60 s)
+## 17. Your reading position follows you (~60 s)
 
 **Teaches:** per-book resume; position syncs across devices
 when logged in.
@@ -443,7 +472,7 @@ when logged in.
 - Keep the claim honest: server sync is login-only — anonymous
   gets local-only restore in the same browser.
 
-## 17. Extras: dark mode, problem reports, Android app (~90 s)
+## 18. Extras: dark mode, problem reports, Android app (~90 s)
 
 **Teaches:** the theme switch, problem reports, and the
 Android app.
@@ -452,8 +481,9 @@ Android app.
 
 1. The theme switch (sun/moon) is in the menu — dark is the
    default.
-2. "Report a problem" → describe the issue → "Send report" →
-   toast; it attaches the current passage automatically.
+2. "Contact developer" → keep "Bug report" (or pick another
+   category) → describe the issue → "Send" → toast; it
+   attaches the current passage automatically.
 3. On an Android phone browser, the menu shows "Download
    Android App" → APK → allow "install unknown apps" when
    prompted.
