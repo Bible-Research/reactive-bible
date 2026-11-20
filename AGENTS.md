@@ -175,6 +175,10 @@ whose head SHA was never merged into `staging`, and the
   its language — PassagePicker greys uncovered books (still
   clickable → "… doesn't include {book}" notification, never
   the `disabled` attribute, which swallows the click).
+  `loadStructure` sends the owner's concrete text member id
+  (`ENGESV_API`), not the bare listing abbr (`ESV` 404s —
+  registry providers only route by fileset id), and never a
+  `:`-bearing product id.
 - `fileset_id` selects the provider server-side: `ENGKJV` (bundled
   `src/assets/kjv.json`, offline, audio from wordpocket.org),
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.

@@ -1,6 +1,9 @@
 import type { StateCreator } from 'zustand';
 import { fetchBibleStructure } from '../../api';
-import { findTranslationByFilesetId } from '../../utils/filesetGroups';
+import {
+  findTranslationByFilesetId,
+  groupFilesets,
+} from '../../utils/filesetGroups';
 import {
   getCachedStructure,
   cacheStructure,
@@ -61,6 +64,34 @@ const catalogLangFor = (iso?: string): string | undefined => {
  */
 const inflight = new Map<string, Promise<void>>();
 
+/**
+ * Mirrors the backend's `FILESET_ID_RE`
+ * (`bible/utils/request_params.py`) — a ':'-bearing product id
+ * or otherwise malformed id is a guaranteed
+ * 400 `invalid_parameter`, so it must never reach the wire.
+ */
+const FILESET_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+
+/**
+ * Owner lookup with one extra tolerance over
+ * `findTranslationByFilesetId`: legacy two-part '{abbr}:{n}'
+ * selections predate the '{abbr}:{kind}:{n}' product grammar,
+ * so a stored id whose prefix is a listing abbr still
+ * resolves its translation — the owner's member fileset id
+ * can then drive the fetch even though the ':'-bearing
+ * stored form is a guaranteed 400 on the wire.
+ */
+const resolveTextOwner = (
+  storedId: string,
+  translations: Translation[],
+): Translation | null =>
+  findTranslationByFilesetId(storedId, translations) ??
+  (storedId.includes(':')
+    ? translations.find(
+        (t) => t.abbr === storedId.split(':')[0],
+      ) ?? null
+    : null);
+
 export interface StructureSlice {
   /**
    * Resolved structures keyed by bible abbr. Testament-split
@@ -102,11 +133,10 @@ export const createStructureSlice: StateCreator<
       return Promise.resolve();
     }
 
-    const owner: Translation | null =
-      findTranslationByFilesetId(
-        activeTextFilesetId,
-        translations,
-      );
+    const owner = resolveTextOwner(
+      activeTextFilesetId,
+      translations,
+    );
     // The structure endpoint takes a fileset id or the
     // bible's listing abbr — never a grouped product id:
     // '{abbr}:{kind}:{n}' carries a ':' that the backend's
@@ -146,11 +176,45 @@ export const createStructureSlice: StateCreator<
 
     const existing = inflight.get(activeTextFilesetId);
     if (existing) return existing;
+
+    // The wire id prefers a concrete text member of the
+    // owner's option over the bare listing abbr: a member
+    // fileset id routes on every backend (the ESV listing
+    // abbr 'ESV' 404s where the registered fileset id
+    // 'ENGESV_API' answers), while a listing abbr only
+    // resolves where the provider registry knows the alias.
+    // The abbr-shaped member wins when present — the bundled
+    // KJV structure branch is keyed on the exact 'ENGKJV'
+    // id, whose _ET siblings would return DBT's all-caps
+    // names — else a byTestament slot winner (always a
+    // whole-bible member) or the first member.
+    const textOption = owner ? groupFilesets(owner).text : null;
+    const slotMap =
+      textOption?.byTestament.NT ?? textOption?.byTestament.OT;
+    const memberId =
+      (textOption?.members.includes(abbr) ? abbr : undefined) ??
+      (slotMap ? Object.values(slotMap)[0] : undefined) ??
+      textOption?.members[0];
+    const fetchId = memberId ?? abbr;
+    if (!FILESET_ID_RE.test(fetchId)) {
+      // The stored selection can't resolve to a routable id —
+      // the staged/previous structure keeps rendering and the
+      // re-kick on the next fileset/translations change
+      // retries. Warn only: this is local data drift, not an
+      // API failure worth a Sentry event.
+      console.warn(
+        'Bible structure fetch skipped: ' +
+          'unresolvable fileset id ' +
+          JSON.stringify(fetchId),
+      );
+      return Promise.resolve();
+    }
+
     // Promise.resolve first: a synchronous throw from the
     // client layer (module-mocked api barrel, offline guard)
     // must degrade into the warn path, not crash the loader.
     const p = Promise.resolve()
-      .then(() => fetchBibleStructure(abbr))
+      .then(() => fetchBibleStructure(fetchId))
       .then((structure) => {
         // A malformed resolution (or a test mock returning
         // undefined) must take the warn path — applying it
@@ -169,7 +233,7 @@ export const createStructureSlice: StateCreator<
         // Re-resolve the owner at landing: the translations
         // list may have arrived mid-flight, upgrading the
         // key from the fileset id to the bible abbr.
-        const landOwner = findTranslationByFilesetId(
+        const landOwner = resolveTextOwner(
           activeTextFilesetId,
           get().translations,
         );
@@ -199,7 +263,7 @@ export const createStructureSlice: StateCreator<
         captureHandledError(
           error,
           'Bible structure fetch',
-          { abbr }
+          { abbr, filesetId: fetchId }
         );
       })
       .finally(() => {
