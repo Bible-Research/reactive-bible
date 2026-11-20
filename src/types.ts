@@ -10,6 +10,13 @@ export interface Tag {
    */
   public: boolean;
   /**
+   * When true, new notes under the tag default to published
+   * (listed in the public directory). Written only via
+   * `setTagPublished`; requires the publish_note permission.
+   * Absent on backends that predate the field.
+   */
+  published?: boolean;
+  /**
    * Notes attached DIRECTLY to the tag — absent when the
    * backend predates the annotation. Subtree totals are
    * aggregated client-side.
@@ -27,12 +34,50 @@ export interface Verse {
   text: string;
 }
 
+/** Lifecycle of a per-language translation row. 'source' is
+ *  the metadata anchor for the note's own language — its text
+ *  stays empty; the original is served from `note_text`. */
+export type NoteTranslationStatus =
+  | 'pending'
+  | 'ready'
+  | 'failed'
+  | 'source';
+
+/**
+ * One row of the note payload's `translations` list — metadata
+ * only, never the translated text itself (that arrives via
+ * `note_text` when `?lang=` is requested).
+ */
+export interface NoteTranslationMeta {
+  language: string;
+  status: NoteTranslationStatus;
+  verified: boolean;
+  engine: string | null;
+  error: string | null;
+}
+
 export interface Note {
   id: string;
   note_text: string;
   public: boolean;
-  /** Only sent once the backend's is_owner field ships —
-   *  treat absence as "not owned" (`=== true` guards). */
+  /**
+   * Listed in the public directory feed/search. Implies
+   * `public`; writable only with the publish_note permission.
+   */
+  published?: boolean;
+  /**
+   * Author attribution — `{id, username}`. The username of a
+   * published/shared note's author is public by design.
+   */
+  author?: CommentAuthor;
+  /**
+   * Provenance id on notes copied from another note.
+   * Serialized to the copy's OWNER only — absent elsewhere.
+   */
+  copied_from?: string | null;
+  /** Ships on every note payload; pages cached before the
+   *  field existed may lack it — treat absence as "not owned"
+   *  (`=== true` guards). */
   is_owner?: boolean;
   created_at: string;
   updated_at: string;
@@ -40,6 +85,19 @@ export interface Note {
   verses: Verse[];
   headings?: SectionHeading[];
   tag_position: number | null;
+  /**
+   * ISO 639-1 code detected from this note's own text. Empty/
+   * absent until the first translation run completes.
+   */
+  source_language?: string | null;
+  /**
+   * The language `note_text` actually contains in this payload
+   * — equals `source_language` unless a `?lang=` request was
+   * served a ready translation.
+   */
+  served_language?: string | null;
+  /** Per-language translation metadata (see above). */
+  translations?: NoteTranslationMeta[];
   /** Set when the provider failed to resolve verse text. */
   error?: string;
   /** 'rate_limited' | 'provider_error' — see `error`. */
@@ -111,6 +169,39 @@ export interface FilesetCopyright {
 export interface CommentAuthor {
   id: number;
   username: string;
+}
+
+/** One grant row from `GET …/shares/` (owner-only). */
+export interface ShareGrant {
+  shared_with: string;
+  /** Tag shares only — absent on note grants. */
+  include_descendants?: boolean;
+  created_at: string;
+}
+
+/** A tag grant in `GET /notes/shared-with-me/`. */
+export interface SharedTagGrant {
+  id: string;
+  name: string;
+  include_descendants: boolean;
+  created_at: string;
+}
+
+export interface SharedWithMeResponse {
+  notes: Note[];
+  tag_shares: SharedTagGrant[];
+}
+
+/**
+ * One row of `GET /notes/bookmarks/`. `available` rows embed
+ * the full note; an unavailable row is a stale pointer the
+ * user may remove.
+ */
+export interface BookmarkEntry {
+  note_id: string;
+  available: boolean;
+  created_at: string;
+  note?: Note;
 }
 
 export interface CommentImage {

@@ -78,7 +78,7 @@ const coveredKeys = (en: Json, other: Json): string[] => {
 const seedStorage = (state: Json): void => {
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ state, version: 9 })
+    JSON.stringify({ state, version: 11 })
   );
 };
 

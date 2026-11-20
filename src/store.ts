@@ -71,10 +71,33 @@ export interface BibleState {
    */
   uiLanguage: UiLanguage;
   setUiLanguage: (lang: UiLanguage) => void;
+  /**
+   * Persisted preferred reading language for notes (BCP-47,
+   * e.g. 'en'/'lv'). `null` means "follow `uiLanguage`" — the
+   * initial seed — so a first-run Latvian user sees Latvian
+   * notes without configuring anything.
+   */
+  preferredNoteLanguage: string | null;
+  setPreferredNoteLanguage: (lang: string | null) => void;
+  /**
+   * Persisted "Auto-translate notes" toggle (MainMenu,
+   * default ON). When OFF, no `?lang=` is ever sent and all
+   * translation UI on note cards is hidden.
+   */
+  autoTranslateNotes: boolean;
+  setAutoTranslateNotes: (enabled: boolean) => void;
   showAudioPlayer: boolean;
   translations: Translation[];
   activeTextFilesetId: string | null;
   activeAudioFilesetId: string | null;
+  /**
+   * Pinned translation for note-reference surfaces (the
+   * '@…' scripture preview and note-linked verse text).
+   * `null` = follow `activeTextFilesetId`. Persisted; set on
+   * /settings via TranslationSelector's pick-only mode.
+   */
+  noteRefFilesetId: string | null;
+  setNoteRefFilesetId: (id: string | null) => void;
   /**
    * Last saved translation pick per `language_iso`
    * (persisted). TranslationSelector re-stages the
@@ -230,10 +253,16 @@ export const initialState = {
   verseSelection: null as VerseSelection | null,
   bibleVersion: "KJV",
   uiLanguage: resolveUiLanguage(),
+  // null = seed from uiLanguage at read time (see the
+  // BibleState docs) — the persisted field itself stays
+  // untouched until the user picks a language explicitly.
+  preferredNoteLanguage: null as string | null,
+  autoTranslateNotes: true,
   showAudioPlayer: false,
   translations: [],
   activeTextFilesetId: resolveInitialTextFileset(),
   activeAudioFilesetId: "ENGESV_API",
+  noteRefFilesetId: null as string | null,
   lastSelectionByLanguage: {} as Record<
     string,
     LastLanguageSelection
@@ -350,6 +379,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
         set({ activeTextFilesetId }),
       setActiveAudioFilesetId: (activeAudioFilesetId) =>
         set({ activeAudioFilesetId }),
+      setNoteRefFilesetId: (noteRefFilesetId) =>
+        set({ noteRefFilesetId }),
       setLastSelectionByLanguage: (languageIso, selection) =>
         set((state) => ({
           lastSelectionByLanguage: {
@@ -377,6 +408,10 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setHeaderVisible: (headerVisible) => set({ headerVisible }),
       setBookTitleMarquee: (bookTitleMarquee) =>
         set({ bookTitleMarquee }),
+      setPreferredNoteLanguage: (preferredNoteLanguage) =>
+        set({ preferredNoteLanguage }),
+      setAutoTranslateNotes: (autoTranslateNotes) =>
+        set({ autoTranslateNotes }),
       prepareBookSwitch: (bookId) => {
         // pendingScrollVerse carries the verse > 1 restore —
         // PassageView consumes it once the chapter loads.
@@ -491,7 +526,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 10,
+      version: 11,
       migrate: migratePersistedState,
       partialize: partializeState,
     }

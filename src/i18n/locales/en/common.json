@@ -14,14 +14,20 @@
     "checkUpdatesHint": "Look for a newer build on GitHub Releases.",
     "downloadAndroidApp": "Download Android App",
     "downloadAndroidHint": "For lock-screen audio playback. You may need to allow \"install unknown apps\" for your browser.",
-    "reportProblem": "Report a problem",
-    "reportProblemHint": "Tell us what went wrong — it goes to the team with your current passage.",
+    "contactDeveloper": "Contact developer",
+    "contactDeveloperHint": "Report a bug, request a feature, or send the team a message — your current passage goes along.",
     "theme": "Theme",
     "language": "Language",
     "languageLoadFailed": "Could not load the selected language — keeping the current one.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "gettingStartedHint": "Watch short video tutorials on the app's features."
+    "gettingStartedHint": "Watch short video tutorials on the app's features.",
+    "explore": "Explore",
+    "sharedWithMe": "Shared with me",
+    "bookmarks": "Bookmarks",
+    "autoTranslateNotes": "Auto-translate notes",
+    "autoTranslateNotesHint": "Show machine translations when a note is in another language.",
+    "settings": "Settings"
   },
   "audio": {
     "play": "Play",
@@ -120,6 +126,13 @@
     "linkedNotes": "Linked notes",
     "linkedCount_one": "{{count}} linked note",
     "linkedCount_other": "{{count}} linked notes",
+    "linkedVerses": "Linked verses",
+    "collapseEditor": "Collapse editor",
+    "expandEditor": "Expand editor",
+    "autoSaveOn": "Auto save on",
+    "autoSaveOff": "Auto save off",
+    "privateOnlyYou": "Private — only you can view",
+    "tryReloading": "Try reloading in a few moments.",
     "toggleNoteDetails": "Toggle note details",
     "submitChanges": "Submit changes",
     "saveFailed": "Failed to save note. Please try again.",
@@ -182,7 +195,23 @@
     "moveToTop": "Move to top",
     "noMatchingNotes": "No matching notes",
     "verseReferences": "Verse references",
-    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions."
+    "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions.",
+    "publishedNote": "Published note",
+    "listedInExplore": "Listed in the Explore directory for everyone",
+    "translation": {
+      "language": "Note language",
+      "autoTranslated": "Auto-translated",
+      "verifiedByAuthor": "Verified by author",
+      "translating": "Translating…",
+      "updating": "Translations updating…",
+      "failed": "Translation failed",
+      "retry": "Retry translation",
+      "verify": "Mark as verified",
+      "unverify": "Remove verification",
+      "showOriginal": "Show original",
+      "hideOriginal": "Hide original",
+      "loadFailed": "Could not load the translation. Please try again."
+    }
   },
   "tags": {
     "createNew": "Create New Tag",
@@ -282,7 +311,20 @@
     "tagCount_one": "{{count}} tag",
     "tagCount_other": "{{count}} tags",
     "noteCount_one": "{{count}} note",
-    "noteCount_other": "{{count}} notes"
+    "noteCount_other": "{{count}} notes",
+    "publishedTag": "Published tag",
+    "publishedTagLong": "New notes under this tag default to published — listed in the Explore directory.",
+    "makePublished": "Publish tag",
+    "makeUnpublished": "Unpublish tag",
+    "makePublishedBody": "Publish \"{{name}}\" and all notes directly under it? They will be listed in the Explore directory.",
+    "makeUnpublishedBody": "Unpublish \"{{name}}\"? All notes directly under it leave the Explore directory — shared links keep working.",
+    "makePublishedConfirm": "Publish",
+    "makeUnpublishedConfirm": "Unpublish",
+    "publishedResult_one": "Tag is now {{state}} — {{count}} note updated",
+    "publishedResult_other": "Tag is now {{state}} — {{count}} notes updated",
+    "statePublished": "published",
+    "stateUnpublished": "unpublished",
+    "publishedFailed": "Failed to update tag publication"
   },
   "comments": {
     "post": "Post",
@@ -371,7 +413,9 @@
     "blockquote": "Blockquote",
     "linkUrlLabel": "Enter URL",
     "linkOpenNewTab": "Open link in a new tab",
-    "linkOpenSameTab": "Open link in the same tab"
+    "linkOpenSameTab": "Open link in the same tab",
+    "increaseIndent": "Increase indent",
+    "decreaseIndent": "Decrease indent"
   },
   "pagination": {
     "label": "Pagination",
@@ -463,15 +507,40 @@
     "tapToSelect": "Tap a verse to select it"
   },
   "report": {
-    "title": "Report a problem",
-    "hint": "Tell us what went wrong — the report is sent with your current passage for context.",
-    "label": "What went wrong?",
-    "placeholder": "e.g. The next-chapter button does nothing when the screen is locked",
-    "submit": "Send report",
-    "sent": "Report sent",
-    "notSent": "Report not sent",
-    "thanks": "Thanks — the report is on its way.",
-    "failed": "Could not send the report. Please try again later."
+    "categoryLabel": "Category",
+    "category": {
+      "bug": "Bug report",
+      "feature": "Feature request",
+      "general": "General message"
+    },
+    "bug": {
+      "title": "Report a problem",
+      "hint": "Tell us what went wrong — the report is sent with your current passage for context.",
+      "label": "What went wrong?",
+      "placeholder": "e.g. The next-chapter button does nothing when the screen is locked",
+      "sentTitle": "Report sent",
+      "sentMessage": "Thanks — the report is on its way."
+    },
+    "feature": {
+      "title": "Request a feature",
+      "hint": "Describe what you'd like to see — your current passage is sent for context.",
+      "label": "What should the app do?",
+      "placeholder": "e.g. Let me save a verse for later",
+      "sentTitle": "Request sent",
+      "sentMessage": "Thanks — the request is on its way."
+    },
+    "general": {
+      "title": "Message the developer",
+      "hint": "Questions, thanks, or anything else — your current passage is sent for context.",
+      "label": "Your message",
+      "placeholder": "e.g. Thanks for building this — I use it every day",
+      "sentTitle": "Message sent",
+      "sentMessage": "Thanks — your message is on its way."
+    },
+    "emailLabel": "Email (optional — for a reply)",
+    "submit": "Send",
+    "notSent": "Not sent",
+    "failed": "Could not send the message. Please try again later."
   },
   "errors": {
     "title": "Error",
@@ -612,5 +681,73 @@
   },
   "copyright": {
     "prefix": "Copyright: {{text}}"
+  },
+  "sharing": {
+    "shareNote": "Share note",
+    "shareTag": "Share \"{{name}}\"",
+    "shareWith": "Share with a user",
+    "silentHint": "Enter a username. If that account exists, the user will get read access.",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "Enter username",
+    "includeDescendants": "Include notes in sub-tags",
+    "includeDescendantsHint": "Notes added to this tag or its sub-tags later are shared too.",
+    "shareAction": "Share",
+    "shareSaved": "Share saved — access applies if the username exists.",
+    "shareFailed": "Could not save the share",
+    "revoke": "Revoke",
+    "revokeFailed": "Could not revoke the share",
+    "currentGrants": "Shared with",
+    "noGrants": "Not shared with anyone yet.",
+    "withDescendants": "includes sub-tags",
+    "tagOnly": "this tag only",
+    "loading": "Loading…"
+  },
+  "copyNote": {
+    "title": "Copy to my notes",
+    "action": "Copy note",
+    "hint": "Copies this note into your account as a private note. Edits won’t sync back.",
+    "targetTag": "Save under tag",
+    "copyAction": "Copy",
+    "copied": "Note copied to your account",
+    "failed": "Could not copy the note"
+  },
+  "explore": {
+    "title": "Explore",
+    "searchPlaceholder": "Search published notes…",
+    "loadFailed": "Could not load published notes",
+    "noResults": "No published notes match your search.",
+    "emptyFeed": "Nothing published yet.",
+    "loadMore": "Load more",
+    "byAuthor": "by {{name}}"
+  },
+  "sharedWithMe": {
+    "title": "Shared with me",
+    "loadFailed": "Could not load shared content",
+    "tagShares": "Shared tags",
+    "noteShares": "Shared notes",
+    "withDescendants": "includes sub-tags",
+    "tagOnly": "this tag only",
+    "empty": "Nothing has been shared with you yet."
+  },
+  "bookmarks": {
+    "title": "Bookmarks",
+    "loadFailed": "Could not load bookmarks",
+    "empty": "No bookmarks yet — save a note with the bookmark icon.",
+    "unavailable": "This note is no longer accessible.",
+    "remove": "Remove bookmark",
+    "save": "Bookmark",
+    "saved": "Note saved to bookmarks",
+    "saveFailed": "Could not save the bookmark",
+    "loginToSave": "Log in to save this note",
+    "removeFailed": "Could not remove the bookmark"
+  },
+  "settings": {
+    "title": "Settings",
+    "noteRefTranslation": "Note reference translation",
+    "noteRefHint": "Scripture previews in notes use this translation.",
+    "followSelected": "Selected translation",
+    "pinSpecific": "Specific translation",
+    "change": "Change",
+    "reset": "Reset"
   }
 }

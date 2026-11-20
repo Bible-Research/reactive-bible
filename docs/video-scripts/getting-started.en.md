@@ -50,7 +50,7 @@ the menu.
    distraction-free reading; scroll up to bring them back.
 5. Tap the burger — the menu drawer lists: Account / Sign In,
    Read Bible, Getting started (the very page these tutorials
-   live on), Report a problem, Theme switch. Use the toggle:
+   live on), Contact developer, Theme switch. Use the toggle:
    dark → light → dark.
 6. Close the menu with ✕ or Esc.
 
@@ -481,8 +481,9 @@ Android app.
 
 1. The theme switch (sun/moon) is in the menu — dark is the
    default.
-2. "Report a problem" → describe the issue → "Send report" →
-   toast; it attaches the current passage automatically.
+2. "Contact developer" → keep "Bug report" (or pick another
+   category) → describe the issue → "Send" → toast; it
+   attaches the current passage automatically.
 3. On an Android phone browser, the menu shows "Download
    Android App" → APK → allow "install unknown apps" when
    prompted.
