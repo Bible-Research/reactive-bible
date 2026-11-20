@@ -14,14 +14,20 @@
     "checkUpdatesHint": "Meklēt jaunāku versiju GitHub Releases.",
     "downloadAndroidApp": "Lejupielādēt Android lietotni",
     "downloadAndroidHint": "Audio atskaņošanai bloķētā ekrānā. Iespējams, pārlūkā būs jāatļauj „instalēt nezināmas lietotnes”.",
-    "reportProblem": "Ziņot par problēmu",
-    "reportProblemHint": "Pastāstiet, kas nogāja greizi — ziņojums komandai nonāk kopā ar pašreizējo pantsu.",
+    "contactDeveloper": "Sazināties ar izstrādātāju",
+    "contactDeveloperHint": "Ziņojiet par kļūdu, ieteiciet funkciju vai sūtiet komandai ziņu — pašreizējais teksts tiek pievienots.",
     "theme": "Tēma",
     "language": "Valoda",
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
     "openMenu": "Atvērt izvēlni",
     "closeMenu": "Aizvērt izvēlni",
     "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām.",
+    "explore": "Atklāt",
+    "sharedWithMe": "Kopīgots ar mani",
+    "bookmarks": "Grāmatzīmes",
+    "autoTranslateNotes": "Automātiski tulkot piezīmes",
+    "autoTranslateNotesHint": "Rādīt mašīntulkojumus, ja piezīme ir citā valodā.",
+    "settings": "Iestatījumi",
     "stagingChecklist": "Kas atrodas staging",
     "stagingChecklistHint": "PR uz staging, kas gaida UI pārbaudi.",
     "stagingChecklistOpenPr": "Atvērt GitHub",
@@ -128,6 +134,13 @@
     "linkedCount_zero": "{{count}} saistīto piezīmju",
     "linkedCount_one": "{{count}} saistītā piezīme",
     "linkedCount_other": "{{count}} saistītās piezīmes",
+    "linkedVerses": "Saistītie panti",
+    "collapseEditor": "Sakļaut redaktoru",
+    "expandEditor": "Izvērst redaktoru",
+    "autoSaveOn": "Automātiskā saglabāšana ieslēgta",
+    "autoSaveOff": "Automātiskā saglabāšana izslēgta",
+    "privateOnlyYou": "Privāta — redzama tikai jums",
+    "tryReloading": "Mēģiniet pārlādēt pēc brīža.",
     "toggleNoteDetails": "Pārslēgt piezīmes detaļas",
     "submitChanges": "Iesniegt izmaiņas",
     "saveFailed": "Neizdevās saglabāt piezīmi. Lūdzu, mēģiniet vēlreiz.",
@@ -191,7 +204,23 @@
     "moveToTop": "Pārvietot uz augšu",
     "noMatchingNotes": "Nav atbilstošu piezīmju",
     "verseReferences": "Pantu atsauces",
-    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem."
+    "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem.",
+    "publishedNote": "Publicēta piezīme",
+    "listedInExplore": "Rādīta Explore katalogā visiem",
+    "translation": {
+      "language": "Piezīmes valoda",
+      "autoTranslated": "Automātiski tulkots",
+      "verifiedByAuthor": "Autors pārbaudījis",
+      "translating": "Notiek tulkošana…",
+      "updating": "Tulkojumi atjauninās…",
+      "failed": "Tulkošana neizdevās",
+      "retry": "Mēģināt tulkot vēlreiz",
+      "verify": "Atzīmēt kā pārbaudītu",
+      "unverify": "Noņemt pārbaudījuma atzīmi",
+      "showOriginal": "Rādīt oriģinālu",
+      "hideOriginal": "Slēpt oriģinālu",
+      "loadFailed": "Neizdevās ielādēt tulkojumu. Mēģiniet vēlreiz."
+    }
   },
   "tags": {
     "createNew": "Izveidot jaunu birku",
@@ -298,7 +327,21 @@
     "tagCount_other": "{{count}} birkas",
     "noteCount_zero": "{{count}} piezīmju",
     "noteCount_one": "{{count}} piezīme",
-    "noteCount_other": "{{count}} piezīmes"
+    "noteCount_other": "{{count}} piezīmes",
+    "publishedTag": "Publicēta atzīme",
+    "publishedTagLong": "Jaunas piezīmes zem šīs atzīmes pēc noklusējuma ir publicētas — redzamas Explore katalogā.",
+    "makePublished": "Publicēt birku",
+    "makeUnpublished": "Atcelt birkas publicēšanu",
+    "makePublishedBody": "Publicēt „{{name}}” un visas tieši zem tās esošās piezīmes? Tās būs redzamas Explore katalogā.",
+    "makeUnpublishedBody": "Atcelt „{{name}}” publicēšanu? Visas tieši zem tās esošās piezīmes pazudīs no Explore kataloga — kopīgotās saites turpinās darboties.",
+    "makePublishedConfirm": "Publicēt",
+    "makeUnpublishedConfirm": "Atcelt publicēšanu",
+    "publishedResult_one": "Birka tagad ir {{state}} — atjaunināta {{count}} piezīme",
+    "publishedResult_other": "Birka tagad ir {{state}} — atjauninātas {{count}} piezīmes",
+    "publishedResult_zero": "Birka tagad ir {{state}} — atjauninātas {{count}} piezīmju",
+    "statePublished": "publicēta",
+    "stateUnpublished": "nepublicēta",
+    "publishedFailed": "Neizdevās atjaunināt birkas publicēšanu"
   },
   "comments": {
     "post": "Publicēt",
@@ -397,7 +440,9 @@
     "blockquote": "Citāts",
     "linkUrlLabel": "Ievadiet URL",
     "linkOpenNewTab": "Atvērt saiti jaunā cilnē",
-    "linkOpenSameTab": "Atvērt saiti tajā pašā cilnē"
+    "linkOpenSameTab": "Atvērt saiti tajā pašā cilnē",
+    "increaseIndent": "Palielināt atkāpi",
+    "decreaseIndent": "Samazināt atkāpi"
   },
   "pagination": {
     "label": "Lapu numerācija",
@@ -427,15 +472,40 @@
     "enterForChapter": "Nospiediet Enter, lai citētu visu nodaļu"
   },
   "report": {
-    "title": "Ziņot par problēmu",
-    "hint": "Pastāstiet, kas nogāja greizi — ziņojums tiek nosūtīts kopā ar pašreizējo tekstu konteksta dēļ.",
-    "label": "Kas nogāja greizi?",
-    "placeholder": "piem., nākamās nodaļas poga neko nedara, kad ekrāns ir bloķēts",
-    "submit": "Nosūtīt ziņojumu",
-    "sent": "Ziņojums nosūtīts",
-    "notSent": "Ziņojums netika nosūtīts",
-    "thanks": "Paldies — ziņojums ir ceļā.",
-    "failed": "Neizdevās nosūtīt ziņojumu. Lūdzu, mēģiniet vēlāk."
+    "categoryLabel": "Kategorija",
+    "category": {
+      "bug": "Kļūdas ziņojums",
+      "feature": "Funkcijas ieteikums",
+      "general": "Vispārīga ziņa"
+    },
+    "bug": {
+      "title": "Ziņot par problēmu",
+      "hint": "Pastāstiet, kas nogāja greizi — ziņojums tiek nosūtīts kopā ar pašreizējo tekstu konteksta dēļ.",
+      "label": "Kas nogāja greizi?",
+      "placeholder": "piem., nākamās nodaļas poga neko nedara, kad ekrāns ir bloķēts",
+      "sentTitle": "Ziņojums nosūtīts",
+      "sentMessage": "Paldies — ziņojums ir ceļā."
+    },
+    "feature": {
+      "title": "Ieteikt funkciju",
+      "hint": "Aprakstiet, ko vēlētos redzēt — pašreizējais teksts tiek nosūtīts konteksta dēļ.",
+      "label": "Kas lietotnei būtu jāprot?",
+      "placeholder": "piem., ļaujiet saglabāt pantu vēlākai lasīšanai",
+      "sentTitle": "Ieteikums nosūtīts",
+      "sentMessage": "Paldies — ieteikums ir ceļā."
+    },
+    "general": {
+      "title": "Sūtīt ziņu izstrādātājam",
+      "hint": "Jautājumi, pateicības vai kas cits — pašreizējais teksts tiek nosūtīts konteksta dēļ.",
+      "label": "Jūsu ziņa",
+      "placeholder": "piem., paldies par lietotni — lietoju to katru dienu",
+      "sentTitle": "Ziņa nosūtīta",
+      "sentMessage": "Paldies — jūsu ziņa ir ceļā."
+    },
+    "emailLabel": "E-pasts (nav obligāts — atbildei)",
+    "submit": "Nosūtīt",
+    "notSent": "Netika nosūtīts",
+    "failed": "Neizdevās nosūtīt ziņu. Lūdzu, mēģiniet vēlāk."
   },
   "search": {
     "title": "Meklēt Bībelē",
@@ -627,5 +697,73 @@
       "title": "Papildu: tumšais režīms, problēmu ziņojumi, Android lietotne",
       "description": "Atlikušās izvēlnes izvēles: tēmas slēdzis, problēmas ziņošana un Android lietotne."
     }
+  },
+  "sharing": {
+    "shareNote": "Kopīgot piezīmi",
+    "shareTag": "Kopīgot \"{{name}}\"",
+    "shareWith": "Kopīgot ar lietotāju",
+    "silentHint": "Ievadi lietotājvārdu. Ja šāds konts pastāv, lietotājs saņems lasīšanas piekļuvi.",
+    "usernameLabel": "Lietotājvārds",
+    "usernamePlaceholder": "Ievadi lietotājvārdu",
+    "includeDescendants": "Iekļaut piezīmes apakšatzīmēs",
+    "includeDescendantsHint": "Vēlāk pievienotās piezīmes šajā atzīmē un tās apakšatzīmēs arī tiks kopīgotas.",
+    "shareAction": "Kopīgot",
+    "shareSaved": "Kopīgošana saglabāta — piekļuve stājas spēkā, ja lietotājvārds pastāv.",
+    "shareFailed": "Neizdevās saglabāt kopīgošanu",
+    "revoke": "Atcelt",
+    "revokeFailed": "Neizdevās atcelt kopīgošanu",
+    "currentGrants": "Kopīgots ar",
+    "noGrants": "Vēl ne ar vienu nav kopīgots.",
+    "withDescendants": "ietver apakšatzīmes",
+    "tagOnly": "tikai šī atzīme",
+    "loading": "Ielādē…"
+  },
+  "copyNote": {
+    "title": "Kopēt uz manām piezīmēm",
+    "action": "Kopēt piezīmi",
+    "hint": "Nokopē šo piezīmi tavā kontā kā privātu piezīmi. Izmaiņas nesinhronizēsies atpakaļ.",
+    "targetTag": "Saglabāt zem atzīmes",
+    "copyAction": "Kopēt",
+    "copied": "Piezīme nokopēta tavā kontā",
+    "failed": "Neizdevās nokopēt piezīmi"
+  },
+  "explore": {
+    "title": "Atklāt",
+    "searchPlaceholder": "Meklēt publicētās piezīmēs…",
+    "loadFailed": "Neizdevās ielādēt publicētās piezīmes",
+    "noResults": "Meklējumam neatbilst neviena publicēta piezīme.",
+    "emptyFeed": "Vēl nekas nav publicēts.",
+    "loadMore": "Ielādēt vairāk",
+    "byAuthor": "no {{name}}"
+  },
+  "sharedWithMe": {
+    "title": "Kopīgots ar mani",
+    "loadFailed": "Neizdevās ielādēt kopīgoto saturu",
+    "tagShares": "Kopīgotās atzīmes",
+    "noteShares": "Kopīgotās piezīmes",
+    "withDescendants": "ietver apakšatzīmes",
+    "tagOnly": "tikai šī atzīme",
+    "empty": "Ar tevi vēl nekas nav kopīgots."
+  },
+  "bookmarks": {
+    "title": "Grāmatzīmes",
+    "loadFailed": "Neizdevās ielādēt grāmatzīmes",
+    "empty": "Vēl nav grāmatzīmju — saglabā piezīmi ar grāmatzīmes ikonu.",
+    "unavailable": "Šī piezīme vairs nav pieejama.",
+    "remove": "Noņemt grāmatzīmi",
+    "save": "Grāmatzīme",
+    "saved": "Piezīme saglabāta grāmatzīmēs",
+    "saveFailed": "Neizdevās saglabāt grāmatzīmi",
+    "loginToSave": "Pieslēgties, lai saglabātu piezīmi",
+    "removeFailed": "Neizdevās noņemt grāmatzīmi"
+  },
+  "settings": {
+    "title": "Iestatījumi",
+    "noteRefTranslation": "Bībeles atsauču tulkojums",
+    "noteRefHint": "Atsauču priekšskatījumi izmanto šo tulkojumu.",
+    "followSelected": "Izvēlētais tulkojums",
+    "pinSpecific": "Konkrēts tulkojums",
+    "change": "Mainīt",
+    "reset": "Atiestatīt"
   }
 }

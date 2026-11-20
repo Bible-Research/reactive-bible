@@ -52,8 +52,16 @@ describe('MainMenu auth gating (issue #68)', () => {
     // link is a dead end for them.
     expect(screen.queryByText('View Notes'))
       .not.toBeInTheDocument();
-    // Read-only navigation stays visible.
+    // Read-only navigation stays visible — including the
+    // public Explore directory.
     expect(screen.getByText('Read Bible')).toBeInTheDocument();
+    expect(screen.getByText('Explore')).toBeInTheDocument();
+    // The sharing inbox and saved notes are account-owned —
+    // hidden like the write affordances.
+    expect(screen.queryByText('Shared with me'))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText('Bookmarks'))
+      .not.toBeInTheDocument();
   });
 
   it('shows write affordances when authenticated', () => {
@@ -68,6 +76,11 @@ describe('MainMenu auth gating (issue #68)', () => {
     expect(screen.getByText('View Notes')).toBeInTheDocument();
     expect(screen.getByText('New Note')).toBeInTheDocument();
     expect(screen.getByText('Tag Management'))
+      .toBeInTheDocument();
+    expect(screen.getByText('Explore')).toBeInTheDocument();
+    expect(screen.getByText('Shared with me'))
+      .toBeInTheDocument();
+    expect(screen.getByText('Bookmarks'))
       .toBeInTheDocument();
   });
 });

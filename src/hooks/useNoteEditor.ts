@@ -46,6 +46,9 @@ export interface NoteEditorDraft {
   /** The form's "Public note" checkbox — restored on resume so
    *  a reopened modal shows the publicity the draft carried. */
   isPublic?: boolean;
+  /** The form's "Published note" checkbox — restored the
+   *  same way as isPublic. */
+  isPublished?: boolean;
   /**
    * Files staged in the form awaiting upload once the note
    * exists. The note-images endpoint needs `note_pk` in the
@@ -146,7 +149,8 @@ interface UseNoteEditorResult {
   save: (
     tagId: string,
     text: string,
-    isPublic?: boolean
+    isPublic?: boolean,
+    isPublished?: boolean
   ) => Promise<boolean>;
   /**
    * Form submit target: validates, shares the save path (a
@@ -157,7 +161,8 @@ interface UseNoteEditorResult {
   submit: (
     tagId: string,
     text: string,
-    isPublic?: boolean
+    isPublic?: boolean,
+    isPublished?: boolean
   ) => Promise<boolean>;
   /** Reports live form contents into the draft so a reopen
    *  restores the in-progress note, not just the last saved
@@ -165,7 +170,8 @@ interface UseNoteEditorResult {
   trackDraft: (
     tagId: string,
     text: string,
-    isPublic?: boolean
+    isPublic?: boolean,
+    isPublished?: boolean
   ) => void;
   /**
    * Syncs the form's staged files into the draft so the next
@@ -179,6 +185,7 @@ interface UseNoteEditorResult {
     tagId: string;
     text: string;
     isPublic?: boolean;
+    isPublished?: boolean;
     /** Files still awaiting upload. */
     pendingFiles: File[];
     /**
@@ -283,7 +290,8 @@ export const useNoteEditor = ({
     (
       tagId: string,
       text: string,
-      isPublic?: boolean
+      isPublic?: boolean,
+      isPublished?: boolean
     ): Promise<boolean> => {
       // A tagless save or a write leaving the note with
       // neither text nor linked verses carries nothing —
@@ -317,14 +325,16 @@ export const useNoteEditor = ({
             tagId,
             text,
             refs,
-            isPublic
+            isPublic,
+            isPublished
           );
         } else {
           const created = await addTagNote(
             tagId,
             text,
             refs,
-            isPublic
+            isPublic,
+            isPublished
           );
           draft.savedNoteId = created?.id ?? null;
         }
@@ -333,6 +343,7 @@ export const useNoteEditor = ({
         draft.tagId = tagId;
         draft.text = text;
         draft.isPublic = isPublic;
+        draft.isPublished = isPublished;
         savedRef.current = true;
         // Staged attachments upload once the note exists —
         // the endpoint needs note_pk in the URL. Sequential
@@ -438,6 +449,13 @@ export const useNoteEditor = ({
       {
         ordering: notesOrdering ?? undefined,
         page: notesPage,
+        // Preserve a merged `?descendants=1` view — refetching
+        // the tag-only page would silently collapse the
+        // subtree sections while the URL still claims merged.
+        includeDescendants:
+          new URLSearchParams(window.location.search).get(
+            'descendants'
+          ) === '1',
       }
     );
   }, []);
@@ -446,7 +464,8 @@ export const useNoteEditor = ({
     async (
       tagId: string,
       text: string,
-      isPublic?: boolean
+      isPublic?: boolean,
+      isPublished?: boolean
     ): Promise<boolean> => {
       // The API rejects a tagless note, and a note with
       // neither text nor linked verses carries nothing —
@@ -477,7 +496,12 @@ export const useNoteEditor = ({
         return false;
       }
       try {
-        const saved = await save(tagId, text, isPublic);
+        const saved = await save(
+          tagId,
+          text,
+          isPublic,
+          isPublished
+        );
         // save() declined the write (no draft slot to persist
         // into) — nothing reached the server, so do not
         // refresh, drop the draft, or report a submit.
@@ -511,7 +535,12 @@ export const useNoteEditor = ({
   );
 
   const trackDraft = useCallback(
-    (tagId: string, text: string, isPublic?: boolean) => {
+    (
+      tagId: string,
+      text: string,
+      isPublic?: boolean,
+      isPublished?: boolean
+    ) => {
       // Track live contents too, not just saved ones — a
       // reopen restores the in-progress draft.
       const draft = ensureDraft();
@@ -519,6 +548,7 @@ export const useNoteEditor = ({
       draft.tagId = tagId;
       draft.text = text;
       draft.isPublic = isPublic;
+      draft.isPublished = isPublished;
     },
     [ensureDraft]
   );
@@ -572,6 +602,7 @@ export const useNoteEditor = ({
       tagId: existing.tagId,
       text: existing.text,
       isPublic: existing.isPublic,
+      isPublished: existing.isPublished,
       pendingFiles: existing.pendingFiles,
       // Re-stage the File behind every attached image too —
       // an already-uploaded attachment must stay visible

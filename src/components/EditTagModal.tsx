@@ -15,7 +15,13 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import { showNotification } from '@mantine/notifications';
 import { Tag } from '../types';
-import { setTagPublic, updateTag } from '../api';
+import {
+  setTagPublic,
+  setTagPublished,
+  updateTag,
+} from '../api';
+import { useAuthStore } from '../stores/authStore';
+import { clearNotesCache } from '../utils/cacheManager';
 import {
   isTagDescendant,
   validateTagName,
@@ -52,6 +58,13 @@ export function EditTagModal({
   const [tagName, setTagName] = useState('');
   const [parentTagId, setParentTagId] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
+  const [isPublished, setIsPublished] = useState(false);
+  // Only users carrying publish_note see the directory
+  // switch — for everyone else the flag simply isn't part
+  // of the form.
+  const canPublish = useAuthStore(
+    (state) => state.user?.can_publish === true
+  );
   const [loading, setLoading] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -64,6 +77,7 @@ export function EditTagModal({
       // without `public` — `undefined` would make the Switch
       // uncontrolled until the first click.
       setIsPublic(tag.public ?? false);
+      setIsPublished(tag.published ?? false);
       setNameError(null);
       setDetailsOpen(false);
     }
@@ -103,6 +117,12 @@ export function EditTagModal({
     // if the publicity cascade then fails, the applied half
     // still needs a list refresh.
     let updateApplied = false;
+    // Set when a publicity/publish cascade landed — the
+    // never-expiring notes cache keeps serving the old
+    // public/published flags otherwise, and autosave seeds
+    // the next note edit from them, silently undoing the
+    // cascade (the tree-row toggles drop it the same way).
+    let cascadeApplied = false;
     try {
       // A publicity-only edit skips the PATCH entirely —
       // sending an unchanged name/parent is a no-op write.
@@ -119,6 +139,23 @@ export function EditTagModal({
       // stale" state.
       if (isPublic !== (tag.public ?? false)) {
         await setTagPublic(tag.id, isPublic);
+        cascadeApplied = true;
+      }
+      // Published goes through its own cascade (set-published)
+      // — same rule as publicity: never a raw PATCH flag.
+      if (
+        canPublish &&
+        isPublished !== (tag.published ?? false)
+      ) {
+        await setTagPublished(tag.id, isPublished);
+        cascadeApplied = true;
+      }
+      if (cascadeApplied) {
+        // Every cached note page under the tag — and every
+        // ancestor's merged `sub:true` page — still holds the
+        // pre-cascade flags; the cache never expires, so drop
+        // it whole (same as the tree-row toggles).
+        clearNotesCache();
       }
       showNotification({
         title: t('common.success'),
@@ -139,10 +176,14 @@ export function EditTagModal({
             : t('tags.updateFailed'),
         color: 'red',
       });
-      // Partial success: the PATCH landed but the cascade
-      // failed — refresh so the list shows what the server
-      // actually stored.
-      if (updateApplied) {
+      // Partial success: the PATCH or a cascade landed before
+      // a later call failed — drop the stale note pages and
+      // refresh so the list shows what the server actually
+      // stored.
+      if (cascadeApplied) {
+        clearNotesCache();
+      }
+      if (updateApplied || cascadeApplied) {
         onSuccess();
       }
     }
@@ -243,7 +284,27 @@ export function EditTagModal({
                 ? t('tags.publicityPublicLong')
                 : t('tags.publicityPrivateLong')
             }
+            // Published implies public — mirroring the
+            // note form, the pair can't desync in one save.
+            // Publishers can unpublish first, so only they
+            // get the lock; a non-publisher whose permission
+            // was revoked keeps the switch usable — clearing
+            // public cascades published off server-side.
+            disabled={canPublish && isPublished}
           />
+
+          {canPublish && (
+            <Switch
+              label={t('tags.publishedTag')}
+              checked={isPublished}
+              onChange={(e) => {
+                const checked = e.currentTarget.checked;
+                setIsPublished(checked);
+                if (checked) setIsPublic(true);
+              }}
+              description={t('tags.publishedTagLong')}
+            />
+          )}
 
           {tag &&
             (compact ? (

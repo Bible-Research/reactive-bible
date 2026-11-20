@@ -1,17 +1,21 @@
 import * as Sentry from '@sentry/react';
 
 /**
- * User-submitted problem reports ("Report a problem" in the
- * main menu). Unlike `reportError` — which forwards unhandled
- * exceptions — these are deliberate reports typed by the user:
- * a `user report` message event tagged `reportType:
- * user-report`, plus a Sentry user-feedback entry linked via
+ * User-submitted messages ("Contact developer" in the main
+ * menu). Unlike `reportError` — which forwards unhandled
+ * exceptions — these are deliberate messages typed by the
+ * user: a `user report` message event tagged `reportType:
+ * user-report` and `reportCategory: bug|feature|general`,
+ * plus a Sentry user-feedback entry linked via
  * `associatedEventId`, so the note also surfaces in Sentry's
- * User Feedback view.
+ * User Feedback view. Triage consumes `reportCategory` to
+ * keep bugs separate from feature requests and general mail.
  *
  * Like `reportError`, this is safe to call anywhere: with no
  * DSN there is no client and it returns false; it never throws.
  */
+
+export type ReportCategory = 'bug' | 'feature' | 'general';
 
 export interface UserReportContext {
   bookId?: string;
@@ -23,6 +27,8 @@ export interface UserReportContext {
 export interface UserReport {
   message: string;
   username?: string;
+  category?: ReportCategory;
+  email?: string;
   context?: UserReportContext;
 }
 
@@ -32,10 +38,16 @@ export const sendUserReport = (report: UserReport): boolean => {
   try {
     const message = report.message.trim();
     if (!message || !Sentry.getClient()) return false;
+    const category = report.category ?? 'bug';
+    const tags = {
+      reportType: 'user-report',
+      reportCategory: category,
+    };
     let eventId: string | undefined;
     Sentry.withScope((scope) => {
       scope.setContext('userReport', {
         note: message,
+        category,
         ...(report.username
           ? { reportedBy: report.username }
           : {}),
@@ -43,16 +55,17 @@ export const sendUserReport = (report: UserReport): boolean => {
       });
       eventId = Sentry.captureMessage('user report', {
         level: 'info',
-        tags: { reportType: 'user-report' },
+        tags,
       });
     });
     try {
       Sentry.captureFeedback({
         message,
         ...(report.username ? { name: report.username } : {}),
+        ...(report.email ? { email: report.email } : {}),
         source: 'menu-report',
         associatedEventId: eventId,
-        tags: { reportType: 'user-report' },
+        tags,
       });
     } catch {
       // A failed feedback call must not fail the report.

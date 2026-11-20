@@ -511,6 +511,46 @@ describe('useBibleStore', () => {
     });
   });
 
+  it('migratePersistedState seeds a null noteRefFilesetId ' +
+    'across the v11 bump', () => {
+    // Pre-v11 blobs never carried the pin — absent means
+    // "follow the selected translation".
+    const migrated = migratePersistedState(
+      { activeBookId: 'JHN' },
+      10
+    );
+    expect(migrated.noteRefFilesetId).toBeNull();
+  });
+
+  it('migratePersistedState sanitizes a non-string ' +
+    'noteRefFilesetId to null', () => {
+    const migrated = migratePersistedState(
+      { noteRefFilesetId: 42 },
+      10
+    );
+    expect(migrated.noteRefFilesetId).toBeNull();
+  });
+
+  it('migratePersistedState keeps a string ' +
+    'noteRefFilesetId across the v11 bump', () => {
+    const migrated = migratePersistedState(
+      { noteRefFilesetId: 'ENGNIV:text:0' },
+      10
+    );
+    expect(migrated.noteRefFilesetId).toBe('ENGNIV:text:0');
+  });
+
+  it('partializeState round-trips noteRefFilesetId', () => {
+    useBibleStore.getState().setNoteRefFilesetId('LVSGLU8:text:0');
+    expect(
+      partializeState(useBibleStore.getState()).noteRefFilesetId
+    ).toBe('LVSGLU8:text:0');
+    useBibleStore.getState().setNoteRefFilesetId(null);
+    expect(
+      partializeState(useBibleStore.getState()).noteRefFilesetId
+    ).toBeNull();
+  });
+
   it('defaults bookTitleMarquee to true', () => {
     expect(useBibleStore.getState().bookTitleMarquee)
       .toBe(true);
@@ -635,13 +675,16 @@ describe('useBibleStore', () => {
         'activeChapter',
         'activeTextFilesetId',
         'audioActiveVerse',
+        'autoTranslateNotes',
         'bibleVersion',
         'bookTitleMarquee',
         'lastSelectedTagId',
         'lastSelectionByLanguage',
+        'noteRefFilesetId',
         'notes',
         'notesPage',
         'notesPageSize',
+        'preferredNoteLanguage',
         'readingPositions',
         'tagPagination',
         'tags',

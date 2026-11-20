@@ -51,6 +51,7 @@ const mockTag = {
   name: 'Test Tag',
   parent_tag: null,
   public: false,
+  published: false,
   note_count: 1,
   created_at: '',
   updated_at: '',
@@ -65,8 +66,34 @@ const mockNote = {
   note_text: 'This is a test note.',
   tag: mockTag,
   public: false,
+  published: false,
+  // Every payload carries author attribution; owned rows
+  // still serialize it — consumers gate on is_owner/id.
+  author: { id: 1, username: 'testuser' },
   is_owner: true,
   tag_position: null,
+  // Translation contract: the note was detected as English;
+  // a ready Latvian machine translation exists. `?lang=lv`
+  // swaps `note_text`; every other lang falls back to the
+  // original with served_language='en'.
+  source_language: 'en',
+  served_language: 'en',
+  translations: [
+    {
+      language: 'en',
+      status: 'source',
+      verified: false,
+      engine: null,
+      error: null,
+    },
+    {
+      language: 'lv',
+      status: 'ready',
+      verified: false,
+      engine: 'google-nmt',
+      error: null,
+    },
+  ],
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   verses: [
@@ -80,10 +107,21 @@ const mockNote = {
   headings: [],
 };
 
+// Shared-with-me and bookmark rows always arrive
+// `is_owner: false` with the author populated — the owned
+// mockNote would wrongly suppress the non-owner
+// affordances (bookmark/copy) those surfaces exercise.
+const mockSharedNote = {
+  ...mockNote,
+  is_owner: false,
+  author: { id: 7, username: 'sharedauthor' },
+};
+
 interface NoteWriteBody {
   tag?: string;
   note_text?: string;
   public?: boolean;
+  published?: boolean;
   verse_references?: {
     book: string;
     chapter: number;
@@ -419,6 +457,7 @@ export const handlers = [
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -436,6 +475,7 @@ export const handlers = [
       id: 'note-1',
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses,
       created_at: new Date().toISOString(),
@@ -452,11 +492,185 @@ export const handlers = [
   }),
 
   // --- Single note (GET/PATCH/DELETE) ---
-  http.get(`${API_URL}/notes/:id`, ({ params }) => {
-    return HttpResponse.json({ ...mockNote, id: params.id });
+  // --- Note sharing / bookmarks / published directory ---
+
+  // `?published=true` (optionally with `q`) returns the same
+  // paginated envelope — the in-memory list is enough for
+  // MSW-driven tests.
+  http.get(`${API_URL}/notes/shared-with-me/`, () =>
+    HttpResponse.json({
+      notes: [mockSharedNote],
+      tag_shares: [
+        {
+          id: mockTag.id,
+          name: mockTag.name,
+          include_descendants: true,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    })
+  ),
+
+  http.get(`${API_URL}/notes/bookmarks/`, () =>
+    HttpResponse.json([
+      {
+        note_id: mockNote.id,
+        available: true,
+        created_at: new Date().toISOString(),
+        note: mockSharedNote,
+      },
+      {
+        note_id: 'note-gone',
+        available: false,
+        created_at: new Date().toISOString(),
+      },
+    ])
+  ),
+
+  http.post(`${API_URL}/notes/:noteId/bookmark/`, () =>
+    HttpResponse.json({ saved: true }, { status: 201 })
+  ),
+
+  http.delete(
+    `${API_URL}/notes/:noteId/bookmark/`,
+    () => new HttpResponse(null, { status: 204 })
+  ),
+
+  http.post(`${API_URL}/notes/:noteId/share/`, () =>
+    HttpResponse.json({ shared: true })
+  ),
+
+  http.get(`${API_URL}/notes/:noteId/shares/`, () =>
+    HttpResponse.json([
+      {
+        shared_with: 'friend',
+        created_at: new Date().toISOString(),
+      },
+    ])
+  ),
+
+  http.delete(
+    `${API_URL}/notes/:noteId/share/:username/`,
+    () => new HttpResponse(null, { status: 204 })
+  ),
+
+  http.post(`${API_URL}/notes/:noteId/copy/`, ({ params }) =>
+    HttpResponse.json(
+      {
+        ...mockNote,
+        id: 'note-copy',
+        copied_from: String(params.noteId),
+        public: false,
+      },
+      { status: 201 }
+    )
+  ),
+
+  http.post(`${API_URL}/tags/:tagId/share/`, () =>
+    HttpResponse.json({ shared: true })
+  ),
+
+  http.get(`${API_URL}/tags/:tagId/shares/`, () =>
+    HttpResponse.json([
+      {
+        shared_with: 'friend',
+        include_descendants: true,
+        created_at: new Date().toISOString(),
+      },
+    ])
+  ),
+
+  http.delete(
+    `${API_URL}/tags/:tagId/share/:username/`,
+    () => new HttpResponse(null, { status: 204 })
+  ),
+
+  http.post(
+    `${API_URL}/tags/:tagId/set-published/`,
+    async ({ request }) => {
+      const body = (await request.json()) as {
+        published?: boolean;
+      };
+      return HttpResponse.json({
+        tag: { ...mockTag, published: body.published },
+        notes_updated: 1,
+      });
+    }
+  ),
+
+  http.post(`${API_URL}/tags/:tagId/copy/`, () =>
+    HttpResponse.json({ copied: 1, notes: [mockNote] })
+  ),
+
+  // Login/register/checkAuth all probe users/me/ for
+  // can_publish after the sharing feature shipped.
+  http.get(`${API_URL}/users/me/`, () =>
+    HttpResponse.json({
+      id: 1,
+      username: 'testuser',
+      can_publish: true,
+    })
+  ),
+
+  // `?lang=lv` swaps note_text to the ready translation and
+  // reports it via served_language; any other lang falls
+  // back to the original (mirrors the backend contract).
+  http.get(`${API_URL}/notes/:id`, ({ params, request }) => {
+    const lang = new URL(request.url).searchParams.get('lang');
+    return HttpResponse.json({
+      ...mockNote,
+      id: params.id,
+      ...(lang === 'lv'
+        ? {
+            note_text: 'Šī ir testa piezīme.',
+            served_language: 'lv',
+          }
+        : { served_language: 'en' }),
+    });
   }),
-  http.get(`${API_URL}/notes/:id/`, ({ params }) => {
-    return HttpResponse.json({ ...mockNote, id: params.id });
+  http.get(`${API_URL}/notes/:id/`, ({ params, request }) => {
+    const lang = new URL(request.url).searchParams.get('lang');
+    return HttpResponse.json({
+      ...mockNote,
+      id: params.id,
+      ...(lang === 'lv'
+        ? {
+            note_text: 'Šī ir testa piezīme.',
+            served_language: 'lv',
+          }
+        : { served_language: 'en' }),
+    });
+  }),
+
+  // Owner verify/unverify — POST|DELETE
+  // /notes/:id/translations/:lang/verify/
+  http.post(
+    `${API_URL}/notes/:id/translations/:lang/verify/`,
+    ({ params }) => {
+      return HttpResponse.json({
+        language: params.lang,
+        status: 'ready',
+        verified: true,
+        verified_at: new Date().toISOString(),
+        engine: 'google-nmt',
+      });
+    }
+  ),
+  http.delete(
+    `${API_URL}/notes/:id/translations/:lang/verify/`,
+    ({ params }) => {
+      return HttpResponse.json({
+        language: params.lang,
+        status: 'ready',
+        verified: false,
+        verified_at: null,
+        engine: 'google-nmt',
+      });
+    }
+  ),
+  // Owner re-enqueue of failed rows.
+  http.post(`${API_URL}/notes/:id/retranslate/`, () => {
+    return HttpResponse.json({ requeued: 1 });
   }),
 
   http.patch(`${API_URL}/notes/:id`, async ({ params, request }) => {
@@ -470,6 +684,7 @@ export const handlers = [
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined
@@ -489,6 +704,7 @@ export const handlers = [
       id: params.id,
       note_text: body.note_text ?? mockNote.note_text,
       public: body.public ?? mockNote.public,
+      published: body.published ?? mockNote.published,
       tag: { ...mockTag, id: body.tag ?? mockTag.id },
       verses:
         body.verse_references !== undefined

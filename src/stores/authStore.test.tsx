@@ -131,8 +131,13 @@ describe('authStore', () => {
         await result.current.login('canonical_name', 'pw');
       });
 
+      // users/me/ resolves right after the token — its
+      // canonical profile supersedes the token payload's
+      // user blob (MSW serves 'testuser'/id 1).
       expect(result.current.user).toEqual({
-        username: 'Canonical_Name',
+        id: 1,
+        username: 'testuser',
+        can_publish: true,
       });
     });
 
@@ -154,8 +159,12 @@ describe('authStore', () => {
         await result.current.login('typed-name', 'pw');
       });
 
+      // users/me/ still provides the canonical identity —
+      // the as-typed name never reaches state.
       expect(result.current.user).toEqual({
-        username: 'typed-name',
+        id: 1,
+        username: 'testuser',
+        can_publish: true,
       });
     });
 
@@ -184,9 +193,12 @@ describe('authStore', () => {
         );
       });
 
+      // users/me/ (authoritative profile) supersedes the
+      // register payload — MSW serves id 1/'testuser'.
       expect(result.current.user).toEqual({
-        id: 7,
-        username: 'newbie',
+        id: 1,
+        username: 'testuser',
+        can_publish: true,
       });
     });
 
@@ -331,15 +343,33 @@ describe('authStore', () => {
           resolvePing = resolve;
         });
         vi.spyOn(global, 'fetch').mockImplementation(
-          (input) =>
-            String(input).includes('/api/token/')
-              ? Promise.resolve(
-                  new Response(
-                    JSON.stringify({ token: 'fresh-token' }),
-                    { status: 200 }
-                  )
+          (input) => {
+            const url = String(input);
+            // login() now also awaits /users/me/ — it must
+            // resolve; only the tags validation ping stays
+            // held in flight.
+            if (url.includes('/api/token/')) {
+              return Promise.resolve(
+                new Response(
+                  JSON.stringify({ token: 'fresh-token' }),
+                  { status: 200 }
                 )
-              : ping
+              );
+            }
+            if (url.includes('/users/me/')) {
+              return Promise.resolve(
+                new Response(
+                  JSON.stringify({
+                    id: 1,
+                    username: mockUsername,
+                    can_publish: true,
+                  }),
+                  { status: 200 }
+                )
+              );
+            }
+            return ping;
+          }
         );
         const useTestAuthStore = createTestAuthStore();
         const { result } = renderHook(() => useTestAuthStore());
@@ -366,8 +396,11 @@ describe('authStore', () => {
         });
 
         expect(result.current.token).toBe('fresh-token');
-        expect(result.current.user)
-          .toEqual({ username: mockUsername });
+        expect(result.current.user).toEqual({
+          id: 1,
+          username: mockUsername,
+          can_publish: true,
+        });
         expect(result.current.isAuthenticated).toBe(true);
         expect(showNotification).not.toHaveBeenCalled();
       });
