@@ -444,10 +444,18 @@ export const useChapterAudio = (
         const format = /^[a-z0-9]{1,5}$/.test(ext)
           ? [ext]
           : undefined;
-        const howl = createChapterHowl(src, {
-          format,
-          preload: true,
-        });
+        let howl: Howl;
+        try {
+          howl = createChapterHowl(src, {
+            format,
+            preload: true,
+          });
+        } catch (err) {
+          // A Howl-constructor throw must not strand the
+          // fetched blob — nothing else holds the URL.
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
+          throw err;
+        }
         preloadedRef.current = { key, howl, blobUrl };
       } catch {
         // Prefetch is best-effort; playback falls back to on-demand.
