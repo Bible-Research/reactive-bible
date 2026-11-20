@@ -9,7 +9,7 @@ on the app's `/getting-started` route (`GettingStartedRoute` +
 | File | Language | Status | Last verified | YouTube |
 | ---- | -------- | ------ | ------------- | ------- |
 | `getting-started.en.md` | English | draft | 2026-11-16 | [bible-maps][yt] |
-| `getting-started.lv.md` | Latvian | draft | 2026-11-16 | — |
+| `getting-started.lv.md` | Latvian | draft | 2026-11-16 | [bible-maps][yt] |
 | `getting-started.ru.md` | Russian | draft | 2026-11-16 | — |
 
 [yt]: https://www.youtube.com/shorts/WPvhvZrexs0
