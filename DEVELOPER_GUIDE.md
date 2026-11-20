@@ -251,6 +251,7 @@ stay eager because they serve the landing path.
 | `/bible/:book/:chapterVerse` | `LegacyBibleRedirect` | → canonical ref |
 | `/search` | `SearchRoute` | Search (`?q=`) |
 | `/getting-started` | `GettingStartedRoute` | Video tutorials |
+| `/settings` | `SettingsRoute` | Device-local preferences |
 | `/notes` | `NotesRoute` | → default tag |
 | `/notes/tag/:tagId` | `TagNotesRoute` | Tag notes (`untagged`) |
 | `/notes/:noteId` | `NoteDetailRoute` | Note detail (public) |
@@ -267,6 +268,7 @@ src/routes/
 ├── index.tsx              # Route table + lazy boundaries
 ├── BibleRoute.tsx         # USFM ref parsing → store sync
 ├── GettingStartedRoute.tsx# Embedded video tutorials
+├── SettingsRoute.tsx      # Device-local preferences
 ├── LegacyBibleRedirect.tsx# /bible/:book/:chapterVerse → canonical
 ├── NotesRoute.tsx         # Tag load + redirect
 ├── TagNotesRoute.tsx      # Tag notes list (pagination, reorder)
@@ -404,6 +406,16 @@ npm test -- src/routes/BibleRoute.test.tsx
   sharing — write affordances are `isAuthenticated`-gated
 - `/notes/:noteId` - Single note detail view; public for sharing
 
+**Sharing Routes** (✅ Implemented):
+- `/explore` - The published directory: `published=true`
+  notes feed + debounced `q` search; anonymous-safe like
+  `/notes` (published notes are public)
+- `/shared` - "Shared with me": direct note grants plus
+  `tag_shares` rows linking into the shared tag's note page;
+  `ProtectedRoute`
+- `/bookmarks` - Saved notes; `available=false` rows render
+  as removable stale pointers; `ProtectedRoute`
+
 **Tag Routes** (✅ Implemented):
 - `/tags` - Tag management; wrapped in `ProtectedRoute`
   (anonymous visitors redirect to `/login`)
@@ -422,6 +434,14 @@ npm test -- src/routes/BibleRoute.test.tsx
 - `NoteDetailRoute` - Single note detail view
 - `TagManagementRoute` - Tag CRUD behind `ProtectedRoute`
 - `SearchRoute` - Book-grouped search results accordion
+- `ExploreRoute` - Published feed + directory search
+- `SharedWithMeRoute` - Notes/tags other users granted
+- `BookmarksRoute` - Saved-note list with stale-row cleanup
+- `ShareModal` - Targeted username sharing (silent
+  resolution — "if that username exists" copy; tag shares
+  carry an include-descendants checkbox)
+- `CopyNoteModal` - Copy-to-my-account with a target-tag
+  picker reusing `TagCombobox`
 
 ### Route Implementation Details
 
@@ -487,7 +507,7 @@ npm test -- src/routes/BibleRoute.test.tsx
 
 **TagManagementRoute** (`src/routes/TagManagementRoute.tsx`):
 - Hierarchical `TagTree` + `CreateTagModal`/`EditTagModal`;
-  deletes and publicity flips confirm through
+  deletes and publicity/publish flips confirm through
   `openConfirmModal` (`@mantine/modals`, provider in
   `App.tsx`) — never `window.confirm`, which renders as an
   unstyled system dialog on Android. Reparent drops PATCH
@@ -498,7 +518,8 @@ npm test -- src/routes/BibleRoute.test.tsx
   full width with the "N tags" count inline. Each tree
   row collapses its icon cluster into a single
   `IconDotsVertical` `Menu` (View notes / publicity /
-  Edit, divider, red Delete) under the same width query
+  publish — publishers only / share / Edit, divider, red
+  Delete) under the same width query
   OR `(pointer: coarse)` — only TagTree reacts to the
   coarse pointer, the route chrome and modals are
   width-only — so tap targets stop overlapping. Desktop
@@ -548,7 +569,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v10 with a
+management. The main store (`bible-storage`, schema v11 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -576,6 +597,13 @@ auth lives in a separate persisted `authStore`.
   LastLanguageSelection>` - Last saved translation pick per
   `language_iso` (`{ abbr, textId, audioId }`); the selector
   re-stages it when the language is revisited
+- `noteRefFilesetId: string | null` - Optional pin for
+  note-reference surfaces (`@…` previews and linked-verse
+  text in note dialogs). `null` follows
+  `activeTextFilesetId`; consumers read it via
+  `useNoteRefFilesetId()`. Set from `/settings` through
+  `TranslationSelector`'s `pickTextOnly` mode — the reader's
+  own filesets are never written.
 
 **Structure State** (SWR slice in
 `src/stores/bibleStore/structureSlice.ts`, TRANSIENT — not in
@@ -707,7 +735,7 @@ persist(
   (set, get) => ({ /* state and actions */ }),
   {
     name: 'bible-storage',
-    version: 10,
+    version: 11,
     storage: createJSONStorage(() => localStorage),
     partialize: /* in stores/bibleStore/persistence.ts */,
     migrate: migratePersistedState,
@@ -747,6 +775,9 @@ export interface Tag {
   public: boolean;            // notes under it are shareable;
                               // also the default publicity for
                               // new notes under the tag
+  published?: boolean;        // new notes default to the
+                              // Explore directory; requires
+                              // publish_note to write
   note_count?: number;        // direct notes only; absent on
                               // older backends
   created_at: string;
@@ -771,6 +802,10 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  published?: boolean;        // listed in the Explore
+                              // directory; implies public
+  author?: CommentAuthor;     // {id, username} attribution
+  copied_from?: string | null;// provenance — owner-only
   is_owner: boolean;
   created_at: string;
   updated_at: string;
@@ -1645,13 +1680,23 @@ different text and audio formats for each.
   scroll horizontally on narrow screens; a no-op on desktop.
 - **Per-language memory**: Save records the pick under
   `lastSelectionByLanguage[language_iso]` (persisted,
-  `bible-storage` v10). Switching back to a language re-stages
+  `bible-storage` v10+). Switching back to a language re-stages
   the remembered version — verbatim text/audio ids — once its
   translation list merges, but only when no active-owner
   mirror applied and the user has not picked a version in
   that language this session. A remembered version missing
   from the fetched list falls back to the no-memory behavior;
   Cancel never touches the record.
+- **Pick-only mode**: the selector doubles as a controlled
+  text-fileset picker (`opened`, `onClose`, `seedFilesetId`,
+  `onPickText`, `pickTextOnly`) — used by `/settings` to pin
+  the note-reference translation. Every audio surface
+  (the audio radios and the Advanced raw-fileset audio
+  radios) is hidden, seeding follows `seedFilesetId`
+  (falling back to the active text fileset) rather than the
+  audio-owner preference, and Save reports the picked text
+  id through `onPickText` — it never writes
+  `activeTextFilesetId`/`activeAudioFilesetId`.
 - All data fetching is now driven by a `filesetId` instead of a simple version
   string.
 
@@ -2071,7 +2116,10 @@ Create and organize notes with tags for Bible verses.
 - `VerseTextGroups.tsx` renders the shared verse-preview
   grouping (book/chapter divider + numbered verses) used by
   the add/edit modals; grouping itself is `groupVerseTexts`
-  in `src/hooks/useVerseTexts.ts`.
+  in `src/hooks/useVerseTexts.ts`. Both modals feed the hook
+  the `useNoteRefFilesetId()` value, so linked-verse text
+  follows the `/settings` pin (or the active translation
+  when unpinned).
 - `NoteCard` headings (`src/utils/noteHeading.ts`): verse-less
   notes show the tag name; notes spanning chapters render a
   cross-chapter range (e.g. `John 3:16–5:1`) — never a
@@ -2081,6 +2129,40 @@ Create and organize notes with tags for Bible verses.
   `note.is_owner === true`; clipboard share falls back to
   `execCommand` on non-secure contexts
   (`src/utils/clipboard.ts`)
+- Sharing/bookmark controls on note cards: the bookmark
+  icon saves any readable note (a "Log in to save" CTA
+  replaces it for anonymous readers, carrying the return
+  path), the copy icon opens `CopyNoteModal`, and an
+  owner-only user icon opens `ShareModal`
+
+**Sharing model** (add-note-sharing):
+- `public` is link visibility — unchanged: anyone with the
+  URL can read a public note.
+- `published` is directory visibility — published notes
+  appear on `/explore` (feed + `q` search) for everyone.
+  Publishing requires the `publish_note` permission
+  (`user.can_publish`, populated by `users/me/` after
+  login/register/checkAuth) and implies `public`; clearing
+  `public` clears `published`. In NoteForm the published
+  checkbox forces + locks the public one, and tag editing
+  offers a matching `setTagPublished` switch — both render
+  only when `can_publish` is true; without the flag the
+  form leaves `published` undefined so the server inherits
+  the tag's value. The public lock itself is also gated on
+  `can_publish`: a non-publisher whose permission was
+  revoked while their note/tag was still published keeps
+  the public toggle usable — clearing `public` is their
+  only way to unlist, and the server drops `published`
+  with it.
+- Targeted sharing grants a username read access to a note
+  or a tag (optionally its subtree). Username resolution is
+  silent server-side, so `ShareModal`'s copy is honest:
+  "if that username exists, they'll get access".
+- Bookmarks (`/bookmarks`) persist read access pointers —
+  a note that later goes private/deleted renders as a
+  removable stale row.
+- Copy (`CopyNoteModal`) forks a readable note into the
+  caller's account as a private copy (no sync back).
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -2582,6 +2664,21 @@ auth rows, "Check for updates" (native shell only), sharing.
 "View Notes", "New Note", and "Tag Management" only render for
 authenticated users — `/notes` redirects anonymous visitors to
 `/bible`, so the menu must not offer a dead-end link.
+"Settings" is ungated — it only writes device-local
+preferences — and navigates to the public `/settings` page.
+
+Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
+`isPreviewDeploy` in `src/utils/platform.ts`) additionally show
+"What's on staging": a lazy `StagingChecklistModal` listing PRs
+merged into `staging` but not yet promoted to `main` —
+mirroring the pending-set check in `promote-to-main.yml`
+(head-branch keyed, head-SHA / merged_at comparison; without
+its commit-search fallback), read live from the
+unauthenticated GitHub pulls API by
+`src/utils/stagingPrs.ts`. Each row expands to the PR body's
+`## UI verification / QC` steps as session-local checkboxes;
+API failures degrade to a link to the GitHub
+`main...staging` compare view.
 
 Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
 `isPreviewDeploy` in `src/utils/platform.ts`) additionally show
@@ -3024,8 +3121,12 @@ Modal for selecting Bible translations.
 - `PassagePicker.tsx` - book/chapter/verse picker embedded in
   note modals (click toggles, shift-click ranges)
 - `ScripturePassage.tsx` - renders `@USFM.C[.V]` mention
-  previews; its expanded mode lists the whole chapter with
-  selectable verses
+  previews in the text fileset from `useNoteRefFilesetId()`
+  (the `/settings` pin, else the active reader translation,
+  resolved per testament via `resolveTextFileset` on the
+  reference's USFM code — `ENGESV_API` is only the
+  last-resort fallback); its expanded mode lists the whole
+  chapter with selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
   read-only rendering (lazy chunk); block indentation comes
   from `src/extensions/indent.ts` (a `data-indent` attr →

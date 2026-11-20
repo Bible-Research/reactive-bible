@@ -17,6 +17,8 @@ import {
   IconCheck,
   IconChevronDown,
   IconChevronRight,
+  IconEye,
+  IconEyeOff,
   IconLock,
   IconPhoto,
   IconRefresh,
@@ -39,11 +41,17 @@ import {
 } from "./CommentImageGrid";
 import RichTextEditor from "./RichTextEditor";
 import { TagCombobox } from "./TagCombobox";
+import { useAuthStore } from "../stores/authStore";
 import { useTranslation } from 'react-i18next';
 
 interface NoteFormProps {
   tags: Tag[];
-  note?: { tagId: string; text: string; isPublic?: boolean };
+  note?: {
+    tagId: string;
+    text: string;
+    isPublic?: boolean;
+    isPublished?: boolean;
+  };
   /**
    * May resolve `false` to signal a rejected submit (failed
    * validation or save) — the content then stays eligible for
@@ -53,7 +61,8 @@ interface NoteFormProps {
   onSubmit: (
     tagId: string,
     text: string,
-    isPublic: boolean
+    isPublic: boolean,
+    isPublished?: boolean
   ) => void | Promise<unknown>;
   /**
    * Permits saves and submits with no note text — the caller
@@ -67,7 +76,8 @@ interface NoteFormProps {
   onAutoSave?: (
     tagId: string,
     text: string,
-    isPublic: boolean
+    isPublic: boolean,
+    isPublished?: boolean
   ) => Promise<unknown>;
   /**
    * Called after a save triggered by the unmount flush
@@ -83,7 +93,8 @@ interface NoteFormProps {
   onDraftChange?: (
     tagId: string,
     text: string,
-    isPublic: boolean
+    isPublic: boolean,
+    isPublished?: boolean
   ) => void;
   /** Images already attached to the note (edit mode). */
   existingImages?: NoteImage[];
@@ -195,6 +206,23 @@ const NoteForm = ({
   // touched — a tag switch in edit mode must NOT silently flip
   // an existing note's publicity. Reset when the draft re-seeds.
   const publicTouchedRef = useRef(note?.isPublic !== undefined);
+  // "Published note" — same seeding/follow rules as isPublic.
+  // Only users with can_publish see the box or emit a value;
+  // others leave the flag undefined so the server inherits
+  // the tag's `published` default.
+  const canPublish = useAuthStore(
+    (state) => state.user?.can_publish === true
+  );
+  const [isPublished, setIsPublished] = useState<boolean>(
+    () =>
+      note?.isPublished ??
+      tags.find((tag) => tag.id === (note?.tagId ?? ""))
+        ?.published ??
+      false
+  );
+  const publishedTouchedRef = useRef(
+    note?.isPublished !== undefined
+  );
   const [autoSave, setAutoSave] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   // Mobile chrome state: the tag row collapses while the user
@@ -208,6 +236,7 @@ const NoteForm = ({
     tagId: "",
     text: "",
     isPublic: false,
+    isPublished: undefined as boolean | undefined,
     attachedCount: 0,
   });
   // Staged image attachments — create mode reports them so
@@ -252,6 +281,7 @@ const NoteForm = ({
       tagId: selectedTagId,
       text: noteText,
       isPublic,
+      isPublished: canPublish ? isPublished : undefined,
       // Attached + staged — an image-only note in edit
       // mode (all images already uploaded, none staged)
       // still counts as content. While the fetch is in
@@ -267,21 +297,32 @@ const NoteForm = ({
     autoSaveRef.current = autoSave;
     allowEmptyTextRef.current = allowEmptyText;
   });
+  // canPublish arrives after users/me resolves — a session
+  // that gains it mid-edit must start forwarding the flag.
+  const canPublishRef = useRef(canPublish);
+  canPublishRef.current = canPublish;
 
   // Keep the outer draft store in sync — a reopened modal
   // restores `note` from it.
   useEffect(() => {
-    onDraftChangeRef.current?.(selectedTagId, noteText, isPublic);
-  }, [selectedTagId, noteText, isPublic]);
+    onDraftChangeRef.current?.(
+      selectedTagId,
+      noteText,
+      isPublic,
+      canPublish ? isPublished : undefined
+    );
+  }, [selectedTagId, noteText, isPublic, isPublished, canPublish]);
 
   // Until the user touches the box it follows the selected
   // tag's publicity — and a public tag arriving via a late
   // getTags resolves updates it too.
   useEffect(() => {
+    const selected = tags.find((tag) => tag.id === selectedTagId);
     if (!publicTouchedRef.current) {
-      setIsPublic(
-        tags.find((tag) => tag.id === selectedTagId)?.public ?? false
-      );
+      setIsPublic(selected?.public ?? false);
+    }
+    if (!publishedTouchedRef.current) {
+      setIsPublished(selected?.published ?? false);
     }
   }, [selectedTagId, tags]);
 
@@ -292,6 +333,7 @@ const NoteForm = ({
   const noteTagId = note?.tagId;
   const noteTextProp = note?.text;
   const noteIsPublic = note?.isPublic;
+  const noteIsPublished = note?.isPublished;
   useEffect(() => {
     if (noteTagId !== undefined && noteTextProp !== undefined) {
       setSelectedTagId(noteTagId);
@@ -305,8 +347,14 @@ const NoteForm = ({
       } else {
         publicTouchedRef.current = false;
       }
+      if (noteIsPublished !== undefined) {
+        setIsPublished(noteIsPublished);
+        publishedTouchedRef.current = true;
+      } else {
+        publishedTouchedRef.current = false;
+      }
     }
-  }, [noteTagId, noteTextProp, noteIsPublic]);
+  }, [noteTagId, noteTextProp, noteIsPublic, noteIsPublished]);
 
   // The last content autosave persisted — ticks that would write
   // the same payload again are skipped.
@@ -314,6 +362,7 @@ const NoteForm = ({
     tagId: string;
     text: string;
     isPublic: boolean;
+    isPublished: boolean | undefined;
   } | null>(null);
   // Set once a submit persisted the form: the hook deletes the
   // draft, so the unmount flush must not run — a late save
@@ -329,8 +378,13 @@ const NoteForm = ({
     () => () => {
       const save = onAutoSaveRef.current;
       if (!save || !autoSaveRef.current) return;
-      const { tagId, text, isPublic, attachedCount } =
-        latest.current;
+      const {
+        tagId,
+        text,
+        isPublic,
+        isPublished,
+        attachedCount,
+      } = latest.current;
       // A verse-linked note may flush with empty text, and a
       // note with only images (staged or already attached)
       // is content too; a truly empty note (no text, no
@@ -360,11 +414,12 @@ const NoteForm = ({
             last &&
             last.tagId === tagId &&
             last.text === text &&
-            last.isPublic === isPublic
+            last.isPublic === isPublic &&
+            last.isPublished === isPublished
           ) {
             return undefined;
           }
-          return save(tagId, text, isPublic);
+          return save(tagId, text, isPublic, isPublished);
         })
         .then(() => onUnmountedSaveRef.current?.())
         .catch((error) => {
@@ -382,8 +437,13 @@ const NoteForm = ({
     const tick = () => {
       const save = onAutoSaveRef.current;
       if (!save || inFlightRef.current) return;
-      const { tagId, text, isPublic, attachedCount } =
-        latest.current;
+      const {
+        tagId,
+        text,
+        isPublic,
+        isPublished,
+        attachedCount,
+      } = latest.current;
       // Skip contentless notes AND empty tag — the latter
       // used to POST `tag: ''` every 5s, a stream of silent
       // 400s. Verse-linked and image-only notes (staged or
@@ -401,18 +461,27 @@ const NoteForm = ({
         last &&
         last.tagId === tagId &&
         last.text === text &&
-        last.isPublic === isPublic
+        last.isPublic === isPublic &&
+        last.isPublished === isPublished
       ) {
         return;
       }
-      trackInFlight(inFlightRef, save(tagId, text, isPublic))
+      trackInFlight(
+        inFlightRef,
+        save(tagId, text, isPublic, isPublished)
+      )
         .then((result) => {
           // A resolved-false save was declined — the content
           // stays dirty so the next tick or the unmount
           // flush retries, and the saved check must not
           // flash for a write that never happened.
           if (result === false) return;
-          lastSavedRef.current = { tagId, text, isPublic };
+          lastSavedRef.current = {
+            tagId,
+            text,
+            isPublic,
+            isPublished,
+          };
           setSavedFlash(true);
           flashTimeout.current = window.setTimeout(
             () => setSavedFlash(false),
@@ -504,7 +573,12 @@ const NoteForm = ({
       const result = await trackInFlight(
         inFlightRef,
         Promise.resolve(
-          onSubmit(selectedTagId, noteText, isPublic)
+          onSubmit(
+            selectedTagId,
+            noteText,
+            isPublic,
+            canPublishRef.current ? isPublished : undefined
+          )
         )
       );
       // `false` signals a rejected submit — leave the content
@@ -519,6 +593,9 @@ const NoteForm = ({
           tagId: selectedTagId,
           text: noteText,
           isPublic,
+          isPublished: canPublishRef.current
+            ? isPublished
+            : undefined,
         };
         // Staged thumbs are NOT cleared here: a successful
         // submit closes the modal (the hook's unmount cleanup
@@ -858,6 +935,16 @@ const NoteForm = ({
                 variant={isPublic ? "filled" : "subtle"}
                 color={isPublic ? "blue" : "gray"}
                 size="lg"
+                disabled={canPublish && isPublished}
+                // Published implies public — the server forces
+                // it, so the toggle locks while published is
+                // on instead of allowing a state the API
+                // would reject anyway. The lock only applies
+                // to publishers, who can unpublish first: a
+                // non-publisher (permission revoked) keeps it
+                // usable since clearing public is the only way
+                // left to take the note down — the server
+                // clears published with it.
                 onClick={() => {
                   publicTouchedRef.current = true;
                   setIsPublic((v) => !v);
@@ -873,6 +960,39 @@ const NoteForm = ({
                 )}
               </ActionIcon>
             </Tooltip>
+            {canPublish && (
+              <Tooltip
+                label={t('notes.listedInExplore')}
+                position="top"
+                events={{ hover: true, focus: true, touch: true }}
+              >
+                <ActionIcon
+                  variant={isPublished ? "filled" : "subtle"}
+                  color={isPublished ? "blue" : "gray"}
+                  size="lg"
+                  onClick={() => {
+                    publishedTouchedRef.current = true;
+                    const next = !isPublished;
+                    setIsPublished(next);
+                    if (next && !isPublic) {
+                      // Publishing implies public — keep the
+                      // pair consistent in the same write.
+                      publicTouchedRef.current = true;
+                      setIsPublic(true);
+                    }
+                  }}
+                  aria-label={t('notes.publishedNote')}
+                  aria-pressed={isPublished}
+                  title={t('notes.publishedNote')}
+                >
+                  {isPublished ? (
+                    <IconEye size={18} />
+                  ) : (
+                    <IconEyeOff size={18} />
+                  )}
+                </ActionIcon>
+              </Tooltip>
+            )}
           </Group>
         ) : (
           <Group spacing="xs">
@@ -927,12 +1047,43 @@ const NoteForm = ({
               <Checkbox
                 label={t('notes.publicNote')}
                 checked={isPublic}
+                disabled={canPublish && isPublished}
+                // Published implies public — the server forces
+                // it, so the box shows checked and locked while
+                // published is on instead of allowing a state
+                // the API would reject anyway. Publishers can
+                // unpublish first; non-publishers keep the box
+                // usable — clearing public is their only way
+                // to unlist, and the server drops published
+                // with it.
                 onChange={(event) => {
                   publicTouchedRef.current = true;
                   setIsPublic(event.currentTarget.checked);
                 }}
               />
             </Tooltip>
+            {canPublish && (
+              <Tooltip
+                label={t('notes.listedInExplore')}
+                position="top"
+              >
+                <Checkbox
+                  label={t('notes.publishedNote')}
+                  checked={isPublished}
+                  onChange={(event) => {
+                    publishedTouchedRef.current = true;
+                    const checked = event.currentTarget.checked;
+                    setIsPublished(checked);
+                    if (checked && !isPublic) {
+                      // Publishing implies public — keep the
+                      // pair consistent in the same write.
+                      publicTouchedRef.current = true;
+                      setIsPublic(true);
+                    }
+                  }}
+                />
+              </Tooltip>
+            )}
           </Group>
         )}
       </Box>

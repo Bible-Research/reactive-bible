@@ -15,6 +15,8 @@ export * from './tags';
 export * from './comments';
 export * from './search';
 export * from './readingPositions';
+export * from './sharing';
+export * from './bookmarks';
 
 // Shared API/domain types live in `../types`; re-export them
 // here so every existing `from '../api'` type import (and the
@@ -43,4 +45,8 @@ export type {
   ReadingPositionValue,
   StructureBook,
   BibleStructure,
+  ShareGrant,
+  SharedTagGrant,
+  SharedWithMeResponse,
+  BookmarkEntry,
 } from '../types';

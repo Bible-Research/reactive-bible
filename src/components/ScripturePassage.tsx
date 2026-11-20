@@ -3,13 +3,17 @@ import { Box, Text, UnstyledButton } from '@mantine/core';
 import { getVersesInChapter } from '../api';
 import { ScriptureRef } from '../utils/scriptureRef';
 import { toUsfmCode } from '../utils/bibleUtils';
+import { resolveTextFileset } from '../utils/filesetGroups';
+import { useNoteRefFilesetId } from '../hooks/useNoteRefFilesetId';
+import { useBibleStore } from '../store';
 import { SectionHeading } from '../types';
 import SectionHeadingComponent from './SectionHeading';
 import { useTranslation } from 'react-i18next';
 import { localizedErrorText } from '../i18n/errorText';
 
-// Passage lookups from notes/comments always use ESV
-const FILESET_ID = 'ENGESV_API';
+// Last-resort fileset when neither a pinned override nor a
+// selected text fileset resolves to anything.
+const FALLBACK_FILESET_ID = 'ENGESV_API';
 
 type PassageVerse = { verse: number; text: string };
 
@@ -38,6 +42,22 @@ const ScripturePassage = ({
   const [passages, setPassages] = useState<PassageVerse[]>([]);
   const [headings, setHeadings] = useState<SectionHeading[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const noteRefId = useNoteRefFilesetId();
+  const translations = useBibleStore(
+    (state) => state.translations
+  );
+
+  // reference.book is a DISPLAY name — resolve it to a USFM
+  // code before testament lookup or a testament-split product
+  // id would collapse to its OT member (book_not_in_fileset
+  // on every NT ref). The API helper keys on the same code.
+  const bookId = toUsfmCode(book) ?? book;
+  // Preview translation: pinned override -> selected ->
+  // ESV fallback; `_ET` product ids resolve per book like
+  // every other text surface.
+  const filesetId =
+    resolveTextFileset(noteRefId, bookId, translations) ??
+    FALLBACK_FILESET_ID;
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +76,7 @@ const ScripturePassage = ({
         // expanding to "Read full chapter" needs no refetch —
         // the collapsed view filters at render time.
         const res = await getVersesInChapter(
-          toUsfmCode(book) ?? book, chapter, FILESET_ID
+          bookId, chapter, filesetId
         );
         if (cancelled) return;
         setPassages(res.verses);
@@ -78,7 +98,7 @@ const ScripturePassage = ({
     return () => {
       cancelled = true;
     };
-  }, [book, chapter]);
+  }, [bookId, chapter, filesetId]);
 
   if (error) {
     return <Text color="red">{error}</Text>;

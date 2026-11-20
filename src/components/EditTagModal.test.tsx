@@ -17,6 +17,11 @@ import { EditTagModal } from './EditTagModal';
 import { mockDomApis } from '../__tests__/helpers';
 import { Tag } from '../types';
 import * as api from '../api';
+import { clearNotesCache } from '../utils/cacheManager';
+import {
+  useAuthStore,
+  initialState as authInitialState,
+} from '../stores/authStore';
 
 // Selective automock — the modal's only api call is updateTag,
 // but mocking the whole module keeps future imports safe and
@@ -36,6 +41,10 @@ vi.mock('../api', async (importOriginal) => {
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
 }));
+
+// The publicity/publish cascades must drop the never-
+// expiring notes cache — assert the call, not its effects.
+vi.mock('../utils/cacheManager');
 
 const mockApi = vi.mocked(api);
 
@@ -87,6 +96,7 @@ const submitForm = () =>
 describe('EditTagModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthStore.setState({ ...authInitialState });
     mockApi.updateTag.mockResolvedValue(
       makeTag('tag-a', 'Alpha')
     );
@@ -281,6 +291,62 @@ describe('EditTagModal', () => {
       // name/parent PATCH — setTagPublic alone carries the
       // change (and never receives a `public` PATCH).
       expect(mockApi.updateTag).not.toHaveBeenCalled();
+    });
+
+  it('drops the notes cache when the publicity cascade ' +
+    'lands', async () => {
+      renderModal();
+
+      fireEvent.click(screen.getByLabelText(/Public tag/));
+      submitForm();
+
+      await waitFor(() => {
+        expect(mockApi.setTagPublic).toHaveBeenCalled();
+      });
+      // Without the drop, stale cached `public`/`published`
+      // flags seed the next note edit and silently undo the
+      // cascade.
+      expect(clearNotesCache).toHaveBeenCalled();
+    });
+
+  it('refreshes the list when the publish cascade fails ' +
+    'after a successful publicity cascade', async () => {
+      vi.spyOn(console, 'error').mockImplementation(
+        () => undefined
+      );
+      // Only publishers see the published switch.
+      useAuthStore.setState({
+        ...authInitialState,
+        isAuthenticated: true,
+        user: { username: 'u', can_publish: true },
+      });
+      mockApi.setTagPublished.mockRejectedValue(
+        new Error('Failed to update tag publication')
+      );
+      const { onClose, onSuccess } = renderModal();
+
+      // Publishing flips public on too — the publicity
+      // cascade lands before the publish one throws.
+      fireEvent.click(screen.getByLabelText(/Published tag/));
+      submitForm();
+
+      await waitFor(() => {
+        expect(showNotification).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Error',
+            message: 'Failed to update tag publication',
+          })
+        );
+      });
+      // Partial success: the applied publicity cascade still
+      // needs the list refresh and the cache drop.
+      expect(mockApi.setTagPublic).toHaveBeenCalledWith(
+        'tag-a',
+        true
+      );
+      expect(onSuccess).toHaveBeenCalled();
+      expect(clearNotesCache).toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
     });
 
   it('turning a public tag private cascades through ' +

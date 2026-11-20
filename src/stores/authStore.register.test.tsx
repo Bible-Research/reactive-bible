@@ -54,12 +54,12 @@ describe('authStore - Register', () => {
 
       const state = store.getState();
       expect(state.token).toBe(mockToken);
-      // The register payload's user id is kept for comment
-      // author matching — login's /api/token/ response has
-      // no id and falls back to username matching.
+      // users/me/ (fetched after registration) supplies the
+      // canonical profile incl. can_publish.
       expect(state.user).toEqual({
         id: 1,
         username: mockUsername,
+        can_publish: true,
       });
       expect(state.isAuthenticated).toBe(true);
       expect(state.isLoading).toBe(false);

@@ -19,6 +19,7 @@ import {
   IconChecklist,
   IconMail,
   IconRocket,
+  IconSettings,
 } from "@tabler/icons-react";
 import { Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -165,6 +166,22 @@ const MainMenu = ({
           </Text>
         </Group>
 
+        {/* The published directory is public — everyone can
+            browse /explore. */}
+        <Group position="apart" spacing="xs">
+          <Text
+            weight={500}
+            size="lg"
+            onClick={() => {
+              void navigate('/explore');
+              onClose();
+            }}
+            sx={{ cursor: "pointer" }}
+          >
+            {t('menu.explore')}
+          </Text>
+        </Group>
+
         {/* /notes bounces anonymous visitors to /bible
             (NotesRoute), so the link is a dead end for
             them — hide it like the write affordances. */}
@@ -180,6 +197,38 @@ const MainMenu = ({
               sx={{ cursor: "pointer" }}
             >
               {t('menu.viewNotes')}
+            </Text>
+          </Group>
+        )}
+
+        {isAuthenticated && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/shared');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.sharedWithMe')}
+            </Text>
+          </Group>
+        )}
+
+        {isAuthenticated && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/bookmarks');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.bookmarks')}
             </Text>
           </Group>
         )}
@@ -305,6 +354,28 @@ const MainMenu = ({
             </Text>
             <Text size="xs" color="dimmed">
               {t('menu.contactDeveloperHint')}
+            </Text>
+          </div>
+        </Group>
+
+        {/* Ungated: settings are device-local preferences. */}
+        <Group spacing="xs" align="flex-start" noWrap>
+          <IconSettings
+            size={22}
+            style={{ marginTop: 4, flexShrink: 0 }}
+          />
+          <div>
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/settings');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+              title={t('menu.settings')}
+            >
+              {t('menu.settings')}
             </Text>
           </div>
         </Group>
