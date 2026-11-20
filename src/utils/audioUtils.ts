@@ -38,8 +38,11 @@ export const resetAudioPrefetchForTests = (): void => {
  * response). The caller then hands the source URL straight to
  * the Howl: its html5 <audio> element streams it without CORS.
  *
- * A rejected fetch means this origin will never serve a CORS
- * read — Chrome logs that failure to the console even when the
+ * A rejected fetch is treated as "this origin can't serve a
+ * CORS read" — the usual cause is missing ACAO headers, though
+ * a hard network failure marks it for the session too (a
+ * degrade-to-streaming tradeoff, not a permanent verdict).
+ * Chrome logs that failure to the console even when the
  * promise is caught, so the origin is remembered and later
  * preloads go straight to element streaming instead of logging
  * once per chapter.
@@ -58,14 +61,21 @@ export const prefetchAudioBlob = async (
     // URL can't hit CORS anyway).
   }
   if (origin && corslessAudioOrigins.has(origin)) return null;
+  let resp: Response;
   try {
-    const resp = await fetch(url);
-    // A readable response — even a 404 — proves CORS is served
-    // for this origin, so only rejections mark it.
-    if (!resp.ok) return null;
-    return URL.createObjectURL(await resp.blob());
+    resp = await fetch(url);
   } catch {
     if (origin) corslessAudioOrigins.add(origin);
+    return null;
+  }
+  // A readable response — even a 404 — proves CORS is served
+  // for this origin, so only a rejected fetch() may mark it:
+  // post-fetch failures (mid-body abort, blob errors) degrade
+  // to streaming without poisoning the origin.
+  if (!resp.ok) return null;
+  try {
+    return URL.createObjectURL(await resp.blob());
+  } catch {
     return null;
   }
 };
