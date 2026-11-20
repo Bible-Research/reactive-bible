@@ -274,12 +274,14 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `reportType: user-report` — info `captureMessage` +
   `captureFeedback` from "Contact developer" (`userReport.ts`,
   `ContactModal.tsx`). Every submission also carries
-  `reportCategory: bug|feature|general`; only `bug` (plus
-  legacy untagged reports) feeds the triage queue — feature
-  and general messages are read via the user-feedback stream.
-  Anonymous senders may attach a reply `email` on the feedback
-  entry. Not an error queue item; investigated separately via
-  the fix-sentry-issue skill.
+  `reportCategory: bug|feature|general`, and ALL categories
+  feed the triage queue — bugs get fixed, feature requests
+  get implemented (a huge/unreasonable one may be logged
+  `declined` with reasoning), and general messages get
+  triaged and answered. Anonymous senders may attach a
+  reply `email` on the feedback entry. Not an error queue
+  item; investigated separately via the fix-sentry-issue
+  skill.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
