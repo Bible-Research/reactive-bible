@@ -16,6 +16,7 @@ import {
   IconMoonStars,
   IconBrandAndroid,
   IconRefresh,
+  IconChecklist,
   IconMail,
   IconRocket,
   IconSettings,
@@ -31,7 +32,7 @@ import {
   UI_LANGUAGE_AUTONYMS,
   isUiLanguage,
 } from "../i18n";
-import { isNativeApp } from "../utils/platform";
+import { isNativeApp, isPreviewDeploy } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
 import { lazyWithReload } from "../utils/lazyWithReload";
@@ -44,6 +45,11 @@ const AddStandaloneNoteModal = lazyWithReload(
 );
 const ContactModal = lazyWithReload(
   () => import("./ContactModal")
+);
+// Preview-deploys only (see isPreviewDeploy): the QA checklist
+// of PRs merged to staging but not yet promoted to main.
+const StagingChecklistModal = lazyWithReload(
+  () => import("./StagingChecklistModal")
 );
 
 // Fallback while the newest versioned asset URL is resolved
@@ -72,6 +78,7 @@ const MainMenu = ({
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
   const [contactOpened, setContactOpened] = useState(false);
+  const [checklistOpened, setChecklistOpened] = useState(false);
   // The stable-name continuous asset is deleted + re-uploaded on
   // every publish — resolve the freshest versioned APK instead
   // so the link can never hand out a truncated file.
@@ -373,6 +380,31 @@ const MainMenu = ({
           </div>
         </Group>
 
+        {/* Release-testers' aid — meaningful only where the
+            staging-branch preview actually runs. */}
+        {isPreviewDeploy() && (
+          <Group spacing="xs" align="flex-start" noWrap>
+            <IconChecklist
+              size={22}
+              style={{ marginTop: 4, flexShrink: 0 }}
+            />
+            <div>
+              <Text
+                weight={500}
+                size="lg"
+                onClick={() => setChecklistOpened(true)}
+                sx={{ cursor: "pointer" }}
+                title={t('menu.stagingChecklist')}
+              >
+                {t('menu.stagingChecklist')}
+              </Text>
+              <Text size="xs" color="dimmed">
+                {t('menu.stagingChecklistHint')}
+              </Text>
+            </div>
+          </Group>
+        )}
+
         <Divider />
 
         <Group position="apart" spacing="xs">
@@ -445,6 +477,19 @@ const MainMenu = ({
           <ContactModal
             opened={contactOpened}
             onClose={() => setContactOpened(false)}
+          />
+        </Suspense>
+      )}
+      {/* Mounted (not just when open) so ticked checklist state
+          survives closing the modal to go click through the
+          app — a tester must be able to perform a step, then
+          come back and tick it off. Chunk stays tiny and only
+          loads where the entry can exist. */}
+      {isPreviewDeploy() && (
+        <Suspense fallback={null}>
+          <StagingChecklistModal
+            opened={checklistOpened}
+            onClose={() => setChecklistOpened(false)}
           />
         </Suspense>
       )}

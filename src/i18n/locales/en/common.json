@@ -27,7 +27,14 @@
     "bookmarks": "Bookmarks",
     "autoTranslateNotes": "Auto-translate notes",
     "autoTranslateNotesHint": "Show machine translations when a note is in another language.",
-    "settings": "Settings"
+    "settings": "Settings",
+    "stagingChecklist": "What's on staging",
+    "stagingChecklistHint": "PRs on staging that still need UI checks.",
+    "stagingChecklistOpenPr": "Open on GitHub",
+    "stagingChecklistSeePr": "See the PR body for verification steps",
+    "stagingChecklistEmpty": "Nothing pending — staging matches production.",
+    "stagingChecklistError": "Could not load the pending list from GitHub.",
+    "stagingChecklistCompare": "Open the main...staging compare on GitHub"
   },
   "audio": {
     "play": "Play",

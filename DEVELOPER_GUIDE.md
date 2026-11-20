@@ -2667,6 +2667,19 @@ authenticated users — `/notes` redirects anonymous visitors to
 "Settings" is ungated — it only writes device-local
 preferences — and navigates to the public `/settings` page.
 
+Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
+`isPreviewDeploy` in `src/utils/platform.ts`) additionally show
+"What's on staging": a lazy `StagingChecklistModal` listing PRs
+merged into `staging` but not yet promoted to `main` —
+mirroring the pending-set check in `promote-to-main.yml`
+(head-branch keyed, head-SHA / merged_at comparison; without
+its commit-search fallback), read live from the
+unauthenticated GitHub pulls API by
+`src/utils/stagingPrs.ts`. Each row expands to the PR body's
+`## UI verification / QC` steps as session-local checkboxes;
+API failures degrade to a link to the GitHub
+`main...staging` compare view.
+
 #### `MyHeader.tsx`
 Top header bar with controls.
 

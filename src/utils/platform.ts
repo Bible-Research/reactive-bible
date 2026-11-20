@@ -15,3 +15,14 @@ export const isNativeApp = (): boolean => {
     return false;
   }
 };
+
+/**
+ * True only on Vercel preview deploys — `vite.config` bakes
+ * `import.meta.env.VITE_APP_ENV` from VERCEL_ENV (`'preview'`),
+ * while production resolves to `'production'` and Android
+ * builds to `'android[-debug]'`. Kept behind a function so
+ * tests can mock it the same way as `isNativeApp`.
+ */
+export const isPreviewDeploy = (): boolean =>
+  (import.meta.env.VITE_APP_ENV as string | undefined) ===
+  'preview';

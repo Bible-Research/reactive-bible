@@ -228,6 +228,15 @@ whose head SHA was never merged into `staging`, and the
   `can_publish`); `ShareModal` handles targeted username
   grants (silent resolution — never enumerate users);
   `/shared` and `/bookmarks` are ProtectedRoutes.
+- "What's on staging" (MainMenu) renders only on Vercel preview
+  deploys — `isPreviewDeploy()` in `src/utils/platform.ts` gates
+  on the build-time `VITE_APP_ENV`; `src/utils/stagingPrs.ts`
+  computes the pending-promotion set (approximating
+  `promote-to-main.yml`: head-branch keyed head-SHA /
+  merged_at comparison, no commit-search fallback) from the
+  unauthenticated GitHub pulls API, and `StagingChecklistModal`
+  renders each PR's `## UI verification / QC` steps as
+  session-local checkboxes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract
