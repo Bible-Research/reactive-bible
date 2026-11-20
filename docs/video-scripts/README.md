@@ -9,14 +9,18 @@ on the app's `/getting-started` route (`GettingStartedRoute` +
 | File | Language | Status | Last verified | YouTube |
 | ---- | -------- | ------ | ------------- | ------- |
 | `getting-started.en.md` | English | draft | 2026-11-16 | [bible-maps][yt] |
-| `getting-started.lv.md` | Latvian | draft | 2026-11-16 | — |
+| `getting-started.lv.md` | Latvian | draft | 2026-11-16 | [bible-maps][yt] |
 | `getting-started.ru.md` | Russian | draft | 2026-11-16 | — |
 
 [yt]: https://www.youtube.com/shorts/WPvhvZrexs0
 
 Statuses: `draft` → `recorded` → `published` (per file — a
 partly-recorded series stays `draft`). When a video goes
-live, paste its URL into the YouTube column.
+live, paste its URL into the YouTube column. The en and lv
+bible-maps rows share one upload — YouTube serves localized
+titles/descriptions (and audio tracks) from a single video
+id, so the lv `youtubeIds` entry reuses the en id on
+purpose, not as a copy-paste leftover.
 
 ## Conventions
 

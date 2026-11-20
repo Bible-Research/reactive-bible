@@ -697,7 +697,18 @@ auth lives in a separate persisted `authStore`.
   fileset id (a first load can key store/cache on the raw
   fileset id until the translations list resolves the owning
   bible abbr — the id-keyed tiers are consulted too, and the
-  landing fetch re-resolves the abbr before writing). A
+  landing fetch re-resolves the abbr before writing). The
+  wire `fileset_id` is a concrete member of the owner's text
+  option when resolvable — registry providers answer by
+  fileset id on any backend while a bare listing abbr only
+  resolves where the registry knows the alias (the ESV abbr
+  `ESV` 404s where `ENGESV_API` answers; the abbr-shaped
+  member wins when present so `ENGKJV` keeps its bundled
+  names). A stored id that resolves to no routable value
+  (e.g. a `:`-bearing product id) never reaches the wire —
+  and `fetchBibleStructure` itself mirrors the backend's
+  FILESET_ID_RE, failing locally with a typed
+  `ClientInputError`. A
   `degraded: true` body (the backend's `no-store` SWORD
   fallback names) applies in memory but is never written to
   localStorage; a `{books: []}` anomaly is treated as a
@@ -2679,6 +2690,18 @@ unauthenticated GitHub pulls API by
 `## UI verification / QC` steps as session-local checkboxes;
 API failures degrade to a link to the GitHub
 `main...staging` compare view.
+Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
+`isPreviewDeploy` in `src/utils/platform.ts`) additionally show
+"What's on staging": a lazy `StagingChecklistModal` listing PRs
+merged into `staging` but not yet promoted to `main` —
+mirroring the pending-set check in `promote-to-main.yml`
+(head-branch keyed, head-SHA / merged_at comparison; without
+its commit-search fallback), read live from the
+unauthenticated GitHub pulls API by
+`src/utils/stagingPrs.ts`. Each row expands to the PR body's
+`## UI verification / QC` steps as session-local checkboxes;
+API failures degrade to a link to the GitHub
+`main...staging` compare view.
 
 #### `MyHeader.tsx`
 Top header bar with controls.
@@ -4567,7 +4590,10 @@ surface as the transport layer:
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',
   'Load failed', 'NetworkError…') are kept but tagged
-  `errorKind: network` so Sentry-side rules can route them.
+  `errorKind: network` so Sentry-side rules can route them;
+  on `handled-api` events the level drops to warning —
+  handled connectivity noise, like a `ConflictError`, stays
+  out of the error queue without losing the event.
   `ConflictError` is downgraded to warning level;
   `ProviderError` gets a `['api-error', code, endpoint]
   fingerprint so provider outages group per endpoint instead of
@@ -4579,7 +4605,9 @@ surface as the transport layer:
   environment:production` is the bug queue — everything else is
   deliberately routed by tag. Untagged exception events are
   real bugs; `reportType` marks routed streams: `handled-api`
-  (error, graceful catch sites), `media-failure` (warning,
+  (error, graceful catch sites — warning when the failure is a
+  `errorKind: network` connectivity blip), `media-failure`
+  (warning,
   audio terminal failures — extras carry fileset + passage),
   `native-bridge` (warning, Capacitor bridge calls — expected
   on web), `resource-load` (warning, missing assets),
