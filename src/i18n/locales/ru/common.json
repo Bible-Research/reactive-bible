@@ -23,12 +23,12 @@
     "closeMenu": "Закрыть меню",
     "gettingStartedHint": "Посмотрите короткие видеоуроки о возможностях приложения.",
     "stagingChecklist": "Что в staging",
-    "stagingChecklistHint": "PR, слитые в staging и ожидающие проверки в UI.",
+    "stagingChecklistHint": "PR в staging, ждут проверки.",
     "stagingChecklistOpenPr": "Открыть на GitHub",
-    "stagingChecklistSeePr": "Шаги проверки — см. описание PR",
-    "stagingChecklistEmpty": "Ничего не ожидает — staging совпадает с продакшеном.",
-    "stagingChecklistError": "Не удалось загрузить список ожидающих PR из GitHub.",
-    "stagingChecklistCompare": "Открыть сравнение main...staging на GitHub"
+    "stagingChecklistSeePr": "Шаги — см. описание PR",
+    "stagingChecklistEmpty": "Пусто — staging = продакшен.",
+    "stagingChecklistError": "Ошибка загрузки списка.",
+    "stagingChecklistCompare": "Сравнить main...staging на GitHub"
   },
   "audio": {
     "play": "Воспроизвести",

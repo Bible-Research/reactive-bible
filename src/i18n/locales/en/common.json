@@ -23,7 +23,7 @@
     "closeMenu": "Close menu",
     "gettingStartedHint": "Watch short video tutorials on the app's features.",
     "stagingChecklist": "What's on staging",
-    "stagingChecklistHint": "PRs merged to staging that still need UI verification.",
+    "stagingChecklistHint": "PRs on staging that still need UI checks.",
     "stagingChecklistOpenPr": "Open on GitHub",
     "stagingChecklistSeePr": "See the PR body for verification steps",
     "stagingChecklistEmpty": "Nothing pending — staging matches production.",

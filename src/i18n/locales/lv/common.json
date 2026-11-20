@@ -23,11 +23,11 @@
     "closeMenu": "Aizvērt izvēlni",
     "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām.",
     "stagingChecklist": "Kas atrodas staging",
-    "stagingChecklistHint": "PR, kas sapludināti uz staging un vēl gaida UI pārbaudi.",
+    "stagingChecklistHint": "PR uz staging, kas gaida UI pārbaudi.",
     "stagingChecklistOpenPr": "Atvērt GitHub",
     "stagingChecklistSeePr": "Pārbaudes soļi — skatīt PR aprakstu",
-    "stagingChecklistEmpty": "Nekas nav gaidāms — staging sakrīt ar produkciju.",
-    "stagingChecklistError": "Neizdevās ielādēt gaidāmo sarakstu no GitHub.",
+    "stagingChecklistEmpty": "Nekas — staging sakrīt ar produkciju.",
+    "stagingChecklistError": "Neizdevās ielādēt sarakstu.",
     "stagingChecklistCompare": "Atvērt main...staging salīdzinājumu GitHub"
   },
   "audio": {
