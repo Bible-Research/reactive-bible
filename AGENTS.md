@@ -252,7 +252,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   degrade gracefully (chapter/audio fetches, notes, comments,
   tags, reading positions). Expected conditions still filtered
   by `beforeSend`; surviving events mean the graceful path
-  itself is worth alerting on.
+  itself is worth alerting on. Exception: `errorKind: network`
+  failures here downgrade to warning — a handled connectivity
+  failure is noise, not a defect in the graceful path.
 - `reportType: media-failure` — warning `captureMessage` from
   the audio hooks' terminal failure paths (fileset + passage in
   extras). Warning-level: fallback chains make a single failure
@@ -288,7 +290,10 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
-  reportable but routable.
+  reportable but routable. On `handled-api` events the level
+  drops to warning (client connectivity noise); unhandled
+  network rejections stay error-level — reaching
+  GlobalHandlers means a missing catch, still a bug.
 
 Three reporting paths, all non-duplicating:
 
@@ -326,7 +331,8 @@ chunk` (stale tabs after a deploy — self-healed by the
 guarded reload in `chunkLoadError.ts`, wired through
 `lazyWithReload`, `kjvDataLoader`, and `errorReporter`'s
 `vite:preloadError` / hashed-asset resource-error handlers),
-and `ResizeObserver loop`. `ConflictError` downgrades to
+and `ResizeObserver loop`. `ConflictError` and handled-api
+network failures (`errorKind: network`) downgrade to
 warning; `ProviderError` fingerprints by
 `error_code`+endpoint. `ClientInputError` is deliberately
 kept — a malformed request is a bug. Typed API errors
