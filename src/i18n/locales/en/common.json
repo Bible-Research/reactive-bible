@@ -120,6 +120,13 @@
     "linkedNotes": "Linked notes",
     "linkedCount_one": "{{count}} linked note",
     "linkedCount_other": "{{count}} linked notes",
+    "linkedVerses": "Linked verses",
+    "collapseEditor": "Collapse editor",
+    "expandEditor": "Expand editor",
+    "autoSaveOn": "Auto save on",
+    "autoSaveOff": "Auto save off",
+    "privateOnlyYou": "Private — only you can view",
+    "tryReloading": "Try reloading in a few moments.",
     "toggleNoteDetails": "Toggle note details",
     "submitChanges": "Submit changes",
     "saveFailed": "Failed to save note. Please try again.",
@@ -371,7 +378,9 @@
     "blockquote": "Blockquote",
     "linkUrlLabel": "Enter URL",
     "linkOpenNewTab": "Open link in a new tab",
-    "linkOpenSameTab": "Open link in the same tab"
+    "linkOpenSameTab": "Open link in the same tab",
+    "increaseIndent": "Increase indent",
+    "decreaseIndent": "Decrease indent"
   },
   "pagination": {
     "label": "Pagination",

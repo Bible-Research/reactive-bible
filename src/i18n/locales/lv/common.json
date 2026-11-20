@@ -121,6 +121,13 @@
     "linkedCount_zero": "{{count}} saistīto piezīmju",
     "linkedCount_one": "{{count}} saistītā piezīme",
     "linkedCount_other": "{{count}} saistītās piezīmes",
+    "linkedVerses": "Saistītie panti",
+    "collapseEditor": "Sakļaut redaktoru",
+    "expandEditor": "Izvērst redaktoru",
+    "autoSaveOn": "Automātiskā saglabāšana ieslēgta",
+    "autoSaveOff": "Automātiskā saglabāšana izslēgta",
+    "privateOnlyYou": "Privāta — redzama tikai jums",
+    "tryReloading": "Mēģiniet pārlādēt pēc brīža.",
     "toggleNoteDetails": "Pārslēgt piezīmes detaļas",
     "submitChanges": "Iesniegt izmaiņas",
     "saveFailed": "Neizdevās saglabāt piezīmi. Lūdzu, mēģiniet vēlreiz.",
@@ -390,7 +397,9 @@
     "blockquote": "Citāts",
     "linkUrlLabel": "Ievadiet URL",
     "linkOpenNewTab": "Atvērt saiti jaunā cilnē",
-    "linkOpenSameTab": "Atvērt saiti tajā pašā cilnē"
+    "linkOpenSameTab": "Atvērt saiti tajā pašā cilnē",
+    "increaseIndent": "Palielināt atkāpi",
+    "decreaseIndent": "Samazināt atkāpi"
   },
   "pagination": {
     "label": "Lapu numerācija",
