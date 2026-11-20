@@ -38,10 +38,11 @@ const StagingChecklistModal = ({
   const { t } = useTranslation();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  // Step ticks keyed by PR number then step TEXT — session-only
-  // per the spec; must not affect other users. Text (not index)
-  // so a refetched, edited QC section can't shift ticks onto
-  // different steps.
+  // Step ticks keyed by PR number then `index:text` —
+  // session-only per the spec; must not affect other users.
+  // Index disambiguates identical step lines; text keeps an
+  // edited/reordered QC section from shifting a tick onto a
+  // different step (it falls off instead of lying).
   const [checked, setChecked] = useState<
     Record<number, Set<string>>
   >({});
@@ -137,16 +138,22 @@ const StagingChecklistModal = ({
                     >
                       {t("menu.stagingChecklistOpenPr")}
                     </Anchor>
-                    {pr.qcSteps.map((step) => (
-                      <Checkbox
-                        key={step}
-                        label={step}
-                        checked={
-                          checked[pr.number]?.has(step) ?? false
-                        }
-                        onChange={() => toggleStep(pr.number, step)}
-                      />
-                    ))}
+                    {pr.qcSteps.map((step, i) => {
+                      const stepKey = `${i}:${step}`;
+                      return (
+                        <Checkbox
+                          key={stepKey}
+                          label={step}
+                          checked={
+                            checked[pr.number]?.has(stepKey) ??
+                            false
+                          }
+                          onChange={() =>
+                            toggleStep(pr.number, stepKey)
+                          }
+                        />
+                      );
+                    })}
                   </Stack>
                 ) : (
                   <Anchor

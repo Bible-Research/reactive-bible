@@ -98,6 +98,44 @@ describe('StagingChecklistModal', () => {
       );
     });
 
+  it('keeps the last good list when a reopen revalidation ' +
+    'fails', async () => {
+      vi.mocked(fetchPendingStagingPrs).mockResolvedValue([pr()]);
+      const user = userEvent.setup();
+      const { rerender } = renderWithProviders(
+        <StagingChecklistModal {...opened} />,
+      );
+
+      await user.click(
+        await screen.findByText(/#10 Feat: Something/),
+      );
+      await screen.findByText(
+        'See the PR body for verification steps',
+      );
+
+      // Reopen with the fetch now failing — the previous rows
+      // stay, no error state.
+      vi.mocked(fetchPendingStagingPrs).mockRejectedValue(
+        new StagingPrsError('boom'),
+      );
+      rerender(<StagingChecklistModal {...opened} opened={false} />);
+      rerender(<StagingChecklistModal {...opened} />);
+
+      await user.click(
+        await screen.findByText(/#10 Feat: Something/),
+      );
+      expect(
+        await screen.findByText(
+          'See the PR body for verification steps',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          'Open the main...staging compare on GitHub',
+        ),
+      ).not.toBeInTheDocument();
+    });
+
   it('does not fetch while closed', () => {
     renderWithProviders(
       <StagingChecklistModal {...opened} opened={false} />,
