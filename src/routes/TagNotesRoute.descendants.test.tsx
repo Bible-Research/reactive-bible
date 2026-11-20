@@ -231,6 +231,157 @@ describe('TagNotesRoute include-descendants view', () => {
       });
     });
 
+  it('does not latch the sub-tags switch when switching to a ' +
+    'childless tag with the previous tag\'s notes still ' +
+    'loaded', async () => {
+      // Regression: `notes` keeps the previous tag's rows
+      // while the new fetch is in flight (and across sessions
+      // via persistence). A latch keyed on the raw list marked
+      // every destination tag as having a foreign subtree.
+      useBibleStore.setState({
+        ...initialState,
+        notes: [noteFor('n1', parentTag)],
+        notesCount: 1,
+        notesPage: 1,
+        notesPageSize: 25,
+        lastSelectedTagId: 'tag-123',
+        tags: [parentTag, childTag],
+        fetchNotes: mockFetchNotes,
+        getTags: mockGetTags,
+      });
+      useAuthStore.setState({
+        ...authInitialState,
+        token: 'token',
+        isAuthenticated: true,
+      });
+      mockDomApis();
+      const { rerender } = render(
+        <MemoryRouter initialEntries={['/notes/tag/tag-123']}>
+          <TagNotesRoute />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Note n1')
+        ).toBeInTheDocument();
+      });
+
+      // Switch to tag-789 — childless (no storedTag parents to
+      // it). The fetch mock resolves without touching
+      // store.notes, so tag-123's rows stay rendered the way
+      // they do during a real in-flight navigation.
+      mockUseParams.mockReturnValue({ tagId: 'tag-789' });
+      rerender(
+        <MemoryRouter initialEntries={['/notes/tag/tag-123']}>
+          <TagNotesRoute />
+        </MemoryRouter>
+      );
+
+      // The new tag's load settles (comment counts fire at the
+      // end of the loader) — the switch must stay hidden.
+      await waitFor(() => {
+        expect(mockApi.fetchCommentCounts).toHaveBeenCalledWith(
+          { tagId: 'tag-789' }
+        );
+      });
+      expect(
+        screen.queryByLabelText('Include sub-tags')
+      ).not.toBeInTheDocument();
+    });
+
+  it('does not latch the sub-tags switch on the untagged ' +
+    'view reached with stale tagged notes', async () => {
+      useBibleStore.setState({
+        ...initialState,
+        notes: [noteFor('n1', parentTag)],
+        notesCount: 1,
+        notesPage: 1,
+        notesPageSize: 25,
+        lastSelectedTagId: 'tag-123',
+        tags: [parentTag, childTag],
+        fetchNotes: mockFetchNotes,
+        getTags: mockGetTags,
+      });
+      useAuthStore.setState({
+        ...authInitialState,
+        token: 'token',
+        isAuthenticated: true,
+      });
+      mockDomApis();
+      const { rerender } = render(
+        <MemoryRouter initialEntries={['/notes/tag/tag-123']}>
+          <TagNotesRoute />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Note n1')
+        ).toBeInTheDocument();
+      });
+
+      mockUseParams.mockReturnValue({
+        tagId: api.UNTAGGED_TAG_ID,
+      });
+      rerender(
+        <MemoryRouter initialEntries={['/notes/tag/tag-123']}>
+          <TagNotesRoute />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(mockApi.fetchCommentCounts).toHaveBeenCalledWith(
+          { tagId: 'untagged' }
+        );
+      });
+      expect(
+        screen.queryByLabelText('Include sub-tags')
+      ).not.toBeInTheDocument();
+    });
+
+  it('still latches the sub-tags switch on a foreign tag\'s ' +
+    'merged page when only descendant notes are loaded',
+    async () => {
+      // The viewed foreign tag and its child are not in the
+      // caller's own tag list — the merged page's rows are the
+      // only proof a subtree exists. Every loaded note lives
+      // on the CHILD tag, so a latch requiring a note on the
+      // viewed tag itself would miss this case too.
+      const foreignTag: Tag = {
+        id: 'tag-foreign',
+        name: 'Shared Study',
+        parent_tag: null,
+        public: false,
+        created_at: '',
+        updated_at: '',
+      };
+      const foreignChildTag: Tag = {
+        id: 'tag-foreign-child',
+        name: 'Shared Child',
+        parent_tag: 'tag-foreign',
+        public: false,
+        created_at: '',
+        updated_at: '',
+      };
+      mockUseParams.mockReturnValue({
+        tagId: foreignTag.id,
+      });
+      renderRoute(
+        `/notes/tag/${foreignTag.id}?descendants=1`,
+        [
+          {
+            ...noteFor('n1', foreignChildTag),
+            is_owner: false,
+          },
+        ]
+      );
+
+      expect(
+        await screen.findByLabelText('Include sub-tags')
+      ).toBeInTheDocument();
+    });
+
   it('hides the switch when the viewed tag has no children',
     async () => {
       // Only the parent tag exists — tag-123 has no children.

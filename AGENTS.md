@@ -89,7 +89,8 @@ whose head SHA was never merged into `staging`, and the
 - `src/api/` — every backend call lives here, split by domain
   (`errors`, `structure`, `bibleStructure`, `verses`, `audio`,
   `translations`, `notes`, `tags`, `comments`, `search`,
-  `readingPositions`); `index.ts` is the barrel — always
+  `readingPositions`, `sharing`, `bookmarks`); `index.ts`
+  is the barrel — always
   import from `'../api'`, never a leaf, so
   `vi.mock('../api')` keeps intercepting.
   Note `structure.ts` is the bundled KJV verse-count lookup
@@ -99,7 +100,7 @@ whose head SHA was never merged into `staging`, and the
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
 - `src/store.ts` — main persisted Zustand store (`bible-storage`,
-  schema v10, custom `migratePersistedState` — bump version when
+  schema v11, custom `migratePersistedState` — bump version when
   persisted shape changes). Composition root; notes
   orchestration in `src/stores/bibleStore/notesSlice.ts`,
   structure SWR in `src/stores/bibleStore/structureSlice.ts`
@@ -144,11 +145,17 @@ whose head SHA was never merged into `staging`, and the
 - `src/hooks/useBookName.ts` — `useBookName`/`useActiveStructure`
   store subscriptions for the display-name layer.
 - `src/hooks/` — audio playlist, media session, keep-alive,
-  verse highlighter.
+  verse highlighter, `useNoteRefFilesetId` (the shared
+  pinned-or-active fileset for note-reference surfaces).
 - `src/routes/` — React Router routes; canonical Bible URL is
   `/bible/JHN.3.16-18` (USFM refs, also legacy `/bible/:book/...`
-  redirect). `/getting-started` is a public document-style page —
-  its pathname is whitelisted for `overflow: auto` in `App.tsx`.
+  redirect). `/explore` is the anonymous-safe published
+  directory; `/shared` + `/bookmarks` are ProtectedRoutes.
+  `/getting-started` and `/settings` are public
+  document-style pages — their pathnames are whitelisted for
+  `overflow: auto` in `App.tsx`. Settings holds device-local
+  preferences (persisted store fields, no auth), reachable
+  from the main menu for anonymous and signed-in users.
 - `src/data/` — static typed content catalogues, e.g.
   `gettingStartedVideos.ts` (the /getting-started video list —
   a card renders only when `youtubeIds` resolves an id for the
@@ -171,6 +178,21 @@ whose head SHA was never merged into `staging`, and the
 - `fileset_id` selects the provider server-side: `ENGKJV` (bundled
   `src/assets/kjv.json`, offline, audio from wordpocket.org),
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.
+- Note-reference surfaces — `@…` previews in
+  `ScripturePassage` and linked-verse text in the note
+  dialogs (`useVerseTexts`) — resolve their text fileset via
+  `useNoteRefFilesetId()`: the persisted `noteRefFilesetId`
+  pin when set, else `activeTextFilesetId`. `ScripturePassage`
+  then runs `resolveTextFileset(id, toUsfmCode(book) ?? book,
+  translations)` — `reference.book` is a display name, so the
+  USFM map keeps testament-split ids correct — with `ENGKJV`
+  a bundled fast-path and `ENGESV_API` the last-resort
+  fallback. `/settings` pins the override through
+  `TranslationSelector`'s controlled `pickTextOnly` mode
+  (`opened`/`onClose`/`seedFilesetId`/`onPickText`): it hides
+  every audio control, seeds from `seedFilesetId` (falling
+  back to the active text fileset), and never writes
+  `activeTextFilesetId`/`activeAudioFilesetId`.
 - Verse selection is scoped: `{ scope: 'bible' | 'note:<id>',
   refs: VerseRef[] }` — a `VerseRef` is `{ bookId, chapter, verse }`.
 - Backend errors carry `error`/`error_code`/`message`;
@@ -195,16 +217,26 @@ whose head SHA was never merged into `staging`, and the
   a future settings toggle only writes that one field.
 - Auth: token persisted via authStore; `authenticatedFetch` is for
   user-owned resources (notes, tags, comments), `publicFetch` for
-  bible content.
+  bible content. Login/register/checkAuth then fetch
+  `users/me/` for `id` + `can_publish` — publish UI only
+  renders when that flag is true. The published-state lock
+  on the public toggle is gated on it too: a non-publisher
+  keeps the public control usable so clearing `public`
+  still unlists (the server drops `published` with it).
+- Sharing: `public` stays link visibility; `published` is
+  the `/explore` directory flag (implies `public`, needs
+  `can_publish`); `ShareModal` handles targeted username
+  grants (silent resolution — never enumerate users);
+  `/shared` and `/bookmarks` are ProtectedRoutes.
 - "What's on staging" (MainMenu) renders only on Vercel preview
   deploys — `isPreviewDeploy()` in `src/utils/platform.ts` gates
   on the build-time `VITE_APP_ENV`; `src/utils/stagingPrs.ts`
   computes the pending-promotion set (approximating
   `promote-to-main.yml`: head-branch keyed head-SHA /
   merged_at comparison, no commit-search fallback) from the
-  unauthenticated GitHub pulls
-  API, and `StagingChecklistModal` renders each PR's
-  `## UI verification / QC` steps as session-local checkboxes.
+  unauthenticated GitHub pulls API, and `StagingChecklistModal`
+  renders each PR's `## UI verification / QC` steps as
+  session-local checkboxes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract

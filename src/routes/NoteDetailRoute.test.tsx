@@ -12,6 +12,7 @@ import {
 import { server } from '../mocks/server';
 import { API_BASE_URL } from '../config';
 import NoteDetailRoute from './NoteDetailRoute';
+import { useAuthStore } from '../stores/authStore';
 import {
   mockDomApis,
   resetStore,
@@ -92,6 +93,90 @@ describe('NoteDetailRoute scrolling (#39)', () => {
       screen.getByText('Study')
     );
   });
+});
+
+describe('NoteDetailRoute author attribution', () => {
+  beforeEach(() => {
+    resetStore();
+    mockDomApis();
+  });
+
+  it('renders the author line for a note the viewer ' +
+    'does not own', async () => {
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/`,
+          ({ params }) =>
+            HttpResponse.json({
+              ...makeNote(),
+              id: params.noteId,
+              author: { id: 9, username: 'scholar' },
+            })
+        )
+      );
+      renderRoute();
+
+      expect(
+        await screen.findByText('by scholar')
+      ).toBeInTheDocument();
+    });
+
+  it('hides the author line on the viewer\'s own note',
+    async () => {
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/`,
+          ({ params }) =>
+            HttpResponse.json({
+              ...makeNote(),
+              id: params.noteId,
+              is_owner: true,
+              author: { id: 1, username: 'me' },
+            })
+        )
+      );
+      renderRoute();
+
+      // Wait for the note itself before asserting absence.
+      await screen.findByText(
+        `Verse ${VERSE_COUNT} text.`
+      );
+      expect(
+        screen.queryByText('by me')
+      ).not.toBeInTheDocument();
+    });
+
+  it('hides the author line when author.id matches the ' +
+    'viewer and is_owner is absent', async () => {
+      // Payloads serialized before `is_owner` shipped (or any
+      // response that omits it) fall back to matching the
+      // author id against the logged-in user.
+      useAuthStore.setState({
+        token: 'token',
+        user: { id: 9, username: 'me' },
+        isAuthenticated: true,
+      });
+      server.use(
+        http.get(
+          `${API_BASE_URL}/api/v1/notes/:noteId/`,
+          ({ params }) =>
+            HttpResponse.json({
+              ...makeNote(),
+              id: params.noteId,
+              is_owner: undefined,
+              author: { id: 9, username: 'me' },
+            })
+        )
+      );
+      renderRoute();
+
+      await screen.findByText(
+        `Verse ${VERSE_COUNT} text.`
+      );
+      expect(
+        screen.queryByText('by me')
+      ).not.toBeInTheDocument();
+    });
 });
 
 describe('NoteDetailRoute error paths', () => {
