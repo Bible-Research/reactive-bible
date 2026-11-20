@@ -197,41 +197,20 @@ describe('sendUserReport', () => {
     }
     const hint = {} as EventHint;
     const client = {} as Client;
-    // Real captureMessage events carry a synthetic exception
-    // whose value is the message text and whose stack is this
-    // call site's — identical frames on every report, so use
-    // the same frames here. Dedupe's getFramesFromEvent only
-    // reads exception.values[].stacktrace.frames.
-    const frames = [
-      {
-        filename: 'app.js',
-        function: 'sendUserReport',
-        lineno: 10,
-        colno: 5,
-      },
-    ];
-    const toEvent = (call: number): Event => {
-      const message =
-        mocked.captureMessage.mock.calls[call][0];
-      return {
-        message,
+    // Real captureMessage events in this app are message-only:
+    // attachStacktrace is unset, so eventFromMessage attaches
+    // no exception/stack — Dedupe's _isSameMessageEvent then
+    // compares message + fingerprint alone (both stacktraces
+    // read as undefined → equal). The fabricated shape mirrors
+    // that: identical stack (none), message/fingerprint pulled
+    // from what sendUserReport actually emitted.
+    const toEvent = (call: number): Event =>
+      ({
+        message:
+          mocked.captureMessage.mock.calls[call][0],
         fingerprint:
           scope.setFingerprint.mock.calls[call][0],
-        exception: {
-          values: [
-            {
-              type: 'Error',
-              value: message,
-              mechanism: {
-                type: 'synthetic',
-                handled: true,
-              },
-              stacktrace: { frames },
-            },
-          ],
-        },
-      } as unknown as Event;
-    };
+      }) as unknown as Event;
 
     sendUserReport({
       message: 'same text',
