@@ -697,7 +697,18 @@ auth lives in a separate persisted `authStore`.
   fileset id (a first load can key store/cache on the raw
   fileset id until the translations list resolves the owning
   bible abbr — the id-keyed tiers are consulted too, and the
-  landing fetch re-resolves the abbr before writing). A
+  landing fetch re-resolves the abbr before writing). The
+  wire `fileset_id` is a concrete member of the owner's text
+  option when resolvable — registry providers answer by
+  fileset id on any backend while a bare listing abbr only
+  resolves where the registry knows the alias (the ESV abbr
+  `ESV` 404s where `ENGESV_API` answers; the abbr-shaped
+  member wins when present so `ENGKJV` keeps its bundled
+  names). A stored id that resolves to no routable value
+  (e.g. a `:`-bearing product id) never reaches the wire —
+  and `fetchBibleStructure` itself mirrors the backend's
+  FILESET_ID_RE, failing locally with a typed
+  `ClientInputError`. A
   `degraded: true` body (the backend's `no-store` SWORD
   fallback names) applies in memory but is never written to
   localStorage; a `{books: []}` anomaly is treated as a
