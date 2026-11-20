@@ -96,6 +96,9 @@ const fetchMergedPulls = async (
   const isPr = (v: unknown): v is GithubPr =>
     typeof v === 'object' &&
     v !== null &&
+    typeof (v as GithubPr).number === 'number' &&
+    typeof (v as GithubPr).title === 'string' &&
+    typeof (v as GithubPr).html_url === 'string' &&
     typeof (v as GithubPr).head === 'object' &&
     (v as GithubPr).head !== null &&
     typeof (v as GithubPr).head.ref === 'string' &&
@@ -142,7 +145,7 @@ export const fetchPendingStagingPrs = async (): Promise<
       if (!m) return true;
       const stagedAt = Date.parse(spr.merged_at ?? '');
       const mainAt = Date.parse(m.merged_at ?? '');
-      return m.head.sha !== spr.head.sha && mainAt <= stagedAt;
+      return m.head.sha !== spr.head.sha && mainAt < stagedAt;
     })
     .sort(
       (a, b) =>

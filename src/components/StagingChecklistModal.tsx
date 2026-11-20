@@ -38,10 +38,12 @@ const StagingChecklistModal = ({
   const { t } = useTranslation();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  // Step ticks keyed by PR number then step index — session-only
-  // per the spec; must not affect other users.
+  // Step ticks keyed by PR number then step TEXT — session-only
+  // per the spec; must not affect other users. Text (not index)
+  // so a refetched, edited QC section can't shift ticks onto
+  // different steps.
   const [checked, setChecked] = useState<
-    Record<number, Set<number>>
+    Record<number, Set<string>>
   >({});
 
   useEffect(() => {
@@ -57,18 +59,24 @@ const StagingChecklistModal = ({
         if (!cancelled) setState({ kind: "ready", prs });
       })
       .catch(() => {
-        if (!cancelled) setState({ kind: "error" });
+        // A failed background revalidation keeps the last good
+        // list — the error state is for opens with no data.
+        if (!cancelled) {
+          setState((prev) =>
+            prev.kind === "ready" ? prev : { kind: "error" }
+          );
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [opened]);
 
-  const toggleStep = (prNumber: number, stepIndex: number) => {
+  const toggleStep = (prNumber: number, step: string) => {
     setChecked((prev) => {
       const steps = new Set(prev[prNumber] ?? []);
-      if (steps.has(stepIndex)) steps.delete(stepIndex);
-      else steps.add(stepIndex);
+      if (steps.has(step)) steps.delete(step);
+      else steps.add(step);
       return { ...prev, [prNumber]: steps };
     });
   };
@@ -129,14 +137,14 @@ const StagingChecklistModal = ({
                     >
                       {t("menu.stagingChecklistOpenPr")}
                     </Anchor>
-                    {pr.qcSteps.map((step, i) => (
+                    {pr.qcSteps.map((step) => (
                       <Checkbox
-                        key={i}
+                        key={step}
                         label={step}
                         checked={
-                          checked[pr.number]?.has(i) ?? false
+                          checked[pr.number]?.has(step) ?? false
                         }
-                        onChange={() => toggleStep(pr.number, i)}
+                        onChange={() => toggleStep(pr.number, step)}
                       />
                     ))}
                   </Stack>

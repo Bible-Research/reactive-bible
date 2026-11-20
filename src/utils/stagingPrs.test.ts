@@ -174,6 +174,44 @@ describe('fetchPendingStagingPrs', () => {
       });
     });
 
+  it('throws StagingPrsError on a non-JSON 200 body', async () => {
+    server.use(
+      http.get(PULLS_URL, () =>
+        new HttpResponse('<html>proxy page</html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        })),
+    );
+    await expect(fetchPendingStagingPrs()).rejects.toBeInstanceOf(
+      StagingPrsError,
+    );
+  });
+
+  it('throws StagingPrsError on a non-array payload', async () => {
+    server.use(
+      http.get(PULLS_URL, () => HttpResponse.json({ nope: 1 })),
+    );
+    await expect(fetchPendingStagingPrs()).rejects.toBeInstanceOf(
+      StagingPrsError,
+    );
+  });
+
+  it('skips mis-shaped PR entries', async () => {
+    server.use(
+      http.get(PULLS_URL, ({ request }) => {
+        const base = new URL(request.url).searchParams.get('base');
+        if (base !== 'staging') return HttpResponse.json([]);
+        return HttpResponse.json([
+          { number: 9, merged_at: '2026-01-01T00:00:00Z' },
+          pr({ number: 10, title: 'Feat A', headRef: 'feat/a' }),
+        ]);
+      }),
+    );
+    const prs = await fetchPendingStagingPrs();
+    expect(prs).toHaveLength(1);
+    expect(prs[0].number).toBe(10);
+  });
+
   it('throws StagingPrsError on a network failure', async () => {
     server.use(
       http.get(PULLS_URL, () => HttpResponse.error()),
