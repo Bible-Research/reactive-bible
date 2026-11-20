@@ -4,8 +4,9 @@ import * as Sentry from '@sentry/react';
  * User-submitted messages ("Contact developer" in the main
  * menu). Unlike `reportError` — which forwards unhandled
  * exceptions — these are deliberate messages typed by the
- * user: a `user report` message event tagged `reportType:
- * user-report` and `reportCategory: bug|feature|general`,
+ * user: a `user report (<category>)…` message event tagged
+ * `reportType: user-report` and
+ * `reportCategory: bug|feature|general`,
  * plus a Sentry user-feedback entry linked via
  * `associatedEventId`, so the note also surfaces in Sentry's
  * User Feedback view. Triage consumes `reportCategory` to
@@ -53,10 +54,28 @@ export const sendUserReport = (report: UserReport): boolean => {
           : {}),
         ...report.context,
       });
-      eventId = Sentry.captureMessage('user report', {
-        level: 'info',
-        tags,
-      });
+      // Sentry's built-in Dedupe integration drops an untyped
+      // event that is identical (message + fingerprint + stack)
+      // to the previous one — and every report shares this call
+      // site's synthetic stack, so back-to-back reports were
+      // silently dropped as duplicates of the first. Putting
+      // the report's own category/passage/text in the message
+      // makes distinct reports distinct (a byte-identical
+      // resend still collapses — the feedback entry survives
+      // either way), while the constant fingerprint keeps all
+      // of them grouped under the single stream issue.
+      scope.setFingerprint(['user-report']);
+      const ctx = report.context;
+      const passage = ctx?.bookId
+        ? ` ${ctx.bookId}.${ctx.chapter ?? '?'}`
+        : '';
+      eventId = Sentry.captureMessage(
+        `user report (${category})${passage}: ${message}`,
+        {
+          level: 'info',
+          tags,
+        },
+      );
     });
     try {
       Sentry.captureFeedback({

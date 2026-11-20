@@ -2,14 +2,22 @@ import {
   describe, it, expect, vi, beforeEach,
 } from 'vitest';
 import * as Sentry from '@sentry/react';
+// Pinned to the exact version @sentry/react resolves — bump
+// it in lockstep or this drives a stale Dedupe copy.
+import { dedupeIntegration } from '@sentry/core';
+import type {
+  Client, Event, EventHint,
+} from '@sentry/core';
 import { sendUserReport } from './userReport';
 
 interface FakeScope {
   setContext: ReturnType<typeof vi.fn>;
+  setFingerprint: ReturnType<typeof vi.fn>;
 }
 
 const scope: FakeScope = {
   setContext: vi.fn(),
+  setFingerprint: vi.fn(),
 };
 
 vi.mock('@sentry/react', () => ({
@@ -27,6 +35,14 @@ beforeEach(() => {
   mocked.getClient.mockReturnValue(
     {} as ReturnType<typeof Sentry.getClient>,
   );
+  // Individual specs install throwing implementations —
+  // clearAllMocks resets call history only, so the defaults
+  // have to be re-registered every run.
+  mocked.withScope.mockImplementation(
+    ((cb: (s: FakeScope) => void) =>
+      cb(scope)) as unknown as typeof Sentry.withScope,
+  );
+  mocked.captureFeedback.mockImplementation(() => 'fb-id');
 });
 
 describe('sendUserReport', () => {
@@ -57,7 +73,7 @@ describe('sendUserReport', () => {
     });
     expect(sent).toBe(true);
     expect(mocked.captureMessage).toHaveBeenCalledWith(
-      'user report',
+      'user report (bug) JHN.3: next does nothing',
       {
         level: 'info',
         tags: {
@@ -65,6 +81,9 @@ describe('sendUserReport', () => {
           reportCategory: 'bug',
         },
       },
+    );
+    expect(scope.setFingerprint).toHaveBeenCalledWith(
+      ['user-report'],
     );
     expect(scope.setContext).toHaveBeenCalledWith(
       'userReport',
@@ -100,7 +119,7 @@ describe('sendUserReport', () => {
         }),
       ).toBe(true);
       expect(mocked.captureMessage).toHaveBeenCalledWith(
-        'user report',
+        'user report (feature): please add bookmarks',
         {
           level: 'info',
           tags: {
@@ -160,5 +179,60 @@ describe('sendUserReport', () => {
     expect(
       sendUserReport({ message: 'crash' }),
     ).toBe(false);
+  });
+
+  it('escapes Sentry dedupe for distinct back-to-back ' +
+    'reports', () => {
+    // The SDK's built-in Dedupe integration drops an untyped
+    // event identical (message + fingerprint + stack) to the
+    // previous one; user-report events share the synthetic
+    // stack from the sendUserReport call site, so only a
+    // per-report message keeps them distinct. Drive the real
+    // integration against the events this call produces.
+    const processEvent =
+      dedupeIntegration().processEvent;
+    if (!processEvent) {
+      throw new Error('dedupe integration has no ' +
+        'processEvent');
+    }
+    const hint = {} as EventHint;
+    const client = {} as Client;
+    // Real captureMessage events in this app are message-only:
+    // attachStacktrace is unset, so eventFromMessage attaches
+    // no exception/stack — Dedupe's _isSameMessageEvent then
+    // compares message + fingerprint alone (both stacktraces
+    // read as undefined → equal). The fabricated shape mirrors
+    // that: identical stack (none), message/fingerprint pulled
+    // from what sendUserReport actually emitted.
+    const toEvent = (call: number): Event =>
+      ({
+        message:
+          mocked.captureMessage.mock.calls[call][0],
+        fingerprint:
+          scope.setFingerprint.mock.calls[call][0],
+      }) as unknown as Event;
+
+    sendUserReport({
+      message: 'same text',
+      category: 'feature',
+    });
+    sendUserReport({
+      message: 'same text',
+      category: 'general',
+    });
+
+    expect(
+      processEvent(toEvent(0), hint, client),
+    ).not.toBeNull();
+    // A byte-identical resend still collapses — Dedupe's own
+    // job; the feedback entry still lands, so nothing is lost.
+    expect(
+      processEvent(toEvent(0), hint, client),
+    ).toBeNull();
+    // Pre-fix this second report was an identical 'user
+    // report' message and Dedupe returned null.
+    expect(
+      processEvent(toEvent(1), hint, client),
+    ).not.toBeNull();
   });
 });

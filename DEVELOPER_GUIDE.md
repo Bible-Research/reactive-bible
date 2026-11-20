@@ -2690,7 +2690,6 @@ unauthenticated GitHub pulls API by
 `## UI verification / QC` steps as session-local checkboxes;
 API failures degrade to a link to the GitHub
 `main...staging` compare view.
-
 Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
 `isPreviewDeploy` in `src/utils/platform.ts`) additionally show
 "What's on staging": a lazy `StagingChecklistModal` listing PRs
@@ -4621,15 +4620,24 @@ surface as the transport layer:
   a category — Bug report (default), Feature request, or
   General message — and writes the note; anonymous users also
   get an optional reply-email field. `sendUserReport`
-  (`src/utils/userReport.ts`) captures a `user report` message
-  tagged `reportType: user-report` +
+  (`src/utils/userReport.ts`) captures a
+  `user report (<category>) <passage>: <note>` message tagged
+  `reportType: user-report` +
   `reportCategory: bug|feature|general` — the note, category,
   reporter's username (when logged in) and current passage
   (book/chapter/filesets) sit in the `userReport` context —
   plus a user-feedback event with the same tags (and the email
   when given) linked via `associatedEventId`, which also lists
-  each report in Sentry's User Feedback view. Query:
-  `message:"user report"` or `reportType:user-report`; triage
+  each report in Sentry's User Feedback view and opens a
+  feedback issue (`issue.category:feedback`). The per-report
+  message exists because Sentry's built-in Dedupe integration
+  drops an untyped event identical to the previous one —
+  identical 'user report' messages sent back-to-back were
+  silently lost; the constant `user-report` fingerprint keeps
+  them grouped under one stream issue, and `sentryBeforeSend`
+  exempts them from the message-based noise drops (a user
+  quoting 'Loading chunk N failed' still reports). Query:
+  `message:"user report*"` or `reportType:user-report`; triage
   narrows to `reportCategory:bug` + legacy untagged events.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
