@@ -321,6 +321,30 @@ describe('sentryBeforeSend', () => {
     expect(result?.tags?.errorKind).toBe('network');
   });
 
+  it('keeps handled-api non-network failures at error level',
+    () => {
+      // The downgrade lives inside the isNetworkFailure gate —
+      // a handled-api event whose error is not a connectivity
+      // failure must stay error-level.
+      const handledEvent: ErrorEvent = {
+        ...event,
+        event_id: 'handled-nonnet',
+        tags: {
+          reportType: 'handled-api',
+          context: 'Reading positions bulk fetch',
+        },
+      };
+
+      const result = sentryBeforeSend(
+        handledEvent,
+        hintOf(new Error('boom'))
+      );
+
+      expect(result).toBe(handledEvent);
+      expect(result?.level).not.toBe('warning');
+      expect(result?.tags?.errorKind).toBeUndefined();
+    });
+
   it('keeps existing tags when tagging network failures',
     () => {
       // The errorKind tag spread must not clobber tags the
