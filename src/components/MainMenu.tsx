@@ -382,7 +382,12 @@ const MainMenu = ({
           />
         </Suspense>
       )}
-      {checklistOpened && (
+      {/* Mounted (not just when open) so ticked checklist state
+          survives closing the modal to go click through the
+          app — a tester must be able to perform a step, then
+          come back and tick it off. Chunk stays tiny and only
+          loads where the entry can exist. */}
+      {isPreviewDeploy() && (
         <Suspense fallback={null}>
           <StagingChecklistModal
             opened={checklistOpened}

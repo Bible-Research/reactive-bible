@@ -47,7 +47,11 @@ const StagingChecklistModal = ({
   useEffect(() => {
     if (!opened) return;
     let cancelled = false;
-    setState({ kind: "loading" });
+    // Only the first open shows the loader — a reopen revalidates
+    // in the background so previous rows (and ticks) stay put.
+    setState((prev) =>
+      prev.kind === "ready" ? prev : { kind: "loading" }
+    );
     fetchPendingStagingPrs()
       .then((prs) => {
         if (!cancelled) setState({ kind: "ready", prs });
@@ -88,7 +92,11 @@ const StagingChecklistModal = ({
           <Text size="sm">
             {t("menu.stagingChecklistError")}
           </Text>
-          <Anchor href={STAGING_COMPARE_URL} target="_blank">
+          <Anchor
+            href={STAGING_COMPARE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {t("menu.stagingChecklistCompare")}
           </Anchor>
         </Stack>
@@ -116,8 +124,8 @@ const StagingChecklistModal = ({
                     <Anchor
                       href={pr.htmlUrl}
                       target="_blank"
+                      rel="noopener noreferrer"
                       size="sm"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       {t("menu.stagingChecklistOpenPr")}
                     </Anchor>
@@ -133,7 +141,12 @@ const StagingChecklistModal = ({
                     ))}
                   </Stack>
                 ) : (
-                  <Anchor href={pr.htmlUrl} target="_blank" size="sm">
+                  <Anchor
+                    href={pr.htmlUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    size="sm"
+                  >
                     {t("menu.stagingChecklistSeePr")}
                   </Anchor>
                 )}

@@ -224,4 +224,17 @@ describe('parseQcSteps', () => {
       parseQcSteps('## UI verification / QC\nJust prose.\n'),
     ).toBeNull();
   });
+
+  it('handles CRLF line endings (GitHub API bodies)', () => {
+    const body =
+      '## UI verification / QC\r\n- [ ] Open it\r\n' +
+      '1. Click it\r\n## Next\r\n- nope\r\n';
+    expect(parseQcSteps(body)).toEqual(['Open it', 'Click it']);
+  });
+
+  it('drops bare task markers with no step text', () => {
+    const body =
+      '## UI verification / QC\n- [x]\n- Real step\n';
+    expect(parseQcSteps(body)).toEqual(['Real step']);
+  });
 });

@@ -18,9 +18,11 @@
  * precedent as fetchNewestApkUrl). 60 req/hr per IP — ~2 calls
  * per modal open, fine for a QA tool; failures surface as
  * StagingPrsError so the modal can offer the compare-view
- * fallback. Pulls-list pagination caps at 100 — >100 merged
- * staging PRs since the last release is implausible (the
- * workflow itself errors at 200).
+ * fallback. Pulls-list pagination caps at the 100 most recently
+ * UPDATED closed PRs per base (unmerged ones consume slots
+ * too) — more than ~100 closed-PR touches since the last
+ * release is implausible here (the workflow errors at 200
+ * MERGED ones), so a dropped older entry is acceptable.
  */
 
 const REPO = 'Bible-Research/reactive-bible';
@@ -79,15 +81,31 @@ const fetchMergedPulls = async (
       res.status,
     );
   }
-  const data: unknown = await res.json();
+  // A 200 body can still be non-JSON (proxy error page) or
+  // mis-shaped — both are StagingPrsError, never a raw
+  // SyntaxError/TypeError leaking past the typed contract.
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new StagingPrsError('GitHub API returned non-JSON');
+  }
   if (!Array.isArray(data)) {
     throw new StagingPrsError('Unexpected GitHub API payload');
   }
+  const isPr = (v: unknown): v is GithubPr =>
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as GithubPr).head === 'object' &&
+    (v as GithubPr).head !== null &&
+    typeof (v as GithubPr).head.ref === 'string' &&
+    typeof (v as GithubPr).head.sha === 'string';
   // `main`/`staging` heads are sync PRs, never feature work —
   // the workflow excludes them for the same reason.
-  return (data as GithubPr[]).filter(
-    (pr) =>
-      pr.merged_at !== null &&
+  return data.filter(
+    (pr): pr is GithubPr =>
+      isPr(pr) &&
+      typeof pr.merged_at === 'string' &&
       pr.head.ref !== 'main' &&
       pr.head.ref !== 'staging',
   );
@@ -163,6 +181,12 @@ export const parseQcSteps = (
   const steps = section
     .split('\n')
     .map((line) => STEP_LINE.exec(line)?.[1])
-    .filter((s): s is string => s !== undefined);
+    // A bare `- [x]` (marker, no text) is not a step — the
+    // marker group needs `\s+` after it, so the brackets would
+    // otherwise be captured as the label.
+    .filter(
+      (s): s is string =>
+        s !== undefined && !/^\[[ xX]\]$/.test(s),
+    );
   return steps.length > 0 ? steps : null;
 };
