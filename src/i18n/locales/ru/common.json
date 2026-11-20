@@ -582,7 +582,7 @@
     },
     "bible-maps": {
       "title": "Отрывок на карте",
-      "description": "Две кнопки карт: «Карты Библии» или BibleMapper."
+      "description": "Кнопки на панели действий: «Карты Библии», BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Смените перевод Библии",

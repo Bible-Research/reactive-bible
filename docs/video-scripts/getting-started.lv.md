@@ -158,17 +158,18 @@ saturu.
 
 ## 5. Skatiet tekstu kartē (~60 s)
 
-**Māca:** pantu darbību joslas divas karšu pogas — lietotnē
-iebūvēto Bībeles karšu logu un BibleMapper WebViewer.
+**Māca:** divas karšu pogas pantu darbību rīkjoslā —
+lietotnes Bible Maps modāli un BibleMapper WebViewer.
 
 ### Soļi
 
 1. Atveriet `/bible/JHN.3` un pieskarieties 16. pantam —
-   parādās darbību josla.
-2. Pieskarieties tirkīza kartes ikonai ("Skatīt kartē") —
-   lietotnē atveras "Bībeles kartes" logs ar nodaļu jau
+   parādās darbību rīkjosla.
+2. Pieskarieties tirkīzai kartes ikonai ("View on map") —
+   lietotnē atveras Bible Maps modālis ar nodaļu jau
    ielādētu BibleMapper MapFinder.
-3. Pārvietojiet un tuviniet karti, tad aizveriet logu ar ✕.
+3. Pārvietojiet un tuviniet karti, tad aizveriet modāli
+   ar ✕.
 4. Pieskarieties BibleMapper ikonai (biblemapper.com
    logotipam) — angļu valodas atsauce nokopējas starpliktuvē
    (parādās paziņojums) un jaunā cilnē atveras biblemapper.com
@@ -179,7 +180,7 @@ iebūvēto Bībeles karšu logu un BibleMapper WebViewer.
 
 - Anonīma sesija — abas karšu pogas darbojas bez
   pierakstīšanās.
-- Ļaujiet modālā loga iframe ielādēties, pirms norādāt uz
+- Ļaujiet modāļa iframe ielādēties, pirms norādāt uz
   teksta marķieri.
 - Starpliktuvē nokopējas angļu atsauce arī latviešu un krievu
   saskarnē — pasakiet to skaļi, lai neviens neielīmētu
