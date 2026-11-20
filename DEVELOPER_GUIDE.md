@@ -4479,7 +4479,10 @@ surface as the transport layer:
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',
   'Load failed', 'NetworkError…') are kept but tagged
-  `errorKind: network` so Sentry-side rules can route them.
+  `errorKind: network` so Sentry-side rules can route them;
+  on `handled-api` events the level drops to warning —
+  handled connectivity noise, like a `ConflictError`, stays
+  out of the error queue without losing the event.
   `ConflictError` is downgraded to warning level;
   `ProviderError` gets a `['api-error', code, endpoint]
   fingerprint so provider outages group per endpoint instead of
@@ -4491,7 +4494,9 @@ surface as the transport layer:
   environment:production` is the bug queue — everything else is
   deliberately routed by tag. Untagged exception events are
   real bugs; `reportType` marks routed streams: `handled-api`
-  (error, graceful catch sites), `media-failure` (warning,
+  (error, graceful catch sites — warning when the failure is a
+  `errorKind: network` connectivity blip), `media-failure`
+  (warning,
   audio terminal failures — extras carry fileset + passage),
   `native-bridge` (warning, Capacitor bridge calls — expected
   on web), `resource-load` (warning, missing assets),
