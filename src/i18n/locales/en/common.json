@@ -529,6 +529,10 @@
       "title": "Select verses and share them",
       "description": "Tap verses to select them, then share the passage or open it on external study sites from the action toolbar."
     },
+    "bible-maps": {
+      "title": "See the passage on a map",
+      "description": "Two toolbar map buttons: Bible Maps or BibleMapper."
+    },
     "switch-bible-translation": {
       "title": "Switch Bible translation",
       "description": "Pick a translation and see how text and audio options are chosen independently."

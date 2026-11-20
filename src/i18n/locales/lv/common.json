@@ -568,6 +568,10 @@
       "title": "Atlasiet pantus un kopīgojiet tos",
       "description": "Pieskarieties pantiem, lai tos atlasītu, pēc tam kopīgojiet tekstu vai atveriet to ārējās pētījumu vietnēs no darbību joslas."
     },
+    "bible-maps": {
+      "title": "Skatiet tekstu kartē",
+      "description": "Divas karšu pogas: Bībeles kartes vai BibleMapper."
+    },
     "switch-bible-translation": {
       "title": "Mainiet Bībeles tulkojumu",
       "description": "Izvēlieties tulkojumu un redziet, kā teksta un audio iespējas tiek izvēlētas neatkarīgi."
