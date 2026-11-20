@@ -546,7 +546,7 @@
     "sharePassage": "Поделиться этим отрывком",
     "addNote": "Добавить заметку",
     "bibleMaps": "Карты Библии",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Открыть в новой вкладке",
     "shareFailed": "Не удалось поделиться",
     "linkCopied": "Ссылка скопирована",
@@ -650,6 +650,10 @@
     "select-and-share-verses": {
       "title": "Выберите стихи и поделитесь ими",
       "description": "Касайтесь стихов, чтобы выбрать их, затем поделитесь отрывком или откройте его на внешних сайтах для изучения с панели действий."
+    },
+    "bible-maps": {
+      "title": "Отрывок на карте",
+      "description": "Кнопки на панели действий: «Карты Библии», BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Смените перевод Библии",

@@ -533,7 +533,7 @@
     "sharePassage": "Kopīgot šo tekstu",
     "addNote": "Pievienot piezīmi",
     "bibleMaps": "Bībeles kartes",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Atvērt jaunā cilnē",
     "shareFailed": "Neizdevās kopīgot",
     "linkCopied": "Saite nokopēta",
@@ -637,6 +637,10 @@
     "select-and-share-verses": {
       "title": "Atlasiet pantus un kopīgojiet tos",
       "description": "Pieskarieties pantiem, lai tos atlasītu, pēc tam kopīgojiet tekstu vai atveriet to ārējās pētījumu vietnēs no darbību joslas."
+    },
+    "bible-maps": {
+      "title": "Skatiet tekstu kartē",
+      "description": "Divas pogas darbību joslā: Bībeles kartes, BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Mainiet Bībeles tulkojumu",

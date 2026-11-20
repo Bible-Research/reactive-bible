@@ -5,12 +5,12 @@
  * Entries are the recording checklist from
  * docs/video-scripts/getting-started.<locale>.md, in the
  * order a brand-new user should watch them: anonymous features
- * first, then the account, then everything behind a login. They
- * ship with an empty `youtubeIds` map — GettingStartedRoute only
- * renders a card when the active UI language (falling back to
- * English) has a recorded video, so the page can go live before
- * anything is recorded and grows as real video ids are filled
- * in.
+ * first, then the account, then everything behind a login.
+ * Entries ship with an empty `youtubeIds` map until recorded —
+ * GettingStartedRoute only renders a card when the active UI
+ * language (falling back to English) has a recorded video, so
+ * the page can go live before anything is recorded and grows
+ * as real video ids are filled in.
  *
  * Card text lives in the UI catalog under
  * `tutorials.<id>.title` / `tutorials.<id>.description` —
@@ -36,6 +36,7 @@ export const TUTORIAL_VIDEOS: TutorialVideo[] = [
   { id: 'go-to-any-verse', youtubeIds: {} },
   { id: 'book-outline-section-headings', youtubeIds: {} },
   { id: 'select-and-share-verses', youtubeIds: {} },
+  { id: 'bible-maps', youtubeIds: { en: 'WPvhvZrexs0' } },
   { id: 'switch-bible-translation', youtubeIds: {} },
   { id: 'listen-to-a-chapter', youtubeIds: {} },
   { id: 'audio-playlists', youtubeIds: {} },
