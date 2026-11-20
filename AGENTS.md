@@ -283,7 +283,16 @@ is the agent-fixable bug queue** — anything else is deliberate:
   get implemented (a huge/unreasonable one may be logged
   `declined` with reasoning), and general messages get
   triaged and answered. Anonymous senders may attach a
-  reply `email` on the feedback entry. Not an error queue
+  reply `email` on the feedback entry. The event message
+  embeds the category, passage and note so Sentry's built-in
+  Dedupe integration cannot collapse consecutive distinct
+  reports (all still group under one stream issue via the
+  constant `user-report` fingerprint).
+  `sentryBeforeSend` returns these early — the note text is
+  user-controlled and must never hit the message-based noise
+  filters — and each submission also opens a feedback issue —
+  `issue.category:feedback` finds feature/general mail the
+  legacy User Feedback list can miss. Not an error queue
   item; investigated separately via the fix-sentry-issue
   skill.
 - `reportType: app-update` — info events from the APK's
@@ -479,6 +488,16 @@ Code conventions:
   `sentryBeforeSend` drops it. Keep custom `try/catch` only
   where the endpoint has a richer contract (typed provider
   errors, 409 bodies, 204s, swallowed failures).
+- Patched deps (`patches/`, applied by `postinstall`
+  patch-package — bumping one requires regenerating its
+  patch): `@anuradev/capacitor-background-mode` (Play Protect,
+  see "Android / Play Protect") and `@mantine/hooks`
+  (`createAriaHider` defers the sibling `aria-hidden` pass
+  until the focus trap's own `setTimeout(0)` focus move has
+  run, with a blur fallback — synchronous hiding landed the
+  attribute on ancestors of `document.activeElement`, which
+  is what Chrome's "Blocked aria-hidden on an element
+  because its descendant retained focus" warning means).
 - UI strings: no hardcoded English in components — every
   user-facing string (labels, aria-labels, notifications,
   placeholders, titles) goes through `t('section.key')` from
