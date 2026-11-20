@@ -407,24 +407,33 @@ describe('loadStructure SWR resolution', () => {
       await p;
     });
 
-  it('resolves the product-id abbr prefix before the ' +
-    'translations list lands', async () => {
-      // No owner resolvable yet — the abbr still comes off
-      // the '{abbr}:{kind}:{n}' prefix so the request is
-      // never fired with a ':'-bearing product id.
+  it('waits out the translations list for a ' +
+    'product-id selection', async () => {
+      // No owner resolvable yet — the ':'-shaped stored id
+      // can never route and its prefix abbr is display
+      // keying only, so nothing goes on the wire until the
+      // translations-land re-kick resolves the owner.
       const { state, slice } = makeStore({
         activeTextFilesetId: 'LAVNLI:text:1',
         translations: [],
       });
       vi.mocked(fetchBibleStructure).mockResolvedValue(LV);
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
 
-      const p = slice.loadStructure();
+      await slice.loadStructure();
       expect(state.activeStructureKey).toBe('LAVNLI');
+      expect(fetchBibleStructure).not.toHaveBeenCalled();
+
+      state.translations.push(...LV_TRANSLATIONS);
+      const p = slice.loadStructure();
       await vi.waitFor(() => {
         expect(fetchBibleStructure)
           .toHaveBeenCalledWith('LAVNLI');
       });
       await p;
+      warn.mockRestore();
     });
 
   it('dedupes concurrent fetches per abbr', async () => {
@@ -676,24 +685,34 @@ describe('loadStructure fetch id resolution', () => {
     },
   );
 
-  it('still sends the unresolved id prefix when the ' +
-    'translations list has not loaded', async () => {
-      // No owner yet — the abbr/fileset-id guess is the
-      // best available wire id (registry abbrs resolve
-      // server-side; a real 404 takes the warn path as
-      // before).
-      const { slice } = makeStore({
+  it('skips a colon-bearing selection until the ' +
+    'translations list loads', async () => {
+      // No owner yet — the ':'-shaped stored id is a
+      // guaranteed wire failure and the bare prefix abbr
+      // ('ESV') is not routable either, so nothing may be
+      // sent. The translations-land re-kick then resolves
+      // the member id normally.
+      const { state, slice } = makeStore({
         activeTextFilesetId: 'ESV:text:1',
         translations: [],
       });
       vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
 
+      await slice.loadStructure();
+      expect(fetchBibleStructure).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+
+      state.translations.push(...ESV_TRANSLATIONS);
       const p = slice.loadStructure();
       await vi.waitFor(() => {
         expect(fetchBibleStructure)
-          .toHaveBeenCalledWith('ESV');
+          .toHaveBeenCalledWith('ENGESV_API');
       });
       await p;
+      warn.mockRestore();
     },
   );
 });
