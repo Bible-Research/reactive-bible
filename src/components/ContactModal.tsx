@@ -3,8 +3,10 @@ import {
   Button,
   Group,
   Modal,
+  SegmentedControl,
   Stack,
   Text,
+  TextInput,
   Textarea,
 } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
@@ -13,21 +15,32 @@ import { shallow } from "zustand/shallow";
 import { useBibleStore } from "../store";
 import { useAuthStore } from "../stores/authStore";
 import { sendUserReport } from "../utils/userReport";
+import type { ReportCategory } from "../utils/userReport";
 import { useTranslation } from 'react-i18next';
 
-interface ReportProblemModalProps {
+interface ContactModalProps {
   opened: boolean;
   onClose: () => void;
 }
 
 const NOTE_MAX_LENGTH = 1000;
+const CATEGORIES: ReportCategory[] = [
+  'bug',
+  'feature',
+  'general',
+];
 
-const ReportProblemModal = ({
+const ContactModal = ({
   opened,
   onClose,
-}: ReportProblemModalProps) => {
+}: ContactModalProps) => {
   const { t } = useTranslation();
   const [note, setNote] = useState("");
+  const [email, setEmail] = useState("");
+  // Bug stays the default — the old flow is unchanged
+  // muscle-memory-wise and misfiled bugs are minimized.
+  const [category, setCategory] =
+    useState<ReportCategory>('bug');
   const username = useAuthStore((state) => state.user?.username);
   // On phones the centered dialog leaves the textarea a few
   // rows tall; go full-screen and let the input fill the
@@ -46,8 +59,14 @@ const ReportProblemModal = ({
     shallow
   );
 
-  const handleClose = () => {
+  const reset = () => {
     setNote("");
+    setEmail("");
+    setCategory('bug');
+  };
+
+  const handleClose = () => {
+    reset();
     onClose();
   };
 
@@ -55,24 +74,32 @@ const ReportProblemModal = ({
     const sent = sendUserReport({
       message: note,
       username,
+      category,
+      email: email.trim() || undefined,
       context,
     });
     showNotification({
-      title: sent ? t('report.sent') : t('report.notSent'),
+      title: sent
+        ? t(`report.${category}.sentTitle`)
+        : t('report.notSent'),
       message: sent
-        ? t('report.thanks')
+        ? t(`report.${category}.sentMessage`)
         : t('report.failed'),
       color: sent ? 'green' : 'red',
     });
-    setNote("");
-    onClose();
+    // On failure keep the dialog open so the typed note (and
+    // reply email) survive — the user can retry or copy it.
+    if (sent) {
+      reset();
+      onClose();
+    }
   };
 
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={t('report.title')}
+      title={t(`report.${category}.title`)}
       fullScreen={isMobile}
       styles={
         isMobile
@@ -95,12 +122,25 @@ const ReportProblemModal = ({
         spacing="md"
         sx={isMobile ? { flex: 1, minHeight: 0 } : undefined}
       >
+        <SegmentedControl
+          value={category}
+          onChange={(value) =>
+            setCategory(value as ReportCategory)
+          }
+          data={CATEGORIES.map((value) => ({
+            value,
+            label: t(`report.category.${value}`),
+          }))}
+          fullWidth
+          role="radiogroup"
+          aria-label={t('report.categoryLabel')}
+        />
         <Text size="sm" color="dimmed">
-          {t('report.hint')}
+          {t(`report.${category}.hint`)}
         </Text>
         <Textarea
-          label={t('report.label')}
-          placeholder={t('report.placeholder')}
+          label={t(`report.${category}.label`)}
+          placeholder={t(`report.${category}.placeholder`)}
           minRows={3}
           maxLength={NOTE_MAX_LENGTH}
           value={note}
@@ -134,6 +174,18 @@ const ReportProblemModal = ({
               : {}
           }
         />
+        {/* Signed-in users already send their username — the
+            optional reply address exists for anonymous ones. */}
+        {!username && (
+          <TextInput
+            type="email"
+            label={t('report.emailLabel')}
+            value={email}
+            onChange={(e) =>
+              setEmail(e.currentTarget.value)
+            }
+          />
+        )}
         <Group position="right" spacing="xs">
           <Button variant="subtle" onClick={handleClose}>
             {t('common.cancel')}
@@ -150,4 +202,4 @@ const ReportProblemModal = ({
   );
 };
 
-export default ReportProblemModal;
+export default ContactModal;

@@ -54,7 +54,7 @@ izvēlni.
    bez traucēkļiem; ritiniet uz augšu, lai tās atgrieztu.
 5. Pieskarieties burgera pogai — izvelkamā izvēlnē ir:
    Account / Sign In, Read Bible, Getting started (lapa, kurā
-   dzīvo šīs pamācības), Report a problem, Theme switch.
+   dzīvo šīs pamācības), Contact developer, Theme switch.
    Pārslēdziet tumšo → gaišo → tumšo režīmu.
 6. Aizveriet izvēlni ar ✕ vai Esc.
 
@@ -475,8 +475,9 @@ lietotni.
 
 1. Motīva slēdzis (saule/mēness) ir izvēlnē — noklusējums ir
    tumšs.
-2. "Report a problem" → aprakstiet problēmu → "Send report"
-   → paziņojums; tas automātiski pievieno pašreizējo
+2. "Contact developer" → atstājiet "Bug report" (vai
+   izvēlieties citu kategoriju) → aprakstiet problēmu →
+   "Send" → paziņojums; tas automātiski pievieno pašreizējo
    fragmentu.
 3. Android tālruņa pārlūkā izvēlne rāda "Download Android
    App" → APK → uzvednē atļaujiet "install unknown apps".

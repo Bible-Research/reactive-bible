@@ -4379,20 +4379,25 @@ surface as the transport layer:
   audio terminal failures — extras carry fileset + passage),
   `native-bridge` (warning, Capacitor bridge calls — expected
   on web), `resource-load` (warning, missing assets),
-  `user-report` (info, "Report a problem"), `app-update`
+  `user-report` (info, "Contact developer"), `app-update`
   (info, sideload updater: `updateStep` `download-opened` /
   `installed`). `errorKind` refines which kind of failure an
   exception was (`network` today).
-- **User reports:** the main menu's "Report a problem" row
-  (always visible) opens `ReportProblemModal`, where the user
-  describes the issue. `sendUserReport`
+- **User reports:** the main menu's "Contact developer" row
+  (always visible) opens `ContactModal`, where the user picks
+  a category — Bug report (default), Feature request, or
+  General message — and writes the note; anonymous users also
+  get an optional reply-email field. `sendUserReport`
   (`src/utils/userReport.ts`) captures a `user report` message
-  tagged `reportType: user-report` — the note, reporter's
-  username (when logged in) and current passage
+  tagged `reportType: user-report` +
+  `reportCategory: bug|feature|general` — the note, category,
+  reporter's username (when logged in) and current passage
   (book/chapter/filesets) sit in the `userReport` context —
-  plus a user-feedback event linked via `associatedEventId`,
-  which also lists each report in Sentry's User Feedback view.
-  Query: `message:"user report"` or `reportType:user-report`.
+  plus a user-feedback event with the same tags (and the email
+  when given) linked via `associatedEventId`, which also lists
+  each report in Sentry's User Feedback view. Query:
+  `message:"user report"` or `reportType:user-report`; triage
+  narrows to `reportCategory:bug` + legacy untagged events.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0
   (replays only for errored sessions, `maskAllText` +
