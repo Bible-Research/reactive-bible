@@ -66,7 +66,7 @@ izvēlni.
 - Motīva pārslēgs atrodas tikai izvelkamajā izvēlnē —
   nemeklējiet to augšējā joslā.
 - Android ierīcēs izvēlnē redzama arī "Download Android App"
-  (skat. 17. sadaļu).
+  (skat. 18. sadaļu).
 - Norādiet katru elementu, to nosaucot, lai skatītāji
   sasaistītu nosaukumus ar pikseļiem.
 

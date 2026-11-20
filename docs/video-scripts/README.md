@@ -14,7 +14,8 @@ on the app's `/getting-started` route (`GettingStartedRoute` +
 
 [yt]: https://www.youtube.com/shorts/WPvhvZrexs0
 
-Statuses: `draft` → `recorded` → `published`. When a video goes
+Statuses: `draft` → `recorded` → `published` (per file — a
+partly-recorded series stays `draft`). When a video goes
 live, paste its URL into the YouTube column.
 
 ## Conventions

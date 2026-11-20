@@ -62,7 +62,7 @@ the menu.
 - The theme toggle only lives in the drawer — don't hunt for
   it in the top bar.
 - On Android the drawer also shows "Download Android App"
-  (§17 covers it).
+  (§18 covers it).
 - Point at each element as you name it so viewers map names to
   pixels.
 
