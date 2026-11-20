@@ -194,6 +194,13 @@ whose head SHA was never merged into `staging`, and the
 - Auth: token persisted via authStore; `authenticatedFetch` is for
   user-owned resources (notes, tags, comments), `publicFetch` for
   bible content.
+- "What's on staging" (MainMenu) renders only on Vercel preview
+  deploys — `isPreviewDeploy()` in `src/utils/platform.ts` gates
+  on the build-time `VITE_APP_ENV`; `src/utils/stagingPrs.ts`
+  computes the pending-promotion set (same algorithm as
+  `promote-to-main.yml`) from the unauthenticated GitHub pulls
+  API, and `StagingChecklistModal` renders each PR's
+  `## UI verification / QC` steps as session-local checkboxes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract

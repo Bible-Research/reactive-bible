@@ -21,7 +21,14 @@
     "languageLoadFailed": "Neizdevās ielādēt izvēlēto valodu — tiek paturēta pašreizējā.",
     "openMenu": "Atvērt izvēlni",
     "closeMenu": "Aizvērt izvēlni",
-    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām."
+    "gettingStartedHint": "Noskatieties īsas videoapmācības par lietotnes iespējām.",
+    "stagingChecklist": "Kas atrodas staging",
+    "stagingChecklistHint": "PR, kas sapludināti uz staging un vēl gaida UI pārbaudi.",
+    "stagingChecklistOpenPr": "Atvērt GitHub",
+    "stagingChecklistSeePr": "Pārbaudes soļi — skatīt PR aprakstu",
+    "stagingChecklistEmpty": "Nekas nav gaidāms — staging sakrīt ar produkciju.",
+    "stagingChecklistError": "Neizdevās ielādēt gaidāmo sarakstu no GitHub.",
+    "stagingChecklistCompare": "Atvērt main...staging salīdzinājumu GitHub"
   },
   "audio": {
     "play": "Atskaņot",

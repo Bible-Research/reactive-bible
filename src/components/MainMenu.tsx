@@ -17,6 +17,7 @@ import {
   IconBrandAndroid,
   IconRefresh,
   IconBug,
+  IconChecklist,
   IconRocket,
 } from "@tabler/icons-react";
 import { Suspense, useEffect, useState } from "react";
@@ -30,7 +31,7 @@ import {
   UI_LANGUAGE_AUTONYMS,
   isUiLanguage,
 } from "../i18n";
-import { isNativeApp } from "../utils/platform";
+import { isNativeApp, isPreviewDeploy } from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
 import { lazyWithReload } from "../utils/lazyWithReload";
@@ -43,6 +44,11 @@ const AddStandaloneNoteModal = lazyWithReload(
 );
 const ReportProblemModal = lazyWithReload(
   () => import("./ReportProblemModal")
+);
+// Preview-deploys only (see isPreviewDeploy): the QA checklist
+// of PRs merged to staging but not yet promoted to main.
+const StagingChecklistModal = lazyWithReload(
+  () => import("./StagingChecklistModal")
 );
 
 // Fallback while the newest versioned asset URL is resolved
@@ -71,6 +77,7 @@ const MainMenu = ({
   const navigate = useNavigate();
   const [newNoteOpened, setNewNoteOpened] = useState(false);
   const [reportOpened, setReportOpened] = useState(false);
+  const [checklistOpened, setChecklistOpened] = useState(false);
   // The stable-name continuous asset is deleted + re-uploaded on
   // every publish — resolve the freshest versioned APK instead
   // so the link can never hand out a truncated file.
@@ -296,6 +303,31 @@ const MainMenu = ({
           </div>
         </Group>
 
+        {/* Release-testers' aid — meaningful only where the
+            staging-branch preview actually runs. */}
+        {isPreviewDeploy() && (
+          <Group spacing="xs" align="flex-start" noWrap>
+            <IconChecklist
+              size={22}
+              style={{ marginTop: 4, flexShrink: 0 }}
+            />
+            <div>
+              <Text
+                weight={500}
+                size="lg"
+                onClick={() => setChecklistOpened(true)}
+                sx={{ cursor: "pointer" }}
+                title={t('menu.stagingChecklist')}
+              >
+                {t('menu.stagingChecklist')}
+              </Text>
+              <Text size="xs" color="dimmed">
+                {t('menu.stagingChecklistHint')}
+              </Text>
+            </div>
+          </Group>
+        )}
+
         <Divider />
 
         <Group position="apart" spacing="xs">
@@ -347,6 +379,14 @@ const MainMenu = ({
           <ReportProblemModal
             opened={reportOpened}
             onClose={() => setReportOpened(false)}
+          />
+        </Suspense>
+      )}
+      {checklistOpened && (
+        <Suspense fallback={null}>
+          <StagingChecklistModal
+            opened={checklistOpened}
+            onClose={() => setChecklistOpened(false)}
           />
         </Suspense>
       )}

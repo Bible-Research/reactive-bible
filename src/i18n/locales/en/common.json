@@ -21,7 +21,14 @@
     "languageLoadFailed": "Could not load the selected language — keeping the current one.",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
-    "gettingStartedHint": "Watch short video tutorials on the app's features."
+    "gettingStartedHint": "Watch short video tutorials on the app's features.",
+    "stagingChecklist": "What's on staging",
+    "stagingChecklistHint": "PRs merged to staging that still need UI verification.",
+    "stagingChecklistOpenPr": "Open on GitHub",
+    "stagingChecklistSeePr": "See the PR body for verification steps",
+    "stagingChecklistEmpty": "Nothing pending — staging matches production.",
+    "stagingChecklistError": "Could not load the pending list from GitHub.",
+    "stagingChecklistCompare": "Open the main...staging compare on GitHub"
   },
   "audio": {
     "play": "Play",
