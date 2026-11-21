@@ -1452,4 +1452,86 @@ describe('API Functions', () => {
       });
   });
 
+  describe('getBulkReadingPositions', () => {
+    it('retries a network failure once — the bulk ' +
+      'endpoint is a read-only POST', async () => {
+        let calls = 0;
+        server.use(
+          http.post(
+            `${API_URL}/reading-positions/bulk/`,
+            () => {
+              calls += 1;
+              if (calls === 1) {
+                return HttpResponse.error();
+              }
+              return HttpResponse.json({
+                John: { chapter: 3, verse: 16 },
+              });
+            }
+          )
+        );
+
+        const result = await api.getBulkReadingPositions(
+          ['JHN']
+        );
+
+        expect(calls).toBe(2);
+        expect(result).toEqual({
+          JHN: { chapter: 3, verse: 16 },
+        });
+      });
+
+    it('fails soft and reports once when the network ' +
+      'failure persists', async () => {
+        const handled = vi
+          .spyOn(errorReporter, 'captureHandledError')
+          .mockImplementation(() => undefined);
+        let calls = 0;
+        server.use(
+          http.post(
+            `${API_URL}/reading-positions/bulk/`,
+            () => {
+              calls += 1;
+              return HttpResponse.error();
+            }
+          )
+        );
+
+        const result = await api.getBulkReadingPositions(
+          ['JHN']
+        );
+
+        expect(calls).toBe(2);
+        expect(result).toEqual({});
+        expect(handled).toHaveBeenCalledTimes(1);
+      });
+
+    it('does not retry a non-OK HTTP response', async () => {
+      const handled = vi
+        .spyOn(errorReporter, 'captureHandledError')
+        .mockImplementation(() => undefined);
+      let calls = 0;
+      server.use(
+        http.post(
+          `${API_URL}/reading-positions/bulk/`,
+          () => {
+            calls += 1;
+            return HttpResponse.json(
+              {
+                error: 'boom',
+                error_code: 'provider_error',
+              },
+              { status: 500 }
+            );
+          }
+        )
+      );
+
+      const result = await api.getBulkReadingPositions(['JHN']);
+
+      expect(calls).toBe(1);
+      expect(result).toEqual({});
+      expect(handled).toHaveBeenCalledTimes(1);
+    });
   });
+});

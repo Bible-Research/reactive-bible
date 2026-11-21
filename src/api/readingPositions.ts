@@ -101,7 +101,12 @@ export const getBulkReadingPositions = async (
       {
         method: 'POST',
         body: JSON.stringify({ books: bookNames }),
-      }
+      },
+      // The backend bulk action is a READ implemented as POST
+      // (the book list rides in the body) — side-effect-free,
+      // so a network failure is safe to replay like a GET.
+      /* retries */ 1,
+      /* idempotent */ true
     );
     if (!response.ok) {
       throwHttpError(

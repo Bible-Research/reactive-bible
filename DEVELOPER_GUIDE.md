@@ -3405,10 +3405,13 @@ verse-count lookup; `bibleStructure.ts` is the
 - `publicFetch(url, options?, retries?)` — attaches the token
   when present; a 401 retries once anonymously and never logs
   the user out (a stale token must not break public content).
-- `authenticatedFetch(url, options?, retries?)` — a valid 401
-  logs out and shows a "session expired" notification. For
-  user-owned resources (notes, tags, comments, reading
-  positions).
+- `authenticatedFetch(url, options?, retries?, idempotent?)` —
+  a valid 401 logs out and shows a "session expired"
+  notification. For user-owned resources (notes, tags,
+  comments, reading positions). `idempotent: true` opts a
+  side-effect-free non-GET request (a read implemented as
+  POST, e.g. `reading-positions/bulk/`) into the
+  network-failure retry — never set it for mutations.
 - `authenticatedUpload(url, formData)` — multipart variant for
   image uploads (comment and note attachments).
 - `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
@@ -3420,8 +3423,9 @@ verse-count lookup; `bibleStructure.ts` is the
   `api/errors.ts`, 409 bodies, 204 no-content, swallowed
   failures) keep their own `try/catch`.
 - `sendRequest` — the shared core both fetchers delegate to;
-  network-failure retry fires only for idempotent methods
-  (GET/HEAD/OPTIONS).
+  network-failure retry fires only for idempotent requests
+  (GET/HEAD/OPTIONS, or a caller-declared `idempotent` read
+  POST).
 
 **Error policy**: `showNotification` (from
 `@mantine/notifications`) is for expected, contextual failures
@@ -3940,7 +3944,8 @@ clearNotesCache();
 - `authenticatedFetch` keeps the 401 → logout + "session
   expired" behaviour; `TypeError` (network drop) retries are
   restricted to idempotent GET/HEAD so a lost POST response
-  can't double-create a note/tag/comment.
+  can't double-create a note/tag/comment — a read-only POST
+  may opt in via `idempotent: true`.
 
 #### 4. Translation Cache (Session-based)
 **Purpose**: Cache translation lists to avoid refetching
