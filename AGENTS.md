@@ -141,7 +141,9 @@ whose head SHA was never merged into `staging`, and the
   not break public content — and never logs out) vs
   `authenticatedFetch` (401 → logout + "session expired"
   notification). Network-failure retry only fires for
-  idempotent methods (GET/HEAD/OPTIONS).
+  idempotent methods (GET/HEAD/OPTIONS) — or for requests the
+  caller marks `idempotent: true` (reads implemented as POST,
+  e.g. `reading-positions/bulk/`).
 - `src/utils/cacheManager.ts` — localStorage cache: verses
   (LRU, 500 cap for copyright), audio URLs (CloudFront expiry
   parsing), translations (per language), bible structures
