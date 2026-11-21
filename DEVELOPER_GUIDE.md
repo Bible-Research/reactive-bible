@@ -708,7 +708,18 @@ auth lives in a separate persisted `authStore`.
   fileset id (a first load can key store/cache on the raw
   fileset id until the translations list resolves the owning
   bible abbr — the id-keyed tiers are consulted too, and the
-  landing fetch re-resolves the abbr before writing). A
+  landing fetch re-resolves the abbr before writing). The
+  wire `fileset_id` is a concrete member of the owner's text
+  option when resolvable — registry providers answer by
+  fileset id on any backend while a bare listing abbr only
+  resolves where the registry knows the alias (the ESV abbr
+  `ESV` 404s where `ENGESV_API` answers; the abbr-shaped
+  member wins when present so `ENGKJV` keeps its bundled
+  names). A stored id that resolves to no routable value
+  (e.g. a `:`-bearing product id) never reaches the wire —
+  and `fetchBibleStructure` itself mirrors the backend's
+  FILESET_ID_RE, failing locally with a typed
+  `ClientInputError`. A
   `degraded: true` body (the backend's `no-store` SWORD
   fallback names) applies in memory but is never written to
   localStorage; a `{books: []}` anomaly is treated as a
@@ -2703,6 +2714,18 @@ unauthenticated GitHub pulls API by
 `## UI verification / QC` steps as session-local checkboxes;
 API failures degrade to a link to the GitHub
 `main...staging` compare view.
+Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
+`isPreviewDeploy` in `src/utils/platform.ts`) additionally show
+"What's on staging": a lazy `StagingChecklistModal` listing PRs
+merged into `staging` but not yet promoted to `main` —
+mirroring the pending-set check in `promote-to-main.yml`
+(head-branch keyed, head-SHA / merged_at comparison; without
+its commit-search fallback), read live from the
+unauthenticated GitHub pulls API by
+`src/utils/stagingPrs.ts`. Each row expands to the PR body's
+`## UI verification / QC` steps as session-local checkboxes;
+API failures degrade to a link to the GitHub
+`main...staging` compare view.
 
 #### `MyHeader.tsx`
 Top header bar with controls.
@@ -3844,6 +3867,10 @@ if (newTotal > MAX_VERSES) {
 - No size limit (URLs are small)
 - Expiration-based eviction
 - Parses CloudFront URL expiration
+- Plausibility check on read (`isPlausibleChapterAudioUrl`):
+  ESV CDN files must be `<Book> <chapter>.mp3`; a malformed
+  entry (e.g. a chapterless `Leviticus%20.mp3` minted by an
+  older backend) is evicted and refetched
 - Auto-cleanup on app load
 
 **Storage Key**: `bible_audio_cache`
@@ -4591,7 +4618,10 @@ surface as the transport layer:
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',
   'Load failed', 'NetworkError…') are kept but tagged
-  `errorKind: network` so Sentry-side rules can route them.
+  `errorKind: network` so Sentry-side rules can route them;
+  on `handled-api` events the level drops to warning —
+  handled connectivity noise, like a `ConflictError`, stays
+  out of the error queue without losing the event.
   `ConflictError` is downgraded to warning level;
   `ProviderError` gets a `['api-error', code, endpoint]
   fingerprint so provider outages group per endpoint instead of
@@ -4603,7 +4633,9 @@ surface as the transport layer:
   environment:production` is the bug queue — everything else is
   deliberately routed by tag. Untagged exception events are
   real bugs; `reportType` marks routed streams: `handled-api`
-  (error, graceful catch sites), `media-failure` (warning,
+  (error, graceful catch sites — warning when the failure is a
+  `errorKind: network` connectivity blip), `media-failure`
+  (warning,
   audio terminal failures — extras carry fileset + passage),
   `native-bridge` (warning, Capacitor bridge calls — expected
   on web), `resource-load` (warning, missing assets),
@@ -4616,15 +4648,24 @@ surface as the transport layer:
   a category — Bug report (default), Feature request, or
   General message — and writes the note; anonymous users also
   get an optional reply-email field. `sendUserReport`
-  (`src/utils/userReport.ts`) captures a `user report` message
-  tagged `reportType: user-report` +
+  (`src/utils/userReport.ts`) captures a
+  `user report (<category>) <passage>: <note>` message tagged
+  `reportType: user-report` +
   `reportCategory: bug|feature|general` — the note, category,
   reporter's username (when logged in) and current passage
   (book/chapter/filesets) sit in the `userReport` context —
   plus a user-feedback event with the same tags (and the email
   when given) linked via `associatedEventId`, which also lists
-  each report in Sentry's User Feedback view. Query:
-  `message:"user report"` or `reportType:user-report`; triage
+  each report in Sentry's User Feedback view and opens a
+  feedback issue (`issue.category:feedback`). The per-report
+  message exists because Sentry's built-in Dedupe integration
+  drops an untyped event identical to the previous one —
+  identical 'user report' messages sent back-to-back were
+  silently lost; the constant `user-report` fingerprint keeps
+  them grouped under one stream issue, and `sentryBeforeSend`
+  exempts them from the message-based noise drops (a user
+  quoting 'Loading chunk N failed' still reports). Query:
+  `message:"user report*"` or `reportType:user-report`; triage
   narrows to `reportCategory:bug` + legacy untagged events.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0

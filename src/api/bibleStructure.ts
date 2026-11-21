@@ -17,7 +17,17 @@ import {
   ProviderError,
   RateLimitError,
   throwFromErrorBody,
+  trackError,
 } from './errors';
+
+/**
+ * Mirrors the backend's `FILESET_ID_RE`
+ * (`bible/utils/request_params.py`): a grouped product id
+ * ('{abbr}:{kind}:{n}') or any other ':'-bearing id is a
+ * guaranteed 400 `invalid_parameter` — fail locally with the
+ * same typed error instead of paying the roundtrip.
+ */
+const FILESET_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 
 export const fetchBibleStructure = async (
   filesetId: string,
@@ -25,6 +35,14 @@ export const fetchBibleStructure = async (
   const url =
     `${API_BASE_URL}/api/v1/bible/structure/` +
     `?fileset_id=${encodeURIComponent(filesetId)}`;
+  if (!FILESET_ID_RE.test(filesetId)) {
+    throw trackError(
+      new ClientInputError(
+        'fileset_id contains invalid characters.'
+      ),
+      { code: 'invalid_parameter', status: 400, url }
+    );
+  }
   const response = await publicFetch(url);
   if (!response.ok) {
     await throwFromErrorBody(response, {

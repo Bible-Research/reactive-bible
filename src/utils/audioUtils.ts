@@ -5,6 +5,81 @@ import type { VerseTimestamp } from '../types';
 // `bottom` offset and the page bottom padding must clear it.
 export const AUDIO_PLAYER_HEIGHT = 152;
 
+// Origins whose audio CDN answers cross-origin fetch() without
+// Access-Control-Allow-Origin. A blocked fetch rejects AND logs
+// a CORS error to the console that no try/catch can silence, so
+// known hosts are skipped outright and any other host that
+// rejects is remembered for the session — at most one console
+// error per origin instead of one per chapter.
+const KNOWN_CORSLESS_AUDIO_ORIGINS = [
+  // api.esv.org redirects its audio to audio.esv.org, which
+  // sends no CORS headers on either response (verified live).
+  'https://audio.esv.org',
+];
+const corslessAudioOrigins = new Set<string>(
+  KNOWN_CORSLESS_AUDIO_ORIGINS
+);
+
+/**
+ * Test-only reset: drops session-learned origins back to the
+ * known-host seed so prefetch tests start deterministic.
+ */
+export const resetAudioPrefetchForTests = (): void => {
+  corslessAudioOrigins.clear();
+  KNOWN_CORSLESS_AUDIO_ORIGINS.forEach((origin) =>
+    corslessAudioOrigins.add(origin)
+  );
+};
+
+/**
+ * fetch() a chapter's mp3 bytes so the transition needs no
+ * network at all — returns a blob: URL on success, or null when
+ * the bytes can't be fetched cross-origin (no CORS, or a failed
+ * response). The caller then hands the source URL straight to
+ * the Howl: its html5 <audio> element streams it without CORS.
+ *
+ * A rejected fetch is treated as "this origin can't serve a
+ * CORS read" — the usual cause is missing ACAO headers, though
+ * a hard network failure marks it for the session too (a
+ * degrade-to-streaming tradeoff, not a permanent verdict).
+ * Chrome logs that failure to the console even when the
+ * promise is caught, so the origin is remembered and later
+ * preloads go straight to element streaming instead of logging
+ * once per chapter.
+ */
+export const prefetchAudioBlob = async (
+  url: string,
+): Promise<string | null> => {
+  let origin: string | null = null;
+  try {
+    const parsed = new URL(url).origin;
+    // 'null' is the opaque-origin literal (data:, about:) — not
+    // a real host to remember.
+    if (parsed !== 'null') origin = parsed;
+  } catch {
+    // Unparseable — still let fetch try (a same-origin relative
+    // URL can't hit CORS anyway).
+  }
+  if (origin && corslessAudioOrigins.has(origin)) return null;
+  let resp: Response;
+  try {
+    resp = await fetch(url);
+  } catch {
+    if (origin) corslessAudioOrigins.add(origin);
+    return null;
+  }
+  // A readable response — even a 404 — proves CORS is served
+  // for this origin, so only a rejected fetch() may mark it:
+  // post-fetch failures (mid-body abort, blob errors) degrade
+  // to streaming without poisoning the origin.
+  if (!resp.ok) return null;
+  try {
+    return URL.createObjectURL(await resp.blob());
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Returns the Howl's current playback position in seconds, or null
  * when the position is not trustworthy. While a sound is still

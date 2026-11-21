@@ -10,6 +10,7 @@ import {
   cacheAudioUrl,
   getCachedTimestamps,
   cacheTimestamps,
+  isPlausibleChapterAudioUrl,
 } from '../utils/cacheManager';
 import { publicFetch } from '../utils/apiClient';
 import { reportFums } from '../utils/fums';
@@ -125,6 +126,28 @@ export const getBibleAudioUrl = async (
       throw new BookNotInFilesetError(
         `No audio URL in API response for ${translation} ` +
         `${bookId} ${chapter}`
+      );
+    }
+
+    // An audio_url that can't carry the requested chapter
+    // (a chapterless ESV file was observed in production)
+    // would stream the wrong recording — treat it as a
+    // coverage miss so callers walk the alternates chain.
+    // The typed error is deliberately Sentry-filtered, which
+    // would hide a backend that starts minting malformed
+    // URLs — report the defect explicitly first.
+    if (!isPlausibleChapterAudioUrl(data.audio_url, chapter)) {
+      captureHandledError(
+        new ProviderError(
+          `Malformed audio_url in API response for ` +
+          `${translation} ${bookId} ${chapter}`
+        ),
+        'Audio URL fetch',
+        { filesetId, bookId, chapter, audioUrl: data.audio_url }
+      );
+      throw new BookNotInFilesetError(
+        `Malformed audio URL in API response for ` +
+        `${translation} ${bookId} ${chapter}`
       );
     }
 
