@@ -259,7 +259,12 @@ whose head SHA was never merged into `staging`, and the
   the `/explore` directory flag (implies `public`, needs
   `can_publish`); `ShareModal` handles targeted username
   grants (silent resolution — never enumerate users);
-  `/shared` and `/bookmarks` are ProtectedRoutes.
+  `/shared` and `/bookmarks` are ProtectedRoutes. The whole
+  targeted-share/bookmark/copy surface is behind
+  `isNoteSharingEnabled()` (`src/utils/platform.ts` = DEV ||
+  preview) — the backend half (bible_research#163) is
+  undeployed, so prod/Android builds hide it until it ships
+  (Sentry REACTIVE-BIBLE-WEB-15).
 - "What's on staging" (MainMenu) renders only on Vercel preview
   deploys — `isPreviewDeploy()` in `src/utils/platform.ts` gates
   on the build-time `VITE_APP_ENV`; `src/utils/stagingPrs.ts`

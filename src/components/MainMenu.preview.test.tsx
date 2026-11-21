@@ -12,6 +12,7 @@ import { fetchPendingStagingPrs } from '../utils/stagingPrs';
 vi.mock('../utils/platform', () => ({
   isNativeApp: () => false,
   isPreviewDeploy: vi.fn(() => true),
+  isNoteSharingEnabled: () => true,
 }));
 
 // The lazily-loaded modal's only external call — keep the

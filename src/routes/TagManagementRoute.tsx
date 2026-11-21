@@ -43,6 +43,7 @@ import { shallow } from 'zustand/shallow';
 import { useTranslation } from 'react-i18next';
 import { textOrKey } from '../i18n/errorText';
 import { captureHandledError } from '../utils/errorReporter';
+import { isNoteSharingEnabled } from '../utils/platform';
 
 /**
  * Sums each node's own `note_count` with all of its
@@ -625,7 +626,12 @@ export default function TagManagementRoute() {
           <TagTree
             tags={filteredTags}
             onEdit={handleEditTag}
-            onShare={handleShareTag}
+            // Targeted tag sharing needs the unshipped
+            // backend endpoints — TagTree hides the action
+            // when the prop is undefined.
+            onShare={
+              isNoteSharingEnabled() ? handleShareTag : undefined
+            }
             onDelete={handleDeleteTag}
             onViewNotes={handleViewNotes}
             noteCounts={noteCounts}
