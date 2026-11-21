@@ -322,6 +322,48 @@ describe('apiClient', () => {
         expect(mockFetch).toHaveBeenCalledTimes(1);
       });
 
+    it('should retry a POST the caller marks idempotent ' +
+      '(read-only endpoint)', async () => {
+        const mockFetch = vi
+          .fn()
+          .mockRejectedValueOnce(new TypeError('Network error'))
+          .mockResolvedValueOnce({ ok: true, status: 200 });
+        vi.stubGlobal('fetch', mockFetch);
+
+        const response = await authenticatedFetch(
+          mockUrl,
+          { method: 'POST' },
+          1,
+          true
+        );
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(response.ok).toBe(true);
+      });
+
+    it('keeps the idempotent opt-in across retry attempts',
+      async () => {
+        // The flag must be forwarded through sendRequest's
+        // recursive retry — otherwise retries > 1 would lose
+        // it on the second failure.
+        const mockFetch = vi
+          .fn()
+          .mockRejectedValueOnce(new TypeError('boom'))
+          .mockRejectedValueOnce(new TypeError('boom'))
+          .mockResolvedValueOnce({ ok: true, status: 200 });
+        vi.stubGlobal('fetch', mockFetch);
+
+        const response = await authenticatedFetch(
+          mockUrl,
+          { method: 'POST' },
+          2,
+          true
+        );
+
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+        expect(response.ok).toBe(true);
+      });
+
     it('should still retry network errors on explicit GET',
       async () => {
         const mockFetch = vi

@@ -68,7 +68,9 @@ const sendRequest = async (
       isIdempotent(options, idempotent)
     ) {
       console.warn(`Network error (${label}), retrying...`, error);
-      return sendRequest(url, options, headers, retries - 1, label);
+      return sendRequest(
+        url, options, headers, retries - 1, label, idempotent
+      );
     }
     throw error;
   }
