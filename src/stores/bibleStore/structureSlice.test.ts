@@ -407,24 +407,33 @@ describe('loadStructure SWR resolution', () => {
       await p;
     });
 
-  it('resolves the product-id abbr prefix before the ' +
-    'translations list lands', async () => {
-      // No owner resolvable yet — the abbr still comes off
-      // the '{abbr}:{kind}:{n}' prefix so the request is
-      // never fired with a ':'-bearing product id.
+  it('waits out the translations list for a ' +
+    'product-id selection', async () => {
+      // No owner resolvable yet — the ':'-shaped stored id
+      // can never route and its prefix abbr is display
+      // keying only, so nothing goes on the wire until the
+      // translations-land re-kick resolves the owner.
       const { state, slice } = makeStore({
         activeTextFilesetId: 'LAVNLI:text:1',
         translations: [],
       });
       vi.mocked(fetchBibleStructure).mockResolvedValue(LV);
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
 
-      const p = slice.loadStructure();
+      await slice.loadStructure();
       expect(state.activeStructureKey).toBe('LAVNLI');
+      expect(fetchBibleStructure).not.toHaveBeenCalled();
+
+      state.translations.push(...LV_TRANSLATIONS);
+      const p = slice.loadStructure();
       await vi.waitFor(() => {
         expect(fetchBibleStructure)
           .toHaveBeenCalledWith('LAVNLI');
       });
       await p;
+      warn.mockRestore();
     });
 
   it('dedupes concurrent fetches per abbr', async () => {
@@ -500,4 +509,210 @@ describe('loadStructure SWR resolution', () => {
       expect(warn).toHaveBeenCalled();
       warn.mockRestore();
     });
+});
+
+describe('loadStructure fetch id resolution', () => {
+  // The api.esv.org listing: its abbr ('ESV') is not a
+  // registered fileset id — only the member ENGESV_API
+  // routes on the backend (GLU8/NIV resolve their abbrs via
+  // registry aliases, ESV did not — the prod 404 this
+  // guards against).
+  const ESV_TRANSLATIONS = [
+    {
+      abbr: 'ESV',
+      name: 'English Standard Version',
+      language: 'English',
+      language_iso: 'eng',
+      filesets: [
+        {
+          id: 'ENGESV_API',
+          type: 'text_plain' as const,
+          size: 'C',
+          codec: null,
+          bitrate: null,
+        },
+      ],
+    },
+  ];
+
+  it.each(['ESV:text:1', 'ENGESV_API'])(
+    'fetches the member fileset id, not the bare ' +
+      "listing abbr, for stored id '%s'",
+    async (storedId) => {
+      const { state, slice } = makeStore({
+        activeTextFilesetId: storedId,
+        translations: ESV_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
+
+      const p = slice.loadStructure();
+      expect(state.activeStructureKey).toBe('ESV');
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure)
+          .toHaveBeenCalledWith('ENGESV_API');
+      });
+      await p;
+      // Local keying stays the listing abbr.
+      expect(state.structureByBible['ESV']).toEqual(EN);
+    },
+  );
+
+  it('resolves a legacy two-part {abbr}:{n} selection ' +
+    'to the owner member', async () => {
+      // 'ESV:1' predates the '{abbr}:{kind}:{n}' product
+      // grammar — sending it is a guaranteed 400 and the
+      // abbr half alone 404s; the owner lookup by prefix
+      // recovers the routable member id.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'ESV:1',
+        translations: ESV_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
+
+      const p = slice.loadStructure();
+      expect(state.activeStructureKey).toBe('ESV');
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure)
+          .toHaveBeenCalledWith('ENGESV_API');
+      });
+      await p;
+    },
+  );
+
+  it('sends a member fileset id for a testament-split ' +
+    'text product', async () => {
+      const { slice } = makeStore({
+        activeTextFilesetId: 'ENGESV:text:1',
+        translations: [
+          {
+            abbr: 'ENGESV',
+            name: 'English Standard Version',
+            language: 'English',
+            language_iso: 'eng',
+            filesets: [
+              {
+                id: 'ENGESVO_ET',
+                type: 'text_plain' as const,
+                size: 'OT',
+                codec: null,
+                bitrate: null,
+              },
+              {
+                id: 'ENGESVN_ET',
+                type: 'text_plain' as const,
+                size: 'NT',
+                codec: null,
+                bitrate: null,
+              },
+            ],
+          },
+        ],
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
+
+      const p = slice.loadStructure();
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure).toHaveBeenCalledWith(
+          expect.stringMatching(/^ENGESV[ON]_ET$/),
+        );
+      });
+      await p;
+    },
+  );
+
+  it('never puts a colon-bearing owner abbr on the wire',
+    async () => {
+      // A stale/corrupted translations entry can carry an
+      // abbr that is itself a product id ('ESV:1' was seen
+      // hitting the endpoint in prod) — its member fileset
+      // id still routes, the ':'-bearing abbr must not.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'ENGESV_API',
+        translations: [
+          {
+            ...ESV_TRANSLATIONS[0],
+            abbr: 'ESV:1',
+          },
+        ],
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
+
+      const p = slice.loadStructure();
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure)
+          .toHaveBeenCalledWith('ENGESV_API');
+      });
+      await p;
+      expect(state.structureByBible['ESV:1']).toEqual(EN);
+    },
+  );
+
+  it('skips the fetch when nothing resolves to a ' +
+    'routable id', async () => {
+      // The ':'-bearing abbr of an audio-only translation
+      // leaves no member to route on — the stored id must
+      // not reach the wire at all; the previous/staged
+      // structure keeps rendering.
+      const { slice } = makeStore({
+        activeTextFilesetId: 'ESVAUD1DA',
+        translations: [
+          {
+            abbr: 'ESV:1',
+            name: 'English Standard Version',
+            language: 'English',
+            language_iso: 'eng',
+            filesets: [
+              {
+                id: 'ESVAUD1DA',
+                type: 'audio' as const,
+                size: 'C',
+                codec: null,
+                bitrate: null,
+              },
+            ],
+          },
+        ],
+      });
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+
+      await slice.loadStructure();
+
+      expect(fetchBibleStructure).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    },
+  );
+
+  it('skips a colon-bearing selection until the ' +
+    'translations list loads', async () => {
+      // No owner yet — the ':'-shaped stored id is a
+      // guaranteed wire failure and the bare prefix abbr
+      // ('ESV') is not routable either, so nothing may be
+      // sent. The translations-land re-kick then resolves
+      // the member id normally.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'ESV:text:1',
+        translations: [],
+      });
+      vi.mocked(fetchBibleStructure).mockResolvedValue(EN);
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+
+      await slice.loadStructure();
+      expect(fetchBibleStructure).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+
+      state.translations.push(...ESV_TRANSLATIONS);
+      const p = slice.loadStructure();
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure)
+          .toHaveBeenCalledWith('ENGESV_API');
+      });
+      await p;
+      warn.mockRestore();
+    },
+  );
 });

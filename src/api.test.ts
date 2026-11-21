@@ -414,6 +414,28 @@ describe('API Functions', () => {
       ).rejects.toThrow('No audio URL in API response');
     });
 
+    it('getBibleAudioUrl throws BookNotInFilesetError when the ' +
+      'audio_url cannot carry the requested chapter', async () => {
+      // Production cached a chapterless ESV file
+      // ('Leviticus%20.mp3') — a real whole-book recording that
+      // an older backend returned for a chapter request. It
+      // must not be cached or played: mapping it to
+      // BookNotInFilesetError keeps the alternates walk alive.
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json({
+            audio_url:
+              'https://audio.esv.org/hw/Leviticus%20.mp3',
+          })
+        )
+      );
+
+      await expect(
+        api.getBibleAudioUrl('LEV', 20, 'ENGESV_API')
+      ).rejects.toBeInstanceOf(api.BookNotInFilesetError);
+      expect(cacheManager.cacheAudioUrl).not.toHaveBeenCalled();
+    });
+
     it('reorderNotes throws ConflictError on a 409 response',
       async () => {
         server.use(

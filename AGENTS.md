@@ -73,12 +73,38 @@ whose head SHA was never merged into `staging`, and the
   the same SHAs still satisfies the check). The workflow
   needs the `AUTOMERGE_TOKEN` admin PAT (the same secret
   the dependabot automerge uses).
-- **"Merge straight to main" requests**: merge the branch
-  into `staging` first anyway, then the `main` PR — the
+- **"Merge straight to main" / ad-hoc releases** — the
+  default response when the user asks to deploy a single
+  change to production (a hotfix, "deploy this to prod"):
+  merge the branch into `staging` first anyway — the
   check blocks anything else, keeping `main` ⊆ `staging`
-  even for urgent merges. If the `main` PR's check already
-  ran red before the staging merge, re-run the failed job
-  after it (`gh run rerun <run-id> --failed` or a push).
+  even for urgent merges — then open a `main` PR from
+  the SAME branch head (same title + body — keep
+  `Closes #<N>` links) and squash-merge it autonomously
+  once checks are green and the reviewer loop is clean
+  (`gh pr merge <N> --squash --admin`). The staging merge
+  auto-deletes the head branch — re-push it first
+  (`git push origin <headRefOid>:refs/heads/<branch>`,
+  same SHA is fine). `staging` is NOT reset — it keeps
+  holding the rest of the queue. This solo path requires
+  the `main` diff to carry the feature alone, which holds
+  while the head stays clean of `origin/staging` merges:
+  a staging PR whose conflicts forced
+  `git merge origin/staging` into the branch makes the
+  head carry the whole queue, so a `main` PR from it
+  would drag every staged feature along — that branch can
+  only reach `main` via the `Promote to main` train (or
+  a hand-made cherry-pick shipping a combination that
+  never soaked). Verify `git diff origin/main...<head>`
+  shows the feature alone before opening the `main` PR.
+  If the `main` PR's check already ran red before the
+  staging merge, re-run the failed job after it
+  (`gh run rerun <run-id> --failed` or a push). Never
+  direct-push a hotfix to `main`: it breaks
+  `main` ⊆ `staging` until the next train reset, and
+  promotion conflict resolution pulls staging trees that
+  lack the fix — it can silently revert it; if a manual
+  push ever happens, apply the fix on both branches.
 - **Dependabot** targets `staging` and auto-merges there;
   its branches promote to `main` like any feature branch.
 - **Backend is unaffected** — `bible_research` keeps its
@@ -177,6 +203,10 @@ whose head SHA was never merged into `staging`, and the
   its language — PassagePicker greys uncovered books (still
   clickable → "… doesn't include {book}" notification, never
   the `disabled` attribute, which swallows the click).
+  `loadStructure` sends the owner's concrete text member id
+  (`ENGESV_API`), not the bare listing abbr (`ESV` 404s —
+  registry providers only route by fileset id), and never a
+  `:`-bearing product id.
 - `fileset_id` selects the provider server-side: `ENGKJV` (bundled
   `src/assets/kjv.json`, offline, audio from wordpocket.org),
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.
@@ -254,7 +284,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   degrade gracefully (chapter/audio fetches, notes, comments,
   tags, reading positions). Expected conditions still filtered
   by `beforeSend`; surviving events mean the graceful path
-  itself is worth alerting on.
+  itself is worth alerting on. Exception: `errorKind: network`
+  failures here downgrade to warning — a handled connectivity
+  failure is noise, not a defect in the graceful path.
 - `reportType: media-failure` — warning `captureMessage` from
   the audio hooks' terminal failure paths (fileset + passage in
   extras). Warning-level: fallback chains make a single failure
@@ -274,12 +306,23 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `reportType: user-report` — info `captureMessage` +
   `captureFeedback` from "Contact developer" (`userReport.ts`,
   `ContactModal.tsx`). Every submission also carries
-  `reportCategory: bug|feature|general`; only `bug` (plus
-  legacy untagged reports) feeds the triage queue — feature
-  and general messages are read via the user-feedback stream.
-  Anonymous senders may attach a reply `email` on the feedback
-  entry. Not an error queue item; investigated separately via
-  the fix-sentry-issue skill.
+  `reportCategory: bug|feature|general`, and ALL categories
+  feed the triage queue — bugs get fixed, feature requests
+  get implemented (a huge/unreasonable one may be logged
+  `declined` with reasoning), and general messages get
+  triaged and answered. Anonymous senders may attach a
+  reply `email` on the feedback entry. The event message
+  embeds the category, passage and note so Sentry's built-in
+  Dedupe integration cannot collapse consecutive distinct
+  reports (all still group under one stream issue via the
+  constant `user-report` fingerprint).
+  `sentryBeforeSend` returns these early — the note text is
+  user-controlled and must never hit the message-based noise
+  filters — and each submission also opens a feedback issue —
+  `issue.category:feedback` finds feature/general mail the
+  legacy User Feedback list can miss. Not an error queue
+  item; investigated separately via the fix-sentry-issue
+  skill.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
@@ -288,7 +331,10 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
-  reportable but routable.
+  reportable but routable. On `handled-api` events the level
+  drops to warning (client connectivity noise); unhandled
+  network rejections stay error-level — reaching
+  GlobalHandlers means a missing catch, still a bug.
 
 Three reporting paths, all non-duplicating:
 
@@ -326,7 +372,8 @@ chunk` (stale tabs after a deploy — self-healed by the
 guarded reload in `chunkLoadError.ts`, wired through
 `lazyWithReload`, `kjvDataLoader`, and `errorReporter`'s
 `vite:preloadError` / hashed-asset resource-error handlers),
-and `ResizeObserver loop`. `ConflictError` downgrades to
+and `ResizeObserver loop`. `ConflictError` and handled-api
+network failures (`errorKind: network`) downgrade to
 warning; `ProviderError` fingerprints by
 `error_code`+endpoint. `ClientInputError` is deliberately
 kept — a malformed request is a bug. Typed API errors
@@ -469,6 +516,16 @@ Code conventions:
   `sentryBeforeSend` drops it. Keep custom `try/catch` only
   where the endpoint has a richer contract (typed provider
   errors, 409 bodies, 204s, swallowed failures).
+- Patched deps (`patches/`, applied by `postinstall`
+  patch-package — bumping one requires regenerating its
+  patch): `@anuradev/capacitor-background-mode` (Play Protect,
+  see "Android / Play Protect") and `@mantine/hooks`
+  (`createAriaHider` defers the sibling `aria-hidden` pass
+  until the focus trap's own `setTimeout(0)` focus move has
+  run, with a blur fallback — synchronous hiding landed the
+  attribute on ancestors of `document.activeElement`, which
+  is what Chrome's "Blocked aria-hidden on an element
+  because its descendant retained focus" warning means).
 - UI strings: no hardcoded English in components — every
   user-facing string (labels, aria-labels, notifications,
   placeholders, titles) goes through `t('section.key')` from

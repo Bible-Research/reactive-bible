@@ -553,6 +553,37 @@ export const cacheLanguageSearch = (
 // AUDIO CACHE (Unlimited, with expiration)
 // ============================================
 
+/**
+ * Plausibility check for a chapter-audio URL. Only the ESV CDN
+ * can be pattern-checked — it names chapter files
+ * "<Book> <chapter>.mp3" — so other hosts (opaque signed
+ * paths) and unparseable values always pass. A chapterless ESV
+ * file is rejected: production saw 'Leviticus%20.mp3' cached —
+ * a real whole-book recording on the CDN that an older backend
+ * once returned for a chapter request — which would otherwise
+ * stream the wrong audio until the entry expired.
+ */
+export const isPlausibleChapterAudioUrl = (
+  audioUrl: string,
+  chapter: number
+): boolean => {
+  try {
+    const url = new URL(audioUrl);
+    if (url.hostname !== 'audio.esv.org') return true;
+    const file = decodeURIComponent(
+      url.pathname.split('/').pop() ?? ''
+    );
+    // The space guard keeps e.g. ' 5.mp3' from matching a file
+    // that ends in '15.mp3'. Only the chapter is checked, not
+    // the book name — ESV's filename wording can differ from
+    // ours ('Psalms', 'Song of Solomon'), and a false eviction
+    // is worse than a wrong-book miss.
+    return file.endsWith(` ${chapter}.mp3`);
+  } catch {
+    return true;
+  }
+};
+
 export const getAudioCache = (): AudioCache => {
   try {
     const cache = getCachedLocalStorage(AUDIO_CACHE_KEY);
@@ -584,6 +615,15 @@ export const getCachedAudioUrl = (
 
   // Check if URL has expired
   if (Date.now() > audioData.expiresAt) {
+    delete cache[cacheKey];
+    setAudioCache(cache);
+    return null;
+  }
+
+  // Drop entries that can't plausibly carry the chapter — a
+  // stale malformed URL (e.g. a chapterless ESV file) would
+  // otherwise stream the wrong recording until expiry.
+  if (!isPlausibleChapterAudioUrl(audioData.audioUrl, chapter)) {
     delete cache[cacheKey];
     setAudioCache(cache);
     return null;
