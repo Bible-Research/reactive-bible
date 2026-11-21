@@ -412,9 +412,20 @@ npm test -- src/routes/BibleRoute.test.tsx
   `/notes` (published notes are public)
 - `/shared` - "Shared with me": direct note grants plus
   `tag_shares` rows linking into the shared tag's note page;
-  `ProtectedRoute`
+  `ProtectedRoute`. Gated: see below.
 - `/bookmarks` - Saved notes; `available=false` rows render
-  as removable stale pointers; `ProtectedRoute`
+  as removable stale pointers; `ProtectedRoute`. Gated: see
+  below.
+
+> **Feature gate** — every surface that calls the
+> note-sharing endpoints (`/shared`, `/bookmarks`, targeted
+> share/copy/bookmark actions) renders only when
+> `isNoteSharingEnabled()` (`src/utils/platform.ts`) is true
+> — dev builds and Vercel previews. Production and Android
+> builds hide them because the backend half
+> (bible_research#163) is not deployed: the routes are
+> unregistered (catch-all → `/bible`) and the buttons/menu
+> links are hidden. Remove the gate once the backend ships.
 
 **Tag Routes** (✅ Implemented):
 - `/tags` - Tag management; wrapped in `ProtectedRoute`
@@ -2163,6 +2174,19 @@ Create and organize notes with tags for Bible verses.
   removable stale row.
 - Copy (`CopyNoteModal`) forks a readable note into the
   caller's account as a private copy (no sync back).
+- **Availability gate**: `isNoteSharingEnabled()`
+  (`src/utils/platform.ts`) is `DEV || isPreviewDeploy()` —
+  production/Android builds hide every surface that calls
+  the targeted-share/bookmark/copy endpoints (`/shared` and
+  `/bookmarks` routes unregistered, MainMenu links hidden,
+  NoteCardActions buttons suppressed, TagTree `onShare`
+  withheld) because the backend half
+  (bible_research#163) is not deployed and every call would
+  404 (Sentry REACTIVE-BIBLE-WEB-15). `/explore` and the
+  `can_publish` publish controls are unaffected — the feed
+  uses the plain notes list and `can_publish` is never true
+  without the backend's `users/me/` field. Remove the gate
+  once the backend ships.
 
 **Workflow**:
 1. User selects one or more verses by clicking them
