@@ -36,7 +36,9 @@ export interface Verse {
 
 /** Lifecycle of a per-language translation row. 'source' is
  *  the metadata anchor for the note's own language — its text
- *  stays empty; the original is served from `note_text`. */
+ *  stays empty; the original is served from `note_text`.
+ *  The backend pipeline is disabled: 'pending'/'failed' exist
+ *  only on legacy rows and never resolve to 'ready'. */
 export type NoteTranslationStatus =
   | 'pending'
   | 'ready'

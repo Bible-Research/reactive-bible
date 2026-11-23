@@ -668,11 +668,6 @@ export const handlers = [
       });
     }
   ),
-  // Owner re-enqueue of failed rows.
-  http.post(`${API_URL}/notes/:id/retranslate/`, () => {
-    return HttpResponse.json({ requeued: 1 });
-  }),
-
   http.patch(`${API_URL}/notes/:id`, async ({ params, request }) => {
     const body = (await request.json()) as NoteWriteBody;
     const verses = (body.verse_references ?? []).map((v) => ({
