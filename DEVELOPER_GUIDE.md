@@ -2271,26 +2271,32 @@ const load = async () => {
 
 #### Note Translations (per-card language UX)
 
-Notes are mixed-language; the backend detects each note's
-`source_language` and machine-translates into the configured
-targets. The frontend contract:
+Notes are mixed-language; the backend detection/translation
+pipeline is DISABLED — no new `pending`/`ready`/`failed`
+rows or `source_language` detection are produced. The API
+still serves rows that already reached `ready`, and the
+frontend degrades gracefully around the frozen set:
 
-- **Payload**: every note carries `source_language`,
+- **Payload**: legacy notes carry `source_language`,
   `served_language` (what `note_text` actually is), and a
   `translations` metadata list (`language`, `status` =
-  pending/ready/failed/source, `verified`, `engine`, `error`).
+  pending/ready/failed/source, `verified`, `engine`,
+  `error`). New notes simply lack all three fields.
 - **`?lang=`**: `GET /notes/` and `GET /notes/<id>/` accept a
   `lang` param; a `ready` row's text swaps into `note_text`,
   misses fall back to the original (never 404).
 - **`useNoteTranslation`** (`src/hooks/useNoteTranslation.ts`)
   drives the card UX: a `SegmentedControl` per card offers
-  source + ready/pending languages; switching issues ONE
-  `?lang=` refetch cached in a session `Map` keyed by
-  note id + `updated_at` + lang; a failed fetch keeps the
-  last-good text and raises a localized notification — the
-  original is never silently substituted. A `pending` row
-  schedules exactly one delayed refetch; `failed` rows offer
-  an owner-only retry (`POST /notes/<id>/retranslate/`).
+  only languages the server can actually serve — the
+  detected source plus `ready`/`source` rows. Legacy
+  `pending`/`failed` rows are dead ends (they can never
+  resolve), so they are not offered: a note whose only rows
+  are pending/failed renders no language bar at all.
+  Switching issues ONE `?lang=` refetch cached in a session
+  `Map` keyed by note id + `updated_at` + lang; a failed
+  fetch keeps the last-good text and raises a localized
+  notification — the original is never silently
+  substituted.
 - **Verification**: owners can mark a `ready` translation
   verified (`POST|DELETE /notes/<id>/translations/<lang>/
   verify/`); readers see a "Verified by author" chip. Fresh
@@ -2305,8 +2311,7 @@ targets. The frontend contract:
   translation controls render.
 - **Types/API**: `NoteTranslationMeta` in `src/types.ts`;
   `getNote(id, lang)`, `getNotes(..., {lang})`,
-  `setNoteTranslationVerified`, `retranslateNote` in
-  `src/api/notes.ts`.
+  `setNoteTranslationVerified` in `src/api/notes.ts`.
 
 ### 7. Theme System
 
