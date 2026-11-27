@@ -176,6 +176,28 @@ describe('prefetchAudioBlob', () => {
     },
   );
 
+  it('returns null on a post-response failure without ' +
+    'marking the origin', async () => {
+      // A resolved Response already proved CORS is served —
+      // a mid-body abort or blob() error must degrade to
+      // streaming, not poison the origin for the session.
+      const body = okResponse();
+      vi.spyOn(body, 'blob').mockRejectedValue(
+        new Error('network abort'),
+      );
+      vi.mocked(fetch).mockResolvedValue(body);
+      await expect(
+        prefetchAudioBlob('https://cdn.test/JHN.4.mp3'),
+      ).resolves.toBeNull();
+
+      vi.mocked(fetch).mockResolvedValue(okResponse());
+      await expect(
+        prefetchAudioBlob('https://cdn.test/JHN.5.mp3'),
+      ).resolves.toBe('blob:test-url');
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it('never fetches the statically-known CORS-less ' +
     'audio.esv.org host', async () => {
       await expect(

@@ -26,25 +26,32 @@ const getAuthHeaders = (): Record<string, string> => {
  * side effects, so re-sending after a network failure cannot
  * double-submit. A TypeError (network failure) on POST/PUT/
  * PATCH/DELETE must surface to the caller instead of silently
- * retrying.
+ * retrying — unless the caller opts in via `idempotent`, which
+ * declares the request side-effect-free (a read implemented as
+ * POST, e.g. `/reading-positions/bulk/`).
  */
 const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-const isIdempotent = (options: RequestInit): boolean =>
+const isIdempotent = (
+  options: RequestInit,
+  idempotent: boolean
+): boolean =>
+  idempotent ||
   IDEMPOTENT_METHODS.has((options.method ?? 'GET').toUpperCase());
 
 /**
  * Shared request core for the fetch wrappers: performs the
  * fetch with merged base + caller headers and, while `retries`
  * remain, retries network failures (TypeError) for idempotent
- * methods only.
+ * requests only.
  */
 const sendRequest = async (
   url: string,
   options: RequestInit,
   headers: HeadersInit,
   retries: number,
-  label: string
+  label: string,
+  idempotent = false
 ): Promise<Response> => {
   try {
     return await fetch(url, {
@@ -58,10 +65,12 @@ const sendRequest = async (
     if (
       retries > 0 &&
       error instanceof TypeError &&
-      isIdempotent(options)
+      isIdempotent(options, idempotent)
     ) {
       console.warn(`Network error (${label}), retrying...`, error);
-      return sendRequest(url, options, headers, retries - 1, label);
+      return sendRequest(
+        url, options, headers, retries - 1, label, idempotent
+      );
     }
     throw error;
   }
@@ -174,12 +183,18 @@ export const publicFetch = async (
  * @param url - The URL to fetch
  * @param options - Fetch options
  * @param retries - Number of retries for network errors (default: 1)
+ * @param idempotent - True declares a non-GET/HEAD/OPTIONS
+ *   request side-effect-free (a read implemented as POST, e.g.
+ *   `/reading-positions/bulk/`), opting it into the same
+ *   network-failure retry GETs get. Never set for mutations —
+ *   a lost response must not be replayed.
  * @returns Promise<Response>
  */
 export const authenticatedFetch = async (
   url: string,
   options: RequestInit = {},
-  retries = 1
+  retries = 1,
+  idempotent = false
 ): Promise<Response> => {
   // Capture the token this request is issued with so a stale
   // 401 can't wipe a session that rotated in the meantime.
@@ -189,7 +204,8 @@ export const authenticatedFetch = async (
     options,
     getAuthHeaders(),
     retries,
-    'authenticatedFetch'
+    'authenticatedFetch',
+    idempotent
   );
 
   // Handle 401 Unauthorized - token expired or invalid. Only

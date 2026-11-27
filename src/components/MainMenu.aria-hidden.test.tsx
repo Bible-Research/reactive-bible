@@ -133,6 +133,39 @@ describe('focus-trap aria-hidden regression', () => {
       ).not.toBeNull();
     });
 
+  it('never hides an overlay mounted inside the ' +
+    'deferral window', async () => {
+      // The hider snapshots its sibling set synchronously at
+      // creation — a second overlay mounting before the
+      // deferred apply runs must not join the first hider's
+      // hidden set: its own hider skips the portal holding
+      // its container, so it could never be un-hidden.
+      render(
+        <Modal opened onClose={noop}>
+          <button>first</button>
+        </Modal>
+      );
+      render(
+        <Modal opened onClose={noop}>
+          <button data-testid="second">second</button>
+        </Modal>
+      );
+      await settle();
+
+      expect(
+        screen.getByTestId('second').closest(
+          '[aria-hidden="true"]'
+        )
+      ).toBeNull();
+      // The stacked-on modal still hides the first one's
+      // portal — top overlay wins, as upstream.
+      expect(
+        screen.getByText('first').closest(
+          '[aria-hidden="true"]'
+        )
+      ).not.toBeNull();
+    });
+
   it('restores aria-hidden on the siblings after close',
     async () => {
       const { rerender, container } = render(

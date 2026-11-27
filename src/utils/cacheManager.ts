@@ -574,7 +574,10 @@ export const isPlausibleChapterAudioUrl = (
       url.pathname.split('/').pop() ?? ''
     );
     // The space guard keeps e.g. ' 5.mp3' from matching a file
-    // that ends in '15.mp3'.
+    // that ends in '15.mp3'. Only the chapter is checked, not
+    // the book name — ESV's filename wording can differ from
+    // ours ('Psalms', 'Song of Solomon'), and a false eviction
+    // is worse than a wrong-book miss.
     return file.endsWith(` ${chapter}.mp3`);
   } catch {
     return true;

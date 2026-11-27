@@ -1,13 +1,25 @@
 diff --git a/node_modules/@mantine/hooks/cjs/use-focus-trap/create-aria-hider.js b/node_modules/@mantine/hooks/cjs/use-focus-trap/create-aria-hider.js
-index 4c149bf..a584798 100644
+index 4c149bf..57f1a4d 100644
 --- a/node_modules/@mantine/hooks/cjs/use-focus-trap/create-aria-hider.js
 +++ b/node_modules/@mantine/hooks/cjs/use-focus-trap/create-aria-hider.js
-@@ -6,26 +6,47 @@ var randomId = require('../utils/random-id/random-id.js');
+@@ -6,26 +6,52 @@ var randomId = require('../utils/random-id/random-id.js');
  
  function createAriaHider(containerNode, selector = "body > :not(script)") {
    const id = randomId.randomId();
 -  const rootNodes = Array.from(document.querySelectorAll(selector)).map((node) => {
--    var _a;
++  // Patched (patch-package): candidate siblings are snapshotted
++  // synchronously, exactly as upstream — deferring the query
++  // itself would trap overlays mounted inside the deferral
++  // window in an aria-hidden set they can never un-hide (their
++  // own hider skips the portal containing containerNode). Only
++  // the attribute writes and the blur fallback are deferred,
++  // past use-focus-trap's own setTimeout(0) focusNode() so
++  // focus lands inside containerNode first — Chrome logs
++  // "Blocked aria-hidden on an element because its descendant
++  // retained focus" when a focused trigger or a still-open
++  // overlay ends up inside an aria-hidden subtree.
++  const candidates = Array.from(document.querySelectorAll(selector)).filter((node) => {
+     var _a;
 -    if (((_a = node == null ? void 0 : node.shadowRoot) == null ? void 0 : _a.contains(containerNode)) || node.contains(containerNode)) {
 -      return void 0;
 -    }
@@ -24,25 +36,15 @@ index 4c149bf..a584798 100644
 -      node,
 -      ariaHidden: prevAriaHidden || null
 -    };
++    return !(((_a = node == null ? void 0 : node.shadowRoot) == null ? void 0 : _a.contains(containerNode)) || node.contains(containerNode));
++  });
 +  const rootNodes = [];
 +  let cancelled = false;
-+  // Patched (patch-package): the sibling hiding used to run
-+  // synchronously, before use-focus-trap's own setTimeout(0)
-+  // focusNode() call moved focus into containerNode. Chrome
-+  // then logged "Blocked aria-hidden on an element because its
-+  // descendant retained focus" — the focused trigger (or a
-+  // still-open overlay) ended up inside an aria-hidden subtree.
-+  // Deferring past a nested timeout lets that focus land first;
-+  // the blur below is the fallback for containers with no
-+  // focusable element (focusNode leaves focus behind).
-+  setTimeout(() => {
-+    setTimeout(() => {
++  let inner = null;
++  const outer = setTimeout(() => {
++    inner = setTimeout(() => {
 +      if (cancelled) return;
-+      Array.from(document.querySelectorAll(selector)).forEach((node) => {
-+        var _a;
-+        if (((_a = node == null ? void 0 : node.shadowRoot) == null ? void 0 : _a.contains(containerNode)) || node.contains(containerNode)) {
-+          return;
-+        }
++      candidates.forEach((node) => {
 +        const ariaHidden = node.getAttribute("aria-hidden");
 +        const prevAriaHidden = node.getAttribute("data-hidden");
 +        const prevFocusId = node.getAttribute("data-focus-id");
@@ -65,19 +67,33 @@ index 4c149bf..a584798 100644
    });
    return () => {
 +    cancelled = true;
++    clearTimeout(outer);
++    if (inner !== null) clearTimeout(inner);
      rootNodes.forEach((item) => {
        if (!item || id !== item.node.getAttribute("data-focus-id")) {
          return;
 diff --git a/node_modules/@mantine/hooks/esm/use-focus-trap/create-aria-hider.js b/node_modules/@mantine/hooks/esm/use-focus-trap/create-aria-hider.js
-index ca237bf..145b5cc 100644
+index ca237bf..01130db 100644
 --- a/node_modules/@mantine/hooks/esm/use-focus-trap/create-aria-hider.js
 +++ b/node_modules/@mantine/hooks/esm/use-focus-trap/create-aria-hider.js
-@@ -2,26 +2,47 @@ import { randomId } from '../utils/random-id/random-id.js';
+@@ -2,26 +2,52 @@ import { randomId } from '../utils/random-id/random-id.js';
  
  function createAriaHider(containerNode, selector = "body > :not(script)") {
    const id = randomId();
 -  const rootNodes = Array.from(document.querySelectorAll(selector)).map((node) => {
--    var _a;
++  // Patched (patch-package): candidate siblings are snapshotted
++  // synchronously, exactly as upstream — deferring the query
++  // itself would trap overlays mounted inside the deferral
++  // window in an aria-hidden set they can never un-hide (their
++  // own hider skips the portal containing containerNode). Only
++  // the attribute writes and the blur fallback are deferred,
++  // past use-focus-trap's own setTimeout(0) focusNode() so
++  // focus lands inside containerNode first — Chrome logs
++  // "Blocked aria-hidden on an element because its descendant
++  // retained focus" when a focused trigger or a still-open
++  // overlay ends up inside an aria-hidden subtree.
++  const candidates = Array.from(document.querySelectorAll(selector)).filter((node) => {
+     var _a;
 -    if (((_a = node == null ? void 0 : node.shadowRoot) == null ? void 0 : _a.contains(containerNode)) || node.contains(containerNode)) {
 -      return void 0;
 -    }
@@ -94,25 +110,15 @@ index ca237bf..145b5cc 100644
 -      node,
 -      ariaHidden: prevAriaHidden || null
 -    };
++    return !(((_a = node == null ? void 0 : node.shadowRoot) == null ? void 0 : _a.contains(containerNode)) || node.contains(containerNode));
++  });
 +  const rootNodes = [];
 +  let cancelled = false;
-+  // Patched (patch-package): the sibling hiding used to run
-+  // synchronously, before use-focus-trap's own setTimeout(0)
-+  // focusNode() call moved focus into containerNode. Chrome
-+  // then logged "Blocked aria-hidden on an element because its
-+  // descendant retained focus" — the focused trigger (or a
-+  // still-open overlay) ended up inside an aria-hidden subtree.
-+  // Deferring past a nested timeout lets that focus land first;
-+  // the blur below is the fallback for containers with no
-+  // focusable element (focusNode leaves focus behind).
-+  setTimeout(() => {
-+    setTimeout(() => {
++  let inner = null;
++  const outer = setTimeout(() => {
++    inner = setTimeout(() => {
 +      if (cancelled) return;
-+      Array.from(document.querySelectorAll(selector)).forEach((node) => {
-+        var _a;
-+        if (((_a = node == null ? void 0 : node.shadowRoot) == null ? void 0 : _a.contains(containerNode)) || node.contains(containerNode)) {
-+          return;
-+        }
++      candidates.forEach((node) => {
 +        const ariaHidden = node.getAttribute("aria-hidden");
 +        const prevAriaHidden = node.getAttribute("data-hidden");
 +        const prevFocusId = node.getAttribute("data-focus-id");
@@ -135,6 +141,8 @@ index ca237bf..145b5cc 100644
    });
    return () => {
 +    cancelled = true;
++    clearTimeout(outer);
++    if (inner !== null) clearTimeout(inner);
      rootNodes.forEach((item) => {
        if (!item || id !== item.node.getAttribute("data-focus-id")) {
          return;

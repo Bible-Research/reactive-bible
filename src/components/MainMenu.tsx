@@ -32,7 +32,11 @@ import {
   UI_LANGUAGE_AUTONYMS,
   isUiLanguage,
 } from "../i18n";
-import { isNativeApp, isPreviewDeploy } from "../utils/platform";
+import {
+  isNativeApp,
+  isPreviewDeploy,
+  isNoteSharingEnabled,
+} from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
 import { lazyWithReload } from "../utils/lazyWithReload";
@@ -123,7 +127,13 @@ const MainMenu = ({
   // open the drawer also skips returnFocus: the +10ms
   // refocus would land on the menu button inside the
   // still-aria-hidden app root (the other half of Chrome's
-  // "Blocked aria-hidden" warning).
+  // "Blocked aria-hidden" warning). When the modal closes,
+  // `modalOpened` flipping false re-arms `useFocusReturn`
+  // (shouldReturnFocus changes while `opened` stays false),
+  // so the drawer's refocus to the burger button still
+  // fires on modal close — the desired focus-back-to-
+  // invoker outcome, though a `useFocusReturn` side effect
+  // rather than an explicit contract.
   const modalOpened =
     newNoteOpened || contactOpened || checklistOpened;
 
@@ -213,7 +223,11 @@ const MainMenu = ({
           </Group>
         )}
 
-        {isAuthenticated && (
+        {/* /shared and /bookmarks auto-fetch endpoints that
+            exist only on the unshipped sharing backend
+            (bible_research#163) — hidden where the gate says
+            the feature is unavailable. */}
+        {isAuthenticated && isNoteSharingEnabled() && (
           <Group position="apart" spacing="xs">
             <Text
               weight={500}
@@ -229,7 +243,7 @@ const MainMenu = ({
           </Group>
         )}
 
-        {isAuthenticated && (
+        {isAuthenticated && isNoteSharingEnabled() && (
           <Group position="apart" spacing="xs">
             <Text
               weight={500}

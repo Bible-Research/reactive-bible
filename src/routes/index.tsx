@@ -10,6 +10,7 @@ import { ProtectedRoute } from '../components/ProtectedRoute';
 // lazyWithReload self-heals stale hashed chunks after a deploy
 // (one guarded page reload) instead of crashing the boundary.
 import { lazyWithReload } from '../utils/lazyWithReload';
+import { isNoteSharingEnabled } from '../utils/platform';
 
 const NotesRoute = lazyWithReload(() => import('./NotesRoute'));
 const TagNotesRoute = lazyWithReload(
@@ -94,23 +95,31 @@ export function AppRoutes() {
         <Route path="/explore" element={<ExploreRoute />} />
 
         {/* Sharing inbox + saved notes - account-owned data,
-            so anonymous visitors go to /login */}
-        <Route
-          path="/shared"
-          element={
-            <ProtectedRoute>
-              <SharedWithMeRoute />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/bookmarks"
-          element={
-            <ProtectedRoute>
-              <BookmarksRoute />
-            </ProtectedRoute>
-          }
-        />
+            so anonymous visitors go to /login. Both pages
+            auto-fetch endpoints that exist only on the
+            unshipped sharing backend, so the routes stay
+            unregistered (catch-all -> /bible) wherever
+            isNoteSharingEnabled() is false. */}
+        {isNoteSharingEnabled() && (
+          <Route
+            path="/shared"
+            element={
+              <ProtectedRoute>
+                <SharedWithMeRoute />
+              </ProtectedRoute>
+            }
+          />
+        )}
+        {isNoteSharingEnabled() && (
+          <Route
+            path="/bookmarks"
+            element={
+              <ProtectedRoute>
+                <BookmarksRoute />
+              </ProtectedRoute>
+            }
+          />
+        )}
 
         {/* Notes routes - public for viewing, protected for private notes */}
         <Route path="/notes" element={<NotesRoute />} />
