@@ -60,7 +60,10 @@ whose head SHA was never merged into `staging`, and the
   equivalent, per branch: re-push it if auto-deleted
   (`git push origin <headRefOid>:refs/heads/<branch>`),
   open a PR with `--base main` (same title + body — keep
-  `Closes #<N>` links so issues auto-close), then
+  `Closes #<N>` links so issues auto-close, and end it
+  with the ``_Promoted from `staging` (PR #<staging PR>)_``
+  marker line the workflow emits — required whenever the
+  head was renamed/recreated), then
   `gh pr merge <N> --squash --admin`; then reset staging
   (`git fetch origin && git push --force-with-lease origin
   origin/main:refs/heads/staging` — the only sanctioned
@@ -82,7 +85,12 @@ whose head SHA was never merged into `staging`, and the
   the SAME branch head (same title + body — keep
   `Closes #<N>` links) and squash-merge it autonomously
   once checks are green and the reviewer loop is clean
-  (`gh pr merge <N> --squash --admin`). The staging merge
+  (`gh pr merge <N> --squash --admin`). End the `main`
+  PR body with the marker line
+  ``_Promoted from `staging` (PR #<staging PR number>)_``
+  — the marker the What's-on-staging checklist uses to
+  drop the staged entry; it's the only link that survives
+  a renamed or recreated promotion head. The staging merge
   auto-deletes the head branch — re-push it first
   (`git push origin <headRefOid>:refs/heads/<branch>`,
   same SHA is fine). `staging` is NOT reset — it keeps
@@ -141,7 +149,9 @@ whose head SHA was never merged into `staging`, and the
   not break public content — and never logs out) vs
   `authenticatedFetch` (401 → logout + "session expired"
   notification). Network-failure retry only fires for
-  idempotent methods (GET/HEAD/OPTIONS).
+  idempotent methods (GET/HEAD/OPTIONS) — or for requests the
+  caller marks `idempotent: true` (reads implemented as POST,
+  e.g. `reading-positions/bulk/`).
 - `src/utils/cacheManager.ts` — localStorage cache: verses
   (LRU, 500 cap for copyright), audio URLs (CloudFront expiry
   parsing), translations (per language), bible structures
@@ -268,7 +278,10 @@ whose head SHA was never merged into `staging`, and the
   on the build-time `VITE_APP_ENV`; `src/utils/stagingPrs.ts`
   computes the pending-promotion set (approximating
   `promote-to-main.yml`: head-branch keyed head-SHA /
-  merged_at comparison, no commit-search fallback) from the
+  merged_at comparison, plus a `Promoted from staging
+  (PR #N)` body-marker match — the only signal that survives
+  a renamed promotion head, whose staged SHAs never enter
+  the promotion PR's commit graph) from the
   unauthenticated GitHub pulls API, and `StagingChecklistModal`
   renders each PR's `## UI verification / QC` steps as
   session-local checkboxes.
