@@ -9,7 +9,8 @@
  * (clean squash) or whose latest main merge is newer than the
  * staging merge (replayed promotion — it lands under a new SHA
  * on the same branch), and minus staged PRs named by a
- * `Promoted from staging (PR #N)` marker in a merged main
+ * `Promoted from staging (PR #N)` marker — a parenthesised
+ * `#N` list, singular or `PRs #a, #b` — in a merged main
  * PR's body. The marker is the only signal that survives a
  * renamed promotion branch (`-prod` ad-hoc copies, recreated
  * heads): those staged SHAs never enter the promotion PR's
@@ -143,11 +144,15 @@ const latestByBranch = (prs: GithubPr[]): Map<string, GithubPr> => {
 // footer promote-to-main.yml appends; manual promotion PRs
 // are required to carry the same line (AGENTS.md ad-hoc
 // bullet). Names the staging PR it ships, so a renamed head
-// branch can't hide it. Line-anchored so prose quoting the
-// marker ("was NOT promoted from staging (PR #5)") can't
-// produce a false drop.
+// branch can't hide it. The parenthesised part may list
+// several numbers — aggregated ad-hoc promotions write
+// `(PRs #a, #b, #c)` — so every `#N` inside it counts.
+// Line-anchored so prose quoting the marker ("was NOT
+// promoted from staging (PR #5)") can't produce a false
+// drop.
 const PROMOTED_MARKER =
-  /^[ \t_*-]*promoted\s+from\s+`?staging`?\s*\(pr\s+#(\d+)\)/gim;
+  /^[ \t_*-]*promoted\s+from\s+`?staging`?\s*\(([^)]*)\)/gim;
+const MARKER_PR_NUMBER = /#(\d+)/g;
 
 const promotedStagingNumbers = (
   prs: GithubPr[],
@@ -158,7 +163,9 @@ const promotedStagingNumbers = (
     // truthy non-string can't throw past StagingPrsError.
     if (typeof pr.body !== 'string') continue;
     for (const m of pr.body.matchAll(PROMOTED_MARKER)) {
-      out.add(Number(m[1]));
+      for (const n of m[1].matchAll(MARKER_PR_NUMBER)) {
+        out.add(Number(n[1]));
+      }
     }
   }
   return out;
