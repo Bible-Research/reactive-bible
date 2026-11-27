@@ -205,7 +205,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           ),
           next.bookId,
         );
-        if (tsId) {
+        // ENGKJV has no verse timestamps — the interactive
+        // paths skip it; the prefetch must not pay a
+        // guaranteed-empty request either.
+        if (tsId && tsId !== 'ENGKJV') {
           getAudioTimestamps(next.bookId, next.chapter, tsId)
             .catch(() => { /* prefetch - ignore errors */ });
         }
