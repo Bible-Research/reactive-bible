@@ -446,3 +446,36 @@ describe('post-create toast', () => {
     });
   });
 });
+
+describe('creatable={false} (notes-view switcher)', () => {
+  it('hides the create rows for a new name', async () => {
+    renderCombobox({ creatable: false });
+    fireEvent.mouseDown(input());
+    fireEvent.change(input(), {
+      target: { value: 'prayer' },
+    });
+    await screen.findByRole('listbox');
+    expect(
+      screen.queryByRole('option', { name: /^\+ Create/ })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('No tags')).toBeInTheDocument();
+  });
+
+  it('still lists and picks existing tags', async () => {
+    const { onChange } = renderCombobox({
+      creatable: false,
+    });
+    fireEvent.mouseDown(input());
+    fireEvent.mouseDown(
+      await screen.findByRole('option', { name: 'Work' })
+    );
+    expect(onChange).toHaveBeenCalledWith('1');
+  });
+});
+
+describe('disabled', () => {
+  it('disables the input', () => {
+    renderCombobox({ disabled: true });
+    expect(input()).toBeDisabled();
+  });
+});

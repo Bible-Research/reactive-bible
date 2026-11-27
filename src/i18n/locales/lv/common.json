@@ -161,6 +161,7 @@
     "playFromHere": "Atskaņot no šejienes",
     "edit": "Rediģēt",
     "remove": "Noņemt",
+    "moreActions": "Vairāk darbību",
     "addComment": "Pievienot komentāru",
     "notFoundOrPrivate": "Piezīme nav atrasta vai nav publiska.",
     "notFound": "Piezīme nav atrasta.",
@@ -203,6 +204,9 @@
     "noTagsYet": "Vēl nav birku — izveidojiet birku, lai sāktu veidot piezīmes.",
     "moveToTop": "Pārvietot uz augšu",
     "noMatchingNotes": "Nav atbilstošu piezīmju",
+    "reorderConfirmTitle": "Mainīt piezīmju secību?",
+    "reorderConfirmBody": "Vai tiešām mainīt šīs birkes piezīmju secību?",
+    "reorderConfirmApply": "Pārkārtot",
     "verseReferences": "Pantu atsauces",
     "verseLimitNotice": "Autortiesību ierobežojumu dēļ nevar parādīt vairāk par 500 Bībeles pantiem.",
     "publishedNote": "Publicēta piezīme",
@@ -764,6 +768,8 @@
     "followSelected": "Izvēlētais tulkojums",
     "pinSpecific": "Konkrēts tulkojums",
     "change": "Mainīt",
-    "reset": "Atiestatīt"
+    "reset": "Atiestatīt",
+    "confirmReorder": "Apstiprināt piezīmju secības maiņu",
+    "confirmReorderHint": "Jautāt pirms piezīmju secības maiņas."
   }
 }
