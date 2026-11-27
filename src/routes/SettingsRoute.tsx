@@ -17,11 +17,12 @@ import TranslationSelector from '../components/TranslationSelector';
 
 /**
  * /settings — device-local preferences (persisted in the
- * bible-storage blob, no account needed). First preference:
- * the note-reference translation pin — which translation the
- * '@…' scripture previews and note-linked verse text render
- * in. The pin picker reuses TranslationSelector's pick-only
- * mode so choosing it never retunes the reader.
+ * bible-storage blob, no account needed). The note-reference
+ * translation pin controls which translation the '@…'
+ * scripture previews and note-linked verse text render in;
+ * its picker reuses TranslationSelector's pick-only mode so
+ * choosing it never retunes the reader. A second switch asks
+ * for confirmation before a note reorder applies.
  */
 export default function SettingsRoute() {
   const { t } = useTranslation();

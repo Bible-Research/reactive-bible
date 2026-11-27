@@ -45,6 +45,9 @@ interface TagSectionProps {
    *  the edit/delete signal for own tags. */
   isTagOwner?: boolean;
   tagId?: string;
+  /** Bulk reorder. A promise resolving `false` means the user
+   *  backed out (reorder-confirm dialog dismissed) — the
+   *  optimistic order is then rolled back. */
   onReorder?: (
     tagId: string,
     noteIds: string[],
@@ -122,23 +125,34 @@ const TagSection = ({
       const idsToSend = sortOrder === 'custom_desc'
         ? [...noteIds].reverse()
         : noteIds;
-      // The reorder may reject (conflict/network) — awaiting it
-      // here both avoids an unhandled rejection and rolls the
-      // optimistic order back to the server's.
+      // The reorder resolves `false` when the user dismisses
+      // the confirm dialog — the store still holds the
+      // pre-drag order and the `notes`-prop resync effect
+      // won't fire (identity is unchanged), so the optimistic
+      // order is rolled back here. A rejection
+      // (conflict/network) rolls back too; awaiting either
+      // outcome also avoids an unhandled rejection.
       void Promise.resolve(
         onReorder(tagId, idsToSend, currentPage, pageSize)
-      ).catch((error) => {
-        // A ConflictError means the store action already
-        // refetched the server's authoritative order — resync
-        // to the live store state; rolling back to this
-        // render's stale `notes` snapshot would overwrite the
-        // refresh. Plain failures keep the snapshot rollback.
-        if (error instanceof ConflictError) {
-          setLocalNotes(useBibleStore.getState().notes);
-        } else {
-          setLocalNotes(notes);
-        }
-      });
+      )
+        .then((proceeded) => {
+          if (proceeded === false) {
+            setLocalNotes(notes);
+          }
+        })
+        .catch((error) => {
+          // A ConflictError means the store action already
+          // refetched the server's authoritative order —
+          // resync to the live store state; rolling back to
+          // this render's stale `notes` snapshot would
+          // overwrite the refresh. Plain failures keep the
+          // snapshot rollback.
+          if (error instanceof ConflictError) {
+            setLocalNotes(useBibleStore.getState().notes);
+          } else {
+            setLocalNotes(notes);
+          }
+        });
     }
   };
 

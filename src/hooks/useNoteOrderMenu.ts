@@ -67,13 +67,15 @@ interface UseNoteOrderMenuResult {
   reloadOrderIndex: () => Promise<void>;
   /** dnd-kit bulk reorder — asks for confirmation when the
    *  `confirmNoteReorder` preference is on, then writes
-   *  through the store action. */
+   *  through the store action. Resolves `false` when the user
+   *  cancels so the caller can drop its optimistic order;
+   *  `true` once the reorder has run. */
   handleReorder: (
     tagId: string,
     noteIds: string[],
     currentPage: number,
     pageSize: number
-  ) => void;
+  ) => Promise<boolean>;
 }
 
 /**
@@ -259,23 +261,34 @@ export const useNoteOrderMenu = ({
   // `confirmNoteReorder` preference is on (default: a Sentry
   // user report asked for a "really change the order?" check;
   // /settings lets the user opt out). `run` is fire-and-forget:
-  // the store actions surface their own notifications.
+  // the store actions surface their own notifications. The
+  // promise resolves `true` once `run` has finished (or
+  // rejects if `run` does) and `false` when the dialog is
+  // dismissed — TagSection rolls its optimistic order back on
+  // `false`; the menu paths ignore the result.
   const confirmThenRun = useCallback(
-    (run: () => Promise<void>) => {
+    (run: () => Promise<void>): Promise<boolean> => {
       if (!confirmNoteReorder) {
-        void run();
-        return;
+        return run().then(() => true);
       }
-      openConfirmModal({
-        title: t('notes.reorderConfirmTitle'),
-        children: t('notes.reorderConfirmBody'),
-        labels: {
-          confirm: t('notes.reorderConfirmApply'),
-          cancel: t('common.cancel'),
-        },
-        onConfirm: () => {
-          void run();
-        },
+      return new Promise<boolean>((resolve) => {
+        openConfirmModal({
+          title: t('notes.reorderConfirmTitle'),
+          children: t('notes.reorderConfirmBody'),
+          labels: {
+            confirm: t('notes.reorderConfirmApply'),
+            cancel: t('common.cancel'),
+          },
+          onConfirm: () => {
+            resolve(run().then(() => true));
+          },
+          // Mantine fires onCancel for the cancel button AND
+          // every other dismissal (overlay click, Escape,
+          // close icon) — all leave the order untouched.
+          onCancel: () => {
+            resolve(false);
+          },
+        });
       });
     },
     [confirmNoteReorder, t]
