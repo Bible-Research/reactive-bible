@@ -1999,7 +1999,15 @@ When user navigates to a chapter, the app automatically prefetches:
 2. **Previous chapter**: Verses + Audio URL
 3. **Next chapter**: Verses + Audio URL
 
-All prefetching happens silently in the background.
+All prefetching happens silently in the background. Every
+prefetch path (verses, audio URLs, playlist next-item,
+chapter preload) consults the resolved bible structure via
+`isChapterCovered` (`bookNameRegistry.ts`) before
+requesting: a chapter the active structure doesn't cover is
+skipped instead of firing a guaranteed
+`book_not_in_fileset` 404, and a coverage miss that still
+slips through (structure not loaded yet) logs at debug
+level only — interactive loads keep their full logging.
 
 **Benefits**:
 - ✅ Instant playback (no loading delay)
@@ -3688,10 +3696,16 @@ prefetchAudioUrl(
 ): Promise<void>
 ```
 
+- Skips chapters the resolved structure doesn't cover — the
+  active structure's `isChapterCovered` gate prevents
+  guaranteed `book_not_in_fileset` 404s (coverage of another
+  translation's audio approximates via the read structure;
+  KJV wordpocket audio is never gated)
 - Checks cache first
 - KJV URLs are instant (no API call)
 - Other versions fetch from API
-- Silent failure (logs warning, doesn't throw)
+- Silent failure (coverage misses log debug, other failures
+  warn — never throws)
 
 **`prefetchAdjacentChapters(book, chapter, filesetId)`**
 
@@ -3705,6 +3719,9 @@ prefetchAdjacentChapters(
 ): Promise<void>
 ```
 
+- Skips adjacent chapters the resolved structure doesn't
+  cover (same `isChapterCovered` gate — a guaranteed
+  `book_not_in_fileset` miss never reaches the wire)
 - Improves navigation performance
 - Runs in background
 - Silent failure

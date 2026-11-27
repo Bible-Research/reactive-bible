@@ -31,6 +31,7 @@ import {
   splitCodec,
   type CodecKey,
 } from "../utils/filesetGroups";
+import { isChapterCovered } from "../utils/bookNameRegistry";
 import { orderedAudioCandidates } from "../utils/audioCandidates";
 import {
   isCrossTranslationPlayback,
@@ -402,6 +403,11 @@ export const useChapterAudio = (
       playing?.chapter ?? state.activeChapter,
     );
     if (!next) return;
+    // A chapter the resolved structure doesn't cover can only
+    // answer book_not_in_fileset — skip the guaranteed 404
+    // (same approximation as prefetchAudioUrl: the read
+    // version's structure stands in for audio coverage).
+    if (!isChapterCovered(next.bookId, next.chapter)) return;
     // Resolve for the NEXT book — a chapter boundary can cross
     // books and even testaments (MAL -> MAT); testament-split
     // filesets like ENGESV resolve differently per testament.

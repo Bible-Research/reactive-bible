@@ -5,6 +5,7 @@
  */
 import { loadKjvData } from '../utils/kjvDataLoader';
 import { toBookName } from "../utils/bibleUtils";
+import { isChapterCovered } from '../utils/bookNameRegistry';
 import type { SectionHeading, KjvBook } from '../types';
 import {
   getCachedVerses,
@@ -261,7 +262,13 @@ export const getVersesFromApi = async (
     cacheHeadings(bookId, thechapter, filesetId, headings);
     return { verses, headings };
   } catch (error) {
-    console.error(error);
+    // A coverage miss is an expected condition every caller
+    // surfaces itself — the read view's "not in this fileset"
+    // hint, the alternates walk, or a quiet prefetch — so
+    // logging it here too would just double-log.
+    if (!(error instanceof BookNotInFilesetError)) {
+      console.error(error);
+    }
     throw error;
   }
 };
@@ -292,11 +299,37 @@ export const prefetchAdjacentChapters = async (
   ) => {
     try {
       const resolvedId = resolveFilesetId?.(b) ?? id;
+      // The resolved structure knows the fileset's real
+      // coverage — a chapter outside it can only answer
+      // book_not_in_fileset, so skip the guaranteed 404
+      // instead of paying the doomed request. An unloaded
+      // structure passes (coverage unknown) and the catch
+      // below keeps that expected miss quiet; bundled KJV
+      // is always covered.
+      if (
+        resolvedId !== 'ENGKJV' &&
+        !isChapterCovered(b, c)
+      ) {
+        console.debug(
+          `Skipping ${label} prefetch: ${b} ${c} ` +
+          'not in fileset coverage'
+        );
+        return;
+      }
       // We don't need the result, just to trigger the fetch and cache
       await getVersesInChapter(b, c, resolvedId);
       console.log(`📚 Prefetched ${label} chapter: ${b} ${c}`);
     } catch (error) {
-      // Silent fail
+      // A coverage miss in a speculative prefetch is expected
+      // — debug level at most; every other failure keeps
+      // warning.
+      if (error instanceof BookNotInFilesetError) {
+        console.debug(
+          `Prefetch ${label} chapter ${b} ${c}: ` +
+          'not in fileset'
+        );
+        return;
+      }
       console.warn(`Failed to prefetch ${label} chapter ${b} ${c}:`, error);
     }
   };

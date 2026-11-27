@@ -18,6 +18,7 @@ import {
   findTranslationByFilesetId,
   resolveTextFileset,
 } from '../utils/filesetGroups';
+import { isChapterCovered } from '../utils/bookNameRegistry';
 import { orderedAudioCandidates } from '../utils/audioCandidates';
 import { notifyAudioSubstitution } from '../utils/audioSubstitution';
 import { useVerseHighlighter } from './useVerseHighlighter';
@@ -168,6 +169,15 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       const prefetchNext = (i: number) => {
         const next = allItems[i + 1];
         if (!next || !activeAudioFilesetId) return;
+        // The resolved structure knows the fileset's real
+        // coverage — a chapter outside it can only answer
+        // book_not_in_fileset for every candidate in the
+        // alternates chain, so skip the guaranteed 404s
+        // (same approximation as prefetchAudioUrl: the read
+        // version's structure stands in for audio coverage).
+        if (!isChapterCovered(next.bookId, next.chapter)) {
+          return;
+        }
         // Same timestamp-backed substitution as the playing
         // item so the prefetched URL/timestamps match what will
         // actually be loaded.
@@ -195,7 +205,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           ),
           next.bookId,
         );
-        if (tsId) {
+        // ENGKJV has no verse timestamps — the interactive
+        // paths skip it; the prefetch must not pay a
+        // guaranteed-empty request either.
+        if (tsId && tsId !== 'ENGKJV') {
           getAudioTimestamps(next.bookId, next.chapter, tsId)
             .catch(() => { /* prefetch - ignore errors */ });
         }
