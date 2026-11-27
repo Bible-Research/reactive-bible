@@ -92,6 +92,12 @@ const NotesView = () => {
         tags={storedTags}
         creatable={false}
         disabled={loading}
+        loading={loading}
+        placeholder={
+          loading
+            ? t('notes.loadingTags')
+            : t('notes.selectTag')
+        }
       />
     </Box>
   );

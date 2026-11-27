@@ -153,6 +153,7 @@ const TagNotesToolbar = ({
               value={tagId ?? ''}
               onChange={onTagChange}
               creatable={false}
+              placeholder={t('notes.selectTag')}
             />
           </Box>
         ) : (

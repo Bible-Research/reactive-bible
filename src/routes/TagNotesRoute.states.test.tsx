@@ -136,7 +136,7 @@ describe('TagNotesRoute states', () => {
       fireEvent.mouseDown(
         await screen.findByLabelText('Filter by tag')
       );
-      // Mantine v6 Select items select on mouseDown.
+      // Combobox options select on mouseDown.
       fireEvent.mouseDown(
         await screen.findByRole('option', { name: 'Prayer' })
       );

@@ -58,7 +58,7 @@ describe('TagNotesToolbar', () => {
 
       const select = screen.getByLabelText('Filter by tag');
       expect(select).toBeInTheDocument();
-      // Mantine Select displays the option label, not the id.
+      // The combobox displays the option label, not the id.
       expect(select).toHaveValue('Bible Study');
     });
 
@@ -94,7 +94,7 @@ describe('TagNotesToolbar', () => {
     const { onTagChange } = renderToolbar();
 
     fireEvent.mouseDown(screen.getByLabelText('Filter by tag'));
-    // Mantine v6 Select items select on mouseDown, not click.
+    // Combobox options select on mouseDown, not click.
     fireEvent.mouseDown(
       await screen.findByRole('option', { name: 'Prayer' })
     );

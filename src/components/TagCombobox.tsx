@@ -92,6 +92,17 @@ interface TagComboboxProps {
   creatable?: boolean;
   /** Pass-through `disabled` on the input. */
   disabled?: boolean;
+  /**
+   * Empty-state text for the closed input — localized at
+   * the call site; the note form keeps the default.
+   */
+  placeholder?: string;
+  /**
+   * External fetch in flight — shows the right-section
+   * spinner. Used by the notes view while its tag list
+   * loads.
+   */
+  loading?: boolean;
 }
 
 /**
@@ -118,6 +129,8 @@ export function TagCombobox({
   label = 'Tag',
   creatable = true,
   disabled = false,
+  placeholder = 'Select a tag',
+  loading = false,
 }: TagComboboxProps) {
   const listboxId = useId();
   const inputId = useId();
@@ -620,7 +633,7 @@ export function TagCombobox({
                 id={inputId}
                 ref={inputRef}
                 variant="transparent"
-                placeholder="Select a tag"
+                placeholder={placeholder}
                 disabled={disabled}
                 value={displayValue}
                 role="combobox"
@@ -652,7 +665,7 @@ export function TagCombobox({
                 }}
                 onKeyDown={handleKeyDown}
                 rightSection={
-                  busy ? (
+                  busy || loading ? (
                     <Loader size="xs" />
                   ) : (
                     <IconChevronDown size={16} />
