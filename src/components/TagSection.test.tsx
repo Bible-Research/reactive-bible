@@ -243,4 +243,28 @@ describe('TagSection drag reorder', () => {
         'This is n1',
       ]);
     });
+
+  it('rolls the optimistic order back when onReorder ' +
+    'rejects (reorder failed server-side)', async () => {
+      const onReorder = vi
+        .fn()
+        .mockRejectedValue(new Error('network down'));
+      renderDraggable('custom_asc', onReorder);
+
+      dragEnd('n1', 'n2');
+      expect(onReorder).toHaveBeenCalled();
+      expect(renderedNoteTexts()).toEqual([
+        'This is n2',
+        'This is n1',
+      ]);
+
+      // A rejected write means the store still holds the
+      // pre-drag order — the optimistic list reverts.
+      await waitFor(() => {
+        expect(renderedNoteTexts()).toEqual([
+          'This is n1',
+          'This is n2',
+        ]);
+      });
+    });
 });

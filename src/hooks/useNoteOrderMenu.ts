@@ -247,8 +247,6 @@ export const useNoteOrderMenu = ({
           currentPage,
           pageSize
         );
-      } catch {
-        // The store action already showed a notification.
       } finally {
         await reloadOrderIndex();
       }

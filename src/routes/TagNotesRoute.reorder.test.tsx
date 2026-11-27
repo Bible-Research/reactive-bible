@@ -85,12 +85,17 @@ vi.mock('../components/TagSection', () => ({
       type="button"
       aria-label="trigger-reorder"
       onClick={() =>
-        onReorder?.(
-          tagId,
-          ['note-2', 'note-1'],
-          currentPage,
-          pageSize
-        )
+        // The real TagSection rolls the optimistic order back
+        // on rejection; the mock just needs the rejection
+        // handled so vitest doesn't flag it.
+        void Promise.resolve(
+          onReorder?.(
+            tagId,
+            ['note-2', 'note-1'],
+            currentPage,
+            pageSize
+          )
+        ).catch(() => undefined)
       }
     />
   ),
