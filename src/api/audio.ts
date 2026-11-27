@@ -16,6 +16,7 @@ import { publicFetch } from '../utils/apiClient';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { captureHandledError } from '../utils/errorReporter';
+import { isChapterCovered } from '../utils/bookNameRegistry';
 import { getBooks } from './structure';
 import {
   BookNotInFilesetError,
@@ -168,7 +169,15 @@ export const getBibleAudioUrl = async (
 
     return data.audio_url;
   } catch (error) {
-    console.error(`Error fetching ${translation} audio:`, error);
+    // A coverage miss is expected — every caller either walks
+    // the alternates chain on it or reports the terminal
+    // failure itself, so a per-candidate log is pure noise.
+    if (!(error instanceof BookNotInFilesetError)) {
+      console.error(
+        `Error fetching ${translation} audio:`,
+        error
+      );
+    }
     throw error;
   }
 };
@@ -208,6 +217,21 @@ export const prefetchAudioUrl = async (
   filesetId: string | null
 ): Promise<void> => {
   if (!filesetId) return; // Cannot prefetch without a filesetId
+  // The resolved structure knows the fileset's real coverage —
+  // a chapter outside it can only answer book_not_in_fileset,
+  // so skip the guaranteed 404. Coverage of a DIFFERENT
+  // translation's audio fileset is approximated by the active
+  // (read) structure — a wrong skip only costs an on-demand
+  // fetch at play time. An unloaded structure passes
+  // (coverage unknown) and the catch below keeps that
+  // expected miss quiet; bundled KJV wordpocket audio is
+  // always covered.
+  if (
+    filesetId !== 'ENGKJV' &&
+    !isChapterCovered(bookId, chapter)
+  ) {
+    return;
+  }
   try {
     // Check if already cached
     const cached = getCachedAudioUrl(bookId, chapter, filesetId);
@@ -235,6 +259,15 @@ export const prefetchAudioUrl = async (
       `🎵 Prefetched ${filesetId} audio for ${bookId} ${chapter}`
     );
   } catch (error) {
+    // A coverage miss in a speculative prefetch is expected —
+    // debug at most; every other failure keeps warning.
+    if (error instanceof BookNotInFilesetError) {
+      console.debug(
+        `Audio prefetch ${bookId} ${chapter}: ` +
+        'not in fileset'
+      );
+      return;
+    }
     // Silent fail - prefetch errors shouldn't block the UI
     console.warn(
       `Failed to prefetch audio for ${bookId} ${chapter}:`,

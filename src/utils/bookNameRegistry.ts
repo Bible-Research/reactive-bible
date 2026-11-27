@@ -173,6 +173,22 @@ export const isBookCovered = (code: string): boolean =>
   active.nameByCode.has(code.toUpperCase());
 
 /**
+ * Whether the active structure covers a specific chapter of
+ * a book. Same "unknown means covered" default as
+ * `isBookCovered` — callers gating speculative requests
+ * (adjacent-chapter prefetch) keep working before the first
+ * structure fetch lands.
+ */
+export const isChapterCovered = (
+  code: string,
+  chapter: number
+): boolean =>
+  active.version === 0 ||
+  (active.chaptersByCode.get(code.toUpperCase())?.includes(
+    chapter
+  ) ?? false);
+
+/**
  * Covered chapter-number list for a book in the active
  * structure; null when uncovered or no structure loaded.
  */
