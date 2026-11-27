@@ -100,13 +100,32 @@ const scrollToIdDeferred = (id: string, smooth = false): void => {
 };
 
 // Settle delay before a network-bound chapter fetch fires.
-// Rapid chapter hopping (e.g. swipe navigation) must not fire
-// a request for every chapter passed through — the user is
-// scanning for a target, and burning the provider's rate
-// limit on intermediate chapters can block the one they land
-// on. Cached or bundled (KJV) chapters are free and skip the
-// wait entirely.
+// It applies ONLY to rapid chapter hopping (e.g. swipe
+// navigation): firing a request for every chapter passed
+// through would burn the provider's rate limit on
+// intermediate chapters and can block the one the user lands
+// on. A lone navigation after a pause — or a cached/bundled
+// (KJV) chapter — fetches at once; see isRapidScan.
 const CHAPTER_SETTLE_MS = 300;
+
+// Rapid-scan window: a chapter navigation counts as part of
+// a scan when the previous chapter-load effect ran less than
+// this long ago. Hops inside the window keep the settle
+// delay; a lone navigation after a pause fetches at once.
+const RAPID_NAV_MS = 1000;
+
+/**
+ * Record a chapter-load effect run and say whether it belongs
+ * to a rapid scan. The ref is updated on every call, so
+ * consecutive hops keep counting as rapid until the user
+ * pauses — and the first run after mount is never rapid.
+ */
+function isRapidScan(lastRunRef: { current: number }): boolean {
+  const now = Date.now();
+  const rapid = now - lastRunRef.current < RAPID_NAV_MS;
+  lastRunRef.current = now;
+  return rapid;
+}
 
 const PassageView = () => {
   const { t } = useTranslation();
@@ -145,6 +164,11 @@ const PassageView = () => {
   // True until the first chapter fetch succeeds — reading-position
   // restore from persisted state only applies to that load.
   const initialLoadRef = useRef(true);
+  // Last time the chapter fetch / audio prefetch effects ran:
+  // navigations inside RAPID_NAV_MS of the previous run count
+  // as a rapid scan and keep the settle delay.
+  const lastChapterFetchAtRef = useRef(0);
+  const lastAudioPrefetchAtRef = useRef(0);
   const tocAbortRef = useRef(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   // Swipe target, separate from the scroll viewport: it wraps
@@ -490,10 +514,14 @@ const PassageView = () => {
       getCachedVerses(
         activeBookId, activeChapter, textFilesetId
       ) !== null;
-    const timer = settled
+    // Unconditional: every effect run restarts the rapid-scan
+    // window, settled or not, so a pause still ends a scan.
+    const rapid = isRapidScan(lastChapterFetchAtRef);
+    const immediate = settled || !rapid;
+    const timer = immediate
       ? undefined
       : setTimeout(fetchChapter, CHAPTER_SETTLE_MS);
-    if (settled) fetchChapter();
+    if (immediate) fetchChapter();
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -509,9 +537,7 @@ const PassageView = () => {
   // would flash the loader, reset the scroll, and overwrite the
   // saved reading position).
   useEffect(() => {
-    // Same settle gate as the text fetch above: audio URLs
-    // must not be requested for every chapter hopped through.
-    const timer = setTimeout(() => {
+    const prefetch = () => {
       // Prefetch current chapter audio.
       void prefetchAudioUrl(
         activeBookId, activeChapter, resolvedAudioFilesetId
@@ -542,7 +568,15 @@ const PassageView = () => {
           )?.filesetId ?? null,
         );
       }
-    }, CHAPTER_SETTLE_MS);
+    };
+    // Same settle gate as the text fetch above: audio URLs
+    // must not be requested for every chapter hopped through.
+    // A lone navigation after a pause prefetches at once.
+    const rapid = isRapidScan(lastAudioPrefetchAtRef);
+    const timer = rapid
+      ? setTimeout(prefetch, CHAPTER_SETTLE_MS)
+      : undefined;
+    if (!rapid) prefetch();
     return () => clearTimeout(timer);
   }, [activeBookId, activeChapter, resolvedAudioFilesetId]);
 
