@@ -149,9 +149,11 @@ const latestByBranch = (prs: GithubPr[]): Map<string, GithubPr> => {
 // `(PRs #a, #b, #c)` — so every `#N` inside it counts.
 // Line-anchored so prose quoting the marker ("was NOT
 // promoted from staging (PR #5)") can't produce a false
-// drop.
+// drop. `[ \t]`/`[^)\r\n]` keep the match on one line —
+// a paren-free "promoted from staging" line must not
+// reach a `(#N)` further down the body.
 const PROMOTED_MARKER =
-  /^[ \t_*-]*promoted\s+from\s+`?staging`?\s*\(([^)]*)\)/gim;
+  /^[ \t_*-]*promoted[ \t]+from[ \t]+`?staging`?[ \t]*\(([^)\r\n]*)\)/gim;
 const MARKER_PR_NUMBER = /#(\d+)/g;
 
 const promotedStagingNumbers = (
