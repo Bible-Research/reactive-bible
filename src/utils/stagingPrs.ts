@@ -201,7 +201,10 @@ export const parseQcSteps = (
       // Blank, heading and block-starter lines end the step —
       // folding fences/quotes/rules/tables into the label
       // would pollute it (CommonMark ends the item there).
-      /^\s*(?:#|>|`{3}|~{3}|\||<|(?:[-*_]\s*){3,})/.test(line)
+      // Anchors matter: `#123` is a ref, `***bold***` is text.
+      /^\s*(?:#{1,6}(?:\s|$)|>|`{3}|~{3}|\||<(?=[A-Za-z/!?]))/
+        .test(line) ||
+      /^\s*([-*_])(?:[ \t]*\1){2,}\s*$/.test(line)
     ) {
       open = false;
     } else if (open) {

@@ -320,6 +320,15 @@ describe('parseQcSteps', () => {
     expect(parseQcSteps(body)).toEqual(['One', 'Two', 'Three']);
   });
 
+  it('keeps starter lookalikes as continuation text', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- Step one\n  ***important*** and #123 refs stay\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one ***important*** and #123 refs stay',
+    ]);
+  });
+
   it('joins CRLF-wrapped and multi-line continuations', () => {
     const body =
       '## UI verification / QC\r\n- [ ] Step one\r\n' +
