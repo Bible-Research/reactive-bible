@@ -470,11 +470,13 @@ npm test -- src/routes/BibleRoute.test.tsx
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
 - Fetches notes for specific tag via API
-- Displays tag selector dropdown (searchable); a separate
-  "Untagged" section at the bottom lists notes with no tag
-  (`tag_id=untagged` API sentinel). Custom-sort reordering and
-  the order menu are disabled there — reorder endpoints need a
-  real tag id
+- Displays the tag switcher — the same `TagCombobox` used by
+  the note form, reused with `creatable={false}` (picking
+  only navigates, so the `+ Create` rows stay hidden). The
+  "Untagged" view rides along as a pseudo-tag entry in the
+  same list (`tag_id=untagged` API sentinel). Custom-sort
+  reordering and the order menu are disabled there — reorder
+  endpoints need a real tag id
 - Shows note count
 - Provides full CRUD operations:
   - View note in Bible passage
@@ -2921,7 +2923,10 @@ Form for creating/editing notes.
   (re-opens the dropdown's parent pane to re-parent). The
   toast and dropdown render inside the modal's own DOM
   because Mantine `Modal` aria-hides portals — including
-  the notifications container — while open
+  the notifications container — while open. The same
+  component serves the notes views' tag switchers
+  (`TagNotesToolbar`, `NotesView`) with
+  `creatable={false}` — picking there only navigates
 - Verse reference display
 - Form validation
 - Submit handler — serialized against in-flight autosaves so

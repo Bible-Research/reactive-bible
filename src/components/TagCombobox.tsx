@@ -82,6 +82,16 @@ interface TagComboboxProps {
   onDropdownOpen?: () => void;
   onDropdownClose?: () => void;
   label?: string;
+  /**
+   * `false` hides the `+ Create` rows — used by the notes
+   * views' tag switchers, where picking only navigates and
+   * a freshly created tag would land on an empty page. The
+   * under…/move panes are unreachable too: they are only
+   * entered through the create rows.
+   */
+  creatable?: boolean;
+  /** Pass-through `disabled` on the input. */
+  disabled?: boolean;
 }
 
 /**
@@ -94,6 +104,10 @@ interface TagComboboxProps {
  * Mantine v6 `Select` only supports a single `creatable`
  * row and no nested pane, so the listbox is hand-rolled on
  * `TextInput` + `Popover`.
+ *
+ * The notes views' tag switchers reuse it with
+ * `creatable={false}` — same path-aware picker, minus the
+ * creation affordance.
  */
 export function TagCombobox({
   tags,
@@ -102,6 +116,8 @@ export function TagCombobox({
   onDropdownOpen,
   onDropdownClose,
   label = 'Tag',
+  creatable = true,
+  disabled = false,
 }: TagComboboxProps) {
   const listboxId = useId();
   const inputId = useId();
@@ -186,7 +202,7 @@ export function TagCombobox({
     // children are legal).
     const pathTaken =
       /[/›]/.test(query) && isExactPathMatch(tags, query);
-    if (query && !pathTaken) {
+    if (creatable && query && !pathTaken) {
       if (
         splitPathQuery(query) !== null ||
         !isTopLevelNameTaken(tags, query)
@@ -196,7 +212,7 @@ export function TagCombobox({
       out.push({ kind: 'create-under' });
     }
     return out;
-  }, [tags, search, view, moveTarget]);
+  }, [tags, search, view, moveTarget, creatable]);
 
   // `rows` can shrink without a reset (a `tags` refresh
   // while open) — clamp rather than leave
@@ -605,6 +621,7 @@ export function TagCombobox({
                 ref={inputRef}
                 variant="transparent"
                 placeholder="Select a tag"
+                disabled={disabled}
                 value={displayValue}
                 role="combobox"
                 aria-haspopup="listbox"

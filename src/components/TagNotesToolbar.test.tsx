@@ -5,6 +5,7 @@ import {
   screen,
 } from '@testing-library/react';
 import TagNotesToolbar from './TagNotesToolbar';
+import { UNTAGGED_TAG_ID } from '../api';
 import type { Tag } from '../types';
 import { mockDomApis } from '../__tests__/helpers';
 
@@ -100,6 +101,64 @@ describe('TagNotesToolbar', () => {
 
     expect(onTagChange).toHaveBeenCalledWith('tag-456');
   });
+
+  it('shows full paths for nested tags, like the note ' +
+    'form field', async () => {
+      const nested: Tag[] = [
+        ...tags,
+        {
+          id: 'tag-child',
+          name: 'design',
+          parent_tag: 'tag-456',
+          public: false,
+          created_at: '',
+          updated_at: '',
+        },
+      ];
+      renderToolbar({ tags: nested, tagId: 'tag-child' });
+
+      // The closed field shows the ancestor path.
+      expect(
+        screen.getByLabelText('Filter by tag')
+      ).toHaveValue('Prayer › design');
+
+      fireEvent.mouseDown(
+        screen.getByLabelText('Filter by tag')
+      );
+      expect(
+        await screen.findByRole('option', {
+          name: 'Prayer › design',
+        })
+      ).toBeInTheDocument();
+    });
+
+  it('switches to the untagged view', async () => {
+    const { onTagChange } = renderToolbar();
+
+    fireEvent.mouseDown(
+      screen.getByLabelText('Filter by tag')
+    );
+    fireEvent.mouseDown(
+      await screen.findByRole('option', { name: 'Untagged' })
+    );
+
+    expect(onTagChange).toHaveBeenCalledWith(UNTAGGED_TAG_ID);
+  });
+
+  it('does not offer tag creation from the switcher',
+    async () => {
+      renderToolbar();
+
+      const input = screen.getByLabelText('Filter by tag');
+      fireEvent.mouseDown(input);
+      fireEvent.change(input, {
+        target: { value: 'newtag' },
+      });
+
+      expect(
+        screen.queryByRole('option', { name: /^\+ Create/ })
+      ).not.toBeInTheDocument();
+    });
 
   it('renders the tag name instead of the selector when ' +
     'not authenticated', () => {

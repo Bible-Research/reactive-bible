@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import {
   ActionIcon,
+  Box,
   Group,
   Select,
   Stack,
@@ -17,6 +18,7 @@ import {
   IconWorld,
 } from '@tabler/icons-react';
 import { UNTAGGED_TAG_ID } from '../api';
+import { TagCombobox } from './TagCombobox';
 import type { Tag } from '../types';
 import type { SortOrder } from '../utils/noteSorting';
 import { NOTES_PAGE_SIZES } from '../utils/pagination';
@@ -89,9 +91,22 @@ const TagNotesToolbar = ({
   onRefresh,
 }: TagNotesToolbarProps) => {
   const { t } = useTranslation();
-  const sortedTags = useMemo(
-    () => [...tags].sort((a, b) => a.name.localeCompare(b.name)),
-    [tags]
+  // The virtual "untagged" bucket rides along as a
+  // pseudo-tag so the combobox lists and searches it like
+  // the real tags.
+  const switcherTags = useMemo<Tag[]>(
+    () => [
+      ...tags,
+      {
+        id: UNTAGGED_TAG_ID,
+        name: t('common.untagged'),
+        parent_tag: null,
+        public: false,
+        created_at: '',
+        updated_at: '',
+      },
+    ],
+    [tags, t]
   );
 
   const handleShare = async () => {
@@ -126,29 +141,20 @@ const TagNotesToolbar = ({
   return (
     <Stack spacing="sm" mb="md">
       <Group spacing="xs" noWrap>
-        {isAuthenticated && sortedTags.length > 0 ? (
-          <Select
-            label={t('tags.filterByTag')}
-            placeholder={t('notes.selectTag')}
-            value={tagId}
-            onChange={onTagChange}
-            // Grouped items render above a divider; the
-            // ungrouped "Untagged" entry lands in its own
-            // bottom section (Mantine v6 SelectItems).
-            data={[
-              ...sortedTags.map((tag) => ({
-                value: tag.id,
-                label: tag.name,
-                group: t('tags.tagsGroup'),
-              })),
-              {
-                value: UNTAGGED_TAG_ID,
-                label: t('common.untagged'),
-              },
-            ]}
-            searchable
-            style={{ maxWidth: 400 }}
-          />
+        {isAuthenticated && tags.length > 0 ? (
+          // Same path-aware picker as the note form's tag
+          // field — minus the creation rows: the switcher
+          // only navigates, and a fresh tag would land on
+          // an empty page.
+          <Box maw={400} style={{ width: '100%' }}>
+            <TagCombobox
+              label={t('tags.filterByTag')}
+              tags={switcherTags}
+              value={tagId ?? ''}
+              onChange={onTagChange}
+              creatable={false}
+            />
+          </Box>
         ) : (
           <Text fw={500} size="lg">{tagName}</Text>
         )}
