@@ -179,6 +179,41 @@ describe('fetchPendingStagingPrs', () => {
       expect(await fetchPendingStagingPrs()).toHaveLength(1);
     });
 
+  it('ignores a marker carried by a STAGING PR body', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+            body: '_Promoted from `staging` (PR #10)._\n',
+          },
+          {
+            number: 30, headRef: 'feat/b',
+            mergedAt: '2026-01-02T00:00:00Z',
+          },
+        ],
+        [],
+      );
+      const prs = await fetchPendingStagingPrs();
+      expect(prs.map((p) => p.number)).toEqual([10, 30]);
+    });
+
+  it('matches a bare marker line (no emphasis/backticks)',
+    async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body: 'Notes.\nPromoted from staging (PR #10)\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(0);
+    });
+
   it('keeps a staged PR whose number no marker names', async () => {
       servePulls(
         [
