@@ -281,6 +281,9 @@ describe('sentryBeforeSend', () => {
 
   it.each([
     'Failed to fetch',
+    // Newer Chrome appends the request origin:
+    // 'Failed to fetch (bibleresearch.vercel.app)'.
+    'Failed to fetch (bibleresearch.vercel.app)',
     'Load failed',
     'NetworkError when attempting to fetch resource.',
   ])('tags network failure "%s" without dropping it', (msg) => {
@@ -319,6 +322,52 @@ describe('sentryBeforeSend', () => {
       expect(result?.level).toBe('warning');
       expect(result?.tags?.errorKind).toBe('network');
       expect(result?.tags?.reportType).toBe('handled-api');
+    });
+
+  it('downgrades handled-api URL-suffixed fetch failures ' +
+    '(REACTIVE-BIBLE-WEB-S)', () => {
+      // Chrome's newer TypeError carries the request origin —
+      // 'Failed to fetch (staging-bibleresearchapi.vercel.app)'.
+      // The exact-match check missed this variant, so handled
+      // connectivity noise stayed error-level in the bug queue.
+      const handledEvent: ErrorEvent = {
+        ...event,
+        event_id: 'handled-net-url',
+        tags: {
+          reportType: 'handled-api',
+          context: 'Reading positions bulk fetch',
+        },
+      };
+
+      const result = sentryBeforeSend(
+        handledEvent,
+        hintOf(new TypeError(
+          'Failed to fetch ' +
+            '(staging-bibleresearchapi.vercel.app)'
+        ))
+      );
+
+      expect(result).toBe(handledEvent);
+      expect(result?.level).toBe('warning');
+      expect(result?.tags?.errorKind).toBe('network');
+    });
+
+  it('does not tag the dynamic-import fetch TypeError as ' +
+    'network', () => {
+      // 'Failed to fetch dynamically imported module: …' is a
+      // stale-chunk failure, not connectivity — and is dropped
+      // by the chunk-load filter before this check anyway.
+      const chunkEvent = { event_id: 'chunk' } as ErrorEvent;
+
+      const result = sentryBeforeSend(
+        chunkEvent,
+        hintOf(new TypeError(
+          'Failed to fetch dynamically imported module: ' +
+            'https://example.com/assets/index-abc123.js'
+        ))
+      );
+
+      expect(result).toBeNull();
     });
 
   it('keeps unhandled network failures at error level', () => {

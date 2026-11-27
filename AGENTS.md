@@ -346,8 +346,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   versionCode). Read-only diagnostics.
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
-  ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
-  reportable but routable. On `handled-api` events the level
+  ('Failed to fetch' including the newer-Chrome origin
+  variant 'Failed to fetch (host)', 'Load failed',
+  'NetworkError…'); kept reportable but routable. On `handled-api` events the level
   drops to warning (client connectivity noise); unhandled
   network rejections stay error-level — reaching
   GlobalHandlers means a missing catch, still a bug.
