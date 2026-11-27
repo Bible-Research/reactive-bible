@@ -495,6 +495,13 @@ npm test -- src/routes/BibleRoute.test.tsx
 - Play-from-note indexes into the filtered playlist of notes
   that actually have verses; a note spanning several
   book/chapter blocks produces one playlist item per block
+- Note cards keep only "View in Bible" + "Play from here"
+  as direct buttons (`collapseActions` prop down
+  `TagSection` → `NoteCard`/`SortableNoteCard` →
+  `NoteCardActions`) — share/bookmark/copy/targeted
+  share/comments/edit/delete fold into a `⋮` overflow menu
+  that renders only when at least one item applies; the `#k`
+  order badge stays outside it
 - In custom sort on an owned tag, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
   of every note in the tag and the list is dnd-kit
@@ -2150,7 +2157,12 @@ Create and organize notes with tags for Bible verses.
   require the tag-owner context (`isTagOwner`) or
   `note.is_owner === true`; clipboard share falls back to
   `execCommand` on non-secure contexts
-  (`src/utils/clipboard.ts`)
+  (`src/utils/clipboard.ts`). The tag-notes view passes
+  `collapseActions`, folding every secondary control (share,
+  login CTA, bookmark, copy, targeted share, comments,
+  edit, delete) into a `⋮` menu — other surfaces
+  (`NoteDetailRoute`, `/bookmarks`, `/shared`, `/explore`)
+  keep the inline button row
 - Sharing/bookmark controls on note cards: the bookmark
   icon saves any readable note (a "Log in to save" CTA
   replaces it for anonymous readers, carrying the return

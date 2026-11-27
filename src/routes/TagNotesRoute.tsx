@@ -417,6 +417,7 @@ export default function TagNotesRoute() {
                     commentCounts={commentCounts}
                     onCountChange={handleCountChange}
                     isTagOwner={sectionOwner}
+                    collapseActions
                     isDraggable={false}
                     tagId={section.tagId}
                     sortOrder={sortOrder}
@@ -442,6 +443,7 @@ export default function TagNotesRoute() {
                 commentCounts={commentCounts}
                 onCountChange={handleCountChange}
                 isTagOwner={isTagOwner}
+                collapseActions
                 isDraggable={orderMenuEnabled}
                 tagId={tagId || ''}
                 onReorder={handleReorder}

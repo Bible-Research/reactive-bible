@@ -23,6 +23,8 @@ interface SortableNoteCardProps {
   /** True when the viewed tag belongs to the current user. */
   isTagOwner?: boolean;
   orderMenu?: NoteOrderMenuData;
+  /** Passed through to NoteCard (tag-notes ⋮ menu). */
+  collapseActions?: boolean;
 }
 
 const SortableNoteCard = ({
@@ -35,6 +37,7 @@ const SortableNoteCard = ({
   onCountChange,
   isTagOwner,
   orderMenu,
+  collapseActions,
 }: SortableNoteCardProps) => {
   const {
     attributes,
@@ -68,6 +71,7 @@ const SortableNoteCard = ({
         onCountChange={onCountChange}
         isTagOwner={isTagOwner}
         orderMenu={orderMenu}
+        collapseActions={collapseActions}
         dragHandleProps={{
           ref: setActivatorNodeRef,
           ...listeners,

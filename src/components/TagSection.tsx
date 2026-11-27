@@ -56,6 +56,8 @@ interface TagSectionProps {
   pageSize?: number;
   /** Order-badge dropdown data (custom sorts + auth only). */
   orderMenu?: NoteOrderMenuData;
+  /** Fold secondary card actions into a `⋮` overflow menu. */
+  collapseActions?: boolean;
 }
 
 const TagSection = ({
@@ -75,6 +77,7 @@ const TagSection = ({
   currentPage = 1,
   pageSize = 25,
   orderMenu,
+  collapseActions,
 }: TagSectionProps) => {
   const [localNotes, setLocalNotes] = useState(notes);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -162,6 +165,7 @@ const TagSection = ({
       : undefined,
     isTagOwner,
     orderMenu,
+    collapseActions,
   });
 
   if (!isDraggable) {
