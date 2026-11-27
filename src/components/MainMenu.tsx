@@ -260,38 +260,6 @@ const MainMenu = ({
         )}
 
         {isAuthenticated && (
-          <Group position="apart" spacing="xs">
-            <Text
-              weight={500}
-              size="lg"
-              onClick={() => {
-                void navigate('/shared');
-                onClose();
-              }}
-              sx={{ cursor: "pointer" }}
-            >
-              {t('menu.sharedWithMe')}
-            </Text>
-          </Group>
-        )}
-
-        {isAuthenticated && (
-          <Group position="apart" spacing="xs">
-            <Text
-              weight={500}
-              size="lg"
-              onClick={() => {
-                void navigate('/bookmarks');
-                onClose();
-              }}
-              sx={{ cursor: "pointer" }}
-            >
-              {t('menu.bookmarks')}
-            </Text>
-          </Group>
-        )}
-
-        {isAuthenticated && (
           <>
             <Group position="apart" spacing="xs">
               <Text
