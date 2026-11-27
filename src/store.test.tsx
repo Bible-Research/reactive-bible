@@ -540,6 +540,40 @@ describe('useBibleStore', () => {
     expect(migrated.noteRefFilesetId).toBe('ENGNIV:text:0');
   });
 
+  it('migratePersistedState defaults confirmNoteReorder on ' +
+    'across the v12 bump', () => {
+    const migrated = migratePersistedState(
+      { activeBookId: 'JHN', activeChapter: 3 },
+      11
+    );
+    expect(migrated.confirmNoteReorder).toBe(true);
+  });
+
+  it('migratePersistedState preserves an explicit ' +
+    'confirmNoteReorder value', () => {
+    // A record that already carries the field keeps it —
+    // the migration only fills the gap, never rewrites a
+    // stored choice.
+    const migrated = migratePersistedState(
+      {
+        activeBookId: 'JHN',
+        activeChapter: 3,
+        confirmNoteReorder: false,
+      },
+      11
+    );
+    expect(migrated.confirmNoteReorder).toBe(false);
+  });
+
+  it('migratePersistedState sanitizes a non-boolean ' +
+    'confirmNoteReorder to the default', () => {
+    const migrated = migratePersistedState(
+      { confirmNoteReorder: 'yes' },
+      11
+    );
+    expect(migrated.confirmNoteReorder).toBe(true);
+  });
+
   it('partializeState round-trips noteRefFilesetId', () => {
     useBibleStore.getState().setNoteRefFilesetId('LVSGLU8:text:0');
     expect(
@@ -562,6 +596,20 @@ describe('useBibleStore', () => {
       .toBe(false);
     useBibleStore.getState().setBookTitleMarquee(true);
     expect(useBibleStore.getState().bookTitleMarquee)
+      .toBe(true);
+  });
+
+  it('defaults confirmNoteReorder to true', () => {
+    expect(useBibleStore.getState().confirmNoteReorder)
+      .toBe(true);
+  });
+
+  it('setConfirmNoteReorder toggles the pref', () => {
+    useBibleStore.getState().setConfirmNoteReorder(false);
+    expect(useBibleStore.getState().confirmNoteReorder)
+      .toBe(false);
+    useBibleStore.getState().setConfirmNoteReorder(true);
+    expect(useBibleStore.getState().confirmNoteReorder)
       .toBe(true);
   });
 
@@ -617,10 +665,10 @@ describe('useBibleStore', () => {
   });
 
   describe('partializeState (persisted shape)', () => {
-    // GATE for the store slice split: this snapshot must pass
-    // unchanged after the split — it proves the persisted
-    // `bible-storage` record is identical, so no schema
-    // version bump is needed.
+    // GATE for persisted-shape changes: this snapshot must
+    // only change alongside a deliberate `bible-storage`
+    // schema version bump + `migratePersistedState` entry —
+    // the v12 bump added `confirmNoteReorder`.
     it('persists exactly the expected key set and values', () => {
       const tag: Tag = {
         id: 'TAG1', name: 'Test Tag', parent_tag: null, public: false,
@@ -678,6 +726,7 @@ describe('useBibleStore', () => {
         'autoTranslateNotes',
         'bibleVersion',
         'bookTitleMarquee',
+        'confirmNoteReorder',
         'lastSelectedTagId',
         'lastSelectionByLanguage',
         'noteRefFilesetId',

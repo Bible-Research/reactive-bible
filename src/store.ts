@@ -174,6 +174,15 @@ export interface BibleState {
    */
   bookTitleMarquee: boolean;
   setBookTitleMarquee: (enabled: boolean) => void;
+  /**
+   * Persisted "confirm before reordering notes" preference
+   * (default ON — a Sentry user report asked for the check).
+   * When ON, tag-page reorder actions (order-menu moves and
+   * drag reorder) first open a confirm modal; the /settings
+   * toggle lets the user skip it.
+   */
+  confirmNoteReorder: boolean;
+  setConfirmNoteReorder: (enabled: boolean) => void;
   setActiveBookAndChapter: (
     activeBookId: string,
     activeChapter: number
@@ -290,6 +299,7 @@ export const initialState = {
   pendingScrollVerse: null as VerseRef | null,
   headerVisible: true,
   bookTitleMarquee: true,
+  confirmNoteReorder: true,
   structureByBible: {} as Record<string, api.BibleStructure>,
   activeStructureKey: null as string | null,
 };
@@ -408,6 +418,8 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
       setHeaderVisible: (headerVisible) => set({ headerVisible }),
       setBookTitleMarquee: (bookTitleMarquee) =>
         set({ bookTitleMarquee }),
+      setConfirmNoteReorder: (confirmNoteReorder) =>
+        set({ confirmNoteReorder }),
       setPreferredNoteLanguage: (preferredNoteLanguage) =>
         set({ preferredNoteLanguage }),
       setAutoTranslateNotes: (autoTranslateNotes) =>
@@ -526,7 +538,7 @@ export const useBibleStore = createWithEqualityFn<BibleState>()(
     {
       name: "bible-storage",
       storage: createJSONStorage(() => localStorage),
-      version: 11,
+      version: 12,
       migrate: migratePersistedState,
       partialize: partializeState,
     }
