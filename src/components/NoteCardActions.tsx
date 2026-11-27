@@ -202,6 +202,36 @@ const NoteCardActions = ({
     canEdit ||
     canDelete ||
     showCommentButton;
+  // The divider separating edit/delete only belongs when at
+  // least one item sits above it — an owned private note with
+  // no comment entry would otherwise open on a bare rule.
+  const hasUpperMenuItems =
+    canShare ||
+    showLoginCta ||
+    canBookmark ||
+    canCopy ||
+    canShareTargeted ||
+    showCommentButton;
+
+  // Shared so the collapsed layout can pin play next to
+  // "view in Bible" while the unfolded layout keeps the
+  // historical view → share → play ordering.
+  const playButton =
+    canPlay && onPlayFromNote ? (
+      <Tooltip label={t('notes.playFromHere')} position="top">
+        <Box component="span" sx={{ display: 'inline-block' }}>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            color="blue"
+            onClick={() => onPlayFromNote(note.id)}
+            aria-label={`play-from-${note.id}`}
+          >
+            <IconPlayerPlay size={16} />
+          </ActionIcon>
+        </Box>
+      </Tooltip>
+    ) : null;
 
   return (
     <Group spacing="xs" sx={sx}>
@@ -218,42 +248,19 @@ const NoteCardActions = ({
           </ActionIcon>
         </Box>
       </Tooltip>
-      {canPlay && onPlayFromNote && (
-        <Tooltip label={t('notes.playFromHere')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              color="blue"
-              onClick={() => onPlayFromNote(note.id)}
-              aria-label={`play-from-${note.id}`}
-            >
-              <IconPlayerPlay size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
+      {collapseActions && playButton}
       {collapseActions ? (
         hasOverflowActions && (
           <Menu withinPortal position="bottom-end" shadow="md">
             <Menu.Target>
-              <Tooltip
-                label={t('notes.moreActions')}
-                position="top"
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                title={t('notes.moreActions')}
+                aria-label={`note-actions-${note.id}`}
               >
-                <Box
-                  component="span"
-                  sx={{ display: 'inline-block' }}
-                >
-                  <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    aria-label={`note-actions-${note.id}`}
-                  >
-                    <IconDotsVertical size={16} />
-                  </ActionIcon>
-                </Box>
-              </Tooltip>
+                <IconDotsVertical size={16} />
+              </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
               {canShare && (
@@ -308,7 +315,6 @@ const NoteCardActions = ({
               {showCommentButton && (
                 <Menu.Item
                   icon={<IconMessageCircle size={16} />}
-                  aria-expanded={threadOpen}
                   aria-controls={`comment-thread-${note.id}`}
                   onClick={onToggleThread}
                 >
@@ -319,7 +325,9 @@ const NoteCardActions = ({
                       })}
                 </Menu.Item>
               )}
-              {(canEdit || canDelete) && <Menu.Divider />}
+              {hasUpperMenuItems && (canEdit || canDelete) && (
+                <Menu.Divider />
+              )}
               {canEdit && (
                 <Menu.Item
                   icon={<IconEdit size={16} />}
@@ -358,6 +366,7 @@ const NoteCardActions = ({
             </Box>
           </Tooltip>
         )}
+        {playButton}
         {showLoginCta && (
           <Tooltip label={t('bookmarks.loginToSave')} position="top">
             <Box component="span" sx={{ display: 'inline-block' }}>

@@ -426,8 +426,9 @@ describe('NoteCardActions collapseActions', () => {
   it('renders no menu when no secondary action applies', () => {
     // Sharing off + owned private note + no edit/delete
     // handlers + no comment count — nothing is left for the
-    // menu.
-    vi.mocked(isNoteSharingEnabled).mockReturnValue(false);
+    // menu. `mockReturnValueOnce` keeps the override scoped
+    // to this render instead of leaking to later tests.
+    vi.mocked(isNoteSharingEnabled).mockReturnValueOnce(false);
     renderActions({ collapseActions: true });
 
     expect(
