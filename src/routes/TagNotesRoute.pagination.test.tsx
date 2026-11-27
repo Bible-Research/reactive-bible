@@ -169,6 +169,15 @@ const renderRoute = (
 const pagesRequested = () =>
   mockFetchNotes.mock.calls.map((call) => call[1]?.page);
 
+// Secondary card actions live in the ⋮ overflow menu on the
+// tag-notes view — open the card's menu, then click Remove.
+const clickRemove = async (noteId: string) => {
+  fireEvent.click(
+    await screen.findByLabelText(`note-actions-${noteId}`)
+  );
+  fireEvent.click(await screen.findByLabelText('remove-note'));
+};
+
 // Mantine renders each Select as a hidden input carrying
 // the raw value plus a visible readonly input showing the
 // chosen label — the visible one is what a user clicks.
@@ -948,9 +957,7 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       mockFetchNotes.mockClear();
       mockClearNotesCache.mockClear();
 
-      fireEvent.click(
-        await screen.findByLabelText('remove-note')
-      );
+      await clickRemove('note-1');
 
       await waitFor(() => {
         expect(mockApi.deleteNote).toHaveBeenCalledWith(
@@ -995,9 +1002,7 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       });
       mockFetchNotes.mockClear();
 
-      fireEvent.click(
-        await screen.findByLabelText('remove-note')
-      );
+      await clickRemove('note-1');
 
       await waitFor(() => {
         expect(mockApi.deleteNote).toHaveBeenCalledWith(
@@ -1021,9 +1026,7 @@ describe('TagNotesRoute sort/page-size/delete handlers', () => {
       });
       mockFetchNotes.mockClear();
 
-      fireEvent.click(
-        await screen.findByLabelText('remove-note')
-      );
+      await clickRemove('note-1');
       await act(async () => Promise.resolve());
 
       expect(mockApi.deleteNote).not.toHaveBeenCalled();

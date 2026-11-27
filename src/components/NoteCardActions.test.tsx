@@ -17,6 +17,7 @@ import NoteCardActions from './NoteCardActions';
 import { server } from '../mocks/server';
 import { API_BASE_URL } from '../config';
 import { useAuthStore } from '../stores/authStore';
+import { isNoteSharingEnabled } from '../utils/platform';
 import {
   renderWithProviders,
   mockDomApis,
@@ -30,6 +31,17 @@ import {
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
 }));
+
+// The sharing gate reads build-time env — mock it per test so
+// the empty-overflow-menu case can run with sharing off.
+vi.mock('../utils/platform', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../utils/platform')>();
+  return {
+    ...actual,
+    isNoteSharingEnabled: vi.fn(() => true),
+  };
+});
 
 const singleVerseNote = createMockNote({
   id: 'n1',
@@ -305,5 +317,125 @@ describe('NoteCardActions', () => {
 
     expect(screen.getByTestId('login-landing'))
       .toHaveTextContent('/login|/notes/pub-n1');
+  });
+});
+
+// Tag-notes view (collapseActions): only "View in Bible" and
+// "Play from here" stay on the card — every secondary action
+// folds into the ⋮ overflow menu.
+describe('NoteCardActions collapseActions', () => {
+  const openMenu = async (noteId = 'n1') => {
+    fireEvent.click(
+      await screen.findByLabelText(`note-actions-${noteId}`)
+    );
+  };
+
+  it('keeps only view/play buttons on the card', () => {
+    renderActions({
+      note: createMockNote({
+        public: true,
+        verses: singleVerseNote.verses,
+      }),
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      onPlayFromNote: vi.fn(),
+      commentCount: 2,
+      collapseActions: true,
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'view-in-bible' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'play-from-n1' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('note-actions-n1')
+    ).toBeInTheDocument();
+    // Everything else waits inside the closed menu.
+    expect(screen.queryByLabelText('edit-note'))
+      .not.toBeInTheDocument();
+    expect(screen.queryByLabelText('remove-note'))
+      .not.toBeInTheDocument();
+    expect(screen.queryByLabelText('share-note'))
+      .not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '2' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('runs edit and remove from the overflow menu', async () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    renderActions({
+      onEdit,
+      onDelete,
+      collapseActions: true,
+    });
+
+    await openMenu();
+    fireEvent.click(await screen.findByLabelText('edit-note'));
+    expect(onEdit).toHaveBeenCalledWith(singleVerseNote);
+
+    await openMenu();
+    fireEvent.click(await screen.findByLabelText('remove-note'));
+    expect(onDelete).toHaveBeenCalledWith(
+      expect.any(Object),
+      singleVerseNote
+    );
+  });
+
+  it('toggles the comment thread from the menu', async () => {
+    const onToggleThread = vi.fn();
+    renderActions({
+      commentCount: 3,
+      onToggleThread,
+      collapseActions: true,
+    });
+
+    await openMenu();
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: '3 comments' })
+    );
+
+    expect(onToggleThread).toHaveBeenCalled();
+  });
+
+  it('offers share and bookmark from the menu for ' +
+    'a readable foreign note', async () => {
+      const note = createMockNote({
+        id: 'shared-n1',
+        is_owner: false,
+        public: true,
+        verses: singleVerseNote.verses,
+      });
+      renderActions({ note, collapseActions: true });
+
+      await openMenu('shared-n1');
+      expect(
+        await screen.findByLabelText('share-note')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('bookmark-note')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByLabelText('copy-note')
+      ).toBeInTheDocument();
+    });
+
+  it('renders no menu when no secondary action applies', () => {
+    // Sharing off + owned private note + no edit/delete
+    // handlers + no comment count — nothing is left for the
+    // menu. `mockReturnValueOnce` keeps the override scoped
+    // to this render instead of leaking to later tests.
+    vi.mocked(isNoteSharingEnabled).mockReturnValueOnce(false);
+    renderActions({ collapseActions: true });
+
+    expect(
+      screen.queryByLabelText('note-actions-n1')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'view-in-bible' })
+    ).toBeInTheDocument();
   });
 });

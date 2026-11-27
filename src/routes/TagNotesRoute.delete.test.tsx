@@ -84,7 +84,14 @@ const renderRoute = (
     },
   });
 
-const deleteButtons = () => screen.getAllByLabelText('remove-note');
+// Secondary card actions live in the ⋮ overflow menu on the
+// tag-notes view — open the card's menu, then click Remove.
+const clickRemove = async (noteId: string) => {
+  fireEvent.click(
+    await screen.findByLabelText(`note-actions-${noteId}`)
+  );
+  fireEvent.click(await screen.findByLabelText('remove-note'));
+};
 
 describe('TagNotesRoute note deletion', () => {
   beforeEach(() => {
@@ -120,7 +127,7 @@ describe('TagNotesRoute note deletion', () => {
           })
       );
 
-      fireEvent.click(deleteButtons()[0]);
+      await clickRemove('note-1');
 
       // The card is removed as soon as the DELETE resolves,
       // without waiting for the page refetch.
@@ -156,7 +163,7 @@ describe('TagNotesRoute note deletion', () => {
       });
       mockFetchNotes.mockClear();
 
-      fireEvent.click(deleteButtons()[0]);
+      await clickRemove('note-51');
 
       await waitFor(() => {
         expect(
@@ -208,7 +215,7 @@ describe('TagNotesRoute note deletion', () => {
       });
       mockFetchNotes.mockClear();
 
-      fireEvent.click(deleteButtons()[0]);
+      await clickRemove('note-1');
 
       await waitFor(() => {
         expect(mockApi.deleteNote).toHaveBeenCalledWith('note-1');
@@ -234,8 +241,8 @@ describe('TagNotesRoute note deletion', () => {
         expect(screen.getByText('John 3:16')).toBeInTheDocument();
       });
 
-      fireEvent.click(deleteButtons()[0]);
-      fireEvent.click(deleteButtons()[1]);
+      await clickRemove('note-1');
+      await clickRemove('note-2');
 
       await waitFor(() => {
         expect(mockApi.deleteNote).toHaveBeenCalledTimes(1);
@@ -260,7 +267,7 @@ describe('TagNotesRoute note deletion', () => {
       });
       mockFetchNotes.mockClear();
 
-      fireEvent.click(deleteButtons()[0]);
+      await clickRemove('note-1');
 
       expect(mockApi.deleteNote).not.toHaveBeenCalled();
       expect(mockFetchNotes).not.toHaveBeenCalled();
@@ -276,7 +283,7 @@ describe('TagNotesRoute note deletion', () => {
       });
       mockFetchNotes.mockClear();
 
-      fireEvent.click(deleteButtons()[0]);
+      await clickRemove('note-1');
 
       await waitFor(() => {
         expect(mockApi.deleteNote).toHaveBeenCalledWith('note-1');
