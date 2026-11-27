@@ -177,6 +177,23 @@ export const createStructureSlice: StateCreator<
     const existing = inflight.get(activeTextFilesetId);
     if (existing) return existing;
 
+    // A ':'-shaped selection that resolves no owner is a
+    // guaranteed wire failure — the backend's FILESET_ID_RE
+    // rejects the ':' outright, and the bare prefix abbr is
+    // not a routable id either (the 'ESV' listing abbr
+    // 404s). Skip the fetch: the staged/previous structure
+    // keeps rendering and the subscription re-kicks the
+    // moment the translations list lands. Not registered
+    // in `inflight`, so that re-kick always fires fresh.
+    if (!owner && activeTextFilesetId.includes(':')) {
+      console.warn(
+        'Bible structure fetch skipped: ' +
+          'unresolvable selection ' +
+          JSON.stringify(activeTextFilesetId),
+      );
+      return Promise.resolve();
+    }
+
     // The wire id prefers a concrete text member of the
     // owner's option over the bare listing abbr: a member
     // fileset id routes on every backend (the ESV listing

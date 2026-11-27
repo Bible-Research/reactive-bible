@@ -8,7 +8,14 @@
  * branches whose head SHA already has a merged `base=main` PR
  * (clean squash) or whose latest main merge is newer than the
  * staging merge (replayed promotion — it lands under a new SHA
- * on the same branch). Deliberately NOT the
+ * on the same branch), and minus staged PRs named by a
+ * `Promoted from staging (PR #N)` marker in a merged main
+ * PR's body. The marker is the only signal that survives a
+ * renamed promotion branch (`-prod` ad-hoc copies, recreated
+ * heads): those staged SHAs never enter the promotion PR's
+ * commit graph, so head-branch matching — and even the
+ * workflow's commit-search fallback — can only miss and the
+ * entry would stick as a false pending. Deliberately NOT the
  * `compare/main...staging` shortcut: after a partially failed
  * train, promoted squash commits remain on staging until the
  * reset and would show as false pending.
@@ -131,6 +138,32 @@ const latestByBranch = (prs: GithubPr[]): Map<string, GithubPr> => {
   return latest;
 };
 
+// Promotion marker in a merged main PR's body — the
+// `_Promoted from `staging` (PR #N) by the … workflow._`
+// footer promote-to-main.yml appends; manual promotion PRs
+// are required to carry the same line (AGENTS.md ad-hoc
+// bullet). Names the staging PR it ships, so a renamed head
+// branch can't hide it. Line-anchored so prose quoting the
+// marker ("was NOT promoted from staging (PR #5)") can't
+// produce a false drop.
+const PROMOTED_MARKER =
+  /^[ \t_*-]*promoted\s+from\s+`?staging`?\s*\(pr\s+#(\d+)\)/gim;
+
+const promotedStagingNumbers = (
+  prs: GithubPr[],
+): Set<number> => {
+  const out = new Set<number>();
+  for (const pr of prs) {
+    // `body` is unvalidated by isPr — guard the type so a
+    // truthy non-string can't throw past StagingPrsError.
+    if (typeof pr.body !== 'string') continue;
+    for (const m of pr.body.matchAll(PROMOTED_MARKER)) {
+      out.add(Number(m[1]));
+    }
+  }
+  return out;
+};
+
 export const fetchPendingStagingPrs = async (): Promise<
   StagingPr[]
 > => {
@@ -139,8 +172,10 @@ export const fetchPendingStagingPrs = async (): Promise<
     fetchMergedPulls('main'),
   ]);
   const mainByBranch = latestByBranch(main);
+  const promoted = promotedStagingNumbers(main);
   return [...latestByBranch(staged).values()]
     .filter((spr) => {
+      if (promoted.has(spr.number)) return false;
       const m = mainByBranch.get(spr.head.ref);
       if (!m) return true;
       const stagedAt = Date.parse(spr.merged_at ?? '');
