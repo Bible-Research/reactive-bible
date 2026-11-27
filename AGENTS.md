@@ -90,7 +90,10 @@ whose head SHA was never merged into `staging`, and the
   ``_Promoted from `staging` (PR #<staging PR number>)_``
   — the marker the What's-on-staging checklist uses to
   drop the staged entry; it's the only link that survives
-  a renamed or recreated promotion head. The staging merge
+  a renamed or recreated promotion head. A main PR that
+  ships several staged PRs at once must name EVERY one in
+  list form — `(PRs #a, #b, #c)` — or the unnamed entries
+  stick in the checklist as false pending. The staging merge
   auto-deletes the head branch — re-push it first
   (`git push origin <headRefOid>:refs/heads/<branch>`,
   same SHA is fine). `staging` is NOT reset — it keeps
@@ -279,12 +282,12 @@ whose head SHA was never merged into `staging`, and the
   computes the pending-promotion set (approximating
   `promote-to-main.yml`: head-branch keyed head-SHA /
   merged_at comparison, plus a `Promoted from staging
-  (PR #N)` body-marker match — the only signal that survives
-  a renamed promotion head, whose staged SHAs never enter
-  the promotion PR's commit graph) from the
-  unauthenticated GitHub pulls API, and `StagingChecklistModal`
-  renders each PR's `## UI verification / QC` steps as
-  session-local checkboxes.
+  (PR #N)` / `(PRs #a, #b)` body-marker match — the only
+  signal that survives a renamed promotion head, whose
+  staged SHAs never enter the promotion PR's commit graph)
+  from the unauthenticated GitHub pulls API, and
+  `StagingChecklistModal` renders each PR's `## UI
+  verification / QC` steps as session-local checkboxes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract
