@@ -33,7 +33,8 @@ export const addTagNote = async (
   tagId: string,
   tagNoteText: string,
   verseReferences: { book: string; chapter: number; verse: number }[],
-  isPublic?: boolean
+  isPublic?: boolean,
+  isPublished?: boolean
 ): Promise<Note> => {
   const created = await fetchJson<Note>(
     authenticatedFetch,
@@ -45,9 +46,13 @@ export const addTagNote = async (
         tag: tagId,
         note_text: tagNoteText,
         verse_references: verseReferences,
-        // `public` is sent only when the caller supplied it —
-        // omitting it lets the server inherit `tag.public`.
+        // `public`/`published` are sent only when the caller
+        // supplied them — omitting lets the server inherit
+        // the tag's flags.
         ...(isPublic !== undefined ? { public: isPublic } : {}),
+        ...(isPublished !== undefined
+          ? { published: isPublished }
+          : {}),
       }),
     }
   );
@@ -62,7 +67,8 @@ export const editNote = async (
   tagId: string,
   noteText: string,
   verseReferences?: { book: string; chapter: number; verse: number }[],
-  isPublic?: boolean
+  isPublic?: boolean,
+  isPublished?: boolean
 ): Promise<Note> => {
   // verse_references replaces the note's verse links when
   // present; omitting it leaves them untouched.
@@ -79,6 +85,9 @@ export const editNote = async (
           ? { verse_references: verseReferences }
           : {}),
         ...(isPublic !== undefined ? { public: isPublic } : {}),
+        ...(isPublished !== undefined
+          ? { published: isPublished }
+          : {}),
       }),
     }
   );
@@ -368,22 +377,6 @@ export const setNoteTranslationVerified = async (
       'Failed to update translation verification'
     );
   }
-};
-
-/**
- * Owner-only retry of `failed` translation rows — re-marks
- * them `pending` and enqueues a fresh run; returns the
- * number of rows requeued.
- */
-export const retranslateNote = async (
-  noteId: string
-): Promise<{ requeued: number }> => {
-  return fetchJson<{ requeued: number }>(
-    authenticatedFetch,
-    `${API_BASE_URL}/api/v1/notes/${noteId}/retranslate/`,
-    'Failed to retranslate note',
-    { method: 'POST' }
-  );
 };
 
 /**

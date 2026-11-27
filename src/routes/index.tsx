@@ -22,8 +22,18 @@ const TagManagementRoute = lazyWithReload(
   () => import('./TagManagementRoute')
 );
 const SearchRoute = lazyWithReload(() => import('./SearchRoute'));
+const ExploreRoute = lazyWithReload(() => import('./ExploreRoute'));
+const SharedWithMeRoute = lazyWithReload(
+  () => import('./SharedWithMeRoute')
+);
+const BookmarksRoute = lazyWithReload(
+  () => import('./BookmarksRoute')
+);
 const GettingStartedRoute = lazyWithReload(
   () => import('./GettingStartedRoute')
+);
+const SettingsRoute = lazyWithReload(
+  () => import('./SettingsRoute')
 );
 const LoginPage = lazyWithReload(() =>
   import('../components/LoginPage').then((m) => ({
@@ -67,6 +77,10 @@ export function AppRoutes() {
           element={<GettingStartedRoute />}
         />
 
+        {/* Settings - public: preferences are device-local
+            (localStorage), so anonymous users keep them too. */}
+        <Route path="/settings" element={<SettingsRoute />} />
+
         {/* Bible routes - public (can view Bible without auth) */}
         <Route path="/bible" element={<BibleRoute />} />
         <Route path="/bible/:ref" element={<BibleRoute />} />
@@ -74,6 +88,28 @@ export function AppRoutes() {
         <Route
           path="/bible/:book/:chapterVerse"
           element={<LegacyBibleRedirect />}
+        />
+
+        {/* Published directory - public like /notes */}
+        <Route path="/explore" element={<ExploreRoute />} />
+
+        {/* Sharing inbox + saved notes - account-owned data,
+            so anonymous visitors go to /login */}
+        <Route
+          path="/shared"
+          element={
+            <ProtectedRoute>
+              <SharedWithMeRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookmarks"
+          element={
+            <ProtectedRoute>
+              <BookmarksRoute />
+            </ProtectedRoute>
+          }
         />
 
         {/* Notes routes - public for viewing, protected for private notes */}

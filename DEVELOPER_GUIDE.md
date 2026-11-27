@@ -251,6 +251,7 @@ stay eager because they serve the landing path.
 | `/bible/:book/:chapterVerse` | `LegacyBibleRedirect` | → canonical ref |
 | `/search` | `SearchRoute` | Search (`?q=`) |
 | `/getting-started` | `GettingStartedRoute` | Video tutorials |
+| `/settings` | `SettingsRoute` | Device-local preferences |
 | `/notes` | `NotesRoute` | → default tag |
 | `/notes/tag/:tagId` | `TagNotesRoute` | Tag notes (`untagged`) |
 | `/notes/:noteId` | `NoteDetailRoute` | Note detail (public) |
@@ -267,6 +268,7 @@ src/routes/
 ├── index.tsx              # Route table + lazy boundaries
 ├── BibleRoute.tsx         # USFM ref parsing → store sync
 ├── GettingStartedRoute.tsx# Embedded video tutorials
+├── SettingsRoute.tsx      # Device-local preferences
 ├── LegacyBibleRedirect.tsx# /bible/:book/:chapterVerse → canonical
 ├── NotesRoute.tsx         # Tag load + redirect
 ├── TagNotesRoute.tsx      # Tag notes list (pagination, reorder)
@@ -404,6 +406,27 @@ npm test -- src/routes/BibleRoute.test.tsx
   sharing — write affordances are `isAuthenticated`-gated
 - `/notes/:noteId` - Single note detail view; public for sharing
 
+**Sharing Routes** (✅ Implemented):
+- `/explore` - The published directory: `published=true`
+  notes feed + debounced `q` search; anonymous-safe like
+  `/notes` (published notes are public)
+- `/shared` - "Shared with me": direct note grants plus
+  `tag_shares` rows linking into the shared tag's note page;
+  `ProtectedRoute`. Gated: see below.
+- `/bookmarks` - Saved notes; `available=false` rows render
+  as removable stale pointers; `ProtectedRoute`. Gated: see
+  below.
+
+> **Feature gate** — every surface that calls the
+> note-sharing endpoints (`/shared`, `/bookmarks`, targeted
+> share/copy/bookmark actions) renders only when
+> `isNoteSharingEnabled()` (`src/utils/platform.ts`) is true
+> — dev builds and Vercel previews. Production and Android
+> builds hide them because the backend half
+> (bible_research#163) is not deployed: the routes are
+> unregistered (catch-all → `/bible`) and the buttons/menu
+> links are hidden. Remove the gate once the backend ships.
+
 **Tag Routes** (✅ Implemented):
 - `/tags` - Tag management; wrapped in `ProtectedRoute`
   (anonymous visitors redirect to `/login`)
@@ -422,6 +445,14 @@ npm test -- src/routes/BibleRoute.test.tsx
 - `NoteDetailRoute` - Single note detail view
 - `TagManagementRoute` - Tag CRUD behind `ProtectedRoute`
 - `SearchRoute` - Book-grouped search results accordion
+- `ExploreRoute` - Published feed + directory search
+- `SharedWithMeRoute` - Notes/tags other users granted
+- `BookmarksRoute` - Saved-note list with stale-row cleanup
+- `ShareModal` - Targeted username sharing (silent
+  resolution — "if that username exists" copy; tag shares
+  carry an include-descendants checkbox)
+- `CopyNoteModal` - Copy-to-my-account with a target-tag
+  picker reusing `TagCombobox`
 
 ### Route Implementation Details
 
@@ -487,7 +518,7 @@ npm test -- src/routes/BibleRoute.test.tsx
 
 **TagManagementRoute** (`src/routes/TagManagementRoute.tsx`):
 - Hierarchical `TagTree` + `CreateTagModal`/`EditTagModal`;
-  deletes and publicity flips confirm through
+  deletes and publicity/publish flips confirm through
   `openConfirmModal` (`@mantine/modals`, provider in
   `App.tsx`) — never `window.confirm`, which renders as an
   unstyled system dialog on Android. Reparent drops PATCH
@@ -498,7 +529,8 @@ npm test -- src/routes/BibleRoute.test.tsx
   full width with the "N tags" count inline. Each tree
   row collapses its icon cluster into a single
   `IconDotsVertical` `Menu` (View notes / publicity /
-  Edit, divider, red Delete) under the same width query
+  publish — publishers only / share / Edit, divider, red
+  Delete) under the same width query
   OR `(pointer: coarse)` — only TagTree reacts to the
   coarse pointer, the route chrome and modals are
   width-only — so tap targets stop overlapping. Desktop
@@ -548,7 +580,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v10 with a
+management. The main store (`bible-storage`, schema v11 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -576,6 +608,13 @@ auth lives in a separate persisted `authStore`.
   LastLanguageSelection>` - Last saved translation pick per
   `language_iso` (`{ abbr, textId, audioId }`); the selector
   re-stages it when the language is revisited
+- `noteRefFilesetId: string | null` - Optional pin for
+  note-reference surfaces (`@…` previews and linked-verse
+  text in note dialogs). `null` follows
+  `activeTextFilesetId`; consumers read it via
+  `useNoteRefFilesetId()`. Set from `/settings` through
+  `TranslationSelector`'s `pickTextOnly` mode — the reader's
+  own filesets are never written.
 
 **Structure State** (SWR slice in
 `src/stores/bibleStore/structureSlice.ts`, TRANSIENT — not in
@@ -669,7 +708,18 @@ auth lives in a separate persisted `authStore`.
   fileset id (a first load can key store/cache on the raw
   fileset id until the translations list resolves the owning
   bible abbr — the id-keyed tiers are consulted too, and the
-  landing fetch re-resolves the abbr before writing). A
+  landing fetch re-resolves the abbr before writing). The
+  wire `fileset_id` is a concrete member of the owner's text
+  option when resolvable — registry providers answer by
+  fileset id on any backend while a bare listing abbr only
+  resolves where the registry knows the alias (the ESV abbr
+  `ESV` 404s where `ENGESV_API` answers; the abbr-shaped
+  member wins when present so `ENGKJV` keeps its bundled
+  names). A stored id that resolves to no routable value
+  (e.g. a `:`-bearing product id) never reaches the wire —
+  and `fetchBibleStructure` itself mirrors the backend's
+  FILESET_ID_RE, failing locally with a typed
+  `ClientInputError`. A
   `degraded: true` body (the backend's `no-store` SWORD
   fallback names) applies in memory but is never written to
   localStorage; a `{books: []}` anomaly is treated as a
@@ -707,7 +757,7 @@ persist(
   (set, get) => ({ /* state and actions */ }),
   {
     name: 'bible-storage',
-    version: 10,
+    version: 11,
     storage: createJSONStorage(() => localStorage),
     partialize: /* in stores/bibleStore/persistence.ts */,
     migrate: migratePersistedState,
@@ -747,6 +797,9 @@ export interface Tag {
   public: boolean;            // notes under it are shareable;
                               // also the default publicity for
                               // new notes under the tag
+  published?: boolean;        // new notes default to the
+                              // Explore directory; requires
+                              // publish_note to write
   note_count?: number;        // direct notes only; absent on
                               // older backends
   created_at: string;
@@ -771,6 +824,10 @@ export interface Note {
   id: string;
   note_text: string;
   public: boolean;
+  published?: boolean;        // listed in the Explore
+                              // directory; implies public
+  author?: CommentAuthor;     // {id, username} attribution
+  copied_from?: string | null;// provenance — owner-only
   is_owner: boolean;
   created_at: string;
   updated_at: string;
@@ -1645,13 +1702,23 @@ different text and audio formats for each.
   scroll horizontally on narrow screens; a no-op on desktop.
 - **Per-language memory**: Save records the pick under
   `lastSelectionByLanguage[language_iso]` (persisted,
-  `bible-storage` v10). Switching back to a language re-stages
+  `bible-storage` v10+). Switching back to a language re-stages
   the remembered version — verbatim text/audio ids — once its
   translation list merges, but only when no active-owner
   mirror applied and the user has not picked a version in
   that language this session. A remembered version missing
   from the fetched list falls back to the no-memory behavior;
   Cancel never touches the record.
+- **Pick-only mode**: the selector doubles as a controlled
+  text-fileset picker (`opened`, `onClose`, `seedFilesetId`,
+  `onPickText`, `pickTextOnly`) — used by `/settings` to pin
+  the note-reference translation. Every audio surface
+  (the audio radios and the Advanced raw-fileset audio
+  radios) is hidden, seeding follows `seedFilesetId`
+  (falling back to the active text fileset) rather than the
+  audio-owner preference, and Save reports the picked text
+  id through `onPickText` — it never writes
+  `activeTextFilesetId`/`activeAudioFilesetId`.
 - All data fetching is now driven by a `filesetId` instead of a simple version
   string.
 
@@ -2071,7 +2138,10 @@ Create and organize notes with tags for Bible verses.
 - `VerseTextGroups.tsx` renders the shared verse-preview
   grouping (book/chapter divider + numbered verses) used by
   the add/edit modals; grouping itself is `groupVerseTexts`
-  in `src/hooks/useVerseTexts.ts`.
+  in `src/hooks/useVerseTexts.ts`. Both modals feed the hook
+  the `useNoteRefFilesetId()` value, so linked-verse text
+  follows the `/settings` pin (or the active translation
+  when unpinned).
 - `NoteCard` headings (`src/utils/noteHeading.ts`): verse-less
   notes show the tag name; notes spanning chapters render a
   cross-chapter range (e.g. `John 3:16–5:1`) — never a
@@ -2081,6 +2151,53 @@ Create and organize notes with tags for Bible verses.
   `note.is_owner === true`; clipboard share falls back to
   `execCommand` on non-secure contexts
   (`src/utils/clipboard.ts`)
+- Sharing/bookmark controls on note cards: the bookmark
+  icon saves any readable note (a "Log in to save" CTA
+  replaces it for anonymous readers, carrying the return
+  path), the copy icon opens `CopyNoteModal`, and an
+  owner-only user icon opens `ShareModal`
+
+**Sharing model** (add-note-sharing):
+- `public` is link visibility — unchanged: anyone with the
+  URL can read a public note.
+- `published` is directory visibility — published notes
+  appear on `/explore` (feed + `q` search) for everyone.
+  Publishing requires the `publish_note` permission
+  (`user.can_publish`, populated by `users/me/` after
+  login/register/checkAuth) and implies `public`; clearing
+  `public` clears `published`. In NoteForm the published
+  checkbox forces + locks the public one, and tag editing
+  offers a matching `setTagPublished` switch — both render
+  only when `can_publish` is true; without the flag the
+  form leaves `published` undefined so the server inherits
+  the tag's value. The public lock itself is also gated on
+  `can_publish`: a non-publisher whose permission was
+  revoked while their note/tag was still published keeps
+  the public toggle usable — clearing `public` is their
+  only way to unlist, and the server drops `published`
+  with it.
+- Targeted sharing grants a username read access to a note
+  or a tag (optionally its subtree). Username resolution is
+  silent server-side, so `ShareModal`'s copy is honest:
+  "if that username exists, they'll get access".
+- Bookmarks (`/bookmarks`) persist read access pointers —
+  a note that later goes private/deleted renders as a
+  removable stale row.
+- Copy (`CopyNoteModal`) forks a readable note into the
+  caller's account as a private copy (no sync back).
+- **Availability gate**: `isNoteSharingEnabled()`
+  (`src/utils/platform.ts`) is `DEV || isPreviewDeploy()` —
+  production/Android builds hide every surface that calls
+  the targeted-share/bookmark/copy endpoints (`/shared` and
+  `/bookmarks` routes unregistered, MainMenu links hidden,
+  NoteCardActions buttons suppressed, TagTree `onShare`
+  withheld) because the backend half
+  (bible_research#163) is not deployed and every call would
+  404 (Sentry REACTIVE-BIBLE-WEB-15). `/explore` and the
+  `can_publish` publish controls are unaffected — the feed
+  uses the plain notes list and `can_publish` is never true
+  without the backend's `users/me/` field. Remove the gate
+  once the backend ships.
 
 **Workflow**:
 1. User selects one or more verses by clicking them
@@ -2189,26 +2306,32 @@ const load = async () => {
 
 #### Note Translations (per-card language UX)
 
-Notes are mixed-language; the backend detects each note's
-`source_language` and machine-translates into the configured
-targets. The frontend contract:
+Notes are mixed-language; the backend detection/translation
+pipeline is DISABLED — no new `pending`/`ready`/`failed`
+rows or `source_language` detection are produced. The API
+still serves rows that already reached `ready`, and the
+frontend degrades gracefully around the frozen set:
 
-- **Payload**: every note carries `source_language`,
+- **Payload**: legacy notes carry `source_language`,
   `served_language` (what `note_text` actually is), and a
   `translations` metadata list (`language`, `status` =
-  pending/ready/failed/source, `verified`, `engine`, `error`).
+  pending/ready/failed/source, `verified`, `engine`,
+  `error`). New notes simply lack all three fields.
 - **`?lang=`**: `GET /notes/` and `GET /notes/<id>/` accept a
   `lang` param; a `ready` row's text swaps into `note_text`,
   misses fall back to the original (never 404).
 - **`useNoteTranslation`** (`src/hooks/useNoteTranslation.ts`)
   drives the card UX: a `SegmentedControl` per card offers
-  source + ready/pending languages; switching issues ONE
-  `?lang=` refetch cached in a session `Map` keyed by
-  note id + `updated_at` + lang; a failed fetch keeps the
-  last-good text and raises a localized notification — the
-  original is never silently substituted. A `pending` row
-  schedules exactly one delayed refetch; `failed` rows offer
-  an owner-only retry (`POST /notes/<id>/retranslate/`).
+  only languages the server can actually serve — the
+  detected source plus `ready`/`source` rows. Legacy
+  `pending`/`failed` rows are dead ends (they can never
+  resolve), so they are not offered: a note whose only rows
+  are pending/failed renders no language bar at all.
+  Switching issues ONE `?lang=` refetch cached in a session
+  `Map` keyed by note id + `updated_at` + lang; a failed
+  fetch keeps the last-good text and raises a localized
+  notification — the original is never silently
+  substituted.
 - **Verification**: owners can mark a `ready` translation
   verified (`POST|DELETE /notes/<id>/translations/<lang>/
   verify/`); readers see a "Verified by author" chip. Fresh
@@ -2223,8 +2346,7 @@ targets. The frontend contract:
   translation controls render.
 - **Types/API**: `NoteTranslationMeta` in `src/types.ts`;
   `getNote(id, lang)`, `getNotes(..., {lang})`,
-  `setNoteTranslationVerified`, `retranslateNote` in
-  `src/api/notes.ts`.
+  `setNoteTranslationVerified` in `src/api/notes.ts`.
 
 ### 7. Theme System
 
@@ -2582,7 +2704,21 @@ auth rows, "Check for updates" (native shell only), sharing.
 "View Notes", "New Note", and "Tag Management" only render for
 authenticated users — `/notes` redirects anonymous visitors to
 `/bible`, so the menu must not offer a dead-end link.
+"Settings" is ungated — it only writes device-local
+preferences — and navigates to the public `/settings` page.
 
+Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
+`isPreviewDeploy` in `src/utils/platform.ts`) additionally show
+"What's on staging": a lazy `StagingChecklistModal` listing PRs
+merged into `staging` but not yet promoted to `main` —
+mirroring the pending-set check in `promote-to-main.yml`
+(head-branch keyed, head-SHA / merged_at comparison; without
+its commit-search fallback), read live from the
+unauthenticated GitHub pulls API by
+`src/utils/stagingPrs.ts`. Each row expands to the PR body's
+`## UI verification / QC` steps as session-local checkboxes;
+API failures degrade to a link to the GitHub
+`main...staging` compare view.
 Vercel preview deploys (`VITE_APP_ENV === 'preview'` — see
 `isPreviewDeploy` in `src/utils/platform.ts`) additionally show
 "What's on staging": a lazy `StagingChecklistModal` listing PRs
@@ -3024,8 +3160,12 @@ Modal for selecting Bible translations.
 - `PassagePicker.tsx` - book/chapter/verse picker embedded in
   note modals (click toggles, shift-click ranges)
 - `ScripturePassage.tsx` - renders `@USFM.C[.V]` mention
-  previews; its expanded mode lists the whole chapter with
-  selectable verses
+  previews in the text fileset from `useNoteRefFilesetId()`
+  (the `/settings` pin, else the active reader translation,
+  resolved per testament via `resolveTextFileset` on the
+  reference's USFM code — `ENGESV_API` is only the
+  last-resort fallback); its expanded mode lists the whole
+  chapter with selectable verses
 - `RichTextEditor.tsx` / `RichTextView.tsx` - TipTap editor and
   read-only rendering (lazy chunk); block indentation comes
   from `src/extensions/indent.ts` (a `data-indent` attr →
@@ -3317,10 +3457,13 @@ verse-count lookup; `bibleStructure.ts` is the
 - `publicFetch(url, options?, retries?)` — attaches the token
   when present; a 401 retries once anonymously and never logs
   the user out (a stale token must not break public content).
-- `authenticatedFetch(url, options?, retries?)` — a valid 401
-  logs out and shows a "session expired" notification. For
-  user-owned resources (notes, tags, comments, reading
-  positions).
+- `authenticatedFetch(url, options?, retries?, idempotent?)` —
+  a valid 401 logs out and shows a "session expired"
+  notification. For user-owned resources (notes, tags,
+  comments, reading positions). `idempotent: true` opts a
+  side-effect-free non-GET request (a read implemented as
+  POST, e.g. `reading-positions/bulk/`) into the
+  network-failure retry — never set it for mutations.
 - `authenticatedUpload(url, formData)` — multipart variant for
   image uploads (comment and note attachments).
 - `fetchJson<T>(fetcher, url, fallbackMessage, options?)` —
@@ -3332,8 +3475,9 @@ verse-count lookup; `bibleStructure.ts` is the
   `api/errors.ts`, 409 bodies, 204 no-content, swallowed
   failures) keep their own `try/catch`.
 - `sendRequest` — the shared core both fetchers delegate to;
-  network-failure retry fires only for idempotent methods
-  (GET/HEAD/OPTIONS).
+  network-failure retry fires only for idempotent requests
+  (GET/HEAD/OPTIONS, or a caller-declared `idempotent` read
+  POST).
 
 **Error policy**: `showNotification` (from
 `@mantine/notifications`) is for expected, contextual failures
@@ -3732,6 +3876,10 @@ if (newTotal > MAX_VERSES) {
 - No size limit (URLs are small)
 - Expiration-based eviction
 - Parses CloudFront URL expiration
+- Plausibility check on read (`isPlausibleChapterAudioUrl`):
+  ESV CDN files must be `<Book> <chapter>.mp3`; a malformed
+  entry (e.g. a chapterless `Leviticus%20.mp3` minted by an
+  older backend) is evicted and refetched
 - Auto-cleanup on app load
 
 **Storage Key**: `bible_audio_cache`
@@ -3852,7 +4000,8 @@ clearNotesCache();
 - `authenticatedFetch` keeps the 401 → logout + "session
   expired" behaviour; `TypeError` (network drop) retries are
   restricted to idempotent GET/HEAD so a lost POST response
-  can't double-create a note/tag/comment.
+  can't double-create a note/tag/comment — a read-only POST
+  may opt in via `idempotent: true`.
 
 #### 4. Translation Cache (Session-based)
 **Purpose**: Cache translation lists to avoid refetching
@@ -4479,7 +4628,10 @@ surface as the transport layer:
   it means our own request was malformed, a bug worth
   reporting. `TypeError` network failures ('Failed to fetch',
   'Load failed', 'NetworkError…') are kept but tagged
-  `errorKind: network` so Sentry-side rules can route them.
+  `errorKind: network` so Sentry-side rules can route them;
+  on `handled-api` events the level drops to warning —
+  handled connectivity noise, like a `ConflictError`, stays
+  out of the error queue without losing the event.
   `ConflictError` is downgraded to warning level;
   `ProviderError` gets a `['api-error', code, endpoint]
   fingerprint so provider outages group per endpoint instead of
@@ -4491,7 +4643,9 @@ surface as the transport layer:
   environment:production` is the bug queue — everything else is
   deliberately routed by tag. Untagged exception events are
   real bugs; `reportType` marks routed streams: `handled-api`
-  (error, graceful catch sites), `media-failure` (warning,
+  (error, graceful catch sites — warning when the failure is a
+  `errorKind: network` connectivity blip), `media-failure`
+  (warning,
   audio terminal failures — extras carry fileset + passage),
   `native-bridge` (warning, Capacitor bridge calls — expected
   on web), `resource-load` (warning, missing assets),
@@ -4504,15 +4658,24 @@ surface as the transport layer:
   a category — Bug report (default), Feature request, or
   General message — and writes the note; anonymous users also
   get an optional reply-email field. `sendUserReport`
-  (`src/utils/userReport.ts`) captures a `user report` message
-  tagged `reportType: user-report` +
+  (`src/utils/userReport.ts`) captures a
+  `user report (<category>) <passage>: <note>` message tagged
+  `reportType: user-report` +
   `reportCategory: bug|feature|general` — the note, category,
   reporter's username (when logged in) and current passage
   (book/chapter/filesets) sit in the `userReport` context —
   plus a user-feedback event with the same tags (and the email
   when given) linked via `associatedEventId`, which also lists
-  each report in Sentry's User Feedback view. Query:
-  `message:"user report"` or `reportType:user-report`; triage
+  each report in Sentry's User Feedback view and opens a
+  feedback issue (`issue.category:feedback`). The per-report
+  message exists because Sentry's built-in Dedupe integration
+  drops an untyped event identical to the previous one —
+  identical 'user report' messages sent back-to-back were
+  silently lost; the constant `user-report` fingerprint keeps
+  them grouped under one stream issue, and `sentryBeforeSend`
+  exempts them from the message-based noise drops (a user
+  quoting 'Loading chunk N failed' still reports). Query:
+  `message:"user report*"` or `reportType:user-report`; triage
   narrows to `reportCategory:bug` + legacy untagged events.
 - Sampling (free-tier sizing): `tracesSampleRate` 0.1,
   `replaysSessionSampleRate` 0 + `replaysOnErrorSampleRate` 1.0

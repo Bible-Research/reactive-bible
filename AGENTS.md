@@ -60,7 +60,10 @@ whose head SHA was never merged into `staging`, and the
   equivalent, per branch: re-push it if auto-deleted
   (`git push origin <headRefOid>:refs/heads/<branch>`),
   open a PR with `--base main` (same title + body — keep
-  `Closes #<N>` links so issues auto-close), then
+  `Closes #<N>` links so issues auto-close, and end it
+  with the ``_Promoted from `staging` (PR #<staging PR>)_``
+  marker line the workflow emits — required whenever the
+  head was renamed/recreated), then
   `gh pr merge <N> --squash --admin`; then reset staging
   (`git fetch origin && git push --force-with-lease origin
   origin/main:refs/heads/staging` — the only sanctioned
@@ -73,12 +76,43 @@ whose head SHA was never merged into `staging`, and the
   the same SHAs still satisfies the check). The workflow
   needs the `AUTOMERGE_TOKEN` admin PAT (the same secret
   the dependabot automerge uses).
-- **"Merge straight to main" requests**: merge the branch
-  into `staging` first anyway, then the `main` PR — the
+- **"Merge straight to main" / ad-hoc releases** — the
+  default response when the user asks to deploy a single
+  change to production (a hotfix, "deploy this to prod"):
+  merge the branch into `staging` first anyway — the
   check blocks anything else, keeping `main` ⊆ `staging`
-  even for urgent merges. If the `main` PR's check already
-  ran red before the staging merge, re-run the failed job
-  after it (`gh run rerun <run-id> --failed` or a push).
+  even for urgent merges — then open a `main` PR from
+  the SAME branch head (same title + body — keep
+  `Closes #<N>` links) and squash-merge it autonomously
+  once checks are green and the reviewer loop is clean
+  (`gh pr merge <N> --squash --admin`). End the `main`
+  PR body with the marker line
+  ``_Promoted from `staging` (PR #<staging PR number>)_``
+  — the marker the What's-on-staging checklist uses to
+  drop the staged entry; it's the only link that survives
+  a renamed or recreated promotion head. The staging merge
+  auto-deletes the head branch — re-push it first
+  (`git push origin <headRefOid>:refs/heads/<branch>`,
+  same SHA is fine). `staging` is NOT reset — it keeps
+  holding the rest of the queue. This solo path requires
+  the `main` diff to carry the feature alone, which holds
+  while the head stays clean of `origin/staging` merges:
+  a staging PR whose conflicts forced
+  `git merge origin/staging` into the branch makes the
+  head carry the whole queue, so a `main` PR from it
+  would drag every staged feature along — that branch can
+  only reach `main` via the `Promote to main` train (or
+  a hand-made cherry-pick shipping a combination that
+  never soaked). Verify `git diff origin/main...<head>`
+  shows the feature alone before opening the `main` PR.
+  If the `main` PR's check already ran red before the
+  staging merge, re-run the failed job after it
+  (`gh run rerun <run-id> --failed` or a push). Never
+  direct-push a hotfix to `main`: it breaks
+  `main` ⊆ `staging` until the next train reset, and
+  promotion conflict resolution pulls staging trees that
+  lack the fix — it can silently revert it; if a manual
+  push ever happens, apply the fix on both branches.
 - **Dependabot** targets `staging` and auto-merges there;
   its branches promote to `main` like any feature branch.
 - **Backend is unaffected** — `bible_research` keeps its
@@ -89,7 +123,8 @@ whose head SHA was never merged into `staging`, and the
 - `src/api/` — every backend call lives here, split by domain
   (`errors`, `structure`, `bibleStructure`, `verses`, `audio`,
   `translations`, `notes`, `tags`, `comments`, `search`,
-  `readingPositions`); `index.ts` is the barrel — always
+  `readingPositions`, `sharing`, `bookmarks`); `index.ts`
+  is the barrel — always
   import from `'../api'`, never a leaf, so
   `vi.mock('../api')` keeps intercepting.
   Note `structure.ts` is the bundled KJV verse-count lookup
@@ -99,7 +134,7 @@ whose head SHA was never merged into `staging`, and the
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
 - `src/store.ts` — main persisted Zustand store (`bible-storage`,
-  schema v10, custom `migratePersistedState` — bump version when
+  schema v11, custom `migratePersistedState` — bump version when
   persisted shape changes). Composition root; notes
   orchestration in `src/stores/bibleStore/notesSlice.ts`,
   structure SWR in `src/stores/bibleStore/structureSlice.ts`
@@ -114,7 +149,9 @@ whose head SHA was never merged into `staging`, and the
   not break public content — and never logs out) vs
   `authenticatedFetch` (401 → logout + "session expired"
   notification). Network-failure retry only fires for
-  idempotent methods (GET/HEAD/OPTIONS).
+  idempotent methods (GET/HEAD/OPTIONS) — or for requests the
+  caller marks `idempotent: true` (reads implemented as POST,
+  e.g. `reading-positions/bulk/`).
 - `src/utils/cacheManager.ts` — localStorage cache: verses
   (LRU, 500 cap for copyright), audio URLs (CloudFront expiry
   parsing), translations (per language), bible structures
@@ -144,11 +181,17 @@ whose head SHA was never merged into `staging`, and the
 - `src/hooks/useBookName.ts` — `useBookName`/`useActiveStructure`
   store subscriptions for the display-name layer.
 - `src/hooks/` — audio playlist, media session, keep-alive,
-  verse highlighter.
+  verse highlighter, `useNoteRefFilesetId` (the shared
+  pinned-or-active fileset for note-reference surfaces).
 - `src/routes/` — React Router routes; canonical Bible URL is
   `/bible/JHN.3.16-18` (USFM refs, also legacy `/bible/:book/...`
-  redirect). `/getting-started` is a public document-style page —
-  its pathname is whitelisted for `overflow: auto` in `App.tsx`.
+  redirect). `/explore` is the anonymous-safe published
+  directory; `/shared` + `/bookmarks` are ProtectedRoutes.
+  `/getting-started` and `/settings` are public
+  document-style pages — their pathnames are whitelisted for
+  `overflow: auto` in `App.tsx`. Settings holds device-local
+  preferences (persisted store fields, no auth), reachable
+  from the main menu for anonymous and signed-in users.
 - `src/data/` — static typed content catalogues, e.g.
   `gettingStartedVideos.ts` (the /getting-started video list —
   a card renders only when `youtubeIds` resolves an id for the
@@ -168,9 +211,28 @@ whose head SHA was never merged into `staging`, and the
   its language — PassagePicker greys uncovered books (still
   clickable → "… doesn't include {book}" notification, never
   the `disabled` attribute, which swallows the click).
+  `loadStructure` sends the owner's concrete text member id
+  (`ENGESV_API`), not the bare listing abbr (`ESV` 404s —
+  registry providers only route by fileset id), and never a
+  `:`-bearing product id.
 - `fileset_id` selects the provider server-side: `ENGKJV` (bundled
   `src/assets/kjv.json`, offline, audio from wordpocket.org),
   `ENGESV_API`, `LVSGLU8`/`LVSGLU8C1DA`, others → DBT.
+- Note-reference surfaces — `@…` previews in
+  `ScripturePassage` and linked-verse text in the note
+  dialogs (`useVerseTexts`) — resolve their text fileset via
+  `useNoteRefFilesetId()`: the persisted `noteRefFilesetId`
+  pin when set, else `activeTextFilesetId`. `ScripturePassage`
+  then runs `resolveTextFileset(id, toUsfmCode(book) ?? book,
+  translations)` — `reference.book` is a display name, so the
+  USFM map keeps testament-split ids correct — with `ENGKJV`
+  a bundled fast-path and `ENGESV_API` the last-resort
+  fallback. `/settings` pins the override through
+  `TranslationSelector`'s controlled `pickTextOnly` mode
+  (`opened`/`onClose`/`seedFilesetId`/`onPickText`): it hides
+  every audio control, seeds from `seedFilesetId` (falling
+  back to the active text fileset), and never writes
+  `activeTextFilesetId`/`activeAudioFilesetId`.
 - Verse selection is scoped: `{ scope: 'bible' | 'note:<id>',
   refs: VerseRef[] }` — a `VerseRef` is `{ bookId, chapter, verse }`.
 - Backend errors carry `error`/`error_code`/`message`;
@@ -195,16 +257,34 @@ whose head SHA was never merged into `staging`, and the
   a future settings toggle only writes that one field.
 - Auth: token persisted via authStore; `authenticatedFetch` is for
   user-owned resources (notes, tags, comments), `publicFetch` for
-  bible content.
+  bible content. Login/register/checkAuth then fetch
+  `users/me/` for `id` + `can_publish` — publish UI only
+  renders when that flag is true. The published-state lock
+  on the public toggle is gated on it too: a non-publisher
+  keeps the public control usable so clearing `public`
+  still unlists (the server drops `published` with it).
+- Sharing: `public` stays link visibility; `published` is
+  the `/explore` directory flag (implies `public`, needs
+  `can_publish`); `ShareModal` handles targeted username
+  grants (silent resolution — never enumerate users);
+  `/shared` and `/bookmarks` are ProtectedRoutes. The whole
+  targeted-share/bookmark/copy surface is behind
+  `isNoteSharingEnabled()` (`src/utils/platform.ts` = DEV ||
+  preview) — the backend half (bible_research#163) is
+  undeployed, so prod/Android builds hide it until it ships
+  (Sentry REACTIVE-BIBLE-WEB-15).
 - "What's on staging" (MainMenu) renders only on Vercel preview
   deploys — `isPreviewDeploy()` in `src/utils/platform.ts` gates
   on the build-time `VITE_APP_ENV`; `src/utils/stagingPrs.ts`
   computes the pending-promotion set (approximating
   `promote-to-main.yml`: head-branch keyed head-SHA /
-  merged_at comparison, no commit-search fallback) from the
-  unauthenticated GitHub pulls
-  API, and `StagingChecklistModal` renders each PR's
-  `## UI verification / QC` steps as session-local checkboxes.
+  merged_at comparison, plus a `Promoted from staging
+  (PR #N)` body-marker match — the only signal that survives
+  a renamed promotion head, whose staged SHAs never enter
+  the promotion PR's commit graph) from the
+  unauthenticated GitHub pulls API, and `StagingChecklistModal`
+  renders each PR's `## UI verification / QC` steps as
+  session-local checkboxes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract
@@ -220,7 +300,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   degrade gracefully (chapter/audio fetches, notes, comments,
   tags, reading positions). Expected conditions still filtered
   by `beforeSend`; surviving events mean the graceful path
-  itself is worth alerting on.
+  itself is worth alerting on. Exception: `errorKind: network`
+  failures here downgrade to warning — a handled connectivity
+  failure is noise, not a defect in the graceful path.
 - `reportType: media-failure` — warning `captureMessage` from
   the audio hooks' terminal failure paths (fileset + passage in
   extras). Warning-level: fallback chains make a single failure
@@ -240,12 +322,23 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `reportType: user-report` — info `captureMessage` +
   `captureFeedback` from "Contact developer" (`userReport.ts`,
   `ContactModal.tsx`). Every submission also carries
-  `reportCategory: bug|feature|general`; only `bug` (plus
-  legacy untagged reports) feeds the triage queue — feature
-  and general messages are read via the user-feedback stream.
-  Anonymous senders may attach a reply `email` on the feedback
-  entry. Not an error queue item; investigated separately via
-  the fix-sentry-issue skill.
+  `reportCategory: bug|feature|general`, and ALL categories
+  feed the triage queue — bugs get fixed, feature requests
+  get implemented (a huge/unreasonable one may be logged
+  `declined` with reasoning), and general messages get
+  triaged and answered. Anonymous senders may attach a
+  reply `email` on the feedback entry. The event message
+  embeds the category, passage and note so Sentry's built-in
+  Dedupe integration cannot collapse consecutive distinct
+  reports (all still group under one stream issue via the
+  constant `user-report` fingerprint).
+  `sentryBeforeSend` returns these early — the note text is
+  user-controlled and must never hit the message-based noise
+  filters — and each submission also opens a feedback issue —
+  `issue.category:feedback` finds feature/general mail the
+  legacy User Feedback list can miss. Not an error queue
+  item; investigated separately via the fix-sentry-issue
+  skill.
 - `reportType: app-update` — info events from the APK's
   sideload updater (`src/utils/updateTelemetry.ts`):
   `updateStep: download-opened` (user tapped Update) and
@@ -254,7 +347,10 @@ is the agent-fixable bug queue** — anything else is deliberate:
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
   ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
-  reportable but routable.
+  reportable but routable. On `handled-api` events the level
+  drops to warning (client connectivity noise); unhandled
+  network rejections stay error-level — reaching
+  GlobalHandlers means a missing catch, still a bug.
 
 Three reporting paths, all non-duplicating:
 
@@ -292,7 +388,8 @@ chunk` (stale tabs after a deploy — self-healed by the
 guarded reload in `chunkLoadError.ts`, wired through
 `lazyWithReload`, `kjvDataLoader`, and `errorReporter`'s
 `vite:preloadError` / hashed-asset resource-error handlers),
-and `ResizeObserver loop`. `ConflictError` downgrades to
+and `ResizeObserver loop`. `ConflictError` and handled-api
+network failures (`errorKind: network`) downgrade to
 warning; `ProviderError` fingerprints by
 `error_code`+endpoint. `ClientInputError` is deliberately
 kept — a malformed request is a bug. Typed API errors
@@ -435,6 +532,16 @@ Code conventions:
   `sentryBeforeSend` drops it. Keep custom `try/catch` only
   where the endpoint has a richer contract (typed provider
   errors, 409 bodies, 204s, swallowed failures).
+- Patched deps (`patches/`, applied by `postinstall`
+  patch-package — bumping one requires regenerating its
+  patch): `@anuradev/capacitor-background-mode` (Play Protect,
+  see "Android / Play Protect") and `@mantine/hooks`
+  (`createAriaHider` defers the sibling `aria-hidden` pass
+  until the focus trap's own `setTimeout(0)` focus move has
+  run, with a blur fallback — synchronous hiding landed the
+  attribute on ancestors of `document.activeElement`, which
+  is what Chrome's "Blocked aria-hidden on an element
+  because its descendant retained focus" warning means).
 - UI strings: no hardcoded English in components — every
   user-facing string (labels, aria-labels, notifications,
   placeholders, titles) goes through `t('section.key')` from

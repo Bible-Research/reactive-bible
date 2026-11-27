@@ -29,11 +29,14 @@ import {
   getNotes,
   reparentTag,
   setTagPublic,
+  setTagPublished,
 } from '../api';
 import { TagTree } from '../components/TagTree';
 import { CreateTagModal } from '../components/CreateTagModal';
 import { EditTagModal } from '../components/EditTagModal';
+import ShareModal from '../components/ShareModal';
 import { useBibleStore } from '../store';
+import { useAuthStore } from '../stores/authStore';
 import { clearNotesCache } from '../utils/cacheManager';
 import { buildTagTree, TagNode } from '../utils/tagTree';
 import { shallow } from 'zustand/shallow';
@@ -75,6 +78,11 @@ export default function TagManagementRoute() {
   const removeTagPagination = useBibleStore(
     (state) => state.removeTagPagination
   );
+  // set-published is permission-gated — the quick toggle
+  // only reaches TagTree for publishers.
+  const canPublish = useAuthStore(
+    (state) => state.user?.can_publish === true
+  );
   // At `sm` and narrower (768px is Mantine's `sm` — the
   // query includes it) the page chrome compresses: smaller
   // title, icon-only New Tag button, full-width search
@@ -91,6 +99,7 @@ export default function TagManagementRoute() {
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [sharingTag, setSharingTag] = useState<Tag | null>(null);
   // Total note count shown next to the tag count — `null`
   // until fetched (and stays null if the fetch fails, in
   // which case the summary just omits it).
@@ -235,6 +244,10 @@ export default function TagManagementRoute() {
     [deleteTag, tags, t]
   );
 
+  const handleShareTag = useCallback((tag: Tag) => {
+    setSharingTag(tag);
+  }, []);
+
   const handleEditTag = useCallback((tag: Tag) => {
     setEditingTag(tag);
   }, []);
@@ -321,6 +334,80 @@ export default function TagManagementRoute() {
       });
     },
     [toggleTagPublic, t]
+  );
+
+  const toggleTagPublished = useCallback(
+    async (tag: Tag, publishing: boolean) => {
+      try {
+        const result = await setTagPublished(
+          tag.id,
+          publishing
+        );
+        showNotification({
+          title: t('common.success'),
+          message:
+            t('tags.publishedResult', {
+              state: publishing
+                ? t('tags.statePublished')
+                : t('tags.stateUnpublished'),
+              count: result.notes_updated,
+            }),
+          color: 'green',
+        });
+        // Same staleness as publicity: cached note pages
+        // keep serving the old `published` flag — drop the
+        // whole notes cache (same as deleteNote).
+        clearNotesCache();
+        await loadTags(true, { silent: true });
+      } catch (error) {
+        console.error('Error updating tag publication:', error);
+        captureHandledError(error, 'Tag publication update', {
+          tagId: tag.id,
+        });
+        showNotification({
+          title: t('common.error'),
+          message:
+            error instanceof Error
+              ? textOrKey(error.message)
+              : t('tags.publishedFailed'),
+          color: 'red',
+        });
+      }
+    },
+    [loadTags, t]
+  );
+
+  const handleTogglePublished = useCallback(
+    (tag: Tag) => {
+      const publishing = !tag.published;
+      openConfirmModal({
+        title: publishing
+          ? t('tags.makePublished')
+          : t('tags.makeUnpublished'),
+        children: (
+          <Text size="sm">
+            {publishing
+              ? t('tags.makePublishedBody', { name: tag.name })
+              : t('tags.makeUnpublishedBody', {
+                  name: tag.name,
+                })}
+          </Text>
+        ),
+        labels: {
+          confirm: publishing
+            ? t('tags.makePublishedConfirm')
+            : t('tags.makeUnpublishedConfirm'),
+          cancel: t('common.cancel'),
+        },
+        // Unpublishing only delists the notes — the links
+        // still work, so it is gentler than make-private's
+        // red but still a shared-state change.
+        confirmProps: { color: publishing ? 'teal' : 'orange' },
+        onConfirm: () =>
+          void toggleTagPublished(tag, publishing),
+      });
+    },
+    [toggleTagPublished, t]
   );
 
   const handleReparent = useCallback(
@@ -538,11 +625,15 @@ export default function TagManagementRoute() {
           <TagTree
             tags={filteredTags}
             onEdit={handleEditTag}
+            onShare={handleShareTag}
             onDelete={handleDeleteTag}
             onViewNotes={handleViewNotes}
             noteCounts={noteCounts}
             subtreeCounts={subtreeCounts}
             onTogglePublic={handleTogglePublic}
+            onTogglePublished={
+              canPublish ? handleTogglePublished : undefined
+            }
             onReparent={handleReparent}
             // Drag reparent is off while a search filter
             // hides part of the hierarchy — the drop guards
@@ -568,6 +659,14 @@ export default function TagManagementRoute() {
         onSuccess={refreshTagsSilently}
         tag={editingTag}
         existingTags={tags}
+      />
+
+      <ShareModal
+        opened={!!sharingTag}
+        onClose={() => setSharingTag(null)}
+        kind="tag"
+        resourceId={sharingTag?.id ?? ''}
+        resourceName={sharingTag?.name}
       />
     </Box>
   );

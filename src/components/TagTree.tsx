@@ -20,11 +20,13 @@ import {
   IconDotsVertical,
   IconEdit,
   IconEye,
+  IconEyeOff,
   IconFolder,
   IconFolderOpen,
   IconGripVertical,
   IconTag,
   IconTrash,
+  IconUserPlus,
   IconWorld,
   IconWorldOff,
 } from '@tabler/icons-react';
@@ -74,6 +76,13 @@ interface TagTreeProps {
   /** Cascade publicity toggle — the route confirms and POSTs
    *  set-public before this resolves. */
   onTogglePublic?: (tag: Tag) => void;
+  /** Cascade published toggle — same pattern as
+   *  onTogglePublic, passed only when the caller's user
+   *  carries can_publish. */
+  onTogglePublished?: (tag: Tag) => void;
+  /** Targeted-share affordance — opens the route's
+   *  ShareModal for this tag. */
+  onShare?: (tag: Tag) => void;
   /**
    * Drag-onto-node reparent — fires only after the drop
    * guards (self / same-parent / descendant) pass. The
@@ -114,6 +123,8 @@ interface TagTreeNodeProps {
   onDelete: (tagId: string, tagName: string) => void;
   onViewNotes: (tagId: string) => void;
   onTogglePublic?: (tag: Tag) => void;
+  onTogglePublished?: (tag: Tag) => void;
+  onShare?: (tag: Tag) => void;
 }
 
 /**
@@ -140,6 +151,8 @@ const TagTreeNode = ({
   onDelete,
   onViewNotes,
   onTogglePublic,
+  onTogglePublished,
+  onShare,
 }: TagTreeNodeProps) => {
   const { t } = useTranslation();
   const theme = useMantineTheme();
@@ -367,6 +380,46 @@ const TagTreeNode = ({
                         : t('tags.makePublic')}
                     </Menu.Item>
                   )}
+                  {/* Like the public item above and the
+                      desktop ActionIcon, the icon shows the
+                      current STATE (eye = published), not
+                      the action the click performs. */}
+                  {onTogglePublished && (
+                    <Menu.Item
+                      icon={
+                        node.tag.published ? (
+                          <IconEye size={16} />
+                        ) : (
+                          <IconEyeOff size={16} />
+                        )
+                      }
+                      title={
+                        node.tag.published
+                          ? t('tags.makeUnpublished')
+                          : t('tags.makePublished')
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTogglePublished(node.tag);
+                      }}
+                    >
+                      {node.tag.published
+                        ? t('tags.makeUnpublished')
+                        : t('tags.makePublished')}
+                    </Menu.Item>
+                  )}
+                  {onShare && (
+                    <Menu.Item
+                      icon={<IconUserPlus size={16} />}
+                      title={t('sharing.shareWith')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onShare(node.tag);
+                      }}
+                    >
+                      {t('sharing.shareWith')}
+                    </Menu.Item>
+                  )}
                   <Menu.Item
                     icon={<IconEdit size={16} />}
                     title={t('tags.edit')}
@@ -442,6 +495,39 @@ const TagTreeNode = ({
                 </Tooltip>
               )}
 
+              {isAuthenticated && onTogglePublished && (
+                <Tooltip
+                  label={
+                    node.tag.published
+                      ? t('tags.makeUnpublished')
+                      : t('tags.makePublished')
+                  }
+                  position="top"
+                  disabled={!tooltipsEnabled}
+                >
+                  <ActionIcon
+                    size="lg"
+                    variant="subtle"
+                    color={node.tag.published ? 'blue' : 'gray'}
+                    title={
+                      node.tag.published
+                        ? t('tags.makeUnpublished')
+                        : t('tags.makePublished')
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTogglePublished(node.tag);
+                    }}
+                  >
+                    {node.tag.published ? (
+                      <IconEye size={18} />
+                    ) : (
+                      <IconEyeOff size={18} />
+                    )}
+                  </ActionIcon>
+                </Tooltip>
+              )}
+
               <Tooltip
                 label={t('tags.viewNotes')}
                 position="top"
@@ -460,6 +546,27 @@ const TagTreeNode = ({
                   <IconEye size={18} />
                 </ActionIcon>
               </Tooltip>
+
+              {isAuthenticated && onShare && (
+                <Tooltip
+                  label={t('sharing.shareWith')}
+                  position="top"
+                  disabled={!tooltipsEnabled}
+                >
+                  <ActionIcon
+                    size="lg"
+                    variant="subtle"
+                    color="gray"
+                    title={t('sharing.shareWith')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShare(node.tag);
+                    }}
+                  >
+                    <IconUserPlus size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
 
               {isAuthenticated && (
                 <>
@@ -530,6 +637,8 @@ const TagTreeNode = ({
                 onDelete={onDelete}
                 onViewNotes={onViewNotes}
                 onTogglePublic={onTogglePublic}
+                onTogglePublished={onTogglePublished}
+                onShare={onShare}
               />
             ))}
           </Stack>
@@ -617,6 +726,8 @@ export function TagTree({
   noteCounts = {},
   subtreeCounts = {},
   onTogglePublic,
+  onTogglePublished,
+  onShare,
   onReparent,
   reparentEnabled = false,
   forceExpand = false,
@@ -765,6 +876,8 @@ export function TagTree({
             onDelete={onDelete}
             onViewNotes={onViewNotes}
             onTogglePublic={onTogglePublic}
+            onTogglePublished={onTogglePublished}
+            onShare={onShare}
           />
         ))}
       </Stack>
