@@ -32,7 +32,11 @@ import {
   UI_LANGUAGE_AUTONYMS,
   isUiLanguage,
 } from "../i18n";
-import { isNativeApp, isPreviewDeploy } from "../utils/platform";
+import {
+  isNativeApp,
+  isPreviewDeploy,
+  isNoteSharingEnabled,
+} from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
 import { lazyWithReload } from "../utils/lazyWithReload";
@@ -116,6 +120,23 @@ const MainMenu = ({
     typeof navigator !== 'undefined' &&
     /android/i.test(navigator.userAgent);
 
+  // A modal opened from the menu closes the menu like every
+  // other item does — two focus-trapped overlays must not
+  // stack (the top one's aria-hidden pass would hide the
+  // drawer while it still holds focus). While a modal is
+  // open the drawer also skips returnFocus: the +10ms
+  // refocus would land on the menu button inside the
+  // still-aria-hidden app root (the other half of Chrome's
+  // "Blocked aria-hidden" warning). When the modal closes,
+  // `modalOpened` flipping false re-arms `useFocusReturn`
+  // (shouldReturnFocus changes while `opened` stays false),
+  // so the drawer's refocus to the burger button still
+  // fires on modal close — the desired focus-back-to-
+  // invoker outcome, though a `useFocusReturn` side effect
+  // rather than an explicit contract.
+  const modalOpened =
+    newNoteOpened || contactOpened || checklistOpened;
+
   return (
     <>
       <Drawer
@@ -125,6 +146,7 @@ const MainMenu = ({
         size="100%"
         withCloseButton={false}
         padding="xl"
+        returnFocus={!modalOpened}
       >
       {/* Close X on the right: the drawer body is not a flex
           container, so use an auto inline-start margin (the
@@ -201,6 +223,42 @@ const MainMenu = ({
           </Group>
         )}
 
+        {/* /shared and /bookmarks auto-fetch endpoints that
+            exist only on the unshipped sharing backend
+            (bible_research#163) — hidden where the gate says
+            the feature is unavailable. */}
+        {isAuthenticated && isNoteSharingEnabled() && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/shared');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.sharedWithMe')}
+            </Text>
+          </Group>
+        )}
+
+        {isAuthenticated && isNoteSharingEnabled() && (
+          <Group position="apart" spacing="xs">
+            <Text
+              weight={500}
+              size="lg"
+              onClick={() => {
+                void navigate('/bookmarks');
+                onClose();
+              }}
+              sx={{ cursor: "pointer" }}
+            >
+              {t('menu.bookmarks')}
+            </Text>
+          </Group>
+        )}
+
         {isAuthenticated && (
           <Group position="apart" spacing="xs">
             <Text
@@ -239,7 +297,10 @@ const MainMenu = ({
               <Text
                 weight={500}
                 size="lg"
-                onClick={() => setNewNoteOpened(true)}
+                onClick={() => {
+                  setNewNoteOpened(true);
+                  onClose();
+                }}
                 sx={{ cursor: "pointer" }}
               >
                 {t('menu.newNote')}
@@ -346,7 +407,10 @@ const MainMenu = ({
             <Text
               weight={500}
               size="lg"
-              onClick={() => setContactOpened(true)}
+              onClick={() => {
+                setContactOpened(true);
+                onClose();
+              }}
               sx={{ cursor: "pointer" }}
               title={t('menu.contactDeveloper')}
             >
@@ -392,7 +456,10 @@ const MainMenu = ({
               <Text
                 weight={500}
                 size="lg"
-                onClick={() => setChecklistOpened(true)}
+                onClick={() => {
+                  setChecklistOpened(true);
+                  onClose();
+                }}
                 sx={{ cursor: "pointer" }}
                 title={t('menu.stagingChecklist')}
               >
