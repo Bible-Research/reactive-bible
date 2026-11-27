@@ -36,7 +36,10 @@ export const TUTORIAL_VIDEOS: TutorialVideo[] = [
   { id: 'go-to-any-verse', youtubeIds: {} },
   { id: 'book-outline-section-headings', youtubeIds: {} },
   { id: 'select-and-share-verses', youtubeIds: {} },
-  { id: 'bible-maps', youtubeIds: { en: 'WPvhvZrexs0' } },
+  {
+    id: 'bible-maps',
+    youtubeIds: { en: 'WPvhvZrexs0', lv: 'WPvhvZrexs0' },
+  },
   { id: 'switch-bible-translation', youtubeIds: {} },
   { id: 'listen-to-a-chapter', youtubeIds: {} },
   { id: 'audio-playlists', youtubeIds: {} },
