@@ -18,6 +18,7 @@ import {
   stubMediaSession,
   type MediaSessionStub,
 } from '../__tests__/mocks/mediaSession';
+import { resetAudioPrefetchForTests } from '../utils/audioUtils';
 
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
@@ -88,6 +89,10 @@ describe('Audio chapter auto-advance', () => {
     FakeHowl.reset();
     vi.clearAllMocks();
     mockDomApis();
+    // Session-learned CORS marks must not leak across tests —
+    // an earlier 'CORS'-rejecting fetch would otherwise skip
+    // every later test's prefetch fetch assertion.
+    resetAudioPrefetchForTests();
     // No CORS on the audio host — the preload streams the URL.
     vi.stubGlobal(
       'fetch',
@@ -170,6 +175,15 @@ describe('Audio chapter auto-advance', () => {
     expect(FakeHowl.instances[2].src).toEqual([
       'http://kjv.test/JHN/5.mp3',
     ]);
+
+    // The JHN 4 prefetch tried fetch() once; its CORS-style
+    // rejection marked the origin, so the JHN 5 prefetch skipped
+    // fetch() entirely — at most one console error per origin
+    // per session, not one per chapter.
+    const audioFetches = vi.mocked(fetch).mock.calls.filter(
+      ([input]) => String(input).includes('kjv.test'),
+    );
+    expect(audioFetches).toHaveLength(1);
 
     // No error state on the play button.
     expect(
