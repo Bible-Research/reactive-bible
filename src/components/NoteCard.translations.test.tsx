@@ -145,30 +145,126 @@ describe('NoteCard translations', () => {
       ).toBeInTheDocument();
     });
 
-  it('shows Translating… for pending rows', () => {
+  it('renders no language bar when only pending rows exist',
+    () => {
+      // The backend pipeline is off — a stale 'pending' row
+      // can never resolve, so the card must not offer the
+      // language or a perpetual 'translating' state.
+      renderCard(
+        makeNote({
+          translations: [
+            {
+              language: 'en',
+              status: 'source',
+              verified: false,
+              engine: null,
+              error: null,
+            },
+            {
+              language: 'lv',
+              status: 'pending',
+              verified: false,
+              engine: null,
+              error: null,
+            },
+          ],
+        })
+      );
+      expect(
+        screen.queryByLabelText('Note language')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Show original')
+      ).not.toBeInTheDocument();
+    });
+
+  it('renders no language bar when only failed rows exist',
+    () => {
+      // 'failed' is a dead end too — no retry affordance.
+      renderCard(
+        makeNote({
+          translations: [
+            {
+              language: 'en',
+              status: 'source',
+              verified: false,
+              engine: null,
+              error: null,
+            },
+            {
+              language: 'lv',
+              status: 'failed',
+              verified: false,
+              engine: 'google-nmt',
+              error: 'quota exceeded',
+            },
+          ],
+        })
+      );
+      expect(
+        screen.queryByLabelText('Note language')
+      ).not.toBeInTheDocument();
+    });
+
+  it('omits pending/failed languages from a ready switcher',
+    () => {
+      renderCard(
+        makeNote({
+          translations: [
+            {
+              language: 'en',
+              status: 'source',
+              verified: false,
+              engine: null,
+              error: null,
+            },
+            {
+              language: 'lv',
+              status: 'ready',
+              verified: false,
+              engine: 'google-nmt',
+              error: null,
+            },
+            {
+              language: 'fr',
+              status: 'pending',
+              verified: false,
+              engine: null,
+              error: null,
+            },
+            {
+              language: 'de',
+              status: 'failed',
+              verified: false,
+              engine: 'google-nmt',
+              error: 'quota exceeded',
+            },
+          ],
+        })
+      );
+      expect(screen.getByLabelText('Note language'))
+        .toBeInTheDocument();
+      expect(screen.getByText('EN')).toBeInTheDocument();
+      expect(screen.getByText('LV')).toBeInTheDocument();
+      expect(screen.queryByText('FR'))
+        .not.toBeInTheDocument();
+      expect(screen.queryByText('DE'))
+        .not.toBeInTheDocument();
+    });
+
+  it('renders normally with no translation fields', () => {
     renderCard(
-      makeNote({
-        translations: [
-          {
-            language: 'en',
-            status: 'source',
-            verified: false,
-            engine: null,
-            error: null,
-          },
-          {
-            language: 'lv',
-            status: 'pending',
-            verified: false,
-            engine: null,
-            error: null,
-          },
-        ],
+      createMockNote({
+        tag: createMockTag({ id: '1', name: 'T' }),
+        note_text: 'Plain note, never translated.',
       })
     );
     expect(
-      screen.getByText('Translating…')
+      screen.getByText('Plain note, never translated.')
     ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Note language')
+    ).not.toBeInTheDocument();
   });
 
   it('shows the verified chip on verified ready rows', () => {
