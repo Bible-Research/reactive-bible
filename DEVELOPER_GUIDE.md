@@ -520,10 +520,15 @@ npm test -- src/routes/BibleRoute.test.tsx
   index + moves), `useNotePlaylist` (audio playlist assembly —
   one item per book+chapter block; its play-from index
   addresses the verse-filtered playlist array by `scope`)
-- The filter/sort toolbar rides on `headerVisible`: it
-  collapses (`Collapse`, aria-hidden) whenever MyHeader
-  slides away on a downward scroll and the notes list
-  flex-grows into the freed space
+- The filter/sort toolbar rides on `headerVisible`: like on
+  `/bible`, it OVERLAYS a fixed, full-height scroll viewport
+  (absolute, slides away via `transform` with MyHeader) while
+  the header/toolbar/player clearance lives inside the
+  scrolled content — toggling the chrome never resizes the
+  viewport, so the notes never jump. The overlay's measured
+  height (`useElementSize` on a padding-less box — its
+  ResizeObserver reports contentRect, which excludes
+  padding) feeds the in-content top padding.
 
 **TagManagementRoute** (`src/routes/TagManagementRoute.tsx`):
 - Hierarchical `TagTree` + `CreateTagModal`/`EditTagModal`;
@@ -2775,12 +2780,15 @@ Top header bar with controls.
   un-hide the bars.
 - The same `headerVisible` store flag also gates `BottomNav`
   (slides below the viewport on hide), so both bars move
-  together. On `/bible` the bars overlay a full-height scroll
-  viewport — the AppShell reserves no padding there; instead
-  `PassageView` pads the scrolled CONTENT itself
-  (`layoutChrome.ts` heights), so hiding/showing the bars
-  never reflows (jumps) the text. Other routes still reclaim
-  the AppShell's reserved padding when the chrome hides.
+  together. On `/bible` and `/notes/tag/:tagId` the bars
+  overlay a full-height scroll viewport — the AppShell
+  reserves no padding there (`chromeOverlays` in `App.tsx`);
+  instead `PassageView`/`TagNotesRoute` pad the scrolled
+  CONTENT itself (`layoutChrome.ts` heights +, for notes,
+  the measured toolbar height and `AUDIO_PLAYER_HEIGHT`),
+  so hiding/showing the bars never reflows (jumps) the text.
+  Other routes still reclaim the AppShell's reserved padding
+  when the chrome hides.
 
 ---
 
