@@ -44,6 +44,9 @@ interface NoteCardProps {
   /** When present (custom sort + authenticated), renders the
    *  `#k` order badge + move dropdown in the action group. */
   orderMenu?: NoteOrderMenuData;
+  /** Forwarded to NoteCardActions — folds secondary actions
+   *  into a `⋮` overflow menu (tag-notes view). */
+  collapseActions?: boolean;
 }
 
 const NoteCard = ({
@@ -58,6 +61,7 @@ const NoteCard = ({
   isTagOwner,
   dragHandleProps,
   orderMenu,
+  collapseActions,
 }: NoteCardProps) => {
   const scope = verseScope ?? note.id;
   const [threadOpen, setThreadOpen] = useState(false);
@@ -208,6 +212,7 @@ const NoteCard = ({
               }
               isTagOwner={isTagOwner}
               orderMenuNode={orderMenuNode}
+              collapseActions={collapseActions}
               sx={{ position: 'relative', zIndex: 1 }}
             />
           )}
@@ -226,6 +231,7 @@ const NoteCard = ({
             }
             isTagOwner={isTagOwner}
             orderMenuNode={orderMenuNode}
+            collapseActions={collapseActions}
             sx={{
               flexShrink: 0,
               position: 'relative',

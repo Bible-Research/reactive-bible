@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Group,
+  Menu,
   Tooltip,
 } from "@mantine/core";
 import type { Sx } from "@mantine/core";
@@ -18,6 +19,7 @@ import {
   IconBookmark,
   IconCopy,
   IconUserPlus,
+  IconDotsVertical,
 } from "@tabler/icons-react";
 import { Note } from "../types";
 import { useAuthStore } from "../stores/authStore";
@@ -58,6 +60,12 @@ interface NoteCardActionsProps {
    * edit/delete notes on their own tags.
    */
   isTagOwner?: boolean;
+  /**
+   * Collapse every secondary action into a `⋮` overflow
+   * menu, leaving only "view in Bible" and "play from here"
+   * as direct buttons (tag-notes view per user request).
+   */
+  collapseActions?: boolean;
   /** Layout hook for the folded vs unfolded call sites. */
   sx?: Sx;
 }
@@ -73,6 +81,7 @@ const NoteCardActions = ({
   onToggleThread,
   orderMenuNode,
   isTagOwner,
+  collapseActions = false,
   sx,
 }: NoteCardActionsProps) => {
   const { t } = useTranslation();
@@ -178,6 +187,52 @@ const NoteCardActions = ({
     ? false
     : commentCount > 0 || isAuthenticated;
 
+  // Anonymous readers get a login CTA in place of the save/copy
+  // controls — kept as a flag so both layouts share it.
+  const showLoginCta = !isAuthenticated && sharingOn;
+  // The ⋮ menu renders only when at least one secondary
+  // action is allowed — otherwise the card would show a
+  // trigger that opens an empty dropdown.
+  const hasOverflowActions =
+    canShare ||
+    showLoginCta ||
+    canBookmark ||
+    canCopy ||
+    canShareTargeted ||
+    canEdit ||
+    canDelete ||
+    showCommentButton;
+  // The divider separating edit/delete only belongs when at
+  // least one item sits above it — an owned private note with
+  // no comment entry would otherwise open on a bare rule.
+  const hasUpperMenuItems =
+    canShare ||
+    showLoginCta ||
+    canBookmark ||
+    canCopy ||
+    canShareTargeted ||
+    showCommentButton;
+
+  // Shared so the collapsed layout can pin play next to
+  // "view in Bible" while the unfolded layout keeps the
+  // historical view → share → play ordering.
+  const playButton =
+    canPlay && onPlayFromNote ? (
+      <Tooltip label={t('notes.playFromHere')} position="top">
+        <Box component="span" sx={{ display: 'inline-block' }}>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            color="blue"
+            onClick={() => onPlayFromNote(note.id)}
+            aria-label={`play-from-${note.id}`}
+          >
+            <IconPlayerPlay size={16} />
+          </ActionIcon>
+        </Box>
+      </Tooltip>
+    ) : null;
+
   return (
     <Group spacing="xs" sx={sx}>
       {orderMenuNode}
@@ -193,159 +248,251 @@ const NoteCardActions = ({
           </ActionIcon>
         </Box>
       </Tooltip>
-      {canShare && (
-        <Tooltip label={t('notes.share')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={handleShare}
-              aria-label="share-note"
-            >
-              <IconShare size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {canPlay && onPlayFromNote && (
-        <Tooltip label={t('notes.playFromHere')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              color="blue"
-              onClick={() => onPlayFromNote(note.id)}
-              aria-label={`play-from-${note.id}`}
-            >
-              <IconPlayerPlay size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {!isAuthenticated && sharingOn && (
-        <Tooltip label={t('bookmarks.loginToSave')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() =>
-                void navigate('/login', {
-                  state: { from: location },
-                })
-              }
-              aria-label="login-to-save"
-            >
-              <IconBookmark size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {canBookmark && (
-        <Tooltip label={t('bookmarks.save')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => void handleBookmark()}
-              aria-label="bookmark-note"
-            >
-              <IconBookmark size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {canCopy && (
-        <Tooltip label={t('copyNote.action')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => setCopyModalOpen(true)}
-              aria-label="copy-note"
-            >
-              <IconCopy size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {canShareTargeted && (
-        <Tooltip label={t('sharing.shareWith')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => setShareModalOpen(true)}
-              aria-label="share-note-targeted"
-            >
-              <IconUserPlus size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {canEdit && (
-        <Tooltip label={t('notes.edit')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              onClick={() => onEdit?.(note)}
-              aria-label="edit-note"
-            >
-              <IconEdit size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {canDelete && (
-        <Tooltip label={t('notes.remove')} position="top">
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <ActionIcon
-              variant="subtle"
-              size="sm"
-              color="red"
-              onClick={
-                (evt: MouseEvent<HTMLButtonElement>) =>
-                  onDelete?.(evt, note)
-              }
-              aria-label="remove-note"
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Box>
-        </Tooltip>
-      )}
-      {showCommentButton && (
-        <Tooltip
-          label={
-            commentCount === 0
-              ? t('notes.addComment')
-              : t('notes.commentCount', { count: commentCount })
-          }
-          position="top"
-        >
-          <Box component="span" sx={{ display: 'inline-block' }}>
-            <Button
-              variant="subtle"
-              size="xs"
-              compact
-              leftIcon={
-                <IconMessageCircle size={14} />
-              }
-              aria-label={
-                commentCount === 0
-                  ? t('notes.addComment')
-                  : undefined
-              }
-              aria-expanded={threadOpen}
-              aria-controls={`comment-thread-${note.id}`}
-              onClick={onToggleThread}
-            >
-              {commentCount && commentCount > 0
-                ? String(commentCount)
-                : null}
-            </Button>
-          </Box>
-        </Tooltip>
+      {collapseActions && playButton}
+      {collapseActions ? (
+        hasOverflowActions && (
+          <Menu withinPortal position="bottom-end" shadow="md">
+            <Menu.Target>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                title={t('notes.moreActions')}
+                aria-label={`note-actions-${note.id}`}
+              >
+                <IconDotsVertical size={16} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {canShare && (
+                <Menu.Item
+                  icon={<IconShare size={16} />}
+                  aria-label="share-note"
+                  onClick={() => void handleShare()}
+                >
+                  {t('notes.share')}
+                </Menu.Item>
+              )}
+              {showLoginCta && (
+                <Menu.Item
+                  icon={<IconBookmark size={16} />}
+                  aria-label="login-to-save"
+                  onClick={() =>
+                    void navigate('/login', {
+                      state: { from: location },
+                    })
+                  }
+                >
+                  {t('bookmarks.loginToSave')}
+                </Menu.Item>
+              )}
+              {canBookmark && (
+                <Menu.Item
+                  icon={<IconBookmark size={16} />}
+                  aria-label="bookmark-note"
+                  onClick={() => void handleBookmark()}
+                >
+                  {t('bookmarks.save')}
+                </Menu.Item>
+              )}
+              {canCopy && (
+                <Menu.Item
+                  icon={<IconCopy size={16} />}
+                  aria-label="copy-note"
+                  onClick={() => setCopyModalOpen(true)}
+                >
+                  {t('copyNote.action')}
+                </Menu.Item>
+              )}
+              {canShareTargeted && (
+                <Menu.Item
+                  icon={<IconUserPlus size={16} />}
+                  aria-label="share-note-targeted"
+                  onClick={() => setShareModalOpen(true)}
+                >
+                  {t('sharing.shareWith')}
+                </Menu.Item>
+              )}
+              {showCommentButton && (
+                <Menu.Item
+                  icon={<IconMessageCircle size={16} />}
+                  aria-controls={`comment-thread-${note.id}`}
+                  onClick={onToggleThread}
+                >
+                  {commentCount === 0
+                    ? t('notes.addComment')
+                    : t('notes.commentCount', {
+                        count: commentCount,
+                      })}
+                </Menu.Item>
+              )}
+              {hasUpperMenuItems && (canEdit || canDelete) && (
+                <Menu.Divider />
+              )}
+              {canEdit && (
+                <Menu.Item
+                  icon={<IconEdit size={16} />}
+                  aria-label="edit-note"
+                  onClick={() => onEdit?.(note)}
+                >
+                  {t('notes.edit')}
+                </Menu.Item>
+              )}
+              {canDelete && (
+                <Menu.Item
+                  icon={<IconTrash size={16} />}
+                  color="red"
+                  aria-label="remove-note"
+                  onClick={(evt) => onDelete?.(evt, note)}
+                >
+                  {t('notes.remove')}
+                </Menu.Item>
+              )}
+            </Menu.Dropdown>
+          </Menu>
+        )
+      ) : (
+        <>
+        {canShare && (
+          <Tooltip label={t('notes.share')} position="top">
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={handleShare}
+                aria-label="share-note"
+              >
+                <IconShare size={16} />
+              </ActionIcon>
+            </Box>
+          </Tooltip>
+        )}
+        {playButton}
+        {showLoginCta && (
+          <Tooltip label={t('bookmarks.loginToSave')} position="top">
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={() =>
+                  void navigate('/login', {
+                    state: { from: location },
+                  })
+                }
+                aria-label="login-to-save"
+              >
+                <IconBookmark size={16} />
+              </ActionIcon>
+            </Box>
+          </Tooltip>
+        )}
+        {canBookmark && (
+          <Tooltip label={t('bookmarks.save')} position="top">
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={() => void handleBookmark()}
+                aria-label="bookmark-note"
+              >
+                <IconBookmark size={16} />
+              </ActionIcon>
+            </Box>
+          </Tooltip>
+        )}
+        {canCopy && (
+          <Tooltip label={t('copyNote.action')} position="top">
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={() => setCopyModalOpen(true)}
+                aria-label="copy-note"
+              >
+                <IconCopy size={16} />
+              </ActionIcon>
+            </Box>
+          </Tooltip>
+        )}
+        {canShareTargeted && (
+          <Tooltip label={t('sharing.shareWith')} position="top">
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={() => setShareModalOpen(true)}
+                aria-label="share-note-targeted"
+              >
+                <IconUserPlus size={16} />
+              </ActionIcon>
+            </Box>
+          </Tooltip>
+        )}
+        {canEdit && (
+          <Tooltip label={t('notes.edit')} position="top">
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={() => onEdit?.(note)}
+                aria-label="edit-note"
+              >
+                <IconEdit size={16} />
+              </ActionIcon>
+            </Box>
+          </Tooltip>
+        )}
+        {canDelete && (
+          <Tooltip label={t('notes.remove')} position="top">
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                color="red"
+                onClick={
+                  (evt: MouseEvent<HTMLButtonElement>) =>
+                    onDelete?.(evt, note)
+                }
+                aria-label="remove-note"
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Box>
+          </Tooltip>
+        )}
+        {showCommentButton && (
+          <Tooltip
+            label={
+              commentCount === 0
+                ? t('notes.addComment')
+                : t('notes.commentCount', { count: commentCount })
+            }
+            position="top"
+          >
+            <Box component="span" sx={{ display: 'inline-block' }}>
+              <Button
+                variant="subtle"
+                size="xs"
+                compact
+                leftIcon={
+                  <IconMessageCircle size={14} />
+                }
+                aria-label={
+                  commentCount === 0
+                    ? t('notes.addComment')
+                    : undefined
+                }
+                aria-expanded={threadOpen}
+                aria-controls={`comment-thread-${note.id}`}
+                onClick={onToggleThread}
+              >
+                {commentCount && commentCount > 0
+                  ? String(commentCount)
+                  : null}
+              </Button>
+            </Box>
+          </Tooltip>
+        )}
+        </>
       )}
       {canShareTargeted && (
         <ShareModal

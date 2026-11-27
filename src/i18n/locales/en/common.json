@@ -160,6 +160,7 @@
     "playFromHere": "Play from here",
     "edit": "Edit",
     "remove": "Remove",
+    "moreActions": "More actions",
     "addComment": "Add a comment",
     "notFoundOrPrivate": "Note not found or is not public.",
     "notFound": "Note not found.",
@@ -201,6 +202,9 @@
     "noTagsYet": "No tags yet — create a tag to start taking notes.",
     "moveToTop": "Move to top",
     "noMatchingNotes": "No matching notes",
+    "reorderConfirmTitle": "Change notes order?",
+    "reorderConfirmBody": "Change the notes order in this tag?",
+    "reorderConfirmApply": "Reorder",
     "verseReferences": "Verse references",
     "verseLimitNotice": "Cannot display more than 500 verses of the Bible due to copyright restrictions.",
     "publishedNote": "Published note",
@@ -751,6 +755,8 @@
     "followSelected": "Selected translation",
     "pinSpecific": "Specific translation",
     "change": "Change",
-    "reset": "Reset"
+    "reset": "Reset",
+    "confirmReorder": "Confirm before reordering notes",
+    "confirmReorderHint": "Ask before a custom notes order change."
   }
 }

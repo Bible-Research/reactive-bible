@@ -14,6 +14,7 @@ import {
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { showNotification } from '@mantine/notifications';
+import { openConfirmModal } from '@mantine/modals';
 import { mockDomApis } from '../__tests__/helpers';
 import TagNotesRoute from './TagNotesRoute';
 import {
@@ -64,6 +65,11 @@ vi.mock('../api', async (importOriginal) => {
 vi.mock('../utils/cacheManager');
 vi.mock('@mantine/notifications', () => ({
   showNotification: vi.fn(),
+}));
+// The confirm modal is captured, not rendered — tests invoke
+// the recorded `onConfirm` when they want the move to run.
+vi.mock('@mantine/modals', () => ({
+  openConfirmModal: vi.fn(),
 }));
 
 const mockApi = vi.mocked(api);
@@ -133,6 +139,10 @@ const storeOverrides = {
   tags: [tag],
   fetchNotes: mockFetchNotes,
   getTags: mockGetTags,
+  // These tests exercise the move mechanics themselves, so
+  // the confirm step is off; the confirmation flow has its
+  // own dedicated tests below.
+  confirmNoteReorder: false,
 };
 
 const renderRoute = (
@@ -518,6 +528,76 @@ describe('TagNotesRoute order menu', () => {
 
     await waitFor(() => {
       expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('asks for confirmation before a move when the ' +
+    'confirmNoteReorder pref is on', async () => {
+    renderRoute('/notes/tag/tag-123', true, {
+      confirmNoteReorder: true,
+    });
+    await openOrderMenu('note-1');
+    fireEvent.click(await screen.findByText('#2 — Genesis 1:1'));
+
+    // The pick opens the confirm modal — the move itself is
+    // deferred until the user confirms.
+    expect(openConfirmModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Change notes order?',
+        labels: {
+          confirm: 'Reorder',
+          cancel: 'Cancel',
+        },
+      })
+    );
+    expect(mockApi.moveNote).not.toHaveBeenCalled();
+
+    const options = vi.mocked(openConfirmModal).mock.calls[0][0];
+    options.onConfirm?.();
+
+    await waitFor(() => {
+      expect(mockApi.moveNote).toHaveBeenCalledWith(
+        'tag-123',
+        'note-1',
+        'note-2',
+        'after'
+      );
+    });
+  });
+
+  it('asks for confirmation before move-to-top when the ' +
+    'confirmNoteReorder pref is on', async () => {
+    renderRoute('/notes/tag/tag-123', true, {
+      confirmNoteReorder: true,
+    });
+    await openOrderMenu('note-2');
+    fireEvent.click(await screen.findByText('Move to top'));
+
+    expect(openConfirmModal).toHaveBeenCalled();
+    expect(mockApi.moveNote).not.toHaveBeenCalled();
+
+    const options = vi.mocked(openConfirmModal).mock.calls[0][0];
+    options.onConfirm?.();
+
+    await waitFor(() => {
+      expect(mockApi.moveNote).toHaveBeenCalledWith(
+        'tag-123',
+        'note-2',
+        'note-1',
+        'before'
+      );
+    });
+  });
+
+  it('moves without the modal when confirmNoteReorder ' +
+    'is off', async () => {
+    renderRoute();
+    await openOrderMenu('note-1');
+    fireEvent.click(await screen.findByText('#2 — Genesis 1:1'));
+
+    expect(openConfirmModal).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockApi.moveNote).toHaveBeenCalled();
     });
   });
 });

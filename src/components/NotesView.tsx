@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Select, Loader, Box } from "@mantine/core";
+import { Box } from "@mantine/core";
 import { useBibleStore } from "../store";
+import { TagCombobox } from "./TagCombobox";
 import { useTranslation } from 'react-i18next';
 
 const NotesView = () => {
@@ -78,25 +79,25 @@ const NotesView = () => {
 
 
 
-  // Sort tags alphabetically for the dropdown
-  const sortedTags = [...storedTags].sort(
-    (a, b) => a.name.localeCompare(b.name)
-  );
-
   // Always show tag selector, even while loading or redirecting
-  // This allows users to change tags immediately
+  // This allows users to change tags immediately. Same picker
+  // as the note form's tag field — minus the creation rows:
+  // picking only navigates to the tag's notes page.
   return (
-    <Box p="md">
-      <Select
+    <Box p="md" maw={400}>
+      <TagCombobox
         label={t('notes.selectTagToView')}
-        placeholder={loading ? t('notes.loadingTags') : t('notes.selectTag')}
-        value={lastSelectedTagId || undefined}
+        value={lastSelectedTagId ?? ''}
         onChange={handleTagChange}
-        data={sortedTags.map(tag => ({ value: tag.id, label: tag.name }))}
-        searchable
+        tags={storedTags}
+        creatable={false}
         disabled={loading}
-        style={{ maxWidth: 400 }}
-        rightSection={loading ? <Loader size="xs" /> : undefined}
+        loading={loading}
+        placeholder={
+          loading
+            ? t('notes.loadingTags')
+            : t('notes.selectTag')
+        }
       />
     </Box>
   );

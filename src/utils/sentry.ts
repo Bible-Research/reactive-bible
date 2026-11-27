@@ -24,10 +24,16 @@ const RESIZE_OBSERVER_PATTERN = /ResizeObserver loop/;
 // in the graceful path. Unhandled network rejections keep
 // error level: reaching GlobalHandlers means a missing catch,
 // which is still a bug.
+// Newer Chrome appends the request origin to the TypeError
+// message — 'Failed to fetch (bibleresearch.vercel.app)' —
+// so the match tolerates a trailing parenthetical. The
+// stale-chunk variant ('Failed to fetch dynamically imported
+// module: …') must NOT match: it is a deploy artifact, not
+// connectivity, and the chunk-load drop above already owns it.
+const NETWORK_FAILURE_PATTERN =
+  /^(?:Failed to fetch|Load failed)(?: \(.*\))?$|^NetworkError/;
 const isNetworkFailure = (err: TypeError): boolean =>
-  err.message === 'Failed to fetch' ||
-  err.message === 'Load failed' ||
-  err.message.startsWith('NetworkError');
+  NETWORK_FAILURE_PATTERN.test(err.message);
 
 /**
  * `beforeSend` filter for `Sentry.init`. Drops the app's
@@ -59,7 +65,8 @@ const isNetworkFailure = (err: TypeError): boolean =>
  *
  * ClientInputError is deliberately NOT dropped — a malformed
  * request is a bug worth reporting. TypeError network failures
- * ('Failed to fetch', 'Load failed', 'NetworkError…') are kept
+ * ('Failed to fetch' — newer Chrome appends the request origin
+ * in parens — 'Load failed', 'NetworkError…') are kept
  * but tagged `errorKind: network` for routing; ones reported
  * through `captureHandledError` (`reportType: handled-api`)
  * are additionally downgraded to warning — handled

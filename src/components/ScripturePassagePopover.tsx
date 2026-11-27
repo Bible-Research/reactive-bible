@@ -221,8 +221,18 @@ const ScripturePassagePopover = ({
 
   // Position before paint; rerun every render so a height
   // change (passage loading in) re-evaluates the flip check.
+  // The measure+setState runs inside a scheduled frame rather
+  // than synchronously in the layout effect: while the anchor
+  // keeps moving (modal animation, editor scroll, mobile
+  // keyboard viewport resize) each synchronous reposition
+  // spawned another nested render — a measure→setState→render
+  // cascade that outran React's nested-update limit (error
+  // #185). A frame still lands before the next paint but
+  // yields at most one reposition per frame, and the effect's
+  // cleanup coalesces bursts to the latest measurement.
   useLayoutEffect(() => {
-    position();
+    const frame = scheduleFrame(position);
+    return () => cancelFrame(frame);
   });
 
   // Scroll events do not bubble — capture phase is required so

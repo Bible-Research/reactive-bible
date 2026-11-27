@@ -134,7 +134,7 @@ whose head SHA was never merged into `staging`, and the
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
 - `src/store.ts` — main persisted Zustand store (`bible-storage`,
-  schema v11, custom `migratePersistedState` — bump version when
+  schema v12, custom `migratePersistedState` — bump version when
   persisted shape changes). Composition root; notes
   orchestration in `src/stores/bibleStore/notesSlice.ts`,
   structure SWR in `src/stores/bibleStore/structureSlice.ts`
@@ -346,8 +346,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   versionCode). Read-only diagnostics.
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
-  ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
-  reportable but routable. On `handled-api` events the level
+  ('Failed to fetch' including the newer-Chrome origin
+  variant 'Failed to fetch (host)', 'Load failed',
+  'NetworkError…'); kept reportable but routable. On `handled-api` events the level
   drops to warning (client connectivity noise); unhandled
   network rejections stay error-level — reaching
   GlobalHandlers means a missing catch, still a bug.

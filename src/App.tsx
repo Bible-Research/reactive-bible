@@ -89,6 +89,12 @@ export default function App() {
   const isBibleView = location.pathname.startsWith('/bible');
   const isNotesView = location.pathname.startsWith('/notes');
   const showVerseToolbar = isBibleView || isNotesView;
+  // Routes whose chrome overlays a fixed scroll viewport (the
+  // clearance lives inside the scrolled content, so sliding
+  // the bars away never reflows it): /bible via PassageView,
+  // /notes/tag/:tagId via TagNotesRoute's overlay toolbar.
+  const chromeOverlays =
+    isBibleView || location.pathname.startsWith('/notes/tag/');
   // MyHeader and BottomNav slide away on downward scroll; drop
   // the padding the AppShell reserves for them so content
   // reclaims the space.
@@ -164,24 +170,25 @@ export default function App() {
                   ? theme.colors.dark[8]
                   : theme.colors.gray[0],
               height: "100vh",
-              // On /bible the header/footer overlay the scroll
-              // viewport instead of pushing it: PassageView puts
-              // the clearance INSIDE the scrolled content, so
-              // sliding the bars away never reflows the text
-              // (verses just scroll under the freed space).
-              // Other routes keep reclaiming the reserved
-              // padding when the chrome hides.
+              // On overlay-chrome routes the header/footer/
+              // player overlay the scroll viewport instead of
+              // pushing it: the scrolled content puts the
+              // clearance INSIDE itself, so sliding the bars
+              // away never reflows the text (notes/verses just
+              // scroll under the freed space). Other routes
+              // keep reclaiming the reserved padding when the
+              // chrome hides.
               paddingTop:
-                isBibleView || !headerVisible
+                chromeOverlays || !headerVisible
                   ? 0
                   : "var(--mantine-header-height, 0px)",
-              paddingBottom: isBibleView
+              paddingBottom: chromeOverlays
                 ? 0
                 : showAudioPlayer
                   ? `${AUDIO_PLAYER_HEIGHT}px`
                   : 0,
-              // Inert on /bible (paddings are constant 0);
-              // still animates the reclaim on other routes.
+              // Inert on overlay routes (paddings are constant
+              // 0); still animates the reclaim on other routes.
               transition:
                 "padding-top 0.3s ease-in-out, " +
                 "padding-bottom 0.3s ease-in-out",
