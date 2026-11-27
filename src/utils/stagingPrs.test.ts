@@ -147,6 +147,105 @@ describe('fetchPendingStagingPrs', () => {
       expect(await fetchPendingStagingPrs()).toHaveLength(0);
     });
 
+  it('drops every PR named by a plural list marker', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            number: 11, headRef: 'feat/b',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            number: 12, headRef: 'feat/c',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        [{
+          number: 20, headRef: 'feat/rollup',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            '_Promoted from `staging` ' +
+            '(PRs #10, #11, #12)._\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(0);
+    });
+
+  it('drops only the numbers a list marker names', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            number: 30, headRef: 'feat/b',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        [{
+          number: 20, headRef: 'feat/rollup',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body: '_Promoted from `staging` (PR #10, #99)._\n',
+        }],
+      );
+      const prs = await fetchPendingStagingPrs();
+      expect(prs.map((p) => p.number)).toEqual([30]);
+    });
+
+  it('reads markers across CRLF bodies and multiple ' +
+    'marker lines', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            number: 11, headRef: 'feat/b',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        [{
+          number: 20, headRef: 'feat/rollup',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            'Did things.\r\n_Promoted from `staging` ' +
+            '(PR #10)._\r\n_Promoted from `staging` ' +
+            '(PR #11)._\r\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(0);
+    });
+
+  it('does not let a paren-free marker line reach a later ' +
+    '(#N)', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            number: 42, headRef: 'feat/b',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        [{
+          number: 20, headRef: 'feat/rollup',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            '_Promoted from `staging` (PR #10)._\n\n' +
+            'Promoted from staging\n\n(fixes #42)\n',
+        }],
+      );
+      const prs = await fetchPendingStagingPrs();
+      expect(prs.map((p) => p.number)).toEqual([42]);
+    });
+
   it('ignores a marker on a closed-unmerged main PR', async () => {
       servePulls(
         [{
