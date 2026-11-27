@@ -60,7 +60,10 @@ whose head SHA was never merged into `staging`, and the
   equivalent, per branch: re-push it if auto-deleted
   (`git push origin <headRefOid>:refs/heads/<branch>`),
   open a PR with `--base main` (same title + body — keep
-  `Closes #<N>` links so issues auto-close), then
+  `Closes #<N>` links so issues auto-close, and end it
+  with the ``_Promoted from `staging` (PR #<staging PR>)_``
+  marker line the workflow emits — required whenever the
+  head was renamed/recreated), then
   `gh pr merge <N> --squash --admin`; then reset staging
   (`git fetch origin && git push --force-with-lease origin
   origin/main:refs/heads/staging` — the only sanctioned
@@ -83,8 +86,8 @@ whose head SHA was never merged into `staging`, and the
   `Closes #<N>` links) and squash-merge it autonomously
   once checks are green and the reviewer loop is clean
   (`gh pr merge <N> --squash --admin`). End the `main`
-  PR body with
-  `_Promoted from `staging` (PR #<staging PR number>)_`
+  PR body with the marker line
+  ``_Promoted from `staging` (PR #<staging PR number>)_``
   — the marker the What's-on-staging checklist uses to
   drop the staged entry; it's the only link that survives
   a renamed or recreated promotion head. The staging merge

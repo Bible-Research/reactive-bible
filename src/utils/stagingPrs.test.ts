@@ -147,6 +147,38 @@ describe('fetchPendingStagingPrs', () => {
       expect(await fetchPendingStagingPrs()).toHaveLength(0);
     });
 
+  it('ignores a marker on a closed-unmerged main PR', async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod', mergedAt: null,
+          body: '_Promoted from `staging` (PR #10)._\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(1);
+    });
+
+  it('ignores the marker phrase mid-prose (line-anchored)',
+    async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/b',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            'This was NOT promoted from `staging` ' +
+            '(PR #10) — different branch.\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(1);
+    });
+
   it('keeps a staged PR whose number no marker names', async () => {
       servePulls(
         [
