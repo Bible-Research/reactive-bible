@@ -129,6 +129,113 @@ describe('fetchPendingStagingPrs', () => {
       expect(await fetchPendingStagingPrs()).toHaveLength(0);
     });
 
+  it('excludes a PR named by a main PR promotion marker ' +
+    '(renamed branch)', async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a', headSha: 'sha1',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod', headSha: 'other',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            'Same title\n\n---\n_Promoted from `staging` ' +
+            '(PR #10) by the Promote-to-main workflow._\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(0);
+    });
+
+  it('ignores a marker on a closed-unmerged main PR', async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod', mergedAt: null,
+          body: '_Promoted from `staging` (PR #10)._\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(1);
+    });
+
+  it('ignores the marker phrase mid-prose (line-anchored)',
+    async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/b',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            'This was NOT promoted from `staging` ' +
+            '(PR #10) — different branch.\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(1);
+    });
+
+  it('ignores a marker carried by a STAGING PR body', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+            body: '_Promoted from `staging` (PR #10)._\n',
+          },
+          {
+            number: 30, headRef: 'feat/b',
+            mergedAt: '2026-01-02T00:00:00Z',
+          },
+        ],
+        [],
+      );
+      const prs = await fetchPendingStagingPrs();
+      expect(prs.map((p) => p.number)).toEqual([10, 30]);
+    });
+
+  it('matches a bare marker line (no emphasis/backticks)',
+    async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body: 'Notes.\nPromoted from staging (PR #10)\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(0);
+    });
+
+  it('keeps a staged PR whose number no marker names', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            number: 30, headRef: 'feat/b',
+            mergedAt: '2026-01-02T00:00:00Z',
+          },
+        ],
+        [{
+          number: 20, headRef: 'feat/a-prod',
+          mergedAt: '2026-01-03T00:00:00Z',
+          body: '_Promoted from `staging` (PR #10)._\n',
+        }],
+      );
+      const prs = await fetchPendingStagingPrs();
+      expect(prs.map((p) => p.number)).toEqual([30]);
+    });
+
   it('orders pending PRs by staging merge time (oldest first)',
     async () => {
       servePulls(
