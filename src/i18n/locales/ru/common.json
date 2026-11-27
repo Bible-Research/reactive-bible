@@ -27,7 +27,14 @@
     "bookmarks": "Закладки",
     "autoTranslateNotes": "Автоперевод заметок",
     "autoTranslateNotesHint": "Показывать машинный перевод, если заметка на другом языке.",
-    "settings": "Настройки"
+    "settings": "Настройки",
+    "stagingChecklist": "Что в staging",
+    "stagingChecklistHint": "PR в staging, ждут проверки.",
+    "stagingChecklistOpenPr": "Открыть на GitHub",
+    "stagingChecklistSeePr": "Шаги — см. описание PR",
+    "stagingChecklistEmpty": "Пусто — staging = продакшен.",
+    "stagingChecklistError": "Ошибка загрузки списка.",
+    "stagingChecklistCompare": "Сравнить main...staging на GitHub"
   },
   "audio": {
     "play": "Воспроизвести",
@@ -206,10 +213,6 @@
       "language": "Язык заметки",
       "autoTranslated": "Машинный перевод",
       "verifiedByAuthor": "Проверено автором",
-      "translating": "Переводится…",
-      "updating": "Переводы обновляются…",
-      "failed": "Перевод не удался",
-      "retry": "Повторить перевод",
       "verify": "Отметить как проверенный",
       "unverify": "Снять проверку",
       "showOriginal": "Показать оригинал",
@@ -331,7 +334,20 @@
     "noteCount_many": "{{count}} заметок",
     "noteCount_other": "{{count}} заметки",
     "publishedTag": "Опубликованная метка",
-    "publishedTagLong": "Новые заметки под этой меткой по умолчанию публикуются — видны в каталоге Обзор."
+    "publishedTagLong": "Новые заметки под этой меткой по умолчанию публикуются — видны в каталоге Обзор.",
+    "makePublished": "Опубликовать метку",
+    "makeUnpublished": "Снять метку с публикации",
+    "makePublishedBody": "Опубликовать «{{name}}» и все заметки непосредственно под ней? Они будут видны в каталоге Обзор.",
+    "makeUnpublishedBody": "Снять «{{name}}» с публикации? Все заметки непосредственно под ней исчезнут из каталога Обзор — общие ссылки продолжат работать.",
+    "makePublishedConfirm": "Опубликовать",
+    "makeUnpublishedConfirm": "Снять с публикации",
+    "publishedResult_one": "Метка теперь {{state}} — обновлена {{count}} заметка",
+    "publishedResult_few": "Метка теперь {{state}} — обновлены {{count}} заметки",
+    "publishedResult_many": "Метка теперь {{state}} — обновлено {{count}} заметок",
+    "publishedResult_other": "Метка теперь {{state}} — обновлены {{count}} заметки",
+    "statePublished": "опубликованной",
+    "stateUnpublished": "неопубликованной",
+    "publishedFailed": "Не удалось обновить публикацию метки"
   },
   "comments": {
     "post": "Отправить",
@@ -533,7 +549,7 @@
     "sharePassage": "Поделиться этим отрывком",
     "addNote": "Добавить заметку",
     "bibleMaps": "Карты Библии",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Открыть в новой вкладке",
     "shareFailed": "Не удалось поделиться",
     "linkCopied": "Ссылка скопирована",
@@ -638,6 +654,10 @@
       "title": "Выберите стихи и поделитесь ими",
       "description": "Касайтесь стихов, чтобы выбрать их, затем поделитесь отрывком или откройте его на внешних сайтах для изучения с панели действий."
     },
+    "bible-maps": {
+      "title": "Отрывок на карте",
+      "description": "Кнопки на панели действий: «Карты Библии», BibleMapper."
+    },
     "switch-bible-translation": {
       "title": "Смените перевод Библии",
       "description": "Выберите перевод и посмотрите, как текстовые и аудио варианты выбираются независимо."
@@ -699,6 +719,7 @@
     "usernameLabel": "Имя пользователя",
     "usernamePlaceholder": "Введите имя пользователя",
     "includeDescendants": "Включить заметки в подметках",
+    "includeDescendantsHint": "Заметки, добавленные позже в эту метку и её подметки, также будут доступны.",
     "shareAction": "Поделиться",
     "shareSaved": "Доступ сохранён — применяется, если имя пользователя существует.",
     "shareFailed": "Не удалось сохранить доступ",

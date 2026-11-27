@@ -27,7 +27,14 @@
     "bookmarks": "Grāmatzīmes",
     "autoTranslateNotes": "Automātiski tulkot piezīmes",
     "autoTranslateNotesHint": "Rādīt mašīntulkojumus, ja piezīme ir citā valodā.",
-    "settings": "Iestatījumi"
+    "settings": "Iestatījumi",
+    "stagingChecklist": "Kas atrodas staging",
+    "stagingChecklistHint": "PR uz staging, kas gaida UI pārbaudi.",
+    "stagingChecklistOpenPr": "Atvērt GitHub",
+    "stagingChecklistSeePr": "Pārbaudes soļi — skatīt PR aprakstu",
+    "stagingChecklistEmpty": "Nekas — staging sakrīt ar produkciju.",
+    "stagingChecklistError": "Neizdevās ielādēt sarakstu.",
+    "stagingChecklistCompare": "Atvērt main...staging salīdzinājumu GitHub"
   },
   "audio": {
     "play": "Atskaņot",
@@ -204,10 +211,6 @@
       "language": "Piezīmes valoda",
       "autoTranslated": "Automātiski tulkots",
       "verifiedByAuthor": "Autors pārbaudījis",
-      "translating": "Notiek tulkošana…",
-      "updating": "Tulkojumi atjauninās…",
-      "failed": "Tulkošana neizdevās",
-      "retry": "Mēģināt tulkot vēlreiz",
       "verify": "Atzīmēt kā pārbaudītu",
       "unverify": "Noņemt pārbaudījuma atzīmi",
       "showOriginal": "Rādīt oriģinālu",
@@ -322,7 +325,19 @@
     "noteCount_one": "{{count}} piezīme",
     "noteCount_other": "{{count}} piezīmes",
     "publishedTag": "Publicēta atzīme",
-    "publishedTagLong": "Jaunas piezīmes zem šīs atzīmes pēc noklusējuma ir publicētas — redzamas Explore katalogā."
+    "publishedTagLong": "Jaunas piezīmes zem šīs atzīmes pēc noklusējuma ir publicētas — redzamas Explore katalogā.",
+    "makePublished": "Publicēt birku",
+    "makeUnpublished": "Atcelt birkas publicēšanu",
+    "makePublishedBody": "Publicēt „{{name}}” un visas tieši zem tās esošās piezīmes? Tās būs redzamas Explore katalogā.",
+    "makeUnpublishedBody": "Atcelt „{{name}}” publicēšanu? Visas tieši zem tās esošās piezīmes pazudīs no Explore kataloga — kopīgotās saites turpinās darboties.",
+    "makePublishedConfirm": "Publicēt",
+    "makeUnpublishedConfirm": "Atcelt publicēšanu",
+    "publishedResult_one": "Birka tagad ir {{state}} — atjaunināta {{count}} piezīme",
+    "publishedResult_other": "Birka tagad ir {{state}} — atjauninātas {{count}} piezīmes",
+    "publishedResult_zero": "Birka tagad ir {{state}} — atjauninātas {{count}} piezīmju",
+    "statePublished": "publicēta",
+    "stateUnpublished": "nepublicēta",
+    "publishedFailed": "Neizdevās atjaunināt birkas publicēšanu"
   },
   "comments": {
     "post": "Publicēt",
@@ -521,7 +536,7 @@
     "sharePassage": "Kopīgot šo tekstu",
     "addNote": "Pievienot piezīmi",
     "bibleMaps": "Bībeles kartes",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Atvērt jaunā cilnē",
     "shareFailed": "Neizdevās kopīgot",
     "linkCopied": "Saite nokopēta",
@@ -626,6 +641,10 @@
       "title": "Atlasiet pantus un kopīgojiet tos",
       "description": "Pieskarieties pantiem, lai tos atlasītu, pēc tam kopīgojiet tekstu vai atveriet to ārējās pētījumu vietnēs no darbību joslas."
     },
+    "bible-maps": {
+      "title": "Skatiet tekstu kartē",
+      "description": "Divas pogas darbību joslā: Bībeles kartes, BibleMapper."
+    },
     "switch-bible-translation": {
       "title": "Mainiet Bībeles tulkojumu",
       "description": "Izvēlieties tulkojumu un redziet, kā teksta un audio iespējas tiek izvēlētas neatkarīgi."
@@ -687,6 +706,7 @@
     "usernameLabel": "Lietotājvārds",
     "usernamePlaceholder": "Ievadi lietotājvārdu",
     "includeDescendants": "Iekļaut piezīmes apakšatzīmēs",
+    "includeDescendantsHint": "Vēlāk pievienotās piezīmes šajā atzīmē un tās apakšatzīmēs arī tiks kopīgotas.",
     "shareAction": "Kopīgot",
     "shareSaved": "Kopīgošana saglabāta — piekļuve stājas spēkā, ja lietotājvārds pastāv.",
     "shareFailed": "Neizdevās saglabāt kopīgošanu",

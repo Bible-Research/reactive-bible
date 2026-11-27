@@ -27,7 +27,14 @@
     "bookmarks": "Bookmarks",
     "autoTranslateNotes": "Auto-translate notes",
     "autoTranslateNotesHint": "Show machine translations when a note is in another language.",
-    "settings": "Settings"
+    "settings": "Settings",
+    "stagingChecklist": "What's on staging",
+    "stagingChecklistHint": "PRs on staging that still need UI checks.",
+    "stagingChecklistOpenPr": "Open on GitHub",
+    "stagingChecklistSeePr": "See the PR body for verification steps",
+    "stagingChecklistEmpty": "Nothing pending — staging matches production.",
+    "stagingChecklistError": "Could not load the pending list from GitHub.",
+    "stagingChecklistCompare": "Open the main...staging compare on GitHub"
   },
   "audio": {
     "play": "Play",
@@ -202,10 +209,6 @@
       "language": "Note language",
       "autoTranslated": "Auto-translated",
       "verifiedByAuthor": "Verified by author",
-      "translating": "Translating…",
-      "updating": "Translations updating…",
-      "failed": "Translation failed",
-      "retry": "Retry translation",
       "verify": "Mark as verified",
       "unverify": "Remove verification",
       "showOriginal": "Show original",
@@ -313,7 +316,18 @@
     "noteCount_one": "{{count}} note",
     "noteCount_other": "{{count}} notes",
     "publishedTag": "Published tag",
-    "publishedTagLong": "New notes under this tag default to published — listed in the Explore directory."
+    "publishedTagLong": "New notes under this tag default to published — listed in the Explore directory.",
+    "makePublished": "Publish tag",
+    "makeUnpublished": "Unpublish tag",
+    "makePublishedBody": "Publish \"{{name}}\" and all notes directly under it? They will be listed in the Explore directory.",
+    "makeUnpublishedBody": "Unpublish \"{{name}}\"? All notes directly under it leave the Explore directory — shared links keep working.",
+    "makePublishedConfirm": "Publish",
+    "makeUnpublishedConfirm": "Unpublish",
+    "publishedResult_one": "Tag is now {{state}} — {{count}} note updated",
+    "publishedResult_other": "Tag is now {{state}} — {{count}} notes updated",
+    "statePublished": "published",
+    "stateUnpublished": "unpublished",
+    "publishedFailed": "Failed to update tag publication"
   },
   "comments": {
     "post": "Post",
@@ -477,7 +491,7 @@
     "sharePassage": "Share this passage",
     "addNote": "Add note",
     "bibleMaps": "Bible Maps",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Open in new tab",
     "shareFailed": "Failed to share",
     "linkCopied": "Link copied",
@@ -587,6 +601,10 @@
       "title": "Select verses and share them",
       "description": "Tap verses to select them, then share the passage or open it on external study sites from the action toolbar."
     },
+    "bible-maps": {
+      "title": "See the passage on a map",
+      "description": "Two toolbar map buttons: Bible Maps or BibleMapper."
+    },
     "switch-bible-translation": {
       "title": "Switch Bible translation",
       "description": "Pick a translation and see how text and audio options are chosen independently."
@@ -675,6 +693,7 @@
     "usernameLabel": "Username",
     "usernamePlaceholder": "Enter username",
     "includeDescendants": "Include notes in sub-tags",
+    "includeDescendantsHint": "Notes added to this tag or its sub-tags later are shared too.",
     "shareAction": "Share",
     "shareSaved": "Share saved — access applies if the username exists.",
     "shareFailed": "Could not save the share",

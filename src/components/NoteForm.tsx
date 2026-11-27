@@ -935,11 +935,16 @@ const NoteForm = ({
                 variant={isPublic ? "filled" : "subtle"}
                 color={isPublic ? "blue" : "gray"}
                 size="lg"
-                disabled={isPublished}
+                disabled={canPublish && isPublished}
                 // Published implies public — the server forces
                 // it, so the toggle locks while published is
                 // on instead of allowing a state the API
-                // would reject anyway.
+                // would reject anyway. The lock only applies
+                // to publishers, who can unpublish first: a
+                // non-publisher (permission revoked) keeps it
+                // usable since clearing public is the only way
+                // left to take the note down — the server
+                // clears published with it.
                 onClick={() => {
                   publicTouchedRef.current = true;
                   setIsPublic((v) => !v);
@@ -1042,11 +1047,15 @@ const NoteForm = ({
               <Checkbox
                 label={t('notes.publicNote')}
                 checked={isPublic}
-                disabled={isPublished}
+                disabled={canPublish && isPublished}
                 // Published implies public — the server forces
                 // it, so the box shows checked and locked while
                 // published is on instead of allowing a state
-                // the API would reject anyway.
+                // the API would reject anyway. Publishers can
+                // unpublish first; non-publishers keep the box
+                // usable — clearing public is their only way
+                // to unlist, and the server drops published
+                // with it.
                 onChange={(event) => {
                   publicTouchedRef.current = true;
                   setIsPublic(event.currentTarget.checked);

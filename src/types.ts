@@ -36,7 +36,9 @@ export interface Verse {
 
 /** Lifecycle of a per-language translation row. 'source' is
  *  the metadata anchor for the note's own language — its text
- *  stays empty; the original is served from `note_text`. */
+ *  stays empty; the original is served from `note_text`.
+ *  The backend pipeline is disabled: 'pending'/'failed' exist
+ *  only on legacy rows and never resolve to 'ready'. */
 export type NoteTranslationStatus =
   | 'pending'
   | 'ready'
@@ -75,8 +77,9 @@ export interface Note {
    * Serialized to the copy's OWNER only — absent elsewhere.
    */
   copied_from?: string | null;
-  /** Only sent once the backend's is_owner field ships —
-   *  treat absence as "not owned" (`=== true` guards). */
+  /** Ships on every note payload; pages cached before the
+   *  field existed may lack it — treat absence as "not owned"
+   *  (`=== true` guards). */
   is_owner?: boolean;
   created_at: string;
   updated_at: string;

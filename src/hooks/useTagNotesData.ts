@@ -50,6 +50,17 @@ interface UseTagNotesDataResult {
   pageLoading: boolean;
   error: string | null;
   commentCounts: CommentCounts;
+  /**
+   * The query context the store's `notes` provably belong to —
+   * set only after `fetchNotes` resolves without cancellation.
+   * Compare against `notesQueryKey` to tell fresh rows from the
+   * previous tag's leftovers or a persisted cache instead of
+   * trusting the raw list.
+   */
+  settledQueryKey: string | null;
+  /** Identity of the current request (`tagId:sort:merged`) —
+   *  the key `settledQueryKey` equals once the load lands. */
+  notesQueryKey: string;
   handleSortChange: (newSortOrder: string) => void;
   handlePageChange: (newPage: number) => Promise<void>;
   handlePageSizeChange: (
@@ -99,6 +110,14 @@ export const useTagNotesData = ({
   const [error, setError] = useState<string | null>(null);
   const [commentCounts, setCommentCounts] =
     useState<CommentCounts>({});
+  // See UseTagNotesDataResult — request-scoped "whose rows are
+  // in the store" signal for the foreign-subtree latch.
+  const [settledQueryKey, setSettledQueryKey] =
+    useState<string | null>(null);
+  // The request identity the loader below is responsible for —
+  // returned so consumers can compare it to `settledQueryKey`
+  // without duplicating the key format.
+  const notesQueryKey = `${tagId}:${sortOrder}:${includeDescendants}`;
 
   // Page to restore on the first load for THIS tag. Seeded
   // inside the mount effect below — reading the store during
@@ -229,9 +248,9 @@ export const useTagNotesData = ({
         // Restore the stored page on the first load; re-runs
         // for the same tag+sort (StrictMode remount, auth
         // hydration) refetch the page the user is on instead
-        // of bouncing back to page 1.
-        const queryKey =
-          `${tagId}:${sortOrder}:${includeDescendants}`;
+        // of bouncing back to page 1. `notesQueryKey` is the
+        // request identity hoisted above the effect.
+        const queryKey = notesQueryKey;
         // Consume the seed on every run for THIS tag — an
         // anonymous StrictMode replay reaches this point
         // synchronously and re-seeds the mount ref, and a
@@ -272,6 +291,7 @@ export const useTagNotesData = ({
           includeDescendants,
         });
         if (cancelled) return;
+        setSettledQueryKey(queryKey);
 
         const fetchedNotes = useBibleStore.getState().notes;
         let resolvedTag: Tag | null;
@@ -371,6 +391,7 @@ export const useTagNotesData = ({
     sortOrder,
     isUntagged,
     includeDescendants,
+    notesQueryKey,
   ]);
 
   // A sort change only rewrites the URL — the load effect
@@ -613,6 +634,8 @@ export const useTagNotesData = ({
     pageLoading,
     error,
     commentCounts,
+    settledQueryKey,
+    notesQueryKey,
     handleSortChange,
     handlePageChange,
     handlePageSizeChange,
