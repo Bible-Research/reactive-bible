@@ -165,6 +165,28 @@ describe('ScripturePassagePopover', () => {
     );
   });
 
+  it('does not cascade nested updates while the anchor ' +
+    'is moving', async () => {
+    // An anchor inside an animating/scrolling container (modal
+    // transition, editor scroll, mobile keyboard resize)
+    // reports a fresh rect on every measurement — long enough
+    // to outlast React's 50-deep nested-update allowance
+    // (error #185) before it settles.
+    let calls = 0;
+    const anchor: ScriptureRefAnchor = {
+      getBoundingClientRect: () => {
+        calls += 1;
+        const top = 100 + Math.min(calls, 60);
+        return rectAt({ top, bottom: top + 20, y: top });
+      },
+    };
+    let unmount: () => void = () => undefined;
+    expect(() => {
+      unmount = renderPopover({ anchor }).unmount;
+    }).not.toThrow();
+    unmount();
+  });
+
   it('closes on a tap outside the panel', async () => {
     const onClose = vi.fn();
     renderPopover({ onClose });

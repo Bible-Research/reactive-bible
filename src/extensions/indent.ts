@@ -76,23 +76,23 @@ const Indent = Extension.create({
         return changed;
       };
     return {
+      // The list branch must ride the SAME transaction as the
+      // caller's chain: `props.editor.chain().run()` dispatches
+      // a nested transaction, which leaves the caller's tr
+      // stale — dispatching it throws ProseMirror's "Applying
+      // a mismatched transaction". `can()`/`chain()` from the
+      // command props continue on the caller's tr instead.
       indent:
         () =>
         (props: CommandProps) =>
-          props.editor.can().sinkListItem('listItem')
-            ? props.editor
-                .chain()
-                .sinkListItem('listItem')
-                .run()
+          props.can().sinkListItem('listItem')
+            ? props.chain().sinkListItem('listItem').run()
             : shift(1)(props),
       outdent:
         () =>
         (props: CommandProps) =>
-          props.editor.can().liftListItem('listItem')
-            ? props.editor
-                .chain()
-                .liftListItem('listItem')
-                .run()
+          props.can().liftListItem('listItem')
+            ? props.chain().liftListItem('listItem').run()
             : shift(-1)(props),
     };
   },
