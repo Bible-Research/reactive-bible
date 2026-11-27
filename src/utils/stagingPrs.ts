@@ -203,7 +203,10 @@ const STEP_LINE = /^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.+?)\s*$/;
  * Extract the checkable steps from a PR body's
  * `## UI verification / QC` section: ordered/unordered list
  * lines (including `- [ ]` markdown tasks) between that heading
- * and the next `## ` heading. Returns null when the section is
+ * and the next `## ` heading. PR bodies hard-wrap at ~79
+ * chars, so a non-bullet line under a step is folded into that
+ * step (matching how GitHub renders the wrapped item); a blank
+ * or heading line ends it. Returns null when the section is
  * absent — callers then link to the PR instead of rendering an
  * empty checklist.
  */
@@ -216,15 +219,32 @@ export const parseQcSteps = (
   const rest = body.slice(heading.index + heading[0].length);
   const end = NEXT_HEADING.exec(rest);
   const section = end ? rest.slice(0, end.index) : rest;
-  const steps = section
-    .split('\n')
-    .map((line) => STEP_LINE.exec(line)?.[1])
-    // A bare `- [x]` (marker, no text) is not a step — the
-    // marker group needs `\s+` after it, so the brackets would
-    // otherwise be captured as the label.
-    .filter(
-      (s): s is string =>
-        s !== undefined && !/^\[[ xX]\]$/.test(s),
-    );
+  const steps: string[] = [];
+  // Whether the latest step can still absorb continuation
+  // lines — a blank or heading line ends it.
+  let open = false;
+  for (const line of section.split('\n')) {
+    const text = STEP_LINE.exec(line)?.[1];
+    if (text !== undefined) {
+      // A bare `- [x]` (marker, no text) is not a step — the
+      // marker group needs `\s+` after it, so the brackets
+      // would otherwise be captured as the label.
+      open = !/^\[[ xX]\]$/.test(text);
+      if (open) steps.push(text);
+    } else if (
+      !line.trim() ||
+      // Blank, heading and block-starter lines end the step —
+      // folding fences/quotes/rules/tables into the label
+      // would pollute it (CommonMark ends the item there).
+      // Anchors matter: `#123` is a ref, `***bold***` is text.
+      /^\s*(?:#{1,6}(?:\s|$)|>|`{3}|~{3}|\||<(?=[A-Za-z/!?]))/
+        .test(line) ||
+      /^\s*([-*_])(?:[ \t]*\1){2,}\s*$/.test(line)
+    ) {
+      open = false;
+    } else if (open) {
+      steps[steps.length - 1] += ` ${line.trim()}`;
+    }
+  }
   return steps.length > 0 ? steps : null;
 };

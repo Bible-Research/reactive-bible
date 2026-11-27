@@ -379,7 +379,78 @@ describe('parseQcSteps', () => {
 
   it('drops bare task markers with no step text', () => {
     const body =
-      '## UI verification / QC\n- [x]\n- Real step\n';
+      '## UI verification / QC\n- [x]\n  stray tail\n' +
+      '- Real step\n';
     expect(parseQcSteps(body)).toEqual(['Real step']);
+  });
+
+  it('joins hard-wrapped continuation lines into their step',
+    () => {
+      const body =
+        '## UI verification / QC\n' +
+        '- [ ] Open the app, open the translation selector,\n' +
+        '  save e.g. NIV for English and GLÜK for Latvian.\n' +
+        '- [ ] Repeat with the tab offline: switching back\n' +
+        '  still pre-selects the remembered version.\n\n' +
+        'Generated with [Devin](https://devin.ai)\n';
+      expect(parseQcSteps(body)).toEqual([
+        'Open the app, open the translation selector, ' +
+          'save e.g. NIV for English and GLÜK for Latvian.',
+        'Repeat with the tab offline: switching back ' +
+          'still pre-selects the remembered version.',
+      ]);
+    });
+
+  it('keeps prose before the first bullet out of the steps',
+    () => {
+      const body =
+        '## UI verification / QC\n' +
+        'Do these against the preview deploy.\n' +
+        '- First step\n  wrapped tail\n';
+      expect(parseQcSteps(body)).toEqual([
+        'First step wrapped tail',
+      ]);
+    });
+
+  it('ends a step at a sub-heading inside the section', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- Step one\n### Notes\nnot part of step\n';
+    expect(parseQcSteps(body)).toEqual(['Step one']);
+  });
+
+  it('ends a step at fences, quotes, rules and tables', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- One\n```\ncode\n```\n- Two\n> quote\n---\n' +
+      '- Three\n| a |\n';
+    expect(parseQcSteps(body)).toEqual(['One', 'Two', 'Three']);
+  });
+
+  it('keeps starter lookalikes as continuation text', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- Step one\n  ***important*** and #123 refs stay\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one ***important*** and #123 refs stay',
+    ]);
+  });
+
+  it('joins CRLF-wrapped and multi-line continuations', () => {
+    const body =
+      '## UI verification / QC\r\n- [ ] Step one\r\n' +
+      '  second line\r\n  third line\r\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one second line third line',
+    ]);
+  });
+
+  it('glues an unseparated footer line like GitHub does', () => {
+    const body =
+      '## UI verification / QC\n- Step one\n' +
+      'Generated with [Devin](https://devin.ai)\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one Generated with [Devin](https://devin.ai)',
+    ]);
   });
 });
