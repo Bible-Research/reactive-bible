@@ -138,20 +138,25 @@ const latestByBranch = (prs: GithubPr[]): Map<string, GithubPr> => {
   return latest;
 };
 
-// Promotion marker in a merged main PR's body —
-// `_Promoted from `staging` (PR #N)_` as written by
-// promote-to-main.yml; manual promotion PRs are required to
-// carry the same line (AGENTS.md ad-hoc bullet). Names the
-// staging PR it ships, so a renamed head branch can't hide it.
+// Promotion marker in a merged main PR's body — the
+// `_Promoted from `staging` (PR #N) by the … workflow._`
+// footer promote-to-main.yml appends; manual promotion PRs
+// are required to carry the same line (AGENTS.md ad-hoc
+// bullet). Names the staging PR it ships, so a renamed head
+// branch can't hide it. Line-anchored so prose quoting the
+// marker ("was NOT promoted from staging (PR #5)") can't
+// produce a false drop.
 const PROMOTED_MARKER =
-  /promoted\s+from\s+`?staging`?\s*\(pr\s+#(\d+)\)/gi;
+  /^[ \t>*_]*promoted\s+from\s+`?staging`?\s*\(pr\s+#(\d+)\)/gim;
 
 const promotedStagingNumbers = (
   prs: GithubPr[],
 ): Set<number> => {
   const out = new Set<number>();
   for (const pr of prs) {
-    if (!pr.body) continue;
+    // `body` is unvalidated by isPr — guard the type so a
+    // truthy non-string can't throw past StagingPrsError.
+    if (typeof pr.body !== 'string') continue;
     for (const m of pr.body.matchAll(PROMOTED_MARKER)) {
       out.add(Number(m[1]));
     }
