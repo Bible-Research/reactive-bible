@@ -6,6 +6,7 @@ import {
   fireEvent,
 } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { openConfirmModal } from '@mantine/modals';
 import { mockDomApis } from '../__tests__/helpers';
 import TagNotesRoute from './TagNotesRoute';
 import {
@@ -54,6 +55,11 @@ vi.mock('../api', async (importOriginal) => {
   return mocked;
 });
 vi.mock('../utils/cacheManager');
+// The confirm modal is captured, not rendered — tests invoke
+// the recorded `onConfirm` when they want the reorder to run.
+vi.mock('@mantine/modals', () => ({
+  openConfirmModal: vi.fn(),
+}));
 
 // Replace the DnD-heavy TagSection with a button that replays
 // the props.onReorder call a drag would fire — dnd-kit pointer
@@ -153,12 +159,20 @@ const storeOverrides = {
   tags: [tag],
   fetchNotes: mockFetchNotes,
   getTags: mockGetTags,
+  // These tests exercise the reorder mechanics themselves,
+  // so the confirm step is off; the confirmation gate has a
+  // dedicated test below.
+  confirmNoteReorder: false,
 };
 
-const renderRoute = (route = '/notes/tag/tag-123') => {
+const renderRoute = (
+  route = '/notes/tag/tag-123',
+  extraStoreOverrides = {}
+) => {
   useBibleStore.setState({
     ...initialState,
     ...storeOverrides,
+    ...extraStoreOverrides,
   });
   useAuthStore.setState({
     ...authInitialState,
@@ -235,6 +249,43 @@ describe('TagNotesRoute drag reorder', () => {
 
     await waitFor(() => {
       expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('asks for confirmation before a drag reorder when ' +
+    'the confirmNoteReorder pref is on', async () => {
+    renderRoute(
+      '/notes/tag/tag-123',
+      { confirmNoteReorder: true }
+    );
+    await waitFor(() => {
+      expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(
+      await screen.findByLabelText('trigger-reorder')
+    );
+
+    // The drop opens the confirm modal — the reorder itself
+    // is deferred until the user confirms.
+    expect(openConfirmModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Change notes order?',
+      })
+    );
+    expect(mockApi.reorderNotes).not.toHaveBeenCalled();
+
+    const options = vi.mocked(openConfirmModal).mock.calls[0][0];
+    options.onConfirm?.();
+
+    await waitFor(() => {
+      expect(mockApi.reorderNotes).toHaveBeenCalledWith(
+        'tag-123',
+        [
+          { note_id: 'note-2', position: 1 },
+          { note_id: 'note-1', position: 2 },
+        ]
+      );
     });
   });
 });

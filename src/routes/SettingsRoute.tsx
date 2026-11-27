@@ -2,9 +2,11 @@ import { useState } from 'react';
 import {
   Box,
   Button,
+  Divider,
   Group,
   Radio,
   Stack,
+  Switch,
   Text,
   Title,
 } from '@mantine/core';
@@ -31,6 +33,12 @@ export default function SettingsRoute() {
   );
   const translations = useBibleStore(
     (state) => state.translations
+  );
+  const confirmNoteReorder = useBibleStore(
+    (state) => state.confirmNoteReorder
+  );
+  const setConfirmNoteReorder = useBibleStore(
+    (state) => state.setConfirmNoteReorder
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -115,6 +123,18 @@ export default function SettingsRoute() {
           }}
         />
       )}
+
+      <Divider my="lg" />
+
+      <Switch
+        checked={confirmNoteReorder}
+        onChange={(event) =>
+          setConfirmNoteReorder(event.currentTarget.checked)
+        }
+        label={t('settings.confirmReorder')}
+        description={t('settings.confirmReorderHint')}
+        aria-label={t('settings.confirmReorder')}
+      />
     </Box>
   );
 }

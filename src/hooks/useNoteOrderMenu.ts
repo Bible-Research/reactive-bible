@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { openConfirmModal } from '@mantine/modals';
 import { getNoteOrderIndex } from '../api';
 import { useBibleStore } from '../store';
 import { captureHandledError } from '../utils/errorReporter';
@@ -64,13 +65,15 @@ interface UseNoteOrderMenuResult {
   orderMenu: NoteOrderMenuData | undefined;
   /** Refetch the order index (after moves, deletes, refresh). */
   reloadOrderIndex: () => Promise<void>;
-  /** dnd-kit bulk reorder — writes through the store action. */
+  /** dnd-kit bulk reorder — asks for confirmation when the
+   *  `confirmNoteReorder` preference is on, then writes
+   *  through the store action. */
   handleReorder: (
     tagId: string,
     noteIds: string[],
     currentPage: number,
     pageSize: number
-  ) => Promise<void>;
+  ) => void;
 }
 
 /**
@@ -95,6 +98,9 @@ export const useNoteOrderMenu = ({
   );
   const reorderNotes = useBibleStore(
     (state) => state.reorderNotes
+  );
+  const confirmNoteReorder = useBibleStore(
+    (state) => state.confirmNoteReorder
   );
 
   // Compact index of every note in the tag, in canonical
@@ -169,7 +175,7 @@ export const useNoteOrderMenu = ({
 
   // Display-order "after" translates to canonical placement:
   // in custom_desc visual after = canonical before.
-  const handleMoveAfter = useCallback(
+  const performMoveAfter = useCallback(
     async (noteId: string, targetNoteId: string) => {
       if (!tagId) return;
       try {
@@ -188,7 +194,7 @@ export const useNoteOrderMenu = ({
     [tagId, sortOrder, moveNoteAfter, reloadOrderIndex]
   );
 
-  const handleMoveToTop = useCallback(
+  const performMoveToTop = useCallback(
     async (noteId: string) => {
       if (!tagId || !orderIndex || orderIndex.length === 0) {
         return;
@@ -225,7 +231,7 @@ export const useNoteOrderMenu = ({
   // action settles — otherwise badges, topOrderId and the menu
   // labels keep their pre-drag values (and Move-to-top can aim
   // at an entry that is no longer canonical-first).
-  const handleReorder = useCallback(
+  const performReorder = useCallback(
     async (
       reorderTagId: string,
       noteIds: string[],
@@ -246,6 +252,63 @@ export const useNoteOrderMenu = ({
       }
     },
     [reorderNotes, reloadOrderIndex]
+  );
+
+  // Every reorder path — order-menu moves and the drag — asks
+  // for confirmation while the persisted
+  // `confirmNoteReorder` preference is on (default: a Sentry
+  // user report asked for a "really change the order?" check;
+  // /settings lets the user opt out). `run` is fire-and-forget:
+  // the store actions surface their own notifications.
+  const confirmThenRun = useCallback(
+    (run: () => Promise<void>) => {
+      if (!confirmNoteReorder) {
+        void run();
+        return;
+      }
+      openConfirmModal({
+        title: t('notes.reorderConfirmTitle'),
+        children: t('notes.reorderConfirmBody'),
+        labels: {
+          confirm: t('notes.reorderConfirmApply'),
+          cancel: t('common.cancel'),
+        },
+        onConfirm: () => {
+          void run();
+        },
+      });
+    },
+    [confirmNoteReorder, t]
+  );
+
+  const handleMoveAfter = useCallback(
+    (noteId: string, targetNoteId: string) =>
+      confirmThenRun(() => performMoveAfter(noteId, targetNoteId)),
+    [confirmThenRun, performMoveAfter]
+  );
+
+  const handleMoveToTop = useCallback(
+    (noteId: string) =>
+      confirmThenRun(() => performMoveToTop(noteId)),
+    [confirmThenRun, performMoveToTop]
+  );
+
+  const handleReorder = useCallback(
+    (
+      reorderTagId: string,
+      noteIds: string[],
+      currentPage: number,
+      pageSize: number
+    ) =>
+      confirmThenRun(() =>
+        performReorder(
+          reorderTagId,
+          noteIds,
+          currentPage,
+          pageSize
+        )
+      ),
+    [confirmThenRun, performReorder]
   );
 
   const orderMenu = useMemo(
