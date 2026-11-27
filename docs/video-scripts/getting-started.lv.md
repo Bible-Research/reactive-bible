@@ -66,7 +66,7 @@ izvēlni.
 - Motīva pārslēgs atrodas tikai izvelkamajā izvēlnē —
   nemeklējiet to augšējā joslā.
 - Android ierīcēs izvēlnē redzama arī "Download Android App"
-  (skat. 17. sadaļu).
+  (skat. 18. sadaļu).
 - Norādiet katru elementu, to nosaucot, lai skatītāji
   sasaistītu nosaukumus ar pikseļiem.
 
@@ -156,7 +156,37 @@ saturu.
 - Virziet kursoru pār katru ārējo ikonu mirkli; parādiet vienu
   (Bible Maps ir vizuālākā), neatveriet visas.
 
-## 5. Nomainiet Bībeles tulkojumu (~2 min)
+## 5. Skatiet tekstu kartē (~60 s)
+
+**Māca:** divas karšu pogas pantu darbību rīkjoslā —
+lietotnes Bible Maps modāli un BibleMapper WebViewer.
+
+### Soļi
+
+1. Atveriet `/bible/JHN.3` un pieskarieties 16. pantam —
+   parādās darbību rīkjosla.
+2. Pieskarieties tirkīzai kartes ikonai ("View on map") —
+   lietotnē atveras Bible Maps modālis ar nodaļu jau
+   ielādētu BibleMapper MapFinder.
+3. Pārvietojiet un tuviniet karti, tad aizveriet modāli
+   ar ✕.
+4. Pieskarieties BibleMapper ikonai (biblemapper.com
+   logotipam) — angļu valodas atsauce nokopējas starpliktuvē
+   (parādās paziņojums) un jaunā cilnē atveras biblemapper.com
+   WebViewer.
+5. Ielīmējiet atsauci WebViewer, lai ielādētu tekstu tur.
+
+### Ieraksts
+
+- Anonīma sesija — abas karšu pogas darbojas bez
+  pierakstīšanās.
+- Ļaujiet modāļa iframe ielādēties, pirms norādāt uz
+  teksta marķieri.
+- Starpliktuvē nokopējas angļu atsauce arī latviešu un krievu
+  saskarnē — pasakiet to skaļi, lai neviens neielīmētu
+  lokalizētu grāmatas nosaukumu, ko rīks nesaprot.
+
+## 6. Nomainiet Bībeles tulkojumu (~2 min)
 
 **Māca:** tulkojuma izvēlni; teksts un audio tiek izvēlēti
 neatkarīgi.
@@ -186,7 +216,7 @@ neatkarīgi.
 - Dažas versijas aptver tikai vienu derību — pārklājuma
   norāde ir sagaidāma, nevis kļūda.
 
-## 6. Klausieties nodaļu (~2 min)
+## 7. Klausieties nodaļu (~2 min)
 
 **Māca:** nodaļas audio atskaņošanu un atskaņotāja joslas
 lietošanu.
@@ -215,7 +245,7 @@ lietošanu.
 - Oranža brīdinājuma ikona nozīmē, ka šim tulkojumam/
   grāmatai nav audio — vispirms pārslēdziet.
 
-## 7. Audio atskaņošanas saraksti (~90 s)
+## 8. Audio atskaņošanas saraksti (~90 s)
 
 **Māca:** nepārtrauktu klausīšanos ārpus vienas nodaļas — no
 meklēšanas rezultātiem vai piezīmju fragmentiem.
@@ -238,7 +268,7 @@ meklēšanas rezultātiem vai piezīmju fragmentiem.
   nevar atskaņot.
 - Turiet īsu — "vai zinājāt" stila video.
 
-## 8. Meklējiet Bībelē (~90 s)
+## 9. Meklējiet Bībelē (~90 s)
 
 **Māca:** pilnteksta meklēšanu un saīsni `/`.
 
@@ -260,7 +290,7 @@ meklēšanas rezultātiem vai piezīmju fragmentiem.
 - Ja nav izvēlēts teksta tulkojums, lapa saka "select a Bible
   translation first" — tā nav globālā meklēšana.
 
-## 9. Izveidojiet kontu un piesakieties (~2 min)
+## 10. Izveidojiet kontu un piesakieties (~2 min)
 
 **Māca:** reģistrāciju, pieteikšanos, atteikšanos — un ko
 konts atbloķē.
@@ -288,7 +318,7 @@ konts atbloķē.
   klausīties un meklēt; konts saglabā piezīmes, tagus,
   komentārus un sinhronizē lasīšanas pozīcijas.
 
-## 10. Izveidojiet piezīmi pie pantiem (~2.5 min)
+## 11. Izveidojiet piezīmi pie pantiem (~2.5 min)
 
 **Māca:** pievienot piezīmi atlasītiem pantiem.
 
@@ -315,7 +345,7 @@ konts atbloķē.
 - Skaidri pieminiet tukšās piezīmes grāmatzīmes gadījumu.
 - Piezīmes modālis pēc dizaina ir pilnekrāns, arī datorā.
 
-## 11. Piezīmju redaktors (~2.5 min)
+## 12. Piezīmju redaktors (~2.5 min)
 
 **Māca:** bagātinātā teksta piezīmju redaktoru — formatējumu,
 Rakstu atsauces, attēlus, automātisko saglabāšanu.
@@ -343,7 +373,7 @@ Rakstu atsauces, attēlus, automātisko saglabāšanu.
 - Rakstot `@` bez atpazīstamas grāmatas, izvēlne joprojām
   parādās — turpiniet rakstīt grāmatas nosaukumu.
 
-## 12. Pārlūkojiet un kārtojiet piezīmes (~2 min)
+## 13. Pārlūkojiet un kārtojiet piezīmes (~2 min)
 
 **Māca:** piezīmju lapu — filtrēšanu, kārtošanu, pārkārtošanu,
 pantu sakļaušanu.
@@ -371,7 +401,7 @@ pantu sakļaušanu.
   "Create your first tag" un demonstrācija iestājas.
 - Rediģēt/dzēst parādās tikai pie saviem tagiem.
 
-## 13. Tagi: kārtojiet piezīmes un kopīgojiet publiski (~2.5 min)
+## 14. Tagi: kārtojiet piezīmes un kopīgojiet publiski (~2.5 min)
 
 **Māca:** tagu koku — izveidot, pārvecākot, publicēt tagus.
 
@@ -398,7 +428,7 @@ pantu sakļaušanu.
 - Public ir kaskāde — izlasiet apstiprinājuma modāļa
   brīdinājumu skaļi.
 
-## 14. Kopīgojiet piezīmi vai tagu (~90 s)
+## 15. Kopīgojiet piezīmi vai tagu (~90 s)
 
 **Māca:** publisko kopīgošanas modeli — saites, kas darbojas
 bez pieteikšanās.
@@ -421,7 +451,7 @@ bez pieteikšanās.
 - Anonīmi skatītāji var lasīt, bet nevar komentēt ("Log in to
   comment") — parādiet šo rindiņu.
 
-## 15. Komentāri piezīmēs (~2 min)
+## 16. Komentāri piezīmēs (~2 min)
 
 **Māca:** komentāru pavedienus piezīmēs.
 
@@ -445,7 +475,7 @@ bez pieteikšanās.
   komentāri jau pastāv.
 - Attēlu limits ir 5 (piezīmes atļauj 10).
 
-## 16. Jūsu lasīšanas pozīcija seko līdzi (~60 s)
+## 17. Jūsu lasīšanas pozīcija seko līdzi (~60 s)
 
 **Māca:** atsākšanu katrā grāmatā; pozīcijas sinhronizāciju
 starp ierīcēm pieteiktam lietotājam.
@@ -466,7 +496,7 @@ starp ierīcēm pieteiktam lietotājam.
   pieteiktiem — anonīmiem ir tikai lokālā atjaunošana tajā
   pašā pārlūkā.
 
-## 17. Papildu iespējas: tumšais režīms, ziņojumi, Android (~90 s)
+## 18. Papildu iespējas: tumšais režīms, ziņojumi, Android (~90 s)
 
 **Māca:** motīva pārslēgu, problēmu ziņojumus un Android
 lietotni.

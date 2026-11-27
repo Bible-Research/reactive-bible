@@ -209,10 +209,6 @@
       "language": "Note language",
       "autoTranslated": "Auto-translated",
       "verifiedByAuthor": "Verified by author",
-      "translating": "Translating…",
-      "updating": "Translations updating…",
-      "failed": "Translation failed",
-      "retry": "Retry translation",
       "verify": "Mark as verified",
       "unverify": "Remove verification",
       "showOriginal": "Show original",
@@ -495,7 +491,7 @@
     "sharePassage": "Share this passage",
     "addNote": "Add note",
     "bibleMaps": "Bible Maps",
-    "biblemapperTitle": "BibleMapper PassageBrowser",
+    "biblemapperTitle": "BibleMapper MapFinder",
     "openInNewTab": "Open in new tab",
     "shareFailed": "Failed to share",
     "linkCopied": "Link copied",
@@ -604,6 +600,10 @@
     "select-and-share-verses": {
       "title": "Select verses and share them",
       "description": "Tap verses to select them, then share the passage or open it on external study sites from the action toolbar."
+    },
+    "bible-maps": {
+      "title": "See the passage on a map",
+      "description": "Two toolbar map buttons: Bible Maps or BibleMapper."
     },
     "switch-bible-translation": {
       "title": "Switch Bible translation",
