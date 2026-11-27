@@ -4626,8 +4626,9 @@ surface as the transport layer:
   burn quota — including untyped errors carrying the same
   `error_code`s. `ClientInputError` is deliberately NOT dropped —
   it means our own request was malformed, a bug worth
-  reporting. `TypeError` network failures ('Failed to fetch',
-  'Load failed', 'NetworkError…') are kept but tagged
+  reporting. `TypeError` network failures ('Failed to fetch' —
+  including newer Chrome's origin-suffixed 'Failed to fetch
+  (host)' — 'Load failed', 'NetworkError…') are kept but tagged
   `errorKind: network` so Sentry-side rules can route them;
   on `handled-api` events the level drops to warning —
   handled connectivity noise, like a `ConflictError`, stays
