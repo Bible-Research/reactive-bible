@@ -147,7 +147,7 @@ const latestByBranch = (prs: GithubPr[]): Map<string, GithubPr> => {
 // marker ("was NOT promoted from staging (PR #5)") can't
 // produce a false drop.
 const PROMOTED_MARKER =
-  /^[ \t>*_]*promoted\s+from\s+`?staging`?\s*\(pr\s+#(\d+)\)/gim;
+  /^[ \t_*-]*promoted\s+from\s+`?staging`?\s*\(pr\s+#(\d+)\)/gim;
 
 const promotedStagingNumbers = (
   prs: GithubPr[],
