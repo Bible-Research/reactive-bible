@@ -18,6 +18,12 @@ const RESIZE_OBSERVER_PATTERN = /ResizeObserver loop/;
 
 // Network failures are tagged, not dropped, so Sentry-side
 // rules can route them without losing the availability signal.
+// Ones caught by a handled-api catch site are further
+// downgraded to warning — a client connectivity failure that
+// already degraded gracefully is expected noise, not a defect
+// in the graceful path. Unhandled network rejections keep
+// error level: reaching GlobalHandlers means a missing catch,
+// which is still a bug.
 const isNetworkFailure = (err: TypeError): boolean =>
   err.message === 'Failed to fetch' ||
   err.message === 'Load failed' ||
@@ -54,12 +60,25 @@ const isNetworkFailure = (err: TypeError): boolean =>
  * ClientInputError is deliberately NOT dropped — a malformed
  * request is a bug worth reporting. TypeError network failures
  * ('Failed to fetch', 'Load failed', 'NetworkError…') are kept
- * but tagged `errorKind: network` for routing.
+ * but tagged `errorKind: network` for routing; ones reported
+ * through `captureHandledError` (`reportType: handled-api`)
+ * are additionally downgraded to warning — handled
+ * connectivity noise, like `ConflictError`, stays out of the
+ * error queue without losing the event.
+ *
+ * `reportType: user-report` events (the "Contact developer"
+ * flow) return early: their note text lives in event.message
+ * and is user-controlled — a user quoting the very error they
+ * saw ('Loading chunk 3 failed', 'ResizeObserver loop') must
+ * not trip the noise filters.
  */
 export function sentryBeforeSend(
   event: ErrorEvent,
   hint: EventHint
 ): ErrorEvent | null {
+  if (event.tags?.reportType === 'user-report') {
+    return event;
+  }
   const err = hint.originalException;
   // GlobalHandlers' window.onerror path produces message-only
   // events: originalException is undefined and the error text
@@ -108,6 +127,12 @@ export function sentryBeforeSend(
       ...event.tags,
       errorKind: 'network',
     };
+    // Handled network failures degrade gracefully already —
+    // the event stays reportable/routable via the tags but
+    // leaves the error queue (same rule as ConflictError).
+    if (event.tags.reportType === 'handled-api') {
+      event.level = 'warning';
+    }
   }
   // error_code-level mapping: the instanceof drops above only
   // catch typed errors — a plain Error that still carries the

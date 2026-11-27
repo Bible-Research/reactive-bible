@@ -29,6 +29,7 @@ import { showNotification } from "@mantine/notifications";
 import { bookmarkNote } from "../api";
 import { textOrKey } from "../i18n/errorText";
 import { captureHandledError } from "../utils/errorReporter";
+import { isNoteSharingEnabled } from "../utils/platform";
 import ShareModal from "./ShareModal";
 import CopyNoteModal from "./CopyNoteModal";
 
@@ -95,15 +96,21 @@ const NoteCardActions = ({
   const canEdit = isAuthenticated && ownsNote && !!onEdit;
   const canDelete = isAuthenticated && ownsNote && !!onDelete;
   const canShare = note.public;
+  // Targeted share / bookmark / copy all call endpoints that
+  // exist only on the unshipped sharing backend
+  // (bible_research#163) — the gate hides them where the
+  // feature is unavailable (prod + Android today).
+  const sharingOn = isNoteSharingEnabled();
   // Targeted sharing is owner-only; bookmark + copy apply to
   // any note the caller can read (public link, published,
   // shared-with-me, or their own).
-  const canShareTargeted = isAuthenticated && ownsNote;
+  const canShareTargeted =
+    sharingOn && isAuthenticated && ownsNote;
   // Bookmark/copy target OTHER users' accessible notes —
   // the backend 400s own-note bookmarks and copies, so the
   // affordances hide when ownership is known.
-  const canBookmark = isAuthenticated && !ownsNote;
-  const canCopy = isAuthenticated && !ownsNote;
+  const canBookmark = sharingOn && isAuthenticated && !ownsNote;
+  const canCopy = sharingOn && isAuthenticated && !ownsNote;
   // Anonymous readers get a login CTA in place of the
   // save/copy controls, carrying the current URL so login
   // lands them back on this note.
@@ -215,7 +222,7 @@ const NoteCardActions = ({
           </Box>
         </Tooltip>
       )}
-      {!isAuthenticated && (
+      {!isAuthenticated && sharingOn && (
         <Tooltip label={t('bookmarks.loginToSave')} position="top">
           <Box component="span" sx={{ display: 'inline-block' }}>
             <ActionIcon

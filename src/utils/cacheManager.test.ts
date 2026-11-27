@@ -599,6 +599,59 @@ describe('Audio Cache Manager', () => {
 
     expect(getCachedAudioUrl('GEN', 1, 'KJV')).toBe(audioUrl);
   });
+
+  it('drops a chapterless ESV CDN file that cannot carry ' +
+    'the chapter', () => {
+      // Production cached 'Leviticus%20.mp3' — a real whole-book
+      // recording minted by an older backend — under a chapter
+      // key; streaming it plays the wrong audio. Treat it as a
+      // miss so the refetch repopulates the entry.
+      cacheAudioUrl(
+        'LEV', 20, 'ENGESV_API',
+        'https://audio.esv.org/hw/Leviticus%20.mp3'
+      );
+
+      expect(getCachedAudioUrl('LEV', 20, 'ENGESV_API'))
+        .toBeNull();
+    },
+  );
+
+  it('drops an ESV CDN file for a different chapter', () => {
+    cacheAudioUrl(
+      'LEV', 20, 'ENGESV_API',
+      'https://audio.esv.org/hw/Leviticus%2021.mp3'
+    );
+
+    expect(getCachedAudioUrl('LEV', 20, 'ENGESV_API'))
+      .toBeNull();
+  });
+
+  it('keeps a well-formed ESV CDN chapter file', () => {
+    const audioUrl =
+      'https://audio.esv.org/hw/Leviticus%2020.mp3';
+    cacheAudioUrl('LEV', 20, 'ENGESV_API', audioUrl);
+
+    expect(getCachedAudioUrl('LEV', 20, 'ENGESV_API'))
+      .toBe(audioUrl);
+  });
+
+  it('keeps a space-named ESV CDN chapter file', () => {
+    const audioUrl =
+      'https://audio.esv.org/hw/Song%20of%20Solomon%205.mp3';
+    cacheAudioUrl('SNG', 5, 'ENGESV_API', audioUrl);
+
+    expect(getCachedAudioUrl('SNG', 5, 'ENGESV_API'))
+      .toBe(audioUrl);
+  });
+
+  it('does not pattern-check non-ESV audio hosts', () => {
+    // Signed CDN paths are opaque — no chapter digits required.
+    const audioUrl = 'https://cdn.example.com/opaque-path';
+    cacheAudioUrl('LEV', 20, 'NIVDA', audioUrl);
+
+    expect(getCachedAudioUrl('LEV', 20, 'NIVDA'))
+      .toBe(audioUrl);
+  });
 });
 
 describe('Timestamp Cache', () => {
