@@ -4320,7 +4320,11 @@ prefetchAdjacentChapters(book, chapter, filesetId);
   stay eager (landing path)
 - **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
   `EditNoteModal` lazy + gated on their open flag, keeping
-  TipTap out of the entry graph entirely
+  TipTap out of the entry graph entirely. `ContactModal` is
+  deliberately EAGER — it code-splits to ~3KB since every dep
+  already sits in the shared chunks, so the lazy boundary only
+  added a network round trip to its first open (Sentry user
+  report 9116dff3, "opens really slow")
 
 **Optimizations**:
 - Tree-shaking enabled (Vite)
