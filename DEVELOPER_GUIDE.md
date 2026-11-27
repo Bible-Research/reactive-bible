@@ -589,7 +589,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v11 with a
+management. The main store (`bible-storage`, schema v12 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -660,6 +660,10 @@ auth lives in a separate persisted `authStore`.
   the page and page size the user last selected for it
 - `lastSelectedTagId: string | null` - remembered for the
   `/notes` redirect
+- `confirmNoteReorder: boolean` - persisted preference
+  (default on): while on, the tag page asks "Change notes
+  order?" via a confirm modal before order-menu moves and
+  drag reorders apply; the `/settings` toggle opts out
 
 **Audio Playlist State**:
 - `audioPlaylistItems: PlaylistItem[] | null` - flattened play
@@ -2274,7 +2278,11 @@ moveNote(
   with up to ~2000 notes.
 - Picking an entry moves the note just after it in *display*
   order; the route translates to canonical placement
-  (`custom_asc` → `after`, `custom_desc` → `before`).
+  (`custom_asc` → `after`, `custom_desc` → `before`). While
+  the persisted `confirmNoteReorder` pref is on (default —
+  `/settings` toggles it), every reorder path first opens a
+  "Change notes order?" confirm modal (`openConfirmModal`)
+  and only runs the move/reorder on confirm.
 - The order index is fetched per tag via `getNoteOrderIndex`,
   kept in `useNoteOrderMenu` state (never persisted), and
   refetched after every move; `moveNoteAfter` in the store

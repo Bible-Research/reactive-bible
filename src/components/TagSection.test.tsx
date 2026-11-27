@@ -1,5 +1,9 @@
 import type { ComponentProps } from 'react';
-import { screen, act } from '@testing-library/react';
+import {
+  screen,
+  act,
+  waitFor,
+} from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import TagSection from './TagSection';
 import type { DragEndEvent } from '@dnd-kit/core';
@@ -127,8 +131,10 @@ describe('TagSection drag reorder', () => {
   const mockNotes = [note('n1'), note('n2')];
   const mockOnViewInBible = vi.fn();
 
-  const renderDraggable = (sortOrder?: string) => {
-    const onReorder = vi.fn();
+  const renderDraggable = (
+    sortOrder?: string,
+    onReorder = vi.fn()
+  ) => {
     renderWithProviders(
       <TagSection
         tagName="Faith"
@@ -144,6 +150,13 @@ describe('TagSection drag reorder', () => {
     );
     return onReorder;
   };
+
+  // DOM order of the rendered note texts — proves which
+  // order localNotes currently holds.
+  const renderedNoteTexts = () =>
+    screen
+      .getAllByText(/^This is n[12]$/)
+      .map((el) => el.textContent);
 
   it('sends the reordered ids as-is in custom_asc', () => {
     const onReorder = renderDraggable('custom_asc');
@@ -183,5 +196,75 @@ describe('TagSection drag reorder', () => {
       dragEnd('n1', 'n1');
 
       expect(onReorder).not.toHaveBeenCalled();
+    });
+
+  it('rolls the optimistic order back when onReorder ' +
+    'resolves false (confirm dialog dismissed)', async () => {
+      const onReorder = vi.fn().mockResolvedValue(false);
+      renderDraggable('custom_asc', onReorder);
+
+      // Drag n1 below n2 → the optimistic display order
+      // becomes [n2, n1] before onReorder settles.
+      dragEnd('n1', 'n2');
+      expect(onReorder).toHaveBeenCalledWith(
+        'tag-1',
+        ['n2', 'n1'],
+        2,
+        25
+      );
+      expect(renderedNoteTexts()).toEqual([
+        'This is n2',
+        'This is n1',
+      ]);
+
+      // `false` means the reorder was backed out of — the
+      // list reverts to the prop order since the store still
+      // holds the pre-drag one.
+      await waitFor(() => {
+        expect(renderedNoteTexts()).toEqual([
+          'This is n1',
+          'This is n2',
+        ]);
+      });
+    });
+
+  it('keeps the optimistic order when onReorder ' +
+    'resolves true', async () => {
+      const onReorder = vi.fn().mockResolvedValue(true);
+      renderDraggable('custom_asc', onReorder);
+
+      dragEnd('n1', 'n2');
+
+      await waitFor(() => {
+        expect(onReorder).toHaveBeenCalled();
+      });
+      expect(renderedNoteTexts()).toEqual([
+        'This is n2',
+        'This is n1',
+      ]);
+    });
+
+  it('rolls the optimistic order back when onReorder ' +
+    'rejects (reorder failed server-side)', async () => {
+      const onReorder = vi
+        .fn()
+        .mockRejectedValue(new Error('network down'));
+      renderDraggable('custom_asc', onReorder);
+
+      dragEnd('n1', 'n2');
+      expect(onReorder).toHaveBeenCalled();
+      expect(renderedNoteTexts()).toEqual([
+        'This is n2',
+        'This is n1',
+      ]);
+
+      // A rejected write means the store still holds the
+      // pre-drag order — the optimistic list reverts.
+      await waitFor(() => {
+        expect(renderedNoteTexts()).toEqual([
+          'This is n1',
+          'This is n2',
+        ]);
+      });
     });
 });

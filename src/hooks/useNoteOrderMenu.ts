@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { openConfirmModal } from '@mantine/modals';
 import { getNoteOrderIndex } from '../api';
 import { useBibleStore } from '../store';
 import { captureHandledError } from '../utils/errorReporter';
@@ -64,13 +65,17 @@ interface UseNoteOrderMenuResult {
   orderMenu: NoteOrderMenuData | undefined;
   /** Refetch the order index (after moves, deletes, refresh). */
   reloadOrderIndex: () => Promise<void>;
-  /** dnd-kit bulk reorder — writes through the store action. */
+  /** dnd-kit bulk reorder — asks for confirmation when the
+   *  `confirmNoteReorder` preference is on, then writes
+   *  through the store action. Resolves `false` when the user
+   *  cancels so the caller can drop its optimistic order;
+   *  `true` once the reorder has run. */
   handleReorder: (
     tagId: string,
     noteIds: string[],
     currentPage: number,
     pageSize: number
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }
 
 /**
@@ -95,6 +100,9 @@ export const useNoteOrderMenu = ({
   );
   const reorderNotes = useBibleStore(
     (state) => state.reorderNotes
+  );
+  const confirmNoteReorder = useBibleStore(
+    (state) => state.confirmNoteReorder
   );
 
   // Compact index of every note in the tag, in canonical
@@ -169,7 +177,7 @@ export const useNoteOrderMenu = ({
 
   // Display-order "after" translates to canonical placement:
   // in custom_desc visual after = canonical before.
-  const handleMoveAfter = useCallback(
+  const performMoveAfter = useCallback(
     async (noteId: string, targetNoteId: string) => {
       if (!tagId) return;
       try {
@@ -188,7 +196,7 @@ export const useNoteOrderMenu = ({
     [tagId, sortOrder, moveNoteAfter, reloadOrderIndex]
   );
 
-  const handleMoveToTop = useCallback(
+  const performMoveToTop = useCallback(
     async (noteId: string) => {
       if (!tagId || !orderIndex || orderIndex.length === 0) {
         return;
@@ -225,7 +233,7 @@ export const useNoteOrderMenu = ({
   // action settles — otherwise badges, topOrderId and the menu
   // labels keep their pre-drag values (and Move-to-top can aim
   // at an entry that is no longer canonical-first).
-  const handleReorder = useCallback(
+  const performReorder = useCallback(
     async (
       reorderTagId: string,
       noteIds: string[],
@@ -239,13 +247,87 @@ export const useNoteOrderMenu = ({
           currentPage,
           pageSize
         );
-      } catch {
-        // The store action already showed a notification.
       } finally {
         await reloadOrderIndex();
       }
     },
     [reorderNotes, reloadOrderIndex]
+  );
+
+  // Every reorder path — order-menu moves and the drag — asks
+  // for confirmation while the persisted
+  // `confirmNoteReorder` preference is on (default: a Sentry
+  // user report asked for a "really change the order?" check;
+  // /settings lets the user opt out). `run` is fire-and-forget:
+  // the store actions surface their own notifications. The
+  // promise resolves `true` once `run` has finished (or
+  // rejects if `run` does) and `false` when the dialog is
+  // dismissed — TagSection rolls its optimistic order back on
+  // `false`; the menu paths ignore the result.
+  const confirmThenRun = useCallback(
+    (run: () => Promise<void>): Promise<boolean> => {
+      if (!confirmNoteReorder) {
+        return run().then(() => true);
+      }
+      return new Promise<boolean>((resolve) => {
+        openConfirmModal({
+          title: t('notes.reorderConfirmTitle'),
+          children: t('notes.reorderConfirmBody'),
+          labels: {
+            confirm: t('notes.reorderConfirmApply'),
+            cancel: t('common.cancel'),
+          },
+          onConfirm: () => {
+            resolve(run().then(() => true));
+          },
+          // Mantine v6 fires onCancel for the cancel button
+          // only — overlay click, Escape and the close icon
+          // go through onClose instead, so both paths must
+          // resolve `false` or a dismissed dialog would leave
+          // the promise pending (and TagSection's optimistic
+          // order applied) forever. Resolving `false` again
+          // after a confirm is a no-op: the promise already
+          // adopted `run`'s outcome.
+          onCancel: () => {
+            resolve(false);
+          },
+          onClose: () => {
+            resolve(false);
+          },
+        });
+      });
+    },
+    [confirmNoteReorder, t]
+  );
+
+  const handleMoveAfter = useCallback(
+    (noteId: string, targetNoteId: string) =>
+      confirmThenRun(() => performMoveAfter(noteId, targetNoteId)),
+    [confirmThenRun, performMoveAfter]
+  );
+
+  const handleMoveToTop = useCallback(
+    (noteId: string) =>
+      confirmThenRun(() => performMoveToTop(noteId)),
+    [confirmThenRun, performMoveToTop]
+  );
+
+  const handleReorder = useCallback(
+    (
+      reorderTagId: string,
+      noteIds: string[],
+      currentPage: number,
+      pageSize: number
+    ) =>
+      confirmThenRun(() =>
+        performReorder(
+          reorderTagId,
+          noteIds,
+          currentPage,
+          pageSize
+        )
+      ),
+    [confirmThenRun, performReorder]
   );
 
   const orderMenu = useMemo(
