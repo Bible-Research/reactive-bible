@@ -284,11 +284,10 @@ whose head SHA was never merged into `staging`, and the
   merged_at comparison, plus a `Promoted from staging
   (PR #N)` / `(PRs #a, #b)` body-marker match — the only
   signal that survives a renamed promotion head, whose
-  staged SHAs never enter
-  the promotion PR's commit graph) from the
-  unauthenticated GitHub pulls API, and `StagingChecklistModal`
-  renders each PR's `## UI verification / QC` steps as
-  session-local checkboxes.
+  staged SHAs never enter the promotion PR's commit graph)
+  from the unauthenticated GitHub pulls API, and
+  `StagingChecklistModal` renders each PR's `## UI
+  verification / QC` steps as session-local checkboxes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract
