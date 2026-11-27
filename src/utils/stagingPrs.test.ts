@@ -129,6 +129,113 @@ describe('fetchPendingStagingPrs', () => {
       expect(await fetchPendingStagingPrs()).toHaveLength(0);
     });
 
+  it('excludes a PR named by a main PR promotion marker ' +
+    '(renamed branch)', async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a', headSha: 'sha1',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod', headSha: 'other',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            'Same title\n\n---\n_Promoted from `staging` ' +
+            '(PR #10) by the Promote-to-main workflow._\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(0);
+    });
+
+  it('ignores a marker on a closed-unmerged main PR', async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod', mergedAt: null,
+          body: '_Promoted from `staging` (PR #10)._\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(1);
+    });
+
+  it('ignores the marker phrase mid-prose (line-anchored)',
+    async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/b',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body:
+            'This was NOT promoted from `staging` ' +
+            '(PR #10) — different branch.\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(1);
+    });
+
+  it('ignores a marker carried by a STAGING PR body', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+            body: '_Promoted from `staging` (PR #10)._\n',
+          },
+          {
+            number: 30, headRef: 'feat/b',
+            mergedAt: '2026-01-02T00:00:00Z',
+          },
+        ],
+        [],
+      );
+      const prs = await fetchPendingStagingPrs();
+      expect(prs.map((p) => p.number)).toEqual([10, 30]);
+    });
+
+  it('matches a bare marker line (no emphasis/backticks)',
+    async () => {
+      servePulls(
+        [{
+          number: 10, headRef: 'feat/a',
+          mergedAt: '2026-01-01T00:00:00Z',
+        }],
+        [{
+          number: 20, headRef: 'feat/a-prod',
+          mergedAt: '2026-01-02T00:00:00Z',
+          body: 'Notes.\nPromoted from staging (PR #10)\n',
+        }],
+      );
+      expect(await fetchPendingStagingPrs()).toHaveLength(0);
+    });
+
+  it('keeps a staged PR whose number no marker names', async () => {
+      servePulls(
+        [
+          {
+            number: 10, headRef: 'feat/a',
+            mergedAt: '2026-01-01T00:00:00Z',
+          },
+          {
+            number: 30, headRef: 'feat/b',
+            mergedAt: '2026-01-02T00:00:00Z',
+          },
+        ],
+        [{
+          number: 20, headRef: 'feat/a-prod',
+          mergedAt: '2026-01-03T00:00:00Z',
+          body: '_Promoted from `staging` (PR #10)._\n',
+        }],
+      );
+      const prs = await fetchPendingStagingPrs();
+      expect(prs.map((p) => p.number)).toEqual([30]);
+    });
+
   it('orders pending PRs by staging merge time (oldest first)',
     async () => {
       servePulls(
@@ -272,7 +379,78 @@ describe('parseQcSteps', () => {
 
   it('drops bare task markers with no step text', () => {
     const body =
-      '## UI verification / QC\n- [x]\n- Real step\n';
+      '## UI verification / QC\n- [x]\n  stray tail\n' +
+      '- Real step\n';
     expect(parseQcSteps(body)).toEqual(['Real step']);
+  });
+
+  it('joins hard-wrapped continuation lines into their step',
+    () => {
+      const body =
+        '## UI verification / QC\n' +
+        '- [ ] Open the app, open the translation selector,\n' +
+        '  save e.g. NIV for English and GLÜK for Latvian.\n' +
+        '- [ ] Repeat with the tab offline: switching back\n' +
+        '  still pre-selects the remembered version.\n\n' +
+        'Generated with [Devin](https://devin.ai)\n';
+      expect(parseQcSteps(body)).toEqual([
+        'Open the app, open the translation selector, ' +
+          'save e.g. NIV for English and GLÜK for Latvian.',
+        'Repeat with the tab offline: switching back ' +
+          'still pre-selects the remembered version.',
+      ]);
+    });
+
+  it('keeps prose before the first bullet out of the steps',
+    () => {
+      const body =
+        '## UI verification / QC\n' +
+        'Do these against the preview deploy.\n' +
+        '- First step\n  wrapped tail\n';
+      expect(parseQcSteps(body)).toEqual([
+        'First step wrapped tail',
+      ]);
+    });
+
+  it('ends a step at a sub-heading inside the section', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- Step one\n### Notes\nnot part of step\n';
+    expect(parseQcSteps(body)).toEqual(['Step one']);
+  });
+
+  it('ends a step at fences, quotes, rules and tables', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- One\n```\ncode\n```\n- Two\n> quote\n---\n' +
+      '- Three\n| a |\n';
+    expect(parseQcSteps(body)).toEqual(['One', 'Two', 'Three']);
+  });
+
+  it('keeps starter lookalikes as continuation text', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- Step one\n  ***important*** and #123 refs stay\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one ***important*** and #123 refs stay',
+    ]);
+  });
+
+  it('joins CRLF-wrapped and multi-line continuations', () => {
+    const body =
+      '## UI verification / QC\r\n- [ ] Step one\r\n' +
+      '  second line\r\n  third line\r\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one second line third line',
+    ]);
+  });
+
+  it('glues an unseparated footer line like GitHub does', () => {
+    const body =
+      '## UI verification / QC\n- Step one\n' +
+      'Generated with [Devin](https://devin.ai)\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one Generated with [Devin](https://devin.ai)',
+    ]);
   });
 });

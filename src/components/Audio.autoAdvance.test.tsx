@@ -18,6 +18,7 @@ import {
   stubMediaSession,
   type MediaSessionStub,
 } from '../__tests__/mocks/mediaSession';
+import { resetAudioPrefetchForTests } from '../utils/audioUtils';
 
 vi.mock('howler', async () => ({
   Howl: (await import('../__tests__/mocks/FakeHowl')).FakeHowl,
@@ -88,6 +89,10 @@ describe('Audio chapter auto-advance', () => {
     FakeHowl.reset();
     vi.clearAllMocks();
     mockDomApis();
+    // Session-learned CORS marks must not leak across tests —
+    // an earlier 'CORS'-rejecting fetch would otherwise skip
+    // every later test's prefetch fetch assertion.
+    resetAudioPrefetchForTests();
     // No CORS on the audio host — the preload streams the URL.
     vi.stubGlobal(
       'fetch',

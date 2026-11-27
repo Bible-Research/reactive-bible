@@ -32,7 +32,11 @@ import {
   UI_LANGUAGE_AUTONYMS,
   isUiLanguage,
 } from "../i18n";
-import { isNativeApp, isPreviewDeploy } from "../utils/platform";
+import {
+  isNativeApp,
+  isPreviewDeploy,
+  isNoteSharingEnabled,
+} from "../utils/platform";
 import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
 import { lazyWithReload } from "../utils/lazyWithReload";
@@ -219,7 +223,11 @@ const MainMenu = ({
           </Group>
         )}
 
-        {isAuthenticated && (
+        {/* /shared and /bookmarks auto-fetch endpoints that
+            exist only on the unshipped sharing backend
+            (bible_research#163) — hidden where the gate says
+            the feature is unavailable. */}
+        {isAuthenticated && isNoteSharingEnabled() && (
           <Group position="apart" spacing="xs">
             <Text
               weight={500}
@@ -235,7 +243,7 @@ const MainMenu = ({
           </Group>
         )}
 
-        {isAuthenticated && (
+        {isAuthenticated && isNoteSharingEnabled() && (
           <Group position="apart" spacing="xs">
             <Text
               weight={500}

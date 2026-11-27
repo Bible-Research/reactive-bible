@@ -1,9 +1,11 @@
 /**
- * NoteCard's translation controls (language switcher, status
- * chips, author verification, peek) — rendered only when
+ * NoteCard's translation controls (language switcher, author
+ * verification, peek) — rendered only when
  * `useNoteTranslation.enabled` is true: the "Auto-translate
  * notes" setting is ON, the note has a detected source
- * language, and at least one other language exists.
+ * language, and at least one ready translation exists. The
+ * backend pipeline no longer produces rows, so pending/
+ * failed states are never offered and carry no UI.
  */
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,7 +19,6 @@ import {
 import {
   IconCheck,
   IconRefresh,
-  IconRotate,
 } from '@tabler/icons-react';
 import type { NoteLanguageState } from '../hooks/useNoteTranslation';
 
@@ -41,12 +42,6 @@ const NoteLanguageBar = ({
     !!sourceLang &&
     state.servedLang !== sourceLang &&
     !state.peekingOriginal;
-  const hasFailed = state.translations.some(
-    (m) => m.status === 'failed'
-  );
-  const hasPending = state.translations.some(
-    (m) => m.status === 'pending'
-  );
 
   return (
     <Group position="apart" spacing="xs" mt={6} noWrap>
@@ -83,29 +78,6 @@ const NoteLanguageBar = ({
             {t('notes.translation.verifiedByAuthor')}
           </Badge>
         )}
-        {hasPending && (
-          <Text size="xs" color="dimmed">
-            {t('notes.translation.translating')}
-          </Text>
-        )}
-        {hasFailed && isOwner && (
-          <Button
-            size="xs"
-            compact
-            variant="subtle"
-            color="red"
-            leftIcon={<IconRotate size={12} />}
-            loading={state.acting}
-            onClick={state.retryFailed}
-          >
-            {t('notes.translation.retry')}
-          </Button>
-        )}
-        {hasFailed && !isOwner && (
-          <Text size="xs" color="red">
-            {t('notes.translation.failed')}
-          </Text>
-        )}
         {isOwner &&
           selectedMeta?.status === 'ready' && (
             <Button
@@ -122,12 +94,6 @@ const NoteLanguageBar = ({
                 ? t('notes.translation.unverify')
                 : t('notes.translation.verify')}
             </Button>
-          )}
-        {isOwner && hasFailed === false && hasPending &&
-          !translatedView && (
-            <Text size="xs" color="dimmed">
-              {t('notes.translation.updating')}
-            </Text>
           )}
         <Button
           size="xs"

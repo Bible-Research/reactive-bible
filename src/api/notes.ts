@@ -380,22 +380,6 @@ export const setNoteTranslationVerified = async (
 };
 
 /**
- * Owner-only retry of `failed` translation rows — re-marks
- * them `pending` and enqueues a fresh run; returns the
- * number of rows requeued.
- */
-export const retranslateNote = async (
-  noteId: string
-): Promise<{ requeued: number }> => {
-  return fetchJson<{ requeued: number }>(
-    authenticatedFetch,
-    `${API_BASE_URL}/api/v1/notes/${noteId}/retranslate/`,
-    'Failed to retranslate note',
-    { method: 'POST' }
-  );
-};
-
-/**
  * Upload one image to a note. The note must already exist —
  * there is no pre-upload endpoint — so create-mode modals
  * stage files locally and upload only after the first save
