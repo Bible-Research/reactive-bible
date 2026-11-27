@@ -275,4 +275,39 @@ describe('parseQcSteps', () => {
       '## UI verification / QC\n- [x]\n- Real step\n';
     expect(parseQcSteps(body)).toEqual(['Real step']);
   });
+
+  it('joins hard-wrapped continuation lines into their step',
+    () => {
+      const body =
+        '## UI verification / QC\n' +
+        '- [ ] Open the app, open the translation selector,\n' +
+        '  save e.g. NIV for English and GLÜK for Latvian.\n' +
+        '- [ ] Repeat with the tab offline: switching back\n' +
+        '  still pre-selects the remembered version.\n\n' +
+        'Generated with [Devin](https://devin.ai)\n';
+      expect(parseQcSteps(body)).toEqual([
+        'Open the app, open the translation selector, ' +
+          'save e.g. NIV for English and GLÜK for Latvian.',
+        'Repeat with the tab offline: switching back ' +
+          'still pre-selects the remembered version.',
+      ]);
+    });
+
+  it('keeps prose before the first bullet out of the steps',
+    () => {
+      const body =
+        '## UI verification / QC\n' +
+        'Do these against the preview deploy.\n' +
+        '- First step\n  wrapped tail\n';
+      expect(parseQcSteps(body)).toEqual([
+        'First step wrapped tail',
+      ]);
+    });
+
+  it('ends a step at a sub-heading inside the section', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- Step one\n### Notes\nnot part of step\n';
+    expect(parseQcSteps(body)).toEqual(['Step one']);
+  });
 });
