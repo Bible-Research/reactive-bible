@@ -41,14 +41,16 @@ import { checkForUpdatesManually } from "../hooks/useAppUpdate";
 import { fetchNewestApkUrl } from "../utils/appUpdate";
 import { lazyWithReload } from "../utils/lazyWithReload";
 import { UserMenu } from "./UserMenu";
+// Eager on purpose: ContactModal code-splits to ~3KB (all its
+// deps already sit in the shared chunks), so the lazy boundary
+// saved nothing but made first open wait on a network round
+// trip — the reported "opens really slow" on mobile.
+import ContactModal from "./ContactModal";
 
 // Lazy + gated below on newNoteOpened — the modal pulls in
 // TipTap, which must stay out of the app-shell chunk.
 const AddStandaloneNoteModal = lazyWithReload(
   () => import("./AddStandaloneNoteModal")
-);
-const ContactModal = lazyWithReload(
-  () => import("./ContactModal")
 );
 // Preview-deploys only (see isPreviewDeploy): the QA checklist
 // of PRs merged to staging but not yet promoted to main.
@@ -508,12 +510,10 @@ const MainMenu = ({
         </Suspense>
       )}
       {contactOpened && (
-        <Suspense fallback={null}>
-          <ContactModal
-            opened={contactOpened}
-            onClose={() => setContactOpened(false)}
-          />
-        </Suspense>
+        <ContactModal
+          opened={contactOpened}
+          onClose={() => setContactOpened(false)}
+        />
       )}
       {/* Mounted (not just when open) so ticked checklist state
           survives closing the modal to go click through the
