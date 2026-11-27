@@ -282,10 +282,18 @@ export const useNoteOrderMenu = ({
           onConfirm: () => {
             resolve(run().then(() => true));
           },
-          // Mantine fires onCancel for the cancel button AND
-          // every other dismissal (overlay click, Escape,
-          // close icon) — all leave the order untouched.
+          // Mantine v6 fires onCancel for the cancel button
+          // only — overlay click, Escape and the close icon
+          // go through onClose instead, so both paths must
+          // resolve `false` or a dismissed dialog would leave
+          // the promise pending (and TagSection's optimistic
+          // order applied) forever. Resolving `false` again
+          // after a confirm is a no-op: the promise already
+          // adopted `run`'s outcome.
           onCancel: () => {
+            resolve(false);
+          },
+          onClose: () => {
             resolve(false);
           },
         });

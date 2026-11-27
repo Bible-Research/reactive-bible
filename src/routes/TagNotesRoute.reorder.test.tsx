@@ -304,15 +304,44 @@ describe('TagNotesRoute drag reorder', () => {
     );
 
     expect(openConfirmModal).toHaveBeenCalled();
-    // Mantine fires onCancel for the cancel button AND every
-    // other dismissal (overlay click, Escape) — the handler
-    // resolves the drag's promise with `false` so TagSection
-    // reverts its optimistic order, and `run` never starts.
+    // The cancel button resolves the drag's promise with
+    // `false` so TagSection reverts its optimistic order,
+    // and `run` never starts.
     const options = vi.mocked(openConfirmModal).mock.calls[0][0];
     options.onCancel?.();
 
     // Let the deferred reorder promise settle, then confirm
     // nothing wrote through.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(mockApi.reorderNotes).not.toHaveBeenCalled();
+    expect(mockApi.moveNote).not.toHaveBeenCalled();
+    expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the reorder when the confirm dialog is ' +
+    'dismissed without a button (overlay/Escape)', async () => {
+    renderRoute(
+      '/notes/tag/tag-123',
+      { confirmNoteReorder: true }
+    );
+    await waitFor(() => {
+      expect(mockApi.getNoteOrderIndex).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(
+      await screen.findByLabelText('trigger-reorder')
+    );
+
+    expect(openConfirmModal).toHaveBeenCalled();
+    // Mantine v6 routes overlay clicks, Escape and the close
+    // icon through onClose, not onCancel — the handler must
+    // still resolve `false` or the deferred reorder promise
+    // would stay pending with the optimistic order applied.
+    const options = vi.mocked(openConfirmModal).mock.calls[0][0];
+    options.onClose?.();
+
     await new Promise((resolve) => {
       setTimeout(resolve, 0);
     });
