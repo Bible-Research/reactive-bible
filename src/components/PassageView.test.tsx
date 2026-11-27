@@ -340,3 +340,67 @@ describe('PassageView section headings', () => {
     },
   );
 });
+
+describe('PassageView settle delay gating', () => {
+  const coldView = {
+    activeBookId: 'GEN',
+    activeChapter: 1,
+    activeTextFilesetId: 'ENGESV_API',
+    translations: [],
+  };
+  const chapterBody = {
+    verses: [
+      { verse: 1, text: 'In the beginning...' },
+      { verse: 2, text: 'And the earth was...' },
+    ],
+    headings: [],
+  };
+
+  it('fires a cold chapter fetch immediately', async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(api, 'getVersesInChapter');
+    try {
+      useBibleHandler(chapterBody);
+      renderWithProviders(<PassageView />, {
+        storeOverrides: coldView,
+      });
+      // No timer advance: a lone navigation must not wait
+      // out the 300 ms settle delay. The fetch call happens
+      // synchronously inside the effect, so no flush is
+      // needed — flushPromises would hang here, it is a
+      // setTimeout(0) and fake timers never fire it.
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('delays the fetch when chapters change in quick ' +
+    'succession', async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(api, 'getVersesInChapter');
+    try {
+      useBibleHandler(chapterBody);
+      renderWithProviders(<PassageView />, {
+        storeOverrides: coldView,
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      // Hop to chapter 2 at once — inside the rapid-scan
+      // window, so the fetch must wait out the settle delay.
+      act(() => {
+        useBibleStore.setState({ activeChapter: 2 });
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+});
