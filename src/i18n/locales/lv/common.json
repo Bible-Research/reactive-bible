@@ -27,7 +27,14 @@
     "bookmarks": "Grāmatzīmes",
     "autoTranslateNotes": "Automātiski tulkot piezīmes",
     "autoTranslateNotesHint": "Rādīt mašīntulkojumus, ja piezīme ir citā valodā.",
-    "settings": "Iestatījumi"
+    "settings": "Iestatījumi",
+    "stagingChecklist": "Kas atrodas staging",
+    "stagingChecklistHint": "PR uz staging, kas gaida UI pārbaudi.",
+    "stagingChecklistOpenPr": "Atvērt GitHub",
+    "stagingChecklistSeePr": "Pārbaudes soļi — skatīt PR aprakstu",
+    "stagingChecklistEmpty": "Nekas — staging sakrīt ar produkciju.",
+    "stagingChecklistError": "Neizdevās ielādēt sarakstu.",
+    "stagingChecklistCompare": "Atvērt main...staging salīdzinājumu GitHub"
   },
   "audio": {
     "play": "Atskaņot",
@@ -204,10 +211,6 @@
       "language": "Piezīmes valoda",
       "autoTranslated": "Automātiski tulkots",
       "verifiedByAuthor": "Autors pārbaudījis",
-      "translating": "Notiek tulkošana…",
-      "updating": "Tulkojumi atjauninās…",
-      "failed": "Tulkošana neizdevās",
-      "retry": "Mēģināt tulkot vēlreiz",
       "verify": "Atzīmēt kā pārbaudītu",
       "unverify": "Noņemt pārbaudījuma atzīmi",
       "showOriginal": "Rādīt oriģinālu",

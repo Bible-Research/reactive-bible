@@ -7,18 +7,23 @@
  * per-language metadata. This hook adds per-card language
  * switching on top: a `?lang=` refetch fills a session cache
  * keyed by note id + updated_at so flipping between languages
- * never refetches, a failed refetch keeps the last-good text
- * (never silently substituting the original), and a `pending`
- * row schedules exactly one delayed refetch before giving up.
+ * never refetches, and a failed refetch keeps the last-good
+ * text (never silently substituting the original).
+ *
+ * The backend translation pipeline is disabled — no new
+ * `pending`/`ready`/`failed` rows are produced. Legacy
+ * `pending`/`failed` rows can never resolve, so the switcher
+ * offers only languages the server can actually return: the
+ * detected source plus rows already `ready`.
  *
  * Disabled entirely when the persisted `autoTranslateNotes`
  * toggle is off — the card then renders `note.note_text`
  * untouched and no `?lang=` request is ever issued.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { showNotification } from '@mantine/notifications';
 import i18n from '../i18n';
-import { getNote, retranslateNote,
+import { getNote,
   setNoteTranslationVerified } from '../api';
 import { useBibleStore } from '../store';
 import { captureHandledError } from '../utils/errorReporter';
@@ -31,13 +36,10 @@ const textCache = new Map<string, Note>();
 const cacheKey = (noteId: string, updatedAt: string, lang: string) =>
   `${noteId}:${updatedAt}:${lang}`;
 
-/** One delayed refetch window after a pending row is seen. */
-const PENDING_REFETCH_MS = 4000;
-
 export interface NoteLanguageState {
   /** False hides every translation control and fetch. */
   enabled: boolean;
-  /** Languages the switcher offers (source + ready + pref). */
+  /** Languages the switcher offers (source + ready rows). */
   languages: string[];
   /** Language currently selected in the switcher. */
   selectedLang: string | null;
@@ -51,12 +53,10 @@ export interface NoteLanguageState {
   peekingOriginal: boolean;
   setPeekingOriginal: (peek: boolean) => void;
   selectLanguage: (lang: string) => void;
-  /** Transient 'translating…' / 'failed' / 'verified' meta. */
+  /** Per-language meta (drives the verified chip/verify). */
   translations: NoteTranslationMeta[];
   /** Owner verify/unverify of `selectedLang` (ready rows). */
   verifySelected: (verified: boolean) => void;
-  /** Owner re-enqueue of failed rows. */
-  retryFailed: () => void;
   acting: boolean;
 }
 
@@ -78,14 +78,21 @@ export const useNoteTranslation = (
   const served = note.served_language ?? source;
   const meta = note.translations ?? [];
 
-  // Languages to offer: detected source + every ready/pending
-  // target + the preferred language (so its pending row shows
-  // 'translating…' instead of hiding the option).
+  // Languages to offer: detected source + rows the server
+  // can serve right now ('ready' + the 'source' anchor row).
+  // The translation pipeline is off, so pending/failed rows
+  // are dead ends — listing them would only offer languages
+  // that can never be fetched.
   const languages = [
     ...new Set(
       [
         source,
-        ...meta.map((t) => t.language),
+        ...meta
+          .filter(
+            (t) =>
+              t.status === 'ready' || t.status === 'source'
+          )
+          .map((t) => t.language),
       ].filter((l): l is string => Boolean(l))
     ),
   ];
@@ -113,7 +120,6 @@ export const useNoteTranslation = (
     useState(false);
   const [switching, setSwitching] = useState(false);
   const [acting, setActing] = useState(false);
-  const pendingRetried = useRef(false);
 
   // Keep displayed state in sync when the parent hands a
   // fresh payload for the SAME language (list refetch).
@@ -190,28 +196,6 @@ export const useNoteTranslation = (
     [enabled, note, served, source, display.lang]
   );
 
-  // One delayed refetch after a pending row appears (6.6):
-  // a fresh note/edit's pending rows resolve in seconds, and
-  // stopping after ready/failed avoids a polling loop.
-  const hasPending = display.meta.some(
-    (t) => t.status === 'pending'
-  );
-  useEffect(() => {
-    if (!enabled || !hasPending || pendingRetried.current) {
-      return;
-    }
-    pendingRetried.current = true;
-    const timer = setTimeout(() => {
-      getNote(note.id, display.lang ?? undefined)
-        .then((payload) =>
-          applyPayload(payload, display.lang ?? source ?? 'en')
-        )
-        .catch(() => undefined);
-    }, PENDING_REFETCH_MS);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, hasPending]);
-
   const verifySelected = useCallback(
     (verified: boolean) => {
       if (!selectedLang || acting) return;
@@ -234,27 +218,6 @@ export const useNoteTranslation = (
     },
     [note.id, selectedLang, acting]
   );
-
-  const retryFailed = useCallback(() => {
-    if (acting) return;
-    setActing(true);
-    retranslateNote(note.id)
-      .then(() => {
-        setDisplay((prev) => ({
-          ...prev,
-          meta: prev.meta.map((t) =>
-            t.status === 'failed'
-              ? { ...t, status: 'pending' as const }
-              : t
-          ),
-        }));
-        pendingRetried.current = false;
-      })
-      .catch((err) =>
-        captureHandledError(err, 'note-retranslate')
-      )
-      .finally(() => setActing(false));
-  }, [note.id, acting]);
 
   // The 'Show original' peek needs the source text locally —
   // serve it from the payload when the card IS the original,
@@ -280,7 +243,6 @@ export const useNoteTranslation = (
     selectLanguage,
     translations: display.meta,
     verifySelected,
-    retryFailed,
     acting,
   };
 };
