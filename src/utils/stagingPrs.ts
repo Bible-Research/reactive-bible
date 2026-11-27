@@ -196,7 +196,13 @@ export const parseQcSteps = (
       // would otherwise be captured as the label.
       open = !/^\[[ xX]\]$/.test(text);
       if (open) steps.push(text);
-    } else if (!line.trim() || line.trimStart().startsWith('#')) {
+    } else if (
+      !line.trim() ||
+      // Blank, heading and block-starter lines end the step —
+      // folding fences/quotes/rules/tables into the label
+      // would pollute it (CommonMark ends the item there).
+      /^\s*(?:#|>|`{3}|~{3}|\||<|(?:[-*_]\s*){3,})/.test(line)
+    ) {
       open = false;
     } else if (open) {
       steps[steps.length - 1] += ` ${line.trim()}`;

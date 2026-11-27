@@ -272,7 +272,8 @@ describe('parseQcSteps', () => {
 
   it('drops bare task markers with no step text', () => {
     const body =
-      '## UI verification / QC\n- [x]\n- Real step\n';
+      '## UI verification / QC\n- [x]\n  stray tail\n' +
+      '- Real step\n';
     expect(parseQcSteps(body)).toEqual(['Real step']);
   });
 
@@ -309,5 +310,31 @@ describe('parseQcSteps', () => {
       '## UI verification / QC\n' +
       '- Step one\n### Notes\nnot part of step\n';
     expect(parseQcSteps(body)).toEqual(['Step one']);
+  });
+
+  it('ends a step at fences, quotes, rules and tables', () => {
+    const body =
+      '## UI verification / QC\n' +
+      '- One\n```\ncode\n```\n- Two\n> quote\n---\n' +
+      '- Three\n| a |\n';
+    expect(parseQcSteps(body)).toEqual(['One', 'Two', 'Three']);
+  });
+
+  it('joins CRLF-wrapped and multi-line continuations', () => {
+    const body =
+      '## UI verification / QC\r\n- [ ] Step one\r\n' +
+      '  second line\r\n  third line\r\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one second line third line',
+    ]);
+  });
+
+  it('glues an unseparated footer line like GitHub does', () => {
+    const body =
+      '## UI verification / QC\n- Step one\n' +
+      'Generated with [Devin](https://devin.ai)\n';
+    expect(parseQcSteps(body)).toEqual([
+      'Step one Generated with [Devin](https://devin.ai)',
+    ]);
   });
 });
