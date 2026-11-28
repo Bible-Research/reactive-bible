@@ -76,18 +76,44 @@ beforeEach(async () => {
 
   // try/catch: a test file may factory-mock the module without
   // the export — merely accessing it then throws (vitest).
+  // The registry imports run concurrently — each sequential
+  // `await` here is a suspension point that widens the window
+  // for a previous test's dangling async work (e.g. an
+  // authStore persist write) to land AFTER localStorage.clear
+  // and poison the next test's hydration.
+  const [cacheManager, registry, coverage, structureSlice] =
+    await Promise.all([
+      import('./utils/cacheManager').catch(() => null),
+      import('./utils/bookNameRegistry').catch(() => null),
+      import('./utils/structureCoverage').catch(() => null),
+      import('./stores/bibleStore/structureSlice').catch(
+        () => null
+      ),
+    ]);
+  // The bookNameRegistry sync view and the abbr-keyed coverage
+  // oracle (audio filesets' own structures) are module state
+  // outside the store — without resets they leak across tests.
+  // try/catch per call: a factory-mocked module THROWS when a
+  // non-exported name is merely accessed, not just undefined.
   try {
-    const cacheManager = await import('./utils/cacheManager');
-    cacheManager.resetStorageCacheForTests?.();
+    cacheManager?.resetStorageCacheForTests?.();
   } catch {
     // mocked without the export — nothing to reset
   }
-
-  // The bookNameRegistry sync view is module state outside the
-  // store — without a reset it leaks structures across tests.
   try {
-    const registry = await import('./utils/bookNameRegistry');
-    registry.resetActiveStructure?.();
+    registry?.resetActiveStructure?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+  try {
+    coverage?.resetStructureCoverage?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+  try {
+    // A held-open structure fetch would poison dedupe for
+    // later tests in the same file.
+    structureSlice?.resetStructureInflightForTests?.();
   } catch {
     // mocked without the export — nothing to reset
   }

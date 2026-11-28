@@ -512,9 +512,14 @@ const PassageView = () => {
     // Same settle gate as the text fetch above: audio URLs
     // must not be requested for every chapter hopped through.
     const timer = setTimeout(() => {
-      // Prefetch current chapter audio.
+      // Prefetch current chapter audio — the oracle gates on
+      // the AUDIO fileset's own bible coverage, resolved via
+      // the live translations list.
       void prefetchAudioUrl(
-        activeBookId, activeChapter, resolvedAudioFilesetId
+        activeBookId,
+        activeChapter,
+        resolvedAudioFilesetId,
+        useBibleStore.getState().translations,
       );
 
       // Prefetch the next chapter's audio — via
@@ -540,6 +545,7 @@ const PassageView = () => {
             tls,
             storedTextId,
           )?.filesetId ?? null,
+          tls,
         );
       }
     }, CHAPTER_SETTLE_MS);

@@ -31,6 +31,9 @@ import {
   splitCodec,
   type CodecKey,
 } from "../utils/filesetGroups";
+import {
+  isChapterCoveredForFileset,
+} from "../utils/structureCoverage";
 import { orderedAudioCandidates } from "../utils/audioCandidates";
 import {
   isCrossTranslationPlayback,
@@ -410,6 +413,18 @@ export const useChapterAudio = (
       state.activeAudioFilesetId,
     );
     if (!filesetId) return;
+    // A chapter the AUDIO fileset's own structure doesn't cover
+    // can only answer book_not_in_fileset — skip the guaranteed
+    // 404 (+ the blob prefetch behind it). The oracle consults
+    // the owner's bible, not the read version's — "text covers,
+    // audio doesn't" (LATLVR on OT books) is exactly the miss
+    // this catches; an unloaded owner structure counts as
+    // covered so playback keeps working while it warms.
+    if (
+      !isChapterCoveredForFileset(
+        filesetId, next.bookId, next.chapter, state.translations,
+      )
+    ) return;
     const key = chapterKey(filesetId, next.bookId, next.chapter);
     if (preloadedRef.current?.key === key) return;
     const token = ++preloadTokenRef.current;
@@ -804,10 +819,26 @@ export const useChapterAudio = (
         };
         fallbackRef.current = pending;
       }
-      const nextId = pending.ids[pending.nextIndex];
+      const { activeBookId, activeChapter } = state;
+      let nextId = pending.ids[pending.nextIndex];
+      // Skip candidates whose owning bible is KNOWN not to
+      // cover this chapter — a doomed request per candidate
+      // (LATLVR's 4-id chain) collapses to none. Unknown
+      // coverage stays tried.
+      while (
+        nextId &&
+        !isChapterCoveredForFileset(
+          nextId,
+          activeBookId,
+          activeChapter,
+          state.translations,
+        )
+      ) {
+        pending.nextIndex += 1;
+        nextId = pending.ids[pending.nextIndex];
+      }
       if (!nextId) return false;
       pending.nextIndex += 1;
-      const { activeBookId, activeChapter } = state;
       void (async () => {
         try {
           const url = await resolveAudioUrl(
@@ -1201,6 +1232,7 @@ export const useChapterAudio = (
           activeBookId,
           activeChapter,
           activeAudioFilesetId,
+          translations,
         } = useBibleStore.getState();
 
         // A fetch still in flight from a previous run loses to this
@@ -1291,6 +1323,25 @@ export const useChapterAudio = (
             while (nextIndex < candidates.length) {
               const candidate = candidates[nextIndex];
               nextIndex += 1;
+              // A candidate whose owning bible is KNOWN not to
+              // cover this chapter can only answer
+              // book_not_in_fileset — skip the doomed request
+              // (LATLVR's Psalms+NT coverage burned the whole
+              // 4-id chain on an OT book). Covered-when-unknown
+              // keeps unresolvable owners tried; when every
+              // candidate is skipped the loop still ends on
+              // audioUrl === null -> the same coverage-miss
+              // terminal path as before.
+              if (
+                !isChapterCoveredForFileset(
+                  candidate,
+                  activeBookId,
+                  activeChapter,
+                  translations,
+                )
+              ) {
+                continue;
+              }
               try {
                 audioUrl = await Sentry.startSpan(
                   {

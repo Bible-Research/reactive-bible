@@ -59,6 +59,15 @@ export interface BibleState {
    * Idempotent + in-flight deduped.
    */
   loadStructure: () => void;
+  /**
+   * SWR-fill `structureByBible` for the bible owning an
+   * arbitrary selection id — warms the abbr-keyed coverage
+   * oracle (utils/structureCoverage) for the selected AUDIO
+   * version without touching the display layer.
+   */
+  ensureStructure: (
+    selectionId: string | null
+  ) => Promise<void>;
   /** USFM book code (e.g. "JHN") — canonical passage identity. */
   activeBookId: string;
   activeChapter: number;
@@ -553,6 +562,31 @@ useBibleStore.subscribe((state, prev) => {
     void state.loadStructure();
   }
 });
+
+// Warm the coverage oracle for the selected AUDIO version too:
+// its owning bible can differ from the read version's
+// (LVSGLU8 text + LAVLVR audio), and audio prefetch/fallback
+// paths gate on the owner's own structure — loaded here via
+// `ensureStructure` the same way `loadStructure` follows the
+// text selection.
+useBibleStore.subscribe((state, prev) => {
+  if (
+    state.activeAudioFilesetId !== prev.activeAudioFilesetId ||
+    (prev.translations.length === 0 &&
+      state.translations.length > 0)
+  ) {
+    void state.ensureStructure(state.activeAudioFilesetId);
+  }
+});
+// Seed for returning users: the persisted translations list
+// and audio fileset id rehydrate synchronously before this
+// subscription registers, so neither trigger ever fires on a
+// cold start — without it the audio coverage oracle stays
+// unknown forever and uncovered-chapter prefetches keep
+// paying guaranteed 404s.
+void useBibleStore
+  .getState()
+  .ensureStructure(useBibleStore.getState().activeAudioFilesetId);
 
 /**
  * Attach the active passage/fileset selection to the Sentry

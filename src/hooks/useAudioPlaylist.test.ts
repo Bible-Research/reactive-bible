@@ -1077,4 +1077,48 @@ describe('useAudioPlaylist', () => {
       expect(node?.paused).toBe(false);
     },
   );
+
+  it('skips the next-item prefetch when the audio ' +
+    'fileset\u2019s structure does not cover it', async () => {
+      const { registerStructureCoverage } =
+        await import('../utils/structureCoverage');
+      // The prefetch gate consults the OWNING audio bible's
+      // coverage — register ENGESH with JHN 3 only, so Esther
+      // is a KNOWN miss the prefetch can only 404 on.
+      registerStructureCoverage('ENGESH', {
+        books: [
+          {
+            book_id: 'JHN',
+            name: 'John',
+            name_short: 'John',
+            testament: 'NT',
+            chapters: [3],
+          },
+        ],
+      });
+      mockStoreState.translations = [eshTranslation];
+      const { result } = renderHook(() => useAudioPlaylist());
+      act(() => {
+        result.current.start([
+          makeItem({ itemId: 'a', bookId: 'JHN', chapter: 3 }),
+          makeItem({ itemId: 'b', bookId: 'EST', chapter: 1 }),
+        ]);
+      });
+      await waitFor(() =>
+        expect(result.current.audio).not.toBeNull()
+      );
+      const howl = latestHowl();
+      act(() => { howl.emit('load'); });
+      // Let the prefetch path settle — EST 1 is outside the
+      // loaded structure's coverage, so no request fires.
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      // Item a's own fetches are the only calls — the
+      // guaranteed book_not_in_fileset prefetch for EST 1 was
+      // skipped instead of 404ing.
+      expect(api.getBibleAudioUrl).toHaveBeenCalledTimes(1);
+      expect(api.getAudioTimestamps).toHaveBeenCalledTimes(1);
+    },
+  );
 });

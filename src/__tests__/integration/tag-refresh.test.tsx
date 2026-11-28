@@ -106,6 +106,7 @@ vi.mock('../../utils/cacheManager', () => ({
   clearNotesCache: vi.fn(),
   getCachedNotes: vi.fn(() => null),
   cacheNotes: vi.fn(),
+  getCachedStructure: vi.fn(() => null),
 }));
 
 describe('Tag Refresh Behavior', () => {

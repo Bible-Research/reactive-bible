@@ -1981,7 +1981,29 @@ When user navigates to a chapter, the app automatically prefetches:
 2. **Previous chapter**: Verses + Audio URL
 3. **Next chapter**: Verses + Audio URL
 
-All prefetching happens silently in the background.
+All prefetching happens silently in the background. Every
+prefetch path consults a resolved bible structure before
+requesting — a chapter it doesn't cover is skipped instead
+of firing a guaranteed `book_not_in_fileset` 404:
+
+- **Text paths** (verses prefetch, chapter preload) use
+  `isChapterCovered` (`bookNameRegistry.ts`) — the active
+  read structure.
+- **Audio paths** (`prefetchAudioUrl`, playlist next-item,
+  audio alternates walks) use `isChapterCoveredForFileset`
+  (`utils/structureCoverage.ts`) — the structure of the
+  bible OWNING the audio fileset, which can differ from
+  the read version's coverage (e.g. Job covered by Latvian
+  text but not by the partial-canon `LATLVR*` audio
+  bibles). The registry is populated by every
+  `applyStructure` and warmed for the selected audio
+  version by the `ensureStructure` store action
+  (subscription in `store.ts`); an unloaded owner passes
+  (covered-when-unknown), so only KNOWN gaps are skipped.
+
+A coverage miss that still slips through (structure not
+loaded yet) logs at debug level only — interactive loads
+keep their full logging.
 
 **Benefits**:
 - ✅ Instant playback (no loading delay)
@@ -3643,7 +3665,7 @@ getAdjacentChapters(
 }
 ```
 
-**`prefetchAudioUrl(book, chapter, filesetId)`**
+**`prefetchAudioUrl(book, chapter, filesetId, translations)`**
 
 Background prefetch of audio URL (silent, non-blocking).
 
@@ -3651,14 +3673,24 @@ Background prefetch of audio URL (silent, non-blocking).
 prefetchAudioUrl(
   book: string,
   chapter: number,
-  filesetId: string | null
+  filesetId: string | null,
+  translations: Translation[] = []
 ): Promise<void>
 ```
 
+- Skips chapters the audio fileset's OWN structure doesn't
+  cover — `isChapterCoveredForFileset`
+  (`utils/structureCoverage.ts`) resolves the fileset's
+  owning bible and checks its coverage (not the active read
+  structure — that approximation leaked 404s whenever audio
+  coverage was narrower than text coverage, e.g. Job on the
+  Psalms+NT `LATLVR` audio bibles). Unknown coverage
+  passes; KJV wordpocket audio is never gated
 - Checks cache first
 - KJV URLs are instant (no API call)
 - Other versions fetch from API
-- Silent failure (logs warning, doesn't throw)
+- Silent failure (coverage misses log debug, other failures
+  warn — never throws)
 
 **`prefetchAdjacentChapters(book, chapter, filesetId)`**
 
@@ -3672,6 +3704,9 @@ prefetchAdjacentChapters(
 ): Promise<void>
 ```
 
+- Skips adjacent chapters the resolved structure doesn't
+  cover (same `isChapterCovered` gate — a guaranteed
+  `book_not_in_fileset` miss never reaches the wire)
 - Improves navigation performance
 - Runs in background
 - Silent failure

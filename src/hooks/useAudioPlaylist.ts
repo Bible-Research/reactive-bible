@@ -18,6 +18,9 @@ import {
   findTranslationByFilesetId,
   resolveTextFileset,
 } from '../utils/filesetGroups';
+import {
+  isChapterCoveredForFileset,
+} from '../utils/structureCoverage';
 import { orderedAudioCandidates } from '../utils/audioCandidates';
 import { notifyAudioSubstitution } from '../utils/audioSubstitution';
 import { useVerseHighlighter } from './useVerseHighlighter';
@@ -168,9 +171,13 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
       const prefetchNext = (i: number) => {
         const next = allItems[i + 1];
         if (!next || !activeAudioFilesetId) return;
-        // Same timestamp-backed substitution as the playing
-        // item so the prefetched URL/timestamps match what will
-        // actually be loaded.
+        // Prefetch the first candidate whose OWNING bible's
+        // structure covers the chapter — the same pick the
+        // interactive walk lands on. Candidates whose coverage
+        // is KNOWN absent (e.g. a Psalms+NT-only LAVLVR asked
+        // for Job) are skipped without a request; an unloaded
+        // owner structure counts as covered (unknown), so a
+        // wrong skip can never strand a playable recording.
         const nextFilesetId =
           orderedAudioCandidates(
             activeAudioFilesetId,
@@ -178,7 +185,12 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
             translations,
             undefined,
             activeTextFilesetId,
-          )[0] ?? activeAudioFilesetId;
+          ).find((id) =>
+            isChapterCoveredForFileset(
+              id, next.bookId, next.chapter, translations,
+            ),
+          ) ?? null;
+        if (!nextFilesetId) return;
         if (nextFilesetId !== 'ENGKJV') {
           getBibleAudioUrl(
             next.bookId,
@@ -195,7 +207,10 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
           ),
           next.bookId,
         );
-        if (tsId) {
+        // ENGKJV has no verse timestamps — the interactive
+        // paths skip it; the prefetch must not pay a
+        // guaranteed-empty request either.
+        if (tsId && tsId !== 'ENGKJV') {
           getAudioTimestamps(next.bookId, next.chapter, tsId)
             .catch(() => { /* prefetch - ignore errors */ });
         }
@@ -221,6 +236,24 @@ export const useAudioPlaylist = (): UseAudioPlaylistReturn => {
         ): Promise<void> => {
           for (let i = startAt; i < candidates.length; i++) {
             const candidateId = candidates[i];
+            // A candidate whose owning bible is KNOWN not to
+            // cover this passage can only 404 — skip it instead
+            // of paying the doomed request (LATLVR's Psalms+NT
+            // coverage on an OT book burned the whole chain).
+            // Covered-when-unknown keeps unresolvable owners
+            // tried, and the terminal-failure path below is
+            // unchanged when every candidate is skipped.
+            if (
+              candidateId !== 'ENGKJV' &&
+              !isChapterCoveredForFileset(
+                candidateId,
+                item.bookId,
+                item.chapter,
+                translations,
+              )
+            ) {
+              continue;
+            }
             try {
               const audioUrl =
                 candidateId === 'ENGKJV'

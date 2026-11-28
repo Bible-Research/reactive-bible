@@ -4,7 +4,7 @@
  * prefetcher, and per-verse timestamp lookups.
  */
 import { toBookName } from "../utils/bibleUtils";
-import type { VerseTimestamp } from '../types';
+import type { Translation, VerseTimestamp } from '../types';
 import {
   getCachedAudioUrl,
   cacheAudioUrl,
@@ -16,6 +16,9 @@ import { publicFetch } from '../utils/apiClient';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { captureHandledError } from '../utils/errorReporter';
+import {
+  isChapterCoveredForFileset,
+} from '../utils/structureCoverage';
 import { getBooks } from './structure';
 import {
   BookNotInFilesetError,
@@ -168,7 +171,15 @@ export const getBibleAudioUrl = async (
 
     return data.audio_url;
   } catch (error) {
-    console.error(`Error fetching ${translation} audio:`, error);
+    // A coverage miss is expected — every caller either walks
+    // the alternates chain on it or reports the terminal
+    // failure itself, so a per-candidate log is pure noise.
+    if (!(error instanceof BookNotInFilesetError)) {
+      console.error(
+        `Error fetching ${translation} audio:`,
+        error
+      );
+    }
     throw error;
   }
 };
@@ -201,13 +212,33 @@ export const getKjvAudioUrl = (
  * @param bookId - USFM book code
  * @param chapter - Chapter number
  * @param filesetId - Fileset ID ("ENGKJV", "ESVDA", etc.)
+ * @param translations - Loaded translations, used to resolve
+ *   the fileset's owning bible for the coverage oracle
  */
 export const prefetchAudioUrl = async (
   bookId: string,
   chapter: number,
-  filesetId: string | null
+  filesetId: string | null,
+  translations: Translation[] = []
 ): Promise<void> => {
   if (!filesetId) return; // Cannot prefetch without a filesetId
+  // The structure of the bible OWNING this audio fileset
+  // knows its real coverage — a chapter outside it can only
+  // answer book_not_in_fileset, so skip the guaranteed 404.
+  // The oracle consults the owner's abbr (not the active read
+  // structure — "text covers, audio doesn't" is exactly the
+  // LATLVR residual this fixes); an unloaded owner structure
+  // passes (covered-when-unknown) and the catch below keeps
+  // that expected miss quiet; bundled KJV wordpocket audio is
+  // always covered.
+  if (
+    filesetId !== 'ENGKJV' &&
+    !isChapterCoveredForFileset(
+      filesetId, bookId, chapter, translations
+    )
+  ) {
+    return;
+  }
   try {
     // Check if already cached
     const cached = getCachedAudioUrl(bookId, chapter, filesetId);
@@ -235,6 +266,15 @@ export const prefetchAudioUrl = async (
       `🎵 Prefetched ${filesetId} audio for ${bookId} ${chapter}`
     );
   } catch (error) {
+    // A coverage miss in a speculative prefetch is expected —
+    // debug at most; every other failure keeps warning.
+    if (error instanceof BookNotInFilesetError) {
+      console.debug(
+        `Audio prefetch ${bookId} ${chapter}: ` +
+        'not in fileset'
+      );
+      return;
+    }
     // Silent fail - prefetch errors shouldn't block the UI
     console.warn(
       `Failed to prefetch audio for ${bookId} ${chapter}:`,
