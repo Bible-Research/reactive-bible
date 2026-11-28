@@ -578,6 +578,15 @@ useBibleStore.subscribe((state, prev) => {
     void state.ensureStructure(state.activeAudioFilesetId);
   }
 });
+// Seed for returning users: the persisted translations list
+// and audio fileset id rehydrate synchronously before this
+// subscription registers, so neither trigger ever fires on a
+// cold start — without it the audio coverage oracle stays
+// unknown forever and uncovered-chapter prefetches keep
+// paying guaranteed 404s.
+void useBibleStore
+  .getState()
+  .ensureStructure(useBibleStore.getState().activeAudioFilesetId);
 
 /**
  * Attach the active passage/fileset selection to the Sentry

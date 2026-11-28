@@ -18,6 +18,13 @@
  * Same contract as `isChapterCovered`: covered-when-unknown —
  * a request is skipped only when coverage is KNOWN absent,
  * never merely unproven.
+ *
+ * The backend resolves structure at BIBLE level — a union of
+ * the bible's sibling filesets. A bible whose text fileset
+ * covers more than its audio can therefore over-cover here
+ * (an OT prefetch fires once where audio is NT-only); the
+ * reverse can never happen — split members sharing one abbr
+ * can never mask each other's coverage.
  */
 import {
   findTranslationByFilesetId,
@@ -34,6 +41,12 @@ const indexStructure = (
 ): Map<string, Set<number>> => {
   const byBook = new Map<string, Set<number>>();
   for (const book of structure.books) {
+    if (
+      typeof book?.book_id !== 'string' ||
+      !Array.isArray(book.chapters)
+    ) {
+      continue;
+    }
     byBook.set(
       book.book_id.toUpperCase(),
       new Set(book.chapters)
@@ -68,15 +81,22 @@ export const resetStructureCoverage = (): void => {
  * before this session's warm-up fetch resolves).
  */
 const coverageForAbbr = (
-  abbr: string
+  abbr: string,
+  altKeys: string[] = []
 ): Map<string, Set<number>> | null => {
   const registered = chaptersByAbbr.get(abbr);
   if (registered) return registered;
-  const cached = getCachedStructure(abbr);
-  if (!cached) return null;
-  const byBook = indexStructure(cached);
-  chaptersByAbbr.set(abbr, byBook);
-  return byBook;
+  // Mirror the staged-tier key parity: a fetched structure can
+  // sit under the raw selection id when its owner never
+  // resolved (e.g. 'LAVNLIX_ET'), not only under the abbr.
+  for (const key of [abbr, ...altKeys]) {
+    const cached = getCachedStructure(key);
+    if (!cached) continue;
+    const byBook = indexStructure(cached);
+    chaptersByAbbr.set(abbr, byBook);
+    return byBook;
+  }
+  return null;
 };
 
 /**
@@ -120,9 +140,13 @@ export const isChapterCoveredForFileset = (
       splitCodec(filesetId).baseId,
       translations
     );
-  return isChapterCoveredForAbbr(
-    owner?.abbr ?? null,
-    bookId,
-    chapter
+  if (!owner) return true;
+  const coverage = coverageForAbbr(owner.abbr, [
+    filesetId,
+    splitCodec(filesetId).baseId,
+  ]);
+  if (!coverage) return true;
+  return (
+    coverage.get(bookId.toUpperCase())?.has(chapter) ?? false
   );
 };

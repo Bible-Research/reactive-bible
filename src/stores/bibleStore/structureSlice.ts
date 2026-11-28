@@ -309,8 +309,20 @@ export const createStructureSlice: StateCreator<
     if (staged) {
       // applyStructure's activeStructureKey guard keeps the
       // display layer pointed at the read version — this fills
-      // coverage data only.
-      applyStructure(abbr, staged, undefined, set, get);
+      // coverage data only. When the audio owner IS the active
+      // bible the apply still touches the display layer, so
+      // pass the bundled fallback too or the uncovered-book
+      // names loadStructure installed would be wiped. The
+      // oracle indexes only `structure` — a bundled fallback
+      // can never poison coverage.
+      const stagedLang = catalogLangFor(owner?.language_iso);
+      applyStructure(
+        abbr,
+        staged,
+        stagedLang ? BUNDLED_CATALOGS[stagedLang] : undefined,
+        set,
+        get,
+      );
       return Promise.resolve();
     }
 
@@ -348,7 +360,14 @@ export const createStructureSlice: StateCreator<
           selectionId,
           get().translations,
         );
-        return { abbr: landOwner?.abbr ?? abbr };
+        const landLang = catalogLangFor(
+          landOwner?.language_iso,
+        );
+        return {
+          abbr: landOwner?.abbr ?? abbr,
+          fallback:
+            landLang ? BUNDLED_CATALOGS[landLang] : undefined,
+        };
       },
       set,
       get,

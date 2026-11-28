@@ -81,11 +81,15 @@ beforeEach(async () => {
   // for a previous test's dangling async work (e.g. an
   // authStore persist write) to land AFTER localStorage.clear
   // and poison the next test's hydration.
-  const [cacheManager, registry, coverage] = await Promise.all([
-    import('./utils/cacheManager').catch(() => null),
-    import('./utils/bookNameRegistry').catch(() => null),
-    import('./utils/structureCoverage').catch(() => null),
-  ]);
+  const [cacheManager, registry, coverage, structureSlice] =
+    await Promise.all([
+      import('./utils/cacheManager').catch(() => null),
+      import('./utils/bookNameRegistry').catch(() => null),
+      import('./utils/structureCoverage').catch(() => null),
+      import('./stores/bibleStore/structureSlice').catch(
+        () => null
+      ),
+    ]);
   // The bookNameRegistry sync view and the abbr-keyed coverage
   // oracle (audio filesets' own structures) are module state
   // outside the store — without resets they leak across tests.
@@ -103,6 +107,13 @@ beforeEach(async () => {
   }
   try {
     coverage?.resetStructureCoverage?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+  try {
+    // A held-open structure fetch would poison dedupe for
+    // later tests in the same file.
+    structureSlice?.resetStructureInflightForTests?.();
   } catch {
     // mocked without the export — nothing to reset
   }
