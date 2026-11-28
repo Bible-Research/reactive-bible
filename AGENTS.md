@@ -167,6 +167,13 @@ whose head SHA was never merged into `staging`, and the
   the structure slice pushes updates. Reset via
   `resetActiveStructure()` between tests — async fetches
   otherwise leak state across specs.
+- `src/utils/structureCoverage.ts` — per-abbr coverage
+  registry fed by every `applyStructure`; the audio-path
+  oracle (`isChapterCoveredForFileset`) consults the
+  fileset's OWNING bible, not the active read structure
+  (audio coverage can be narrower — e.g. `LATLVR*` covers
+  Psalms+NT, no Job). Covered-when-unknown; warmed for the
+  selected audio version by `ensureStructure`.
 - `src/i18n/` — UI localization (i18next + react-i18next):
   `index.ts` exports `initI18n` (awaited in `main.tsx` before
   first render), `changeUiLanguage`, `resolveUiLanguage`

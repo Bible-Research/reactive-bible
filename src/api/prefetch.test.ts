@@ -22,8 +22,12 @@ import {
   resetActiveStructure,
   setActiveStructure,
 } from '../utils/bookNameRegistry';
+import {
+  registerStructureCoverage,
+  resetStructureCoverage,
+} from '../utils/structureCoverage';
 import { getCachedAudioUrl } from '../utils/cacheManager';
-import type { BibleStructure } from '../types';
+import type { BibleStructure, Translation } from '../types';
 
 const API_URL = `${API_BASE_URL}/api/v1`;
 
@@ -42,6 +46,66 @@ const partialStructure: BibleStructure = {
       name_short: 'Genesis',
       testament: 'OT',
       chapters: [1, 2],
+    },
+    {
+      book_id: 'JHN',
+      name: 'John',
+      name_short: 'John',
+      testament: 'NT',
+      chapters: [1, 2, 3],
+    },
+  ],
+};
+
+/**
+ * Full-canon active structure for the audio-oracle tests: the
+ * READ version covers Job, so the old "read structure stands in
+ * for audio coverage" approximation passes — only the audio
+ * fileset's own structure can prove the prefetch doomed.
+ */
+const otCoveringStructure: BibleStructure = {
+  books: [
+    {
+      book_id: 'JOB',
+      name: 'Job',
+      name_short: 'Job',
+      testament: 'OT',
+      chapters: [13, 14, 15, 25, 26],
+    },
+  ],
+};
+
+/**
+ * The reported Latvian audio translation: LAVLVR's filesets
+ * cover Psalms + NT only (LATLVRN1DA is NT-only, LATLVRP1DA a
+ * partial OT recording that lacks Job entirely).
+ */
+const LAVLVR: Translation = {
+  abbr: 'LAVLVR',
+  name: 'Latvian Audio',
+  language: 'Latvian',
+  language_iso: 'lvs',
+  filesets: [
+    { id: 'LATLVRP1DA', type: 'audio', size: 'OTP',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'LATLVRP1DA-opus16', type: 'audio', size: 'OTP',
+      codec: 'opus', bitrate: '16' },
+    { id: 'LATLVRN1DA', type: 'audio', size: 'NT',
+      codec: 'mp3', bitrate: '64' },
+    { id: 'LATLVRN1DA-opus16', type: 'audio', size: 'NT',
+      codec: 'opus', bitrate: '16' },
+  ],
+};
+
+/** LAVLVR's own structure: Psalms + the New Testament, no Job. */
+const lavlvrStructure: BibleStructure = {
+  books: [
+    {
+      book_id: 'PSA',
+      name: 'Psalms',
+      name_short: 'Psa',
+      testament: 'OT',
+      chapters: [1, 2, 3],
     },
     {
       book_id: 'JHN',
@@ -75,6 +139,7 @@ const notFoundBody = () =>
 
 beforeEach(() => {
   resetActiveStructure();
+  resetStructureCoverage();
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   vi.spyOn(console, 'debug').mockImplementation(() => undefined);
@@ -133,14 +198,65 @@ describe('prefetchAdjacentChapters coverage gating', () => {
 });
 
 describe('prefetchAudioUrl coverage gating', () => {
-  it('skips a chapter the loaded structure does not cover',
+  it('skips a chapter the AUDIO fileset\u2019s structure does ' +
+    'not cover even when the read version covers it',
     async () => {
-      setActiveStructure(partialStructure);
+      // The reported residual: text prefetch for Job succeeds
+      // under the read version (LVSGLU8), so the old
+      // active-structure gate passed and the NT-only LAVLVR
+      // audio still fired a guaranteed 404.
+      setActiveStructure(otCoveringStructure);
+      registerStructureCoverage('LAVLVR', lavlvrStructure);
       const calls = countBibleRequests();
 
-      await prefetchAudioUrl('EST', 2, 'LATLVRP1DA-opus16');
+      await prefetchAudioUrl(
+        'JOB', 14, 'LATLVRP1DA-opus16', [LAVLVR],
+      );
 
       expect(calls()).toBe(0);
+      expect(console.error).not.toHaveBeenCalled();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+  it('prefetches a chapter the audio structure does cover',
+    async () => {
+      registerStructureCoverage('LAVLVR', lavlvrStructure);
+      server.use(
+        http.get(`${API_URL}/bible`, () =>
+          HttpResponse.json({
+            audio_url: 'https://cdn.test/jhn2.mp3',
+          })
+        )
+      );
+
+      await prefetchAudioUrl(
+        'JHN', 2, 'LATLVRN1DA', [LAVLVR],
+      );
+
+      expect(
+        getCachedAudioUrl('JHN', 2, 'LATLVRN1DA')
+      ).toBeTruthy();
+    });
+
+  it('still fires when the audio fileset\u2019s coverage is ' +
+    'unknown (owner unresolved)', async () => {
+      // No translations: the fileset's owning bible cannot be
+      // resolved, so covered-when-unknown applies — only a
+      // KNOWN absent coverage may skip the request.
+      setActiveStructure(otCoveringStructure);
+      let calls = 0;
+      server.use(
+        http.get(`${API_URL}/bible`, () => {
+          calls += 1;
+          return notFoundBody();
+        })
+      );
+
+      await prefetchAudioUrl(
+        'JOB', 14, 'LATLVRP1DA-opus16', [],
+      );
+
+      expect(calls).toBe(1);
       expect(console.error).not.toHaveBeenCalled();
       expect(console.warn).not.toHaveBeenCalled();
     });

@@ -92,6 +92,15 @@ beforeEach(async () => {
     // mocked without the export — nothing to reset
   }
 
+  // The abbr-keyed coverage oracle (audio filesets' own
+  // structures) is module state too — same leak risk.
+  try {
+    const coverage = await import('./utils/structureCoverage');
+    coverage.resetStructureCoverage?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+
   // structuredClone gives each test fresh nested objects —
   // sharing initialState's arrays/objects would let one test's
   // in-place mutation leak into later tests. Both initialState

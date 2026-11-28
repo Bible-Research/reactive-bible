@@ -3,12 +3,16 @@ import { fetchBibleStructure } from '../../api';
 import {
   findTranslationByFilesetId,
   groupFilesets,
+  splitCodec,
 } from '../../utils/filesetGroups';
 import {
   getCachedStructure,
   cacheStructure,
 } from '../../utils/cacheManager';
 import { setActiveStructure } from '../../utils/bookNameRegistry';
+import {
+  registerStructureCoverage,
+} from '../../utils/structureCoverage';
 import { captureHandledError } from '../../utils/errorReporter';
 import type { BibleStructure, Translation } from '../../types';
 import type { BibleState } from '../../store';
@@ -65,6 +69,14 @@ const catalogLangFor = (iso?: string): string | undefined => {
 const inflight = new Map<string, Promise<void>>();
 
 /**
+ * Test hook: a held-open fetch leaves its entry forever —
+ * module state must not leak into the next test's dedupe.
+ */
+export const resetStructureInflightForTests = (): void => {
+  inflight.clear();
+};
+
+/**
  * Mirrors the backend's `FILESET_ID_RE`
  * (`bible/utils/request_params.py`) — a ':'-bearing product id
  * or otherwise malformed id is a guaranteed
@@ -112,13 +124,32 @@ export interface StructureSlice {
    * was fetchable) — UI callers fire-and-forget it.
    */
   loadStructure: () => Promise<void>;
+  /**
+   * SWR-fill `structureByBible` for the bible OWNING an
+   * arbitrary selection id (used to warm the abbr-keyed
+   * coverage oracle for the selected AUDIO version, whose
+   * bible may differ from the read version's). Never touches
+   * `activeStructureKey` or the display layer — coverage only.
+   * The bundled catalogs are deliberately not staged here: a
+   * full-canon catalog would wrongly mark a partial-coverage
+   * audio bible covered.
+   */
+  ensureStructure: (
+    selectionId: string | null
+  ) => Promise<void>;
 }
 
 export const createStructureSlice: StateCreator<
   BibleState,
   [],
   [],
-  Pick<BibleState, 'structureByBible' | 'activeStructureKey' | 'loadStructure'>
+  Pick<
+    BibleState,
+    | 'structureByBible'
+    | 'activeStructureKey'
+    | 'loadStructure'
+    | 'ensureStructure'
+  >
 > = (set, get) => ({
   structureByBible: {},
   activeStructureKey: null,
@@ -227,67 +258,101 @@ export const createStructureSlice: StateCreator<
       return Promise.resolve();
     }
 
-    // Promise.resolve first: a synchronous throw from the
-    // client layer (module-mocked api barrel, offline guard)
-    // must degrade into the warn path, not crash the loader.
-    const p = Promise.resolve()
-      .then(() => fetchBibleStructure(fetchId))
-      .then((structure) => {
-        // A malformed resolution (or a test mock returning
-        // undefined) must take the warn path — applying it
-        // would crash the registry on `structure.books`.
-        if (!Array.isArray(structure?.books)) {
-          throw new Error('Malformed bible structure response');
-        }
-        // An empty coverage body is an upstream anomaly the
-        // backend refuses to cache — applying it would grey
-        // out every book, so it takes the same warn path as
-        // a failed fetch: the staged/previous structure
-        // keeps rendering.
-        if (structure.books.length === 0) {
-          throw new Error('Empty bible structure response');
-        }
-        // Re-resolve the owner at landing: the translations
-        // list may have arrived mid-flight, upgrading the
-        // key from the fileset id to the bible abbr.
+    return runStructureFetch({
+      inflightKey: activeTextFilesetId,
+      fetchId,
+      reportAbbr: abbr,
+      // Re-resolve the owner at landing: the translations
+      // list may have arrived mid-flight, upgrading the
+      // key from the fileset id to the bible abbr.
+      resolveLanding: () => {
         const landOwner = resolveTextOwner(
           activeTextFilesetId,
           get().translations,
         );
-        const landAbbr = landOwner?.abbr ?? abbr;
         const landLang = catalogLangFor(
           landOwner?.language_iso,
         );
-        // A degraded body (English names after a failed
-        // SWORD canonical-name overlay — backend `no-store`)
-        // applies in memory but must not pin localStorage
-        // for 24h: it recovers as soon as the overlay does.
-        if (!structure.degraded) {
-          cacheStructure(landAbbr, structure);
-        }
-        applyStructure(
-          landAbbr,
-          structure,
-          landLang ? BUNDLED_CATALOGS[landLang] : undefined,
-          set,
-          get,
+        return {
+          abbr: landOwner?.abbr ?? abbr,
+          fallback:
+            landLang ? BUNDLED_CATALOGS[landLang] : undefined,
+        };
+      },
+      set,
+      get,
+    });
+  },
+
+  ensureStructure: (selectionId) => {
+    // Bundled-KJV audio (wordpocket) is always covered — the
+    // oracle never needs its structure, so skip the fetch.
+    if (
+      !selectionId ||
+      selectionId === 'ENGKJV' ||
+      selectionId.startsWith('ENGKJV:')
+    ) {
+      return Promise.resolve();
+    }
+    const { translations, structureByBible } = get();
+    const owner = resolveTextOwner(selectionId, translations);
+    const abbr = owner?.abbr ?? selectionId.split(':')[0];
+
+    // Staged tiers only — never a bundled catalog: a full-canon
+    // catalog would wrongly mark a partial-coverage audio bible
+    // covered and poison the prefetch oracle.
+    const staged =
+      structureByBible[abbr] ??
+      structureByBible[selectionId] ??
+      getCachedStructure(abbr) ??
+      getCachedStructure(selectionId);
+    if (staged) {
+      // applyStructure's activeStructureKey guard keeps the
+      // display layer pointed at the read version — this fills
+      // coverage data only.
+      applyStructure(abbr, staged, undefined, set, get);
+      return Promise.resolve();
+    }
+
+    const inflightKey = `ensure:${abbr}`;
+    const existing = inflight.get(inflightKey);
+    if (existing) return existing;
+
+    // Routable fetch id: the endpoint resolves coverage at
+    // bible level, so ANY member of the owning translation
+    // answers — prefer the selection's own base id, then the
+    // owner's listed filesets, so ':'-shaped product ids and
+    // bare abbrs never reach the wire.
+    const candidates = [
+      splitCodec(selectionId).baseId,
+      ...(owner?.filesets ?? []).map((f) => f.id),
+    ];
+    const fetchId = candidates.find((id) =>
+      FILESET_ID_RE.test(id)
+    );
+    if (!fetchId) {
+      console.warn(
+        'Bible structure fetch skipped: ' +
+          'unresolvable selection ' +
+          JSON.stringify(selectionId),
+      );
+      return Promise.resolve();
+    }
+
+    return runStructureFetch({
+      inflightKey,
+      fetchId,
+      reportAbbr: abbr,
+      resolveLanding: () => {
+        const landOwner = resolveTextOwner(
+          selectionId,
+          get().translations,
         );
-      })
-      .catch((error) => {
-        // Failure keeps the staged/previous structure — the
-        // greyed-coverage UI self-corrects on the next load.
-        console.warn('Bible structure fetch failed:', error);
-        captureHandledError(
-          error,
-          'Bible structure fetch',
-          { abbr, filesetId: fetchId }
-        );
-      })
-      .finally(() => {
-        inflight.delete(activeTextFilesetId);
-      });
-    inflight.set(activeTextFilesetId, p);
-    return p;
+        return { abbr: landOwner?.abbr ?? abbr };
+      },
+      set,
+      get,
+    });
   },
 });
 
@@ -314,10 +379,90 @@ const applyStructure = (
   if (get().activeStructureKey === abbr) {
     setActiveStructure(structure, fallback);
   }
+  // Coverage registry for EVERY applied abbr, not just the
+  // active one — the audio-path oracle
+  // (utils/structureCoverage) consults the owning bible's
+  // coverage even when it isn't the read version.
+  registerStructureCoverage(abbr, structure);
   set((state) => ({
     structureByBible: {
       ...state.structureByBible,
       [abbr]: structure,
     },
   }));
+};
+
+/**
+ * Shared fetch tier for `loadStructure`/`ensureStructure`:
+ * fetch -> validate -> localStorage pin (non-degraded) ->
+ * apply, with warn-only failure and in-flight dedupe owned by
+ * the caller via `inflightKey`. `resolveLanding` runs when the
+ * response lands so a mid-flight translations update can still
+ * upgrade the key from a fileset id to the bible abbr;
+ * `reportAbbr` labels the Sentry extras with the request-time
+ * abbr.
+ */
+const runStructureFetch = (opts: {
+  inflightKey: string;
+  fetchId: string;
+  reportAbbr: string;
+  resolveLanding: () => {
+    abbr: string;
+    fallback?: BibleStructure;
+  };
+  set: (fn: (s: BibleState) => Partial<BibleState>) => void;
+  get: () => BibleState;
+}): Promise<void> => {
+  const { inflightKey, fetchId, set, get } = opts;
+  // Promise.resolve first: a synchronous throw from the
+  // client layer (module-mocked api barrel, offline guard)
+  // must degrade into the warn path, not crash the loader.
+  const p = Promise.resolve()
+    .then(() => fetchBibleStructure(fetchId))
+    .then((structure) => {
+      // A malformed resolution (or a test mock returning
+      // undefined) must take the warn path — applying it
+      // would crash the registry on `structure.books`.
+      if (!Array.isArray(structure?.books)) {
+        throw new Error('Malformed bible structure response');
+      }
+      // An empty coverage body is an upstream anomaly the
+      // backend refuses to cache — applying it would grey
+      // out every book, so it takes the same warn path as
+      // a failed fetch: the staged/previous structure
+      // keeps rendering.
+      if (structure.books.length === 0) {
+        throw new Error('Empty bible structure response');
+      }
+      const landing = opts.resolveLanding();
+      // A degraded body (English names after a failed
+      // SWORD canonical-name overlay — backend `no-store`)
+      // applies in memory but must not pin localStorage
+      // for 24h: it recovers as soon as the overlay does.
+      if (!structure.degraded) {
+        cacheStructure(landing.abbr, structure);
+      }
+      applyStructure(
+        landing.abbr,
+        structure,
+        landing.fallback,
+        set,
+        get,
+      );
+    })
+    .catch((error) => {
+      // Failure keeps the staged/previous structure — the
+      // greyed-coverage UI self-corrects on the next load.
+      console.warn('Bible structure fetch failed:', error);
+      captureHandledError(
+        error,
+        'Bible structure fetch',
+        { abbr: opts.reportAbbr, filesetId: fetchId }
+      );
+    })
+    .finally(() => {
+      inflight.delete(inflightKey);
+    });
+  inflight.set(inflightKey, p);
+  return p;
 };

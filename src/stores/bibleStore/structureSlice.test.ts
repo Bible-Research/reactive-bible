@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createStructureSlice } from './structureSlice';
+import {
+  createStructureSlice,
+  resetStructureInflightForTests,
+} from './structureSlice';
 import { initialState, type BibleState } from '../../store';
 import {
   resetActiveStructure,
+  setActiveStructure,
   localizedName,
   isBookCovered,
 } from '../../utils/bookNameRegistry';
+import {
+  isChapterCoveredForFileset,
+  resetStructureCoverage,
+} from '../../utils/structureCoverage';
 import {
   resetStorageCacheForTests,
   cacheStructure,
@@ -90,6 +98,8 @@ const makeStore = (overrides: Partial<BibleState> = {}) => {
 beforeEach(() => {
   vi.clearAllMocks();
   resetActiveStructure();
+  resetStructureCoverage();
+  resetStructureInflightForTests();
   resetStorageCacheForTests();
   clearStructureCache();
 });
@@ -713,6 +723,220 @@ describe('loadStructure fetch id resolution', () => {
       });
       await p;
       warn.mockRestore();
+    },
+  );
+});
+
+// The reported Latvian audio translation: LAVLVR's filesets
+// cover Psalms + NT (LATLVRN1DA is NT-only; LATLVRP1DA is a
+// partial OT recording lacking Job).
+const LAVLVR_TRANSLATIONS = [
+  {
+    abbr: 'LAVLVR',
+    name: 'Latvian Audio',
+    language: 'Latvian',
+    language_iso: 'lvs',
+    filesets: [
+      {
+        id: 'LATLVRP1DA',
+        type: 'audio' as const,
+        size: 'OTP', codec: null, bitrate: null,
+      },
+      {
+        id: 'LATLVRP1DA-opus16',
+        type: 'audio' as const,
+        size: 'OTP', codec: null, bitrate: null,
+      },
+      {
+        id: 'LATLVRN1DA',
+        type: 'audio' as const,
+        size: 'NT', codec: null, bitrate: null,
+      },
+      {
+        id: 'LATLVRN1DA-opus16',
+        type: 'audio' as const,
+        size: 'NT', codec: null, bitrate: null,
+      },
+    ],
+  },
+];
+
+const LAVLVR_STRUCTURE: BibleStructure = {
+  books: [
+    {
+      book_id: 'PSA', name: 'Psalms', name_short: 'Psa',
+      testament: 'OT', chapters: [1, 2, 150],
+    },
+    {
+      book_id: 'JHN', name: 'John', name_short: 'John',
+      testament: 'NT', chapters: [1, 3],
+    },
+  ],
+};
+
+describe('ensureStructure (audio coverage warm-up)', () => {
+  it('fills structureByBible + the coverage oracle for an ' +
+    'audio selection without touching the display layer',
+    async () => {
+      // The slice's own initial `structureByBible`/`activeStructureKey`
+      // overwrite same-named makeStore overrides, so the "read version
+      // already live" fixture is assigned directly — same pattern the
+      // loadStructure tests use for a previous structure.
+      const { state, slice } = makeStore({
+        activeTextFilesetId: 'LAVNLI',
+        translations: [
+          ...LV_TRANSLATIONS,
+          ...LAVLVR_TRANSLATIONS,
+        ],
+      });
+      state.activeStructureKey = 'LAVNLI';
+      state.structureByBible = { LAVNLI: LV };
+      setActiveStructure(LV);
+      vi.mocked(fetchBibleStructure)
+        .mockResolvedValue(LAVLVR_STRUCTURE);
+
+      await slice.ensureStructure('LATLVRP1DA-opus16');
+
+      // The owner's bible coverage lands keyed by abbr and
+      // feeds the audio-path oracle — Job is KNOWN absent.
+      expect(state.structureByBible['LAVLVR'])
+        .toEqual(LAVLVR_STRUCTURE);
+      expect(
+        isChapterCoveredForFileset(
+          'LATLVRP1DA-opus16', 'JOB', 14,
+          state.translations,
+        )
+      ).toBe(false);
+      // Display layer untouched: the read version stays the
+      // active structure — no name/coverage steal.
+      expect(state.activeStructureKey).toBe('LAVNLI');
+      expect(localizedName('GEN')).toBe('1. Mozus grāmata');
+    },
+  );
+
+  it('sends the selection\u2019s own base member id on the wire',
+    async () => {
+      const { slice } = makeStore({
+        translations: LAVLVR_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure)
+        .mockResolvedValue(LAVLVR_STRUCTURE);
+
+      await slice.ensureStructure('LATLVRP1DA-opus16');
+
+      expect(fetchBibleStructure)
+        .toHaveBeenCalledWith('LATLVRP1DA');
+    },
+  );
+
+  it('routes a grouped product id through an owner member',
+    async () => {
+      const { slice } = makeStore({
+        translations: LAVLVR_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure)
+        .mockResolvedValue(LAVLVR_STRUCTURE);
+
+      await slice.ensureStructure('LAVLVR:audio:1');
+
+      expect(fetchBibleStructure).toHaveBeenCalledWith(
+        expect.stringMatching(/^LATLVR[PN]1DA$/),
+      );
+    },
+  );
+
+  it('serves the localStorage tier without a fetch', async () => {
+    cacheStructure('LAVLVR', LAVLVR_STRUCTURE);
+    const { state, slice } = makeStore({
+      translations: LAVLVR_TRANSLATIONS,
+    });
+
+    await slice.ensureStructure('LATLVRN1DA');
+
+    expect(fetchBibleStructure).not.toHaveBeenCalled();
+    expect(state.structureByBible['LAVLVR'])
+      .toEqual(LAVLVR_STRUCTURE);
+    expect(
+      isChapterCoveredForFileset(
+        'LATLVRN1DA', 'JOB', 14, state.translations,
+      )
+    ).toBe(false);
+  });
+
+  it('dedupes concurrent kicks for the same bible', async () => {
+    const { slice } = makeStore({
+      translations: LAVLVR_TRANSLATIONS,
+    });
+    let resolveFetch!: (s: BibleStructure) => void;
+    vi.mocked(fetchBibleStructure).mockImplementation(
+      () => new Promise((r) => { resolveFetch = r; }),
+    );
+
+    const p1 = slice.ensureStructure('LATLVRP1DA-opus16');
+    const p2 = slice.ensureStructure('LAVLVR:audio:1');
+    // The fetch layer invokes fetchBibleStructure on a
+    // microtask — wait for the call before resolving.
+    await vi.waitFor(() => {
+      expect(fetchBibleStructure).toHaveBeenCalled();
+    });
+    resolveFetch(LAVLVR_STRUCTURE);
+    await Promise.all([p1, p2]);
+
+    expect(fetchBibleStructure).toHaveBeenCalledTimes(1);
+  });
+
+  it('never stages a bundled catalog for the audio owner',
+    async () => {
+      // LAVLVR is Latvian — a bundled lv catalog would mark
+      // every book covered and poison the oracle while the
+      // real structure is still in flight. Hold the fetch
+      // pending so the pre-landing state is observable.
+      const { slice } = makeStore({
+        translations: LAVLVR_TRANSLATIONS,
+      });
+      vi.mocked(fetchBibleStructure).mockImplementation(
+        () => new Promise(() => undefined),
+      );
+
+      void slice.ensureStructure('LATLVRP1DA');
+
+      // Coverage still unknown (covered-when-unknown), not
+      // bundled-full-canon: the partial audio bible must not
+      // be marked covered before its own structure lands.
+      expect(
+        isChapterCoveredForFileset(
+          'LATLVRP1DA', 'JOB', 14, LAVLVR_TRANSLATIONS,
+        )
+      ).toBe(true);
+      await vi.waitFor(() => {
+        expect(fetchBibleStructure).toHaveBeenCalled();
+      });
+    },
+  );
+
+  it('skips bundled KJV audio entirely', async () => {
+    const { slice } = makeStore({ translations: [] });
+
+    await slice.ensureStructure('ENGKJV');
+    await slice.ensureStructure('ENGKJV:audio:1');
+
+    expect(fetchBibleStructure).not.toHaveBeenCalled();
+  });
+
+  it('resolves once translations land for a product id',
+    async () => {
+      const { state, slice } = makeStore({ translations: [] });
+      vi.mocked(fetchBibleStructure)
+        .mockResolvedValue(LAVLVR_STRUCTURE);
+
+      await slice.ensureStructure('LAVLVR:audio:1');
+      expect(fetchBibleStructure).not.toHaveBeenCalled();
+
+      state.translations.push(...LAVLVR_TRANSLATIONS);
+      await slice.ensureStructure('LAVLVR:audio:1');
+      expect(fetchBibleStructure).toHaveBeenCalledWith(
+        expect.stringMatching(/^LATLVR[PN]1DA$/),
+      );
     },
   );
 });

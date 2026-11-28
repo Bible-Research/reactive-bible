@@ -1078,13 +1078,14 @@ describe('useAudioPlaylist', () => {
     },
   );
 
-  it('skips the next-item prefetch when the loaded ' +
-    'structure does not cover it', async () => {
-      const { setActiveStructure } =
-        await import('../utils/bookNameRegistry');
-      // JHN 3 covered; Esther absent — a coverage miss the
-      // prefetch can only 404 on (the Latvian fileset shape).
-      setActiveStructure({
+  it('skips the next-item prefetch when the audio ' +
+    'fileset\u2019s structure does not cover it', async () => {
+      const { registerStructureCoverage } =
+        await import('../utils/structureCoverage');
+      // The prefetch gate consults the OWNING audio bible's
+      // coverage — register ENGESH with JHN 3 only, so Esther
+      // is a KNOWN miss the prefetch can only 404 on.
+      registerStructureCoverage('ENGESH', {
         books: [
           {
             book_id: 'JHN',
@@ -1095,6 +1096,7 @@ describe('useAudioPlaylist', () => {
           },
         ],
       });
+      mockStoreState.translations = [eshTranslation];
       const { result } = renderHook(() => useAudioPlaylist());
       act(() => {
         result.current.start([

@@ -4,7 +4,7 @@
  * prefetcher, and per-verse timestamp lookups.
  */
 import { toBookName } from "../utils/bibleUtils";
-import type { VerseTimestamp } from '../types';
+import type { Translation, VerseTimestamp } from '../types';
 import {
   getCachedAudioUrl,
   cacheAudioUrl,
@@ -16,7 +16,9 @@ import { publicFetch } from '../utils/apiClient';
 import { reportFums } from '../utils/fums';
 import { API_BASE_URL } from '../config';
 import { captureHandledError } from '../utils/errorReporter';
-import { isChapterCovered } from '../utils/bookNameRegistry';
+import {
+  isChapterCoveredForFileset,
+} from '../utils/structureCoverage';
 import { getBooks } from './structure';
 import {
   BookNotInFilesetError,
@@ -210,25 +212,30 @@ export const getKjvAudioUrl = (
  * @param bookId - USFM book code
  * @param chapter - Chapter number
  * @param filesetId - Fileset ID ("ENGKJV", "ESVDA", etc.)
+ * @param translations - Loaded translations, used to resolve
+ *   the fileset's owning bible for the coverage oracle
  */
 export const prefetchAudioUrl = async (
   bookId: string,
   chapter: number,
-  filesetId: string | null
+  filesetId: string | null,
+  translations: Translation[] = []
 ): Promise<void> => {
   if (!filesetId) return; // Cannot prefetch without a filesetId
-  // The resolved structure knows the fileset's real coverage —
-  // a chapter outside it can only answer book_not_in_fileset,
-  // so skip the guaranteed 404. Coverage of a DIFFERENT
-  // translation's audio fileset is approximated by the active
-  // (read) structure — a wrong skip only costs an on-demand
-  // fetch at play time. An unloaded structure passes
-  // (coverage unknown) and the catch below keeps that
-  // expected miss quiet; bundled KJV wordpocket audio is
+  // The structure of the bible OWNING this audio fileset
+  // knows its real coverage — a chapter outside it can only
+  // answer book_not_in_fileset, so skip the guaranteed 404.
+  // The oracle consults the owner's abbr (not the active read
+  // structure — "text covers, audio doesn't" is exactly the
+  // LATLVR residual this fixes); an unloaded owner structure
+  // passes (covered-when-unknown) and the catch below keeps
+  // that expected miss quiet; bundled KJV wordpocket audio is
   // always covered.
   if (
     filesetId !== 'ENGKJV' &&
-    !isChapterCovered(bookId, chapter)
+    !isChapterCoveredForFileset(
+      filesetId, bookId, chapter, translations
+    )
   ) {
     return;
   }
