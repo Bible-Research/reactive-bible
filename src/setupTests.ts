@@ -89,9 +89,23 @@ beforeEach(async () => {
   // The bookNameRegistry sync view and the abbr-keyed coverage
   // oracle (audio filesets' own structures) are module state
   // outside the store — without resets they leak across tests.
-  cacheManager?.resetStorageCacheForTests?.();
-  registry?.resetActiveStructure?.();
-  coverage?.resetStructureCoverage?.();
+  // try/catch per call: a factory-mocked module THROWS when a
+  // non-exported name is merely accessed, not just undefined.
+  try {
+    cacheManager?.resetStorageCacheForTests?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+  try {
+    registry?.resetActiveStructure?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
+  try {
+    coverage?.resetStructureCoverage?.();
+  } catch {
+    // mocked without the export — nothing to reset
+  }
 
   // structuredClone gives each test fresh nested objects —
   // sharing initialState's arrays/objects would let one test's
