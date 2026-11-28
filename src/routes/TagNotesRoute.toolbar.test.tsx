@@ -110,14 +110,20 @@ describe('TagNotesRoute toolbar scroll-hide', () => {
     mockApi.fetchCommentCounts.mockResolvedValue({});
   });
 
-  it('collapses the filter/sort toolbar when headerVisible ' +
-    'goes false and re-expands when it returns', async () => {
+  it('slides the filter/sort toolbar over the notes when ' +
+    'headerVisible toggles — the scroll viewport never ' +
+    'resizes', async () => {
       renderRoute();
       const toolbar = await screen.findByTestId(
         'tag-notes-toolbar'
       );
-      // headerVisible defaults to true — the Collapse is open.
+      const container = toolbar.parentElement;
+      // headerVisible defaults to true — the overlay is down.
       expect(toolbar).toHaveAttribute('aria-hidden', 'false');
+      expect(toolbar.style.transform).toBe('translateY(0)');
+      // The container is full-height in BOTH states — resizing
+      // it is what made the notes jump when the chrome hid.
+      expect(container?.style.height).toBe('100vh');
 
       // Simulates MyHeader hiding itself on a deliberate
       // downward scroll.
@@ -126,22 +132,18 @@ describe('TagNotesRoute toolbar scroll-hide', () => {
       });
 
       expect(toolbar).toHaveAttribute('aria-hidden', 'true');
-      // The collapse animation drives height to 0 via rAF.
-      await waitFor(() => {
-        expect(toolbar.style.height).toBe('0px');
-      });
-      // The root container grows to the full viewport so the
-      // notes list reclaims the space the chrome freed.
-      expect(toolbar.parentElement?.style.height).toBe('100vh');
+      expect(toolbar.style.transform).toBe(
+        'translateY(-100%)'
+      );
+      expect(container?.style.height).toBe('100vh');
 
       // Scrolling back up re-shows the header and the toolbar.
       act(() => {
         useBibleStore.getState().setHeaderVisible(true);
       });
       expect(toolbar).toHaveAttribute('aria-hidden', 'false');
-      expect(toolbar.parentElement?.style.height).toBe(
-        'calc(100vh - var(--mantine-header-height, 0px))'
-      );
+      expect(toolbar.style.transform).toBe('translateY(0)');
+      expect(container?.style.height).toBe('100vh');
     });
 });
 

@@ -90,7 +90,10 @@ whose head SHA was never merged into `staging`, and the
   ``_Promoted from `staging` (PR #<staging PR number>)_``
   — the marker the What's-on-staging checklist uses to
   drop the staged entry; it's the only link that survives
-  a renamed or recreated promotion head. The staging merge
+  a renamed or recreated promotion head. A main PR that
+  ships several staged PRs at once must name EVERY one in
+  list form — `(PRs #a, #b, #c)` — or the unnamed entries
+  stick in the checklist as false pending. The staging merge
   auto-deletes the head branch — re-push it first
   (`git push origin <headRefOid>:refs/heads/<branch>`,
   same SHA is fine). `staging` is NOT reset — it keeps
@@ -134,7 +137,7 @@ whose head SHA was never merged into `staging`, and the
   the production App Engine host. ALWAYS use it; never hardcode
   the host. MSW handlers and tests derive from the same config.
 - `src/store.ts` — main persisted Zustand store (`bible-storage`,
-  schema v11, custom `migratePersistedState` — bump version when
+  schema v12, custom `migratePersistedState` — bump version when
   persisted shape changes). Composition root; notes
   orchestration in `src/stores/bibleStore/notesSlice.ts`,
   structure SWR in `src/stores/bibleStore/structureSlice.ts`
@@ -286,12 +289,12 @@ whose head SHA was never merged into `staging`, and the
   computes the pending-promotion set (approximating
   `promote-to-main.yml`: head-branch keyed head-SHA /
   merged_at comparison, plus a `Promoted from staging
-  (PR #N)` body-marker match — the only signal that survives
-  a renamed promotion head, whose staged SHAs never enter
-  the promotion PR's commit graph) from the
-  unauthenticated GitHub pulls API, and `StagingChecklistModal`
-  renders each PR's `## UI verification / QC` steps as
-  session-local checkboxes.
+  (PR #N)` / `(PRs #a, #b)` body-marker match — the only
+  signal that survives a renamed promotion head, whose
+  staged SHAs never enter the promotion PR's commit graph)
+  from the unauthenticated GitHub pulls API, and
+  `StagingChecklistModal` renders each PR's `## UI
+  verification / QC` steps as session-local checkboxes.
 - Keyboard: `/` opens search, `Escape` closes modals.
 
 ## Sentry event-stream contract
@@ -353,8 +356,9 @@ is the agent-fixable bug queue** — anything else is deliberate:
   versionCode). Read-only diagnostics.
 - `errorKind: network` — tag (not a stream) set by
   `sentryBeforeSend` on `TypeError` network failures
-  ('Failed to fetch', 'Load failed', 'NetworkError…'); kept
-  reportable but routable. On `handled-api` events the level
+  ('Failed to fetch' including the newer-Chrome origin
+  variant 'Failed to fetch (host)', 'Load failed',
+  'NetworkError…'); kept reportable but routable. On `handled-api` events the level
   drops to warning (client connectivity noise); unhandled
   network rejections stay error-level — reaching
   GlobalHandlers means a missing catch, still a bug.

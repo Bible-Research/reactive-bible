@@ -12,8 +12,8 @@ import {
   Text,
   Loader,
   Box,
-  Collapse,
 } from '@mantine/core';
+import { useElementSize } from '@mantine/hooks';
 import { Note } from '../types';
 import TagSection from '../components/TagSection';
 import TagNotesToolbar from '../components/TagNotesToolbar';
@@ -33,6 +33,8 @@ import { useNoteOrderMenu } from '../hooks/useNoteOrderMenu';
 import { useTagNotesData } from '../hooks/useTagNotesData';
 import { useNotePlaylist } from '../hooks/useNotePlaylist';
 import { lazyWithReload } from '../utils/lazyWithReload';
+import { HEADER_HEIGHT } from '../utils/layoutChrome';
+import { AUDIO_PLAYER_HEIGHT } from '../utils/audioUtils';
 import { useTranslation } from 'react-i18next';
 
 // Lazy + gated below on isEditModalOpen — the modal pulls in
@@ -73,11 +75,23 @@ export default function TagNotesRoute() {
     (state) => state.isAuthenticated
   );
   // MyHeader slides away on a deliberate downward scroll via
-  // this flag; the filter/sort toolbar follows it so the notes
-  // list reclaims the freed space.
+  // this flag; the filter/sort toolbar follows it — both
+  // overlay the notes scroll viewport, so toggling them never
+  // reflows the list.
   const headerVisible = useBibleStore(
     (state) => state.headerVisible
   );
+  // The audio player is fixed to the viewport bottom and never
+  // hides on scroll — the scrolled content clears it via the
+  // same inside-padding the header/toolbar overlays use.
+  const showAudioPlayer = useBibleStore(
+    (state) => state.showAudioPlayer
+  );
+  // Measured height of the overlay toolbar — feeds the
+  // clearance INSIDE the scrolled content so the first note
+  // rests below the chrome while it is shown.
+  const { ref: toolbarRef, height: toolbarHeight } =
+    useElementSize();
 
   // Get sort order from URL, default to 'custom_asc'
   const urlSortOrder = searchParams.get('sort') as SortOrder | null;
@@ -340,132 +354,163 @@ export default function TagNotesRoute() {
   ) : null;
 
   return (
-    // Flex column so the ScrollArea below grows into whatever
-    // space the collapsing chrome frees. The height mirrors
-    // AppShell's paddingTop: viewport minus the header while it
-    // is shown, the full viewport once it has slid away — both
-    // animate on the same 0.3s ease-in-out so they stay in sync.
-    <Box
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: headerVisible
-          ? 'calc(100vh - var(--mantine-header-height, 0px))'
-          : '100vh',
-        transition: 'height 0.3s ease-in-out',
-      }}
-    >
-      <Collapse
-        in={headerVisible}
-        transitionDuration={300}
-        data-testid="tag-notes-toolbar"
-      >
-        <Box px="md" pt="md">
-          <TagNotesToolbar
-            tags={storedTags}
-            isAuthenticated={isAuthenticated}
-            tagId={tagId}
-            tagName={tag.name}
-            sortOrder={sortOrder}
-            pageSize={notesPageSize}
-            shownCount={notes.length}
-            totalCount={notesCount}
-            versesFolded={versesFolded}
-            hasChildren={tagHasChildren}
-            includeDescendants={includeDescendants}
-            onToggleDescendants={handleToggleDescendants}
-            tagPublic={tag.public}
-            onTagChange={handleTagChange}
-            onSortChange={handleSortChange}
-            onPageSizeChange={handlePageSizeChange}
-            onToggleFolded={handleToggleFolded}
-            onRefresh={handleRefresh}
-          />
+    // Same overlay-chrome model as /bible: MyHeader and the
+    // filter/sort toolbar slide over a fixed, full-height
+    // scroll viewport while the clearance for them lives
+    // INSIDE the scrolled content — so toggling the chrome
+    // never resizes the viewport and the notes never jump.
+    <Box style={{ position: 'relative', height: '100vh' }}>
+      <ScrollArea style={{ height: '100%' }}>
+        <Box
+          pt={HEADER_HEIGHT + toolbarHeight}
+          pb={showAudioPlayer ? AUDIO_PLAYER_HEIGHT : 0}
+        >
+          {pageLoading ? (
+            <Center style={{ height: 200 }}>
+              <Loader aria-label={t('notes.loadingNotes')} />
+            </Center>
+          ) : notes.length > 0 ? (
+            <Stack spacing="md" pb="xl" px="md">
+              {pagination}
+              {includeDescendants ? (
+                // Merged subtree view — one section per tag.
+                // Reorder and the order index are per-tag, so
+                // both stay off here.
+                noteSections.map((section) => {
+                  const sectionOwner = tagOwnerFor(
+                    section.tagId,
+                    section.notes
+                  );
+                  return (
+                    <TagSection
+                      key={section.tagId}
+                      tagName={section.tagName}
+                      notes={section.notes}
+                      onViewInBible={handleViewInBible}
+                      onEditNote={
+                        sectionOwner
+                          ? handleEditNote
+                          : undefined
+                      }
+                      onDeleteNote={
+                        sectionOwner
+                          ? handleDeleteNote
+                          : undefined
+                      }
+                      onPlayFromNote={playFromNote}
+                      commentCounts={commentCounts}
+                      onCountChange={handleCountChange}
+                      isTagOwner={sectionOwner}
+                      collapseActions
+                      isDraggable={false}
+                      tagId={section.tagId}
+                      sortOrder={sortOrder}
+                      currentPage={notesPage}
+                      pageSize={notesPageSize}
+                    />
+                  );
+                })
+              ) : (
+                <TagSection
+                  tagName={tag.name}
+                  notes={sortedNotes}
+                  onViewInBible={handleViewInBible}
+                  onEditNote={
+                    isTagOwner ? handleEditNote : undefined
+                  }
+                  onDeleteNote={
+                    isTagOwner ? handleDeleteNote : undefined
+                  }
+                  onPlayFromNote={playFromNote}
+                  commentCounts={commentCounts}
+                  onCountChange={handleCountChange}
+                  isTagOwner={isTagOwner}
+                  collapseActions
+                  isDraggable={orderMenuEnabled}
+                  tagId={tagId || ''}
+                  onReorder={handleReorder}
+                  sortOrder={sortOrder}
+                  currentPage={notesPage}
+                  pageSize={notesPageSize}
+                  orderMenu={orderMenu}
+                />
+              )}
+
+              {pagination}
+            </Stack>
+          ) : (
+            <Center style={{ height: 200 }}>
+              <Text>
+                {isUntagged
+                  ? t('notes.noUntagged')
+                  : includeDescendants
+                    ? t('notes.noNotesWithSubtags')
+                    : t('notes.noNotesForTag')}
+              </Text>
+            </Center>
+          )}
         </Box>
-      </Collapse>
-
-      <ScrollArea style={{ flex: 1, minHeight: 0 }}>
-        {pageLoading ? (
-          <Center style={{ height: 200 }}>
-            <Loader aria-label={t('notes.loadingNotes')} />
-          </Center>
-        ) : notes.length > 0 ? (
-          <Stack spacing="md" pb="xl" px="md">
-            {pagination}
-            {includeDescendants ? (
-              // Merged subtree view — one section per tag.
-              // Reorder and the order index are per-tag, so
-              // both stay off here.
-              noteSections.map((section) => {
-                const sectionOwner = tagOwnerFor(
-                  section.tagId,
-                  section.notes
-                );
-                return (
-                  <TagSection
-                    key={section.tagId}
-                    tagName={section.tagName}
-                    notes={section.notes}
-                    onViewInBible={handleViewInBible}
-                    onEditNote={
-                      sectionOwner ? handleEditNote : undefined
-                    }
-                    onDeleteNote={
-                      sectionOwner ? handleDeleteNote : undefined
-                    }
-                    onPlayFromNote={playFromNote}
-                    commentCounts={commentCounts}
-                    onCountChange={handleCountChange}
-                    isTagOwner={sectionOwner}
-                    isDraggable={false}
-                    tagId={section.tagId}
-                    sortOrder={sortOrder}
-                    currentPage={notesPage}
-                    pageSize={notesPageSize}
-                  />
-                );
-              })
-            ) : (
-              <TagSection
-                tagName={tag.name}
-                notes={sortedNotes}
-                onViewInBible={handleViewInBible}
-                onEditNote={
-                  isTagOwner ? handleEditNote : undefined
-                }
-                onDeleteNote={
-                  isTagOwner
-                    ? handleDeleteNote
-                    : undefined
-                }
-                onPlayFromNote={playFromNote}
-                commentCounts={commentCounts}
-                onCountChange={handleCountChange}
-                isTagOwner={isTagOwner}
-                isDraggable={orderMenuEnabled}
-                tagId={tagId || ''}
-                onReorder={handleReorder}
-                sortOrder={sortOrder}
-                currentPage={notesPage}
-                pageSize={notesPageSize}
-                orderMenu={orderMenu}
-              />
-            )}
-
-            {pagination}
-          </Stack>
-        ) : (
-          <Center style={{ height: 200 }}>
-            <Text>
-              {isUntagged
-                ? t('notes.noUntagged')
-                : includeDescendants
-                  ? t('notes.noNotesWithSubtags')
-                  : t('notes.noNotesForTag')}
-            </Text>
-          </Center>
-        )}
       </ScrollArea>
+
+      {/* Overlay chrome: the toolbar rides under MyHeader
+          (the top padding is the header zone) and slides away
+          with it — transform-only, so the scroll viewport
+          below never resizes and the notes never reflow.
+          toolbarHeight feeds the in-content top padding. */}
+      <Box
+        data-testid="tag-notes-toolbar"
+        aria-hidden={!headerVisible}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          paddingTop: HEADER_HEIGHT,
+          transform: headerVisible
+            ? 'translateY(0)'
+            : 'translateY(-100%)',
+          transition: 'transform 0.3s ease-in-out',
+        }}
+      >
+        {/* The measured box must carry no padding:
+            useElementSize reads border-box on mount but
+            ResizeObserver's contentRect (padding excluded)
+            on resizes — padding would be under-measured. */}
+        <Box
+          ref={toolbarRef}
+          sx={(theme) => ({
+            // Opaque so notes scrolling under the overlay do
+            // not show through; matches AppShell's main bg.
+            backgroundColor:
+              theme.colorScheme === 'dark'
+                ? theme.colors.dark[8]
+                : theme.colors.gray[0],
+          })}
+        >
+          <Box px="md" pt="md" pb="md">
+            <TagNotesToolbar
+              tags={storedTags}
+              isAuthenticated={isAuthenticated}
+              tagId={tagId}
+              tagName={tag.name}
+              sortOrder={sortOrder}
+              pageSize={notesPageSize}
+              shownCount={notes.length}
+              totalCount={notesCount}
+              versesFolded={versesFolded}
+              hasChildren={tagHasChildren}
+              includeDescendants={includeDescendants}
+              onToggleDescendants={handleToggleDescendants}
+              tagPublic={tag.public}
+              onTagChange={handleTagChange}
+              onSortChange={handleSortChange}
+              onPageSizeChange={handlePageSizeChange}
+              onToggleFolded={handleToggleFolded}
+              onRefresh={handleRefresh}
+            />
+          </Box>
+        </Box>
+      </Box>
 
       {isEditModalOpen && (
         <Suspense fallback={null}>

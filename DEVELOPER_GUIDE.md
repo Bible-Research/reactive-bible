@@ -470,11 +470,13 @@ npm test -- src/routes/BibleRoute.test.tsx
 
 **TagNotesRoute** (`src/routes/TagNotesRoute.tsx`):
 - Fetches notes for specific tag via API
-- Displays tag selector dropdown (searchable); a separate
-  "Untagged" section at the bottom lists notes with no tag
-  (`tag_id=untagged` API sentinel). Custom-sort reordering and
-  the order menu are disabled there — reorder endpoints need a
-  real tag id
+- Displays the tag switcher — the same `TagCombobox` used by
+  the note form, reused with `creatable={false}` (picking
+  only navigates, so the `+ Create` rows stay hidden). The
+  "Untagged" view rides along as a pseudo-tag entry in the
+  same list (`tag_id=untagged` API sentinel). Custom-sort
+  reordering and the order menu are disabled there — reorder
+  endpoints need a real tag id
 - Shows note count
 - Provides full CRUD operations:
   - View note in Bible passage
@@ -495,6 +497,13 @@ npm test -- src/routes/BibleRoute.test.tsx
 - Play-from-note indexes into the filtered playlist of notes
   that actually have verses; a note spanning several
   book/chapter blocks produces one playlist item per block
+- Note cards keep only "View in Bible" + "Play from here"
+  as direct buttons (`collapseActions` prop down
+  `TagSection` → `NoteCard`/`SortableNoteCard` →
+  `NoteCardActions`) — share/bookmark/copy/targeted
+  share/comments/edit/delete fold into a `⋮` overflow menu
+  that renders only when at least one item applies; the `#k`
+  order badge stays outside it
 - In custom sort on an owned tag, each note card shows a
   `#k` order badge (`NoteOrderMenu`) that opens a dropdown
   of every note in the tag and the list is dnd-kit
@@ -511,10 +520,15 @@ npm test -- src/routes/BibleRoute.test.tsx
   index + moves), `useNotePlaylist` (audio playlist assembly —
   one item per book+chapter block; its play-from index
   addresses the verse-filtered playlist array by `scope`)
-- The filter/sort toolbar rides on `headerVisible`: it
-  collapses (`Collapse`, aria-hidden) whenever MyHeader
-  slides away on a downward scroll and the notes list
-  flex-grows into the freed space
+- The filter/sort toolbar rides on `headerVisible`: like on
+  `/bible`, it OVERLAYS a fixed, full-height scroll viewport
+  (absolute, slides away via `transform` with MyHeader) while
+  the header/toolbar/player clearance lives inside the
+  scrolled content — toggling the chrome never resizes the
+  viewport, so the notes never jump. The overlay's measured
+  height (`useElementSize` on a padding-less box — its
+  ResizeObserver reports contentRect, which excludes
+  padding) feeds the in-content top padding.
 
 **TagManagementRoute** (`src/routes/TagManagementRoute.tsx`):
 - Hierarchical `TagTree` + `CreateTagModal`/`EditTagModal`;
@@ -580,7 +594,7 @@ navigate('/notes/tag/:newTagId');
 logout)
 
 The application uses Zustand for lightweight, centralized state
-management. The main store (`bible-storage`, schema v11 with a
+management. The main store (`bible-storage`, schema v12 with a
 custom `migratePersistedState`) is persisted to `localStorage`;
 auth lives in a separate persisted `authStore`.
 
@@ -651,6 +665,10 @@ auth lives in a separate persisted `authStore`.
   the page and page size the user last selected for it
 - `lastSelectedTagId: string | null` - remembered for the
   `/notes` redirect
+- `confirmNoteReorder: boolean` - persisted preference
+  (default on): while on, the tag page asks "Change notes
+  order?" via a confirm modal before order-menu moves and
+  drag reorders apply; the `/settings` toggle opts out
 
 **Audio Playlist State**:
 - `audioPlaylistItems: PlaylistItem[] | null` - flattened play
@@ -2172,7 +2190,12 @@ Create and organize notes with tags for Bible verses.
   require the tag-owner context (`isTagOwner`) or
   `note.is_owner === true`; clipboard share falls back to
   `execCommand` on non-secure contexts
-  (`src/utils/clipboard.ts`)
+  (`src/utils/clipboard.ts`). The tag-notes view passes
+  `collapseActions`, folding every secondary control (share,
+  login CTA, bookmark, copy, targeted share, comments,
+  edit, delete) into a `⋮` menu — other surfaces
+  (`NoteDetailRoute`, `/bookmarks`, `/shared`, `/explore`)
+  keep the inline button row
 - Sharing/bookmark controls on note cards: the bookmark
   icon saves any readable note (a "Log in to save" CTA
   replaces it for anonymous readers, carrying the return
@@ -2282,7 +2305,11 @@ moveNote(
   with up to ~2000 notes.
 - Picking an entry moves the note just after it in *display*
   order; the route translates to canonical placement
-  (`custom_asc` → `after`, `custom_desc` → `before`).
+  (`custom_asc` → `after`, `custom_desc` → `before`). While
+  the persisted `confirmNoteReorder` pref is on (default —
+  `/settings` toggles it), every reorder path first opens a
+  "Change notes order?" confirm modal (`openConfirmModal`)
+  and only runs the move/reorder on confirm.
 - The order index is fetched per tag via `getNoteOrderIndex`,
   kept in `useNoteOrderMenu` state (never persisted), and
   refetched after every move; `moveNoteAfter` in the store
@@ -2775,12 +2802,15 @@ Top header bar with controls.
   un-hide the bars.
 - The same `headerVisible` store flag also gates `BottomNav`
   (slides below the viewport on hide), so both bars move
-  together. On `/bible` the bars overlay a full-height scroll
-  viewport — the AppShell reserves no padding there; instead
-  `PassageView` pads the scrolled CONTENT itself
-  (`layoutChrome.ts` heights), so hiding/showing the bars
-  never reflows (jumps) the text. Other routes still reclaim
-  the AppShell's reserved padding when the chrome hides.
+  together. On `/bible` and `/notes/tag/:tagId` the bars
+  overlay a full-height scroll viewport — the AppShell
+  reserves no padding there (`chromeOverlays` in `App.tsx`);
+  instead `PassageView`/`TagNotesRoute` pad the scrolled
+  CONTENT itself (`layoutChrome.ts` heights +, for notes,
+  the measured toolbar height and `AUDIO_PLAYER_HEIGHT`),
+  so hiding/showing the bars never reflows (jumps) the text.
+  Other routes still reclaim the AppShell's reserved padding
+  when the chrome hides.
 
 ---
 
@@ -2943,7 +2973,10 @@ Form for creating/editing notes.
   (re-opens the dropdown's parent pane to re-parent). The
   toast and dropdown render inside the modal's own DOM
   because Mantine `Modal` aria-hides portals — including
-  the notifications container — while open
+  the notifications container — while open. The same
+  component serves the notes views' tag switchers
+  (`TagNotesToolbar`, `NotesView`) with
+  `creatable={false}` — picking there only navigates
 - Verse reference display
 - Form validation
 - Submit handler — serialized against in-flight autosaves so
@@ -4338,7 +4371,11 @@ prefetchAdjacentChapters(book, chapter, filesetId);
   stay eager (landing path)
 - **Modal chunks**: `AddTagNoteModal`, `AddStandaloneNoteModal`,
   `EditNoteModal` lazy + gated on their open flag, keeping
-  TipTap out of the entry graph entirely
+  TipTap out of the entry graph entirely. `ContactModal` is
+  deliberately EAGER — it code-splits to ~3KB since every dep
+  already sits in the shared chunks, so the lazy boundary only
+  added a network round trip to its first open (Sentry user
+  report 9116dff3, "opens really slow")
 
 **Optimizations**:
 - Tree-shaking enabled (Vite)
@@ -4661,8 +4698,9 @@ surface as the transport layer:
   burn quota — including untyped errors carrying the same
   `error_code`s. `ClientInputError` is deliberately NOT dropped —
   it means our own request was malformed, a bug worth
-  reporting. `TypeError` network failures ('Failed to fetch',
-  'Load failed', 'NetworkError…') are kept but tagged
+  reporting. `TypeError` network failures ('Failed to fetch' —
+  including newer Chrome's origin-suffixed 'Failed to fetch
+  (host)' — 'Load failed', 'NetworkError…') are kept but tagged
   `errorKind: network` so Sentry-side rules can route them;
   on `handled-api` events the level drops to warning —
   handled connectivity noise, like a `ConflictError`, stays

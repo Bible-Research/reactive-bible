@@ -107,6 +107,33 @@ describe('SettingsRoute', () => {
     expect(screen.getByText('STALE_ID')).toBeInTheDocument();
   });
 
+  it('shows the reorder confirmation toggle on by default ' +
+    'and writes the pref', async () => {
+      renderWithProviders(<SettingsRoute />);
+      const toggle = screen.getByRole('switch', {
+        name: 'Confirm before reordering notes',
+      });
+      expect(toggle).toBeChecked();
+      const user = userEvent.setup();
+
+      await user.click(toggle);
+
+      expect(useBibleStore.getState().confirmNoteReorder)
+        .toBe(false);
+    });
+
+  it('reflects a stored confirmNoteReorder opt-out', () => {
+    renderWithProviders(<SettingsRoute />, {
+      storeOverrides: { confirmNoteReorder: false },
+    });
+
+    expect(
+      screen.getByRole('switch', {
+        name: 'Confirm before reordering notes',
+      }),
+    ).not.toBeChecked();
+  });
+
   it('resets the pin back to following the selection',
     async () => {
       renderWithProviders(<SettingsRoute />, {

@@ -48,6 +48,9 @@ export const partializeState = (state: BibleState) => ({
   // Bottom-bar name marquee opt-out — the deferred settings
   // toggle will only need to write this one field.
   bookTitleMarquee: state.bookTitleMarquee,
+  // Ask before applying a custom-order change on a tag's
+  // notes; the /settings toggle opts out.
+  confirmNoteReorder: state.confirmNoteReorder,
   // showAudioPlayer is NOT persisted
   // detailNote is NOT persisted (transient share context)
   // pendingScrollVerse is NOT persisted
@@ -112,6 +115,9 @@ const migrateRef = (ref: Record<string, unknown>): VerseRef => ({
  * - pre-v11: `noteRefFilesetId` is introduced; a non-string
  *   persisted value is sanitized to `null` (follow the
  *   selected translation).
+ * - pre-v12: `confirmNoteReorder` is introduced; pinned to the
+ *   default (on) when absent or non-boolean so the migrated
+ *   record carries the new field.
  */
 export const migratePersistedState = (
   persistedState: unknown,
@@ -312,6 +318,16 @@ export const migratePersistedState = (
     migrated = {
       ...migrated,
       noteRefFilesetId: typeof pin === 'string' ? pin : null,
+    };
+  }
+
+  if (version < 12) {
+    migrated = {
+      ...migrated,
+      confirmNoteReorder:
+        typeof migrated.confirmNoteReorder === 'boolean'
+          ? migrated.confirmNoteReorder
+          : true,
     };
   }
 
